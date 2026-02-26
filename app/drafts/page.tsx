@@ -20,18 +20,17 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 
-
 export default function DraftsPage() {
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
-  
+
   // Fetch drafts using Convex query
   const drafts = useQuery(api.articles.getUserDrafts) || []
   const loading = drafts === undefined
-  
+
   // Convex mutation for deleting articles
   const deleteArticleMutation = useMutation(api.articles.deleteArticle)
-  const [deleteTarget, setDeleteTarget] = useState<Id<"articles"> | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Id<'articles'> | null>(null)
 
   if (isLoading) {
     return (
@@ -53,7 +52,7 @@ export default function DraftsPage() {
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     })
   }
 
@@ -103,13 +102,23 @@ export default function DraftsPage() {
                       </p>
                     )}
                     <div className="flex items-center gap-4 text-sm text-gray-500">
-                      <span>Created: {formatDate(new Date(draft._creationTime).toISOString())}</span>
+                      <span>
+                        Created:{' '}
+                        {formatDate(
+                          new Date(draft._creationTime).toISOString()
+                        )}
+                      </span>
                       <span>•</span>
-                      <span>Last saved: {formatDate(new Date(draft.updatedAt).toISOString())}</span>
+                      <span>
+                        Last saved:{' '}
+                        {formatDate(new Date(draft.updatedAt).toISOString())}
+                      </span>
                       {!draft.published && (
                         <>
                           <span>•</span>
-                          <span className="text-yellow-600 font-medium">Draft</span>
+                          <span className="text-yellow-600 font-medium">
+                            Draft
+                          </span>
                         </>
                       )}
                     </div>
@@ -135,22 +144,32 @@ export default function DraftsPage() {
         )}
 
         <div className="mt-8 text-sm text-gray-500 bg-blue-50 p-4 rounded-lg">
-          <p className="font-semibold mb-2">ℹ️ About Drafts</p>
+          <p className="font-semibold mb-2">About Drafts</p>
           <ul className="space-y-1">
-            <li>• All your unpublished articles are saved here automatically</li>
+            <li>
+              • All your unpublished articles are saved here automatically
+            </li>
             <li>• Click &quot;Edit&quot; to continue working on any draft</li>
             <li>• Drafts are auto-saved every 30 seconds while you write</li>
-            <li>• Delete drafts you no longer need to keep your workspace clean</li>
+            <li>
+              • Delete drafts you no longer need to keep your workspace clean
+            </li>
           </ul>
         </div>
       </div>
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null)
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. The draft will be permanently deleted.
+              This action cannot be undone. The draft will be permanently
+              deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

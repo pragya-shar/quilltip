@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @plugin "tailwindcss-animate";
 
@@ -26,7 +26,7 @@
 
 /* Import resizable image styles */
 @import '../components/editor/extensions/ResizableImageStyles.css';
-@import "tw-animate-css";
+@import 'tw-animate-css';
 
 /* Highlight animations and styles */
 @keyframes highlight-fade-in {
@@ -39,7 +39,8 @@
 }
 
 @keyframes highlight-pulse {
-  0%, 100% {
+  0%,
+  100% {
     filter: brightness(1);
   }
   50% {
@@ -49,7 +50,10 @@
 
 /* Base highlight styles */
 mark[data-highlight-id] {
-  background-image: linear-gradient(var(--highlight-color, #FFEB3B), var(--highlight-color, #FFEB3B));
+  background-image: linear-gradient(
+    var(--highlight-color, #ffeb3b),
+    var(--highlight-color, #ffeb3b)
+  );
   background-repeat: no-repeat;
   background-position: 0% 100%;
   background-size: 100% 100%;
@@ -66,16 +70,28 @@ mark[data-highlight-id]:hover {
 }
 
 /* Different highlight colors */
-mark[data-color="#FFEB3B"] { --highlight-color: #FFEB3B; } /* Yellow */
-mark[data-color="#FFB3BA"] { --highlight-color: #FFB3BA; } /* Pink */
-mark[data-color="#BAE1FF"] { --highlight-color: #BAE1FF; } /* Blue */
-mark[data-color="#BAFFC9"] { --highlight-color: #BAFFC9; } /* Green */
-mark[data-color="#FFD9BA"] { --highlight-color: #FFD9BA; } /* Orange */
-mark[data-color="#E8BAFF"] { --highlight-color: #E8BAFF; } /* Purple */
+mark[data-color='#FFEB3B'] {
+  --highlight-color: #ffeb3b;
+} /* Yellow */
+mark[data-color='#FFB3BA'] {
+  --highlight-color: #ffb3ba;
+} /* Pink */
+mark[data-color='#BAE1FF'] {
+  --highlight-color: #bae1ff;
+} /* Blue */
+mark[data-color='#BAFFC9'] {
+  --highlight-color: #baffc9;
+} /* Green */
+mark[data-color='#FFD9BA'] {
+  --highlight-color: #ffd9ba;
+} /* Orange */
+mark[data-color='#E8BAFF'] {
+  --highlight-color: #e8baff;
+} /* Purple */
 
 /* Highlight with note indicator */
 mark[data-note]::after {
-  content: "💬";
+  content: '💬';
   position: absolute;
   top: -8px;
   right: -8px;
@@ -87,7 +103,7 @@ mark[data-note]::after {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   opacity: 0;
   transition: opacity 0.2s ease;
 }
@@ -100,10 +116,10 @@ mark[data-note]:hover::after {
 mark[data-highlight-id] mark[data-highlight-id] {
   background-image: linear-gradient(
     45deg,
-    var(--highlight-color, #FFEB3B) 25%,
+    var(--highlight-color, #ffeb3b) 25%,
     transparent 25%,
     transparent 75%,
-    var(--highlight-color, #FFEB3B) 75%
+    var(--highlight-color, #ffeb3b) 75%
   );
   background-size: 10px 10px;
 }
@@ -257,7 +273,8 @@ mark[data-highlight-id] mark[data-highlight-id] {
   color: #3c4043;
 }
 
-.prose h5, .prose h6 {
+.prose h5,
+.prose h6 {
   font-size: 1.125rem;
   font-weight: 500;
   line-height: 1.5;
@@ -290,7 +307,8 @@ mark[data-highlight-id] mark[data-highlight-id] {
 }
 
 /* Lists with Better Spacing */
-.prose ul, .prose ol {
+.prose ul,
+.prose ol {
   margin-top: 1.25rem;
   margin-bottom: 1.25rem;
   padding-left: 1.625rem;
@@ -440,7 +458,8 @@ mark[data-highlight-id] mark[data-highlight-id] {
     font-size: 1.25rem;
   }
 
-  .prose p, .prose li {
+  .prose p,
+  .prose li {
     font-size: 1rem;
     line-height: 1.75;
   }
@@ -453,7 +472,9 @@ mark[data-highlight-id] mark[data-highlight-id] {
 
 /* Reading Experience Enhancements */
 .article-content .prose {
-  font-feature-settings: 'kern' 1, 'liga' 1;
+  font-feature-settings:
+    'kern' 1,
+    'liga' 1;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

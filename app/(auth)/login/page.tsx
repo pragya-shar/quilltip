@@ -3,7 +3,7 @@ import LoginForm from '@/components/auth/LoginForm'
 
 /**
  * Login Page
- * 
+ *
  * Provides user login functionality with email and password.
  * Integrates with NextAuth for authentication.
  */

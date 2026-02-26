@@ -11,13 +11,12 @@ import SearchInput from '@/components/articles/SearchInput'
 import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
 import { ArticleForDisplay } from '@/types/index'
 
-
 export default function ArticlesPage() {
   const [searchTerm, setSearchTerm] = useState('')
-  
+
   const searchParams = useSearchParams()
   const router = useRouter()
-  
+
   const currentPage = parseInt(searchParams?.get('page') || '1')
   const tag = searchParams?.get('tag') || undefined
   const author = searchParams?.get('author') || undefined
@@ -29,44 +28,49 @@ export default function ArticlesPage() {
     limit: 9,
     tag,
     author,
-    search: urlSearch
+    search: urlSearch,
   })
 
   // Map Convex articles to expected ArticleCard format
-  const articles: ArticleForDisplay[] = result?.articles.map(article => ({
-    id: article._id,
-    slug: article.slug,
-    title: article.title,
-    excerpt: article.excerpt || null,
-    coverImage: article.coverImage || null,
-    publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
-    author: {
-      id: article.author?.id as string,
-      name: article.author?.name || null,
-      username: article.author?.username || '',
-      avatar: article.author?.avatar || null,
-    },
-    tags: (article.tags || []).map((tagName, index) => ({
-      id: `tag-${index}`, // Generate temporary IDs for tag strings
-      name: tagName,
-      slug: tagName.toLowerCase().replace(/\s+/g, '-'),
-    })),
-  })) || []
-  const pagination = result ? {
-    page: result.page,
-    limit: result.limit,
-    totalCount: result.total,
-    totalPages: result.totalPages || Math.ceil(result.total / result.limit),
-    hasNextPage: result.page < (result.totalPages || Math.ceil(result.total / result.limit)),
-    hasPreviousPage: result.page > 1
-  } : {
-    page: 1,
-    limit: 9,
-    totalCount: 0,
-    totalPages: 0,
-    hasNextPage: false,
-    hasPreviousPage: false
-  }
+  const articles: ArticleForDisplay[] =
+    result?.articles.map((article) => ({
+      id: article._id,
+      slug: article.slug,
+      title: article.title,
+      excerpt: article.excerpt || null,
+      coverImage: article.coverImage || null,
+      publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
+      author: {
+        id: article.author?.id as string,
+        name: article.author?.name || null,
+        username: article.author?.username || '',
+        avatar: article.author?.avatar || null,
+      },
+      tags: (article.tags || []).map((tagName, index) => ({
+        id: `tag-${index}`, // Generate temporary IDs for tag strings
+        name: tagName,
+        slug: tagName.toLowerCase().replace(/\s+/g, '-'),
+      })),
+    })) || []
+  const pagination = result
+    ? {
+        page: result.page,
+        limit: result.limit,
+        totalCount: result.total,
+        totalPages: result.totalPages || Math.ceil(result.total / result.limit),
+        hasNextPage:
+          result.page <
+          (result.totalPages || Math.ceil(result.total / result.limit)),
+        hasPreviousPage: result.page > 1,
+      }
+    : {
+        page: 1,
+        limit: 9,
+        totalCount: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      }
   const loading = result === undefined
   const error = null // Convex handles errors automatically
 
@@ -99,11 +103,13 @@ export default function ArticlesPage() {
   return (
     <div className="min-h-screen bg-brand-cream">
       <AppNavigation />
-      
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
         {/* Page Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">All Articles</h1>
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            All Articles
+          </h1>
           <p className="text-lg text-gray-600">
             Discover stories, thinking, and expertise from writers on QuillTip
           </p>
@@ -128,7 +134,9 @@ export default function ArticlesPage() {
                 Tag: {tag}
                 <button
                   onClick={() => {
-                    const params = new URLSearchParams(searchParams?.toString() || '')
+                    const params = new URLSearchParams(
+                      searchParams?.toString() || ''
+                    )
                     params.delete('tag')
                     params.set('page', '1')
                     router.push(`/articles?${params.toString()}`)
@@ -145,7 +153,9 @@ export default function ArticlesPage() {
                 Author: @{author}
                 <button
                   onClick={() => {
-                    const params = new URLSearchParams(searchParams?.toString() || '')
+                    const params = new URLSearchParams(
+                      searchParams?.toString() || ''
+                    )
                     params.delete('author')
                     params.set('page', '1')
                     router.push(`/articles?${params.toString()}`)
@@ -162,7 +172,9 @@ export default function ArticlesPage() {
                 Search: &ldquo;{urlSearch}&rdquo;
                 <button
                   onClick={() => {
-                    const params = new URLSearchParams(searchParams?.toString() || '')
+                    const params = new URLSearchParams(
+                      searchParams?.toString() || ''
+                    )
                     params.delete('search')
                     params.set('page', '1')
                     router.push(`/articles?${params.toString()}`)
@@ -192,7 +204,7 @@ export default function ArticlesPage() {
         {!loading && !error && (
           <>
             <ArticleGrid articles={articles} />
-            
+
             {/* Pagination */}
             {pagination.totalPages > 1 && (
               <div className="mt-12">
@@ -207,7 +219,12 @@ export default function ArticlesPage() {
             {/* Results Summary */}
             {articles.length > 0 && (
               <div className="mt-4 text-center text-sm text-gray-600">
-                Showing {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, pagination.totalCount)} of {pagination.totalCount} articles
+                Showing {(pagination.page - 1) * pagination.limit + 1} -{' '}
+                {Math.min(
+                  pagination.page * pagination.limit,
+                  pagination.totalCount
+                )}{' '}
+                of {pagination.totalCount} articles
               </div>
             )}
           </>

@@ -34,15 +34,18 @@ export default function WritePage() {
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [publishStatus, setPublishStatus] = useState<{published: boolean, publishedAt: Date | null}>({
+  const [publishStatus, setPublishStatus] = useState<{
+    published: boolean
+    publishedAt: Date | null
+  }>({
     published: false,
-    publishedAt: null
+    publishedAt: null,
   })
-  
+
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
   const convex = useConvex()
-  
+
   // Convex mutations
   const createArticleMutation = useMutation(api.articles.createArticle)
   const publishArticleMutation = useMutation(api.articles.publishArticle)
@@ -53,37 +56,39 @@ export default function WritePage() {
     extensions: [
       StarterKit.configure({
         heading: {
-          levels: [1, 2, 3, 4, 5, 6]
+          levels: [1, 2, 3, 4, 5, 6],
         },
-        codeBlock: false
+        codeBlock: false,
       }),
       Underline,
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
-          class: 'text-blue-600 underline cursor-pointer hover:text-blue-800'
-        }
+          class: 'text-blue-600 underline cursor-pointer hover:text-blue-800',
+        },
       }),
       ResizableImage.configure({
         HTMLAttributes: {
-          class: 'max-w-full h-auto rounded-lg my-4'
-        }
+          class: 'max-w-full h-auto rounded-lg my-4',
+        },
       }),
       Placeholder.configure({
-        placeholder: 'Start writing your story...'
+        placeholder: 'Start writing your story...',
       }),
       CodeBlockLowlight.configure({
         lowlight,
         HTMLAttributes: {
-          class: 'rounded-lg bg-gray-900 text-gray-100 p-4 my-4 overflow-x-auto'
-        }
-      })
+          class:
+            'rounded-lg bg-gray-900 text-gray-100 p-4 my-4 overflow-x-auto',
+        },
+      }),
     ],
     content: '',
     editorProps: {
       attributes: {
-        class: 'prose prose-lg max-w-none focus:outline-none min-h-[400px] px-8 py-4'
-      }
+        class:
+          'prose prose-lg max-w-none focus:outline-none min-h-[400px] px-8 py-4',
+      },
     },
     onCreate: ({ editor }) => {
       // Set initial content state when editor is created
@@ -94,7 +99,7 @@ export default function WritePage() {
       const json = editor.getJSON()
       setEditorContent(json)
       setHasUnsavedChanges(true)
-    }
+    },
   })
 
   // Auto-save hook - enable when we have a user and any content
@@ -112,17 +117,20 @@ export default function WritePage() {
     },
     onSaveError: (error) => {
       console.error('Auto-save error:', error)
-    }
+    },
   })
 
   // Get draft ID from URL params
-  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null
+  const urlParams =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search)
+      : null
   const draftId = urlParams?.get('id')
-  
+
   // Load draft using Convex query
   const draft = useQuery(
-    api.articles.getArticleById, 
-    draftId ? { id: draftId as Id<"articles"> } : "skip"
+    api.articles.getArticleById,
+    draftId ? { id: draftId as Id<'articles'> } : 'skip'
   )
 
   // Load draft data when it arrives
@@ -133,7 +141,7 @@ export default function WritePage() {
       setExcerpt(draft.excerpt || '')
       setPublishStatus({
         published: draft.published,
-        publishedAt: draft.publishedAt ? new Date(draft.publishedAt) : null
+        publishedAt: draft.publishedAt ? new Date(draft.publishedAt) : null,
       })
       if (draft.content) {
         editor.commands.setContent(draft.content)
@@ -145,71 +153,76 @@ export default function WritePage() {
   }, [draft, editor])
 
   // Handle cover image URL upload
-  const handleCoverImageUpload = useCallback(async (url: string) => {
-    if (!url.trim()) {
-      setCoverImage('')
-      return
-    }
-    
-    // Check if it's already a Convex URL
-    if (url.includes('convex.cloud') || url.includes('convex.site')) {
-      setCoverImage(url)
-      return
-    }
-    
-    setIsUploadingCover(true)
-    setCoverUploadError('')
-    
-    try {
-      // Fetch the image from the URL
-      const response = await fetch(url)
-      if (!response.ok) {
-        throw new Error('Failed to fetch image from URL')
+  const handleCoverImageUpload = useCallback(
+    async (url: string) => {
+      if (!url.trim()) {
+        setCoverImage('')
+        return
       }
-      
-      const blob = await response.blob()
-      
-      // Check if it's actually an image
-      if (!blob.type.startsWith('image/')) {
-        throw new Error('URL does not point to a valid image')
+
+      // Check if it's already a Convex URL
+      if (url.includes('convex.cloud') || url.includes('convex.site')) {
+        setCoverImage(url)
+        return
       }
-      
-      // Convert blob to File
-      const file = new File([blob], 'cover-image', { type: blob.type })
-      
-      // Compress and upload to Convex storage
-      const compressedFile = await compressImage(file, 1200, 0.8)
-      const result = await uploadFile(
-        compressedFile, 
-        convex,
-        'cover_image',
-        undefined, // no specific article yet
-      )
-      
-      if (result.success && result.url) {
-        setCoverImage(result.url)
-        setCoverImageInput(result.url)
-        setCoverUploadError('')
-      } else {
-        throw new Error(result.error || 'Upload failed')
-      }
-    } catch (error) {
-      console.error('Cover image upload error:', error)
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          setCoverUploadError('Unable to fetch image. It may be protected by CORS.')
-        } else {
-          setCoverUploadError(error.message)
+
+      setIsUploadingCover(true)
+      setCoverUploadError('')
+
+      try {
+        // Fetch the image from the URL
+        const response = await fetch(url)
+        if (!response.ok) {
+          throw new Error('Failed to fetch image from URL')
         }
-      } else {
-        setCoverUploadError('Failed to upload image')
+
+        const blob = await response.blob()
+
+        // Check if it's actually an image
+        if (!blob.type.startsWith('image/')) {
+          throw new Error('URL does not point to a valid image')
+        }
+
+        // Convert blob to File
+        const file = new File([blob], 'cover-image', { type: blob.type })
+
+        // Compress and upload to Convex storage
+        const compressedFile = await compressImage(file, 1200, 0.8)
+        const result = await uploadFile(
+          compressedFile,
+          convex,
+          'cover_image',
+          undefined // no specific article yet
+        )
+
+        if (result.success && result.url) {
+          setCoverImage(result.url)
+          setCoverImageInput(result.url)
+          setCoverUploadError('')
+        } else {
+          throw new Error(result.error || 'Upload failed')
+        }
+      } catch (error) {
+        console.error('Cover image upload error:', error)
+        if (error instanceof Error) {
+          if (error.message.includes('Failed to fetch')) {
+            setCoverUploadError(
+              'Unable to fetch image. It may be protected by CORS.'
+            )
+          } else {
+            setCoverUploadError(error.message)
+          }
+        } else {
+          setCoverUploadError('Failed to upload image')
+        }
+        // Keep the original URL in the input
+        setCoverImage(url)
+      } finally {
+        setIsUploadingCover(false)
       }
-      // Keep the original URL in the input
-      setCoverImage(url)
-    } finally {
-      setIsUploadingCover(false)
-    }
-  }, [convex])
+    },
+    [convex]
+  )
 
   // Handle publish
   const handlePublish = useCallback(async () => {
@@ -222,19 +235,24 @@ export default function WritePage() {
     try {
       // Save one final time before publishing
       await saveNow()
-      
-      let resultId: string;
-      
+
+      let resultId: string
+
       if (articleId) {
         // Publish existing draft
-        resultId = await publishArticleMutation({ id: articleId as Id<"articles"> })
+        resultId = await publishArticleMutation({
+          id: articleId as Id<'articles'>,
+        })
       } else {
         // Create and publish new article
         resultId = await createArticleMutation({
           title,
           content: editorContent,
           excerpt: excerpt || undefined,
-          tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+          tags: tags
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean),
           coverImage: coverImage || undefined,
           published: true, // Publishing immediately
         })
@@ -244,21 +262,33 @@ export default function WritePage() {
       if (!articleId) {
         setArticleId(resultId)
       }
-      
+
       // Update publish status
       setPublishStatus({
         published: true,
-        publishedAt: new Date()
+        publishedAt: new Date(),
       })
-      
+
       toast.success('Article published successfully!')
     } catch (error) {
       console.error('Publish error:', error)
-      toast.error(`Failed to publish: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      toast.error(
+        `Failed to publish: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     } finally {
       setIsPublishing(false)
     }
-  }, [title, editorContent, excerpt, tags, coverImage, saveNow, articleId, publishArticleMutation, createArticleMutation])
+  }, [
+    title,
+    editorContent,
+    excerpt,
+    tags,
+    coverImage,
+    saveNow,
+    articleId,
+    publishArticleMutation,
+    createArticleMutation,
+  ])
 
   // Authentication checks
   if (isLoading) {
@@ -281,12 +311,12 @@ export default function WritePage() {
         {/* Header with auto-save status */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Write Your Story</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Write Your Story
+            </h1>
             {articleId && (
               <div className="text-sm mt-1">
-                <p className="text-gray-500">
-                  Article ID: {articleId}
-                </p>
+                <p className="text-gray-500">Article ID: {articleId}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-sm font-medium">Status:</span>
                   {publishStatus.published ? (
@@ -302,7 +332,8 @@ export default function WritePage() {
                   )}
                   {publishStatus.published && publishStatus.publishedAt && (
                     <span className="text-xs text-gray-500">
-                      • Published {publishStatus.publishedAt.toLocaleDateString()}
+                      • Published{' '}
+                      {publishStatus.publishedAt.toLocaleDateString()}
                     </span>
                   )}
                 </div>
@@ -331,7 +362,7 @@ export default function WritePage() {
                 </span>
               )}
             </div>
-            
+
             {/* Manual save button */}
             <button
               onClick={() => {
@@ -344,7 +375,7 @@ export default function WritePage() {
             >
               {isSaving ? 'Saving...' : 'Save Now'}
             </button>
-            
+
             {/* Publish button */}
             {publishStatus.published ? (
               <span className="inline-flex items-center gap-1 px-4 py-2 bg-green-100 text-green-800 text-sm font-medium rounded-lg">
@@ -394,7 +425,11 @@ export default function WritePage() {
                 }
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && coverImageInput && coverImageInput !== coverImage) {
+                if (
+                  e.key === 'Enter' &&
+                  coverImageInput &&
+                  coverImageInput !== coverImage
+                ) {
                   e.preventDefault()
                   handleCoverImageUpload(coverImageInput)
                 }
@@ -408,24 +443,26 @@ export default function WritePage() {
               </div>
             )}
           </div>
-          
+
           {coverUploadError && (
             <p className="mt-1 text-sm text-red-600">{coverUploadError}</p>
           )}
-          
+
           {coverImage && (
             <div className="mt-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img 
-                src={coverImage} 
-                alt="Cover preview" 
+              <img
+                src={coverImage}
+                alt="Cover preview"
                 className="h-48 w-full object-cover rounded-lg"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none'
                 }}
               />
               {coverImage.includes('convex') && (
-                <p className="mt-1 text-xs text-green-600">✓ Image uploaded to storage</p>
+                <p className="mt-1 text-xs text-green-600">
+                  ✓ Image uploaded to storage
+                </p>
               )}
             </div>
           )}
@@ -434,15 +471,15 @@ export default function WritePage() {
         {/* Editor with Toolbar */}
         <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <EditorToolbar editor={editor} />
-          <EditorContent 
-            editor={editor} 
-            className="editor-content"
-          />
+          <EditorContent editor={editor} className="editor-content" />
         </div>
 
         {/* Excerpt */}
         <div className="mb-6">
-          <label htmlFor="article-excerpt" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="article-excerpt"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Article Excerpt
           </label>
           <textarea
@@ -460,7 +497,10 @@ export default function WritePage() {
 
         {/* Tags */}
         <div className="mb-6">
-          <label htmlFor="article-tags" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="article-tags"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Tags
           </label>
           <input
@@ -475,12 +515,15 @@ export default function WritePage() {
 
         {/* Help text */}
         <div className="text-sm text-gray-500 bg-blue-50 p-4 rounded-lg">
-          <p className="font-semibold mb-2">ℹ️ Auto-save is enabled</p>
+          <p className="font-semibold mb-2">Auto-save is enabled</p>
           <ul className="space-y-1">
             <li>• Your work is automatically saved every 30 seconds</li>
             <li>• The green indicator shows when your work was last saved</li>
             <li>• Your draft will be saved even if you close the browser</li>
-            <li>• Use the &quot;Publish&quot; button when you&apos;re ready to make your article public</li>
+            <li>
+              • Use the &quot;Publish&quot; button when you&apos;re ready to
+              make your article public
+            </li>
           </ul>
         </div>
       </div>

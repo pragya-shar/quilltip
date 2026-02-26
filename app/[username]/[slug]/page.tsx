@@ -9,7 +9,14 @@ import AppNavigation from '@/components/layout/AppNavigation'
 import { TipStats } from '@/components/tipping/TipStats'
 import { TipButton } from '@/components/tipping/TipButton'
 import { NFTIntegration } from '@/components/nft/NFTIntegration'
-import { DollarSign, Trophy, Heart, MessageSquare, ChevronDown, Archive } from 'lucide-react'
+import {
+  DollarSign,
+  Trophy,
+  Heart,
+  MessageSquare,
+  ChevronDown,
+  Archive,
+} from 'lucide-react'
 import { ArweaveStatus } from '@/components/articles/ArweaveStatus'
 import { HighlightNotes } from '@/components/highlights/HighlightNotes'
 import { HighlightHeatmap } from '@/components/highlights/HighlightHeatmap'
@@ -31,23 +38,25 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   }>({ username: null, slug: null })
   const [showHighlightsPanel, setShowHighlightsPanel] = useState(false)
   const { user } = useAuth()
-  
+
   // Get params from promise
   useEffect(() => {
-    params.then(p => setRouteParams({
-      username: p.username,
-      slug: p.slug
-    }))
+    params.then((p) =>
+      setRouteParams({
+        username: p.username,
+        slug: p.slug,
+      })
+    )
   }, [params])
-  
+
   // Fetch article
   const article = useQuery(
     api.articles.getArticleBySlug,
-    routeParams.username && routeParams.slug 
+    routeParams.username && routeParams.slug
       ? { username: routeParams.username, slug: routeParams.slug }
       : 'skip'
   )
-  
+
   // Fetch highlights if article exists
   const highlights = useQuery(
     api.highlights.getArticleHighlights,
@@ -64,9 +73,9 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   const tipsByHighlight = useMemo(() => {
     if (!highlightTipStats?.topHighlights) return {}
     return Object.fromEntries(
-      highlightTipStats.topHighlights.map(h => [
+      highlightTipStats.topHighlights.map((h) => [
         h.highlightId,
-        { count: h.tipCount, totalUsd: h.totalAmountCents / 100 }
+        { count: h.tipCount, totalUsd: h.totalAmountCents / 100 },
       ])
     )
   }, [highlightTipStats])
@@ -93,12 +102,12 @@ export default function ArticlePage({ params }: ArticlePageProps) {
       </div>
     )
   }
-  
+
   // Check if article exists (null means not found, undefined means loading)
   if (routeParams.username && routeParams.slug && article === null) {
     notFound()
   }
-  
+
   // Show loading while article is being fetched
   if (!article) {
     return (
@@ -140,7 +149,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
     })),
     tipStats: article.tipStats,
   }
-  
+
   return (
     <div className="min-h-screen bg-brand-cream">
       <AppNavigation />
@@ -151,7 +160,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
             <div className="lg:col-span-8">
               <ArticleDisplay article={articleForDisplay} />
             </div>
-            
+
             {/* Engagement Sidebar */}
             <div className="lg:col-span-4">
               <div className="sticky top-24 space-y-6">
@@ -170,7 +179,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                     <TipStats articleId={article._id} />
                   </div>
                 </div>
-                
+
                 {/* NFT Section */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -186,13 +195,13 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                     currentUserAddress={user?.stellarAddress}
                   />
                 </div>
-                
+
                 {/* Highlight Heatmap Section */}
-                <HighlightHeatmap 
+                <HighlightHeatmap
                   articleId={article._id}
                   isAuthor={user?._id === article.author.id}
                 />
-                
+
                 {/* Highlight Notes Section */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                   <button
@@ -202,18 +211,21 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                     <h3 className="text-lg font-semibold flex items-center gap-2">
                       <MessageSquare className="w-5 h-5 text-blue-500" />
                       Highlight Notes
-                      {highlights && highlights.filter(h => h.note).length > 0 && (
-                        <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-sm rounded-full">
-                          {highlights.filter(h => h.note).length}
-                        </span>
-                      )}
+                      {highlights &&
+                        highlights.filter((h) => h.note).length > 0 && (
+                          <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-sm rounded-full">
+                            {highlights.filter((h) => h.note).length}
+                          </span>
+                        )}
                     </h3>
-                    <ChevronDown className={cn(
-                      "w-4 h-4 transform transition-transform",
-                      showHighlightsPanel ? "rotate-180" : ""
-                    )} />
+                    <ChevronDown
+                      className={cn(
+                        'w-4 h-4 transform transition-transform',
+                        showHighlightsPanel ? 'rotate-180' : ''
+                      )}
+                    />
                   </button>
-                  
+
                   {showHighlightsPanel && (
                     <div className="border-t">
                       <HighlightNotes
@@ -222,15 +234,20 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                         tipsByHighlight={tipsByHighlight}
                         onNoteClick={(highlight) => {
                           // Scroll to highlight in article
-                          const element = document.querySelector(`[data-highlight-id="${highlight._id}"]`)
-                          element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                          const element = document.querySelector(
+                            `[data-highlight-id="${highlight._id}"]`
+                          )
+                          element?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center',
+                          })
                         }}
                         className="max-h-[500px] overflow-y-auto"
                       />
                     </div>
                   )}
                 </div>
-                
+
                 {/* Article Stats */}
                 {article.tipStats && (
                   <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -241,11 +258,15 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                     <div className="space-y-3">
                       <div className="flex justify-between">
                         <span className="text-gray-600">Total Tips</span>
-                        <span className="font-semibold">{article.tipStats.count || 0}</span>
+                        <span className="font-semibold">
+                          {article.tipStats.count || 0}
+                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Total Earned</span>
-                        <span className="font-semibold">${(article.tipStats.total || 0).toFixed(2)}</span>
+                        <span className="font-semibold">
+                          ${(article.tipStats.total || 0).toFixed(2)}
+                        </span>
                       </div>
                     </div>
                   </div>

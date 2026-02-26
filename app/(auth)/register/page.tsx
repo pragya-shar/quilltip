@@ -3,7 +3,7 @@ import RegisterForm from '@/components/auth/RegisterForm'
 
 /**
  * Registration Page
- * 
+ *
  * Provides user registration functionality with email, username, and password.
  * Creates new user accounts in the database.
  */

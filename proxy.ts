@@ -9,7 +9,10 @@ export function proxy(request: NextRequest) {
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
   response.headers.set('X-XSS-Protection', '1; mode=block')
-  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=()'
+  )
 
   // Content Security Policy (production only - dev needs full access for HMR/React)
   if (process.env.NODE_ENV === 'production') {
@@ -30,13 +33,19 @@ export function proxy(request: NextRequest) {
 
   // HSTS only in production
   if (process.env.NODE_ENV === 'production') {
-    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload')
+    response.headers.set(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains; preload'
+    )
   }
 
   // Handle dynamic article routes with additional headers
   if (pathname.match(/^\/[^\/]+\/[^\/]+$/)) {
     // Add headers to improve RSC streaming reliability
-    response.headers.set('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate')
+    response.headers.set(
+      'Cache-Control',
+      'no-cache, no-store, max-age=0, must-revalidate'
+    )
     response.headers.set('X-Accel-Buffering', 'no') // Disable nginx buffering
   }
 
