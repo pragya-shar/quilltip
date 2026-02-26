@@ -373,7 +373,7 @@ mod tests {
         
         // Mint NFT
         let article_id = Symbol::new(&env, "article_123");
-        let metadata_url = String::from_str(&env, "https://quilltip.com/article/123");
+        let metadata_url = String::from_str(&env, "https://quilltip.me/article/123");
         let token_id = client.mint_article_nft(
             &author,
             &article_id,
@@ -409,7 +409,7 @@ mod tests {
         client.initialize(&admin, &None);
         
         let article_id = Symbol::new(&env, "article_456");
-        let metadata_url = String::from_str(&env, "https://quilltip.com/article/456");
+        let metadata_url = String::from_str(&env, "https://quilltip.me/article/456");
         
         // First mint succeeds
         client.mint_article_nft(&author, &article_id, &200_000_000, &metadata_url);
@@ -432,7 +432,7 @@ mod tests {
         client.initialize(&admin, &Some(100_000_000)); // 10 XLM threshold
         
         let article_id = Symbol::new(&env, "article_789");
-        let metadata_url = String::from_str(&env, "https://quilltip.com/article/789");
+        let metadata_url = String::from_str(&env, "https://quilltip.me/article/789");
         
         // Try to mint with insufficient tips
         client.mint_article_nft(&author, &article_id, &50_000_000, &metadata_url); // Only 5 XLM

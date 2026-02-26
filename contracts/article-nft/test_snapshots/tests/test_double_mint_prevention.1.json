@@ -47,7 +47,7 @@
                   }
                 },
                 {
-                  "string": "https://quilltip.com/article/456"
+                  "string": "https://quilltip.me/article/456"
                 }
               ]
             }
@@ -212,7 +212,7 @@
                         "symbol": "metadata_url"
                       },
                       "val": {
-                        "string": "https://quilltip.com/article/456"
+                        "string": "https://quilltip.me/article/456"
                       }
                     },
                     {
