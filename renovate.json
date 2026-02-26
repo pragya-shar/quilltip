@@ -1,0 +1,24 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "groupName": "radix-ui",
+      "matchPackagePatterns": ["@radix-ui/*"]
+    },
+    {
+      "groupName": "tiptap",
+      "matchPackagePatterns": ["@tiptap/*", "tiptap-*"]
+    },
+    {
+      "groupName": "stellar",
+      "matchPackagePatterns": ["@stellar/*", "@creit.tech/*"]
+    },
+    {
+      "groupName": "testing",
+      "matchPackagePatterns": ["vitest", "convex-test"],
+      "automerge": true,
+      "matchUpdateTypes": ["minor", "patch"]
+    }
+  ]
+}

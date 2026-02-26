@@ -1,0 +1,9 @@
+node_modules
+.next
+coverage
+convex/_generated
+bun.lock
+*.tsbuildinfo
+public
+contracts/*/target
+.changeset
