@@ -24,8 +24,12 @@ interface UploadProgress {
 export async function uploadFile(
   file: File,
   convexClient: ConvexReactClient,
-  uploadType: "avatar" | "article_image" | "cover_image" | "article_cover" = 'article_image',
-  articleId?: Id<"articles">,
+  uploadType:
+    | 'avatar'
+    | 'article_image'
+    | 'cover_image'
+    | 'article_cover' = 'article_image',
+  articleId?: Id<'articles'>,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<UploadResult> {
   try {
@@ -33,7 +37,7 @@ export async function uploadFile(
     if (!file.type.startsWith('image/')) {
       return {
         success: false,
-        error: 'Please select an image file'
+        error: 'Please select an image file',
       }
     }
 
@@ -42,29 +46,35 @@ export async function uploadFile(
     if (file.size > maxSize) {
       return {
         success: false,
-        error: 'Image must be smaller than 10MB'
+        error: 'Image must be smaller than 10MB',
       }
     }
 
     // Step 1: Get upload URL from Convex
-    const uploadUrl = await convexClient.mutation(api.uploads.generateUploadUrl, {})
-    
+    const uploadUrl = await convexClient.mutation(
+      api.uploads.generateUploadUrl,
+      {}
+    )
+
     // Step 2: Upload file to Convex storage with progress tracking
-    const result = await new Promise<{storageId?: Id<"_storage">, error?: string}>((resolve) => {
+    const result = await new Promise<{
+      storageId?: Id<'_storage'>
+      error?: string
+    }>((resolve) => {
       const xhr = new XMLHttpRequest()
-      
+
       // Track upload progress
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable && onProgress) {
           const progress: UploadProgress = {
             loaded: event.loaded,
             total: event.total,
-            percentage: Math.round((event.loaded / event.total) * 100)
+            percentage: Math.round((event.loaded / event.total) * 100),
           }
           onProgress(progress)
         }
       })
-      
+
       // Handle completion
       xhr.addEventListener('load', async () => {
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -78,43 +88,49 @@ export async function uploadFile(
           resolve({ error: 'Failed to upload file to storage' })
         }
       })
-      
+
       // Handle errors
       xhr.addEventListener('error', () => {
         resolve({ error: 'Network error occurred during upload' })
       })
-      
+
       // Start upload
       xhr.open('POST', uploadUrl)
       xhr.send(file)
     })
-    
+
     if (result.error || !result.storageId) {
       return {
         success: false,
-        error: result.error || 'Upload failed'
+        error: result.error || 'Upload failed',
       }
     }
 
     // Step 3: Store file metadata and get public URL
-    const metadata = await convexClient.mutation(api.uploads.storeFileMetadata, {
-      storageId: result.storageId,
-      fileName: file.name,
-      fileType: file.type,
-      fileSize: file.size,
-      uploadType,
-      articleId,
-    })
+    const metadata = await convexClient.mutation(
+      api.uploads.storeFileMetadata,
+      {
+        storageId: result.storageId,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        uploadType,
+        articleId,
+      }
+    )
 
     return {
       success: true,
-      url: metadata.url || undefined
+      url: metadata.url || undefined,
     }
   } catch (error) {
     console.error('Upload error:', error)
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Network error occurred during upload'
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Network error occurred during upload',
     }
   }
 }
@@ -132,7 +148,11 @@ export function generateUniqueFilename(originalName: string): string {
 /**
  * Compress image before upload (basic client-side compression)
  */
-export function compressImage(file: File, maxWidth: number = 1200, quality: number = 0.8): Promise<File> {
+export function compressImage(
+  file: File,
+  maxWidth: number = 1200,
+  quality: number = 0.8
+): Promise<File> {
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas')
     const ctx = canvas.getContext('2d')!

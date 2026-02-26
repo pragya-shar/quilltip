@@ -1,7 +1,9 @@
 import { z } from 'zod'
 
 // Stellar address pattern (G... for accounts, C... for contracts)
-const stellarAddressSchema = z.string().regex(/^[GC][A-Z0-9]{55}$/, 'Invalid Stellar address format')
+const stellarAddressSchema = z
+  .string()
+  .regex(/^[GC][A-Z0-9]{55}$/, 'Invalid Stellar address format')
 
 // Environment validation schema
 const envSchema = z.object({
@@ -13,15 +15,18 @@ const envSchema = z.object({
 // Validate environment variables at module load
 function validateStellarEnv() {
   const env = {
-    NEXT_PUBLIC_TIPPING_CONTRACT_ID: process.env.NEXT_PUBLIC_TIPPING_CONTRACT_ID || undefined,
-    NEXT_PUBLIC_NFT_CONTRACT_ID: process.env.NEXT_PUBLIC_NFT_CONTRACT_ID || undefined,
-    NEXT_PUBLIC_PLATFORM_ADDRESS: process.env.NEXT_PUBLIC_PLATFORM_ADDRESS || undefined,
+    NEXT_PUBLIC_TIPPING_CONTRACT_ID:
+      process.env.NEXT_PUBLIC_TIPPING_CONTRACT_ID || undefined,
+    NEXT_PUBLIC_NFT_CONTRACT_ID:
+      process.env.NEXT_PUBLIC_NFT_CONTRACT_ID || undefined,
+    NEXT_PUBLIC_PLATFORM_ADDRESS:
+      process.env.NEXT_PUBLIC_PLATFORM_ADDRESS || undefined,
   }
 
   const result = envSchema.safeParse(env)
 
   if (!result.success) {
-    const invalid = result.error.issues.map(i => i.path.join('.')).join(', ')
+    const invalid = result.error.issues.map((i) => i.path.join('.')).join(', ')
     const message = `[Stellar Config] Invalid environment variables: ${invalid}`
     if (process.env.NODE_ENV === 'production') {
       throw new Error(message)
@@ -33,10 +38,14 @@ function validateStellarEnv() {
   // Warn about missing optional vars that affect functionality
   if (typeof window !== 'undefined') {
     if (!env.NEXT_PUBLIC_TIPPING_CONTRACT_ID) {
-      console.warn('[Stellar Config] NEXT_PUBLIC_TIPPING_CONTRACT_ID is not set. Tipping will not work.')
+      console.warn(
+        '[Stellar Config] NEXT_PUBLIC_TIPPING_CONTRACT_ID is not set. Tipping will not work.'
+      )
     }
     if (!env.NEXT_PUBLIC_PLATFORM_ADDRESS) {
-      console.warn('[Stellar Config] NEXT_PUBLIC_PLATFORM_ADDRESS is not set. Platform fee collection disabled.')
+      console.warn(
+        '[Stellar Config] NEXT_PUBLIC_PLATFORM_ADDRESS is not set. Platform fee collection disabled.'
+      )
     }
   }
 }
@@ -47,9 +56,15 @@ validateStellarEnv()
 export const STELLAR_CONFIG = {
   // Network configuration
   NETWORK: process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET',
-  HORIZON_URL: process.env.NEXT_PUBLIC_HORIZON_URL || 'https://horizon-testnet.stellar.org',
-  SOROBAN_RPC_URL: process.env.NEXT_PUBLIC_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
-  NETWORK_PASSPHRASE: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015',
+  HORIZON_URL:
+    process.env.NEXT_PUBLIC_HORIZON_URL ||
+    'https://horizon-testnet.stellar.org',
+  SOROBAN_RPC_URL:
+    process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ||
+    'https://soroban-testnet.stellar.org',
+  NETWORK_PASSPHRASE:
+    process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
+    'Test SDF Network ; September 2015',
 
   // Contract addresses (2 contracts - Unified Tipping + NFT)
   // TIPPING_CONTRACT_ID handles BOTH article AND highlight tipping
@@ -67,13 +82,15 @@ export const STELLAR_CONFIG = {
   // NFT settings
   NFT_TIP_THRESHOLD_XLM: 10, // 10 XLM minimum tips to mint NFT
   NFT_TIP_THRESHOLD_STROOPS: 100_000_000, // 10 XLM in stroops
-  NFT_METADATA_BASE_URL: process.env.NEXT_PUBLIC_NFT_METADATA_URL || 'https://quilltip.com/api/nft/metadata',
+  NFT_METADATA_BASE_URL:
+    process.env.NEXT_PUBLIC_NFT_METADATA_URL ||
+    'https://quilltip.me/api/nft/metadata',
   NFT_ROYALTY_BPS: 500, // 5% royalty in basis points
 
   // Fallback conversion rate (used only when all price oracles fail)
   // Updated: Jan 2026 - Conservative rate based on recent market (~$0.21-0.24)
   XLM_TO_USD_RATE: 0.22,
-} as const;
+} as const
 
 export const TIP_AMOUNTS = [
   { cents: 1, label: '1¢' },
@@ -82,5 +99,4 @@ export const TIP_AMOUNTS = [
   { cents: 25, label: '25¢' },
   { cents: 50, label: '50¢' },
   { cents: 100, label: '$1' },
-] as const;
-
+] as const

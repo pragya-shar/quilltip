@@ -17,31 +17,30 @@ import type {
  * This prevents collisions that could occur with simple truncation
  */
 function shortArticleId(articleId: string): string {
-  return createHash('sha256')
-    .update(articleId)
-    .digest('hex')
-    .slice(0, 10);
+  return createHash('sha256').update(articleId).digest('hex').slice(0, 10)
 }
 
 // Cache for XLM price to avoid excessive API calls
-let xlmPriceCache: { price: number; timestamp: number; source: string } | null = null;
-const PRICE_CACHE_TTL = 60 * 1000; // 1 minute cache
-const PRICE_FETCH_TIMEOUT = 5000; // 5 second timeout per oracle
-const MAX_REASONABLE_XLM_PRICE = 100; // Sanity check upper bound
+let xlmPriceCache: { price: number; timestamp: number; source: string } | null =
+  null
+const PRICE_CACHE_TTL = 60 * 1000 // 1 minute cache
+const PRICE_FETCH_TIMEOUT = 5000 // 5 second timeout per oracle
+const MAX_REASONABLE_XLM_PRICE = 100 // Sanity check upper bound
 
 // Price oracles with parsers (in priority order)
 const PRICE_ORACLES = [
   {
     name: 'CoinGecko',
     url: 'https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd',
-    parse: (data: Record<string, unknown>) => (data?.stellar as Record<string, number>)?.usd,
+    parse: (data: Record<string, unknown>) =>
+      (data?.stellar as Record<string, number>)?.usd,
   },
   {
     name: 'CoinCap',
     url: 'https://api.coincap.io/v2/assets/stellar',
     parse: (data: Record<string, unknown>) => {
-      const priceUsd = (data?.data as Record<string, string>)?.priceUsd;
-      return priceUsd ? parseFloat(priceUsd) : undefined;
+      const priceUsd = (data?.data as Record<string, string>)?.priceUsd
+      return priceUsd ? parseFloat(priceUsd) : undefined
     },
   },
   // Binance - very reliable exchange API
@@ -49,8 +48,8 @@ const PRICE_ORACLES = [
     name: 'Binance',
     url: 'https://api.binance.com/api/v3/ticker/price?symbol=XLMUSDT',
     parse: (data: Record<string, unknown>) => {
-      const price = (data as { price?: string })?.price;
-      return price ? parseFloat(price) : undefined;
+      const price = (data as { price?: string })?.price
+      return price ? parseFloat(price) : undefined
     },
   },
   // Kraken - reliable exchange API
@@ -58,12 +57,13 @@ const PRICE_ORACLES = [
     name: 'Kraken',
     url: 'https://api.kraken.com/0/public/Ticker?pair=XLMUSD',
     parse: (data: Record<string, unknown>) => {
-      const result = (data as { result?: Record<string, { c?: string[] }> })?.result;
-      const ticker = result?.XXLMZUSD || result?.XLMUSD;
-      return ticker?.c?.[0] ? parseFloat(ticker.c[0]) : undefined;
+      const result = (data as { result?: Record<string, { c?: string[] }> })
+        ?.result
+      const ticker = result?.XXLMZUSD || result?.XLMUSD
+      return ticker?.c?.[0] ? parseFloat(ticker.c[0]) : undefined
     },
   },
-];
+]
 
 /**
  * Fetch real-time XLM price with fallback oracles
@@ -71,47 +71,61 @@ const PRICE_ORACLES = [
 async function fetchXLMPrice(): Promise<number> {
   // Return cached price if still valid
   if (xlmPriceCache && Date.now() - xlmPriceCache.timestamp < PRICE_CACHE_TTL) {
-    return xlmPriceCache.price;
+    return xlmPriceCache.price
   }
 
   // Try each oracle in order
   for (const oracle of PRICE_ORACLES) {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), PRICE_FETCH_TIMEOUT);
+      const controller = new AbortController()
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        PRICE_FETCH_TIMEOUT
+      )
 
       const response = await fetch(oracle.url, {
         signal: controller.signal,
         next: { revalidate: 60 },
-      });
-      clearTimeout(timeoutId);
+      })
+      clearTimeout(timeoutId)
 
-      if (!response.ok) continue;
+      if (!response.ok) continue
 
-      const data = await response.json();
-      const price = oracle.parse(data);
+      const data = await response.json()
+      const price = oracle.parse(data)
 
       // Validate price is reasonable (between 0 and $100 per XLM)
-      if (typeof price === 'number' && price > 0 && price < MAX_REASONABLE_XLM_PRICE) {
-        xlmPriceCache = { price, timestamp: Date.now(), source: oracle.name };
-        console.debug(`[XLM Price] $${price.toFixed(4)} from ${oracle.name}`);
-        return price;
+      if (
+        typeof price === 'number' &&
+        price > 0 &&
+        price < MAX_REASONABLE_XLM_PRICE
+      ) {
+        xlmPriceCache = { price, timestamp: Date.now(), source: oracle.name }
+        console.debug(`[XLM Price] $${price.toFixed(4)} from ${oracle.name}`)
+        return price
       }
     } catch (error) {
-      const errorName = error instanceof Error ? error.name : 'Unknown';
+      const errorName = error instanceof Error ? error.name : 'Unknown'
       if (errorName === 'AbortError') {
-        console.warn(`[XLM Price] ${oracle.name} timeout`);
+        console.warn(`[XLM Price] ${oracle.name} timeout`)
       } else {
-        console.warn(`[XLM Price] ${oracle.name} error:`, error);
+        console.warn(`[XLM Price] ${oracle.name} error:`, error)
       }
       // Continue to next oracle
     }
   }
 
   // All oracles failed - use config fallback
-  console.error('[XLM Price] ALL ORACLES FAILED - using fallback rate $' + STELLAR_CONFIG.XLM_TO_USD_RATE);
-  xlmPriceCache = { price: STELLAR_CONFIG.XLM_TO_USD_RATE, timestamp: Date.now(), source: 'Fallback' };
-  return STELLAR_CONFIG.XLM_TO_USD_RATE;
+  console.error(
+    '[XLM Price] ALL ORACLES FAILED - using fallback rate $' +
+      STELLAR_CONFIG.XLM_TO_USD_RATE
+  )
+  xlmPriceCache = {
+    price: STELLAR_CONFIG.XLM_TO_USD_RATE,
+    timestamp: Date.now(),
+    source: 'Fallback',
+  }
+  return STELLAR_CONFIG.XLM_TO_USD_RATE
 }
 
 export class StellarClient {
@@ -121,7 +135,9 @@ export class StellarClient {
 
   constructor() {
     this.server = new StellarSdk.Horizon.Server(STELLAR_CONFIG.HORIZON_URL)
-    this.sorobanServer = new StellarSdk.rpc.Server(STELLAR_CONFIG.SOROBAN_RPC_URL)
+    this.sorobanServer = new StellarSdk.rpc.Server(
+      STELLAR_CONFIG.SOROBAN_RPC_URL
+    )
     this.networkPassphrase = STELLAR_CONFIG.NETWORK_PASSPHRASE
   }
 
@@ -129,7 +145,7 @@ export class StellarClient {
    * Convert USD cents to XLM stroops (using real-time price)
    */
   async convertCentsToStroops(cents: number): Promise<number> {
-    const xlmPrice = await fetchXLMPrice();
+    const xlmPrice = await fetchXLMPrice()
     const usdAmount = cents / 100
     const xlmAmount = usdAmount / xlmPrice
     const stroops = Math.floor(xlmAmount * 10_000_000)
@@ -142,7 +158,7 @@ export class StellarClient {
    * Convert XLM stroops to USD (using real-time price)
    */
   async convertStroopsToUSD(stroops: number): Promise<number> {
-    const xlmPrice = await fetchXLMPrice();
+    const xlmPrice = await fetchXLMPrice()
     const xlmAmount = stroops / 10_000_000
     return xlmAmount * xlmPrice
   }
@@ -151,7 +167,7 @@ export class StellarClient {
    * Get current XLM price in USD
    */
   async getXLMPrice(): Promise<number> {
-    return fetchXLMPrice();
+    return fetchXLMPrice()
   }
 
   /**
@@ -265,7 +281,9 @@ export class StellarClient {
     platformFee: number
   }> {
     const stroops = await this.convertCentsToStroops(params.amountCents)
-    const platformFee = Math.floor((stroops * STELLAR_CONFIG.PLATFORM_FEE_BPS) / 10_000)
+    const platformFee = Math.floor(
+      (stroops * STELLAR_CONFIG.PLATFORM_FEE_BPS) / 10_000
+    )
     const authorReceived = stroops - platformFee
 
     // Load the tipper's account
@@ -286,7 +304,9 @@ export class StellarClient {
         contract.call(
           'tip_article',
           StellarSdk.nativeToScVal(tipperPublicKey, { type: 'address' }),
-          StellarSdk.nativeToScVal(shortArticleId(params.articleId), { type: 'symbol' }), // hashed for collision resistance
+          StellarSdk.nativeToScVal(shortArticleId(params.articleId), {
+            type: 'symbol',
+          }), // hashed for collision resistance
           StellarSdk.nativeToScVal(params.authorAddress, { type: 'address' }),
           StellarSdk.nativeToScVal(stroopsBigInt, { type: 'i128' })
         )
@@ -295,7 +315,8 @@ export class StellarClient {
       .build()
 
     // Prepare transaction for Soroban
-    const preparedTransaction = await this.sorobanServer.prepareTransaction(transaction)
+    const preparedTransaction =
+      await this.sorobanServer.prepareTransaction(transaction)
 
     return {
       xdr: preparedTransaction.toXDR(),
@@ -324,7 +345,9 @@ export class StellarClient {
     platformFee: number
   }> {
     const stroops = await this.convertCentsToStroops(params.amountCents)
-    const platformFee = Math.floor((stroops * STELLAR_CONFIG.PLATFORM_FEE_BPS) / 10_000)
+    const platformFee = Math.floor(
+      (stroops * STELLAR_CONFIG.PLATFORM_FEE_BPS) / 10_000
+    )
     const authorReceived = stroops - platformFee
 
     // Load the tipper's account
@@ -346,7 +369,9 @@ export class StellarClient {
           'tip_highlight_direct',
           StellarSdk.nativeToScVal(tipperPublicKey, { type: 'address' }),
           StellarSdk.nativeToScVal(params.highlightId, { type: 'string' }),
-          StellarSdk.nativeToScVal(shortArticleId(params.articleId), { type: 'symbol' }), // hashed for collision resistance
+          StellarSdk.nativeToScVal(shortArticleId(params.articleId), {
+            type: 'symbol',
+          }), // hashed for collision resistance
           StellarSdk.nativeToScVal(params.authorAddress, { type: 'address' }),
           StellarSdk.nativeToScVal(stroopsBigInt, { type: 'i128' })
         )
@@ -355,7 +380,8 @@ export class StellarClient {
       .build()
 
     // Prepare transaction for Soroban
-    const preparedTransaction = await this.sorobanServer.prepareTransaction(transaction)
+    const preparedTransaction =
+      await this.sorobanServer.prepareTransaction(transaction)
 
     return {
       xdr: preparedTransaction.toXDR(),
@@ -369,7 +395,10 @@ export class StellarClient {
    * Submit signed transaction to network
    */
   async submitTipTransaction(signedXDR: string): Promise<TipReceipt> {
-    const transaction = StellarSdk.TransactionBuilder.fromXDR(signedXDR, this.networkPassphrase)
+    const transaction = StellarSdk.TransactionBuilder.fromXDR(
+      signedXDR,
+      this.networkPassphrase
+    )
 
     // Submit transaction
     const result = await this.sorobanServer.sendTransaction(transaction)
@@ -381,7 +410,7 @@ export class StellarClient {
       const maxRetries = 30 // 30 seconds timeout
 
       while (txResult.status === 'NOT_FOUND' && retries < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise((resolve) => setTimeout(resolve, 1000))
         txResult = await this.sorobanServer.getTransaction(result.hash)
         retries++
       }
@@ -405,7 +434,9 @@ export class StellarClient {
       } else if (txResult.status === 'FAILED') {
         throw new Error('Transaction failed on the network')
       } else if (txResult.status === 'NOT_FOUND' && retries >= maxRetries) {
-        throw new Error('Transaction timeout: Could not confirm transaction after 30 seconds')
+        throw new Error(
+          'Transaction timeout: Could not confirm transaction after 30 seconds'
+        )
       }
     }
 
@@ -422,30 +453,45 @@ export class StellarClient {
    */
   async getArticleTips(articleId: string): Promise<TipData[]> {
     try {
-      const contract = new StellarSdk.Contract(STELLAR_CONFIG.TIPPING_CONTRACT_ID)
+      const contract = new StellarSdk.Contract(
+        STELLAR_CONFIG.TIPPING_CONTRACT_ID
+      )
 
       // Create a dummy account for simulation (we just need to read data)
-      const account = new StellarSdk.Account('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', '0')
+      const account = new StellarSdk.Account(
+        'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+        '0'
+      )
 
       const transaction = new StellarSdk.TransactionBuilder(account, {
         fee: StellarSdk.BASE_FEE,
         networkPassphrase: this.networkPassphrase,
       })
         .addOperation(
-          contract.call('get_article_tips', StellarSdk.nativeToScVal(shortArticleId(articleId), { type: 'symbol' }))
+          contract.call(
+            'get_article_tips',
+            StellarSdk.nativeToScVal(shortArticleId(articleId), {
+              type: 'symbol',
+            })
+          )
         )
         .setTimeout(30)
         .build()
 
       const result = await this.sorobanServer.simulateTransaction(transaction)
 
-      if (StellarSdk.rpc.Api.isSimulationSuccess(result) && result.result?.retval) {
+      if (
+        StellarSdk.rpc.Api.isSimulationSuccess(result) &&
+        result.result?.retval
+      ) {
         const tips = StellarSdk.scValToNative(result.result.retval)
-        return tips.map((tip: { tipper: string; amount: number; timestamp: number }) => ({
-          tipper: tip.tipper,
-          amount: tip.amount,
-          timestamp: new Date(tip.timestamp * 1000),
-        }))
+        return tips.map(
+          (tip: { tipper: string; amount: number; timestamp: number }) => ({
+            tipper: tip.tipper,
+            amount: tip.amount,
+            timestamp: new Date(tip.timestamp * 1000),
+          })
+        )
       }
 
       return []
@@ -472,7 +518,7 @@ export class StellarClient {
    * Get current XLM price with metadata
    */
   async getXLMPriceData(): Promise<XLMPriceData> {
-    const price = await fetchXLMPrice();
+    const price = await fetchXLMPrice()
     // After fetchXLMPrice(), cache is guaranteed to be set
     return {
       price,
@@ -557,10 +603,13 @@ export class StellarClient {
       .build()
 
     // Prepare transaction (simulates to get correct fees and resources)
-    const preparedTransaction = await this.sorobanServer.prepareTransaction(transaction)
+    const preparedTransaction =
+      await this.sorobanServer.prepareTransaction(transaction)
 
     const fee = Number(preparedTransaction.fee)
-    console.log(`[Stellar] Extend TTL - Fee: ${fee} stroops (${(fee / 10_000_000).toFixed(7)} XLM)`)
+    console.log(
+      `[Stellar] Extend TTL - Fee: ${fee} stroops (${(fee / 10_000_000).toFixed(7)} XLM)`
+    )
 
     return {
       xdr: preparedTransaction.toXDR(),
@@ -571,9 +620,14 @@ export class StellarClient {
   /**
    * Submit a signed extend TTL transaction
    */
-  async submitExtendTTLTransaction(signedXDR: string): Promise<{ success: boolean; hash?: string; error?: string }> {
+  async submitExtendTTLTransaction(
+    signedXDR: string
+  ): Promise<{ success: boolean; hash?: string; error?: string }> {
     try {
-      const transaction = StellarSdk.TransactionBuilder.fromXDR(signedXDR, this.networkPassphrase)
+      const transaction = StellarSdk.TransactionBuilder.fromXDR(
+        signedXDR,
+        this.networkPassphrase
+      )
       const result = await this.sorobanServer.sendTransaction(transaction)
 
       if (result.status === 'PENDING') {
@@ -582,16 +636,21 @@ export class StellarClient {
         let retries = 0
 
         while (txResult.status === 'NOT_FOUND' && retries < 30) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
+          await new Promise((resolve) => setTimeout(resolve, 1000))
           txResult = await this.sorobanServer.getTransaction(result.hash)
           retries++
         }
 
         if (txResult.status === 'SUCCESS') {
-          console.log(`[Stellar] Contract TTL extended successfully: ${result.hash}`)
+          console.log(
+            `[Stellar] Contract TTL extended successfully: ${result.hash}`
+          )
           return { success: true, hash: result.hash }
         } else {
-          return { success: false, error: `Transaction failed: ${txResult.status}` }
+          return {
+            success: false,
+            error: `Transaction failed: ${txResult.status}`,
+          }
         }
       }
 

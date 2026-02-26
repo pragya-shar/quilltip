@@ -21,21 +21,24 @@ export async function generateHighlightId(
   endOffset: number
 ): Promise<string> {
   // Create deterministic data string
-  const data = `${articleSlug}:${startOffset}:${endOffset}:${text.slice(0, 50)}`;
+  const data = `${articleSlug}:${startOffset}:${endOffset}:${text.slice(0, 50)}`
 
   // Convert string to Uint8Array
-  const encoder = new TextEncoder();
-  const dataBuffer = encoder.encode(data);
+  const encoder = new TextEncoder()
+  const dataBuffer = encoder.encode(data)
 
   // Generate SHA-256 hash using Web Crypto API
-  const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer as BufferSource);
+  const hashBuffer = await crypto.subtle.digest(
+    'SHA-256',
+    dataBuffer as BufferSource
+  )
 
   // Convert hash to hex string
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
 
   // Return first 28 chars for Stellar memo compatibility (max 28 bytes)
-  return hashHex.slice(0, 28);
+  return hashHex.slice(0, 28)
 }
 
 /**
@@ -46,7 +49,7 @@ export async function generateHighlightId(
  */
 export function isValidHighlightId(highlightId: string): boolean {
   // Should be 28 characters, hexadecimal
-  return /^[a-f0-9]{28}$/.test(highlightId);
+  return /^[a-f0-9]{28}$/.test(highlightId)
 }
 
 /**
@@ -56,11 +59,11 @@ export function isValidHighlightId(highlightId: string): boolean {
  * @returns Formatted string (e.g., "$1.50")
  */
 export function formatTipAmount(amountCents: number): string {
-  const dollars = amountCents / 100;
+  const dollars = amountCents / 100
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-  }).format(dollars);
+  }).format(dollars)
 }
 
 /**
@@ -70,16 +73,19 @@ export function formatTipAmount(amountCents: number): string {
  * @param feeBps - Platform fee in basis points (e.g., 250 = 2.5%)
  * @returns Object with platformFee and authorShare
  */
-export function calculateTipBreakdown(amountCents: number, feeBps: number = 250) {
-  const platformFee = Math.floor((amountCents * feeBps) / 10_000);
-  const authorShare = amountCents - platformFee;
+export function calculateTipBreakdown(
+  amountCents: number,
+  feeBps: number = 250
+) {
+  const platformFee = Math.floor((amountCents * feeBps) / 10_000)
+  const authorShare = amountCents - platformFee
 
   return {
     platformFee,
     authorShare,
     platformFeeFormatted: formatTipAmount(platformFee),
     authorShareFormatted: formatTipAmount(authorShare),
-  };
+  }
 }
 
 /**
@@ -90,8 +96,8 @@ export function calculateTipBreakdown(amountCents: number, feeBps: number = 250)
  * @returns Truncated text with ellipsis if needed
  */
 export function truncateText(text: string, maxLength: number = 100): string {
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength) + '...';
+  if (text.length <= maxLength) return text
+  return text.slice(0, maxLength) + '...'
 }
 
 /**
@@ -103,31 +109,31 @@ export function truncateText(text: string, maxLength: number = 100): string {
  * @returns RGB color string
  */
 export function getHeatmapColor(amount: number, maxAmount: number): string {
-  if (maxAmount === 0) return 'rgb(255, 255, 200)'; // Light yellow for zero
+  if (maxAmount === 0) return 'rgb(255, 255, 200)' // Light yellow for zero
 
-  const intensity = Math.min(amount / maxAmount, 1);
+  const intensity = Math.min(amount / maxAmount, 1)
 
   // Helper to clamp RGB values between 0-255
-  const clamp = (value: number) => Math.max(0, Math.min(255, Math.floor(value)));
+  const clamp = (value: number) => Math.max(0, Math.min(255, Math.floor(value)))
 
   // Color gradient: Yellow (low) → Orange → Red (high)
   if (intensity < 0.33) {
     // Yellow to light orange
-    const r = 255;
-    const g = clamp(255 - (intensity * 3 * 100));
-    const b = 150;
-    return `rgb(${r}, ${g}, ${b})`;
+    const r = 255
+    const g = clamp(255 - intensity * 3 * 100)
+    const b = 150
+    return `rgb(${r}, ${g}, ${b})`
   } else if (intensity < 0.66) {
     // Orange
-    const r = 255;
-    const g = clamp(200 - ((intensity - 0.33) * 3 * 100));
-    const b = 100;
-    return `rgb(${r}, ${g}, ${b})`;
+    const r = 255
+    const g = clamp(200 - (intensity - 0.33) * 3 * 100)
+    const b = 100
+    return `rgb(${r}, ${g}, ${b})`
   } else {
     // Red
-    const r = 255;
-    const g = clamp(100 - ((intensity - 0.66) * 3 * 100));
-    const b = 50;
-    return `rgb(${r}, ${g}, ${b})`;
+    const r = 255
+    const g = clamp(100 - (intensity - 0.66) * 3 * 100)
+    const b = 50
+    return `rgb(${r}, ${g}, ${b})`
   }
 }

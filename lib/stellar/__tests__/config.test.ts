@@ -2,26 +2,31 @@ import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
 
 // Test the Stellar address pattern used in config validation
-const stellarAddressSchema = z.string().regex(/^[GC][A-Z0-9]{55}$/, 'Invalid Stellar address format')
+const stellarAddressSchema = z
+  .string()
+  .regex(/^[GC][A-Z0-9]{55}$/, 'Invalid Stellar address format')
 
 describe('Stellar Config Validation', () => {
   describe('stellarAddressSchema', () => {
     it('accepts valid Stellar public key (G...)', () => {
       // Valid Stellar public key format (56 chars, starts with G)
-      const validPublicKey = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
+      const validPublicKey =
+        'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
       const result = stellarAddressSchema.safeParse(validPublicKey)
       expect(result.success).toBe(true)
     })
 
     it('accepts valid Stellar contract ID (C...)', () => {
       // Valid Soroban contract ID format (56 chars, starts with C)
-      const validContractId = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4'
+      const validContractId =
+        'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4'
       const result = stellarAddressSchema.safeParse(validContractId)
       expect(result.success).toBe(true)
     })
 
     it('rejects address with wrong prefix', () => {
-      const invalidAddress = 'XAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
+      const invalidAddress =
+        'XAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
       const result = stellarAddressSchema.safeParse(invalidAddress)
       expect(result.success).toBe(false)
     })
@@ -33,7 +38,8 @@ describe('Stellar Config Validation', () => {
     })
 
     it('rejects address with lowercase characters', () => {
-      const lowercaseAddress = 'Gaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaawhf'
+      const lowercaseAddress =
+        'Gaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaawhf'
       const result = stellarAddressSchema.safeParse(lowercaseAddress)
       expect(result.success).toBe(false)
     })

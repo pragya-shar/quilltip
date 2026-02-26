@@ -98,64 +98,64 @@ export class HighlightConverter {
       // Apply each highlight as a mark (without focusing for performance)
       sortedHighlights.forEach((highlight) => {
         try {
-        // Convert text offsets to document positions
-        const from = this.getDocumentPosition(
-          editor.state.doc,
-          highlight.startOffset
-        )
-        const to = this.getDocumentPosition(
-          editor.state.doc,
-          highlight.endOffset
-        )
+          // Convert text offsets to document positions
+          const from = this.getDocumentPosition(
+            editor.state.doc,
+            highlight.startOffset
+          )
+          const to = this.getDocumentPosition(
+            editor.state.doc,
+            highlight.endOffset
+          )
 
-        // Verify the positions are valid
-        if (from >= 0 && to > from && to <= editor.state.doc.content.size) {
-          // Verify the text matches what we expect
-          const actualText = editor.state.doc.textBetween(from, to, ' ')
+          // Verify the positions are valid
+          if (from >= 0 && to > from && to <= editor.state.doc.content.size) {
+            // Verify the text matches what we expect
+            const actualText = editor.state.doc.textBetween(from, to, ' ')
 
-          // Allow some flexibility for whitespace differences
-          const normalizedActual = actualText.trim()
-          const normalizedExpected = highlight.text.trim()
+            // Allow some flexibility for whitespace differences
+            const normalizedActual = actualText.trim()
+            const normalizedExpected = highlight.text.trim()
 
-          if (
-            normalizedActual === normalizedExpected ||
-            normalizedActual.includes(normalizedExpected) ||
-            normalizedExpected.includes(normalizedActual)
-          ) {
-            // Apply the highlight mark with all attributes (no focus for performance)
-            editor
-              .chain()
-              .setTextSelection({ from, to })
-              .setHighlight({
-                id: highlight._id,
-                color: highlight.color || '#FFEB3B',
-                userId: highlight.userId,
-                userName: highlight.userName,
-                note: highlight.note,
-                createdAt: highlight.createdAt,
+            if (
+              normalizedActual === normalizedExpected ||
+              normalizedActual.includes(normalizedExpected) ||
+              normalizedExpected.includes(normalizedActual)
+            ) {
+              // Apply the highlight mark with all attributes (no focus for performance)
+              editor
+                .chain()
+                .setTextSelection({ from, to })
+                .setHighlight({
+                  id: highlight._id,
+                  color: highlight.color || '#FFEB3B',
+                  userId: highlight.userId,
+                  userName: highlight.userName,
+                  note: highlight.note,
+                  createdAt: highlight.createdAt,
+                })
+                .run()
+            } else {
+              console.warn('Text mismatch for highlight:', {
+                expected: highlight.text,
+                actual: actualText,
+                from,
+                to,
               })
-              .run()
+            }
           } else {
-            console.warn('Text mismatch for highlight:', {
-              expected: highlight.text,
-              actual: actualText,
+            console.warn('Invalid positions for highlight:', {
               from,
               to,
+              docSize: editor.state.doc.content.size,
             })
           }
-        } else {
-          console.warn('Invalid positions for highlight:', {
-            from,
-            to,
-            docSize: editor.state.doc.content.size,
-          })
+        } catch (error) {
+          console.error('Failed to apply highlight:', error, highlight)
         }
-      } catch (error) {
-        console.error('Failed to apply highlight:', error, highlight)
-      }
-    })
+      })
     } catch (error) {
-      console.error('❌ Error applying highlights to editor:', error)
+      console.error('Error applying highlights to editor:', error)
     }
   }
 

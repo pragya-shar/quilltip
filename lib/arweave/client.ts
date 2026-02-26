@@ -1,39 +1,43 @@
-import { TurboFactory, ArweaveSigner } from "@ardrive/turbo-sdk/node";
-import { createHash } from 'crypto';
-import { ARWEAVE_CONFIG } from './config';
-import type { ArweaveArticleContent, ArweaveUploadResult, ArweaveTransactionStatus } from './types';
-import type { JWKInterface } from "arweave/node/lib/wallet";
+import { TurboFactory, ArweaveSigner } from '@ardrive/turbo-sdk/node'
+import { createHash } from 'crypto'
+import { ARWEAVE_CONFIG } from './config'
+import type {
+  ArweaveArticleContent,
+  ArweaveUploadResult,
+  ArweaveTransactionStatus,
+} from './types'
+import type { JWKInterface } from 'arweave/node/lib/wallet'
 
 /**
  * Parse and validate JWK wallet key from JSON string
  * Validates all required RSA JWK fields for security
  */
 export function parseWalletKey(jwkString: string): JWKInterface {
-  let parsed;
+  let parsed
   try {
-    parsed = JSON.parse(jwkString);
+    parsed = JSON.parse(jwkString)
   } catch {
-    throw new Error('Invalid JWK format: not valid JSON');
+    throw new Error('Invalid JWK format: not valid JSON')
   }
 
   // Validate all required RSA JWK fields
-  const requiredFields = ['kty', 'n', 'e', 'd', 'p', 'q', 'dp', 'dq', 'qi'];
+  const requiredFields = ['kty', 'n', 'e', 'd', 'p', 'q', 'dp', 'dq', 'qi']
   for (const field of requiredFields) {
     if (!(field in parsed)) {
-      throw new Error(`Invalid JWK: missing required field '${field}'`);
+      throw new Error(`Invalid JWK: missing required field '${field}'`)
     }
   }
 
   if (parsed.kty !== 'RSA') {
-    throw new Error('Invalid JWK: must be RSA key');
+    throw new Error('Invalid JWK: must be RSA key')
   }
 
   // Validate key size (n should be at least 2048 bits, ~340 base64 chars)
   if (typeof parsed.n !== 'string' || parsed.n.length < 340) {
-    throw new Error('Invalid JWK: key size too small (minimum 2048 bits)');
+    throw new Error('Invalid JWK: key size too small (minimum 2048 bits)')
   }
 
-  return parsed as JWKInterface;
+  return parsed as JWKInterface
 }
 
 /**
@@ -46,31 +50,31 @@ export async function uploadArticle(
   jwk: JWKInterface
 ): Promise<ArweaveUploadResult> {
   try {
-    const data = JSON.stringify(content);
-    const dataBuffer = Buffer.from(data);
-    const contentHash = createHash('sha256').update(dataBuffer).digest('hex');
-    const sizeBytes = dataBuffer.length;
-    const sizeKiB = sizeBytes / 1024;
+    const data = JSON.stringify(content)
+    const dataBuffer = Buffer.from(data)
+    const contentHash = createHash('sha256').update(dataBuffer).digest('hex')
+    const sizeBytes = dataBuffer.length
+    const sizeKiB = sizeBytes / 1024
 
     // Enforce hard size limit to prevent excessive costs
     if (sizeBytes > ARWEAVE_CONFIG.HARD_LIMIT_BYTES) {
       return {
         success: false,
         error: `Article size ${sizeKiB.toFixed(1)} KiB exceeds maximum allowed (${ARWEAVE_CONFIG.HARD_LIMIT_BYTES / 1024} KiB)`,
-      };
+      }
     }
 
     // Warn if approaching or exceeding free tier limit
     if (sizeBytes > ARWEAVE_CONFIG.FREE_TIER_LIMIT_BYTES) {
       console.warn(
         `[Arweave] Article size ${sizeKiB.toFixed(1)} KiB exceeds free tier (100 KiB). ` +
-        `Upload may require credits.`
-      );
+          `Upload may require credits.`
+      )
     }
 
     // Create authenticated client with server wallet
-    const signer = new ArweaveSigner(jwk);
-    const turbo = TurboFactory.authenticated({ signer });
+    const signer = new ArweaveSigner(jwk)
+    const turbo = TurboFactory.authenticated({ signer })
 
     const result = await turbo.upload({
       data: dataBuffer,
@@ -88,33 +92,35 @@ export async function uploadArticle(
           { name: 'Content-Hash', value: contentHash },
         ],
       },
-    });
+    })
 
     return {
       success: true,
       txId: result.id,
       url: `https://arweave.net/${result.id}`,
       contentHash,
-    };
+    }
   } catch (error) {
-    console.error('[Arweave] Upload error:', error);
+    console.error('[Arweave] Upload error:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
-    };
+    }
   }
 }
 
 /**
  * Get article content from Arweave by transaction ID
  */
-export async function getArticle(txId: string): Promise<ArweaveArticleContent | null> {
+export async function getArticle(
+  txId: string
+): Promise<ArweaveArticleContent | null> {
   try {
-    const response = await fetch(`https://arweave.net/${txId}`);
-    if (!response.ok) return null;
-    return await response.json() as ArweaveArticleContent;
+    const response = await fetch(`https://arweave.net/${txId}`)
+    if (!response.ok) return null
+    return (await response.json()) as ArweaveArticleContent
   } catch {
-    return null;
+    return null
   }
 }
 
@@ -122,34 +128,36 @@ export async function getArticle(txId: string): Promise<ArweaveArticleContent | 
  * Check transaction status (for verification)
  * For bundled transactions (Turbo SDK), checks multiple gateways in parallel
  */
-export async function getTransactionStatus(txId: string): Promise<ArweaveTransactionStatus> {
-  const timeoutMs = ARWEAVE_CONFIG.GATEWAY_TIMEOUT_MS;
+export async function getTransactionStatus(
+  txId: string
+): Promise<ArweaveTransactionStatus> {
+  const timeoutMs = ARWEAVE_CONFIG.GATEWAY_TIMEOUT_MS
 
   try {
     // First try main gateway for block confirmation with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
     try {
       const response = await fetch(`https://arweave.net/tx/${txId}/status`, {
         signal: controller.signal,
-      });
-      clearTimeout(timeoutId);
+      })
+      clearTimeout(timeoutId)
 
       if (response.ok) {
-        const status = await response.json();
+        const status = await response.json()
         if (status.block_height) {
           return {
             confirmed: true,
             confirmations: status.number_of_confirmations || 0,
             blockHeight: status.block_height,
-          };
+          }
         }
       }
     } catch (error) {
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId)
       if (error instanceof Error && error.name === 'AbortError') {
-        console.warn('[Arweave] Main gateway verification timeout');
+        console.warn('[Arweave] Main gateway verification timeout')
       }
       // Continue to fallback gateways
     }
@@ -159,32 +167,32 @@ export async function getTransactionStatus(txId: string): Promise<ArweaveTransac
     const gateways = [
       `https://arweave.developerdao.com/${txId}`,
       `https://g8way.io/${txId}`,
-    ];
+    ]
 
     const gatewayChecks = gateways.map(async (url) => {
-      const ctrl = new AbortController();
-      const timeout = setTimeout(() => ctrl.abort(), timeoutMs / 2); // Shorter timeout for fallbacks
+      const ctrl = new AbortController()
+      const timeout = setTimeout(() => ctrl.abort(), timeoutMs / 2) // Shorter timeout for fallbacks
       try {
-        const res = await fetch(url, { method: 'HEAD', signal: ctrl.signal });
-        clearTimeout(timeout);
-        return res.ok;
+        const res = await fetch(url, { method: 'HEAD', signal: ctrl.signal })
+        clearTimeout(timeout)
+        return res.ok
       } catch {
-        clearTimeout(timeout);
-        return false;
+        clearTimeout(timeout)
+        return false
       }
-    });
+    })
 
-    const results = await Promise.allSettled(gatewayChecks);
+    const results = await Promise.allSettled(gatewayChecks)
     const anyConfirmed = results.some(
       (r) => r.status === 'fulfilled' && r.value === true
-    );
+    )
 
     if (anyConfirmed) {
-      return { confirmed: true, confirmations: 1 };
+      return { confirmed: true, confirmations: 1 }
     }
 
-    return { confirmed: false, confirmations: 0 };
+    return { confirmed: false, confirmations: 0 }
   } catch {
-    return { confirmed: false, confirmations: 0 };
+    return { confirmed: false, confirmations: 0 }
   }
 }

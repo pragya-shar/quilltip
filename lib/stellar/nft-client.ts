@@ -1,11 +1,7 @@
 import * as StellarSdk from '@stellar/stellar-sdk'
 import { STELLAR_CONFIG } from './config'
 import { createMemo } from './memo-utils'
-import type {
-  MintNFTParams,
-  NFTOwnership,
-  NFTTransactionResult,
-} from './types'
+import type { MintNFTParams, NFTOwnership, NFTTransactionResult } from './types'
 
 export class NFTClient {
   private server: StellarSdk.Horizon.Server
@@ -14,14 +10,19 @@ export class NFTClient {
 
   constructor() {
     this.server = new StellarSdk.Horizon.Server(STELLAR_CONFIG.HORIZON_URL)
-    this.sorobanServer = new StellarSdk.rpc.Server(STELLAR_CONFIG.SOROBAN_RPC_URL)
+    this.sorobanServer = new StellarSdk.rpc.Server(
+      STELLAR_CONFIG.SOROBAN_RPC_URL
+    )
     this.networkPassphrase = STELLAR_CONFIG.NETWORK_PASSPHRASE
   }
 
   /**
    * Check if an article is eligible for NFT minting
    */
-  async checkEligibility(articleId: string, tipAmount: number): Promise<{
+  async checkEligibility(
+    articleId: string,
+    tipAmount: number
+  ): Promise<{
     eligible: boolean
     alreadyMinted: boolean
     reason?: string
@@ -30,7 +31,11 @@ export class NFTClient {
       // Check if already minted
       const alreadyMinted = await this.isArticleMinted(articleId)
       if (alreadyMinted) {
-        return { eligible: false, alreadyMinted: true, reason: 'Article already minted as NFT' }
+        return {
+          eligible: false,
+          alreadyMinted: true,
+          reason: 'Article already minted as NFT',
+        }
       }
 
       // Check tip threshold
@@ -39,14 +44,18 @@ export class NFTClient {
         return {
           eligible: false,
           alreadyMinted: false,
-          reason: `Need ${threshold / 10_000_000} XLM in tips (current: ${tipAmount / 10_000_000} XLM)`
+          reason: `Need ${threshold / 10_000_000} XLM in tips (current: ${tipAmount / 10_000_000} XLM)`,
         }
       }
 
       return { eligible: true, alreadyMinted: false }
     } catch (error) {
       console.error('Error checking NFT eligibility:', error)
-      return { eligible: false, alreadyMinted: false, reason: 'Error checking eligibility' }
+      return {
+        eligible: false,
+        alreadyMinted: false,
+        reason: 'Error checking eligibility',
+      }
     }
   }
 
@@ -58,21 +67,30 @@ export class NFTClient {
       const contract = new StellarSdk.Contract(STELLAR_CONFIG.NFT_CONTRACT_ID)
 
       // Create a dummy account for simulation (read-only operation)
-      const account = new StellarSdk.Account('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', '0')
+      const account = new StellarSdk.Account(
+        'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+        '0'
+      )
 
       const transaction = new StellarSdk.TransactionBuilder(account, {
         fee: StellarSdk.BASE_FEE,
         networkPassphrase: this.networkPassphrase,
       })
         .addOperation(
-          contract.call('is_article_minted', StellarSdk.nativeToScVal(articleId, { type: 'symbol' }))
+          contract.call(
+            'is_article_minted',
+            StellarSdk.nativeToScVal(articleId, { type: 'symbol' })
+          )
         )
         .setTimeout(30)
         .build()
 
       const result = await this.sorobanServer.simulateTransaction(transaction)
 
-      if (StellarSdk.rpc.Api.isSimulationSuccess(result) && result.result?.retval) {
+      if (
+        StellarSdk.rpc.Api.isSimulationSuccess(result) &&
+        result.result?.retval
+      ) {
         return StellarSdk.scValToNative(result.result.retval)
       }
 
@@ -91,7 +109,10 @@ export class NFTClient {
       const contract = new StellarSdk.Contract(STELLAR_CONFIG.NFT_CONTRACT_ID)
 
       // Create a dummy account for simulation
-      const account = new StellarSdk.Account('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', '0')
+      const account = new StellarSdk.Account(
+        'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+        '0'
+      )
 
       const transaction = new StellarSdk.TransactionBuilder(account, {
         fee: StellarSdk.BASE_FEE,
@@ -103,7 +124,10 @@ export class NFTClient {
 
       const result = await this.sorobanServer.simulateTransaction(transaction)
 
-      if (StellarSdk.rpc.Api.isSimulationSuccess(result) && result.result?.retval) {
+      if (
+        StellarSdk.rpc.Api.isSimulationSuccess(result) &&
+        result.result?.retval
+      ) {
         return parseInt(StellarSdk.scValToNative(result.result.retval), 10)
       }
 
@@ -150,23 +174,31 @@ export class NFTClient {
         .build()
 
       // Prepare transaction for Soroban
-      const preparedTransaction = await this.sorobanServer.prepareTransaction(transaction)
+      const preparedTransaction =
+        await this.sorobanServer.prepareTransaction(transaction)
 
       return {
         xdr: preparedTransaction.toXDR(),
       }
     } catch (error) {
       console.error('Error building mint transaction:', error)
-      throw new Error(`Failed to build mint transaction: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      throw new Error(
+        `Failed to build mint transaction: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   }
 
   /**
    * Submit signed NFT transaction to network
    */
-  async submitMintTransaction(signedXDR: string): Promise<NFTTransactionResult> {
+  async submitMintTransaction(
+    signedXDR: string
+  ): Promise<NFTTransactionResult> {
     try {
-      const transaction = StellarSdk.TransactionBuilder.fromXDR(signedXDR, this.networkPassphrase)
+      const transaction = StellarSdk.TransactionBuilder.fromXDR(
+        signedXDR,
+        this.networkPassphrase
+      )
 
       // Submit transaction
       const result = await this.sorobanServer.sendTransaction(transaction)
@@ -178,7 +210,7 @@ export class NFTClient {
         const maxRetries = 30 // 30 seconds timeout
 
         while (txResult.status === 'NOT_FOUND' && retries < maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
+          await new Promise((resolve) => setTimeout(resolve, 1000))
           txResult = await this.sorobanServer.getTransaction(result.hash)
           retries++
         }
@@ -187,7 +219,10 @@ export class NFTClient {
           // Parse the return value from contract (token ID)
           let tokenId: number | undefined
           if (txResult.returnValue) {
-            tokenId = parseInt(StellarSdk.scValToNative(txResult.returnValue), 10)
+            tokenId = parseInt(
+              StellarSdk.scValToNative(txResult.returnValue),
+              10
+            )
           }
 
           return {
@@ -200,12 +235,19 @@ export class NFTClient {
           const errorDetails = {
             status: txResult.status,
             // Additional error properties if available
-            ...((txResult as unknown as Record<string, unknown>).resultXdr ? {
-              resultXdr: (txResult as unknown as Record<string, unknown>).resultXdr
-            } : {}),
-            ...((txResult as unknown as Record<string, unknown>).resultMetaXdr ? {
-              resultMetaXdr: (txResult as unknown as Record<string, unknown>).resultMetaXdr
-            } : {}),
+            ...((txResult as unknown as Record<string, unknown>).resultXdr
+              ? {
+                  resultXdr: (txResult as unknown as Record<string, unknown>)
+                    .resultXdr,
+                }
+              : {}),
+            ...((txResult as unknown as Record<string, unknown>).resultMetaXdr
+              ? {
+                  resultMetaXdr: (
+                    txResult as unknown as Record<string, unknown>
+                  ).resultMetaXdr,
+                }
+              : {}),
           }
           console.error('Transaction failed with details:', errorDetails)
           return {
@@ -215,7 +257,8 @@ export class NFTClient {
         } else if (txResult.status === 'NOT_FOUND' && retries >= maxRetries) {
           return {
             success: false,
-            error: 'Transaction timeout: Could not confirm transaction after 30 seconds',
+            error:
+              'Transaction timeout: Could not confirm transaction after 30 seconds',
           }
         }
       }
@@ -232,7 +275,10 @@ export class NFTClient {
       if (result.errorResult) {
         if (typeof result.errorResult === 'string') {
           errorMessage = result.errorResult
-        } else if (typeof result.errorResult === 'object' && result.errorResult !== null) {
+        } else if (
+          typeof result.errorResult === 'object' &&
+          result.errorResult !== null
+        ) {
           errorMessage = `Transaction failed with status: ${result.status}. Details: ${JSON.stringify(result.errorResult, null, 2)}`
         } else {
           errorMessage = `Transaction failed with status: ${result.status}. Error: ${String(result.errorResult)}`
@@ -262,21 +308,30 @@ export class NFTClient {
       const contract = new StellarSdk.Contract(STELLAR_CONFIG.NFT_CONTRACT_ID)
 
       // Create a dummy account for simulation
-      const account = new StellarSdk.Account('GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF', '0')
+      const account = new StellarSdk.Account(
+        'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+        '0'
+      )
 
       const transaction = new StellarSdk.TransactionBuilder(account, {
         fee: StellarSdk.BASE_FEE,
         networkPassphrase: this.networkPassphrase,
       })
         .addOperation(
-          contract.call('get_owner', StellarSdk.nativeToScVal(tokenId, { type: 'u64' }))
+          contract.call(
+            'get_owner',
+            StellarSdk.nativeToScVal(tokenId, { type: 'u64' })
+          )
         )
         .setTimeout(30)
         .build()
 
       const result = await this.sorobanServer.simulateTransaction(transaction)
 
-      if (StellarSdk.rpc.Api.isSimulationSuccess(result) && result.result?.retval) {
+      if (
+        StellarSdk.rpc.Api.isSimulationSuccess(result) &&
+        result.result?.retval
+      ) {
         const owner = StellarSdk.scValToNative(result.result.retval)
 
         // Return actual data from contract; null for fields contract doesn't expose
@@ -284,10 +339,10 @@ export class NFTClient {
         return {
           tokenId,
           owner,
-          minter: null,        // Contract doesn't expose minter info
-          articleId: null,     // Contract doesn't expose article ID
-          mintedAt: null,      // Contract doesn't expose mint timestamp
-          tipAmount: null,     // Contract doesn't expose tip amount
+          minter: null, // Contract doesn't expose minter info
+          articleId: null, // Contract doesn't expose article ID
+          mintedAt: null, // Contract doesn't expose mint timestamp
+          tipAmount: null, // Contract doesn't expose tip amount
         }
       }
 

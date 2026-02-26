@@ -3,7 +3,7 @@ import { Id } from '@/convex/_generated/dataModel'
 
 // Convex User type (matches schema)
 export interface User {
-  _id: Id<"users">
+  _id: Id<'users'>
   _creationTime: number
   email: string
   username: string
@@ -23,7 +23,7 @@ export interface User {
 
 // Convex Article type (matches schema)
 export interface Article {
-  _id: Id<"articles">
+  _id: Id<'articles'>
   _creationTime: number
   slug: string
   title: string
@@ -32,7 +32,7 @@ export interface Article {
   coverImage?: string
   published: boolean
   publishedAt?: number
-  authorId: Id<"users">
+  authorId: Id<'users'>
   authorUsername: string
   authorName?: string
   authorAvatar?: string
@@ -42,7 +42,7 @@ export interface Article {
   tipCount?: number
   totalTipsUsd?: number
   hasNft?: boolean
-  nftId?: Id<"articleNFTs">
+  nftId?: Id<'articleNFTs'>
   readTime?: number
   createdAt: number
   updatedAt: number
@@ -71,7 +71,7 @@ export interface ArticleForDisplay {
 
 // Tag type (matches schema)
 export interface Tag {
-  _id: Id<"tags">
+  _id: Id<'tags'>
   _creationTime: number
   name: string
   slug: string

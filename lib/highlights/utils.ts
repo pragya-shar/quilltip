@@ -6,9 +6,11 @@
  * Check if the Selection API is supported in the current browser
  */
 export function isSelectionAPISupported(): boolean {
-  return typeof window !== 'undefined' &&
-         typeof window.getSelection !== 'undefined' &&
-         typeof document.createRange !== 'undefined';
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.getSelection !== 'undefined' &&
+    typeof document.createRange !== 'undefined'
+  )
 }
 
 /**
@@ -16,14 +18,14 @@ export function isSelectionAPISupported(): boolean {
  */
 export function getSafeSelection(): Selection | null {
   if (!isSelectionAPISupported()) {
-    return null;
+    return null
   }
 
   try {
-    return window.getSelection();
+    return window.getSelection()
   } catch (error) {
-    console.warn('Error getting selection:', error);
-    return null;
+    console.warn('Error getting selection:', error)
+    return null
   }
 }
 
@@ -34,20 +36,20 @@ export function isValidRange(range: Range): boolean {
   try {
     // Basic validation
     if (!range || !range.startContainer || !range.endContainer) {
-      return false;
+      return false
     }
 
     // Check if start comes before end
-    const comparison = range.compareBoundaryPoints(Range.START_TO_END, range);
+    const comparison = range.compareBoundaryPoints(Range.START_TO_END, range)
     if (comparison > 0) {
-      return false;
+      return false
     }
 
     // Check if the range has content
-    return range.toString().trim().length > 0;
+    return range.toString().trim().length > 0
   } catch (error) {
-    console.warn('Error validating range:', error);
-    return false;
+    console.warn('Error validating range:', error)
+    return false
   }
 }
 
@@ -55,7 +57,7 @@ export function isValidRange(range: Range): boolean {
  * Normalize text content by removing extra whitespace
  */
 export function normalizeSelectedText(text: string): string {
-  return text.trim().replace(/\s+/g, ' ');
+  return text.trim().replace(/\s+/g, ' ')
 }
 
 /**
@@ -66,29 +68,29 @@ export function validateTextSelection(
   minLength = 1,
   maxLength = 5000
 ): { isValid: boolean; error?: string } {
-  const normalizedText = normalizeSelectedText(text);
+  const normalizedText = normalizeSelectedText(text)
 
   if (normalizedText.length < minLength) {
     return {
       isValid: false,
-      error: `Selection too short (minimum ${minLength} characters)`
-    };
+      error: `Selection too short (minimum ${minLength} characters)`,
+    }
   }
 
   if (normalizedText.length > maxLength) {
     return {
       isValid: false,
-      error: `Selection too long (maximum ${maxLength} characters)`
-    };
+      error: `Selection too long (maximum ${maxLength} characters)`,
+    }
   }
 
   // Check for only whitespace
   if (normalizedText.length === 0) {
     return {
       isValid: false,
-      error: 'Selection contains only whitespace'
-    };
+      error: 'Selection contains only whitespace',
+    }
   }
 
-  return { isValid: true };
+  return { isValid: true }
 }

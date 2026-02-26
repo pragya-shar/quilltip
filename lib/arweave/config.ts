@@ -4,7 +4,9 @@ function validateArweaveEnv() {
 
   // Warn if ARWEAVE_ENABLED is not explicitly set
   if (typeof window !== 'undefined' && enabled === undefined) {
-    console.warn('[Arweave Config] ARWEAVE_ENABLED is not set. Arweave features are disabled by default.')
+    console.warn(
+      '[Arweave Config] ARWEAVE_ENABLED is not set. Arweave features are disabled by default.'
+    )
   }
 }
 
@@ -20,4 +22,4 @@ export const ARWEAVE_CONFIG = {
   HARD_LIMIT_BYTES: 500 * 1024,
   // Gateway timeout for verification (10 seconds)
   GATEWAY_TIMEOUT_MS: 10000,
-} as const;
+} as const
