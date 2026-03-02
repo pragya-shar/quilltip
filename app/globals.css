@@ -210,7 +210,7 @@ mark[data-highlight-id] mark[data-highlight-id] {
 .article-content {
   font-family: var(--font-sans);
   color: #202124;
-  line-height: 1.75;
+  line-height: 1.6;
 }
 
 /* Prose Overrides for Better Readability */
@@ -220,64 +220,63 @@ mark[data-highlight-id] mark[data-highlight-id] {
 }
 
 .prose-lg {
-  font-size: 1.125rem;
-  line-height: 1.875;
+  font-size: 1.0625rem;
+  line-height: 1.6;
 }
 
-/* Headings with Proper Hierarchy */
+/* Headings – editorial weight, tight spacing */
 .prose h1 {
-  font-size: 2.5rem;
-  font-weight: 800;
-  line-height: 1.2;
-  margin-top: 3rem;
-  margin-bottom: 1.5rem;
-  color: #202124;
-  letter-spacing: -0.02em;
-}
-
-.prose h2 {
   font-size: 2rem;
   font-weight: 700;
-  line-height: 1.3;
-  margin-top: 2.5rem;
-  margin-bottom: 1.25rem;
+  line-height: 1.25;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
   color: #202124;
   letter-spacing: -0.01em;
 }
 
-.prose h3 {
+.prose h2 {
   font-size: 1.5rem;
   font-weight: 600;
-  line-height: 1.4;
-  margin-top: 2rem;
-  margin-bottom: 1rem;
+  line-height: 1.3;
+  margin-top: 1.25rem;
+  margin-bottom: 0.375rem;
+  color: #202124;
+}
+
+.prose h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 1rem;
+  margin-bottom: 0.25rem;
   color: #3c4043;
 }
 
 .prose h4 {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   font-weight: 600;
-  line-height: 1.5;
-  margin-top: 1.75rem;
-  margin-bottom: 0.75rem;
+  line-height: 1.4;
+  margin-top: 0.875rem;
+  margin-bottom: 0.25rem;
   color: #3c4043;
 }
 
 .prose h5, .prose h6 {
-  font-size: 1.125rem;
+  font-size: 1rem;
   font-weight: 500;
-  line-height: 1.5;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
+  line-height: 1.4;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
   color: #5f6368;
 }
 
-/* Paragraphs with Optimal Spacing */
+/* Paragraphs – compact editorial spacing */
 .prose p {
   margin-top: 0;
-  margin-bottom: 1.5rem;
-  font-size: 1.125rem;
-  line-height: 1.875;
+  margin-bottom: 0.875rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
   color: #3c4043;
 }
 
@@ -295,17 +294,17 @@ mark[data-highlight-id] mark[data-highlight-id] {
   text-decoration-thickness: 2px;
 }
 
-/* Lists with Better Spacing */
+/* Lists – compact spacing */
 .prose ul, .prose ol {
-  margin-top: 1.25rem;
-  margin-bottom: 1.25rem;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
   padding-left: 1.625rem;
 }
 
 .prose li {
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
-  line-height: 1.75;
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+  line-height: 1.6;
 }
 
 .prose ul li {
@@ -324,11 +323,11 @@ mark[data-highlight-id] mark[data-highlight-id] {
 .prose pre {
   background-color: #1e1e1e;
   border-radius: 0.5rem;
-  padding: 1.25rem;
+  padding: 1rem;
   overflow-x: auto;
-  margin: 2rem 0;
-  font-size: 0.9rem;
-  line-height: 1.6;
+  margin: 1.25rem 0;
+  font-size: 0.875rem;
+  line-height: 1.55;
 }
 
 .prose code {
@@ -347,14 +346,14 @@ mark[data-highlight-id] mark[data-highlight-id] {
   font-size: inherit;
 }
 
-/* Custom blockquote styling */
+/* Blockquote – compact editorial styling */
 .prose blockquote {
   position: relative;
-  padding-left: 1.5rem;
-  padding-right: 1rem;
-  padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
-  margin: 2rem 0;
+  padding-left: 1.25rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  margin: 1.25rem 0;
   background-color: #f8f9fa;
   border-left: 4px solid #2d5a87;
   font-style: italic;
@@ -364,8 +363,8 @@ mark[data-highlight-id] mark[data-highlight-id] {
 
 .prose blockquote p {
   margin: 0;
-  font-size: 1.125rem;
-  line-height: 1.75;
+  font-size: 1.0625rem;
+  line-height: 1.6;
 }
 
 .prose blockquote p:first-child::before {
@@ -399,7 +398,7 @@ mark[data-highlight-id] mark[data-highlight-id] {
 .prose hr {
   border-color: #e8eaed;
   border-top-width: 1px;
-  margin: 3rem 0;
+  margin: 1.5rem 0;
 }
 
 /* Tables */
@@ -435,25 +434,25 @@ mark[data-highlight-id] mark[data-highlight-id] {
 /* Responsive Typography */
 @media (max-width: 768px) {
   .prose h1 {
-    font-size: 2rem;
+    font-size: 1.625rem;
   }
 
   .prose h2 {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
   }
 
   .prose h3 {
-    font-size: 1.25rem;
+    font-size: 1.125rem;
   }
 
   .prose p, .prose li {
     font-size: 1rem;
-    line-height: 1.75;
+    line-height: 1.6;
   }
 
   .prose pre {
     font-size: 0.8rem;
-    padding: 1rem;
+    padding: 0.875rem;
   }
 }
 
@@ -465,21 +464,21 @@ mark[data-highlight-id] mark[data-highlight-id] {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* First Paragraph - Lead Style */
+/* First Paragraph – subtle lead style */
 .article-content .prose > p:first-of-type {
-  font-size: 1.25rem;
-  line-height: 1.875;
+  font-size: 1.125rem;
+  line-height: 1.65;
   color: #202124;
   font-weight: 400;
 }
 
-/* Drop Cap for First Letter (Optional) */
+/* Drop Cap for First Letter */
 .article-content .prose > p:first-of-type::first-letter {
   float: left;
-  font-size: 4rem;
+  font-size: 3.25rem;
   line-height: 1;
-  font-weight: 700;
-  margin-right: 0.5rem;
+  font-weight: 600;
+  margin-right: 0.375rem;
   margin-top: 0.125rem;
   color: #1a365d;
 }

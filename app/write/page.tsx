@@ -319,7 +319,7 @@ export default function WritePage() {
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); editor?.commands.focus() } }}
                 placeholder="Untitled"
                 rows={1}
-                className="w-full resize-none overflow-hidden bg-transparent text-4xl font-bold text-gray-900 placeholder:text-gray-300 focus:outline-none leading-tight py-2"
+                className="w-full resize-none overflow-hidden bg-transparent text-3xl font-semibold text-gray-900 placeholder:text-gray-300 focus:outline-none leading-snug py-2"
               />
             </div>
             {editor && (

@@ -87,7 +87,7 @@ export default function ArticleDisplay({ article, showHighlights = true }: Artic
     <article className="max-w-4xl mx-auto px-4 py-8">
       {/* Article Header */}
       <header className="mb-8">
-        <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4 leading-tight">
+        <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3 leading-snug">
           {article.title}
         </h1>
         
