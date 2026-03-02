@@ -220,7 +220,7 @@ export default function WritePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+    <div className="min-h-screen bg-white overflow-x-hidden">
       <AppNavigation />
       <div className="flex flex-col pt-16">
         {/* Action bar - full width, Back | Undo | Redo | Save | Preview | Publish */}
