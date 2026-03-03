@@ -280,9 +280,9 @@ mark[data-highlight-id] mark[data-highlight-id] {
   color: #3c4043;
 }
 
-/* Links with Subtle Styling */
+/* Links – softer muted blue, no underline thickening on hover */
 .prose a {
-  color: #2d5a87;
+  color: #5b7a9e;
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
@@ -290,8 +290,8 @@ mark[data-highlight-id] mark[data-highlight-id] {
 }
 
 .prose a:hover {
-  color: #1a365d;
-  text-decoration-thickness: 2px;
+  color: #4a6585;
+  text-decoration-thickness: 1px;
 }
 
 /* Lists – tighter indentation and spacing */
@@ -344,7 +344,7 @@ mark[data-highlight-id] mark[data-highlight-id] {
   border-radius: 0.25rem;
   font-size: 0.875em;
   font-family: 'Monaco', 'Courier New', monospace;
-  color: #374151;
+  color: #5f6368;
 }
 
 .prose pre code {
