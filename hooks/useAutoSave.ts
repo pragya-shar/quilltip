@@ -19,6 +19,7 @@ interface UseAutoSaveOptions {
   articleId?: string
   title?: string
   excerpt?: string
+  coverImage?: string
   enabled?: boolean
   onSaveSuccess?: (response: DraftResponse) => void
   onSaveError?: (error: Error) => void
@@ -35,6 +36,7 @@ export function useAutoSave({
   articleId,
   title,
   excerpt,
+  coverImage,
   enabled = true,
   onSaveSuccess,
   onSaveError,
@@ -47,26 +49,35 @@ export function useAutoSave({
 
   const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const previousContentRef = useRef<string | undefined>(undefined)
+  const previousTitleRef = useRef<string | undefined>(undefined)
+  const previousCoverImageRef = useRef<string | undefined>(undefined)
+  const previousExcerptRef = useRef<string | undefined>(undefined)
+
+  // Minimal TipTap doc for metadata-only saves (title/cover before body content)
+  const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
   // Convex mutation for saving drafts
   const saveDraftMutation = useMutation(api.articles.saveDraft)
 
   const saveDraft = useCallback(async () => {
-    // Check isSaving using setState callback to get latest state
+    // Allow save when we have content OR (title or coverImage) for metadata-only drafts
+    const hasContent = !!content
+    const hasMetadata = !!(title?.trim() || coverImage)
+    if (!hasContent && !hasMetadata) return
+
     setState((prev) => {
-      if (!content || prev.isSaving) return prev
+      if (prev.isSaving) return prev
       return { ...prev, isSaving: true, error: null }
     })
 
-    // Early return if no content
-    if (!content) return
-
     try {
+      const contentToSave = content ?? EMPTY_DOC
       const draftId = await saveDraftMutation({
         id: articleId as Id<'articles'> | undefined,
         title: title || 'Untitled',
-        content,
+        content: contentToSave,
         excerpt,
+        coverImage: coverImage || undefined,
       })
 
       setState((prev) => ({
@@ -80,7 +91,7 @@ export function useAutoSave({
       const response: DraftResponse = {
         id: draftId,
         title: title || 'Untitled',
-        content,
+        content: contentToSave,
         excerpt,
         version: 1, // Convex handles versioning internally
         createdAt: new Date().toISOString(),
@@ -105,6 +116,7 @@ export function useAutoSave({
     articleId,
     title,
     excerpt,
+    coverImage,
     onSaveSuccess,
     onSaveError,
     saveDraftMutation,
@@ -120,15 +132,27 @@ export function useAutoSave({
     }, 10000) // 10 seconds
   }, [saveDraft])
 
-  // Effect to handle content changes
+  // Effect to handle content, title, coverImage, and excerpt changes
   useEffect(() => {
-    if (!enabled || !content) return
+    const hasContent = !!content
+    const hasMetadata = !!(title?.trim() || coverImage)
+    if (!enabled || (!hasContent && !hasMetadata)) return
 
-    const contentString = JSON.stringify(content)
+    const contentString = content ? JSON.stringify(content) : ''
+    const titleVal = title ?? ''
+    const coverImageVal = coverImage ?? ''
+    const excerptVal = excerpt ?? ''
 
-    // Only trigger save if content actually changed
-    if (previousContentRef.current !== contentString) {
+    const contentChanged = previousContentRef.current !== contentString
+    const titleChanged = previousTitleRef.current !== titleVal
+    const coverImageChanged = previousCoverImageRef.current !== coverImageVal
+    const excerptChanged = previousExcerptRef.current !== excerptVal
+
+    if (contentChanged || titleChanged || coverImageChanged || excerptChanged) {
       previousContentRef.current = contentString
+      previousTitleRef.current = titleVal
+      previousCoverImageRef.current = coverImageVal
+      previousExcerptRef.current = excerptVal
       debouncedSave()
     }
 
@@ -138,7 +162,7 @@ export function useAutoSave({
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [content, enabled, debouncedSave])
+  }, [content, title, coverImage, excerpt, enabled, debouncedSave])
 
   // Save immediately function for manual triggers
   const saveNow = useCallback(async () => {
@@ -165,7 +189,9 @@ export function useAutoSave({
   // Effect to save on window unload
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (enabled && content) {
+      const hasContent = !!content;
+      const hasMetadata = !!(title?.trim() || coverImage);
+      if (enabled && (hasContent || hasMetadata)) {
         // Synchronously write to localStorage as a fallback since async mutations
         // won't complete before the page closes
         try {
@@ -173,8 +199,9 @@ export function useAutoSave({
             'quilltip_draft_backup',
             JSON.stringify({
               title: title || 'Untitled',
-              content,
+              content: content ?? EMPTY_DOC,
               excerpt,
+              coverImage,
               articleId,
               savedAt: Date.now(),
             })
@@ -190,7 +217,7 @@ export function useAutoSave({
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [enabled, content, title, excerpt, articleId])
+  }, [enabled, content, title, excerpt, coverImage, articleId])
 
   return {
     ...state,

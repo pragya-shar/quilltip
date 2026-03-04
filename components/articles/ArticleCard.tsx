@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import { formatDistanceToNow } from 'date-fns'
 import { ArticleForDisplay } from '@/types/index'
 
@@ -17,13 +16,11 @@ export default function ArticleCard({ article }: ArticleCardProps) {
       {/* Cover Image */}
       {article.coverImage && (
         <Link href={`/${article.author.username}/${article.slug}`}>
-          <div className="relative h-48 w-full overflow-hidden">
-            <Image
+          <div className="h-48 w-full overflow-hidden">
+            <img
               src={article.coverImage}
               alt={article.title}
-              fill
-              className="object-cover hover:scale-105 transition-transform duration-200"
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
             />
           </div>
         </Link>

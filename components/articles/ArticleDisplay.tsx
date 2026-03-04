@@ -90,7 +90,7 @@ export default function ArticleDisplay({
     <article className="max-w-4xl mx-auto px-4 py-8">
       {/* Article Header */}
       <header className="mb-8">
-        <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4 leading-tight">
+        <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3 leading-snug">
           {article.title}
         </h1>
 
@@ -132,11 +132,9 @@ export default function ArticleDisplay({
         {/* Cover Image */}
         {article.coverImage && (
           <div className="mb-8">
-            <Image
+            <img
               src={article.coverImage}
               alt={article.title}
-              width={1200}
-              height={384}
               className="w-full h-64 md:h-96 object-cover rounded-lg"
             />
           </div>
