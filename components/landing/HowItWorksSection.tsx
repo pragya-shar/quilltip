@@ -142,7 +142,7 @@ export default function HowItWorksSection() {
                 <span className="text-neutral-400 italic">in four steps.</span>
               </h2>
               <p className="text-[15px] text-neutral-500 max-w-lg leading-relaxed">
-                Whether you write or read, QuillTip makes it simple to
+                Whether you write or read, Quilltip makes it simple to
                 participate in the future of publishing.
               </p>
             </div>

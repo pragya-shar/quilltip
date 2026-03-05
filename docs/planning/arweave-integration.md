@@ -107,4 +107,4 @@ const signer = new ArweaveSigner(parseWalletKey(process.env.ARWEAVE_WALLET_KEY))
 const turbo = TurboFactory.authenticated({ signer })
 ```
 
-All uploads are signed by QuillTip's server key — authors don't need Arweave accounts. Author info is stored in article metadata tags.
+All uploads are signed by Quilltip's server key — authors don't need Arweave accounts. Author info is stored in article metadata tags.

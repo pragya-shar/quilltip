@@ -375,7 +375,7 @@ export function EarningsDashboard() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-sm text-blue-800">
                   Withdrawals are processed instantly on the Stellar network.
-                  Transaction fees are covered by QuillTip.
+                  Transaction fees are covered by Quilltip.
                 </p>
               </div>
             </div>

@@ -1,7 +1,7 @@
 /**
- * QuillTip Highlights System
+ * Quilltip Highlights System
  *
- * This module provides the core highlighting functionality for QuillTip,
+ * This module provides the core highlighting functionality for Quilltip,
  * including text selection management, highlight serialization, and utilities.
  */
 

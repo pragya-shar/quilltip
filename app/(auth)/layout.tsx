@@ -23,7 +23,7 @@ export default function AuthLayout({
             className="inline-flex items-center text-2xl font-bold text-brand-blue hover:text-brand-accent transition-colors"
           >
             <span className="font-handwritten text-3xl mr-2">Q</span>
-            QuillTip
+            Quilltip
           </Link>
         </nav>
       </header>
@@ -39,7 +39,7 @@ export default function AuthLayout({
               </span>
             </div>
             <h1 className="text-3xl font-bold text-quill-900">
-              Welcome to QuillTip
+              Welcome to Quilltip
             </h1>
             <p className="mt-2 text-quill-600">
               Where your words find their worth
@@ -54,7 +54,7 @@ export default function AuthLayout({
           {/* Footer Links */}
           <div className="mt-8 text-center text-sm text-quill-600">
             <p>
-              By continuing, you agree to QuillTip&apos;s{' '}
+              By continuing, you agree to Quilltip&apos;s{' '}
               <Link href="/terms" className="text-brand-blue hover:underline">
                 Terms of Service
               </Link>{' '}

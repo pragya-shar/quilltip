@@ -1,9 +1,9 @@
-# QuillTip - Decentralized Publishing Platform
+# Quilltip - Decentralized Publishing Platform
 
 <div align="center">
 
 [![quilltip.me](https://img.shields.io/badge/quilltip.me-blue?style=flat)](https://quilltip.me)
-[![CI](https://img.shields.io/github/actions/workflow/status/pragya-shar/QuillTip/ci.yml?branch=development&style=flat&label=CI)](https://github.com/pragya-shar/QuillTip/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/pragya-shar/quilltip/ci.yml?branch=development&style=flat&label=CI)](https://github.com/pragya-shar/quilltip/actions/workflows/ci.yml)
 [![Tipping Contract](https://img.shields.io/badge/Tipping_Contract-yellow?style=flat&logo=stellar)](https://stellar.expert/explorer/testnet/contract/CASU4I45DVK3ZMXA3T34A3XF3BM4NBTFDW3QVCB3XA7PIWJSTN4HCVWG) [![NFT Contract](https://img.shields.io/badge/NFT_Contract-yellow?style=flat&logo=stellar)](https://stellar.expert/explorer/testnet/contract/CAS44OQK7A6W5FDRAH3K3ZN7TTQTJ5ESRVG6MB2HBVFWZ5TVH26UUB4S)
 
 ![Next.js](https://img.shields.io/badge/Next.js-000?style=flat&logo=nextdotjs&logoColor=white)
@@ -31,7 +31,7 @@ _Click to watch the demo_
 
 ## Overview
 
-QuillTip is a decentralized publishing platform where writers earn money through reader tips. Built with Next.js 16, Convex backend, Stellar blockchain for payments, and Arweave for permanent content storage. Writers receive 97.5% of every tip — no subscriptions, no minimum payouts.
+Quilltip is a decentralized publishing platform where writers earn money through reader tips. Built with Next.js 16, Convex backend, Stellar blockchain for payments, and Arweave for permanent content storage. Writers receive 97.5% of every tip — no subscriptions, no minimum payouts.
 
 ## Key Features
 
@@ -98,7 +98,7 @@ Open [http://localhost:3000](http://localhost:3000). See [docs/SETUP.md](docs/SE
 
 ## Support
 
-- **Issues**: [github.com/pragya-shar/QuillTip/issues](https://github.com/pragya-shar/QuillTip/issues)
+- **Issues**: [github.com/pragya-shar/quilltip/issues](https://github.com/pragya-shar/quilltip/issues)
 
 ## License
 
@@ -106,6 +106,6 @@ Open [http://localhost:3000](http://localhost:3000). See [docs/SETUP.md](docs/SE
 
 ---
 
-[![Twitter](https://img.shields.io/badge/@QuillTip__me-000?style=flat&logo=x&logoColor=white)](https://x.com/QuillTip_me)
+[![Twitter](https://img.shields.io/badge/@Quilltip__me-000?style=flat&logo=x&logoColor=white)](https://x.com/Quilltip_me)
 
-**QuillTip** — Writers keep 97.5%. Readers tip what they want. Built on Stellar.
+**Quilltip** — Writers keep 97.5%. Readers tip what they want. Built on Stellar.

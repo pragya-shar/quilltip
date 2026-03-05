@@ -25,7 +25,7 @@ export default function AppNavigation() {
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center space-x-2">
             <span className="text-3xl font-handwritten text-slate-900">
-              QuillTip
+              Quilltip
             </span>
           </Link>
 

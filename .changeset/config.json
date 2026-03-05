@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "pragya-shar/QuillTip" }],
+  "changelog": ["@changesets/changelog-github", { "repo": "pragya-shar/quilltip" }],
   "commit": false,
   "fixed": [],
   "linked": [],

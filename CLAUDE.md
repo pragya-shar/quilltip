@@ -2,7 +2,7 @@
 
 ## Project
 
-QuillTip is a decentralized publishing platform where writers earn money through reader tips. Writers receive 97.5% of every tip via Stellar blockchain payments. Content is permanently stored on Arweave.
+Quilltip is a decentralized publishing platform where writers earn money through reader tips. Writers receive 97.5% of every tip via Stellar blockchain payments. Content is permanently stored on Arweave.
 
 ## Stack
 

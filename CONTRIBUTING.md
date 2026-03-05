@@ -1,4 +1,4 @@
-# Contributing to QuillTip
+# Contributing to Quilltip
 
 Thanks for your interest in contributing! This guide covers everything you need to get started.
 
@@ -8,8 +8,8 @@ Thanks for your interest in contributing! This guide covers everything you need 
 2. Clone your fork and set up the dev environment:
 
 ```bash
-git clone https://github.com/<your-username>/QuillTip.git
-cd QuillTip
+git clone https://github.com/<your-username>/quilltip.git
+cd quilltip
 bun install
 cp .env.example .env.local
 npx convex dev --once

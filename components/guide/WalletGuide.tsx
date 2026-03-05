@@ -21,7 +21,7 @@ export function WalletGuide() {
     <div className="max-w-3xl mx-auto">
       <div className="text-center mb-10">
         <h1 className="text-3xl lg:text-4xl font-bold text-neutral-900 mb-3">
-          Getting Started with QuillTip
+          Getting Started with Quilltip
         </h1>
         <p className="text-neutral-600 max-w-xl mx-auto">
           Everything you need to know to start reading, highlighting, and
@@ -52,7 +52,7 @@ export function WalletGuide() {
               No crypto experience? No problem.
             </h2>
             <p className="text-sm text-blue-800 leading-relaxed">
-              Reading articles on QuillTip is completely free — no wallet
+              Reading articles on Quilltip is completely free — no wallet
               needed. You only need a wallet if you want to{' '}
               <strong>tip writers</strong> for content you love.
             </p>
@@ -68,13 +68,13 @@ export function WalletGuide() {
             step={2}
             icon={Key}
             title="You control your money"
-            description="Unlike traditional banks, your wallet is fully yours. Nobody — not even QuillTip — can access your funds without your permission. When you tip a writer, you approve each transaction yourself."
+            description="Unlike traditional banks, your wallet is fully yours. Nobody — not even Quilltip — can access your funds without your permission. When you tip a writer, you approve each transaction yourself."
           />
           <WalletStepCard
             step={3}
             icon={Coins}
             title="XLM is the currency"
-            description="Stellar Lumens (XLM) is the currency used on QuillTip. Tips start at just $0.01 (about 0.026 XLM). On testnet, you get free XLM to practice with — no real money needed."
+            description="Stellar Lumens (XLM) is the currency used on Quilltip. Tips start at just $0.01 (about 0.026 XLM). On testnet, you get free XLM to practice with — no real money needed."
             isLast
           />
         </TabsContent>
@@ -134,11 +134,11 @@ export function WalletGuide() {
           </WalletStepCard>
         </TabsContent>
 
-        {/* Tab 3: Connect to QuillTip */}
+        {/* Tab 3: Connect to Quilltip */}
         <TabsContent value="connect">
           <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-8">
             <h2 className="text-lg font-semibold text-green-900 mb-2">
-              Connect your wallet to QuillTip
+              Connect your wallet to Quilltip
             </h2>
             <p className="text-sm text-green-800 leading-relaxed">
               Once Freighter is installed, connecting takes one click. Try it
@@ -150,7 +150,7 @@ export function WalletGuide() {
             step={1}
             icon={PlugZap}
             title="Click the button below to connect"
-            description="This will open your Freighter extension and ask for permission to share your public address with QuillTip. No funds are transferred — it's just connecting."
+            description="This will open your Freighter extension and ask for permission to share your public address with Quilltip. No funds are transferred — it's just connecting."
           >
             <div className="mt-2">
               <WalletConnectButton />
@@ -177,7 +177,7 @@ export function WalletGuide() {
         <TabsContent value="first-tip">
           <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 mb-8">
             <h2 className="text-lg font-semibold text-purple-900 mb-2">
-              Tipping on QuillTip is simple
+              Tipping on Quilltip is simple
             </h2>
             <p className="text-sm text-purple-800 leading-relaxed">
               You can tip an entire article or a specific highlight. 97.5% goes
