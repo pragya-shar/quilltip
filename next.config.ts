@@ -2,6 +2,9 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   images: {
+    ...(process.env.NODE_ENV === 'development' && {
+      dangerouslyAllowLocalIP: true,
+    }),
     remotePatterns: [
       {
         protocol: 'https',
@@ -21,6 +24,13 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/vi/**',
       },
+      // Local Convex dev server
+      {
+        protocol: 'http',
+        hostname: '127.0.0.1',
+        port: '3210',
+        pathname: '/api/storage/**',
+      },
       // Temporary: Allow Unsplash for legacy content
       {
         protocol: 'https',
@@ -31,6 +41,12 @@ const nextConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: 'plus.unsplash.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'arweave.net',
         port: '',
         pathname: '/**',
       },

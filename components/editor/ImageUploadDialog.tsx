@@ -9,12 +9,14 @@ interface ImageUploadDialogProps {
   onImageSelect: (url: string) => void
   onClose: () => void
   isOpen: boolean
+  title?: string
 }
 
 export function ImageUploadDialog({
   onImageSelect,
   onClose,
   isOpen,
+  title = 'Add Image',
 }: ImageUploadDialogProps) {
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file')
   const [imageUrl, setImageUrl] = useState('')
@@ -178,7 +180,7 @@ export function ImageUploadDialog({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="text-lg font-semibold">Add Image</h3>
+          <h3 className="text-lg font-semibold">{title}</h3>
           <button
             onClick={handleClose}
             className="p-1 hover:bg-gray-100 rounded"
