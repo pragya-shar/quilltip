@@ -2,6 +2,9 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   images: {
+    ...(process.env.NODE_ENV === 'development' && {
+      dangerouslyAllowLocalIP: true,
+    }),
     remotePatterns: [
       {
         protocol: 'https',
