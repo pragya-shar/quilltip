@@ -27,7 +27,7 @@ const lowlight = createLowlight(common)
 export default function WritePage() {
   const [title, setTitle] = useState('')
   const [excerpt, setExcerpt] = useState('')
-  const [tags, setTags] = useState('')
+  const [tags, _setTags] = useState('')
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
@@ -77,7 +77,8 @@ export default function WritePage() {
       CodeBlockLowlight.configure({
         lowlight,
         HTMLAttributes: {
-          class: 'rounded-lg bg-gray-900 text-gray-100 p-4 my-4 overflow-x-auto',
+          class:
+            'rounded-lg bg-gray-900 text-gray-100 p-4 my-4 overflow-x-auto',
         },
       }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
@@ -126,7 +127,6 @@ export default function WritePage() {
       console.log('[QuillTip] Article ID:', articleId)
     }
   }, [articleId])
-
 
   // Get draft ID from URL params
   const urlParams =
@@ -189,7 +189,10 @@ export default function WritePage() {
           content: editorContent,
           excerpt: excerpt || undefined,
           coverImage: coverImage || undefined,
-          tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+          tags: tags
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean),
           published: true, // Publishing immediately
         })
       }
@@ -255,7 +258,7 @@ export default function WritePage() {
           onPreview={() => toast.info('Preview coming soon')}
           onPublish={handlePublish}
           isSaving={isSaving}
-          error={error}
+          error={error?.message ?? null}
           isPublished={publishStatus.published}
           isPublishing={isPublishing}
           hasUnsavedChanges={hasUnsavedChanges}
@@ -267,12 +270,18 @@ export default function WritePage() {
             <EditorToolbar
               editor={editor}
               onFocusCoverImage={() => {
-                document.getElementById('field-cover-image')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                document
+                  .getElementById('field-cover-image')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                 if (!coverImage) setShowCoverImageDialog(true)
               }}
               onFocusTitle={() => {
-                const el = document.getElementById('article-title') as HTMLInputElement | null
-                document.getElementById('field-article-title')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                const el = document.getElementById(
+                  'article-title'
+                ) as HTMLInputElement | null
+                document
+                  .getElementById('field-article-title')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                 el?.focus()
               }}
             />
@@ -288,7 +297,7 @@ export default function WritePage() {
                 <div className="relative w-full h-56 sm:h-72 rounded-xl overflow-hidden group">
                   <img
                     src={coverImage}
-                    alt="Cover image"
+                    alt="Article cover"
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
@@ -301,7 +310,10 @@ export default function WritePage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setCoverImage(''); setHasUnsavedChanges(true) }}
+                      onClick={() => {
+                        setCoverImage('')
+                        setHasUnsavedChanges(true)
+                      }}
                       className="px-4 py-2 bg-white text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors shadow"
                     >
                       Remove
@@ -314,8 +326,18 @@ export default function WritePage() {
                   onClick={() => setShowCoverImageDialog(true)}
                   className="w-full h-28 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center gap-2 text-gray-400 hover:border-sky-400 hover:text-sky-500 transition-colors group"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
                   </svg>
                   <span className="text-sm font-medium">Add cover image</span>
                 </button>
@@ -326,8 +348,16 @@ export default function WritePage() {
               <textarea
                 id="article-title"
                 value={title}
-                onChange={(e) => { setTitle(e.target.value); setHasUnsavedChanges(true) }}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); editor?.commands.focus() } }}
+                onChange={(e) => {
+                  setTitle(e.target.value)
+                  setHasUnsavedChanges(true)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    editor?.commands.focus()
+                  }
+                }}
                 placeholder="Untitled"
                 rows={1}
                 className="w-full resize-none overflow-hidden bg-transparent text-3xl font-semibold text-gray-900 placeholder:text-gray-300 focus:outline-none leading-snug py-2"

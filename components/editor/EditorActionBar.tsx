@@ -28,14 +28,18 @@ export function EditorActionBar({
   error,
   isPublished,
   isPublishing,
-  hasUnsavedChanges,
+  hasUnsavedChanges: _hasUnsavedChanges,
   canPublish,
   lastSavedAt,
 }: EditorActionBarProps) {
   const canUndo = editor?.can().undo ?? false
   const canRedo = editor?.can().redo ?? false
   const savedAtText = lastSavedAt
-    ? lastSavedAt.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    ? lastSavedAt.toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
     : null
 
   return (
@@ -77,7 +81,10 @@ export function EditorActionBar({
         {/* Draft pill (light yellow, dot indicator) + Not saved yet / Saved at */}
         <span className="flex items-center gap-2 text-sm">
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-yellow-100 text-amber-800 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" aria-hidden />
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"
+              aria-hidden
+            />
             Draft
           </span>
           {savedAtText != null ? (

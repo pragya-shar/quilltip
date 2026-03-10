@@ -189,8 +189,8 @@ export function useAutoSave({
   // Effect to save on window unload
   useEffect(() => {
     const handleBeforeUnload = () => {
-      const hasContent = !!content;
-      const hasMetadata = !!(title?.trim() || coverImage);
+      const hasContent = !!content
+      const hasMetadata = !!(title?.trim() || coverImage)
       if (enabled && (hasContent || hasMetadata)) {
         // Synchronously write to localStorage as a fallback since async mutations
         // won't complete before the page closes

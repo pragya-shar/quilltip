@@ -60,9 +60,7 @@ export function Logo({
   className = '',
 }: LogoProps) {
   const isDark = variant === 'dark'
-  const boxBg = isDark
-    ? 'bg-neutral-900'
-    : 'bg-neutral-700'
+  const boxBg = isDark ? 'bg-neutral-900' : 'bg-neutral-700'
   const iconColor = 'text-white'
   const textColor = isDark ? 'text-neutral-900' : 'text-white'
   const textFont = isDark ? 'font-semibold' : 'font-medium'
@@ -75,7 +73,9 @@ export function Logo({
         <QuillIcon className={`${iconInnerClasses[iconSize]} ${iconColor}`} />
       </span>
       {showText && (
-        <span className={`${textSizeClasses[iconSize]} ${textFont} ${textColor} tracking-tight`}>
+        <span
+          className={`${textSizeClasses[iconSize]} ${textFont} ${textColor} tracking-tight`}
+        >
           QuillTip
         </span>
       )}
@@ -86,7 +86,10 @@ export function Logo({
 
   if (href) {
     return (
-      <Link href={href} className={`${sharedClass} hover:opacity-90 transition-opacity`}>
+      <Link
+        href={href}
+        className={`${sharedClass} hover:opacity-90 transition-opacity`}
+      >
         {content}
       </Link>
     )
