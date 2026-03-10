@@ -111,6 +111,14 @@ export function useHighlights({
     }
   }, [containerRef, enabled])
 
+  // Clear selection
+  const clearSelection = useCallback(() => {
+    setSelection(null)
+    setPopoverPosition(null)
+    window.getSelection()?.removeAllRanges()
+    selectionManagerRef.current?.clearSelection()
+  }, [])
+
   // Apply highlights when they change
   useEffect(() => {
     if (!rendererRef.current || !highlights) return
@@ -163,7 +171,14 @@ export function useHighlights({
         setIsCreating(false)
       }
     },
-    [selection, isCreating, articleId, createHighlight, onHighlightCreated]
+    [
+      selection,
+      isCreating,
+      articleId,
+      createHighlight,
+      onHighlightCreated,
+      clearSelection,
+    ]
   )
 
   // Update highlight
@@ -202,14 +217,6 @@ export function useHighlights({
     },
     [deleteHighlight, onHighlightDeleted]
   )
-
-  // Clear selection
-  const clearSelection = useCallback(() => {
-    setSelection(null)
-    setPopoverPosition(null)
-    window.getSelection()?.removeAllRanges()
-    selectionManagerRef.current?.clearSelection()
-  }, [])
 
   // Scroll to highlight
   const scrollToHighlight = useCallback((highlightId: Id<'highlights'>) => {

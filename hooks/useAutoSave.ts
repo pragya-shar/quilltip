@@ -4,6 +4,8 @@ import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 
+const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
+
 interface DraftResponse {
   id: string
   title: string
@@ -52,9 +54,6 @@ export function useAutoSave({
   const previousTitleRef = useRef<string | undefined>(undefined)
   const previousCoverImageRef = useRef<string | undefined>(undefined)
   const previousExcerptRef = useRef<string | undefined>(undefined)
-
-  // Minimal TipTap doc for metadata-only saves (title/cover before body content)
-  const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
   // Convex mutation for saving drafts
   const saveDraftMutation = useMutation(api.articles.saveDraft)

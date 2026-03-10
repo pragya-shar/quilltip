@@ -21,13 +21,14 @@ import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { toast } from 'sonner'
+import Image from 'next/image'
 
 const lowlight = createLowlight(common)
 
 export default function WritePage() {
   const [title, setTitle] = useState('')
   const [excerpt, setExcerpt] = useState('')
-  const [tags, _setTags] = useState('')
+  const [tags] = useState('')
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
@@ -295,10 +296,11 @@ export default function WritePage() {
             <div id="field-cover-image" className="mb-4">
               {coverImage ? (
                 <div className="relative w-full h-56 sm:h-72 rounded-xl overflow-hidden group">
-                  <img
+                  <Image
                     src={coverImage}
                     alt="Article cover"
-                    className="w-full h-full object-cover"
+                    fill
+                    className="object-cover"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
                     <button

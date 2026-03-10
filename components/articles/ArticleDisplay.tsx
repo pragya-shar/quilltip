@@ -131,11 +131,12 @@ export default function ArticleDisplay({
 
         {/* Cover Image */}
         {article.coverImage && (
-          <div className="mb-8">
-            <img
+          <div className="relative mb-8 w-full h-64 md:h-96">
+            <Image
               src={article.coverImage}
               alt={article.title}
-              className="w-full h-64 md:h-96 object-cover rounded-lg"
+              fill
+              className="object-cover rounded-lg"
             />
           </div>
         )}
