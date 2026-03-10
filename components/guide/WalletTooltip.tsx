@@ -10,14 +10,14 @@ import {
 
 const concepts: Record<string, string> = {
   stellar:
-    'Stellar is a fast, low-cost blockchain network. QuillTip uses it to process tips in 3-5 seconds with fees under $0.01.',
-  xlm: 'XLM (Stellar Lumens) is the currency used on the Stellar network. Tips on QuillTip are sent in XLM.',
+    'Stellar is a fast, low-cost blockchain network. Quilltip uses it to process tips in 3-5 seconds with fees under $0.01.',
+  xlm: 'XLM (Stellar Lumens) is the currency used on the Stellar network. Tips on Quilltip are sent in XLM.',
   testnet:
     'Testnet is a practice environment with free tokens. No real money is involved — perfect for trying things out.',
   wallet:
     'A crypto wallet is a browser extension (like Freighter) that lets you hold and send digital currency securely.',
   'tip-fee':
-    'QuillTip takes only 2.5% — the writer receives 97.5% of every tip instantly.',
+    'Quilltip takes only 2.5% — the writer receives 97.5% of every tip instantly.',
   highlight:
     'Highlight a passage you love, then tip it directly. The author sees exactly which words earned the tip.',
 }

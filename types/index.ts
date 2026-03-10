@@ -1,4 +1,4 @@
-// Type definitions for QuillTip
+// Type definitions for Quilltip
 import { Id } from '@/convex/_generated/dataModel'
 
 // Convex User type (matches schema)

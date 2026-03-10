@@ -111,7 +111,7 @@ export default function ArticlesPage() {
             All Articles
           </h1>
           <p className="text-lg text-gray-600">
-            Discover stories, thinking, and expertise from writers on QuillTip
+            Discover stories, thinking, and expertise from writers on Quilltip
           </p>
         </div>
 

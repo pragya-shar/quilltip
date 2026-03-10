@@ -27,7 +27,7 @@ export default function Footer() {
                 <PenTool className="w-5 h-5 text-neutral-900" />
               </div>
               <h3 className="text-2xl font-display font-medium tracking-[-0.01em]">
-                QuillTip
+                Quilltip
               </h3>
             </div>
             <p className="text-neutral-400 text-[15px] leading-relaxed max-w-2xl mx-auto">
@@ -46,7 +46,7 @@ export default function Footer() {
           transition={{ duration: 0.6 }}
         >
           <div className="flex items-center justify-center gap-2 text-neutral-400 text-[13px]">
-            <span>© {currentYear} QuillTip. Built with</span>
+            <span>© {currentYear} Quilltip. Built with</span>
             <Heart className="w-4 h-4 text-red-500 fill-current animate-pulse" />
             <span>for writers everywhere</span>
           </div>

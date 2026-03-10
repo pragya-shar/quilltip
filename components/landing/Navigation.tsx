@@ -51,7 +51,7 @@ const navDropdowns: NavDropdown[] = [
   {
     label: 'Product',
     featured: {
-      title: 'QuillTip Platform',
+      title: 'Quilltip Platform',
       description:
         'Write, publish, and earn — all in one decentralized platform built on Stellar.',
       href: '#features',
@@ -238,7 +238,7 @@ export default function Navigation() {
               <PenTool className="w-[18px] h-[18px] text-white" />
             </motion.div>
             <span className="text-[22px] font-semibold text-neutral-900 tracking-tight">
-              QuillTip
+              Quilltip
             </span>
           </Link>
 

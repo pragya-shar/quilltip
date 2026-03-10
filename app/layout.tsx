@@ -21,7 +21,7 @@ const fraunces = Fraunces({
 })
 
 export const metadata: Metadata = {
-  title: 'QuillTip - Decentralized Publishing Platform',
+  title: 'Quilltip - Decentralized Publishing Platform',
   description:
     'Write, share, and monetize your content with Stellar-powered microtipping',
 }

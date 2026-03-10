@@ -17,7 +17,7 @@ export default function RegisterPage() {
           Create your account
         </h2>
         <p className="mt-2 text-sm text-quill-600">
-          Join QuillTip and start sharing your stories with the world.
+          Join Quilltip and start sharing your stories with the world.
         </p>
       </div>
 

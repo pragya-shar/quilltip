@@ -450,10 +450,10 @@ export const generateNFTMetadata = query({
 
     // Generate NFT metadata following OpenSea/standard format
     return {
-      name: `QuillTip Article: ${article.title}`,
+      name: `Quilltip Article: ${article.title}`,
       description:
         article.excerpt ||
-        `An article by ${article.authorUsername} on QuillTip`,
+        `An article by ${article.authorUsername} on Quilltip`,
       image: article.coverImage || 'https://quilltip.me/default-nft-image.png',
       external_url: `https://quilltip.me/${article.authorUsername}/${article.slug}`,
       attributes: {

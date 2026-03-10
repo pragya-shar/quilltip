@@ -25,7 +25,7 @@ import Link from 'next/link'
 const steps = [
   {
     icon: Sparkles,
-    title: 'Welcome to QuillTip',
+    title: 'Welcome to Quilltip',
     description:
       'A platform where readers reward writers directly. Read articles, highlight your favorite passages, and tip the authors you love — all powered by the Stellar blockchain.',
     color: 'bg-blue-100 text-blue-700',
@@ -81,7 +81,7 @@ export function OnboardingDialog() {
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="sr-only">Welcome to QuillTip</DialogTitle>
+          <DialogTitle className="sr-only">Welcome to Quilltip</DialogTitle>
           <DialogDescription className="sr-only">
             Getting started guide for new users
           </DialogDescription>
