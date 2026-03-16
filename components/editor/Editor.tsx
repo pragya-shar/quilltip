@@ -52,7 +52,7 @@ export function Editor({
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
-          class: 'text-blue-600 underline cursor-pointer hover:text-blue-800',
+          class: 'underline cursor-pointer',
         },
       }),
       // Add Underline extension

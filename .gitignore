@@ -58,3 +58,5 @@ contracts/article-nft/target
 # internal docs (planning/deployment docs not for version control)
 CONTRACT_DEPLOYMENT_PLAN.md
 IMPROVEMENTS_MOSCOW.md
+
+.agents/*
