@@ -203,7 +203,18 @@ export default function ArticlesPage() {
         {/* Articles Grid */}
         {!loading && !error && (
           <>
-            <ArticleGrid articles={articles} />
+            <ArticleGrid
+              articles={articles}
+              emptyState={
+                articles.length === 0
+                  ? {
+                      searchTerm: urlSearch || undefined,
+                      hasActiveFilters: !!(tag || author) && !urlSearch,
+                      onClearFilters: clearFilters,
+                    }
+                  : undefined
+              }
+            />
 
             {/* Pagination */}
             {pagination.totalPages > 1 && (
