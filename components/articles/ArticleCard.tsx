@@ -45,12 +45,13 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         {article.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {article.tags.slice(0, 3).map((tag) => (
-              <span
+              <Link
                 key={tag.id}
-                className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full"
+                href={`/articles?tag=${encodeURIComponent(tag.name)}`}
+                className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 hover:text-gray-900 transition-colors"
               >
                 {tag.name}
-              </span>
+              </Link>
             ))}
             {article.tags.length > 3 && (
               <span className="text-xs px-2 py-1 text-gray-500">

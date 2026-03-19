@@ -1,5 +1,5 @@
 import { v } from 'convex/values'
-import { query, mutation, internalMutation } from './_generated/server'
+import { query, mutation } from './_generated/server'
 import { internal } from './_generated/api'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { enrichWithUser } from './lib/enrich'
@@ -118,7 +118,8 @@ export const listArticles = query({
         (article) =>
           article.title.toLowerCase().includes(searchLower) ||
           (article.excerpt &&
-            article.excerpt.toLowerCase().includes(searchLower))
+            article.excerpt.toLowerCase().includes(searchLower)) ||
+          article.tags?.some((t) => t.toLowerCase().includes(searchLower))
       )
     }
 
@@ -144,6 +145,24 @@ export const listArticles = query({
       limit,
       totalPages: Math.ceil(total / limit),
     }
+  },
+})
+
+// Get unique tags from published articles (for tag cloud / filter UI)
+export const getArticleTags = query({
+  args: {},
+  handler: async (ctx) => {
+    const articles = await ctx.db
+      .query('articles')
+      .withIndex('by_published', (q) => q.eq('published', true))
+      .take(1000)
+    const tagSet = new Set<string>()
+    for (const article of articles) {
+      for (const t of article.tags || []) {
+        if (t && typeof t === 'string') tagSet.add(t)
+      }
+    }
+    return Array.from(tagSet).sort()
   },
 })
 
@@ -455,6 +474,43 @@ export const deleteArticle = mutation({
   },
 })
 
+// Dev/testing only: unpublish all articles. Run with: npx convex run articles:setAllArticlesToDraft
+export const setAllArticlesToDraft = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const publishedArticles = await ctx.db
+      .query('articles')
+      .withIndex('by_published', (q) => q.eq('published', true))
+      .collect()
+
+    const authorCounts = new Map<
+      import('./_generated/dataModel').Id<'users'>,
+      number
+    >()
+    for (const article of publishedArticles) {
+      await ctx.db.patch(article._id, {
+        published: false,
+        publishedAt: undefined,
+        updatedAt: Date.now(),
+      })
+      const count = authorCounts.get(article.authorId) ?? 0
+      authorCounts.set(article.authorId, count + 1)
+    }
+
+    for (const [authorId, count] of authorCounts) {
+      const user = await ctx.db.get(authorId)
+      if (user) {
+        await ctx.db.patch(authorId, {
+          articleCount: Math.max(0, (user.articleCount || 0) - count),
+          updatedAt: Date.now(),
+        })
+      }
+    }
+
+    return { unpublishCount: publishedArticles.length }
+  },
+})
+
 // Save draft (auto-save)
 export const saveDraft = mutation({
   args: {
@@ -519,27 +575,6 @@ export const saveDraft = mutation({
         updatedAt: now,
       })
     }
-  },
-})
-
-// Admin: set all articles to draft (for testing empty homepage). Run via CLI:
-// npx convex run articles:setAllArticlesToDraft
-export const setAllArticlesToDraft = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const articles = await ctx.db.query('articles').collect()
-    const now = Date.now()
-    let updated = 0
-    for (const article of articles) {
-      if (article.published) {
-        await ctx.db.patch(article._id, {
-          published: false,
-          updatedAt: now,
-        })
-        updated += 1
-      }
-    }
-    return { updated }
   },
 })
 

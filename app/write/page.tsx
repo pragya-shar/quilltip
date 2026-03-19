@@ -13,7 +13,7 @@ import { common, createLowlight } from 'lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { EditorToolbar } from '@/components/editor/EditorToolbar'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
-import { ImageUploadDialog } from '@/components/editor/ImageUploadDialog'
+import { ExcerptTagsDialog, ImageUploadDialog } from '@/components/editor'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { useAutoSave } from '@/hooks/useAutoSave'
@@ -28,9 +28,13 @@ const lowlight = createLowlight(common)
 export default function WritePage() {
   const [title, setTitle] = useState('')
   const [excerpt, setExcerpt] = useState('')
-  const [tags] = useState('')
+  const [tags, setTags] = useState('')
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
+  const [showExcerptTagsDialog, setShowExcerptTagsDialog] = useState(false)
+  const [excerptTagsInitialFocus, setExcerptTagsInitialFocus] = useState<
+    'excerpt' | 'tags'
+  >('excerpt')
   const [isPublishing, setIsPublishing] = useState(false)
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
@@ -110,6 +114,10 @@ export default function WritePage() {
     title: title || 'Untitled',
     excerpt,
     coverImage: coverImage || undefined,
+    tags: tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean),
     enabled: isAuthenticated && (hasUnsavedChanges || !!title),
     onSaveSuccess: (response) => {
       if (!articleId && response.id) {
@@ -148,6 +156,7 @@ export default function WritePage() {
       setArticleId(draft._id)
       setTitle(draft.title)
       setExcerpt(draft.excerpt || '')
+      setTags(draft.tags?.join(', ') || '')
       setCoverImage(draft.coverImage || '')
       setPublishStatus({
         published: draft.published,
@@ -285,6 +294,14 @@ export default function WritePage() {
                   ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                 el?.focus()
               }}
+              onFocusExcerpt={() => {
+                setExcerptTagsInitialFocus('excerpt')
+                setShowExcerptTagsDialog(true)
+              }}
+              onFocusTags={() => {
+                setExcerptTagsInitialFocus('tags')
+                setShowExcerptTagsDialog(true)
+              }}
             />
             <div
               className="absolute bottom-0 left-0 right-0 h-[2px] bg-sky-400 pointer-events-none"
@@ -385,6 +402,25 @@ export default function WritePage() {
           setShowCoverImageDialog(false)
         }}
         onClose={() => setShowCoverImageDialog(false)}
+      />
+
+      <ExcerptTagsDialog
+        isOpen={showExcerptTagsDialog}
+        onClose={() => {
+          setShowExcerptTagsDialog(false)
+          setHasUnsavedChanges(true)
+        }}
+        excerpt={excerpt}
+        tags={tags}
+        onExcerptChange={(value) => {
+          setExcerpt(value)
+          setHasUnsavedChanges(true)
+        }}
+        onTagsChange={(value) => {
+          setTags(value)
+          setHasUnsavedChanges(true)
+        }}
+        initialFocus={excerptTagsInitialFocus}
       />
     </div>
   )

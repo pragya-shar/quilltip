@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -30,6 +31,7 @@ export default function ArticlesPage() {
     author,
     search: urlSearch,
   })
+  const availableTags = useQuery(api.articles.getArticleTags) || []
 
   // Map Convex articles to expected ArticleCard format
   const articles: ArticleForDisplay[] =
@@ -120,10 +122,32 @@ export default function ArticlesPage() {
           <SearchInput
             value={searchTerm}
             onChange={handleSearchChange}
-            placeholder="Search articles by title or excerpt..."
+            placeholder="Search articles by title, excerpt, or tags..."
             className="max-w-md"
           />
         </div>
+
+        {/* Browse by tag */}
+        {availableTags.length > 0 && (
+          <div className="mb-6">
+            <span className="text-sm text-gray-600 mr-2">Browse by tag:</span>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {availableTags.map((t) => (
+                <Link
+                  key={t}
+                  href={`/articles?tag=${encodeURIComponent(t)}`}
+                  className={`text-xs px-3 py-1 rounded-full transition-colors ${
+                    tag === t
+                      ? 'bg-brand-blue text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {t}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Active Filters */}
         {(tag || author || urlSearch) && (
@@ -203,7 +227,18 @@ export default function ArticlesPage() {
         {/* Articles Grid */}
         {!loading && !error && (
           <>
-            <ArticleGrid articles={articles} />
+            <ArticleGrid
+              articles={articles}
+              emptyState={
+                articles.length === 0
+                  ? {
+                      searchTerm: urlSearch || undefined,
+                      hasActiveFilters: !!(tag || author) && !urlSearch,
+                      onClearFilters: clearFilters,
+                    }
+                  : undefined
+              }
+            />
 
             {/* Pagination */}
             {pagination.totalPages > 1 && (
