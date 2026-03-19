@@ -28,7 +28,7 @@ const lowlight = createLowlight(common)
 export default function WritePage() {
   const [title, setTitle] = useState('')
   const [excerpt, setExcerpt] = useState('')
-  const [tags] = useState('')
+  const [tags, setTags] = useState('')
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
@@ -110,6 +110,10 @@ export default function WritePage() {
     title: title || 'Untitled',
     excerpt,
     coverImage: coverImage || undefined,
+    tags: tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean),
     enabled: isAuthenticated && (hasUnsavedChanges || !!title),
     onSaveSuccess: (response) => {
       if (!articleId && response.id) {
@@ -148,6 +152,7 @@ export default function WritePage() {
       setArticleId(draft._id)
       setTitle(draft.title)
       setExcerpt(draft.excerpt || '')
+      setTags(draft.tags?.join(', ') || '')
       setCoverImage(draft.coverImage || '')
       setPublishStatus({
         published: draft.published,
@@ -285,6 +290,26 @@ export default function WritePage() {
                   ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                 el?.focus()
               }}
+              onFocusExcerpt={() => {
+                document
+                  .getElementById('field-article-excerpt')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                ;(
+                  document.getElementById('article-excerpt') as
+                    | HTMLTextAreaElement
+                    | null
+                )?.focus()
+              }}
+              onFocusTags={() => {
+                document
+                  .getElementById('field-tags')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                ;(
+                  document.getElementById('article-tags') as
+                    | HTMLInputElement
+                    | null
+                )?.focus()
+              }}
             />
             <div
               className="absolute bottom-0 left-0 right-0 h-[2px] bg-sky-400 pointer-events-none"
@@ -363,6 +388,34 @@ export default function WritePage() {
                 placeholder="Untitled"
                 rows={1}
                 className="w-full resize-none overflow-hidden bg-transparent text-3xl font-semibold text-gray-900 placeholder:text-gray-300 focus:outline-none leading-snug py-2"
+              />
+            </div>
+
+            <div id="field-article-excerpt" className="mb-4">
+              <textarea
+                id="article-excerpt"
+                value={excerpt}
+                onChange={(e) => {
+                  setExcerpt(e.target.value)
+                  setHasUnsavedChanges(true)
+                }}
+                placeholder="Brief description of your article (optional)"
+                rows={2}
+                className="w-full resize-none overflow-hidden bg-transparent text-gray-600 placeholder:text-gray-400 focus:outline-none border-b border-gray-100 pb-2 text-sm"
+              />
+            </div>
+
+            <div id="field-tags" className="mb-4">
+              <input
+                id="article-tags"
+                type="text"
+                value={tags}
+                onChange={(e) => {
+                  setTags(e.target.value)
+                  setHasUnsavedChanges(true)
+                }}
+                placeholder="Add tags separated by commas (e.g. rust, programming)"
+                className="w-full bg-transparent text-gray-600 placeholder:text-gray-400 focus:outline-none border-b border-gray-100 pb-2 text-sm"
               />
             </div>
 

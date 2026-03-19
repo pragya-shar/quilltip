@@ -147,6 +147,24 @@ export const listArticles = query({
   },
 })
 
+// Get unique tags from published articles (for tag cloud / filter UI)
+export const getArticleTags = query({
+  args: {},
+  handler: async (ctx) => {
+    const articles = await ctx.db
+      .query('articles')
+      .withIndex('by_published', (q) => q.eq('published', true))
+      .take(1000)
+    const tagSet = new Set<string>()
+    for (const article of articles) {
+      for (const t of article.tags || []) {
+        if (t && typeof t === 'string') tagSet.add(t)
+      }
+    }
+    return Array.from(tagSet).sort()
+  },
+})
+
 // Get article by slug
 export const getArticleBySlug = query({
   args: {
