@@ -21,6 +21,7 @@ interface UseAutoSaveOptions {
   articleId?: string
   title?: string
   excerpt?: string
+  tags?: string[]
   coverImage?: string
   enabled?: boolean
   onSaveSuccess?: (response: DraftResponse) => void
@@ -38,6 +39,7 @@ export function useAutoSave({
   articleId,
   title,
   excerpt,
+  tags,
   coverImage,
   enabled = true,
   onSaveSuccess,
@@ -54,6 +56,7 @@ export function useAutoSave({
   const previousTitleRef = useRef<string | undefined>(undefined)
   const previousCoverImageRef = useRef<string | undefined>(undefined)
   const previousExcerptRef = useRef<string | undefined>(undefined)
+  const previousTagsRef = useRef<string | undefined>(undefined)
 
   // Convex mutation for saving drafts
   const saveDraftMutation = useMutation(api.articles.saveDraft)
@@ -76,6 +79,7 @@ export function useAutoSave({
         title: title || 'Untitled',
         content: contentToSave,
         excerpt,
+        tags: tags?.length ? tags : undefined,
         coverImage: coverImage || undefined,
       })
 
@@ -115,6 +119,7 @@ export function useAutoSave({
     articleId,
     title,
     excerpt,
+    tags,
     coverImage,
     onSaveSuccess,
     onSaveError,
@@ -141,17 +146,26 @@ export function useAutoSave({
     const titleVal = title ?? ''
     const coverImageVal = coverImage ?? ''
     const excerptVal = excerpt ?? ''
+    const tagsVal = tags?.join(',') ?? ''
 
     const contentChanged = previousContentRef.current !== contentString
     const titleChanged = previousTitleRef.current !== titleVal
     const coverImageChanged = previousCoverImageRef.current !== coverImageVal
     const excerptChanged = previousExcerptRef.current !== excerptVal
+    const tagsChanged = previousTagsRef.current !== tagsVal
 
-    if (contentChanged || titleChanged || coverImageChanged || excerptChanged) {
+    if (
+      contentChanged ||
+      titleChanged ||
+      coverImageChanged ||
+      excerptChanged ||
+      tagsChanged
+    ) {
       previousContentRef.current = contentString
       previousTitleRef.current = titleVal
       previousCoverImageRef.current = coverImageVal
       previousExcerptRef.current = excerptVal
+      previousTagsRef.current = tagsVal
       debouncedSave()
     }
 
@@ -161,7 +175,7 @@ export function useAutoSave({
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [content, title, coverImage, excerpt, enabled, debouncedSave])
+  }, [content, title, coverImage, excerpt, tags, enabled, debouncedSave])
 
   // Save immediately function for manual triggers
   const saveNow = useCallback(async () => {
@@ -200,6 +214,7 @@ export function useAutoSave({
               title: title || 'Untitled',
               content: content ?? EMPTY_DOC,
               excerpt,
+              tags,
               coverImage,
               articleId,
               savedAt: Date.now(),
@@ -216,7 +231,7 @@ export function useAutoSave({
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [enabled, content, title, excerpt, coverImage, articleId])
+  }, [enabled, content, title, excerpt, tags, coverImage, articleId])
 
   return {
     ...state,
