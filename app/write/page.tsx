@@ -13,10 +13,7 @@ import { common, createLowlight } from 'lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { EditorToolbar } from '@/components/editor/EditorToolbar'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
-import {
-  ExcerptTagsDialog,
-  ImageUploadDialog,
-} from '@/components/editor'
+import { ExcerptTagsDialog, ImageUploadDialog } from '@/components/editor'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { useAutoSave } from '@/hooks/useAutoSave'
