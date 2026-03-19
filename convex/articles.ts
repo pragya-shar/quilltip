@@ -1,5 +1,5 @@
 import { v } from 'convex/values'
-import { query, mutation } from './_generated/server'
+import { query, mutation, internalMutation } from './_generated/server'
 import { internal } from './_generated/api'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { enrichWithUser } from './lib/enrich'
@@ -577,6 +577,27 @@ export const saveDraft = mutation({
         updatedAt: now,
       })
     }
+  },
+})
+
+// Admin: set all articles to draft (for testing empty homepage). Run via CLI:
+// npx convex run articles:setAllArticlesToDraft
+export const setAllArticlesToDraft = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const articles = await ctx.db.query('articles').collect()
+    const now = Date.now()
+    let updated = 0
+    for (const article of articles) {
+      if (article.published) {
+        await ctx.db.patch(article._id, {
+          published: false,
+          updatedAt: now,
+        })
+        updated += 1
+      }
+    }
+    return { updated }
   },
 })
 

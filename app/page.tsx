@@ -12,8 +12,9 @@ import FAQSection from '@/components/landing/FAQSection'
 import Footer from '@/components/landing/Footer'
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
 import ArticleGrid from '@/components/articles/ArticleGrid'
+import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
 import Link from 'next/link'
-import { PenSquare, BookOpen, Wallet, TrendingUp, Loader2 } from 'lucide-react'
+import { PenSquare, BookOpen, Wallet, TrendingUp } from 'lucide-react'
 import { ArticleForDisplay } from '@/types/index'
 
 export default function HomePage() {
@@ -149,11 +150,9 @@ export default function HomePage() {
                 </Link>
               </div>
               {result === undefined ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-                </div>
+                <ArticleGridSkeleton count={6} />
               ) : (
-                <ArticleGrid articles={recentArticles} />
+                <ArticleGrid articles={recentArticles} variant="home" />
               )}
             </div>
           </div>
