@@ -122,7 +122,7 @@ export default function ArticlesPage() {
           <SearchInput
             value={searchTerm}
             onChange={handleSearchChange}
-            placeholder="Search articles by title or excerpt..."
+            placeholder="Search articles by title, excerpt, or tags..."
             className="max-w-md"
           />
         </div>

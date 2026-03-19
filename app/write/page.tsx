@@ -13,7 +13,10 @@ import { common, createLowlight } from 'lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { EditorToolbar } from '@/components/editor/EditorToolbar'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
-import { ImageUploadDialog } from '@/components/editor/ImageUploadDialog'
+import {
+  ExcerptTagsDialog,
+  ImageUploadDialog,
+} from '@/components/editor'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { useAutoSave } from '@/hooks/useAutoSave'
@@ -31,6 +34,10 @@ export default function WritePage() {
   const [tags, setTags] = useState('')
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
+  const [showExcerptTagsDialog, setShowExcerptTagsDialog] = useState(false)
+  const [excerptTagsInitialFocus, setExcerptTagsInitialFocus] = useState<
+    'excerpt' | 'tags'
+  >('excerpt')
   const [isPublishing, setIsPublishing] = useState(false)
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
@@ -291,24 +298,12 @@ export default function WritePage() {
                 el?.focus()
               }}
               onFocusExcerpt={() => {
-                document
-                  .getElementById('field-article-excerpt')
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                ;(
-                  document.getElementById('article-excerpt') as
-                    | HTMLTextAreaElement
-                    | null
-                )?.focus()
+                setExcerptTagsInitialFocus('excerpt')
+                setShowExcerptTagsDialog(true)
               }}
               onFocusTags={() => {
-                document
-                  .getElementById('field-tags')
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                ;(
-                  document.getElementById('article-tags') as
-                    | HTMLInputElement
-                    | null
-                )?.focus()
+                setExcerptTagsInitialFocus('tags')
+                setShowExcerptTagsDialog(true)
               }}
             />
             <div
@@ -391,34 +386,6 @@ export default function WritePage() {
               />
             </div>
 
-            <div id="field-article-excerpt" className="mb-4">
-              <textarea
-                id="article-excerpt"
-                value={excerpt}
-                onChange={(e) => {
-                  setExcerpt(e.target.value)
-                  setHasUnsavedChanges(true)
-                }}
-                placeholder="Brief description of your article (optional)"
-                rows={2}
-                className="w-full resize-none overflow-hidden bg-transparent text-gray-600 placeholder:text-gray-400 focus:outline-none border-b border-gray-100 pb-2 text-sm"
-              />
-            </div>
-
-            <div id="field-tags" className="mb-4">
-              <input
-                id="article-tags"
-                type="text"
-                value={tags}
-                onChange={(e) => {
-                  setTags(e.target.value)
-                  setHasUnsavedChanges(true)
-                }}
-                placeholder="Add tags separated by commas (e.g. rust, programming)"
-                className="w-full bg-transparent text-gray-600 placeholder:text-gray-400 focus:outline-none border-b border-gray-100 pb-2 text-sm"
-              />
-            </div>
-
             {editor && (
               <EditorContent
                 editor={editor}
@@ -438,6 +405,25 @@ export default function WritePage() {
           setShowCoverImageDialog(false)
         }}
         onClose={() => setShowCoverImageDialog(false)}
+      />
+
+      <ExcerptTagsDialog
+        isOpen={showExcerptTagsDialog}
+        onClose={() => {
+          setShowExcerptTagsDialog(false)
+          setHasUnsavedChanges(true)
+        }}
+        excerpt={excerpt}
+        tags={tags}
+        onExcerptChange={(value) => {
+          setExcerpt(value)
+          setHasUnsavedChanges(true)
+        }}
+        onTagsChange={(value) => {
+          setTags(value)
+          setHasUnsavedChanges(true)
+        }}
+        initialFocus={excerptTagsInitialFocus}
       />
     </div>
   )

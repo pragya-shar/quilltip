@@ -118,7 +118,10 @@ export const listArticles = query({
         (article) =>
           article.title.toLowerCase().includes(searchLower) ||
           (article.excerpt &&
-            article.excerpt.toLowerCase().includes(searchLower))
+            article.excerpt.toLowerCase().includes(searchLower)) ||
+          (article.tags?.some((t) =>
+            t.toLowerCase().includes(searchLower)
+          ))
       )
     }
 
