@@ -262,7 +262,6 @@ export default function WritePage() {
           error={error?.message ?? null}
           isPublished={publishStatus.published}
           isPublishing={isPublishing}
-          hasUnsavedChanges={hasUnsavedChanges}
           canPublish={!!editorContent}
           lastSavedAt={lastSavedAt ?? undefined}
         />
