@@ -1,12 +1,20 @@
 import { v } from 'convex/values'
-import { query, mutation, internalMutation } from './_generated/server'
+import {
+  query,
+  mutation,
+  internalMutation,
+  type MutationCtx,
+} from './_generated/server'
 import { internal } from './_generated/api'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { enrichWithUser } from './lib/enrich'
 
 // Helper to generate a unique slug for an article
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function generateArticleSlug(title: string, authorId: string, ctx: any) {
+async function generateArticleSlug(
+  title: string,
+  authorId: string,
+  ctx: MutationCtx
+) {
   let slug = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -19,10 +27,8 @@ async function generateArticleSlug(title: string, authorId: string, ctx: any) {
 
   const existingSlug = await ctx.db
     .query('articles')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .withIndex('by_slug', (q: any) => q.eq('slug', slug))
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((q: any) => q.eq(q.field('authorId'), authorId))
+    .withIndex('by_slug', (q) => q.eq('slug', slug))
+    .filter((q) => q.eq(q.field('authorId'), authorId))
     .first()
 
   return existingSlug ? `${slug}-${Date.now()}` : slug

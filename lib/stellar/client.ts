@@ -606,11 +606,6 @@ export class StellarClient {
     const preparedTransaction =
       await this.sorobanServer.prepareTransaction(transaction)
 
-    const fee = Number(preparedTransaction.fee)
-    console.log(
-      `[Stellar] Extend TTL - Fee: ${fee} stroops (${(fee / 10_000_000).toFixed(7)} XLM)`
-    )
-
     return {
       xdr: preparedTransaction.toXDR(),
       contractId,
@@ -642,9 +637,6 @@ export class StellarClient {
         }
 
         if (txResult.status === 'SUCCESS') {
-          console.log(
-            `[Stellar] Contract TTL extended successfully: ${result.hash}`
-          )
           return { success: true, hash: result.hash }
         } else {
           return {
