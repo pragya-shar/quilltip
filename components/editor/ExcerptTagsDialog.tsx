@@ -51,10 +51,7 @@ export function ExcerptTagsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent
-        overlayClassName="backdrop-blur-md bg-black/40"
-        className="sm:max-w-md"
-      >
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Excerpt and Tags</DialogTitle>
           <DialogDescription>

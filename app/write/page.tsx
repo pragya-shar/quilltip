@@ -13,7 +13,8 @@ import { common, createLowlight } from 'lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { EditorToolbar } from '@/components/editor/EditorToolbar'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
-import { ExcerptTagsDialog, ImageUploadDialog } from '@/components/editor'
+import { ImageUploadDialog } from '@/components/editor/ImageUploadDialog'
+import { ExcerptTagsDialog } from '@/components/editor/ExcerptTagsDialog'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { useAutoSave } from '@/hooks/useAutoSave'
@@ -29,12 +30,9 @@ export default function WritePage() {
   const [title, setTitle] = useState('')
   const [excerpt, setExcerpt] = useState('')
   const [tags, setTags] = useState('')
+  const [showExcerptTagsDialog, setShowExcerptTagsDialog] = useState(false)
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
-  const [showExcerptTagsDialog, setShowExcerptTagsDialog] = useState(false)
-  const [excerptTagsInitialFocus, setExcerptTagsInitialFocus] = useState<
-    'excerpt' | 'tags'
-  >('excerpt')
   const [isPublishing, setIsPublishing] = useState(false)
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
@@ -113,11 +111,11 @@ export default function WritePage() {
     articleId,
     title: title || 'Untitled',
     excerpt,
-    coverImage: coverImage || undefined,
     tags: tags
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean),
+    coverImage: coverImage || undefined,
     enabled: isAuthenticated && (hasUnsavedChanges || !!title),
     onSaveSuccess: (response) => {
       if (!articleId && response.id) {
@@ -156,7 +154,7 @@ export default function WritePage() {
       setArticleId(draft._id)
       setTitle(draft.title)
       setExcerpt(draft.excerpt || '')
-      setTags(draft.tags?.join(', ') || '')
+      setTags(draft.tags?.join(', ') ?? '')
       setCoverImage(draft.coverImage || '')
       setPublishStatus({
         published: draft.published,
@@ -271,7 +269,6 @@ export default function WritePage() {
           error={error?.message ?? null}
           isPublished={publishStatus.published}
           isPublishing={isPublishing}
-          hasUnsavedChanges={hasUnsavedChanges}
           canPublish={!!editorContent}
           lastSavedAt={lastSavedAt ?? undefined}
         />
@@ -294,14 +291,8 @@ export default function WritePage() {
                   ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                 el?.focus()
               }}
-              onFocusExcerpt={() => {
-                setExcerptTagsInitialFocus('excerpt')
-                setShowExcerptTagsDialog(true)
-              }}
-              onFocusTags={() => {
-                setExcerptTagsInitialFocus('tags')
-                setShowExcerptTagsDialog(true)
-              }}
+              onFocusExcerpt={() => setShowExcerptTagsDialog(true)}
+              onFocusTags={() => setShowExcerptTagsDialog(true)}
             />
             <div
               className="absolute bottom-0 left-0 right-0 h-[2px] bg-sky-400 pointer-events-none"
@@ -406,21 +397,17 @@ export default function WritePage() {
 
       <ExcerptTagsDialog
         isOpen={showExcerptTagsDialog}
-        onClose={() => {
-          setShowExcerptTagsDialog(false)
-          setHasUnsavedChanges(true)
-        }}
+        onClose={() => setShowExcerptTagsDialog(false)}
         excerpt={excerpt}
         tags={tags}
-        onExcerptChange={(value) => {
-          setExcerpt(value)
+        onExcerptChange={(v) => {
+          setExcerpt(v)
           setHasUnsavedChanges(true)
         }}
-        onTagsChange={(value) => {
-          setTags(value)
+        onTagsChange={(v) => {
+          setTags(v)
           setHasUnsavedChanges(true)
         }}
-        initialFocus={excerptTagsInitialFocus}
       />
     </div>
   )

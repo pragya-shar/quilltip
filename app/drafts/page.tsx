@@ -9,7 +9,6 @@ import { useQuery, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { toast } from 'sonner'
-import { FileText } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -77,7 +76,6 @@ export default function DraftsPage() {
           </div>
         ) : drafts.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-            <FileText className="mx-auto h-12 w-12 text-gray-300 mb-4" />
             <div className="text-gray-500 mb-4">No drafts yet</div>
             <Link
               href="/write"

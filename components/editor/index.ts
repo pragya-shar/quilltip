@@ -1,5 +1,4 @@
 export { Editor } from './Editor'
 export { EditorToolbar } from './EditorToolbar'
 export { EditorWithToolbar } from './EditorWithToolbar'
-export { ExcerptTagsDialog } from './ExcerptTagsDialog'
 export { ImageUploadDialog } from './ImageUploadDialog'

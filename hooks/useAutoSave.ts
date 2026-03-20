@@ -21,8 +21,8 @@ interface UseAutoSaveOptions {
   articleId?: string
   title?: string
   excerpt?: string
-  coverImage?: string
   tags?: string[]
+  coverImage?: string
   enabled?: boolean
   onSaveSuccess?: (response: DraftResponse) => void
   onSaveError?: (error: Error) => void
@@ -39,8 +39,8 @@ export function useAutoSave({
   articleId,
   title,
   excerpt,
-  coverImage,
   tags,
+  coverImage,
   enabled = true,
   onSaveSuccess,
   onSaveError,
@@ -79,8 +79,8 @@ export function useAutoSave({
         title: title || 'Untitled',
         content: contentToSave,
         excerpt,
+        tags: tags?.length ? tags : undefined,
         coverImage: coverImage || undefined,
-        tags: tags && tags.length > 0 ? tags : undefined,
       })
 
       setState((prev) => ({
@@ -119,8 +119,8 @@ export function useAutoSave({
     articleId,
     title,
     excerpt,
-    coverImage,
     tags,
+    coverImage,
     onSaveSuccess,
     onSaveError,
     saveDraftMutation,
@@ -146,7 +146,7 @@ export function useAutoSave({
     const titleVal = title ?? ''
     const coverImageVal = coverImage ?? ''
     const excerptVal = excerpt ?? ''
-    const tagsVal = tags ? JSON.stringify(tags) : ''
+    const tagsVal = tags?.join(',') ?? ''
 
     const contentChanged = previousContentRef.current !== contentString
     const titleChanged = previousTitleRef.current !== titleVal
@@ -214,8 +214,8 @@ export function useAutoSave({
               title: title || 'Untitled',
               content: content ?? EMPTY_DOC,
               excerpt,
-              coverImage,
               tags,
+              coverImage,
               articleId,
               savedAt: Date.now(),
             })
@@ -231,7 +231,7 @@ export function useAutoSave({
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [enabled, content, title, excerpt, coverImage, tags, articleId])
+  }, [enabled, content, title, excerpt, tags, coverImage, articleId])
 
   return {
     ...state,

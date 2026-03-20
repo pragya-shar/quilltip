@@ -13,7 +13,6 @@ interface EditorActionBarProps {
   error: string | null
   isPublished: boolean
   isPublishing: boolean
-  hasUnsavedChanges: boolean
   canPublish: boolean
   lastSavedAt?: Date | null
 }
@@ -28,7 +27,6 @@ export function EditorActionBar({
   error,
   isPublished,
   isPublishing,
-  hasUnsavedChanges: _hasUnsavedChanges,
   canPublish,
   lastSavedAt,
 }: EditorActionBarProps) {

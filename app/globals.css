@@ -1,7 +1,5 @@
 @import 'tailwindcss';
 
-@plugin "tailwindcss-animate";
-
 /* Tailwind v4 Theme Configuration */
 @theme {
   --font-sans: Inter, sans-serif;
@@ -633,5 +631,14 @@ mark[data-highlight-id] mark[data-highlight-id] {
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .animate-accordion-down {
+    animation: var(--animate-accordion-down);
+  }
+  .animate-accordion-up {
+    animation: var(--animate-accordion-up);
   }
 }
