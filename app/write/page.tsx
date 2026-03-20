@@ -128,13 +128,6 @@ export default function WritePage() {
     },
   })
 
-  // Log article ID for development (F12 console)
-  useEffect(() => {
-    if (articleId && process.env.NODE_ENV === 'development') {
-      console.log('[QuillTip] Article ID:', articleId)
-    }
-  }, [articleId])
-
   // Get draft ID from URL params
   const urlParams =
     typeof window !== 'undefined'

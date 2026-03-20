@@ -11,7 +11,6 @@ export const uploadArticleToArweave = internalAction({
     // Check if Arweave is enabled
     const enabled = process.env.ARWEAVE_ENABLED === 'true'
     if (!enabled) {
-      console.log('[Arweave] Upload skipped - ARWEAVE_ENABLED is not true')
       return
     }
 
@@ -59,10 +58,6 @@ export const uploadArticleToArweave = internalAction({
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(
-          `[Arweave] Upload attempt ${attempt}/${maxRetries} for article: ${article.title}`
-        )
-
         const result = await uploadArticle(content, parseWalletKey(walletKey))
 
         if (result.success && result.txId) {
@@ -73,7 +68,6 @@ export const uploadArticleToArweave = internalAction({
             version: content.version,
             contentHash: result.contentHash,
           })
-          console.log(`[Arweave] Upload successful: ${result.txId}`)
           return
         }
 
@@ -116,7 +110,6 @@ export const verifyArweaveUpload = internalAction({
     )
 
     if (!data?.article.arweaveTxId) {
-      console.log('[Arweave] No txId to verify for article:', args.articleId)
       return
     }
 
@@ -157,16 +150,12 @@ export const verifyArweaveUpload = internalAction({
         articleId: args.articleId,
         status: 'verified',
       })
-      console.log(`[Arweave] Verified: ${data.article.arweaveTxId}`)
     } else {
       // Retry in 10 minutes if not confirmed yet
       await ctx.scheduler.runAfter(
         10 * 60 * 1000,
         internal.arweave.verifyArweaveUpload,
         { articleId: args.articleId }
-      )
-      console.log(
-        `[Arweave] Attempt ${attempts}/${MAX_VERIFY_ATTEMPTS} - not yet confirmed, scheduled retry for: ${data.article.arweaveTxId}`
       )
     }
   },
