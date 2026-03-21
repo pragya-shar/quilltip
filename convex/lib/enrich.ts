@@ -1,3 +1,4 @@
+import type { DatabaseReader } from '../_generated/server'
 import { Id } from '../_generated/dataModel'
 
 interface UserDoc {
@@ -19,8 +20,7 @@ export interface PublicUser {
  * Returns null if user not found.
  */
 export async function enrichWithUser(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ctx: { db: { get: (id: any) => Promise<any | null> } },
+  ctx: { db: DatabaseReader },
   userId: Id<'users'>
 ): Promise<PublicUser | null> {
   const user = (await ctx.db.get(userId)) as UserDoc | null
