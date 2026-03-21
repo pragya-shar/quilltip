@@ -77,7 +77,8 @@ export const listArticles = query({
 
     let articlesQuery = ctx.db
       .query('articles')
-      .withIndex('by_published', (q) => q.eq('published', true))
+      .withIndex('by_published_date', (q) => q.eq('published', true))
+      .order('desc')
 
     // Apply filters
     if (args.author) {
@@ -99,16 +100,7 @@ export const listArticles = query({
     // Search filtering will be done post-query
     // since Convex doesn't support contains on non-indexed fields
 
-    // When no tag/search filter is active, use .take() to avoid loading the entire table
-    const hasPostFilters = !!(args.tag || args.search)
-    let allArticles
-    if (hasPostFilters) {
-      // Filters require in-memory processing; cap at 1000 for safety
-      allArticles = await articlesQuery.take(1000)
-    } else {
-      // No post-filters: only take what's needed for this page
-      allArticles = await articlesQuery.take(offset + limit + 1)
-    }
+    let allArticles = await articlesQuery.take(1000)
 
     // Apply tag filter if specified
     if (args.tag) {
@@ -131,9 +123,7 @@ export const listArticles = query({
     const total = allArticles.length
 
     // Apply pagination
-    const articles = allArticles
-      .sort((a, b) => (b.publishedAt || 0) - (a.publishedAt || 0))
-      .slice(offset, offset + limit)
+    const articles = allArticles.slice(offset, offset + limit)
 
     // Enrich with author data
     const enrichedArticles = await Promise.all(
