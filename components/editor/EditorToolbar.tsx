@@ -38,6 +38,8 @@ interface EditorToolbarProps {
   onFocusExcerpt?: () => void
   onFocusTags?: () => void
   onFocusCoverImage?: () => void
+  notes?: string
+  onNotesChange?: (value: string) => void
 }
 
 interface ToolbarButtonProps {
@@ -59,6 +61,7 @@ function ToolbarButton({
 }: ToolbarButtonProps) {
   return (
     <button
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       disabled={disabled}
       title={title}
@@ -85,10 +88,13 @@ export function EditorToolbar({
   onFocusExcerpt,
   onFocusTags,
   onFocusCoverImage,
+  notes = '',
+  onNotesChange,
 }: EditorToolbarProps) {
   const [linkUrl, setLinkUrl] = useState('')
   const [showLinkInput, setShowLinkInput] = useState(false)
   const [showImageDialog, setShowImageDialog] = useState(false)
+  const [showNotes, setShowNotes] = useState(false)
 
   if (!editor) {
     return null
@@ -183,7 +189,10 @@ export function EditorToolbar({
         {/* Paragraph / style dropdown */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button className="flex items-center gap-1.5 px-2.5 py-2 rounded hover:bg-gray-100 text-gray-700 text-sm shrink-0">
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded hover:bg-gray-100 text-gray-700 text-sm shrink-0"
+            >
               <Type className="w-4 h-4 shrink-0" />
               <span>{getCurrentHeading()}</span>
               <ChevronDown className="w-3.5 h-3.5 opacity-70 shrink-0" />
@@ -207,7 +216,10 @@ export function EditorToolbar({
         {/* Font size */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
-            <button className="flex items-center gap-1 px-2 py-2 rounded hover:bg-gray-100 text-gray-700 text-sm min-w-[2.25rem] shrink-0">
+            <button
+              onMouseDown={(e) => e.preventDefault()}
+              className="flex items-center gap-1 px-2 py-2 rounded hover:bg-gray-100 text-gray-700 text-sm min-w-[2.25rem] shrink-0"
+            >
               <span>18</span>
               <ChevronDown className="w-3.5 h-3.5 opacity-70" />
             </button>
@@ -347,6 +359,7 @@ export function EditorToolbar({
           <DropdownMenu.Trigger asChild>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               className="p-2 rounded hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer shrink-0"
               title="Add"
               aria-label="Add"
@@ -446,15 +459,32 @@ export function EditorToolbar({
         </ToolbarButton>
       </div>
       <div className="absolute right-6 flex items-center shrink-0">
-        <button
-          type="button"
-          className="flex items-center gap-2 pl-3 pr-2 py-2 rounded hover:bg-gray-100 text-gray-700 text-sm font-medium"
-          title="Notes"
-          onClick={() => toast.info('Notes coming soon')}
-        >
-          <FileText className="w-4 h-4" />
-          Notes
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            className={`flex items-center gap-2 pl-3 pr-2 py-2 rounded hover:bg-gray-100 text-sm font-medium ${showNotes ? 'bg-gray-100 text-blue-600' : 'text-gray-700'}`}
+            title="Notes"
+            onClick={() => setShowNotes(!showNotes)}
+          >
+            <FileText className="w-4 h-4" />
+            Notes
+          </button>
+          {showNotes && (
+            <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-72">
+              <div className="px-3 py-2 border-b border-gray-100 text-xs font-medium text-gray-500">
+                Personal Notes
+              </div>
+              <textarea
+                value={notes}
+                onChange={(e) => onNotesChange?.(e.target.value)}
+                placeholder="Jot down ideas, reminders, or notes..."
+                className="w-full p-3 text-sm text-gray-700 resize-none focus:outline-none rounded-b-lg"
+                rows={6}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <ImageUploadDialog

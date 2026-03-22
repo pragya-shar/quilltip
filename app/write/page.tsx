@@ -33,6 +33,7 @@ export default function WritePage() {
   const [showExcerptTagsDialog, setShowExcerptTagsDialog] = useState(false)
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
+  const [notes, setNotes] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
@@ -51,6 +52,7 @@ export default function WritePage() {
   // Convex mutations
   const createArticleMutation = useMutation(api.articles.createArticle)
   const publishArticleMutation = useMutation(api.articles.publishArticle)
+  const deleteArticleMutation = useMutation(api.articles.deleteArticle)
 
   // Initialize editor with proper configuration
   const editor = useEditor({
@@ -230,6 +232,19 @@ export default function WritePage() {
     createArticleMutation,
   ])
 
+  const handleDelete = useCallback(async () => {
+    if (!window.confirm('Are you sure you want to delete this draft?')) return
+    try {
+      if (articleId) {
+        await deleteArticleMutation({ id: articleId as Id<'articles'> })
+      }
+      router.push('/')
+    } catch (error) {
+      console.error('Delete error:', error)
+      toast.error('Failed to delete draft')
+    }
+  }, [articleId, deleteArticleMutation, router])
+
   // Authentication checks
   if (isLoading) {
     return (
@@ -245,7 +260,7 @@ export default function WritePage() {
   }
 
   return (
-    <div className="min-h-screen bg-white overflow-x-hidden">
+    <div className="min-h-screen bg-white">
       <AppNavigation />
       <div className="flex flex-col pt-16">
         {/* Action bar - full width, Back | Undo | Redo | Save | Preview | Publish */}
@@ -256,7 +271,6 @@ export default function WritePage() {
             saveNow()
             setHasUnsavedChanges(false)
           }}
-          onPreview={() => toast.info('Preview coming soon')}
           onPublish={handlePublish}
           isSaving={isSaving}
           error={error?.message ?? null}
@@ -264,9 +278,10 @@ export default function WritePage() {
           isPublishing={isPublishing}
           canPublish={!!editorContent}
           lastSavedAt={lastSavedAt ?? undefined}
+          onDelete={handleDelete}
         />
         <div className="flex-1 flex flex-col min-w-0 pb-8">
-          <div className="relative w-full mb-6">
+          <div className="sticky top-16 z-40 bg-white w-full mb-6">
             <EditorToolbar
               editor={editor}
               onFocusCoverImage={() => {
@@ -286,6 +301,8 @@ export default function WritePage() {
               }}
               onFocusExcerpt={() => setShowExcerptTagsDialog(true)}
               onFocusTags={() => setShowExcerptTagsDialog(true)}
+              notes={notes}
+              onNotesChange={setNotes}
             />
             <div
               className="absolute bottom-0 left-0 right-0 h-[2px] bg-sky-400 pointer-events-none"
@@ -373,6 +390,23 @@ export default function WritePage() {
                 className="editor-content min-h-[400px]"
               />
             )}
+
+            <div className="border-t border-gray-200 mt-8 pt-4">
+              <label htmlFor="article-tags" className="block text-xs font-medium text-gray-400 mb-1">
+                Tags
+              </label>
+              <input
+                id="article-tags"
+                type="text"
+                value={tags}
+                onChange={(e) => {
+                  setTags(e.target.value)
+                  setHasUnsavedChanges(true)
+                }}
+                placeholder="Add tags separated by commas (e.g. rust, programming)"
+                className="w-full bg-transparent text-sm text-gray-600 placeholder:text-gray-300 focus:outline-none py-1"
+              />
+            </div>
           </div>
         </div>
       </div>

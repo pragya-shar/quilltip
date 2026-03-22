@@ -1,7 +1,8 @@
 'use client'
 
 import { Editor } from '@tiptap/react'
-import { ArrowLeft, Undo2, Redo2, MoreHorizontal } from 'lucide-react'
+import { ArrowLeft, Undo2, Redo2, MoreHorizontal, Trash2, Clock, LetterText } from 'lucide-react'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
 interface EditorActionBarProps {
   editor: Editor | null
@@ -15,6 +16,7 @@ interface EditorActionBarProps {
   isPublishing: boolean
   canPublish: boolean
   lastSavedAt?: Date | null
+  onDelete?: () => void
 }
 
 export function EditorActionBar({
@@ -29,6 +31,7 @@ export function EditorActionBar({
   isPublishing,
   canPublish,
   lastSavedAt,
+  onDelete,
 }: EditorActionBarProps) {
   const canUndo = editor?.can().undo ?? false
   const canRedo = editor?.can().redo ?? false
@@ -139,13 +142,51 @@ export function EditorActionBar({
         )}
 
         {/* More options */}
-        <button
-          type="button"
-          className="p-2 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
-          title="More options"
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger asChild>
+            <button
+              type="button"
+              className="p-2 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+              title="More options"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[180px]"
+              sideOffset={4}
+              align="end"
+            >
+              <DropdownMenu.Item
+                className="px-4 py-2.5 text-sm text-gray-500 outline-none flex items-center gap-2"
+                onSelect={(e) => e.preventDefault()}
+              >
+                <LetterText className="w-4 h-4 shrink-0" />
+                {editor?.getText().split(/\s+/).filter(Boolean).length ?? 0} words
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                className="px-4 py-2.5 text-sm text-gray-500 outline-none flex items-center gap-2"
+                onSelect={(e) => e.preventDefault()}
+              >
+                <Clock className="w-4 h-4 shrink-0" />
+                ~{Math.max(1, Math.ceil((editor?.getText().split(/\s+/).filter(Boolean).length ?? 0) / 200))} min read
+              </DropdownMenu.Item>
+              {onDelete && (
+                <>
+                  <DropdownMenu.Separator className="h-px bg-gray-200 my-1" />
+                  <DropdownMenu.Item
+                    onSelect={onDelete}
+                    className="px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 cursor-pointer outline-none flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4 shrink-0" />
+                    Delete draft
+                  </DropdownMenu.Item>
+                </>
+              )}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
       </div>
 
       {/* Save error indicator */}
