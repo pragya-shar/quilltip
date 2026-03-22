@@ -1,7 +1,15 @@
 'use client'
 
 import { Editor } from '@tiptap/react'
-import { ArrowLeft, Undo2, Redo2, MoreHorizontal, Trash2, Clock, LetterText } from 'lucide-react'
+import {
+  ArrowLeft,
+  Undo2,
+  Redo2,
+  MoreHorizontal,
+  Trash2,
+  Clock,
+  LetterText,
+} from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
 interface EditorActionBarProps {
@@ -163,14 +171,23 @@ export function EditorActionBar({
                 onSelect={(e) => e.preventDefault()}
               >
                 <LetterText className="w-4 h-4 shrink-0" />
-                {editor?.getText().split(/\s+/).filter(Boolean).length ?? 0} words
+                {editor?.getText().split(/\s+/).filter(Boolean).length ??
+                  0}{' '}
+                words
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 className="px-4 py-2.5 text-sm text-gray-500 outline-none flex items-center gap-2"
                 onSelect={(e) => e.preventDefault()}
               >
-                <Clock className="w-4 h-4 shrink-0" />
-                ~{Math.max(1, Math.ceil((editor?.getText().split(/\s+/).filter(Boolean).length ?? 0) / 200))} min read
+                <Clock className="w-4 h-4 shrink-0" />~
+                {Math.max(
+                  1,
+                  Math.ceil(
+                    (editor?.getText().split(/\s+/).filter(Boolean).length ??
+                      0) / 200
+                  )
+                )}{' '}
+                min read
               </DropdownMenu.Item>
               {onDelete && (
                 <>

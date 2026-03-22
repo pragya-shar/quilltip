@@ -392,7 +392,10 @@ export default function WritePage() {
             )}
 
             <div className="border-t border-gray-200 mt-8 pt-4">
-              <label htmlFor="article-tags" className="block text-xs font-medium text-gray-400 mb-1">
+              <label
+                htmlFor="article-tags"
+                className="block text-xs font-medium text-gray-400 mb-1"
+              >
                 Tags
               </label>
               <input
