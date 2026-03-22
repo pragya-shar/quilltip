@@ -166,6 +166,26 @@ export default function WritePage() {
     }
   }, [draft, editor])
 
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) e.preventDefault()
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [hasUnsavedChanges])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault()
+        saveNow()
+        setHasUnsavedChanges(false)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [saveNow])
+
   // Handle publish
   const handlePublish = useCallback(async () => {
     if (!editorContent) {
@@ -237,11 +257,13 @@ export default function WritePage() {
     try {
       if (articleId) {
         await deleteArticleMutation({ id: articleId as Id<'articles'> })
+        router.push('/')
       }
-      router.push('/')
     } catch (error) {
       console.error('Delete error:', error)
-      toast.error('Failed to delete draft')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to delete draft'
+      )
     }
   }, [articleId, deleteArticleMutation, router])
 
@@ -276,9 +298,15 @@ export default function WritePage() {
           error={error?.message ?? null}
           isPublished={publishStatus.published}
           isPublishing={isPublishing}
-          canPublish={!!editorContent}
+          canPublish={
+            !!editorContent?.content?.some(
+              (node: { content?: { text?: string }[] }) =>
+                node.content?.some((child) => child.text?.trim())
+            )
+          }
           lastSavedAt={lastSavedAt ?? undefined}
           onDelete={handleDelete}
+          hasUnsavedChanges={hasUnsavedChanges}
         />
         <div className="flex-1 flex flex-col min-w-0 pb-8">
           <div className="sticky top-16 z-40 bg-white w-full mb-6">

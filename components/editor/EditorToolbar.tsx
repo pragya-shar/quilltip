@@ -15,21 +15,18 @@ import {
   Type,
   ChevronDown,
   Plus,
-  Sparkles,
   AlignLeft,
   AlignCenter,
   AlignRight,
   AlignJustify,
-  Highlighter,
-  Palette,
   FileText,
-  Info,
   Tag,
+  Youtube,
 } from 'lucide-react'
 import { useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ImageUploadDialog } from './ImageUploadDialog'
-import { toast } from 'sonner'
+import { YouTubeEmbedDialog } from './YouTubeEmbedDialog'
 
 interface EditorToolbarProps {
   editor: Editor | null
@@ -94,6 +91,7 @@ export function EditorToolbar({
   const [linkUrl, setLinkUrl] = useState('')
   const [showLinkInput, setShowLinkInput] = useState(false)
   const [showImageDialog, setShowImageDialog] = useState(false)
+  const [showYouTubeDialog, setShowYouTubeDialog] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
 
   if (!editor) {
@@ -175,17 +173,6 @@ export function EditorToolbar({
   return (
     <div className="bg-white w-full relative flex items-center justify-center min-h-[44px] px-6 py-2">
       <div className="flex items-center gap-0.5 flex-nowrap min-w-0 justify-center">
-        {/* AI / Magic */}
-        <ToolbarButton
-          onClick={() => toast.info('AI tools coming soon')}
-          title="AI tools"
-          className="text-blue-600"
-        >
-          <Sparkles className="w-4 h-4" />
-        </ToolbarButton>
-
-        <ToolbarDivider />
-
         {/* Paragraph / style dropdown */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
@@ -207,32 +194,6 @@ export function EditorToolbar({
                   className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer outline-none"
                 >
                   {option.label}
-                </DropdownMenu.Item>
-              ))}
-            </DropdownMenu.Content>
-          </DropdownMenu.Portal>
-        </DropdownMenu.Root>
-
-        {/* Font size */}
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger asChild>
-            <button
-              onMouseDown={(e) => e.preventDefault()}
-              className="flex items-center gap-1 px-2 py-2 rounded hover:bg-gray-100 text-gray-700 text-sm min-w-[2.25rem] shrink-0"
-            >
-              <span>18</span>
-              <ChevronDown className="w-3.5 h-3.5 opacity-70" />
-            </button>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Portal>
-            <DropdownMenu.Content className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-              {[12, 14, 16, 18, 20, 24].map((size) => (
-                <DropdownMenu.Item
-                  key={size}
-                  onSelect={() => toast.info('Font size applies to selection')}
-                  className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer outline-none"
-                >
-                  {size}
                 </DropdownMenu.Item>
               ))}
             </DropdownMenu.Content>
@@ -269,21 +230,6 @@ export function EditorToolbar({
           title="Strikethrough"
         >
           <Strikethrough className="w-4 h-4" />
-        </ToolbarButton>
-
-        {/* Text color (placeholder) */}
-        <ToolbarButton
-          onClick={() => toast.info('Text color coming soon')}
-          title="Text color"
-        >
-          <Palette className="w-4 h-4" />
-        </ToolbarButton>
-        {/* Highlighter (placeholder) */}
-        <ToolbarButton
-          onClick={() => toast.info('Highlight coming soon')}
-          title="Highlight"
-        >
-          <Highlighter className="w-4 h-4" />
         </ToolbarButton>
 
         {/* Quote */}
@@ -453,9 +399,12 @@ export function EditorToolbar({
           <Image className="w-4 h-4" />
         </ToolbarButton>
 
-        {/* Info (placeholder) */}
-        <ToolbarButton onClick={() => toast.info('Help')} title="Info">
-          <Info className="w-4 h-4" />
+        {/* YouTube embed */}
+        <ToolbarButton
+          onClick={() => setShowYouTubeDialog(true)}
+          title="Embed YouTube video"
+        >
+          <Youtube className="w-4 h-4" />
         </ToolbarButton>
       </div>
       <div className="absolute right-6 flex items-center shrink-0">
@@ -491,6 +440,24 @@ export function EditorToolbar({
         isOpen={showImageDialog}
         onClose={() => setShowImageDialog(false)}
         onImageSelect={handleImageSelect}
+      />
+
+      <YouTubeEmbedDialog
+        isOpen={showYouTubeDialog}
+        onClose={() => setShowYouTubeDialog(false)}
+        onVideoEmbed={(url, width, height) => {
+          const chain = editor.chain().focus() as {
+            setYoutubeVideo: (opts: {
+              src: string
+              width?: number
+              height?: number
+            }) => { run: () => void }
+          }
+          if (typeof chain.setYoutubeVideo === 'function') {
+            chain.setYoutubeVideo({ src: url, width, height }).run()
+          }
+          setShowYouTubeDialog(false)
+        }}
       />
     </div>
   )

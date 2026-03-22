@@ -25,6 +25,7 @@ interface EditorActionBarProps {
   canPublish: boolean
   lastSavedAt?: Date | null
   onDelete?: () => void
+  hasUnsavedChanges?: boolean
 }
 
 export function EditorActionBar({
@@ -40,6 +41,7 @@ export function EditorActionBar({
   canPublish,
   lastSavedAt,
   onDelete,
+  hasUnsavedChanges = false,
 }: EditorActionBarProps) {
   const canUndo = editor?.can().undo ?? false
   const canRedo = editor?.can().redo ?? false
@@ -89,14 +91,18 @@ export function EditorActionBar({
 
         {/* Draft pill (light yellow, dot indicator) + Not saved yet / Saved at */}
         <span className="flex items-center gap-2 text-sm">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-yellow-100 text-amber-800 font-medium">
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium ${hasUnsavedChanges ? 'bg-red-50 text-red-700' : 'bg-yellow-100 text-amber-800'}`}
+          >
             <span
-              className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${hasUnsavedChanges ? 'bg-red-500' : 'bg-amber-500'}`}
               aria-hidden
             />
             Draft
           </span>
-          {savedAtText != null ? (
+          {hasUnsavedChanges ? (
+            <span className="text-red-500">Unsaved changes</span>
+          ) : savedAtText != null ? (
             <span className="text-gray-500">Saved at {savedAtText}</span>
           ) : (
             <span className="text-gray-400">Not saved yet</span>

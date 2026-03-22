@@ -422,12 +422,25 @@ export const deleteArticle = mutation({
     if (!article) throw new Error('Article not found')
     if (article.authorId !== userId) throw new Error('Not authorized')
 
-    // Delete related data
-    // Delete highlights
+    // Check for tipped highlights before deleting
     const highlights = await ctx.db
       .query('highlights')
       .withIndex('by_article', (q) => q.eq('articleId', args.id))
       .collect()
+
+    for (const highlight of highlights) {
+      const tip = await ctx.db
+        .query('highlightTips')
+        .withIndex('by_highlight', (q) =>
+          q.eq('highlightId', highlight.highlightId)
+        )
+        .first()
+      if (tip) {
+        throw new Error(
+          'Cannot delete: article has tipped highlights with financial records'
+        )
+      }
+    }
 
     for (const highlight of highlights) {
       await ctx.db.delete(highlight._id)
