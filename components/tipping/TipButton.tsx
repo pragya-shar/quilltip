@@ -249,7 +249,8 @@ export function TipButton({
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Minimum: ${TIP_MIN_USD.toFixed(2)} • Maximum: ${TIP_MAX_USD.toFixed(2)}
+                Minimum: ${TIP_MIN_USD.toFixed(2)} • Maximum: $
+                {TIP_MAX_USD.toFixed(2)}
               </p>
             </div>
 

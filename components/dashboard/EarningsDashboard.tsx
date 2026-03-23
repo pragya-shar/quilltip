@@ -42,7 +42,9 @@ export function EarningsDashboard() {
     const amount = parseFloat(withdrawAmount)
 
     if (!amount || amount < MIN_WITHDRAWAL_USD) {
-      toast.error(`Minimum withdrawal amount is $${MIN_WITHDRAWAL_USD.toFixed(2)}`)
+      toast.error(
+        `Minimum withdrawal amount is $${MIN_WITHDRAWAL_USD.toFixed(2)}`
+      )
       return
     }
 
@@ -344,8 +346,8 @@ export function EarningsDashboard() {
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Available: ${earnings.availableBalanceUsd.toFixed(2)} | Min:
-                  ${MIN_WITHDRAWAL_USD.toFixed(2)}
+                  Available: ${earnings.availableBalanceUsd.toFixed(2)} | Min: $
+                  {MIN_WITHDRAWAL_USD.toFixed(2)}
                 </p>
               </div>
 
