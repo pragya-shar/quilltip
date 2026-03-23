@@ -91,12 +91,3 @@ export const STELLAR_CONFIG = {
   // Updated: Jan 2026 - Conservative rate based on recent market (~$0.21-0.24)
   XLM_TO_USD_RATE: 0.22,
 } as const
-
-export const TIP_AMOUNTS = [
-  { cents: 1, label: '1¢' },
-  { cents: 5, label: '5¢' },
-  { cents: 10, label: '10¢' },
-  { cents: 25, label: '25¢' },
-  { cents: 50, label: '50¢' },
-  { cents: 100, label: '$1' },
-] as const

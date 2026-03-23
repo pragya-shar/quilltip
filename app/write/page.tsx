@@ -23,6 +23,7 @@ import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { toast } from 'sonner'
 import Image from 'next/image'
+import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 
 const lowlight = createLowlight(common)
 
@@ -91,8 +92,7 @@ export default function WritePage() {
     content: '',
     editorProps: {
       attributes: {
-        class:
-          'prose prose-lg focus:outline-none min-h-[400px] py-6 break-words',
+        class: `${EDITOR_PROSE_CLASS} min-h-[400px] py-6 break-words`,
       },
     },
     onCreate: ({ editor }) => {

@@ -15,6 +15,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { useAuth } from '@/components/providers/AuthContext'
+import { MIN_WITHDRAWAL_USD } from '@/lib/constants'
 
 export function EarningsDashboard() {
   const [isWithdrawing, setIsWithdrawing] = useState(false)
@@ -40,8 +41,8 @@ export function EarningsDashboard() {
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount)
 
-    if (!amount || amount < 10) {
-      toast.error('Minimum withdrawal amount is $10.00')
+    if (!amount || amount < MIN_WITHDRAWAL_USD) {
+      toast.error(`Minimum withdrawal amount is $${MIN_WITHDRAWAL_USD.toFixed(2)}`)
       return
     }
 
@@ -188,7 +189,7 @@ export function EarningsDashboard() {
                 setShowWithdrawModal(true)
               }
             }}
-            disabled={earnings.availableBalanceUsd < 10}
+            disabled={earnings.availableBalanceUsd < MIN_WITHDRAWAL_USD}
             className="mt-3 w-full px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-sm rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Wallet className="w-4 h-4" />
@@ -333,18 +334,18 @@ export function EarningsDashboard() {
                   <input
                     id="withdraw-amount"
                     type="number"
-                    min="10"
+                    min={MIN_WITHDRAWAL_USD}
                     max={earnings.availableBalanceUsd}
                     step="0.01"
                     value={withdrawAmount}
                     onChange={(e) => setWithdrawAmount(e.target.value)}
                     className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                    placeholder="10.00"
+                    placeholder={`${MIN_WITHDRAWAL_USD.toFixed(2)}`}
                   />
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
                   Available: ${earnings.availableBalanceUsd.toFixed(2)} | Min:
-                  $10.00
+                  ${MIN_WITHDRAWAL_USD.toFixed(2)}
                 </p>
               </div>
 

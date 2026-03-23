@@ -11,6 +11,7 @@ import { common, createLowlight } from 'lowlight'
 import { useEffect, useState } from 'react'
 import { ResizableImage } from './extensions/ResizableImage'
 import { uploadFile, compressImage } from '@/lib/upload'
+import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 import { useConvex } from 'convex/react'
 
 const lowlight = createLowlight(common)
@@ -88,8 +89,7 @@ export function Editor({
     editable,
     editorProps: {
       attributes: {
-        class:
-          'prose prose-lg max-w-none focus:outline-none min-h-[400px] px-8 py-4',
+        class: `${EDITOR_PROSE_CLASS} min-h-[400px] px-8 py-4`,
       },
     },
     onUpdate: ({ editor }) => {
