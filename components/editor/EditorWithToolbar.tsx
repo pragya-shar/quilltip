@@ -7,13 +7,11 @@ import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Youtube from '@tiptap/extension-youtube'
-import { common, createLowlight } from 'lowlight'
+import { lowlight } from '@/lib/lowlight'
 import { useEffect } from 'react'
 import { EditorToolbar } from './EditorToolbar'
 import { ResizableImage } from './extensions/ResizableImage'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
-
-const lowlight = createLowlight(common)
 
 interface EditorWithToolbarProps {
   content?: string

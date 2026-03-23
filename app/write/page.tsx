@@ -9,7 +9,7 @@ import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import TextAlign from '@tiptap/extension-text-align'
-import { common, createLowlight } from 'lowlight'
+import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { EditorToolbar } from '@/components/editor/EditorToolbar'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
@@ -25,8 +25,6 @@ import { toast } from 'sonner'
 import Image from 'next/image'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 
-const lowlight = createLowlight(common)
-
 export default function WritePage() {
   const [title, setTitle] = useState('')
   const [excerpt, setExcerpt] = useState('')
@@ -34,7 +32,6 @@ export default function WritePage() {
   const [showExcerptTagsDialog, setShowExcerptTagsDialog] = useState(false)
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
-  const [notes, setNotes] = useState('')
   const [isPublishing, setIsPublishing] = useState(false)
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
@@ -298,12 +295,7 @@ export default function WritePage() {
           error={error?.message ?? null}
           isPublished={publishStatus.published}
           isPublishing={isPublishing}
-          canPublish={
-            !!editorContent?.content?.some(
-              (node: { content?: { text?: string }[] }) =>
-                node.content?.some((child) => child.text?.trim())
-            )
-          }
+          canPublish={!!editorContent}
           lastSavedAt={lastSavedAt ?? undefined}
           onDelete={handleDelete}
           hasUnsavedChanges={hasUnsavedChanges}
@@ -329,8 +321,6 @@ export default function WritePage() {
               }}
               onFocusExcerpt={() => setShowExcerptTagsDialog(true)}
               onFocusTags={() => setShowExcerptTagsDialog(true)}
-              notes={notes}
-              onNotesChange={setNotes}
             />
             <div
               className="absolute bottom-0 left-0 right-0 h-[2px] bg-sky-400 pointer-events-none"

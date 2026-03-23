@@ -6,7 +6,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import { common, createLowlight } from 'lowlight'
+import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { formatDistanceToNow } from 'date-fns'
 import { JSONContent } from '@tiptap/react'
@@ -16,8 +16,6 @@ import { HighlightableArticle } from '@/components/articles/HighlightableArticle
 import { useAuth } from '@/components/providers/AuthContext'
 import { Id } from '@/convex/_generated/dataModel'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
-
-const lowlight = createLowlight(common)
 
 interface Article {
   id: string
