@@ -11,6 +11,7 @@ import { lowlight } from '@/lib/lowlight'
 import { useEffect } from 'react'
 import { EditorToolbar } from './EditorToolbar'
 import { ResizableImage } from './extensions/ResizableImage'
+import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 
 interface EditorWithToolbarProps {
   content?: string
@@ -80,8 +81,7 @@ export function EditorWithToolbar({
     editable,
     editorProps: {
       attributes: {
-        class:
-          'prose prose-lg max-w-none focus:outline-none min-h-[400px] px-8 py-4',
+        class: `${EDITOR_PROSE_CLASS} min-h-[400px] px-8 py-4`,
       },
     },
     onUpdate: ({ editor }) => {

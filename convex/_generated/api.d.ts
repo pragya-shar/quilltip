@@ -15,6 +15,7 @@ import type * as auth from "../auth.js";
 import type * as highlightTips from "../highlightTips.js";
 import type * as highlights from "../highlights.js";
 import type * as http from "../http.js";
+import type * as lib_constants from "../lib/constants.js";
 import type * as lib_enrich from "../lib/enrich.js";
 import type * as lib_highlightHash from "../lib/highlightHash.js";
 import type * as nfts from "../nfts.js";
@@ -36,6 +37,7 @@ declare const fullApi: ApiFromModules<{
   highlightTips: typeof highlightTips;
   highlights: typeof highlights;
   http: typeof http;
+  "lib/constants": typeof lib_constants;
   "lib/enrich": typeof lib_enrich;
   "lib/highlightHash": typeof lib_highlightHash;
   nfts: typeof nfts;
