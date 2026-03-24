@@ -54,12 +54,12 @@ export function EditorActionBar({
     : null
 
   return (
-    <div className="flex items-center justify-between w-full gap-4 py-3 px-4 bg-white border-b border-gray-200 shadow-sm">
+    <div className="flex items-center justify-between w-full gap-4 py-3 px-4 bg-card border-b border-border shadow-sm">
       {/* Left: Back */}
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 font-medium transition-colors"
+        className="flex items-center gap-2 text-muted-foreground hover:text-foreground font-medium transition-colors"
       >
         <ArrowLeft className="h-4 w-4" />
         Back
@@ -72,7 +72,7 @@ export function EditorActionBar({
           type="button"
           onClick={() => editor?.chain().focus().undo().run()}
           disabled={!canUndo}
-          className="p-2 rounded-md text-gray-600 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+          className="p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
           title="Undo"
         >
           <Undo2 className="h-4 w-4" />
@@ -81,13 +81,13 @@ export function EditorActionBar({
           type="button"
           onClick={() => editor?.chain().focus().redo().run()}
           disabled={!canRedo}
-          className="p-2 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
+          className="p-2 rounded-md text-muted-foreground opacity-70 hover:bg-muted hover:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors"
           title="Redo"
         >
           <Redo2 className="h-4 w-4" />
         </button>
 
-        <div className="w-px h-6 bg-gray-200 mx-1" />
+        <div className="w-px h-6 bg-border mx-1" />
 
         {/* Draft pill (light yellow, dot indicator) + Not saved yet / Saved at */}
         <span className="flex items-center gap-2 text-sm">
@@ -103,20 +103,24 @@ export function EditorActionBar({
           {hasUnsavedChanges ? (
             <span className="text-red-500">Unsaved changes</span>
           ) : savedAtText != null ? (
-            <span className="text-gray-500">Saved at {savedAtText}</span>
+            <span className="text-muted-foreground">
+              Saved at {savedAtText}
+            </span>
           ) : (
-            <span className="text-gray-400">Not saved yet</span>
+            <span className="text-muted-foreground opacity-70">
+              Not saved yet
+            </span>
           )}
         </span>
 
-        <div className="w-px h-6 bg-gray-200 mx-1" />
+        <div className="w-px h-6 bg-border mx-1" />
 
         {/* Save - always clickable so user can manually save even after auto-save */}
         <button
           type="button"
           onClick={onSave}
           disabled={isSaving}
-          className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded transition-colors"
+          className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded transition-colors"
           title="Save draft"
         >
           {isSaving ? 'Saving...' : 'Save'}
@@ -125,11 +129,11 @@ export function EditorActionBar({
         {/* Preview */}
         {onPreview && (
           <>
-            <div className="w-px h-6 bg-gray-200 mx-1" />
+            <div className="w-px h-6 bg-border mx-1" />
             <button
               type="button"
               onClick={onPreview}
-              className="px-3 py-1.5 text-sm text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded transition-colors"
+              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
               title="Preview"
             >
               Preview
@@ -138,7 +142,7 @@ export function EditorActionBar({
         )}
 
         {/* Publish */}
-        <div className="w-px h-6 bg-gray-200 mx-1" />
+        <div className="w-px h-6 bg-border mx-1" />
         {isPublished ? (
           <span className="px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-full">
             Published
@@ -160,7 +164,7 @@ export function EditorActionBar({
           <DropdownMenu.Trigger asChild>
             <button
               type="button"
-              className="p-2 rounded-full border border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+              className="p-2 rounded-full border border-border text-muted-foreground hover:bg-muted hover:border-border transition-colors"
               title="More options"
             >
               <MoreHorizontal className="h-4 w-4" />
@@ -168,12 +172,12 @@ export function EditorActionBar({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
-              className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[180px]"
+              className="bg-card rounded-lg shadow-lg border border-border py-1 z-50 min-w-[180px]"
               sideOffset={4}
               align="end"
             >
               <DropdownMenu.Item
-                className="px-4 py-2.5 text-sm text-gray-500 outline-none flex items-center gap-2"
+                className="px-4 py-2.5 text-sm text-muted-foreground outline-none flex items-center gap-2"
                 onSelect={(e) => e.preventDefault()}
               >
                 <LetterText className="w-4 h-4 shrink-0" />
@@ -182,7 +186,7 @@ export function EditorActionBar({
                 words
               </DropdownMenu.Item>
               <DropdownMenu.Item
-                className="px-4 py-2.5 text-sm text-gray-500 outline-none flex items-center gap-2"
+                className="px-4 py-2.5 text-sm text-muted-foreground outline-none flex items-center gap-2"
                 onSelect={(e) => e.preventDefault()}
               >
                 <Clock className="w-4 h-4 shrink-0" />~
@@ -197,7 +201,7 @@ export function EditorActionBar({
               </DropdownMenu.Item>
               {onDelete && (
                 <>
-                  <DropdownMenu.Separator className="h-px bg-gray-200 my-1" />
+                  <DropdownMenu.Separator className="h-px bg-border my-1" />
                   <DropdownMenu.Item
                     onSelect={onDelete}
                     className="px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 cursor-pointer outline-none flex items-center gap-2"

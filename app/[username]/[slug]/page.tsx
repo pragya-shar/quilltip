@@ -78,13 +78,13 @@ export default function ArticlePage({ params }: ArticlePageProps) {
         <main className="pt-20">
           <div className="max-w-4xl mx-auto px-4 py-8">
             <div className="animate-pulse">
-              <div className="h-96 bg-gray-200 rounded-lg mb-8"></div>
-              <div className="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
+              <div className="h-96 bg-muted rounded-lg mb-8"></div>
+              <div className="h-8 bg-muted rounded w-3/4 mb-4"></div>
+              <div className="h-4 bg-muted rounded w-1/2 mb-8"></div>
               <div className="space-y-3">
-                <div className="h-4 bg-gray-200 rounded"></div>
-                <div className="h-4 bg-gray-200 rounded"></div>
-                <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                <div className="h-4 bg-muted rounded"></div>
+                <div className="h-4 bg-muted rounded"></div>
+                <div className="h-4 bg-muted rounded w-5/6"></div>
               </div>
             </div>
           </div>
@@ -106,13 +106,13 @@ export default function ArticlePage({ params }: ArticlePageProps) {
         <main className="pt-20">
           <div className="max-w-4xl mx-auto px-4 py-8">
             <div className="animate-pulse">
-              <div className="h-96 bg-gray-200 rounded-lg mb-8"></div>
-              <div className="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
+              <div className="h-96 bg-muted rounded-lg mb-8"></div>
+              <div className="h-8 bg-muted rounded w-3/4 mb-4"></div>
+              <div className="h-4 bg-muted rounded w-1/2 mb-8"></div>
               <div className="space-y-3">
-                <div className="h-4 bg-gray-200 rounded"></div>
-                <div className="h-4 bg-gray-200 rounded"></div>
-                <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                <div className="h-4 bg-muted rounded"></div>
+                <div className="h-4 bg-muted rounded"></div>
+                <div className="h-4 bg-muted rounded w-5/6"></div>
               </div>
             </div>
           </div>
@@ -159,7 +159,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
             <div className="lg:col-span-4">
               <div className="sticky top-24 space-y-6">
                 {/* Tip Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <Heart className="w-5 h-5 text-red-500" />
                     Support the Author
@@ -175,7 +175,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                 </div>
 
                 {/* NFT Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-purple-500" />
                     NFT Collection
@@ -197,10 +197,10 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                 />
 
                 {/* Highlight Notes Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border">
                   <button
                     onClick={() => setShowHighlightsPanel(!showHighlightsPanel)}
-                    className="w-full p-6 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                    className="w-full p-[var(--card-padding)] flex items-center justify-between hover:bg-muted transition-colors"
                   >
                     <h3 className="text-lg font-semibold flex items-center gap-2">
                       <MessageSquare className="w-5 h-5 text-blue-500" />
@@ -244,20 +244,24 @@ export default function ArticlePage({ params }: ArticlePageProps) {
 
                 {/* Article Stats */}
                 {article.tipStats && (
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                       <DollarSign className="w-5 h-5 text-green-500" />
                       Article Stats
                     </h3>
                     <div className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Total Tips</span>
+                        <span className="text-muted-foreground">
+                          Total Tips
+                        </span>
                         <span className="font-semibold">
                           {article.tipStats.count || 0}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Total Earned</span>
+                        <span className="text-muted-foreground">
+                          Total Earned
+                        </span>
                         <span className="font-semibold">
                           ${(article.tipStats.total || 0).toFixed(2)}
                         </span>
@@ -268,7 +272,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
 
                 {/* Arweave Permanent Storage */}
                 {article.arweaveStatus && (
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                  <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                       <Archive className="w-5 h-5 text-blue-500" />
                       Permanent Storage

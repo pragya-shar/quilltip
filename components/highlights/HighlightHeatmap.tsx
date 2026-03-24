@@ -25,13 +25,13 @@ export function HighlightHeatmap({
     return (
       <div
         className={cn(
-          'bg-white rounded-lg shadow-sm border border-gray-200 p-6',
+          'bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]',
           className
         )}
       >
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-200 rounded w-1/2"></div>
-          <div className="h-20 bg-gray-200 rounded"></div>
+          <div className="h-6 bg-muted rounded w-1/2"></div>
+          <div className="h-20 bg-muted rounded"></div>
         </div>
       </div>
     )
@@ -42,7 +42,7 @@ export function HighlightHeatmap({
     return (
       <div
         className={cn(
-          'bg-white rounded-lg shadow-sm border border-gray-200 p-6',
+          'bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]',
           className
         )}
       >
@@ -52,13 +52,13 @@ export function HighlightHeatmap({
         </h3>
 
         <div className="text-center py-8">
-          <Sparkles className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500 text-sm mb-2">
+          <Sparkles className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+          <p className="text-muted-foreground text-sm mb-2">
             {isAuthor
               ? 'No highlight tips yet'
               : 'Be the first to tip a highlight!'}
           </p>
-          <p className="text-gray-400 text-xs">
+          <p className="text-muted-foreground text-xs">
             {isAuthor
               ? 'Readers can highlight specific phrases and tip them directly'
               : 'Select text to highlight and add a tip to your favorite phrases'}
@@ -86,7 +86,7 @@ export function HighlightHeatmap({
   return (
     <div
       className={cn(
-        'bg-white rounded-lg shadow-sm border border-gray-200 p-6',
+        'bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]',
         className
       )}
     >
@@ -119,7 +119,7 @@ export function HighlightHeatmap({
 
       {/* Top Tipped Highlights */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground mb-3">
           <TrendingUp className="w-4 h-4" />
           Top Tipped Phrases
         </div>
@@ -150,22 +150,22 @@ export function HighlightHeatmap({
                     >
                       {index + 1}
                     </span>
-                    <span className="text-xs text-gray-600">
+                    <span className="text-xs text-muted-foreground">
                       {highlight.tipCount} tip
                       {highlight.tipCount > 1 ? 's' : ''}
                     </span>
                   </div>
-                  <span className="text-sm font-semibold text-gray-900">
+                  <span className="text-sm font-semibold text-foreground">
                     {formatTipAmount(highlight.totalAmountCents)}
                   </span>
                 </div>
 
-                <p className="text-sm text-gray-700 italic line-clamp-2">
+                <p className="text-sm text-foreground italic line-clamp-2">
                   &ldquo;{highlight.text}&rdquo;
                 </p>
 
                 {/* Intensity bar */}
-                <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
@@ -181,19 +181,19 @@ export function HighlightHeatmap({
       </div>
 
       {/* Color Legend */}
-      <div className="mt-6 pt-4 border-t border-gray-200">
-        <p className="text-xs text-gray-600 mb-2 font-medium">
+      <div className="mt-6 pt-4 border-t border-border">
+        <p className="text-xs text-muted-foreground mb-2 font-medium">
           Heat Intensity:
         </p>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">Low</span>
+          <span className="text-xs text-muted-foreground">Low</span>
           <div
             className="flex-1 h-3 rounded-full"
             style={{
               background: `linear-gradient(to right, ${getHeatmapColor(0, 100)}, ${getHeatmapColor(33, 100)}, ${getHeatmapColor(66, 100)}, ${getHeatmapColor(100, 100)})`,
             }}
           />
-          <span className="text-xs text-gray-500">High</span>
+          <span className="text-xs text-muted-foreground">High</span>
         </div>
       </div>
     </div>

@@ -47,7 +47,7 @@ export default function AuthLayout({
           </div>
 
           {/* Auth Form Card */}
-          <div className="bg-white rounded-2xl shadow-xl border border-quill-200 p-8">
+          <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-8">
             {children}
           </div>
 
