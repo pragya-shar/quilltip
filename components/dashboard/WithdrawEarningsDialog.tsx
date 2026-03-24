@@ -93,9 +93,7 @@ export function WithdrawEarningsDialog({
   }
 
   const addressReadOnly = !!savedStellarAddress
-  const addressDisplay = addressReadOnly
-    ? savedStellarAddress
-    : stellarAddress
+  const addressDisplay = addressReadOnly ? savedStellarAddress : stellarAddress
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -114,9 +112,7 @@ export function WithdrawEarningsDialog({
       >
         <DialogHeader>
           <DialogTitle>Withdraw Earnings</DialogTitle>
-          <DialogDescription>
-            Withdraw to your Stellar wallet
-          </DialogDescription>
+          <DialogDescription>Withdraw to your Stellar wallet</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

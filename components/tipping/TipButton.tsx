@@ -177,8 +177,8 @@ export function TipButton({
             Support {authorName}
           </DialogTitle>
           <DialogDescription className="text-gray-600">
-            Show your appreciation with a micro-tip. 97.5% goes directly to
-            the author!
+            Show your appreciation with a micro-tip. 97.5% goes directly to the
+            author!
           </DialogDescription>
         </DialogHeader>
 
