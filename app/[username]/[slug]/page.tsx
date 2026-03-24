@@ -257,13 +257,17 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                     </h3>
                     <div className="space-y-3">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Total Tips</span>
+                        <span className="text-muted-foreground">
+                          Total Tips
+                        </span>
                         <span className="font-semibold">
                           {article.tipStats.count || 0}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Total Earned</span>
+                        <span className="text-muted-foreground">
+                          Total Earned
+                        </span>
                         <span className="font-semibold">
                           ${(article.tipStats.total || 0).toFixed(2)}
                         </span>

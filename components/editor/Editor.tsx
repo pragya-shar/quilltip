@@ -201,7 +201,9 @@ export function Editor({
                 style={{ width: `${uploadProgress}%` }}
               ></div>
             </div>
-            <div className="text-muted-foreground text-xs mt-1">{uploadProgress}%</div>
+            <div className="text-muted-foreground text-xs mt-1">
+              {uploadProgress}%
+            </div>
           </div>
         </div>
       )}

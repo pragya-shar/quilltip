@@ -135,7 +135,9 @@ export default function ShareButtons({
 
       <div className="flex items-center gap-3">
         {/* Share label */}
-        <span className="text-sm text-muted-foreground font-medium">Share:</span>
+        <span className="text-sm text-muted-foreground font-medium">
+          Share:
+        </span>
 
         {/* Native share button (mobile) */}
         {hasNativeShare && (

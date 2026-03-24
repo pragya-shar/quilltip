@@ -38,7 +38,9 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
         {/* Excerpt */}
         {article.excerpt && (
-          <p className="text-muted-foreground mb-4 line-clamp-3">{article.excerpt}</p>
+          <p className="text-muted-foreground mb-4 line-clamp-3">
+            {article.excerpt}
+          </p>
         )}
 
         {/* Tags */}
@@ -93,7 +95,9 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
           {/* Published Date */}
           {publishedDate && (
-            <span className="text-xs text-muted-foreground">{publishedDate}</span>
+            <span className="text-xs text-muted-foreground">
+              {publishedDate}
+            </span>
           )}
         </div>
       </div>

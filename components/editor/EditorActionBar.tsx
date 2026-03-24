@@ -103,9 +103,13 @@ export function EditorActionBar({
           {hasUnsavedChanges ? (
             <span className="text-red-500">Unsaved changes</span>
           ) : savedAtText != null ? (
-            <span className="text-muted-foreground">Saved at {savedAtText}</span>
+            <span className="text-muted-foreground">
+              Saved at {savedAtText}
+            </span>
           ) : (
-            <span className="text-muted-foreground opacity-70">Not saved yet</span>
+            <span className="text-muted-foreground opacity-70">
+              Not saved yet
+            </span>
           )}
         </span>
 
