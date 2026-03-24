@@ -69,7 +69,7 @@ export default function HomePage() {
             <div className="grid md:grid-cols-3 gap-6 mb-12">
               <Link
                 href="/write"
-                className="group p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100"
+                className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
               >
                 <div className="flex items-center mb-4">
                   <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
@@ -77,14 +77,14 @@ export default function HomePage() {
                   </div>
                   <h3 className="text-lg font-semibold ml-3">Write Article</h3>
                 </div>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                   Create a new story with our powerful editor
                 </p>
               </Link>
 
               <Link
                 href="/articles"
-                className="group p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100"
+                className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
               >
                 <div className="flex items-center mb-4">
                   <div className="p-3 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
@@ -94,7 +94,7 @@ export default function HomePage() {
                     Browse Articles
                   </h3>
                 </div>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                   Discover stories and tip the writers you love
                 </p>
               </Link>
@@ -102,7 +102,7 @@ export default function HomePage() {
               {hasWallet ? (
                 <Link
                   href={`/${user.username}?tab=earnings`}
-                  className="group p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100"
+                  className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
                 >
                   <div className="flex items-center mb-4">
                     <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
@@ -112,14 +112,14 @@ export default function HomePage() {
                       Your Earnings
                     </h3>
                   </div>
-                  <p className="text-gray-600">
+                  <p className="text-muted-foreground">
                     Track tips received and article performance
                   </p>
                 </Link>
               ) : (
                 <Link
                   href="/guide"
-                  className="group p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-100"
+                  className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
                 >
                   <div className="flex items-center mb-4">
                     <div className="p-3 bg-amber-100 rounded-lg group-hover:bg-amber-200 transition-colors">
@@ -129,7 +129,7 @@ export default function HomePage() {
                       Set Up Wallet
                     </h3>
                   </div>
-                  <p className="text-gray-600">
+                  <p className="text-muted-foreground">
                     Connect a Stellar wallet to send and receive tips
                   </p>
                 </Link>

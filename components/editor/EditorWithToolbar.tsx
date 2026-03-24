@@ -104,7 +104,7 @@ export function EditorWithToolbar({
 
   return (
     <div
-      className={`editor-wrapper bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${className}`}
+      className={`editor-wrapper bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border overflow-hidden ${className}`}
     >
       {showToolbar && editable && <EditorToolbar editor={editor} />}
       <EditorContent editor={editor} className="editor-content" />

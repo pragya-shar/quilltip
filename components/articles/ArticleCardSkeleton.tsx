@@ -2,11 +2,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export function ArticleCardSkeleton() {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border overflow-hidden">
       {/* Cover image placeholder */}
       <Skeleton className="h-48 w-full rounded-none" />
 
-      <div className="p-6">
+      <div className="p-[var(--card-padding)]">
         {/* Title */}
         <Skeleton className="h-6 w-3/4 mb-2" />
         <Skeleton className="h-6 w-1/2 mb-4" />
@@ -22,7 +22,7 @@ export function ArticleCardSkeleton() {
         </div>
 
         {/* Author */}
-        <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+        <div className="flex items-center gap-3 pt-4 border-t border-border">
           <Skeleton className="h-9 w-9 rounded-full" />
           <div>
             <Skeleton className="h-4 w-24 mb-1" />

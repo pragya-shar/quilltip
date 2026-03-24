@@ -13,7 +13,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
     : null
 
   return (
-    <article className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+    <article className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border overflow-hidden hover:shadow-md transition-shadow duration-200">
       {/* Cover Image */}
       {article.coverImage && (
         <Link href={`/${article.author.username}/${article.slug}`}>
@@ -28,17 +28,17 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         </Link>
       )}
 
-      <div className="p-6">
+      <div className="p-[var(--card-padding)]">
         {/* Title */}
         <Link href={`/${article.author.username}/${article.slug}`}>
-          <h2 className="text-xl font-bold text-gray-900 mb-2 hover:text-brand-blue transition-colors line-clamp-2">
+          <h2 className="text-xl font-bold text-foreground mb-2 hover:text-brand-blue transition-colors line-clamp-2">
             {article.title}
           </h2>
         </Link>
 
         {/* Excerpt */}
         {article.excerpt && (
-          <p className="text-gray-600 mb-4 line-clamp-3">{article.excerpt}</p>
+          <p className="text-muted-foreground mb-4 line-clamp-3">{article.excerpt}</p>
         )}
 
         {/* Tags */}
@@ -47,13 +47,13 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             {article.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag.id}
-                className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full"
+                className="text-xs px-2 py-1 bg-muted text-foreground rounded-full"
               >
                 {tag.name}
               </span>
             ))}
             {article.tags.length > 3 && (
-              <span className="text-xs px-2 py-1 text-gray-500">
+              <span className="text-xs px-2 py-1 text-muted-foreground">
                 +{article.tags.length - 3} more
               </span>
             )}
@@ -61,7 +61,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         )}
 
         {/* Author Info */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+        <div className="flex items-center justify-between pt-4 border-t border-border">
           <Link
             href={`/${article.author.username}`}
             className="flex items-center gap-3 hover:opacity-80 transition-opacity"
@@ -82,10 +82,10 @@ export default function ArticleCard({ article }: ArticleCardProps) {
               </div>
             )}
             <div>
-              <p className="text-sm font-medium text-gray-900">
+              <p className="text-sm font-medium text-foreground">
                 {article.author.name || article.author.username}
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 @{article.author.username}
               </p>
             </div>
@@ -93,7 +93,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
           {/* Published Date */}
           {publishedDate && (
-            <span className="text-xs text-gray-500">{publishedDate}</span>
+            <span className="text-xs text-muted-foreground">{publishedDate}</span>
           )}
         </div>
       </div>
