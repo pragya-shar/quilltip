@@ -12,6 +12,13 @@ import Link from 'next/link'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
+import {
+  TIP_PRESETS_ARTICLE,
+  TIP_MIN_CENTS,
+  TIP_MIN_USD,
+  TIP_MAX_CENTS,
+  TIP_MAX_USD,
+} from '@/lib/constants'
 
 interface TipButtonProps {
   articleId: Id<'articles'>
@@ -19,12 +26,6 @@ interface TipButtonProps {
   authorStellarAddress?: string | null // Author's Stellar address for direct tips
   className?: string
 }
-
-const TIP_AMOUNTS = [
-  { cents: 100, label: '$1', popular: false },
-  { cents: 500, label: '$5', popular: true },
-  { cents: 1000, label: '$10', popular: false },
-]
 
 export function TipButton({
   articleId,
@@ -57,13 +58,13 @@ export function TipButton({
 
     const amountCents = selectedAmount || parseFloat(customAmount) * 100
 
-    if (!amountCents || amountCents < 1) {
+    if (!amountCents || amountCents < TIP_MIN_CENTS) {
       toast.error('Please select or enter a valid amount')
       return
     }
 
-    if (amountCents > 10000) {
-      toast.error('Maximum tip amount is $100')
+    if (amountCents > TIP_MAX_CENTS) {
+      toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(0)}`)
       return
     }
 
@@ -197,7 +198,7 @@ export function TipButton({
 
             {/* Preset Amounts */}
             <div className="grid grid-cols-3 gap-3 mb-4">
-              {TIP_AMOUNTS.map((amount) => (
+              {TIP_PRESETS_ARTICLE.map((amount) => (
                 <button
                   key={amount.cents}
                   onClick={() => {
@@ -235,8 +236,8 @@ export function TipButton({
                 <input
                   id="tip-custom-amount"
                   type="number"
-                  min="0.01"
-                  max="100"
+                  min={TIP_MIN_USD}
+                  max={TIP_MAX_USD}
                   step="0.01"
                   value={customAmount}
                   onChange={(e) => {
@@ -248,7 +249,8 @@ export function TipButton({
                 />
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Minimum: $0.01 • Maximum: $100.00
+                Minimum: ${TIP_MIN_USD.toFixed(2)} • Maximum: $
+                {TIP_MAX_USD.toFixed(2)}
               </p>
             </div>
 

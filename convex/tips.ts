@@ -3,6 +3,7 @@ import { query, mutation, internalMutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import { enrichWithUser } from './lib/enrich'
+import { TIP_MIN_USD, TIP_MAX_USD, MIN_WITHDRAWAL_USD } from './lib/constants'
 
 // Get tips for an article
 export const getArticleTips = query({
@@ -160,8 +161,8 @@ export const sendTip = mutation({
     // Validate amount (check for NaN, Infinity, and bounds)
     if (
       !Number.isFinite(args.amountUsd) ||
-      args.amountUsd < 0.01 ||
-      args.amountUsd > 10000
+      args.amountUsd < TIP_MIN_USD ||
+      args.amountUsd > TIP_MAX_USD
     ) {
       throw new Error('Invalid tip amount')
     }
@@ -383,8 +384,6 @@ export const withdrawEarnings = mutation({
       throw new Error('Insufficient balance')
     }
 
-    // Minimum withdrawal threshold
-    const MIN_WITHDRAWAL_USD = 10
     if (args.amountUsd < MIN_WITHDRAWAL_USD) {
       throw new Error(`Minimum withdrawal amount is $${MIN_WITHDRAWAL_USD}`)
     }

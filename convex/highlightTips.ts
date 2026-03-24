@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
+import { TIP_MIN_CENTS, TIP_MAX_CENTS } from './lib/constants'
 
 /**
  * Create a new highlight tip after Stellar transaction
@@ -51,10 +52,12 @@ export const create = mutation({
     // Validate tip amount (must be between $0.01 and $100)
     if (
       !Number.isFinite(args.amountCents) ||
-      args.amountCents < 1 ||
-      args.amountCents > 10000
+      args.amountCents < TIP_MIN_CENTS ||
+      args.amountCents > TIP_MAX_CENTS
     ) {
-      throw new Error('Tip amount must be between $0.01 and $100')
+      throw new Error(
+        `Tip amount must be between $${(TIP_MIN_CENTS / 100).toFixed(2)} and $${(TIP_MAX_CENTS / 100).toFixed(0)}`
+      )
     }
 
     const amountUsd = args.amountCents / 100

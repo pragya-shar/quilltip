@@ -15,6 +15,7 @@ import ShareButtons from './ShareButtons'
 import { HighlightableArticle } from '@/components/articles/HighlightableArticle'
 import { useAuth } from '@/components/providers/AuthContext'
 import { Id } from '@/convex/_generated/dataModel'
+import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 
 interface Article {
   id: string
@@ -75,7 +76,7 @@ export default function ArticleDisplay({
     immediatelyRender: false, // Fix SSR hydration issue
     editorProps: {
       attributes: {
-        class: 'prose prose-lg prose-stone max-w-none focus:outline-none',
+        class: `${EDITOR_PROSE_CLASS} prose-stone`,
       },
     },
   })

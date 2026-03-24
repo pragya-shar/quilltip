@@ -20,6 +20,7 @@ import { JSONContent } from '@tiptap/react'
 import { AnimatePresence } from 'motion/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { toast } from 'sonner'
+import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 
 interface HighlightData {
   _id: Id<'highlights'>
@@ -157,7 +158,7 @@ export function HighlightableArticle({
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: 'prose prose-lg prose-stone max-w-none focus:outline-none',
+        class: `${EDITOR_PROSE_CLASS} prose-stone`,
       },
     },
     onSelectionUpdate: ({ editor }) => {
