@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
 import Link from 'next/link'
 import AppNavigation from '@/components/layout/AppNavigation'
-import { useQuery, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useUserDrafts } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -25,7 +26,7 @@ export default function DraftsPage() {
   const { isAuthenticated, isLoading } = useAuth()
 
   // Fetch drafts using Convex query
-  const drafts = useQuery(api.articles.getUserDrafts) || []
+  const drafts = useUserDrafts() || []
   const loading = drafts === undefined
 
   // Convex mutation for deleting articles

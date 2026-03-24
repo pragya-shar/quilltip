@@ -18,9 +18,10 @@ import { ExcerptTagsDialog } from '@/components/editor/ExcerptTagsDialog'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { useAutoSave } from '@/hooks/useAutoSave'
-import { useQuery, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useArticleById } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { toast } from 'sonner'
 import Image from 'next/image'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
@@ -135,9 +136,8 @@ export default function WritePage() {
   const draftId = urlParams?.get('id')
 
   // Load draft using Convex query
-  const draft = useQuery(
-    api.articles.getArticleById,
-    draftId ? { id: draftId as Id<'articles'> } : 'skip'
+  const draft = useArticleById(
+    draftId ? (draftId as Id<'articles'>) : undefined
   )
 
   // Load draft data when it arrives

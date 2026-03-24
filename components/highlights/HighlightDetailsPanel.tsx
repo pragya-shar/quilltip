@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useQuery, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useHighlightTipsByHighlight } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { motion } from 'motion/react'
 import {
   X,
@@ -67,9 +68,7 @@ export function HighlightDetailsPanel({
   const isOwner = currentUserId && currentUserId === highlight.userId
 
   // Fetch tip statistics for this highlight
-  const highlightTips = useQuery(api.highlightTips.getByHighlight, {
-    highlightId: highlight.highlightId,
-  })
+  const highlightTips = useHighlightTipsByHighlight(highlight.highlightId)
 
   // Mutations
   const updateHighlight = useMutation(api.highlights.updateHighlight)

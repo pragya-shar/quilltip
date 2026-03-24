@@ -10,9 +10,10 @@ import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import HighlightExtension from '@/components/editor/extensions/HighlightExtension'
 import { HighlightConverter } from '@/lib/highlights/HighlightConverter'
-import { useQuery, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useArticleById, useArticleHighlightsQuery } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { HighlightPopover } from '@/components/highlights/HighlightPopover'
 import { HighlightDetailsPanel } from '@/components/highlights/HighlightDetailsPanel'
 import { cn } from '@/lib/utils'
@@ -76,12 +77,9 @@ export function HighlightableArticle({
   const { user } = useAuth()
 
   // Fetch article data (for author info, Stellar address, etc.)
-  const article = useQuery(api.articles.getArticleById, { id: articleId })
+  const article = useArticleById(articleId)
 
-  // Fetch highlights for the article
-  const highlights = useQuery(api.highlights.getArticleHighlights, {
-    articleId,
-  })
+  const highlights = useArticleHighlightsQuery(articleId)
 
   // Use ref to avoid stale closure in onHighlightClick callback
   const highlightsRef = useRef(highlights)

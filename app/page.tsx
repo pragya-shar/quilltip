@@ -1,8 +1,8 @@
 'use client'
 
 import { useAuth } from '@/components/providers/AuthContext'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
+import { useListArticles } from '@/hooks/convex'
+import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
 import Navigation from '@/components/landing/Navigation'
 import AppNavigation from '@/components/layout/AppNavigation'
 import HeroSection from '@/components/landing/HeroSection'
@@ -21,31 +21,11 @@ export default function HomePage() {
   const { user, isAuthenticated } = useAuth()
 
   // Fetch recent articles for the dashboard (only when authenticated)
-  const result = useQuery(
-    api.articles.listArticles,
-    isAuthenticated ? { limit: 6 } : 'skip'
-  )
+  const result = useListArticles(isAuthenticated ? { limit: 6 } : 'skip')
 
-  const recentArticles: ArticleForDisplay[] =
-    result?.articles.map((article) => ({
-      id: article._id,
-      slug: article.slug,
-      title: article.title,
-      excerpt: article.excerpt || null,
-      coverImage: article.coverImage || null,
-      publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
-      author: {
-        id: article.author?.id as string,
-        name: article.author?.name || null,
-        username: article.author?.username || '',
-        avatar: article.author?.avatar || null,
-      },
-      tags: (article.tags || []).map((tagName, index) => ({
-        id: `tag-${index}`,
-        name: tagName,
-        slug: tagName.toLowerCase().replace(/\s+/g, '-'),
-      })),
-    })) || []
+  const recentArticles: ArticleForDisplay[] = result
+    ? mapListArticlesToDisplay(result.articles)
+    : []
 
   const hasWallet = !!user?.stellarAddress
   const showOnboarding = isAuthenticated && user && !user.onboardingCompleted

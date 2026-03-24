@@ -1,6 +1,6 @@
 'use client'
 
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, type JSONContent } from '@tiptap/react'
 import { useEffect, useState } from 'react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -9,38 +9,18 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { formatDistanceToNow } from 'date-fns'
-import { JSONContent } from '@tiptap/react'
 import Image from 'next/image'
 import ShareButtons from './ShareButtons'
 import { HighlightableArticle } from '@/components/articles/HighlightableArticle'
 import { useAuth } from '@/components/providers/AuthContext'
-import { Id } from '@/convex/_generated/dataModel'
+import type { Id } from '@/types/convex'
+import type { ArticleForDisplay } from '@/types/index'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 
-interface Article {
-  id: string
-  slug: string
-  title: string
-  content: JSONContent
-  excerpt?: string | null
-  coverImage?: string | null
-  publishedAt: Date | string | null
-  author: {
-    id: string
-    name?: string | null
-    username: string
-    avatar?: string | null
-    bio?: string | null
-  }
-  tags: Array<{
-    id: string
-    name: string
-    slug: string
-  }>
-}
+const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
 interface ArticleDisplayProps {
-  article: Article
+  article: ArticleForDisplay
   showHighlights?: boolean
 }
 
@@ -71,7 +51,7 @@ export default function ArticleDisplay({
       }),
       ResizableImage,
     ],
-    content: article.content,
+    content: article.content ?? EMPTY_DOC,
     editable: false,
     immediatelyRender: false, // Fix SSR hydration issue
     editorProps: {
@@ -160,7 +140,7 @@ export default function ArticleDisplay({
         {useHighlightable ? (
           <HighlightableArticle
             articleId={article.id as Id<'articles'>}
-            content={article.content}
+            content={article.content ?? EMPTY_DOC}
             showHighlights={showHighlights}
           />
         ) : (

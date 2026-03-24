@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useQuery, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import type { Id } from '@/types/convex'
+import {
+  useArticleHighlightsQuery,
+  useUserHighlightsQuery,
+} from '@/hooks/convex'
 import { SelectionManager } from '@/lib/highlights/SelectionManager'
 import { HighlightSerializer } from '@/lib/highlights/HighlightSerializer'
 import {
@@ -48,9 +52,9 @@ export function useHighlights({
   const rendererRef = useRef<HighlightRenderer | null>(null)
 
   // Fetch highlights
-  const highlights = useQuery(
-    api.highlights.getArticleHighlights,
-    enabled ? { articleId } : 'skip'
+  const highlights = useArticleHighlightsQuery(
+    articleId,
+    enabled
   )
 
   // Mutations
@@ -260,9 +264,7 @@ export function useHighlights({
  * Hook specifically for managing article highlights display
  */
 export function useArticleHighlights(articleId: Id<'articles'>) {
-  const highlights = useQuery(api.highlights.getArticleHighlights, {
-    articleId,
-  })
+  const highlights = useArticleHighlightsQuery(articleId)
 
   const publicHighlights = highlights?.filter((h) => h.isPublic) || []
   const highlightCount = highlights?.length || 0
@@ -280,10 +282,7 @@ export function useArticleHighlights(articleId: Id<'articles'>) {
  * Hook for managing user's highlights across all articles
  */
 export function useUserHighlights(userId?: Id<'users'>) {
-  const highlights = useQuery(
-    api.highlights.getUserHighlights,
-    userId ? { userId } : 'skip'
-  )
+  const highlights = useUserHighlightsQuery(userId)
 
   // Group highlights by article
   const highlightsByArticle =

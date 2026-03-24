@@ -1,33 +1,12 @@
 'use client'
 
 import { useAuthActions } from '@convex-dev/auth/react'
-import { useConvexAuth, useQuery } from 'convex/react'
+import { useConvexAuth } from 'convex/react'
 import { Value } from 'convex/values'
-import { api } from '@/convex/_generated/api'
+import { useCurrentUser } from '@/hooks/convex'
+import type { CurrentUser } from '@/types/convex'
 
-/**
- * Custom hook for Convex authentication
- *
- * Provides authentication state and methods using Convex Auth.
- * Integrates with Convex backend for user management and sessions.
- */
-
-export interface User {
-  _id: string
-  username?: string
-  email?: string
-  name?: string | null
-  image?: string | null
-  isEmailVerified?: boolean
-  phone?: string
-  isAnonymous?: boolean
-  stellarAddress?: string | null
-  bio?: string
-  avatar?: string
-  nftsCreated?: number
-  nftsOwned?: number
-  onboardingCompleted?: boolean
-}
+export type User = CurrentUser
 
 interface AuthContextType {
   user: User | null
@@ -40,20 +19,16 @@ interface AuthContextType {
   signOut: () => Promise<void>
 }
 
-/**
- * Custom hook to access Convex auth
- * Uses Convex Auth hooks for authentication state and actions
- */
 export function useAuth(): AuthContextType {
   const { signIn, signOut } = useAuthActions()
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth()
-  const user = useQuery(api.users.getCurrentUser)
+  const userQuery = useCurrentUser()
 
-  // Loading is true if auth is loading or if we're authenticated but user data is still loading
-  const isLoading = authLoading || (isAuthenticated && user === undefined)
+  const isLoading =
+    authLoading || (isAuthenticated && userQuery === undefined)
 
   return {
-    user: user || null,
+    user: userQuery === undefined ? null : userQuery,
     isLoading,
     isAuthenticated,
     signIn,
