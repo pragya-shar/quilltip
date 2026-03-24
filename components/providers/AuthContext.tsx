@@ -24,8 +24,7 @@ export function useAuth(): AuthContextType {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth()
   const userQuery = useCurrentUser()
 
-  const isLoading =
-    authLoading || (isAuthenticated && userQuery === undefined)
+  const isLoading = authLoading || (isAuthenticated && userQuery === undefined)
 
   return {
     user: userQuery === undefined ? null : userQuery,

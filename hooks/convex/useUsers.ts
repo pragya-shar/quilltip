@@ -7,10 +7,7 @@ export function useCurrentUser() {
 }
 
 export function useUserByUsername(username: string | null | undefined) {
-  return useQuery(
-    api.users.getUserByUsername,
-    username ? { username } : 'skip'
-  )
+  return useQuery(api.users.getUserByUsername, username ? { username } : 'skip')
 }
 
 export function useUserStats(userId: Id<'users'> | undefined) {

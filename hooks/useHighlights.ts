@@ -52,10 +52,7 @@ export function useHighlights({
   const rendererRef = useRef<HighlightRenderer | null>(null)
 
   // Fetch highlights
-  const highlights = useArticleHighlightsQuery(
-    articleId,
-    enabled
-  )
+  const highlights = useArticleHighlightsQuery(articleId, enabled)
 
   // Mutations
   const createHighlight = useMutation(api.highlights.createHighlight)

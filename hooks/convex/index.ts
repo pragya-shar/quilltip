@@ -1,8 +1,4 @@
-export {
-  useCurrentUser,
-  useUserByUsername,
-  useUserStats,
-} from './useUsers'
+export { useCurrentUser, useUserByUsername, useUserStats } from './useUsers'
 export {
   useListArticles,
   useArticleBySlug,

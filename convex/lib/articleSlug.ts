@@ -37,10 +37,7 @@ export async function generateUniqueArticleSlugForAuthor(
       if (args.excludeArticleId === undefined) {
         return sameAuthor
       }
-      return q.and(
-        sameAuthor,
-        q.neq(q.field('_id'), args.excludeArticleId)
-      )
+      return q.and(sameAuthor, q.neq(q.field('_id'), args.excludeArticleId))
     })
     .first()
 

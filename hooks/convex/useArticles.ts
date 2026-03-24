@@ -11,10 +11,7 @@ export type ListArticlesArgs = {
 }
 
 export function useListArticles(args: ListArticlesArgs | 'skip') {
-  return useQuery(
-    api.articles.listArticles,
-    args === 'skip' ? 'skip' : args
-  )
+  return useQuery(api.articles.listArticles, args === 'skip' ? 'skip' : args)
 }
 
 export function useArticleBySlug(

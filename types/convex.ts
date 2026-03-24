@@ -27,9 +27,7 @@ export type ArticleById = NonNullable<
   FunctionReturnType<typeof api.articles.getArticleById>
 >
 
-export type UserDrafts = FunctionReturnType<
-  typeof api.articles.getUserDrafts
->
+export type UserDrafts = FunctionReturnType<typeof api.articles.getUserDrafts>
 
 export type NFTByArticleResult = FunctionReturnType<
   typeof api.nfts.getNFTByArticle
