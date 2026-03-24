@@ -57,11 +57,11 @@ export default function DraftsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-muted/30">
       <AppNavigation />
       <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Your Drafts</h1>
+          <h1 className="text-3xl font-bold text-foreground">Your Drafts</h1>
           <Link
             href="/write"
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -72,11 +72,11 @@ export default function DraftsPage() {
 
         {loading ? (
           <div className="text-center py-12">
-            <div className="text-gray-500">Loading drafts...</div>
+            <div className="text-muted-foreground">Loading drafts...</div>
           </div>
         ) : drafts.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-            <div className="text-gray-500 mb-4">No drafts yet</div>
+          <div className="text-center py-12 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)]">
+            <div className="text-muted-foreground mb-4">No drafts yet</div>
             <Link
               href="/write"
               className="text-blue-600 hover:text-blue-700 font-medium"
@@ -89,19 +89,19 @@ export default function DraftsPage() {
             {drafts.map((draft) => (
               <div
                 key={draft._id}
-                className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
+                className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)] hover:shadow-md transition-shadow"
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                    <h2 className="text-xl font-semibold text-foreground mb-2">
                       {draft.title || 'Untitled'}
                     </h2>
                     {draft.excerpt && (
-                      <p className="text-gray-600 mb-3 line-clamp-2">
+                      <p className="text-muted-foreground mb-3 line-clamp-2">
                         {draft.excerpt}
                       </p>
                     )}
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span>
                         Created:{' '}
                         {formatDate(
@@ -143,7 +143,7 @@ export default function DraftsPage() {
           </div>
         )}
 
-        <div className="mt-8 text-sm text-gray-500 bg-blue-50 p-4 rounded-lg">
+        <div className="mt-8 text-sm text-muted-foreground bg-blue-50 p-4 rounded-lg">
           <p className="font-semibold mb-2">About Drafts</p>
           <ul className="space-y-1">
             <li>

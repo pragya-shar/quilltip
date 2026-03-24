@@ -170,7 +170,7 @@ export function Editor({
 
   return (
     <div
-      className={`editor-wrapper bg-white rounded-lg shadow-sm border border-gray-200 relative ${className} ${
+      className={`editor-wrapper bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border relative ${className} ${
         isDragging ? 'border-blue-400 bg-blue-50' : ''
       } ${isUploading ? 'pointer-events-none' : ''}`}
       onDragOver={handleDragOver}
@@ -189,19 +189,21 @@ export function Editor({
       )}
 
       {isUploading && (
-        <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-10 rounded-lg">
+        <div className="absolute inset-0 bg-card bg-opacity-90 flex items-center justify-center z-10 rounded-lg">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-            <div className="text-gray-600 text-sm">
+            <div className="text-muted-foreground text-sm">
               Optimizing and uploading image...
             </div>
-            <div className="mt-2 w-48 bg-gray-200 rounded-full h-2 mx-auto">
+            <div className="mt-2 w-48 bg-muted rounded-full h-2 mx-auto">
               <div
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${uploadProgress}%` }}
               ></div>
             </div>
-            <div className="text-gray-500 text-xs mt-1">{uploadProgress}%</div>
+            <div className="text-muted-foreground text-xs mt-1">
+              {uploadProgress}%
+            </div>
           </div>
         </div>
       )}

@@ -135,13 +135,15 @@ export default function ShareButtons({
 
       <div className="flex items-center gap-3">
         {/* Share label */}
-        <span className="text-sm text-gray-600 font-medium">Share:</span>
+        <span className="text-sm text-muted-foreground font-medium">
+          Share:
+        </span>
 
         {/* Native share button (mobile) */}
         {hasNativeShare && (
           <button
             onClick={handleNativeShare}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-brand-blue hover:bg-gray-50 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand-blue hover:bg-muted rounded-lg transition-colors"
             aria-label="Share article"
           >
             <Share2 className="h-4 w-4" />
