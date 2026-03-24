@@ -140,6 +140,10 @@ export default function WritePage() {
     draftId ? (draftId as Id<'articles'>) : undefined
   )
 
+  const savedArticleForLink = useArticleById(
+    articleId ? (articleId as Id<'articles'>) : undefined
+  )
+
   // Load draft data when it arrives
   useEffect(() => {
     if (draft && editor) {
@@ -198,10 +202,10 @@ export default function WritePage() {
       let resultId: string
 
       if (articleId) {
-        // Publish existing draft
-        resultId = await publishArticleMutation({
+        const published = await publishArticleMutation({
           id: articleId as Id<'articles'>,
         })
+        resultId = published.id
       } else {
         // Create and publish new article
         resultId = await createArticleMutation({
@@ -400,6 +404,14 @@ export default function WritePage() {
                 rows={1}
                 className="w-full resize-none overflow-hidden bg-transparent text-3xl font-semibold text-gray-900 placeholder:text-gray-300 focus:outline-none leading-snug py-2"
               />
+              {savedArticleForLink?.authorUsername &&
+                savedArticleForLink.slug && (
+                  <p className="text-xs text-gray-500 mt-1 font-mono">
+                    Public URL path (when published): /
+                    {savedArticleForLink.authorUsername}/
+                    {savedArticleForLink.slug}
+                  </p>
+                )}
             </div>
 
             {editor && (
