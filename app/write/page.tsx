@@ -24,6 +24,7 @@ import { Id } from '@/convex/_generated/dataModel'
 import { toast } from 'sonner'
 import Image from 'next/image'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 
 export default function WritePage() {
   const [title, setTitle] = useState('')
@@ -46,6 +47,7 @@ export default function WritePage() {
 
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
+  useRedirectWhenUnauthenticated(isLoading, isAuthenticated)
 
   // Convex mutations
   const createArticleMutation = useMutation(api.articles.createArticle)
@@ -274,7 +276,6 @@ export default function WritePage() {
   }
 
   if (!isAuthenticated) {
-    router.push('/login')
     return null
   }
 

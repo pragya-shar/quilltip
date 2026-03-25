@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
+import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 import Link from 'next/link'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { useQuery, useMutation } from 'convex/react'
@@ -21,8 +21,8 @@ import {
 } from '@/components/ui/alert-dialog'
 
 export default function DraftsPage() {
-  const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
+  useRedirectWhenUnauthenticated(isLoading, isAuthenticated)
 
   // Fetch drafts using Convex query
   const drafts = useQuery(api.articles.getUserDrafts) || []
@@ -40,8 +40,7 @@ export default function DraftsPage() {
     )
   }
 
-  if (!isAuthenticated && !isLoading) {
-    router.push('/login')
+  if (!isAuthenticated) {
     return null
   }
 
