@@ -18,9 +18,10 @@ import { ExcerptTagsDialog } from '@/components/editor/ExcerptTagsDialog'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { useAutoSave } from '@/hooks/useAutoSave'
-import { useQuery, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useArticleById } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { toast } from 'sonner'
 import Image from 'next/image'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
@@ -135,9 +136,12 @@ export default function WritePage() {
   const draftId = urlParams?.get('id')
 
   // Load draft using Convex query
-  const draft = useQuery(
-    api.articles.getArticleById,
-    draftId ? { id: draftId as Id<'articles'> } : 'skip'
+  const draft = useArticleById(
+    draftId ? (draftId as Id<'articles'>) : undefined
+  )
+
+  const savedArticleForLink = useArticleById(
+    articleId ? (articleId as Id<'articles'>) : undefined
   )
 
   // Load draft data when it arrives
@@ -198,10 +202,10 @@ export default function WritePage() {
       let resultId: string
 
       if (articleId) {
-        // Publish existing draft
-        resultId = await publishArticleMutation({
+        const published = await publishArticleMutation({
           id: articleId as Id<'articles'>,
         })
+        resultId = published.id
       } else {
         // Create and publish new article
         resultId = await createArticleMutation({
@@ -400,6 +404,14 @@ export default function WritePage() {
                 rows={1}
                 className="w-full resize-none overflow-hidden bg-transparent text-3xl font-semibold text-gray-900 placeholder:text-gray-300 focus:outline-none leading-snug py-2"
               />
+              {savedArticleForLink?.authorUsername &&
+                savedArticleForLink.slug && (
+                  <p className="text-xs text-gray-500 mt-1 font-mono">
+                    Public URL path (when published): /
+                    {savedArticleForLink.authorUsername}/
+                    {savedArticleForLink.slug}
+                  </p>
+                )}
             </div>
 
             {editor && (

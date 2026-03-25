@@ -1,38 +1,12 @@
 import { v } from 'convex/values'
-import {
-  query,
-  mutation,
-  internalMutation,
-  type MutationCtx,
-} from './_generated/server'
+import { query, mutation, internalMutation } from './_generated/server'
 import { internal } from './_generated/api'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { enrichWithUser } from './lib/enrich'
-
-// Helper to generate a unique slug for an article
-async function generateArticleSlug(
-  title: string,
-  authorId: string,
-  ctx: MutationCtx
-) {
-  let slug = title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .substring(0, 100)
-
-  if (!slug) {
-    slug = `article-${Date.now()}`
-  }
-
-  const existingSlug = await ctx.db
-    .query('articles')
-    .withIndex('by_slug', (q) => q.eq('slug', slug))
-    .filter((q) => q.eq(q.field('authorId'), authorId))
-    .first()
-
-  return existingSlug ? `${slug}-${Date.now()}` : slug
-}
+import {
+  generateUniqueArticleSlugForAuthor,
+  isPlaceholderArticleSlug,
+} from './lib/articleSlug'
 
 // Validation helper for article input
 function validateArticleInput(args: {
@@ -268,8 +242,10 @@ export const createArticle = mutation({
     const user = await ctx.db.get(userId)
     if (!user) throw new Error('User not found')
 
-    // Generate slug from title
-    const finalSlug = await generateArticleSlug(args.title, userId, ctx)
+    const finalSlug = await generateUniqueArticleSlugForAuthor(ctx, {
+      title: args.title,
+      authorId: userId,
+    })
 
     const now = Date.now()
 
@@ -327,6 +303,7 @@ export const updateArticle = mutation({
     const updates: {
       updatedAt: number
       title?: string
+      slug?: string
       content?: unknown
       readTime?: number
       excerpt?: string
@@ -336,9 +313,18 @@ export const updateArticle = mutation({
       updatedAt: Date.now(),
     }
 
-    if (args.title !== undefined) {
+    if (args.title !== undefined && args.title !== article.title) {
       updates.title = args.title
-      // Optionally update slug if title changes significantly
+      if (!article.published) {
+        const newSlug = await generateUniqueArticleSlugForAuthor(ctx, {
+          title: args.title,
+          authorId: userId,
+          excludeArticleId: args.id,
+        })
+        if (newSlug !== article.slug) {
+          updates.slug = newSlug
+        }
+      }
     }
 
     if (args.content !== undefined) {
@@ -379,6 +365,18 @@ export const publishArticle = mutation({
 
     const now = Date.now()
 
+    let slug = article.slug
+    if (isPlaceholderArticleSlug(article.slug)) {
+      const newSlug = await generateUniqueArticleSlugForAuthor(ctx, {
+        title: article.title,
+        authorId: userId,
+        excludeArticleId: args.id,
+      })
+      if (newSlug !== article.slug) {
+        slug = newSlug
+      }
+    }
+
     // Only schedule Arweave upload if one isn't already pending or completed
     const shouldUpload =
       !article.arweaveStatus || article.arweaveStatus === 'failed'
@@ -386,6 +384,7 @@ export const publishArticle = mutation({
     await ctx.db.patch(args.id, {
       published: true,
       publishedAt: now,
+      ...(slug !== article.slug ? { slug } : {}),
       ...(shouldUpload ? { arweaveStatus: 'pending' } : {}),
       updatedAt: now,
     })
@@ -406,7 +405,7 @@ export const publishArticle = mutation({
       })
     }
 
-    return args.id
+    return { id: args.id, slug }
   },
 })
 // Delete article
@@ -487,14 +486,35 @@ export const saveDraft = mutation({
       if (!article) throw new Error('Draft not found')
       if (article.authorId !== userId) throw new Error('Not authorized')
 
-      await ctx.db.patch(args.id, {
+      const patch: {
+        title: string
+        content: unknown
+        excerpt?: string
+        coverImage?: string
+        tags?: string[]
+        updatedAt: number
+        slug?: string
+      } = {
         title: args.title,
         content: args.content,
         excerpt: args.excerpt,
         coverImage: args.coverImage,
         tags: args.tags,
         updatedAt: Date.now(),
-      })
+      }
+
+      if (!article.published && args.title !== article.title) {
+        const newSlug = await generateUniqueArticleSlugForAuthor(ctx, {
+          title: args.title,
+          authorId: userId,
+          excludeArticleId: args.id,
+        })
+        if (newSlug !== article.slug) {
+          patch.slug = newSlug
+        }
+      }
+
+      await ctx.db.patch(args.id, patch)
 
       return args.id
     } else {
@@ -503,7 +523,10 @@ export const saveDraft = mutation({
       const user = await ctx.db.get(userId)
       if (!user) throw new Error('User not found')
 
-      const finalSlug = await generateArticleSlug(args.title, userId, ctx)
+      const finalSlug = await generateUniqueArticleSlugForAuthor(ctx, {
+        title: args.title,
+        authorId: userId,
+      })
 
       const now = Date.now()
 

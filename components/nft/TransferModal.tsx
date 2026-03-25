@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useMutation, useQuery } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useNFTByArticle } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { Loader2, CheckCircle, AlertCircle, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -46,10 +47,8 @@ export function TransferModal({
 
   const transferNFT = useMutation(api.nfts.transferNFT)
 
-  // Get NFT data if we don't have the ID
-  const nftData = useQuery(
-    api.nfts.getNFTByArticle,
-    !nftId ? { articleId: articleId as Id<'articles'> } : 'skip'
+  const nftData = useNFTByArticle(
+    !nftId ? (articleId as Id<'articles'>) : undefined
   )
 
   const actualNftId =

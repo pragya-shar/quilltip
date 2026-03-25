@@ -1,8 +1,7 @@
 'use client'
 
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useArticleHighlightTipStats } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { getHeatmapColor, formatTipAmount } from '@/lib/stellar/highlight-utils'
 import { Flame, TrendingUp, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -19,7 +18,7 @@ export function HighlightHeatmap({
   className,
 }: HighlightHeatmapProps) {
   // Fetch highlight tip stats for this article
-  const stats = useQuery(api.highlightTips.getArticleStats, { articleId })
+  const stats = useArticleHighlightTipStats(articleId)
 
   // Loading state
   if (stats === undefined) {

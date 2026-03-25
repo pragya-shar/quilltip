@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useNFTByArticle } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { MintButton } from './MintButton'
 import { NFTBadge } from './NFTBadge'
 import { TransferModal } from './TransferModal'
@@ -29,17 +28,6 @@ interface NFTIntegrationProps {
   currentUserAddress?: string | null
 }
 
-interface NFTStatus {
-  isMinted: boolean
-  isEligible: boolean
-  totalTips: number
-  tipThreshold: number
-  owner?: string
-  mintedAt?: string
-  transferCount: number
-  rarity?: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
-}
-
 export function NFTIntegration({
   articleId,
   articleTitle,
@@ -50,10 +38,7 @@ export function NFTIntegration({
 }: NFTIntegrationProps) {
   const [showTransferModal, setShowTransferModal] = useState(false)
 
-  // Use Convex query to fetch NFT status
-  const nftStatus = useQuery(api.nfts.getNFTByArticle, { articleId }) as
-    | NFTStatus
-    | undefined
+  const nftStatus = useNFTByArticle(articleId)
 
   const isLoading = nftStatus === undefined
 
@@ -66,9 +51,12 @@ export function NFTIntegration({
   }
 
   const isAuthor = currentUserId === authorId
-  const isOwner = currentUserAddress === nftStatus?.owner
+  const isOwner =
+    nftStatus != null &&
+    nftStatus.isMinted === true &&
+    currentUserAddress === nftStatus.owner
   const canMint = isAuthor && !nftStatus?.isMinted && nftStatus?.isEligible
-  const canTransfer = isOwner && nftStatus?.isMinted
+  const canTransfer = isOwner && nftStatus?.isMinted === true
 
   const progressPercentage = nftStatus
     ? (nftStatus.totalTips / nftStatus.tipThreshold) * 100
@@ -286,6 +274,7 @@ export function NFTIntegration({
           articleId={articleId}
           articleTitle={articleTitle}
           currentOwner={nftStatus.owner}
+          nftId={nftStatus._id}
           onTransferComplete={handleTransferComplete}
         />
       )}
