@@ -29,10 +29,7 @@ export default function AppNavigation() {
   useEffect(() => {
     if (!menuOpen) return
     const handleMouseDown = (event: MouseEvent) => {
-      if (
-        navRef.current &&
-        !navRef.current.contains(event.target as Node)
-      ) {
+      if (navRef.current && !navRef.current.contains(event.target as Node)) {
         setMenuOpen(false)
       }
     }
@@ -233,7 +230,7 @@ export default function AppNavigation() {
                     <Link
                       href={`/${user?.username || 'profile'}`}
                       className={mobileLinkClass(
-                        pathname === `/${user?.username}`,
+                        pathname === `/${user?.username}`
                       )}
                       onClick={closeMenu}
                     >
