@@ -57,14 +57,14 @@ export default function DraftsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-background">
       <AppNavigation />
       <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-foreground">Your Drafts</h1>
           <Link
             href="/write"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
           >
             New Article
           </Link>
@@ -79,7 +79,7 @@ export default function DraftsPage() {
             <div className="text-muted-foreground mb-4">No drafts yet</div>
             <Link
               href="/write"
-              className="text-blue-600 hover:text-blue-700 font-medium"
+              className="text-primary hover:text-primary/90 font-medium"
             >
               Start writing your first article →
             </Link>
@@ -126,13 +126,13 @@ export default function DraftsPage() {
                   <div className="flex gap-2 ml-4">
                     <Link
                       href={`/write?id=${draft._id}`}
-                      className="px-4 py-2 text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+                      className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors"
                     >
                       Edit
                     </Link>
                     <button
                       onClick={() => setDeleteTarget(draft._id)}
-                      className="px-4 py-2 text-red-600 border border-red-600 rounded-lg hover:bg-red-50 transition-colors"
+                      className="px-4 py-2 border border-destructive text-destructive rounded-lg hover:bg-destructive/10 transition-colors"
                     >
                       Delete
                     </button>
@@ -143,9 +143,9 @@ export default function DraftsPage() {
           </div>
         )}
 
-        <div className="mt-8 text-sm text-muted-foreground bg-blue-50 p-4 rounded-lg">
-          <p className="font-semibold mb-2">About Drafts</p>
-          <ul className="space-y-1">
+        <div className="mt-8 text-sm rounded-lg border border-border bg-muted/50 p-4">
+          <p className="font-semibold mb-2 text-foreground">About Drafts</p>
+          <ul className="space-y-1 text-muted-foreground">
             <li>
               • All your unpublished articles are saved here automatically
             </li>

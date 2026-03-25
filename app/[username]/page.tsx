@@ -93,14 +93,14 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   // Loading state
   if (username === null) {
     return (
-      <div className="min-h-screen bg-brand-cream">
+      <div className="min-h-screen bg-background">
         <AppNavigation />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
           <div className="animate-pulse">
-            <div className="h-32 bg-gray-200 rounded-lg mb-8"></div>
+            <div className="h-32 bg-muted rounded-lg mb-8"></div>
             <div className="grid grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-64 bg-gray-200 rounded-lg"></div>
+                <div key={i} className="h-64 bg-muted rounded-lg"></div>
               ))}
             </div>
           </div>
@@ -117,14 +117,14 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   // Show loading while data is being fetched
   if (!user) {
     return (
-      <div className="min-h-screen bg-brand-cream">
+      <div className="min-h-screen bg-background">
         <AppNavigation />
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
           <div className="animate-pulse">
-            <div className="h-32 bg-gray-200 rounded-lg mb-8"></div>
+            <div className="h-32 bg-muted rounded-lg mb-8"></div>
             <div className="grid grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-64 bg-gray-200 rounded-lg"></div>
+                <div key={i} className="h-64 bg-muted rounded-lg"></div>
               ))}
             </div>
           </div>
@@ -182,7 +182,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   ]
 
   return (
-    <div className="min-h-screen bg-brand-cream">
+    <div className="min-h-screen bg-background">
       <AppNavigation />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
@@ -192,7 +192,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
         </div>
 
         {/* Tabs */}
-        <div className="border-b border-gray-200 mb-8">
+        <div className="border-b border-border mb-8">
           <nav className="-mb-px flex space-x-8">
             {tabs.map((tab) => (
               <button
@@ -203,15 +203,15 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                   flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
                     activeTab === tab.id
-                      ? 'border-brand-blue text-brand-blue'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                   }
                 `}
               >
                 <tab.icon className="w-4 h-4" />
                 <span>{tab.label}</span>
                 {tab.count !== null && tab.count > 0 && (
-                  <span className="ml-1 bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">
+                  <span className="ml-1 bg-muted text-muted-foreground px-2 py-0.5 rounded-full text-xs">
                     {tab.count}
                   </span>
                 )}
@@ -272,16 +272,16 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                   )}
 
                   {/* Results Summary */}
-                  <div className="mt-4 text-center text-sm text-gray-600">
+                  <div className="mt-4 text-center text-sm text-muted-foreground">
                     Showing {(page - 1) * 9 + 1} -{' '}
                     {Math.min(page * 9, articlesData.total)} of{' '}
                     {articlesData.total} articles
                   </div>
                 </>
               ) : (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                  <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-600 text-lg">
+                <div className="bg-card rounded-lg shadow-sm border border-border p-12 text-center">
+                  <BookOpen className="w-12 h-12 text-muted-foreground/40 mx-auto mb-4" />
+                  <p className="text-muted-foreground text-lg">
                     {isOwnProfile
                       ? "You haven't"
                       : `${user.name || user.username} hasn't`}{' '}
@@ -298,7 +298,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
               {/* Owned NFTs */}
               {userNFTs && userNFTs.length > 0 && (
                 <div>
-                  <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                  <h3 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-yellow-500" />
                     Owned NFTs
                   </h3>
@@ -306,7 +306,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                     {userNFTs.map((nft) => (
                       <div
                         key={nft._id}
-                        className="bg-white rounded-lg shadow-sm border border-gray-200 p-4"
+                        className="bg-card rounded-lg shadow-sm border border-border p-4"
                       >
                         <div className="aspect-video bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg mb-4 flex items-center justify-center">
                           <Image
@@ -314,13 +314,13 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                             aria-label="NFT"
                           />
                         </div>
-                        <h4 className="font-semibold text-gray-900 truncate">
+                        <h4 className="font-semibold text-foreground truncate">
                           {nft.article?.title || 'Untitled'}
                         </h4>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="text-sm text-muted-foreground mt-1">
                           Token ID: {nft.tokenId.slice(0, 8)}...
                         </p>
-                        <p className="text-xs text-gray-400 mt-2">
+                        <p className="text-xs text-muted-foreground/80 mt-2">
                           Minted by @{nft.minter?.username || 'unknown'}
                         </p>
                       </div>
@@ -332,12 +332,14 @@ export default function ProfilePage({ params }: ProfilePageProps) {
               {/* Minted NFTs */}
               {mintedNFTs && mintedNFTs.length > 0 && (
                 <div>
-                  <h3 className="text-xl font-semibold mb-4">Minted NFTs</h3>
+                  <h3 className="text-xl font-semibold text-foreground mb-4">
+                    Minted NFTs
+                  </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {mintedNFTs.map((nft) => (
                       <div
                         key={nft._id}
-                        className="bg-white rounded-lg shadow-sm border border-gray-200 p-4"
+                        className="bg-card rounded-lg shadow-sm border border-border p-4"
                       >
                         <div className="aspect-video bg-gradient-to-br from-blue-400 to-green-400 rounded-lg mb-4 flex items-center justify-center">
                           <Image
@@ -345,13 +347,13 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                             aria-label="NFT"
                           />
                         </div>
-                        <h4 className="font-semibold text-gray-900 truncate">
+                        <h4 className="font-semibold text-foreground truncate">
                           {nft.article?.title || 'Untitled'}
                         </h4>
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="text-sm text-muted-foreground mt-1">
                           Token ID: {nft.tokenId.slice(0, 8)}...
                         </p>
-                        <p className="text-xs text-gray-400 mt-2">
+                        <p className="text-xs text-muted-foreground/80 mt-2">
                           Owner: @{nft.currentOwnerInfo?.username || 'unknown'}
                         </p>
                       </div>
@@ -362,12 +364,12 @@ export default function ProfilePage({ params }: ProfilePageProps) {
 
               {(!userNFTs || userNFTs.length === 0) &&
                 (!mintedNFTs || mintedNFTs.length === 0) && (
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                  <div className="bg-card rounded-lg shadow-sm border border-border p-12 text-center">
                     <Image
-                      className="w-12 h-12 text-gray-300 mx-auto mb-4"
+                      className="w-12 h-12 text-muted-foreground/40 mx-auto mb-4"
                       aria-label="No NFTs"
                     />
-                    <p className="text-gray-600 text-lg">
+                    <p className="text-muted-foreground text-lg">
                       {isOwnProfile
                         ? "You don't"
                         : `${user.name || user.username} doesn't`}{' '}
@@ -390,33 +392,33 @@ export default function ProfilePage({ params }: ProfilePageProps) {
             <div className="space-y-6">
               {/* Overall Stats */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-card rounded-lg shadow-sm border border-border p-6">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-gray-600">Total Articles</span>
+                    <span className="text-muted-foreground">Total Articles</span>
                     <BookOpen className="w-5 h-5 text-blue-500" />
                   </div>
-                  <p className="text-3xl font-bold text-gray-900">
+                  <p className="text-3xl font-bold text-foreground">
                     {userWithStats.articleCount}
                   </p>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-card rounded-lg shadow-sm border border-border p-6">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-gray-600">Tips Received</span>
+                    <span className="text-muted-foreground">Tips Received</span>
                     <DollarSign className="w-5 h-5 text-green-500" />
                   </div>
-                  <p className="text-3xl font-bold text-gray-900">
+                  <p className="text-3xl font-bold text-foreground">
                     {userWithStats.tipsReceivedCount}
                   </p>
                 </div>
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="bg-card rounded-lg shadow-sm border border-border p-6">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-gray-600">NFTs Owned</span>
+                    <span className="text-muted-foreground">NFTs Owned</span>
                     <Image
                       className="w-5 h-5 text-purple-500"
                       aria-label="NFTs"
                     />
                   </div>
-                  <p className="text-3xl font-bold text-gray-900">
+                  <p className="text-3xl font-bold text-foreground">
                     {userWithStats.nftsOwned}
                   </p>
                 </div>
@@ -429,12 +431,12 @@ export default function ProfilePage({ params }: ProfilePageProps) {
             <div className="space-y-8">
               {/* Page Header */}
               <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                <h2 className="text-2xl font-bold text-foreground mb-2">
                   {isOwnProfile
                     ? 'Wallet Management'
                     : `${user?.name}'s Wallet`}
                 </h2>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                   {isOwnProfile
                     ? 'Manage your Stellar wallet for sending and receiving tips on the network.'
                     : 'View wallet address for sending tips to this user.'}

@@ -52,16 +52,16 @@ export default function HomePage() {
 
   if (isAuthenticated && user) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-background">
         <AppNavigation />
         {showOnboarding && <OnboardingDialog />}
         <div className="pt-24 pb-8">
           <div className="max-w-6xl mx-auto px-4">
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              <h1 className="text-3xl font-bold text-foreground mb-2">
                 Welcome back, {user.name || user.username || user.email}
               </h1>
-              <p className="text-gray-600">
+              <p className="text-muted-foreground">
                 Ready to read or write your next story?
               </p>
             </div>
@@ -139,12 +139,12 @@ export default function HomePage() {
             {/* Recent Articles */}
             <div>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">
+                <h2 className="text-xl font-bold text-foreground">
                   Recent Articles
                 </h2>
                 <Link
                   href="/articles"
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                  className="text-sm font-medium text-primary hover:text-primary/90"
                 >
                   View all
                 </Link>
@@ -162,7 +162,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-gray-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-background via-muted/40 to-background">
       <Navigation />
       <HeroSection />
       <FeaturesSection />

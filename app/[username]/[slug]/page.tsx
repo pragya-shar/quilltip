@@ -83,7 +83,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   // Loading state
   if (routeParams.username === null || routeParams.slug === null) {
     return (
-      <div className="min-h-screen bg-brand-cream">
+      <div className="min-h-screen bg-background">
         <AppNavigation />
         <main className="pt-20">
           <div className="max-w-4xl mx-auto px-4 py-8">
@@ -111,7 +111,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   // Show loading while article is being fetched
   if (!article) {
     return (
-      <div className="min-h-screen bg-brand-cream">
+      <div className="min-h-screen bg-background">
         <AppNavigation />
         <main className="pt-20">
           <div className="max-w-4xl mx-auto px-4 py-8">
@@ -151,7 +151,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-brand-cream">
+    <div className="min-h-screen bg-background">
       <AppNavigation />
       <main className="pt-20">
         <div className="max-w-7xl mx-auto px-4 py-8">
@@ -213,7 +213,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                       Highlight Notes
                       {highlights &&
                         highlights.filter((h) => h.note).length > 0 && (
-                          <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-sm rounded-full">
+                          <span className="ml-2 px-2 py-0.5 bg-primary/15 text-primary text-sm rounded-full">
                             {highlights.filter((h) => h.note).length}
                           </span>
                         )}

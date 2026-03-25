@@ -63,7 +63,7 @@ export default function ProfileHeader({ user }: ProfileHeaderProps) {
                 <p className="font-semibold text-foreground">
                   {user.articleCount}
                 </p>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                   {user.articleCount === 1 ? 'Article' : 'Articles'}
                 </p>
               </div>

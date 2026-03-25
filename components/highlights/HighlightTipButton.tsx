@@ -242,34 +242,37 @@ export function HighlightTipButton({
             aria-label="Close dialog"
             tabIndex={-1}
           />
-          <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-card border border-border rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3 id="highlight-tip-dialog-title" className="text-xl font-bold">
+              <h3
+                id="highlight-tip-dialog-title"
+                className="text-xl font-bold text-foreground"
+              >
                 Tip Highlight
               </h3>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                className="text-muted-foreground hover:text-foreground text-2xl leading-none"
               >
                 ×
               </button>
             </div>
 
             {/* Highlight Preview */}
-            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-gray-700 italic">
+            <div className="mb-4 p-3 rounded-lg border border-border bg-muted/50">
+              <p className="text-sm text-muted-foreground italic">
                 &ldquo;{displayText}&rdquo;
               </p>
             </div>
 
-            <p className="text-gray-600 mb-4">
+            <p className="text-muted-foreground mb-4">
               Tip {authorName} for this specific insight. 97.5% goes directly to
               the author!
             </p>
 
             {/* Wallet Setup Guide */}
             {!isConnected && (
-              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+              <div className="mb-4 p-3 rounded-lg border border-border bg-muted/50 text-sm text-foreground">
                 <p>Connect your Stellar wallet to tip this highlight.</p>
               </div>
             )}
@@ -285,8 +288,8 @@ export function HighlightTipButton({
                   }}
                   className={`relative px-4 py-3 rounded-lg border-2 transition-all ${
                     selectedAmount === amount.cents
-                      ? 'border-orange-500 bg-orange-50'
-                      : 'border-gray-200 hover:border-orange-300'
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
                   }`}
                 >
                   {amount.popular && (
@@ -294,7 +297,9 @@ export function HighlightTipButton({
                       Popular
                     </span>
                   )}
-                  <span className="font-semibold">{amount.label}</span>
+                  <span className="font-semibold text-foreground">
+                    {amount.label}
+                  </span>
                 </button>
               ))}
             </div>
@@ -303,7 +308,7 @@ export function HighlightTipButton({
             <div className="mb-6">
               <label
                 htmlFor="highlight-tip-custom-amount"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className="block text-sm font-medium text-foreground mb-2"
               >
                 Or enter custom amount
               </label>
@@ -337,7 +342,7 @@ export function HighlightTipButton({
               <button
                 onClick={() => setIsOpen(false)}
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -390,7 +395,7 @@ export function HighlightTipButton({
             )}
 
             {/* Info */}
-            <p className="text-xs text-gray-500 text-center mt-2">
+            <p className="text-xs text-muted-foreground text-center mt-2">
               Powered by Stellar • Instant settlement • Low fees
             </p>
           </div>
