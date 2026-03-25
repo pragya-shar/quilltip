@@ -389,7 +389,10 @@ export default function Navigation() {
               aria-label="Toggle menu"
             >
               {isOpen ? (
-                <X size={22} className="text-neutral-900 dark:text-foreground" />
+                <X
+                  size={22}
+                  className="text-neutral-900 dark:text-foreground"
+                />
               ) : (
                 <Menu
                   size={22}

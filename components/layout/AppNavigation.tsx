@@ -78,7 +78,9 @@ export default function AppNavigation() {
                 <Link
                   href={`/${user?.username || 'profile'}`}
                   className={
-                    pathname === `/${user?.username}` ? linkActive : linkInactive
+                    pathname === `/${user?.username}`
+                      ? linkActive
+                      : linkInactive
                   }
                 >
                   <User className="w-4 h-4" />
