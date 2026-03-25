@@ -4,7 +4,9 @@ type ErrorPageIllustrationProps = {
   className?: string
 }
 
-export function ErrorPageIllustration({ className }: ErrorPageIllustrationProps) {
+export function ErrorPageIllustration({
+  className,
+}: ErrorPageIllustrationProps) {
   return (
     <svg
       className={cn('mx-auto h-40 w-40 shrink-0', className)}

@@ -29,8 +29,7 @@ export default function Error({
           Something went wrong
         </h1>
         <p className="mt-3 text-sm text-quill-600">
-          This page ran into a problem. Try again, or go back to the home
-          page.
+          This page ran into a problem. Try again, or go back to the home page.
         </p>
         <div className="mt-8 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
           <Button type="button" onClick={reset} className="w-full sm:w-auto">
