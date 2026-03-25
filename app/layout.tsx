@@ -34,7 +34,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${caveat.variable} ${fraunces.variable} font-sans antialiased`}
+        className={`${inter.variable} ${caveat.variable} ${fraunces.variable} font-sans antialiased bg-background`}
       >
         <Providers>{children}</Providers>
         <Analytics />

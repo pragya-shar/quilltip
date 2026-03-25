@@ -1,9 +1,12 @@
 'use client'
 
 import { notFound } from 'next/navigation'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
 import { useState, useEffect, useMemo } from 'react'
+import {
+  useArticleBySlug,
+  useArticleHighlightTipStatsOptional,
+  useArticleHighlightsQuery,
+} from '@/hooks/convex'
 import ArticleDisplay from '@/components/articles/ArticleDisplay'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { TipStats } from '@/components/tipping/TipStats'
@@ -21,7 +24,8 @@ import { ArweaveStatus } from '@/components/articles/ArweaveStatus'
 import { HighlightNotes } from '@/components/highlights/HighlightNotes'
 import { HighlightHeatmap } from '@/components/highlights/HighlightHeatmap'
 import { useAuth } from '@/components/providers/AuthContext'
-import { Id } from '@/convex/_generated/dataModel'
+import type { Id } from '@/types/convex'
+import type { ArticleForDisplay } from '@/types/index'
 import { cn } from '@/lib/utils'
 
 interface ArticlePageProps {
@@ -49,25 +53,11 @@ export default function ArticlePage({ params }: ArticlePageProps) {
     )
   }, [params])
 
-  // Fetch article
-  const article = useQuery(
-    api.articles.getArticleBySlug,
-    routeParams.username && routeParams.slug
-      ? { username: routeParams.username, slug: routeParams.slug }
-      : 'skip'
-  )
+  const article = useArticleBySlug(routeParams.username, routeParams.slug)
 
-  // Fetch highlights if article exists
-  const highlights = useQuery(
-    api.highlights.getArticleHighlights,
-    article ? { articleId: article._id as Id<'articles'> } : 'skip'
-  )
+  const highlights = useArticleHighlightsQuery(article?._id)
 
-  // Fetch highlight tip stats for tip badges in notes sidebar
-  const highlightTipStats = useQuery(
-    api.highlightTips.getArticleStats,
-    article ? { articleId: article._id as Id<'articles'> } : 'skip'
-  )
+  const highlightTipStats = useArticleHighlightTipStatsOptional(article?._id)
 
   // Build lookup map for tip badges
   const tipsByHighlight = useMemo(() => {
@@ -131,8 +121,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
     )
   }
 
-  // Map Convex article to match ArticleDisplay interface
-  const articleForDisplay = {
+  const articleForDisplay: ArticleForDisplay = {
     id: article._id,
     slug: article.slug,
     title: article.title,
@@ -140,8 +129,13 @@ export default function ArticlePage({ params }: ArticlePageProps) {
     excerpt: article.excerpt,
     coverImage: article.coverImage,
     publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
-    author: article.author,
-    // Transform string tags to objects
+    author: {
+      id: article.author.id,
+      name: article.author.name ?? null,
+      username: article.author.username,
+      avatar: article.author.avatar ?? null,
+      bio: undefined,
+    },
     tags: (article.tags || []).map((tag: string, index: number) => ({
       id: `tag-${index}`,
       name: tag,

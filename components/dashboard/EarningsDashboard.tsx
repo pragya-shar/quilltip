@@ -1,8 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
+import {
+  useAuthorEarnings,
+  useUserByUsername,
+  useUserReceivedTips,
+} from '@/hooks/convex'
 import {
   Coins,
   TrendingUp,
@@ -26,14 +31,9 @@ export function EarningsDashboard() {
   const { user: currentUser } = useAuth()
 
   // Fetch earnings data
-  const earnings = useQuery(api.tips.getAuthorEarnings, {})
-  const recentTips = useQuery(api.tips.getUserReceivedTips, {})
-
-  // Fetch user profile to get stored wallet address
-  const userProfile = useQuery(
-    api.users.getUserByUsername,
-    currentUser?.username ? { username: currentUser.username } : 'skip'
-  )
+  const earnings = useAuthorEarnings()
+  const recentTips = useUserReceivedTips()
+  const userProfile = useUserByUsername(currentUser?.username)
 
   // Withdrawal mutations
   const withdrawEarnings = useMutation(api.tips.withdrawEarnings)

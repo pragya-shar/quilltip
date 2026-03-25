@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
+import { useListArticles } from '@/hooks/convex'
+import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
 import AppNavigation from '@/components/layout/AppNavigation'
 import ArticleGrid from '@/components/articles/ArticleGrid'
 import Pagination from '@/components/articles/Pagination'
@@ -23,7 +23,7 @@ export default function ArticlesPage() {
   const urlSearch = searchParams?.get('search') || undefined
 
   // Use Convex query to fetch articles
-  const result = useQuery(api.articles.listArticles, {
+  const result = useListArticles({
     page: currentPage,
     limit: 9,
     tag,
@@ -31,27 +31,9 @@ export default function ArticlesPage() {
     search: urlSearch,
   })
 
-  // Map Convex articles to expected ArticleCard format
-  const articles: ArticleForDisplay[] =
-    result?.articles.map((article) => ({
-      id: article._id,
-      slug: article.slug,
-      title: article.title,
-      excerpt: article.excerpt || null,
-      coverImage: article.coverImage || null,
-      publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
-      author: {
-        id: article.author?.id as string,
-        name: article.author?.name || null,
-        username: article.author?.username || '',
-        avatar: article.author?.avatar || null,
-      },
-      tags: (article.tags || []).map((tagName, index) => ({
-        id: `tag-${index}`, // Generate temporary IDs for tag strings
-        name: tagName,
-        slug: tagName.toLowerCase().replace(/\s+/g, '-'),
-      })),
-    })) || []
+  const articles: ArticleForDisplay[] = result
+    ? mapListArticlesToDisplay(result.articles)
+    : []
   const pagination = result
     ? {
         page: result.page,

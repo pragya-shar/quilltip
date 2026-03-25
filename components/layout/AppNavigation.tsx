@@ -35,7 +35,7 @@ export default function AppNavigation() {
             </span>
           </Link>
 
-          <div className="flex items-center space-x-4 md:space-x-6">
+          <div className="flex items-center space-x-4 sm:space-x-6">
             <ThemeToggle />
             <Link
               href="/"

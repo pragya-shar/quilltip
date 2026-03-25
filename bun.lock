@@ -80,6 +80,7 @@
         "@changesets/cli": "^2.29.8",
         "@commitlint/cli": "^20.4.2",
         "@commitlint/config-conventional": "^20.4.2",
+        "@edge-runtime/vm": "^5.0.0",
         "@eslint/eslintrc": "^3.3.4",
         "@types/node": "^25.3.1",
         "@types/react": "^19.2.14",
@@ -252,6 +253,10 @@
     "@dha-team/arbundles": ["@dha-team/arbundles@1.0.4", "", { "dependencies": { "@ethersproject/bytes": "5.7.0", "@ethersproject/hash": "5.7.0", "@ethersproject/providers": "5.7.2", "@ethersproject/signing-key": "5.7.0", "@ethersproject/transactions": "5.7.0", "@ethersproject/wallet": "5.7.0", "@noble/ed25519": "1.6.1", "arweave": "1.15.7", "base64url": "3.0.1", "bs58": "4.0.1", "keccak": "3.0.2", "secp256k1": "5.0.0" }, "optionalDependencies": { "@randlabs/myalgo-connect": "1.1.2", "algosdk": "1.13.1", "arweave-stream-tx": "1.1.0", "multistream": "4.1.0", "tmp-promise": "3.0.2" } }, "sha512-T/4pv6bosp4caV32EubHTqDzLAqL6481Bsqd348JO0h+HSaMysloY/pFSLwZf9U3IvkJngIZ4njrYQUkjSkkwA=="],
 
     "@ecies/ciphers": ["@ecies/ciphers@0.2.5", "", { "peerDependencies": { "@noble/ciphers": "^1.0.0" } }, "sha512-GalEZH4JgOMHYYcYmVqnFirFsjZHeoGMDt9IxEnM9F7GRUUyUksJ7Ou53L83WHJq3RWKD3AcBpo0iQh0oMpf8A=="],
+
+    "@edge-runtime/primitives": ["@edge-runtime/primitives@6.0.0", "", {}, "sha512-FqoxaBT+prPBHBwE1WXS1ocnu/VLTQyZ6NMUBAdbP7N2hsFTTxMC/jMu2D/8GAlMQfxeuppcPuCUk/HO3fpIvA=="],
+
+    "@edge-runtime/vm": ["@edge-runtime/vm@5.0.0", "", { "dependencies": { "@edge-runtime/primitives": "6.0.0" } }, "sha512-NKBGBSIKUG584qrS1tyxVpX/AKJKQw5HgjYEnPLC0QsTw79JrGn+qUr8CXFb955Iy7GUdiiUv1rJ6JBGvaKb6w=="],
 
     "@emnapi/core": ["@emnapi/core@1.8.1", "", { "dependencies": { "@emnapi/wasi-threads": "1.1.0", "tslib": "^2.4.0" } }, "sha512-AvT9QFpxK0Zd8J0jopedNm+w/2fIzvtPKPjqyw9jwvBaReTTqPBk9Hixaz7KbjimP+QNz605/XnjFcDAL2pqBg=="],
 

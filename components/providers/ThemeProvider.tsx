@@ -13,6 +13,7 @@ export function ThemeProvider({
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange
+      storageKey="quilltip-theme"
       {...props}
     >
       {children}

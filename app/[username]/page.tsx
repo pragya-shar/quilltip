@@ -1,8 +1,14 @@
 'use client'
 
 import { notFound } from 'next/navigation'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
+import {
+  useListArticles,
+  useNFTsByOwner,
+  useUserByUsername,
+  useUserMintedNFTs,
+  useUserStats,
+} from '@/hooks/convex'
+import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
@@ -45,10 +51,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   }, [params])
 
   // Fetch user profile
-  const user = useQuery(
-    api.users.getUserByUsername,
-    username ? { username } : 'skip'
-  )
+  const user = useUserByUsername(username ?? undefined)
 
   // Sync local wallet address with user data
   useEffect(() => {
@@ -58,14 +61,10 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   }, [user?.stellarAddress, localWalletAddress])
 
   // Fetch user stats
-  const userStats = useQuery(
-    api.users.getUserStats,
-    user ? { userId: user._id } : 'skip'
-  )
+  const userStats = useUserStats(user?._id)
 
   // Fetch user's articles
-  const articlesData = useQuery(
-    api.articles.listArticles,
+  const articlesData = useListArticles(
     username && activeTab === 'articles'
       ? {
           author: username,
@@ -76,15 +75,12 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   )
 
   // Fetch user's NFTs
-  const userNFTs = useQuery(
-    api.nfts.getNFTsByOwner,
-    user && activeTab === 'nfts' ? { ownerId: user._id } : 'skip'
+  const userNFTs = useNFTsByOwner(
+    user && activeTab === 'nfts' ? user._id : undefined
   )
 
-  // Fetch user's minted NFTs
-  const mintedNFTs = useQuery(
-    api.nfts.getUserMintedNFTs,
-    user && activeTab === 'nfts' ? { userId: user._id } : 'skip'
+  const mintedNFTs = useUserMintedNFTs(
+    user && activeTab === 'nfts' ? user._id : undefined
   )
 
   // Check if this is the current user's profile
@@ -228,36 +224,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
               {articlesData?.articles && articlesData.articles.length > 0 ? (
                 <>
                   <ArticleGrid
-                    articles={articlesData.articles.map((article) => ({
-                      id: article._id,
-                      slug: article.slug,
-                      title: article.title,
-                      excerpt: article.excerpt,
-                      coverImage: article.coverImage,
-                      publishedAt: article.publishedAt
-                        ? new Date(article.publishedAt)
-                        : null,
-                      author: article.author
-                        ? {
-                            id: article.author.id,
-                            name: article.author.name,
-                            username: article.author.username,
-                            avatar: article.author.avatar,
-                          }
-                        : {
-                            id: '',
-                            name: null,
-                            username: 'unknown',
-                            avatar: null,
-                          },
-                      tags: (article.tags || []).map(
-                        (tag: string, index: number) => ({
-                          id: `tag-${index}`,
-                          name: tag,
-                          slug: tag.toLowerCase().replace(/\s+/g, '-'),
-                        })
-                      ),
-                    }))}
+                    articles={mapListArticlesToDisplay(articlesData.articles)}
                   />
 
                   {/* Pagination */}

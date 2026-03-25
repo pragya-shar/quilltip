@@ -1,8 +1,7 @@
 'use client'
 
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useArticleTipStats } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { Coins, Users } from 'lucide-react'
 
 interface TipStatsProps {
@@ -11,7 +10,7 @@ interface TipStatsProps {
 }
 
 export function TipStats({ articleId, className = '' }: TipStatsProps) {
-  const stats = useQuery(api.tips.getArticleTipStats, { articleId })
+  const stats = useArticleTipStats(articleId)
 
   // Don't show anything while loading
   if (stats === undefined) {
