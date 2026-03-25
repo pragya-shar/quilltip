@@ -5,6 +5,7 @@ import { ConvexReactClient } from 'convex/react'
 import { WalletProvider } from './WalletProvider'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
+import { ThemeProvider } from '@/components/providers/ThemeProvider'
 
 /**
  * Global Providers
@@ -32,12 +33,14 @@ const WalletErrorFallback = (
 export default function Providers({ children }: ProvidersProps) {
   return (
     <ConvexAuthProvider client={convex}>
-      <ErrorBoundary fallback={WalletErrorFallback}>
-        <WalletProvider>
-          {children}
-          <Toaster />
-        </WalletProvider>
-      </ErrorBoundary>
+      <ThemeProvider>
+        <ErrorBoundary fallback={WalletErrorFallback}>
+          <WalletProvider>
+            {children}
+            <Toaster />
+          </WalletProvider>
+        </ErrorBoundary>
+      </ThemeProvider>
     </ConvexAuthProvider>
   )
 }

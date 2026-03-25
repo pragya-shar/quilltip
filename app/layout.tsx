@@ -32,9 +32,9 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${caveat.variable} ${fraunces.variable} font-sans antialiased bg-brand-cream`}
+        className={`${inter.variable} ${caveat.variable} ${fraunces.variable} font-sans antialiased bg-background`}
       >
         <Providers>{children}</Providers>
         <Analytics />
