@@ -1,13 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import {
-  Camera,
-  ImageOff,
-  ImageUp,
-  Link2,
-  Loader2,
-} from 'lucide-react'
+import { Camera, ImageOff, ImageUp, Link2, Loader2 } from 'lucide-react'
 import { useAction, useConvex, useMutation } from 'convex/react'
 import { toast } from 'sonner'
 
@@ -57,7 +51,9 @@ export function ProfileAvatarEditor({
   const convex = useConvex()
   const updateProfile = useMutation(api.users.updateProfile)
   const clearAvatar = useMutation(api.users.clearAvatar)
-  const resolveWikimediaFileUrl = useAction(api.wikimedia.resolveWikimediaFileUrl)
+  const resolveWikimediaFileUrl = useAction(
+    api.wikimedia.resolveWikimediaFileUrl
+  )
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [urlDialogOpen, setUrlDialogOpen] = useState(false)
   const [urlInput, setUrlInput] = useState('')
