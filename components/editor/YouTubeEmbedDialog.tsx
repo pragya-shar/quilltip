@@ -100,10 +100,7 @@ export function YouTubeEmbedDialog({
             <Youtube className="w-5 h-5 text-red-600" />
             <h3 className="text-lg font-semibold">Embed YouTube Video</h3>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-1 hover:bg-muted rounded"
-          >
+          <button onClick={handleClose} className="p-1 hover:bg-muted rounded">
             <X className="w-5 h-5" />
           </button>
         </div>

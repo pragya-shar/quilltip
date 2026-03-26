@@ -216,7 +216,9 @@ export function HighlightDetailsPanel({
         <div className="px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2 mb-2">
             <MessageSquare className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs font-medium text-muted-foreground">Note</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Note
+            </span>
           </div>
 
           {isEditing ? (
@@ -251,7 +253,9 @@ export function HighlightDetailsPanel({
           ) : (
             <div className="text-sm text-foreground">
               {highlight.note || (
-                <span className="text-muted-foreground italic">No note added</span>
+                <span className="text-muted-foreground italic">
+                  No note added
+                </span>
               )}
             </div>
           )}

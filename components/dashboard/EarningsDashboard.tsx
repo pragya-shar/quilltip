@@ -92,7 +92,10 @@ export function EarningsDashboard() {
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
+            <div
+              key={i}
+              className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6"
+            >
               <Skeleton className="h-4 w-24 mb-4" />
               <Skeleton className="h-8 w-20 mb-2" />
               <Skeleton className="h-3 w-16" />
@@ -227,7 +230,9 @@ export function EarningsDashboard() {
                 .reverse()
                 .map(([month, amount]) => (
                   <div key={month} className="text-center">
-                    <div className="text-xs text-muted-foreground mb-1">{month}</div>
+                    <div className="text-xs text-muted-foreground mb-1">
+                      {month}
+                    </div>
                     <div className="bg-gradient-to-t from-yellow-400 to-orange-500 rounded-lg p-2">
                       <p className="text-sm font-semibold text-white">
                         ${(amount as number).toFixed(0)}

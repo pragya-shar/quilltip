@@ -247,7 +247,9 @@ export default function HowItWorksSection() {
                           <div
                             key={i}
                             className={`h-1 rounded-full transition-all duration-300 ${
-                              i === index ? 'w-8 bg-card' : 'w-2 bg-foreground/20'
+                              i === index
+                                ? 'w-8 bg-card'
+                                : 'w-2 bg-foreground/20'
                             }`}
                           />
                         ))}

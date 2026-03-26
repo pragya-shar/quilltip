@@ -125,7 +125,9 @@ export function HighlightNotes({
           })()}
 
           {/* Note content */}
-          <div className="text-sm text-muted-foreground italic">{highlight.note}</div>
+          <div className="text-sm text-muted-foreground italic">
+            {highlight.note}
+          </div>
 
           {/* Visibility indicator */}
           {!highlight.isPublic && (

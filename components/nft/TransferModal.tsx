@@ -177,7 +177,9 @@ export function TransferModal({
         <div className="space-y-4">
           {/* Current Owner */}
           <div className="space-y-2">
-            <Label className="text-sm text-muted-foreground">Current Owner</Label>
+            <Label className="text-sm text-muted-foreground">
+              Current Owner
+            </Label>
             <div className="px-3 py-2 bg-muted rounded-lg text-sm">
               @{currentOwner}
             </div>

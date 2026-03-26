@@ -125,7 +125,10 @@ export default function Pagination({
       <div className="hidden sm:flex space-x-1">
         {getPageNumbers().map((page, index) =>
           page === '...' ? (
-            <span key={`ellipsis-${index}`} className="px-3 py-2 text-muted-foreground">
+            <span
+              key={`ellipsis-${index}`}
+              className="px-3 py-2 text-muted-foreground"
+            >
               ...
             </span>
           ) : (

@@ -14,9 +14,7 @@ export function ThemeToggle() {
   }, [])
 
   if (!mounted) {
-    return (
-      <span className="inline-flex h-9 w-9 shrink-0" aria-hidden="true" />
-    )
+    return <span className="inline-flex h-9 w-9 shrink-0" aria-hidden="true" />
   }
 
   const isDark = resolvedTheme === 'dark'
