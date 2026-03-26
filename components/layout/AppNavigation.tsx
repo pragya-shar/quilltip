@@ -30,9 +30,7 @@ export default function AppNavigation() {
             </span>
           </Link>
 
-          <div className="flex items-center space-x-4 md:space-x-6">
-            <ThemeToggle />
-            {/* Common links for all users */}
+          <div className="flex items-center space-x-4 sm:space-x-6">
             <Link
               href="/"
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
@@ -66,6 +64,8 @@ export default function AppNavigation() {
               <HelpCircle className="w-4 h-4" />
               <span>Guide</span>
             </Link>
+
+            <ThemeToggle />
 
             {isAuthenticated ? (
               <>
@@ -104,7 +104,7 @@ export default function AppNavigation() {
                 </Link>
                 <button
                   onClick={() => signOut()}
-                  className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground hover:text-red-600 transition"
+                  className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground hover:text-destructive transition"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Sign Out</span>
@@ -120,7 +120,7 @@ export default function AppNavigation() {
                 </Link>
                 <Link
                   href="/register"
-                  className="bg-brand-blue text-white px-4 py-2 rounded-lg hover:bg-brand-accent transition"
+                  className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition"
                 >
                   Get Started
                 </Link>

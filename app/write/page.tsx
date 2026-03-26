@@ -406,7 +406,7 @@ export default function WritePage() {
               />
               {savedArticleForLink?.authorUsername &&
                 savedArticleForLink.slug && (
-                  <p className="text-xs text-foreground/80 mt-1 font-mono">
+                  <p className="text-xs text-muted-foreground mt-1 font-mono">
                     Public URL path (when published): /
                     {savedArticleForLink.authorUsername}/
                     {savedArticleForLink.slug}

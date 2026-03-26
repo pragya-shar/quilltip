@@ -33,14 +33,14 @@ const WalletErrorFallback = (
 export default function Providers({ children }: ProvidersProps) {
   return (
     <ConvexAuthProvider client={convex}>
-      <ErrorBoundary fallback={WalletErrorFallback}>
-        <WalletProvider>
-          <ThemeProvider>
+      <ThemeProvider>
+        <ErrorBoundary fallback={WalletErrorFallback}>
+          <WalletProvider>
             {children}
             <Toaster />
-          </ThemeProvider>
-        </WalletProvider>
-      </ErrorBoundary>
+          </WalletProvider>
+        </ErrorBoundary>
+      </ThemeProvider>
     </ConvexAuthProvider>
   )
 }
