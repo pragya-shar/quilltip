@@ -4,8 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { WithdrawalDialog } from '@/components/dashboard/WithdrawalDialog'
 
-const validGAddress =
-  'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
+const validGAddress = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
 
 describe('WithdrawalDialog', () => {
   it('calls onWithdraw with entered amount and address', async () => {

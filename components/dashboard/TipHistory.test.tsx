@@ -1,7 +1,10 @@
 /** @vitest-environment jsdom */
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { TipHistory, type ReceivedTipRow } from '@/components/dashboard/TipHistory'
+import {
+  TipHistory,
+  type ReceivedTipRow,
+} from '@/components/dashboard/TipHistory'
 import type { Id } from '@/types/convex'
 
 function makeTip(overrides: Partial<ReceivedTipRow>): ReceivedTipRow {
