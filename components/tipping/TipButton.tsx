@@ -164,18 +164,18 @@ export function TipButton({
       {/* Tip Modal */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold">Support {authorName}</h3>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-muted-foreground hover:text-foreground"
               >
                 ×
               </button>
             </div>
 
-            <p className="text-gray-600 mb-4">
+            <p className="text-muted-foreground mb-4">
               Show your appreciation with a micro-tip. 97.5% goes directly to
               the author!
             </p>
@@ -208,7 +208,7 @@ export function TipButton({
                   className={`relative px-4 py-3 rounded-lg border-2 transition-all ${
                     selectedAmount === amount.cents
                       ? 'border-orange-500 bg-orange-50'
-                      : 'border-gray-200 hover:border-orange-300'
+                      : 'border-border hover:border-orange-300'
                   }`}
                 >
                   {amount.popular && (
@@ -225,12 +225,12 @@ export function TipButton({
             <div className="mb-6">
               <label
                 htmlFor="tip-custom-amount"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className="block text-sm font-medium text-foreground mb-2"
               >
                 Or enter custom amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
                   $
                 </span>
                 <input
@@ -245,10 +245,10 @@ export function TipButton({
                     setSelectedAmount(null)
                   }}
                   placeholder="0.00"
-                  className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className="w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Minimum: ${TIP_MIN_USD.toFixed(2)} • Maximum: $
                 {TIP_MAX_USD.toFixed(2)}
               </p>
@@ -259,7 +259,7 @@ export function TipButton({
               <button
                 onClick={() => setIsOpen(false)}
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 border border-input bg-background text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -312,7 +312,7 @@ export function TipButton({
             )}
 
             {/* Info */}
-            <p className="text-xs text-gray-500 text-center mt-2 flex items-center justify-center gap-1">
+            <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1">
               Powered by Stellar <WalletTooltip concept="stellar" /> • Instant
               settlement • Low fees
             </p>

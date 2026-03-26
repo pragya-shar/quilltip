@@ -69,7 +69,7 @@ export default function ArticleDisplay({
     <article className="max-w-4xl mx-auto px-4 py-8">
       {/* Article Header */}
       <header className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3 leading-snug">
+        <h1 className="text-3xl md:text-4xl font-semibold text-foreground mb-3 leading-snug">
           {article.title}
         </h1>
 
@@ -92,10 +92,10 @@ export default function ArticleDisplay({
               </div>
             )}
             <div>
-              <p className="font-medium text-gray-900">
+              <p className="font-medium text-foreground">
                 {article.author.name || article.author.username}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 @{article.author.username}
                 {publishedDate && (
                   <>
@@ -126,7 +126,7 @@ export default function ArticleDisplay({
             {article.tags.map((tag) => (
               <span
                 key={tag.id}
-                className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full"
+                className="px-3 py-1 bg-muted text-foreground text-sm rounded-full"
               >
                 {tag.name}
               </span>
@@ -150,7 +150,7 @@ export default function ArticleDisplay({
 
       {/* Share Buttons */}
       {currentUrl && (
-        <div className="mt-8 pt-6 border-t border-gray-200">
+        <div className="mt-8 pt-6 border-t border-border">
           <ShareButtons
             title={article.title}
             url={currentUrl}

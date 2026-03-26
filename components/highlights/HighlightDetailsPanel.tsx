@@ -133,7 +133,7 @@ export function HighlightDetailsPanel({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 10 }}
       transition={{ duration: 0.2 }}
-      className="fixed z-50 bg-white rounded-xl shadow-2xl border border-gray-200 max-w-md w-full"
+      className="fixed z-50 bg-popover text-popover-foreground rounded-xl shadow-2xl border border-border max-w-md w-full"
       style={{
         top: position.top,
         left: position.left,
@@ -141,9 +141,9 @@ export function HighlightDetailsPanel({
       }}
     >
       {/* Header */}
-      <div className="flex items-start justify-between p-4 border-b border-gray-100">
+      <div className="flex items-start justify-between p-4 border-b border-border">
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-gray-900 mb-1">
+          <h3 className="text-sm font-semibold text-foreground mb-1">
             Highlight Details
           </h3>
           <div
@@ -158,16 +158,16 @@ export function HighlightDetailsPanel({
         </div>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-muted-foreground hover:text-foreground transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* Highlighted Text */}
-      <div className="p-4 border-b border-gray-100">
+      <div className="p-4 border-b border-border">
         <div
-          className="p-3 rounded-lg border-l-4 italic text-sm text-gray-700"
+          className="p-3 rounded-lg border-l-4 italic text-sm text-foreground"
           style={{ borderLeftColor: highlight.color || '#F59E0B' }}
         >
           &ldquo;{displayText}&rdquo;
@@ -175,7 +175,7 @@ export function HighlightDetailsPanel({
       </div>
 
       {/* Creator Info */}
-      <div className="px-4 py-3 border-b border-gray-100">
+      <div className="px-4 py-3 border-b border-border">
         <div className="flex items-center gap-3">
           {highlight.userAvatar ? (
             <Image
@@ -192,14 +192,14 @@ export function HighlightDetailsPanel({
           )}
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <User className="w-3 h-3 text-gray-400" />
-              <span className="text-sm font-medium text-gray-900">
+              <User className="w-3 h-3 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">
                 {highlight.userName || 'Anonymous'}
               </span>
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <Calendar className="w-3 h-3 text-gray-400" />
-              <span className="text-xs text-gray-500">
+              <Calendar className="w-3 h-3 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">
                 {new Date(highlight.createdAt).toLocaleDateString('en-US', {
                   month: 'short',
                   day: 'numeric',
@@ -213,10 +213,10 @@ export function HighlightDetailsPanel({
 
       {/* Note Section */}
       {(highlight.note || isOwner) && (
-        <div className="px-4 py-3 border-b border-gray-100">
+        <div className="px-4 py-3 border-b border-border">
           <div className="flex items-center gap-2 mb-2">
-            <MessageSquare className="w-4 h-4 text-gray-400" />
-            <span className="text-xs font-medium text-gray-600">Note</span>
+            <MessageSquare className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs font-medium text-muted-foreground">Note</span>
           </div>
 
           {isEditing ? (
@@ -225,7 +225,7 @@ export function HighlightDetailsPanel({
                 value={editedNote}
                 onChange={(e) => setEditedNote(e.target.value)}
                 placeholder="Add a note to your highlight..."
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent resize-none"
                 rows={3}
                 // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
@@ -242,16 +242,16 @@ export function HighlightDetailsPanel({
                     setEditedNote(highlight.note || '')
                     setIsEditing(false)
                   }}
-                  className="flex-1 px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors"
+                  className="flex-1 px-3 py-1.5 bg-muted text-foreground text-sm rounded-lg hover:bg-muted/80 transition-colors"
                 >
                   Cancel
                 </button>
               </div>
             </div>
           ) : (
-            <div className="text-sm text-gray-700">
+            <div className="text-sm text-foreground">
               {highlight.note || (
-                <span className="text-gray-400 italic">No note added</span>
+                <span className="text-muted-foreground italic">No note added</span>
               )}
             </div>
           )}
@@ -260,22 +260,22 @@ export function HighlightDetailsPanel({
 
       {/* Tip Statistics */}
       {tipStats.count > 0 && (
-        <div className="px-4 py-3 border-b border-gray-100 bg-gradient-to-r from-yellow-50 to-orange-50">
+        <div className="px-4 py-3 border-b border-border bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/30 dark:to-orange-950/30">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="w-4 h-4 text-orange-500" />
-            <span className="text-xs font-medium text-gray-700">
+            <span className="text-xs font-medium text-foreground">
               Tip Statistics
             </span>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="text-xs text-gray-600">Total Tips</div>
-              <div className="text-lg font-bold text-gray-900">
+              <div className="text-xs text-muted-foreground">Total Tips</div>
+              <div className="text-lg font-bold text-foreground">
                 {tipStats.count}
               </div>
             </div>
             <div>
-              <div className="text-xs text-gray-600">Total Earned</div>
+              <div className="text-xs text-muted-foreground">Total Earned</div>
               <div className="text-lg font-bold text-orange-600">
                 {formatTipAmount(tipStats.totalCents)}
               </div>
@@ -304,7 +304,7 @@ export function HighlightDetailsPanel({
                   className={cn(
                     'w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium',
                     isDeleting
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? 'bg-muted text-muted-foreground cursor-not-allowed'
                       : 'bg-red-50 text-red-700 hover:bg-red-100'
                   )}
                 >
@@ -329,7 +329,7 @@ export function HighlightDetailsPanel({
           articleSlug &&
           authorStellarAddress && (
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
                 <Coins className="w-3 h-3" />
                 <span>Support this insight</span>
               </div>
@@ -350,7 +350,7 @@ export function HighlightDetailsPanel({
                 }}
               />
               {tipStats.count === 0 && (
-                <p className="text-xs text-center text-gray-500 mt-2">
+                <p className="text-xs text-center text-muted-foreground mt-2">
                   Be the first to tip this highlight!
                 </p>
               )}
@@ -361,7 +361,7 @@ export function HighlightDetailsPanel({
 
       {/* Footer hint */}
       {!isOwner && tipStats.count > 0 && (
-        <div className="px-4 pb-3 text-xs text-center text-gray-400">
+        <div className="px-4 pb-3 text-xs text-center text-muted-foreground">
           {tipStats.count} {tipStats.count === 1 ? 'person has' : 'people have'}{' '}
           tipped this highlight
         </div>

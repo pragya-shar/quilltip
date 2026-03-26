@@ -20,10 +20,10 @@ export function WalletGuide() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="text-center mb-10">
-        <h1 className="text-3xl lg:text-4xl font-bold text-neutral-900 mb-3">
+        <h1 className="text-3xl lg:text-4xl font-bold text-foreground mb-3">
           Getting Started with Quilltip
         </h1>
-        <p className="text-neutral-600 max-w-xl mx-auto">
+        <p className="text-muted-foreground max-w-xl mx-auto">
           Everything you need to know to start reading, highlighting, and
           tipping writers — even if you&apos;ve never used crypto before.
         </p>
@@ -47,11 +47,11 @@ export function WalletGuide() {
 
         {/* Tab 1: What is a Wallet? */}
         <TabsContent value="what-is-wallet">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8">
-            <h2 className="text-lg font-semibold text-blue-900 mb-2">
+          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
+            <h2 className="text-lg font-semibold text-foreground mb-2">
               No crypto experience? No problem.
             </h2>
-            <p className="text-sm text-blue-800 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               Reading articles on Quilltip is completely free — no wallet
               needed. You only need a wallet if you want to{' '}
               <strong>tip writers</strong> for content you love.
@@ -81,11 +81,11 @@ export function WalletGuide() {
 
         {/* Tab 2: Set Up Freighter */}
         <TabsContent value="setup">
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 mb-8">
-            <h2 className="text-lg font-semibold text-amber-900 mb-2">
+          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
+            <h2 className="text-lg font-semibold text-foreground mb-2">
               Freighter is the easiest Stellar wallet
             </h2>
-            <p className="text-sm text-amber-800 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               It&apos;s a free browser extension that takes about 2 minutes to
               set up. Works with Chrome, Firefox, and Brave.
             </p>
@@ -101,7 +101,7 @@ export function WalletGuide() {
               href="https://www.freighter.app"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white text-sm rounded-lg hover:bg-neutral-800 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors"
             >
               Get Freighter
               <ExternalLink className="w-3.5 h-3.5" />
@@ -126,7 +126,7 @@ export function WalletGuide() {
               href="https://laboratory.stellar.org/#account-creator?network=test"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 text-neutral-700 text-sm rounded-lg hover:bg-neutral-200 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-muted text-foreground text-sm rounded-lg border border-border hover:bg-muted/80 transition-colors"
             >
               Stellar Friendbot (Testnet Faucet)
               <ExternalLink className="w-3.5 h-3.5" />
@@ -136,11 +136,11 @@ export function WalletGuide() {
 
         {/* Tab 3: Connect to Quilltip */}
         <TabsContent value="connect">
-          <div className="bg-green-50 border border-green-200 rounded-xl p-6 mb-8">
-            <h2 className="text-lg font-semibold text-green-900 mb-2">
+          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
+            <h2 className="text-lg font-semibold text-foreground mb-2">
               Connect your wallet to Quilltip
             </h2>
-            <p className="text-sm text-green-800 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               Once Freighter is installed, connecting takes one click. Try it
               right here!
             </p>
@@ -166,7 +166,7 @@ export function WalletGuide() {
           >
             <Link
               href="/profile"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 text-neutral-700 text-sm rounded-lg hover:bg-neutral-200 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-muted text-foreground text-sm rounded-lg border border-border hover:bg-muted/80 transition-colors"
             >
               Go to Profile Settings
             </Link>
@@ -175,11 +175,11 @@ export function WalletGuide() {
 
         {/* Tab 4: Your First Tip */}
         <TabsContent value="first-tip">
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-6 mb-8">
-            <h2 className="text-lg font-semibold text-purple-900 mb-2">
+          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
+            <h2 className="text-lg font-semibold text-foreground mb-2">
               Tipping on Quilltip is simple
             </h2>
-            <p className="text-sm text-purple-800 leading-relaxed">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               You can tip an entire article or a specific highlight. 97.5% goes
               directly to the writer — instantly.
             </p>
@@ -193,7 +193,7 @@ export function WalletGuide() {
           >
             <Link
               href="/articles"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 text-neutral-700 text-sm rounded-lg hover:bg-neutral-200 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-muted text-foreground text-sm rounded-lg border border-border hover:bg-muted/80 transition-colors"
             >
               Browse Articles
             </Link>

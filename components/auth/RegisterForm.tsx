@@ -62,8 +62,8 @@ export default function RegisterForm() {
   if (success) {
     return (
       <div className="text-center space-y-4">
-        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-          <p className="text-sm text-green-700">
+        <div className="p-4 bg-muted border border-border rounded-lg">
+          <p className="text-sm text-foreground">
             Account created successfully! Redirecting to dashboard...
           </p>
         </div>
@@ -84,7 +84,7 @@ export default function RegisterForm() {
       <div>
         <label
           htmlFor="email"
-          className="block text-sm font-medium text-quill-700 mb-2"
+          className="block text-sm font-medium text-foreground mb-2"
         >
           Email address
         </label>
@@ -93,7 +93,7 @@ export default function RegisterForm() {
           type="email"
           id="email"
           autoComplete="email"
-          className="w-full px-3 py-2 border border-quill-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
           placeholder="you@example.com"
         />
         {errors.email && (
@@ -105,7 +105,7 @@ export default function RegisterForm() {
       <div>
         <label
           htmlFor="username"
-          className="block text-sm font-medium text-quill-700 mb-2"
+          className="block text-sm font-medium text-foreground mb-2"
         >
           Username
         </label>
@@ -114,7 +114,7 @@ export default function RegisterForm() {
           type="text"
           id="username"
           autoComplete="username"
-          className="w-full px-3 py-2 border border-quill-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
           placeholder="Choose a unique username"
         />
         {errors.username && (
@@ -126,16 +126,16 @@ export default function RegisterForm() {
       <div>
         <label
           htmlFor="name"
-          className="block text-sm font-medium text-quill-700 mb-2"
+          className="block text-sm font-medium text-foreground mb-2"
         >
-          Full Name <span className="text-quill-400">(optional)</span>
+          Full Name <span className="text-muted-foreground">(optional)</span>
         </label>
         <input
           {...register('name')}
           type="text"
           id="name"
           autoComplete="name"
-          className="w-full px-3 py-2 border border-quill-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
           placeholder="Your full name"
         />
         {errors.name && (
@@ -147,7 +147,7 @@ export default function RegisterForm() {
       <div>
         <label
           htmlFor="password"
-          className="block text-sm font-medium text-quill-700 mb-2"
+          className="block text-sm font-medium text-foreground mb-2"
         >
           Password
         </label>
@@ -157,13 +157,13 @@ export default function RegisterForm() {
             type={showPassword ? 'text' : 'password'}
             id="password"
             autoComplete="new-password"
-            className="w-full px-3 py-2 pr-10 border border-quill-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+            className="w-full px-3 py-2 pr-10 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
             placeholder="Create a secure password"
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-quill-500 hover:text-quill-700"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             {showPassword ? (
               <EyeOff className="h-4 w-4" />
@@ -181,7 +181,7 @@ export default function RegisterForm() {
       <div>
         <label
           htmlFor="confirmPassword"
-          className="block text-sm font-medium text-quill-700 mb-2"
+          className="block text-sm font-medium text-foreground mb-2"
         >
           Confirm Password
         </label>
@@ -191,13 +191,13 @@ export default function RegisterForm() {
             type={showConfirmPassword ? 'text' : 'password'}
             id="confirmPassword"
             autoComplete="new-password"
-            className="w-full px-3 py-2 pr-10 border border-quill-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+            className="w-full px-3 py-2 pr-10 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
             placeholder="Confirm your password"
           />
           <button
             type="button"
             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-quill-500 hover:text-quill-700"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             {showConfirmPassword ? (
               <EyeOff className="h-4 w-4" />

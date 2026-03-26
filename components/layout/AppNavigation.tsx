@@ -12,6 +12,7 @@ import {
   HelpCircle,
 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
 
 export default function AppNavigation() {
   const { user, isAuthenticated, signOut } = useAuth()
@@ -20,23 +21,24 @@ export default function AppNavigation() {
   const isActive = (path: string) => pathname === path
 
   return (
-    <nav className="fixed top-0 w-full bg-white/95 backdrop-blur-md z-50 border-b border-gray-200">
+    <nav className="fixed top-0 w-full bg-background/95 backdrop-blur-md z-50 border-b border-border">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center space-x-2">
-            <span className="text-3xl font-handwritten text-slate-900">
+            <span className="text-3xl font-handwritten text-foreground">
               Quilltip
             </span>
           </Link>
 
-          <div className="flex items-center space-x-6">
+          <div className="flex items-center space-x-4 md:space-x-6">
+            <ThemeToggle />
             {/* Common links for all users */}
             <Link
               href="/"
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
                 isActive('/')
-                  ? 'bg-gray-100 text-brand-blue'
-                  : 'text-gray-600 hover:text-brand-blue'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <Home className="w-4 h-4" />
@@ -46,8 +48,8 @@ export default function AppNavigation() {
               href="/articles"
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
                 isActive('/articles')
-                  ? 'bg-gray-100 text-brand-blue'
-                  : 'text-gray-600 hover:text-brand-blue'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <BookOpen className="w-4 h-4" />
@@ -57,8 +59,8 @@ export default function AppNavigation() {
               href="/guide"
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
                 isActive('/guide')
-                  ? 'bg-gray-100 text-brand-blue'
-                  : 'text-gray-600 hover:text-brand-blue'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               <HelpCircle className="w-4 h-4" />
@@ -71,8 +73,8 @@ export default function AppNavigation() {
                   href="/write"
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
                     isActive('/write')
-                      ? 'bg-gray-100 text-brand-blue'
-                      : 'text-gray-600 hover:text-brand-blue'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <PenSquare className="w-4 h-4" />
@@ -82,8 +84,8 @@ export default function AppNavigation() {
                   href="/drafts"
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
                     isActive('/drafts')
-                      ? 'bg-gray-100 text-brand-blue'
-                      : 'text-gray-600 hover:text-brand-blue'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <FileText className="w-4 h-4" />
@@ -93,8 +95,8 @@ export default function AppNavigation() {
                   href={`/${user?.username || 'profile'}`}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
                     pathname === `/${user?.username}`
-                      ? 'bg-gray-100 text-brand-blue'
-                      : 'text-gray-600 hover:text-brand-blue'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <User className="w-4 h-4" />
@@ -102,7 +104,7 @@ export default function AppNavigation() {
                 </Link>
                 <button
                   onClick={() => signOut()}
-                  className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:text-red-600 transition"
+                  className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground hover:text-red-600 transition"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Sign Out</span>
@@ -112,7 +114,7 @@ export default function AppNavigation() {
               <>
                 <Link
                   href="/login"
-                  className="text-gray-600 hover:text-brand-blue transition"
+                  className="text-muted-foreground hover:text-foreground transition"
                 >
                   Sign In
                 </Link>
