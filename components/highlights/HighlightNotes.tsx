@@ -2,9 +2,9 @@
 
 import { Id } from '@/convex/_generated/dataModel'
 import { formatDistanceToNow } from 'date-fns'
-import { MessageSquare, User, Coins } from 'lucide-react'
+import { MessageSquare, Coins } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import Image from 'next/image'
+import { UserAvatar } from '@/components/ui/user-avatar'
 
 interface HighlightData {
   _id: Id<'highlights'>
@@ -69,19 +69,13 @@ export function HighlightNotes({
           {/* Note header */}
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-2">
-              {highlight.userAvatar ? (
-                <Image
-                  src={highlight.userAvatar}
-                  alt={highlight.userName || 'User'}
-                  width={24}
-                  height={24}
-                  className="w-6 h-6 rounded-full"
-                />
-              ) : (
-                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
-                  <User className="w-3 h-3 text-gray-500" />
-                </div>
-              )}
+              <UserAvatar
+                src={highlight.userAvatar}
+                alt={highlight.userName || 'User'}
+                name={highlight.userName || 'Anonymous'}
+                className="h-6 w-6"
+                fallbackClassName="text-xs"
+              />
               <span className="text-sm font-medium text-gray-900">
                 {highlight.userName || 'Anonymous'}
               </span>

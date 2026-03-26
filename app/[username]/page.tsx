@@ -184,7 +184,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
         {/* Profile Header */}
         <div className="mb-8">
-          <ProfileHeader user={userWithStats} />
+          <ProfileHeader user={userWithStats} isOwnProfile={isOwnProfile} />
         </div>
 
         {/* Tabs */}

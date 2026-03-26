@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import { formatDistanceToNow } from 'date-fns'
 import { ArticleForDisplay } from '@/types/index'
 
@@ -68,21 +69,12 @@ export default function ArticleCard({ article }: ArticleCardProps) {
             href={`/${article.author.username}`}
             className="flex items-center gap-3 hover:opacity-80 transition-opacity"
           >
-            {article.author.avatar ? (
-              <Image
-                src={article.author.avatar}
-                alt={article.author.name || article.author.username}
-                width={36}
-                height={36}
-                className="w-9 h-9 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-9 h-9 rounded-full bg-brand-blue text-white flex items-center justify-center font-semibold text-sm">
-                {(article.author.name || article.author.username)
-                  .charAt(0)
-                  .toUpperCase()}
-              </div>
-            )}
+            <UserAvatar
+              src={article.author.avatar}
+              alt={article.author.name || article.author.username}
+              name={article.author.name || article.author.username}
+              className="h-9 w-9"
+            />
             <div>
               <p className="text-sm font-medium text-foreground">
                 {article.author.name || article.author.username}
