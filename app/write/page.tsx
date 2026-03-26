@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useEditor, EditorContent, JSONContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -25,6 +25,50 @@ import type { Id } from '@/types/convex'
 import { toast } from 'sonner'
 import Image from 'next/image'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+
+const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
+
+type NavConfirmState =
+  | null
+  | { kind: 'href'; href: string }
+  | { kind: 'back' }
+
+function getInternalNavHref(
+  anchor: HTMLAnchorElement,
+  e: MouseEvent
+): string | null {
+  if (e.button !== 0) return null
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return null
+  if (anchor.target === '_blank') return null
+  if (anchor.getAttribute('download') !== null) return null
+  const hrefAttr = anchor.getAttribute('href')
+  if (!hrefAttr || hrefAttr.startsWith('#')) return null
+  if (hrefAttr.startsWith('mailto:') || hrefAttr.startsWith('tel:')) return null
+  let url: URL
+  try {
+    url = new URL(hrefAttr, window.location.href)
+  } catch {
+    return null
+  }
+  if (url.origin !== window.location.origin) return null
+  if (
+    url.pathname === window.location.pathname &&
+    url.search === window.location.search
+  ) {
+    return null
+  }
+  return `${url.pathname}${url.search}${url.hash}`
+}
 
 export default function WritePage() {
   const [title, setTitle] = useState('')
@@ -37,6 +81,8 @@ export default function WritePage() {
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [navConfirm, setNavConfirm] = useState<NavConfirmState>(null)
+  const hasUnsavedRef = useRef(hasUnsavedChanges)
   const [publishStatus, setPublishStatus] = useState<{
     published: boolean
     publishedAt: Date | null
@@ -47,6 +93,10 @@ export default function WritePage() {
 
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
+
+  useEffect(() => {
+    hasUnsavedRef.current = hasUnsavedChanges
+  }, [hasUnsavedChanges])
 
   // Convex mutations
   const createArticleMutation = useMutation(api.articles.createArticle)
@@ -169,11 +219,66 @@ export default function WritePage() {
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) e.preventDefault()
+      const hasContent = !!editorContent
+      const hasMetadata = !!(title?.trim() || coverImage)
+      const autoSaveEnabled =
+        isAuthenticated && (hasUnsavedChanges || !!title)
+      if (autoSaveEnabled && (hasContent || hasMetadata)) {
+        try {
+          const tagsArr = tags
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+          localStorage.setItem(
+            'quilltip_draft_backup',
+            JSON.stringify({
+              title: title || 'Untitled',
+              content: editorContent ?? EMPTY_DOC,
+              excerpt,
+              tags: tagsArr.length ? tagsArr : undefined,
+              coverImage: coverImage || undefined,
+              articleId,
+              savedAt: Date.now(),
+            })
+          )
+        } catch {
+          // localStorage unavailable or full
+        }
+      }
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [hasUnsavedChanges])
+  }, [
+    hasUnsavedChanges,
+    isAuthenticated,
+    editorContent,
+    title,
+    coverImage,
+    excerpt,
+    tags,
+    articleId,
+  ])
+
+  useEffect(() => {
+    const onDocumentClick = (e: MouseEvent) => {
+      if (!hasUnsavedRef.current) return
+      const target = e.target
+      if (!(target instanceof Element)) return
+      const anchor = target.closest('a[href]')
+      if (!(anchor instanceof HTMLAnchorElement)) return
+      const href = getInternalNavHref(anchor, e)
+      if (!href) return
+      e.preventDefault()
+      e.stopPropagation()
+      setNavConfirm({ kind: 'href', href })
+    }
+    document.addEventListener('click', onDocumentClick, true)
+    return () => document.removeEventListener('click', onDocumentClick, true)
+  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -268,6 +373,29 @@ export default function WritePage() {
     }
   }, [articleId, deleteArticleMutation, router])
 
+  const handleBack = useCallback(() => {
+    if (hasUnsavedChanges) {
+      setNavConfirm({ kind: 'back' })
+    } else {
+      router.back()
+    }
+  }, [hasUnsavedChanges, router])
+
+  const confirmLeaveNavigation = useCallback(() => {
+    setNavConfirm((current) => {
+      if (!current) return null
+      const pending = current
+      queueMicrotask(() => {
+        if (pending.kind === 'href') {
+          router.push(pending.href)
+        } else {
+          router.back()
+        }
+      })
+      return null
+    })
+  }, [router])
+
   // Authentication checks
   if (isLoading) {
     return (
@@ -289,7 +417,7 @@ export default function WritePage() {
         {/* Action bar - full width, Back | Undo | Redo | Save | Preview | Publish */}
         <EditorActionBar
           editor={editor}
-          onBack={() => router.back()}
+          onBack={handleBack}
           onSave={() => {
             saveNow()
             setHasUnsavedChanges(false)
@@ -469,6 +597,32 @@ export default function WritePage() {
           setHasUnsavedChanges(true)
         }}
       />
+
+      <AlertDialog
+        open={navConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open) setNavConfirm(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your draft is not saved to the server yet. If you leave now,
+              recent edits may be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmLeaveNavigation}
+            >
+              Leave
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

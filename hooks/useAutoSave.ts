@@ -199,40 +199,6 @@ export function useAutoSave({
     }
   }, [])
 
-  // Effect to save on window unload
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      const hasContent = !!content
-      const hasMetadata = !!(title?.trim() || coverImage)
-      if (enabled && (hasContent || hasMetadata)) {
-        // Synchronously write to localStorage as a fallback since async mutations
-        // won't complete before the page closes
-        try {
-          localStorage.setItem(
-            'quilltip_draft_backup',
-            JSON.stringify({
-              title: title || 'Untitled',
-              content: content ?? EMPTY_DOC,
-              excerpt,
-              tags,
-              coverImage,
-              articleId,
-              savedAt: Date.now(),
-            })
-          )
-        } catch {
-          // localStorage unavailable or full — ignore
-        }
-      }
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-    }
-  }, [enabled, content, title, excerpt, tags, coverImage, articleId])
-
   return {
     ...state,
     saveNow,
