@@ -38,10 +38,7 @@ import {
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
-type NavConfirmState =
-  | null
-  | { kind: 'href'; href: string }
-  | { kind: 'back' }
+type NavConfirmState = null | { kind: 'href'; href: string } | { kind: 'back' }
 
 function getInternalNavHref(
   anchor: HTMLAnchorElement,
@@ -221,8 +218,7 @@ export default function WritePage() {
     const handler = (e: BeforeUnloadEvent) => {
       const hasContent = !!editorContent
       const hasMetadata = !!(title?.trim() || coverImage)
-      const autoSaveEnabled =
-        isAuthenticated && (hasUnsavedChanges || !!title)
+      const autoSaveEnabled = isAuthenticated && (hasUnsavedChanges || !!title)
       if (autoSaveEnabled && (hasContent || hasMetadata)) {
         try {
           const tagsArr = tags
