@@ -1,8 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
+import { useRef, useState } from 'react'
 import {
   useAuthorEarnings,
   useUserByUsername,
@@ -13,78 +11,23 @@ import {
   TrendingUp,
   Clock,
   DollarSign,
-  Loader2,
   Wallet,
   AlertCircle,
 } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { toast } from 'sonner'
 import { useAuth } from '@/components/providers/AuthContext'
 import { MIN_WITHDRAWAL_USD } from '@/lib/constants'
+import { WithdrawEarningsDialog } from '@/components/dashboard/WithdrawEarningsDialog'
 
 export function EarningsDashboard() {
-  const [isWithdrawing, setIsWithdrawing] = useState(false)
-  const [withdrawAmount, setWithdrawAmount] = useState('')
-  const [stellarAddress, setStellarAddress] = useState('')
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const withdrawTriggerRef = useRef<HTMLButtonElement>(null)
 
   const { user: currentUser } = useAuth()
 
-  // Fetch earnings data
   const earnings = useAuthorEarnings()
   const recentTips = useUserReceivedTips()
   const userProfile = useUserByUsername(currentUser?.username)
-
-  // Withdrawal mutations
-  const withdrawEarnings = useMutation(api.tips.withdrawEarnings)
-
-  const handleWithdraw = async () => {
-    const amount = parseFloat(withdrawAmount)
-
-    if (!amount || amount < MIN_WITHDRAWAL_USD) {
-      toast.error(
-        `Minimum withdrawal amount is $${MIN_WITHDRAWAL_USD.toFixed(2)}`
-      )
-      return
-    }
-
-    if (!stellarAddress || !stellarAddress.startsWith('G')) {
-      toast.error('Please enter a valid Stellar address')
-      return
-    }
-
-    if (earnings && amount > earnings.availableBalanceUsd) {
-      toast.error('Insufficient balance')
-      return
-    }
-
-    setIsWithdrawing(true)
-    try {
-      // Initiate withdrawal - this automatically schedules confirmation
-      await withdrawEarnings({
-        amountUsd: amount,
-        stellarAddress: stellarAddress,
-      })
-
-      // Show success
-      toast.success(
-        `Withdrawal initiated! $${amount.toFixed(2)} will be sent to your Stellar wallet shortly.`
-      )
-      setShowWithdrawModal(false)
-      setWithdrawAmount('')
-      setStellarAddress('')
-
-      // Note: The confirmWithdrawal is automatically scheduled by the backend
-      // In production, this would be triggered by a webhook from Stellar
-    } catch (error) {
-      console.error('Withdrawal error:', error)
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to process withdrawal'
-      )
-    } finally {
-      setIsWithdrawing(false)
-    }
-  }
 
   // Loading state
   if (earnings === undefined || recentTips === undefined) {
@@ -179,6 +122,8 @@ export function EarningsDashboard() {
             ${earnings.availableBalanceUsd.toFixed(2)}
           </p>
           <button
+            ref={withdrawTriggerRef}
+            type="button"
             onClick={() => {
               if (!userProfile?.stellarAddress) {
                 // Navigate to wallet tab
@@ -187,7 +132,6 @@ export function EarningsDashboard() {
                 ) as HTMLButtonElement
                 if (walletTab) walletTab.click()
               } else {
-                setStellarAddress(userProfile.stellarAddress)
                 setShowWithdrawModal(true)
               }
             }}
@@ -310,107 +254,13 @@ export function EarningsDashboard() {
         </div>
       )}
 
-      {/* Withdrawal Modal */}
-      {showWithdrawModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6 border-b">
-              <h3 className="text-lg font-semibold">Withdraw Earnings</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Withdraw to your Stellar wallet
-              </p>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label
-                  htmlFor="withdraw-amount"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Amount (USD)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-                    $
-                  </span>
-                  <input
-                    id="withdraw-amount"
-                    type="number"
-                    min={MIN_WITHDRAWAL_USD}
-                    max={earnings.availableBalanceUsd}
-                    step="0.01"
-                    value={withdrawAmount}
-                    onChange={(e) => setWithdrawAmount(e.target.value)}
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                    placeholder={`${MIN_WITHDRAWAL_USD.toFixed(2)}`}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Available: ${earnings.availableBalanceUsd.toFixed(2)} | Min: $
-                  {MIN_WITHDRAWAL_USD.toFixed(2)}
-                </p>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="stellar-address"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Stellar Address
-                </label>
-                <input
-                  id="stellar-address"
-                  type="text"
-                  value={stellarAddress || userProfile?.stellarAddress || ''}
-                  onChange={(e) => setStellarAddress(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                  placeholder="G..."
-                  readOnly={!!userProfile?.stellarAddress}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  {userProfile?.stellarAddress
-                    ? 'Using your saved wallet address from Wallet settings'
-                    : 'Enter your Stellar wallet address'}
-                </p>
-              </div>
-
-              {/* Info Box */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-800">
-                  Withdrawals are processed instantly on the Stellar network.
-                  Transaction fees are covered by Quilltip.
-                </p>
-              </div>
-            </div>
-
-            <div className="p-6 border-t flex gap-3">
-              <button
-                onClick={() => setShowWithdrawModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleWithdraw}
-                disabled={isWithdrawing || !withdrawAmount || !stellarAddress}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {isWithdrawing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Wallet className="w-4 h-4" />
-                    Withdraw
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <WithdrawEarningsDialog
+        open={showWithdrawModal}
+        onOpenChange={setShowWithdrawModal}
+        availableBalanceUsd={earnings.availableBalanceUsd}
+        savedStellarAddress={userProfile?.stellarAddress}
+        triggerRef={withdrawTriggerRef}
+      />
     </div>
   )
 }
