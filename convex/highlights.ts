@@ -23,12 +23,21 @@ export const getArticleHighlights = query({
       highlights = highlights.filter((h) => h.isPublic === args.isPublic)
     }
 
-    // Enrich with user data
+    // Enrich with current user data (override denormalized userName/userAvatar
+    // so avatar/name changes match the profile without stale snapshots)
     const enrichedHighlights = await Promise.all(
-      highlights.map(async (highlight) => ({
-        ...highlight,
-        user: await enrichWithUser(ctx, highlight.userId),
-      }))
+      highlights.map(async (highlight) => {
+        const user = await enrichWithUser(ctx, highlight.userId)
+        if (!user) {
+          return { ...highlight, user: null }
+        }
+        return {
+          ...highlight,
+          user,
+          userName: user.name ?? highlight.userName,
+          userAvatar: user.avatar,
+        }
+      })
     )
 
     return enrichedHighlights

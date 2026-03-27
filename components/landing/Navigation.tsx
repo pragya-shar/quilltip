@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LucideIcon } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
 
 interface NavDropdownItem {
   icon: LucideIcon
@@ -55,7 +56,7 @@ const navDropdowns: NavDropdown[] = [
       description:
         'Write, publish, and earn — all in one decentralized platform built on Stellar.',
       href: '#features',
-      bgClass: 'bg-gradient-to-br from-blue-50 to-indigo-100',
+      bgClass: 'bg-gradient-to-br from-muted/70 to-muted',
       icon: PenTool,
     },
     columns: [
@@ -114,7 +115,7 @@ const navDropdowns: NavDropdown[] = [
       description:
         'Set up your wallet and start earning tips in under 5 minutes.',
       href: '/guide',
-      bgClass: 'bg-gradient-to-br from-amber-50 to-orange-100',
+      bgClass: 'bg-gradient-to-br from-muted/60 to-muted',
       icon: BookOpen,
     },
     columns: [
@@ -219,7 +220,7 @@ export default function Navigation() {
     <motion.nav
       className={`fixed top-0 w-full z-50 transition-all duration-500 ${
         scrolled
-          ? 'bg-white/70 backdrop-blur-xl border-b border-neutral-200/40 shadow-[0_1px_3px_rgba(0,0,0,0.04)]'
+          ? 'bg-background/70 backdrop-blur-xl border-b border-border/60 shadow-[0_1px_3px_rgba(0,0,0,0.04)]'
           : 'bg-transparent'
       }`}
       initial={{ y: -100 }}
@@ -231,13 +232,13 @@ export default function Navigation() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
             <motion.div
-              className="w-9 h-9 bg-gradient-to-br from-neutral-900 to-neutral-700 rounded-xl flex items-center justify-center shadow-sm"
+              className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-accent rounded-xl flex items-center justify-center shadow-sm"
               whileHover={{ scale: 1.05 }}
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
             >
               <PenTool className="w-[18px] h-[18px] text-white" />
             </motion.div>
-            <span className="text-[22px] font-semibold text-neutral-900 tracking-tight">
+            <span className="text-[22px] font-semibold text-foreground tracking-tight">
               Quilltip
             </span>
           </Link>
@@ -246,7 +247,7 @@ export default function Navigation() {
           <div className="hidden md:flex items-center gap-1" ref={navRef}>
             <Link
               href="/articles"
-              className="px-3 py-1.5 text-[13px] font-medium text-neutral-600 hover:text-neutral-900 rounded-lg hover:bg-neutral-100/60 transition-all duration-200"
+              className="px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-all duration-200"
             >
               Articles
             </Link>
@@ -260,8 +261,8 @@ export default function Navigation() {
                 <button
                   className={`flex items-center gap-1 px-3 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200 ${
                     openDropdown === dropdown.label
-                      ? 'text-neutral-900 bg-neutral-100/60'
-                      : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100/60'
+                      ? 'text-foreground bg-muted/60'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                   }`}
                 >
                   {dropdown.label}
@@ -282,7 +283,7 @@ export default function Navigation() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 8 }}
                         transition={{ duration: 0.18, ease: 'easeOut' }}
-                        className="absolute top-[calc(100%+8px)] right-0 w-[560px] bg-white rounded-2xl shadow-xl shadow-neutral-900/8 border border-neutral-200/60 overflow-hidden"
+                        className="absolute top-[calc(100%+8px)] right-0 w-[560px] bg-popover text-popover-foreground rounded-2xl shadow-xl border border-border overflow-hidden"
                         style={{
                           transform:
                             dropdown.label === 'Product'
@@ -300,17 +301,17 @@ export default function Navigation() {
                             className={`w-[200px] shrink-0 p-5 ${dropdown.featured.bgClass} flex flex-col justify-between group/featured`}
                           >
                             <div>
-                              <div className="w-10 h-10 bg-white/70 rounded-xl flex items-center justify-center mb-3 shadow-sm">
-                                <dropdown.featured.icon className="w-5 h-5 text-neutral-700" />
+                              <div className="w-10 h-10 bg-card/80 rounded-xl flex items-center justify-center mb-3 shadow-sm">
+                                <dropdown.featured.icon className="w-5 h-5 text-foreground" />
                               </div>
-                              <p className="text-[14px] font-semibold text-neutral-900 mb-1.5">
+                              <p className="text-[14px] font-semibold text-foreground mb-1.5">
                                 {dropdown.featured.title}
                               </p>
-                              <p className="text-[12px] text-neutral-600 leading-relaxed">
+                              <p className="text-[12px] text-muted-foreground leading-relaxed">
                                 {dropdown.featured.description}
                               </p>
                             </div>
-                            <span className="text-[12px] font-medium text-neutral-500 group-hover/featured:text-neutral-800 transition-colors mt-4 inline-flex items-center gap-1">
+                            <span className="text-[12px] font-medium text-muted-foreground group-hover/featured:text-foreground transition-colors mt-4 inline-flex items-center gap-1">
                               Learn more
                               <span className="transition-transform group-hover/featured:translate-x-0.5">
                                 →
@@ -322,7 +323,7 @@ export default function Navigation() {
                           <div className="flex-1 p-4 flex gap-1">
                             {dropdown.columns.map((column) => (
                               <div key={column.heading} className="flex-1">
-                                <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider px-2.5 mb-2">
+                                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2.5 mb-2">
                                   {column.heading}
                                 </p>
                                 <div className="space-y-0.5">
@@ -334,13 +335,13 @@ export default function Navigation() {
                                         handleSmoothScroll(e, item.href)
                                         setOpenDropdown(null)
                                       }}
-                                      className="flex items-start gap-2.5 px-2.5 py-2 rounded-xl hover:bg-neutral-50 transition-colors duration-150 group/item"
+                                      className="flex items-start gap-2.5 px-2.5 py-2 rounded-xl hover:bg-muted/50 transition-colors duration-150 group/item"
                                     >
-                                      <div className="w-8 h-8 bg-neutral-100 group-hover/item:bg-neutral-200/70 rounded-lg flex items-center justify-center shrink-0 transition-colors">
-                                        <item.icon className="w-4 h-4 text-neutral-500" />
+                                      <div className="w-8 h-8 bg-muted group-hover/item:bg-muted/80 rounded-lg flex items-center justify-center shrink-0 transition-colors">
+                                        <item.icon className="w-4 h-4 text-muted-foreground" />
                                       </div>
                                       <div className="min-w-0">
-                                        <p className="text-[13px] font-medium text-neutral-900 flex items-center gap-1.5">
+                                        <p className="text-[13px] font-medium text-foreground flex items-center gap-1.5">
                                           {item.title}
                                           {item.badge && (
                                             <span className="text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
@@ -348,7 +349,7 @@ export default function Navigation() {
                                             </span>
                                           )}
                                         </p>
-                                        <p className="text-[11px] text-neutral-400 leading-snug">
+                                        <p className="text-[11px] text-muted-foreground leading-snug">
                                           {item.description}
                                         </p>
                                       </div>
@@ -366,34 +367,36 @@ export default function Navigation() {
               </div>
             ))}
 
-            <div className="w-px h-5 bg-neutral-200 mx-2" />
+            <div className="w-px h-5 bg-border mx-2" />
+
+            <ThemeToggle />
 
             <Link
               href="/login"
-              className="px-3 py-1.5 text-[13px] font-medium text-neutral-600 hover:text-neutral-900 rounded-lg hover:bg-neutral-100/60 transition-all duration-200"
+              className="px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-all duration-200"
             >
               Sign In
             </Link>
 
             <Link
               href="/register"
-              className="inline-flex items-center gap-1.5 bg-neutral-900 text-white px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-neutral-800 transition-all duration-200 ml-1"
+              className="inline-flex items-center gap-1.5 bg-brand-blue text-white px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-brand-accent transition-all duration-200 ml-1"
             >
               Try on Testnet
-              <span className="text-neutral-400">→</span>
+              <span className="text-white/80">→</span>
             </Link>
           </div>
 
           {/* Mobile Menu Button */}
           <button
-            className="md:hidden p-2 rounded-lg hover:bg-neutral-100 transition-colors"
+            className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
             onClick={() => setIsOpen(!isOpen)}
             aria-label="Toggle menu"
           >
             {isOpen ? (
-              <X size={22} className="text-neutral-900" />
+              <X size={22} className="text-foreground" />
             ) : (
-              <Menu size={22} className="text-neutral-900" />
+              <Menu size={22} className="text-foreground" />
             )}
           </button>
         </div>
@@ -402,7 +405,7 @@ export default function Navigation() {
         <AnimatePresence>
           {isOpen && (
             <motion.div
-              className="md:hidden border-t border-neutral-200/60"
+              className="md:hidden border-t border-border/60"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -411,7 +414,7 @@ export default function Navigation() {
               <div className="py-4 space-y-4">
                 <Link
                   href="/articles"
-                  className="flex items-center gap-3 py-1.5 text-neutral-600 hover:text-neutral-900 text-sm font-medium transition-colors"
+                  className="flex items-center gap-3 py-1.5 text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   Articles
@@ -423,7 +426,7 @@ export default function Navigation() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3, delay: dropdownIndex * 0.1 }}
                   >
-                    <p className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-2">
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                       {dropdown.label}
                     </p>
                     <div className="space-y-0.5">
@@ -432,14 +435,14 @@ export default function Navigation() {
                           <Link
                             key={item.title}
                             href={item.href}
-                            className="flex items-center gap-2.5 py-1.5 text-neutral-600 hover:text-neutral-900 transition-colors"
+                            className="flex items-center gap-2.5 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
                             onClick={(e) => {
                               handleSmoothScroll(e, item.href)
                               setIsOpen(false)
                             }}
                           >
-                            <div className="w-7 h-7 bg-neutral-100 rounded-lg flex items-center justify-center">
-                              <item.icon className="w-3.5 h-3.5 text-neutral-500" />
+                            <div className="w-7 h-7 bg-muted rounded-lg flex items-center justify-center">
+                              <item.icon className="w-3.5 h-3.5 text-muted-foreground" />
                             </div>
                             <span className="text-sm font-medium">
                               {item.title}
@@ -458,18 +461,18 @@ export default function Navigation() {
                     duration: 0.3,
                     delay: navDropdowns.length * 0.1,
                   }}
-                  className="pt-3 space-y-2 border-t border-neutral-200/60"
+                  className="pt-3 space-y-2 border-t border-border/60"
                 >
                   <Link
                     href="/login"
-                    className="block text-neutral-600 hover:text-neutral-900 text-sm font-medium transition-colors py-1.5"
+                    className="block text-muted-foreground hover:text-foreground text-sm font-medium transition-colors py-1.5"
                     onClick={() => setIsOpen(false)}
                   >
                     Sign In
                   </Link>
                   <Link
                     href="/register"
-                    className="block bg-neutral-900 text-white px-5 py-2.5 rounded-lg hover:bg-neutral-800 transition-colors text-center text-sm font-medium"
+                    className="block bg-brand-blue text-white px-5 py-2.5 rounded-lg hover:bg-brand-accent transition-colors text-center text-sm font-medium"
                     onClick={() => setIsOpen(false)}
                   >
                     Try on Testnet →

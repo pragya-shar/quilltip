@@ -114,7 +114,7 @@ export default function Pagination({
       <PaginationButton
         page={currentPage - 1}
         disabled={currentPage === 1}
-        className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
         ariaLabel="Previous page"
       >
         <ChevronLeft className="h-4 w-4" />
@@ -125,7 +125,10 @@ export default function Pagination({
       <div className="hidden sm:flex space-x-1">
         {getPageNumbers().map((page, index) =>
           page === '...' ? (
-            <span key={`ellipsis-${index}`} className="px-3 py-2 text-gray-500">
+            <span
+              key={`ellipsis-${index}`}
+              className="px-3 py-2 text-muted-foreground"
+            >
               ...
             </span>
           ) : (
@@ -135,7 +138,7 @@ export default function Pagination({
               className={`relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                 currentPage === page
                   ? 'z-10 bg-brand-blue text-white'
-                  : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                  : 'text-foreground bg-background border border-border hover:bg-muted'
               }`}
               ariaLabel={`Go to page ${page}`}
             >
@@ -146,7 +149,7 @@ export default function Pagination({
       </div>
 
       {/* Mobile Page Indicator */}
-      <div className="flex sm:hidden items-center px-4 py-2 text-sm text-gray-700">
+      <div className="flex sm:hidden items-center px-4 py-2 text-sm text-foreground">
         Page {currentPage} of {totalPages}
       </div>
 
@@ -154,7 +157,7 @@ export default function Pagination({
       <PaginationButton
         page={currentPage + 1}
         disabled={currentPage === totalPages}
-        className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
         ariaLabel="Next page"
       >
         <span className="mr-1 hidden sm:inline">Next</span>

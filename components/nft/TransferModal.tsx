@@ -177,8 +177,10 @@ export function TransferModal({
         <div className="space-y-4">
           {/* Current Owner */}
           <div className="space-y-2">
-            <Label className="text-sm text-gray-600">Current Owner</Label>
-            <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm">
+            <Label className="text-sm text-muted-foreground">
+              Current Owner
+            </Label>
+            <div className="px-3 py-2 bg-muted rounded-lg text-sm">
               @{currentOwner}
             </div>
           </div>
@@ -194,7 +196,7 @@ export function TransferModal({
               disabled={isTransferring || transferStatus === 'success'}
               className="font-mono"
             />
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               Enter the username of the recipient (e.g., johndoe)
             </p>
           </div>

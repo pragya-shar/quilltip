@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useEditor, EditorContent, JSONContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -38,6 +38,37 @@ import {
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 
+const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
+
+type NavConfirmState = null | { kind: 'href'; href: string } | { kind: 'back' }
+
+function getInternalNavHref(
+  anchor: HTMLAnchorElement,
+  e: MouseEvent
+): string | null {
+  if (e.button !== 0) return null
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return null
+  if (anchor.target === '_blank') return null
+  if (anchor.getAttribute('download') !== null) return null
+  const hrefAttr = anchor.getAttribute('href')
+  if (!hrefAttr || hrefAttr.startsWith('#')) return null
+  if (hrefAttr.startsWith('mailto:') || hrefAttr.startsWith('tel:')) return null
+  let url: URL
+  try {
+    url = new URL(hrefAttr, window.location.href)
+  } catch {
+    return null
+  }
+  if (url.origin !== window.location.origin) return null
+  if (
+    url.pathname === window.location.pathname &&
+    url.search === window.location.search
+  ) {
+    return null
+  }
+  return `${url.pathname}${url.search}${url.hash}`
+}
+
 export default function WritePage() {
   const [title, setTitle] = useState('')
   const [excerpt, setExcerpt] = useState('')
@@ -49,6 +80,8 @@ export default function WritePage() {
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [navConfirm, setNavConfirm] = useState<NavConfirmState>(null)
+  const hasUnsavedRef = useRef(hasUnsavedChanges)
   const [publishStatus, setPublishStatus] = useState<{
     published: boolean
     publishedAt: Date | null
@@ -60,6 +93,10 @@ export default function WritePage() {
 
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
+
+  useEffect(() => {
+    hasUnsavedRef.current = hasUnsavedChanges
+  }, [hasUnsavedChanges])
 
   // Convex mutations
   const createArticleMutation = useMutation(api.articles.createArticle)
@@ -182,11 +219,65 @@ export default function WritePage() {
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) e.preventDefault()
+      const hasContent = !!editorContent
+      const hasMetadata = !!(title?.trim() || coverImage)
+      const autoSaveEnabled = isAuthenticated && (hasUnsavedChanges || !!title)
+      if (autoSaveEnabled && (hasContent || hasMetadata)) {
+        try {
+          const tagsArr = tags
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+          localStorage.setItem(
+            'quilltip_draft_backup',
+            JSON.stringify({
+              title: title || 'Untitled',
+              content: editorContent ?? EMPTY_DOC,
+              excerpt,
+              tags: tagsArr.length ? tagsArr : undefined,
+              coverImage: coverImage || undefined,
+              articleId,
+              savedAt: Date.now(),
+            })
+          )
+        } catch {
+          // localStorage unavailable or full
+        }
+      }
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [hasUnsavedChanges])
+  }, [
+    hasUnsavedChanges,
+    isAuthenticated,
+    editorContent,
+    title,
+    coverImage,
+    excerpt,
+    tags,
+    articleId,
+  ])
+
+  useEffect(() => {
+    const onDocumentClick = (e: MouseEvent) => {
+      if (!hasUnsavedRef.current) return
+      const target = e.target
+      if (!(target instanceof Element)) return
+      const anchor = target.closest('a[href]')
+      if (!(anchor instanceof HTMLAnchorElement)) return
+      const href = getInternalNavHref(anchor, e)
+      if (!href) return
+      e.preventDefault()
+      e.stopPropagation()
+      setNavConfirm({ kind: 'href', href })
+    }
+    document.addEventListener('click', onDocumentClick, true)
+    return () => document.removeEventListener('click', onDocumentClick, true)
+  }, [])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -296,6 +387,29 @@ export default function WritePage() {
     }
   }, [articleId, deleteArticleMutation, router])
 
+  const handleBack = useCallback(() => {
+    if (hasUnsavedChanges) {
+      setNavConfirm({ kind: 'back' })
+    } else {
+      router.back()
+    }
+  }, [hasUnsavedChanges, router])
+
+  const confirmLeaveNavigation = useCallback(() => {
+    setNavConfirm((current) => {
+      if (!current) return null
+      const pending = current
+      queueMicrotask(() => {
+        if (pending.kind === 'href') {
+          router.push(pending.href)
+        } else {
+          router.back()
+        }
+      })
+      return null
+    })
+  }, [router])
+
   // Authentication checks
   if (isLoading) {
     return (
@@ -325,13 +439,13 @@ export default function WritePage() {
         : `${excerptTrimmed.slice(0, PUBLISH_EXCERPT_PREVIEW_MAX).trimEnd()}...`
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <AppNavigation />
       <div className="flex flex-col pt-16">
         {/* Action bar - full width, Back | Undo | Redo | Save | Preview | Publish */}
         <EditorActionBar
           editor={editor}
-          onBack={() => router.back()}
+          onBack={handleBack}
           onSave={() => {
             saveNow()
             setHasUnsavedChanges(false)
@@ -347,7 +461,7 @@ export default function WritePage() {
           hasUnsavedChanges={hasUnsavedChanges}
         />
         <div className="flex-1 flex flex-col min-w-0 pb-8">
-          <div className="sticky top-16 z-40 bg-white w-full mb-6">
+          <div className="sticky top-16 z-40 bg-background w-full mb-6">
             <EditorToolbar
               editor={editor}
               onFocusCoverImage={() => {
@@ -388,7 +502,7 @@ export default function WritePage() {
                     <button
                       type="button"
                       onClick={() => setShowCoverImageDialog(true)}
-                      className="px-4 py-2 bg-white text-gray-800 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors shadow"
+                      className="px-4 py-2 bg-card text-foreground text-sm font-medium rounded-lg hover:bg-muted transition-colors shadow border border-border"
                     >
                       Change
                     </button>
@@ -398,7 +512,7 @@ export default function WritePage() {
                         setCoverImage('')
                         setHasUnsavedChanges(true)
                       }}
-                      className="px-4 py-2 bg-white text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors shadow"
+                      className="px-4 py-2 bg-card text-red-600 text-sm font-medium rounded-lg hover:bg-red-500/10 transition-colors shadow border border-border"
                     >
                       Remove
                     </button>
@@ -408,7 +522,7 @@ export default function WritePage() {
                 <button
                   type="button"
                   onClick={() => setShowCoverImageDialog(true)}
-                  className="w-full h-28 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center gap-2 text-gray-400 hover:border-sky-400 hover:text-sky-500 transition-colors group"
+                  className="w-full h-28 border-2 border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:border-sky-400 hover:text-sky-500 transition-colors group"
                 >
                   <svg
                     className="w-5 h-5"
@@ -444,11 +558,11 @@ export default function WritePage() {
                 }}
                 placeholder="Untitled"
                 rows={1}
-                className="w-full resize-none overflow-hidden bg-transparent text-3xl font-semibold text-gray-900 placeholder:text-gray-300 focus:outline-none leading-snug py-2"
+                className="w-full resize-none overflow-hidden bg-transparent text-3xl font-semibold text-foreground placeholder:text-muted-foreground/50 focus:outline-none leading-snug py-2"
               />
               {savedArticleForLink?.authorUsername &&
                 savedArticleForLink.slug && (
-                  <p className="text-xs text-gray-500 mt-1 font-mono">
+                  <p className="text-xs text-muted-foreground mt-1 font-mono">
                     Public URL path (when published): /
                     {savedArticleForLink.authorUsername}/
                     {savedArticleForLink.slug}
@@ -463,10 +577,10 @@ export default function WritePage() {
               />
             )}
 
-            <div className="border-t border-gray-200 mt-8 pt-4">
+            <div className="border-t border-border mt-8 pt-4">
               <label
                 htmlFor="article-tags"
-                className="block text-xs font-medium text-gray-400 mb-1"
+                className="block text-xs font-medium text-muted-foreground mb-1"
               >
                 Tags
               </label>
@@ -479,7 +593,7 @@ export default function WritePage() {
                   setHasUnsavedChanges(true)
                 }}
                 placeholder="Add tags separated by commas (e.g. rust, programming)"
-                className="w-full bg-transparent text-sm text-gray-600 placeholder:text-gray-300 focus:outline-none py-1"
+                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none py-1"
               />
             </div>
           </div>
@@ -562,6 +676,32 @@ export default function WritePage() {
               }}
             >
               Publish
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={navConfirm !== null}
+        onOpenChange={(open) => {
+          if (!open) setNavConfirm(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your draft is not saved to the server yet. If you leave now,
+              recent edits may be lost.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmLeaveNavigation}
+            >
+              Leave
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

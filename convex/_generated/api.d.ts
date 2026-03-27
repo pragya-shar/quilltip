@@ -20,10 +20,12 @@ import type * as lib_constants from "../lib/constants.js";
 import type * as lib_enrich from "../lib/enrich.js";
 import type * as lib_highlightHash from "../lib/highlightHash.js";
 import type * as lib_tiptapContent from "../lib/tiptapContent.js";
+import type * as lib_wikimediaFileUrl from "../lib/wikimediaFileUrl.js";
 import type * as nfts from "../nfts.js";
 import type * as tips from "../tips.js";
 import type * as uploads from "../uploads.js";
 import type * as users from "../users.js";
+import type * as wikimedia from "../wikimedia.js";
 
 import type {
   ApiFromModules,
@@ -44,10 +46,12 @@ declare const fullApi: ApiFromModules<{
   "lib/enrich": typeof lib_enrich;
   "lib/highlightHash": typeof lib_highlightHash;
   "lib/tiptapContent": typeof lib_tiptapContent;
+  "lib/wikimediaFileUrl": typeof lib_wikimediaFileUrl;
   nfts: typeof nfts;
   tips: typeof tips;
   uploads: typeof uploads;
   users: typeof users;
+  wikimedia: typeof wikimedia;
 }>;
 
 /**

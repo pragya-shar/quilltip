@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   release:
-    name: Version Packages
+    name: Release Please
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -18,15 +18,7 @@ jobs:
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: googleapis/release-please-action@v4
         with:
-          bun-version: latest
-      - run: bun install --frozen-lockfile
-      - uses: changesets/action@v1
-        with:
-          version: bun run version
-          commit: 'chore: version packages'
-          title: 'chore: version packages'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          release-type: node
+          target-branch: main

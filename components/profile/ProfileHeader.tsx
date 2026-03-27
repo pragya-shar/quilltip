@@ -1,5 +1,6 @@
-import Image from 'next/image'
 import { User, Calendar } from 'lucide-react'
+import { UserAvatar } from '@/components/ui/user-avatar'
+import { ProfileAvatarEditor } from '@/components/profile/ProfileAvatarEditor'
 import { formatDistanceToNow } from 'date-fns'
 
 interface ProfileHeaderProps {
@@ -12,9 +13,13 @@ interface ProfileHeaderProps {
     createdAt: Date | string
     articleCount: number
   }
+  isOwnProfile?: boolean
 }
 
-export default function ProfileHeader({ user }: ProfileHeaderProps) {
+export default function ProfileHeader({
+  user,
+  isOwnProfile = false,
+}: ProfileHeaderProps) {
   const memberSince = formatDistanceToNow(new Date(user.createdAt), {
     addSuffix: true,
   })
@@ -22,20 +27,21 @@ export default function ProfileHeader({ user }: ProfileHeaderProps) {
   return (
     <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-8">
       <div className="flex flex-col sm:flex-row gap-6">
-        {/* Avatar */}
         <div className="flex-shrink-0">
-          {user.avatar ? (
-            <Image
-              src={user.avatar}
-              alt={user.name || user.username}
-              width={120}
-              height={120}
-              className="w-[120px] h-[120px] rounded-full object-cover border-4 border-border"
+          {isOwnProfile ? (
+            <ProfileAvatarEditor
+              avatar={user.avatar}
+              name={user.name || user.username}
+              username={user.username}
             />
           ) : (
-            <div className="w-[120px] h-[120px] rounded-full bg-brand-blue text-white flex items-center justify-center text-4xl font-bold border-4 border-border">
-              {(user.name || user.username).charAt(0).toUpperCase()}
-            </div>
+            <UserAvatar
+              src={user.avatar}
+              alt={user.name || user.username}
+              name={user.name || user.username}
+              className="h-[120px] w-[120px] border-4 border-border"
+              fallbackClassName="text-4xl font-bold"
+            />
           )}
         </div>
 
@@ -63,7 +69,7 @@ export default function ProfileHeader({ user }: ProfileHeaderProps) {
                 <p className="font-semibold text-foreground">
                   {user.articleCount}
                 </p>
-                <p className="text-gray-600">
+                <p className="text-muted-foreground">
                   {user.articleCount === 1 ? 'Article' : 'Articles'}
                 </p>
               </div>

@@ -10,6 +10,7 @@ import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { formatDistanceToNow } from 'date-fns'
 import Image from 'next/image'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import ShareButtons from './ShareButtons'
 import { HighlightableArticle } from '@/components/articles/HighlightableArticle'
 import { useAuth } from '@/components/providers/AuthContext'
@@ -69,33 +70,25 @@ export default function ArticleDisplay({
     <article className="max-w-4xl mx-auto px-4 py-8">
       {/* Article Header */}
       <header className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3 leading-snug">
+        <h1 className="text-3xl md:text-4xl font-semibold text-foreground mb-3 leading-snug">
           {article.title}
         </h1>
 
         {/* Author Info */}
         <div className="flex items-center gap-4 mb-6">
           <div className="flex items-center gap-3">
-            {article.author.avatar ? (
-              <Image
-                src={article.author.avatar}
-                alt={article.author.name || article.author.username}
-                width={48}
-                height={48}
-                className="w-12 h-12 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-brand-blue text-white flex items-center justify-center font-semibold">
-                {(article.author.name || article.author.username)
-                  .charAt(0)
-                  .toUpperCase()}
-              </div>
-            )}
+            <UserAvatar
+              src={article.author.avatar}
+              alt={article.author.name || article.author.username}
+              name={article.author.name || article.author.username}
+              className="h-12 w-12"
+              fallbackClassName="text-base"
+            />
             <div>
-              <p className="font-medium text-gray-900">
+              <p className="font-medium text-foreground">
                 {article.author.name || article.author.username}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 @{article.author.username}
                 {publishedDate && (
                   <>
@@ -126,7 +119,7 @@ export default function ArticleDisplay({
             {article.tags.map((tag) => (
               <span
                 key={tag.id}
-                className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full"
+                className="px-3 py-1 bg-muted text-foreground text-sm rounded-full"
               >
                 {tag.name}
               </span>
@@ -150,7 +143,7 @@ export default function ArticleDisplay({
 
       {/* Share Buttons */}
       {currentUrl && (
-        <div className="mt-8 pt-6 border-t border-gray-200">
+        <div className="mt-8 pt-6 border-t border-border">
           <ShareButtons
             title={article.title}
             url={currentUrl}

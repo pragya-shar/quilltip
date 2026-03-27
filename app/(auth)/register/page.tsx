@@ -13,10 +13,10 @@ export default function RegisterPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-quill-900">
+        <h2 className="text-2xl font-bold text-foreground">
           Create your account
         </h2>
-        <p className="mt-2 text-sm text-quill-600">
+        <p className="mt-2 text-sm text-muted-foreground">
           Join Quilltip and start sharing your stories with the world.
         </p>
       </div>
@@ -26,7 +26,7 @@ export default function RegisterPage() {
 
       {/* Login Link */}
       <div className="text-center">
-        <p className="text-sm text-quill-600">
+        <p className="text-sm text-muted-foreground">
           Already have an account?{' '}
           <Link
             href="/login"

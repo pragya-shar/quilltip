@@ -19,7 +19,7 @@ export function TipStats({ articleId, className = '' }: TipStatsProps) {
 
   return (
     <div
-      className={`flex items-center gap-4 text-sm text-gray-600 ${className}`}
+      className={`flex items-center gap-4 text-sm text-muted-foreground ${className}`}
     >
       <div className="flex items-center gap-1">
         <Coins className="w-4 h-4 text-yellow-500" />

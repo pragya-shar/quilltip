@@ -242,14 +242,14 @@ export function HighlightTipButton({
             aria-label="Close dialog"
             tabIndex={-1}
           />
-          <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-popover text-popover-foreground rounded-xl shadow-xl border border-border max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 id="highlight-tip-dialog-title" className="text-xl font-bold">
                 Tip Highlight
               </h3>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                className="text-muted-foreground hover:text-foreground text-2xl leading-none"
               >
                 ×
               </button>
@@ -257,12 +257,12 @@ export function HighlightTipButton({
 
             {/* Highlight Preview */}
             <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-sm text-gray-700 italic">
+              <p className="text-sm text-foreground italic">
                 &ldquo;{displayText}&rdquo;
               </p>
             </div>
 
-            <p className="text-gray-600 mb-4">
+            <p className="text-muted-foreground mb-4">
               Tip {authorName} for this specific insight. 97.5% goes directly to
               the author!
             </p>
@@ -286,7 +286,7 @@ export function HighlightTipButton({
                   className={`relative px-4 py-3 rounded-lg border-2 transition-all ${
                     selectedAmount === amount.cents
                       ? 'border-orange-500 bg-orange-50'
-                      : 'border-gray-200 hover:border-orange-300'
+                      : 'border-border hover:border-orange-300'
                   }`}
                 >
                   {amount.popular && (
@@ -303,12 +303,12 @@ export function HighlightTipButton({
             <div className="mb-6">
               <label
                 htmlFor="highlight-tip-custom-amount"
-                className="block text-sm font-medium text-gray-700 mb-2"
+                className="block text-sm font-medium text-foreground mb-2"
               >
                 Or enter custom amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
                   $
                 </span>
                 <input
@@ -323,10 +323,10 @@ export function HighlightTipButton({
                     setSelectedAmount(null)
                   }}
                   placeholder="0.00"
-                  className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className="w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Minimum: ${TIP_MIN_USD.toFixed(2)} • Maximum: $
                 {TIP_MAX_USD.toFixed(2)}
               </p>
@@ -337,7 +337,7 @@ export function HighlightTipButton({
               <button
                 onClick={() => setIsOpen(false)}
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 border border-input bg-background text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -390,7 +390,7 @@ export function HighlightTipButton({
             )}
 
             {/* Info */}
-            <p className="text-xs text-gray-500 text-center mt-2">
+            <p className="text-xs text-muted-foreground text-center mt-2">
               Powered by Stellar • Instant settlement • Low fees
             </p>
           </div>

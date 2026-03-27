@@ -5,7 +5,7 @@ import { ConvexReactClient } from 'convex/react'
 import { WalletProvider } from './WalletProvider'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
-import { ThemeProvider } from '@/components/providers/ThemeProvider'
+import { ThemeProvider } from '@/components/theme/ThemeProvider'
 
 /**
  * Global Providers
@@ -22,9 +22,9 @@ interface ProvidersProps {
 }
 
 const WalletErrorFallback = (
-  <div className="p-4 border border-yellow-200 bg-yellow-50 rounded-lg text-center">
-    <p className="text-yellow-800">Wallet connection unavailable.</p>
-    <p className="text-sm text-yellow-600 mt-1">
+  <div className="p-4 border border-border bg-muted rounded-lg text-center">
+    <p className="text-foreground">Wallet connection unavailable.</p>
+    <p className="text-sm text-muted-foreground mt-1">
       You can still browse content.
     </p>
   </div>

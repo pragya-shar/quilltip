@@ -153,7 +153,7 @@ export default function ShareButtons({
         {/* Twitter */}
         <button
           onClick={() => openShareWindow(shareUrls.twitter)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-blue-500 hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on Twitter"
         >
           <Twitter className="h-4 w-4" />
@@ -163,7 +163,7 @@ export default function ShareButtons({
         {/* LinkedIn */}
         <button
           onClick={() => openShareWindow(shareUrls.linkedin)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-blue-600 hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on LinkedIn"
         >
           <Linkedin className="h-4 w-4" />
@@ -173,7 +173,7 @@ export default function ShareButtons({
         {/* Facebook */}
         <button
           onClick={() => openShareWindow(shareUrls.facebook)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-blue-700 hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on Facebook"
         >
           <Facebook className="h-4 w-4" />
@@ -183,7 +183,7 @@ export default function ShareButtons({
         {/* Copy Link */}
         <button
           onClick={handleCopyLink}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-brand-blue hover:bg-gray-50 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand-blue hover:bg-muted rounded-lg transition-colors"
           aria-label={copied ? 'Link copied!' : 'Copy link'}
         >
           {copied ? (

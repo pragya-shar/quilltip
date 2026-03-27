@@ -21,4 +21,5 @@ export const TIP_PRESETS_HIGHLIGHT = [
 ] as const
 
 // Editor content styling (prose class for Tiptap)
-export const EDITOR_PROSE_CLASS = 'prose prose-lg max-w-none focus:outline-none'
+export const EDITOR_PROSE_CLASS =
+  'prose prose-lg max-w-none focus:outline-none dark:prose-invert'
