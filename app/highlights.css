@@ -338,3 +338,49 @@ mark[data-highlight-id]:hover::after {
     gap: 8px;
   }
 }
+
+/* Dark mode: align popover surfaces with theme tokens */
+.dark .highlight-popover {
+  background: color-mix(in srgb, var(--card) 96%, transparent);
+  border-color: var(--border);
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.45),
+    0 10px 10px -5px rgba(0, 0, 0, 0.25);
+}
+
+.dark .color-picker-container {
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--muted) 85%, transparent),
+    color-mix(in srgb, var(--card) 90%, transparent)
+  );
+}
+
+.dark .highlight-text-preview {
+  background: color-mix(in srgb, var(--muted) 70%, transparent);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+.dark .highlight-text-preview::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.dark .highlight-text-preview::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--muted-foreground) 35%, transparent);
+}
+
+.dark .privacy-toggle {
+  background: color-mix(in srgb, var(--muted) 80%, transparent);
+}
+
+.dark .privacy-toggle:hover {
+  background: var(--accent);
+}
+
+.dark .color-picker-button.selected {
+  border-color: var(--foreground);
+  box-shadow:
+    0 0 0 3px var(--card),
+    0 0 0 5px color-mix(in srgb, var(--ring) 50%, transparent);
+}

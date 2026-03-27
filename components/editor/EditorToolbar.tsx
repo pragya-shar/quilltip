@@ -64,8 +64,8 @@ function ToolbarButton({
       title={title}
       aria-label={title}
       className={`
-        p-2 rounded hover:bg-gray-100 transition-colors shrink-0
-        ${isActive ? 'bg-gray-100 text-blue-600' : 'text-gray-700'}
+        p-2 rounded hover:bg-accent transition-colors shrink-0
+        ${isActive ? 'bg-muted text-primary' : 'text-foreground'}
         ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         ${className}
       `}
@@ -76,7 +76,7 @@ function ToolbarButton({
 }
 
 function ToolbarDivider() {
-  return <div className="w-px h-5 bg-sky-300 mx-0.5 shrink-0" aria-hidden />
+  return <div className="w-px h-5 bg-border mx-0.5 shrink-0" aria-hidden />
 }
 
 export function EditorToolbar({
@@ -171,14 +171,14 @@ export function EditorToolbar({
   }
 
   return (
-    <div className="bg-white w-full relative flex items-center justify-center min-h-[44px] px-6 py-2">
+    <div className="bg-card border-b border-border w-full relative flex items-center justify-center min-h-[44px] px-6 py-2">
       <div className="flex items-center gap-0.5 flex-nowrap min-w-0 justify-center">
         {/* Paragraph / style dropdown */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button
               onMouseDown={(e) => e.preventDefault()}
-              className="flex items-center gap-1.5 px-2.5 py-2 rounded hover:bg-gray-100 text-gray-700 text-sm shrink-0"
+              className="flex items-center gap-1.5 px-2.5 py-2 rounded hover:bg-accent text-foreground text-sm shrink-0"
             >
               <Type className="w-4 h-4 shrink-0" />
               <span>{getCurrentHeading()}</span>
@@ -186,12 +186,12 @@ export function EditorToolbar({
             </button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
-            <DropdownMenu.Content className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+            <DropdownMenu.Content className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50">
               {headingOptions.map((option) => (
                 <DropdownMenu.Item
                   key={option.level}
                   onSelect={option.command}
-                  className="px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer outline-none"
+                  className="px-4 py-2 text-sm hover:bg-accent cursor-pointer outline-none"
                 >
                   {option.label}
                 </DropdownMenu.Item>
@@ -306,7 +306,7 @@ export function EditorToolbar({
             <button
               type="button"
               onMouseDown={(e) => e.preventDefault()}
-              className="p-2 rounded hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer shrink-0"
+              className="p-2 rounded hover:bg-accent text-foreground transition-colors cursor-pointer shrink-0"
               title="Add"
               aria-label="Add"
             >
@@ -315,34 +315,34 @@ export function EditorToolbar({
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content
-              className="bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50 min-w-[200px]"
+              className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50 min-w-[200px]"
               sideOffset={4}
               align="start"
             >
               <DropdownMenu.Item
                 onSelect={() => onFocusCoverImage?.()}
-                className="px-4 py-2.5 text-sm hover:bg-gray-100 cursor-pointer outline-none flex items-center gap-2"
+                className="px-4 py-2.5 text-sm hover:bg-accent cursor-pointer outline-none flex items-center gap-2"
               >
                 <Image className="w-4 h-4 shrink-0" />
                 Cover Image
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 onSelect={() => onFocusTitle?.()}
-                className="px-4 py-2.5 text-sm hover:bg-gray-100 cursor-pointer outline-none flex items-center gap-2"
+                className="px-4 py-2.5 text-sm hover:bg-accent cursor-pointer outline-none flex items-center gap-2"
               >
                 <Type className="w-4 h-4 shrink-0" />
                 Article Title
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 onSelect={() => onFocusExcerpt?.()}
-                className="px-4 py-2.5 text-sm hover:bg-gray-100 cursor-pointer outline-none flex items-center gap-2"
+                className="px-4 py-2.5 text-sm hover:bg-accent cursor-pointer outline-none flex items-center gap-2"
               >
                 <FileText className="w-4 h-4 shrink-0" />
                 Article Excerpt
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 onSelect={() => onFocusTags?.()}
-                className="px-4 py-2.5 text-sm hover:bg-gray-100 cursor-pointer outline-none flex items-center gap-2"
+                className="px-4 py-2.5 text-sm hover:bg-accent cursor-pointer outline-none flex items-center gap-2"
               >
                 <Tag className="w-4 h-4 shrink-0" />
                 Tags
@@ -366,7 +366,7 @@ export function EditorToolbar({
             </ToolbarButton>
           )}
           {showLinkInput && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-2 z-50 flex items-center gap-2">
+            <div className="absolute top-full left-0 mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg p-2 z-50 flex items-center gap-2">
               <input
                 type="url"
                 placeholder="Enter URL"
@@ -379,11 +379,11 @@ export function EditorToolbar({
                     setLinkUrl('')
                   }
                 }}
-                className="px-2 py-1.5 border border-gray-200 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px]"
+                className="px-2 py-1.5 border border-input bg-background text-foreground rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring min-w-[200px]"
               />
               <button
                 onClick={addLink}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90"
               >
                 Add
               </button>
@@ -412,7 +412,7 @@ export function EditorToolbar({
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
-            className={`flex items-center gap-2 pl-3 pr-2 py-2 rounded hover:bg-gray-100 text-sm font-medium ${showNotes ? 'bg-gray-100 text-blue-600' : 'text-gray-700'}`}
+            className={`flex items-center gap-2 pl-3 pr-2 py-2 rounded hover:bg-accent text-sm font-medium ${showNotes ? 'bg-muted text-primary' : 'text-foreground'}`}
             title="Notes"
             onClick={() => setShowNotes(!showNotes)}
           >
@@ -420,15 +420,15 @@ export function EditorToolbar({
             Notes
           </button>
           {showNotes && (
-            <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 w-72">
-              <div className="px-3 py-2 border-b border-gray-100 text-xs font-medium text-gray-500">
+            <div className="absolute top-full right-0 mt-1 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg z-50 w-72">
+              <div className="px-3 py-2 border-b border-border text-xs font-medium text-muted-foreground">
                 Personal Notes
               </div>
               <textarea
                 value={notes}
                 onChange={(e) => onNotesChange?.(e.target.value)}
                 placeholder="Jot down ideas, reminders, or notes..."
-                className="w-full p-3 text-sm text-gray-700 resize-none focus:outline-none rounded-b-lg"
+                className="w-full p-3 text-sm text-foreground bg-background resize-none focus:outline-none rounded-b-lg placeholder:text-muted-foreground/60"
                 rows={6}
               />
             </div>

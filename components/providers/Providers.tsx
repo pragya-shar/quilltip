@@ -3,9 +3,9 @@
 import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import { ConvexReactClient } from 'convex/react'
 import { WalletProvider } from './WalletProvider'
+import { ThemeProvider } from './ThemeProvider'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
-import { ThemeProvider } from '@/components/providers/ThemeProvider'
 
 /**
  * Global Providers

@@ -83,16 +83,16 @@ export default function ArticlesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-cream">
+    <div className="min-h-screen bg-background">
       <AppNavigation />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
         {/* Page Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+          <h1 className="text-4xl font-bold text-foreground mb-2">
             All Articles
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-lg text-muted-foreground">
             Discover stories, thinking, and expertise from writers on Quilltip
           </p>
         </div>
@@ -110,7 +110,7 @@ export default function ArticlesPage() {
         {/* Active Filters */}
         {(tag || author || urlSearch) && (
           <div className="mb-6 flex items-center gap-2">
-            <span className="text-sm text-gray-600">Filtering by:</span>
+            <span className="text-sm text-muted-foreground">Filtering by:</span>
             {tag && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-brand-blue text-white">
                 Tag: {tag}
@@ -123,7 +123,7 @@ export default function ArticlesPage() {
                     params.set('page', '1')
                     router.push(`/articles?${params.toString()}`)
                   }}
-                  className="ml-2 hover:text-gray-200"
+                  className="ml-2 hover:opacity-80"
                   aria-label="Remove tag filter"
                 >
                   ×
@@ -142,7 +142,7 @@ export default function ArticlesPage() {
                     params.set('page', '1')
                     router.push(`/articles?${params.toString()}`)
                   }}
-                  className="ml-2 hover:text-gray-200"
+                  className="ml-2 hover:opacity-80"
                   aria-label="Remove author filter"
                 >
                   ×
@@ -161,7 +161,7 @@ export default function ArticlesPage() {
                     params.set('page', '1')
                     router.push(`/articles?${params.toString()}`)
                   }}
-                  className="ml-2 hover:text-gray-200"
+                  className="ml-2 hover:opacity-80"
                   aria-label="Remove search filter"
                 >
                   ×
@@ -200,7 +200,7 @@ export default function ArticlesPage() {
 
             {/* Results Summary */}
             {articles.length > 0 && (
-              <div className="mt-4 text-center text-sm text-gray-600">
+              <div className="mt-4 text-center text-sm text-muted-foreground">
                 Showing {(pagination.page - 1) * pagination.limit + 1} -{' '}
                 {Math.min(
                   pagination.page * pagination.limit,

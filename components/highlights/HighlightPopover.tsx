@@ -106,7 +106,7 @@ export function HighlightPopover({
 
       {/* Color Picker */}
       <div className="mb-4">
-        <div className="text-xs font-medium text-gray-600 mb-2">
+        <div className="text-xs font-medium text-muted-foreground mb-2">
           Choose Highlight Color
         </div>
         <div className="color-picker-container">
@@ -139,8 +139,8 @@ export function HighlightPopover({
           onClick={() => setShowNoteInput(!showNoteInput)}
           className={cn(
             'highlight-action-button flex items-center gap-2',
-            'bg-gray-100 hover:bg-gray-200 text-gray-700',
-            showNoteInput && 'bg-gray-200'
+            'bg-muted hover:bg-muted/80 text-foreground',
+            showNoteInput && 'bg-accent'
           )}
         >
           <MessageSquare className="w-4 h-4" />
@@ -154,12 +154,12 @@ export function HighlightPopover({
           {isPublic ? (
             <>
               <Globe className="w-4 h-4 text-green-600" />
-              <span className="text-sm text-gray-700">Public</span>
+              <span className="text-sm text-foreground">Public</span>
             </>
           ) : (
             <>
-              <Lock className="w-4 h-4 text-gray-600" />
-              <span className="text-sm text-gray-700">Private</span>
+              <Lock className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm text-foreground">Private</span>
             </>
           )}
         </button>
@@ -172,7 +172,7 @@ export function HighlightPopover({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Add a note to your highlight..."
-            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent resize-none"
             rows={3}
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
@@ -181,8 +181,8 @@ export function HighlightPopover({
       )}
 
       {/* Action Buttons Section */}
-      <div className="pt-3 border-t border-gray-200">
-        <div className="text-xs font-medium text-gray-600 mb-3 text-center">
+      <div className="pt-3 border-t border-border">
+        <div className="text-xs font-medium text-muted-foreground mb-3 text-center">
           Save highlight{' '}
           {articleId &&
             articleSlug &&
@@ -229,7 +229,7 @@ export function HighlightPopover({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="w-full text-center text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           Cancel
         </button>
