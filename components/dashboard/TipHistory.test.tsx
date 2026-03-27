@@ -1,0 +1,61 @@
+/** @vitest-environment jsdom */
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import {
+  TipHistory,
+  type ReceivedTipRow,
+} from '@/components/dashboard/TipHistory'
+import type { Id } from '@/types/convex'
+
+function makeTip(overrides: Partial<ReceivedTipRow>): ReceivedTipRow {
+  return {
+    _id: 'jd7abc' as Id<'tips'>,
+    _creationTime: 1,
+    articleId: 'jd7art' as Id<'articles'>,
+    tipperId: 'jd7tip' as Id<'users'>,
+    authorId: 'jd7auth' as Id<'users'>,
+    articleTitle: 'Hello',
+    articleSlug: 'hello',
+    amountUsd: 5,
+    amountCents: 500,
+    status: 'CONFIRMED',
+    createdAt: new Date('2024-06-15T12:00:00Z').getTime(),
+    updatedAt: new Date('2024-06-15T12:00:00Z').getTime(),
+    tipper: { name: 'Alice', username: 'alice' },
+    ...overrides,
+  }
+}
+
+describe('TipHistory', () => {
+  it('renders nothing when tips are empty or undefined', () => {
+    const { container: a } = render(<TipHistory tips={undefined} />)
+    expect(a.firstChild).toBeNull()
+    const { container: b } = render(<TipHistory tips={[]} />)
+    expect(b.firstChild).toBeNull()
+  })
+
+  it('shows tipper, article title, amount, and formatted date', () => {
+    const tips = [
+      makeTip({
+        _id: 'a1' as Id<'tips'>,
+        articleTitle: 'My Article',
+        amountUsd: 12.5,
+        createdAt: new Date('2024-03-01T00:00:00Z').getTime(),
+        tipper: { username: 'bob' },
+      }),
+    ]
+    render(<TipHistory tips={tips} />)
+
+    expect(screen.getByText('bob')).toBeInTheDocument()
+    expect(
+      screen.getByText((_, el) => el?.textContent === 'tipped on “My Article”')
+    ).toBeInTheDocument()
+    expect(screen.getByText('+$12.50')).toBeInTheDocument()
+  })
+
+  it('uses Anonymous when no tipper name', () => {
+    const tips = [makeTip({ tipper: null })]
+    render(<TipHistory tips={tips} />)
+    expect(screen.getByText('Anonymous')).toBeInTheDocument()
+  })
+})

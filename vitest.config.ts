@@ -21,6 +21,7 @@ export default defineConfig({
           include: ['**/*.test.ts', '**/*.test.tsx'],
           exclude: ['node_modules', '.next', 'convex/**'],
           environment: 'node',
+          setupFiles: ['./vitest.setup.ts'],
         },
       },
     ],
