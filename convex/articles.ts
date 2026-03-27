@@ -7,6 +7,10 @@ import {
   generateUniqueArticleSlugForAuthor,
   isPlaceholderArticleSlug,
 } from './lib/articleSlug'
+import {
+  extractTextFromTiptapJson,
+  tiptapJsonHasNonEmptyText,
+} from './lib/tiptapContent'
 
 // Validation helper for article input
 function validateArticleInput(args: {
@@ -239,6 +243,10 @@ export const createArticle = mutation({
     // Validate input
     validateArticleInput(args)
 
+    if (args.published && !tiptapJsonHasNonEmptyText(args.content)) {
+      throw new Error('Cannot publish: article body is empty')
+    }
+
     const user = await ctx.db.get(userId)
     if (!user) throw new Error('User not found')
 
@@ -361,6 +369,9 @@ export const publishArticle = mutation({
     }
     if (!article.content) {
       throw new Error('Cannot publish: content is required')
+    }
+    if (!tiptapJsonHasNonEmptyText(article.content)) {
+      throw new Error('Cannot publish: article body is empty')
     }
 
     const now = Date.now()
@@ -575,21 +586,10 @@ export const setAllArticlesToDraft = internalMutation({
   },
 })
 
-// Helper function to extract text from TipTap JSON content
-function extractTextFromContent(node: unknown): string {
-  if (!node || typeof node !== 'object') return ''
-  const n = node as Record<string, unknown>
-  if (n.type === 'text' && typeof n.text === 'string') return n.text
-  if (Array.isArray(n.content)) {
-    return n.content.map(extractTextFromContent).join(' ')
-  }
-  return ''
-}
-
 // Helper function to calculate read time
 function calculateReadTime(content: unknown): number {
   // Simple estimation: 200 words per minute
-  const text = extractTextFromContent(content)
+  const text = extractTextFromTiptapJson(content)
   const wordCount = text.split(/\s+/).filter(Boolean).length
   return Math.max(1, Math.ceil(wordCount / 200))
 }
