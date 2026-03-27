@@ -88,6 +88,23 @@ export const updateProfile = mutation({
   },
 })
 
+// Clear profile avatar (patch cannot remove optional fields; replace omits avatar)
+export const clearAvatar = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+
+    const user = await ctx.db.get(userId)
+    if (!user) throw new Error('User not found')
+
+    const next = { ...user }
+    delete next.avatar
+    await ctx.db.replace(userId, next)
+    return await ctx.db.get(userId)
+  },
+})
+
 // Complete onboarding
 export const completeOnboarding = mutation({
   args: {},
