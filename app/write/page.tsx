@@ -512,7 +512,10 @@ export default function WritePage() {
         }}
       />
 
-      <AlertDialog open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
+      <AlertDialog
+        open={publishConfirmOpen}
+        onOpenChange={setPublishConfirmOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Publish this article?</AlertDialogTitle>
