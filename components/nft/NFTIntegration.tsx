@@ -119,14 +119,14 @@ export function NFTIntegration({
               {!nftStatus.isMinted ? (
                 <div className="space-y-4">
                   <div>
-                    <div className="flex justify-between text-sm mb-2">
+                    <div className="flex justify-between text-sm mb-2 text-foreground">
                       <span>Minting Progress</span>
                       <span className="font-medium">
                         ${(nftStatus.totalTips / 100).toFixed(2)} / $
                         {(nftStatus.tipThreshold / 100).toFixed(2)}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-muted rounded-full h-2">
                       <div
                         className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500"
                         style={{

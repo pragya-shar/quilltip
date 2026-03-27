@@ -29,7 +29,7 @@ export function WalletStepCard({
     >
       {/* Timeline track */}
       <div className="flex flex-col items-center pt-1.5">
-        <div className="w-2.5 h-2.5 rounded-full bg-primary shrink-0 ring-4 ring-background" />
+        <div className="w-2.5 h-2.5 rounded-full bg-foreground shrink-0 ring-4 ring-muted" />
         {!isLast && <div className="w-px flex-1 bg-border mt-1" />}
       </div>
 

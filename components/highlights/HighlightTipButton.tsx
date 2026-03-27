@@ -242,12 +242,9 @@ export function HighlightTipButton({
             aria-label="Close dialog"
             tabIndex={-1}
           />
-          <div className="relative bg-card border border-border rounded-xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-popover text-popover-foreground rounded-xl shadow-xl border border-border max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h3
-                id="highlight-tip-dialog-title"
-                className="text-xl font-bold text-foreground"
-              >
+              <h3 id="highlight-tip-dialog-title" className="text-xl font-bold">
                 Tip Highlight
               </h3>
               <button
@@ -259,8 +256,8 @@ export function HighlightTipButton({
             </div>
 
             {/* Highlight Preview */}
-            <div className="mb-4 p-3 rounded-lg border border-border bg-muted/50">
-              <p className="text-sm text-muted-foreground italic">
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-foreground italic">
                 &ldquo;{displayText}&rdquo;
               </p>
             </div>
@@ -272,7 +269,7 @@ export function HighlightTipButton({
 
             {/* Wallet Setup Guide */}
             {!isConnected && (
-              <div className="mb-4 p-3 rounded-lg border border-border bg-muted/50 text-sm text-foreground">
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
                 <p>Connect your Stellar wallet to tip this highlight.</p>
               </div>
             )}
@@ -288,8 +285,8 @@ export function HighlightTipButton({
                   }}
                   className={`relative px-4 py-3 rounded-lg border-2 transition-all ${
                     selectedAmount === amount.cents
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
+                      ? 'border-orange-500 bg-orange-50'
+                      : 'border-border hover:border-orange-300'
                   }`}
                 >
                   {amount.popular && (
@@ -297,9 +294,7 @@ export function HighlightTipButton({
                       Popular
                     </span>
                   )}
-                  <span className="font-semibold text-foreground">
-                    {amount.label}
-                  </span>
+                  <span className="font-semibold">{amount.label}</span>
                 </button>
               ))}
             </div>
@@ -313,7 +308,7 @@ export function HighlightTipButton({
                 Or enter custom amount
               </label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
                   $
                 </span>
                 <input
@@ -328,10 +323,10 @@ export function HighlightTipButton({
                     setSelectedAmount(null)
                   }}
                   placeholder="0.00"
-                  className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className="w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Minimum: ${TIP_MIN_USD.toFixed(2)} • Maximum: $
                 {TIP_MAX_USD.toFixed(2)}
               </p>
@@ -342,7 +337,7 @@ export function HighlightTipButton({
               <button
                 onClick={() => setIsOpen(false)}
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 border border-input bg-background text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>

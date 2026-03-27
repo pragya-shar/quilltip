@@ -140,7 +140,7 @@ export function HighlightPopover({
           className={cn(
             'highlight-action-button flex items-center gap-2',
             'bg-muted hover:bg-muted/80 text-foreground',
-            showNoteInput && 'bg-accent'
+            showNoteInput && 'bg-muted/90'
           )}
         >
           <MessageSquare className="w-4 h-4" />

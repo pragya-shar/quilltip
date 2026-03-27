@@ -42,7 +42,7 @@ export function HighlightNotes({
   if (highlightsWithNotes.length === 0) {
     return (
       <div className={cn('p-6 text-center', className)}>
-        <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground/40 mb-3" />
+        <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
         <p className="text-muted-foreground text-sm">
           No notes yet. Highlight text and add a note to see it here.
         </p>
@@ -115,7 +115,7 @@ export function HighlightNotes({
             if (!tipData?.count) return null
             return (
               <div className="mb-2">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/15 text-primary text-xs rounded-full">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">
                   <Coins className="w-3 h-3" />
                   {tipData.count} tip{tipData.count > 1 ? 's' : ''}
                   {' · '}${tipData.totalUsd.toFixed(2)}

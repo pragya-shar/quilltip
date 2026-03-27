@@ -13,7 +13,7 @@ export default function ArticleCard({ article }: ArticleCardProps) {
     : null
 
   return (
-    <article className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border overflow-hidden hover:shadow-md transition-shadow duration-200">
+    <article className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border ring-1 ring-border/60 overflow-hidden hover:shadow-md transition-shadow duration-200">
       {/* Cover Image */}
       {article.coverImage && (
         <Link href={`/${article.author.username}/${article.slug}`}>

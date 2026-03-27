@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
-import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 import Link from 'next/link'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { useMutation } from 'convex/react'
@@ -22,8 +22,8 @@ import {
 } from '@/components/ui/alert-dialog'
 
 export default function DraftsPage() {
+  const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
-  useRedirectWhenUnauthenticated(isLoading, isAuthenticated)
 
   // Fetch drafts using Convex query
   const drafts = useUserDrafts() || []
@@ -41,7 +41,8 @@ export default function DraftsPage() {
     )
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isLoading) {
+    router.push('/login')
     return null
   }
 
@@ -57,7 +58,7 @@ export default function DraftsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-muted/30">
       <AppNavigation />
       <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
         <div className="flex justify-between items-center mb-8">
@@ -79,7 +80,7 @@ export default function DraftsPage() {
             <div className="text-muted-foreground mb-4">No drafts yet</div>
             <Link
               href="/write"
-              className="text-primary hover:text-primary/90 font-medium"
+              className="text-primary hover:text-primary/80 font-medium"
             >
               Start writing your first article →
             </Link>
@@ -89,7 +90,7 @@ export default function DraftsPage() {
             {drafts.map((draft) => (
               <div
                 key={draft._id}
-                className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)] hover:shadow-md transition-shadow"
+                className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border ring-1 ring-border/60 p-[var(--card-padding)] hover:shadow-md transition-shadow"
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
@@ -116,7 +117,7 @@ export default function DraftsPage() {
                       {!draft.published && (
                         <>
                           <span>•</span>
-                          <span className="text-yellow-600 font-medium">
+                          <span className="text-amber-600 dark:text-amber-400 font-medium">
                             Draft
                           </span>
                         </>
@@ -126,13 +127,13 @@ export default function DraftsPage() {
                   <div className="flex gap-2 ml-4">
                     <Link
                       href={`/write?id=${draft._id}`}
-                      className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors"
+                      className="px-4 py-2 rounded-lg border border-primary text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
                     >
                       Edit
                     </Link>
                     <button
                       onClick={() => setDeleteTarget(draft._id)}
-                      className="px-4 py-2 border border-destructive text-destructive rounded-lg hover:bg-destructive/10 transition-colors"
+                      className="px-4 py-2 rounded-lg border border-destructive text-destructive bg-destructive/5 hover:bg-destructive/10 transition-colors"
                     >
                       Delete
                     </button>
@@ -143,9 +144,9 @@ export default function DraftsPage() {
           </div>
         )}
 
-        <div className="mt-8 text-sm rounded-lg border border-border bg-muted/50 p-4">
-          <p className="font-semibold mb-2 text-foreground">About Drafts</p>
-          <ul className="space-y-1 text-muted-foreground">
+        <div className="mt-8 text-sm text-muted-foreground bg-muted border border-border p-4 rounded-lg">
+          <p className="font-semibold mb-2">About Drafts</p>
+          <ul className="space-y-1">
             <li>
               • All your unpublished articles are saved here automatically
             </li>

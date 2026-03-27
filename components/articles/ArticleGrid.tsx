@@ -17,7 +17,7 @@ export default function ArticleGrid({
       return (
         <div className="text-center py-12">
           <div className="max-w-sm mx-auto">
-            <BookOpen className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
+            <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium text-foreground mb-1">
               No articles in your feed yet
             </h3>
@@ -27,7 +27,7 @@ export default function ArticleGrid({
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
                 href="/articles"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-secondary text-secondary-foreground hover:bg-secondary/80 h-9 px-4"
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-muted text-foreground hover:bg-muted/80 h-9 px-4 border border-border"
               >
                 Browse articles
               </Link>
@@ -47,7 +47,7 @@ export default function ArticleGrid({
       <div className="text-center py-12">
         <div className="max-w-sm mx-auto">
           <svg
-            className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4"
+            className="mx-auto h-12 w-12 text-muted-foreground mb-4"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

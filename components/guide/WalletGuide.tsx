@@ -15,7 +15,6 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
 
 export function WalletGuide() {
   return (
@@ -48,7 +47,7 @@ export function WalletGuide() {
 
         {/* Tab 1: What is a Wallet? */}
         <TabsContent value="what-is-wallet">
-          <div className="rounded-xl border border-border bg-muted/50 p-6 mb-8">
+          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
             <h2 className="text-lg font-semibold text-foreground mb-2">
               No crypto experience? No problem.
             </h2>
@@ -82,7 +81,7 @@ export function WalletGuide() {
 
         {/* Tab 2: Set Up Freighter */}
         <TabsContent value="setup">
-          <div className="rounded-xl border border-border bg-muted/50 p-6 mb-8">
+          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
             <h2 className="text-lg font-semibold text-foreground mb-2">
               Freighter is the easiest Stellar wallet
             </h2>
@@ -98,16 +97,15 @@ export function WalletGuide() {
             title="Install the Freighter extension"
             description="Visit the Freighter website and click 'Add to Chrome' (or your browser). It installs like any other browser extension."
           >
-            <Button asChild variant="default" className="gap-2">
-              <a
-                href="https://www.freighter.app"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Get Freighter
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </Button>
+            <a
+              href="https://www.freighter.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors"
+            >
+              Get Freighter
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
           </WalletStepCard>
 
           <WalletStepCard
@@ -124,22 +122,21 @@ export function WalletGuide() {
             description="Switch Freighter to 'Testnet' in its settings, then use the Stellar friendbot to get free test XLM. This lets you practice tipping without spending real money."
             isLast
           >
-            <Button asChild variant="secondary" className="gap-2">
-              <a
-                href="https://laboratory.stellar.org/#account-creator?network=test"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Stellar Friendbot (Testnet Faucet)
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </Button>
+            <a
+              href="https://laboratory.stellar.org/#account-creator?network=test"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-muted text-foreground text-sm rounded-lg border border-border hover:bg-muted/80 transition-colors"
+            >
+              Stellar Friendbot (Testnet Faucet)
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
           </WalletStepCard>
         </TabsContent>
 
         {/* Tab 3: Connect to Quilltip */}
         <TabsContent value="connect">
-          <div className="rounded-xl border border-border bg-muted/50 p-6 mb-8">
+          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
             <h2 className="text-lg font-semibold text-foreground mb-2">
               Connect your wallet to Quilltip
             </h2>
@@ -167,15 +164,18 @@ export function WalletGuide() {
             description="After connecting, visit your profile to save your wallet address for receiving tips. This is your 'receiving wallet' — when readers tip your articles, payments arrive here."
             isLast
           >
-            <Button asChild variant="secondary" className="gap-2">
-              <Link href="/profile">Go to Profile Settings</Link>
-            </Button>
+            <Link
+              href="/profile"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-muted text-foreground text-sm rounded-lg border border-border hover:bg-muted/80 transition-colors"
+            >
+              Go to Profile Settings
+            </Link>
           </WalletStepCard>
         </TabsContent>
 
         {/* Tab 4: Your First Tip */}
         <TabsContent value="first-tip">
-          <div className="rounded-xl border border-border bg-muted/50 p-6 mb-8">
+          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
             <h2 className="text-lg font-semibold text-foreground mb-2">
               Tipping on Quilltip is simple
             </h2>
@@ -191,9 +191,12 @@ export function WalletGuide() {
             title="Browse and read articles"
             description="Head to the Articles page to discover content. Reading is always free — no wallet or account required."
           >
-            <Button asChild variant="secondary" className="gap-2">
-              <Link href="/articles">Browse Articles</Link>
-            </Button>
+            <Link
+              href="/articles"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-muted text-foreground text-sm rounded-lg border border-border hover:bg-muted/80 transition-colors"
+            >
+              Browse Articles
+            </Link>
           </WalletStepCard>
 
           <WalletStepCard

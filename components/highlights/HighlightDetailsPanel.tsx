@@ -133,7 +133,7 @@ export function HighlightDetailsPanel({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 10 }}
       transition={{ duration: 0.2 }}
-      className="fixed z-50 bg-card rounded-xl shadow-2xl border border-border max-w-md w-full"
+      className="fixed z-50 bg-popover text-popover-foreground rounded-xl shadow-2xl border border-border max-w-md w-full"
       style={{
         top: position.top,
         left: position.left,
@@ -167,7 +167,7 @@ export function HighlightDetailsPanel({
       {/* Highlighted Text */}
       <div className="p-4 border-b border-border">
         <div
-          className="p-3 rounded-lg border-l-4 italic text-sm text-muted-foreground"
+          className="p-3 rounded-lg border-l-4 italic text-sm text-foreground"
           style={{ borderLeftColor: highlight.color || '#F59E0B' }}
         >
           &ldquo;{displayText}&rdquo;
@@ -235,7 +235,7 @@ export function HighlightDetailsPanel({
               <div className="flex gap-2">
                 <button
                   onClick={handleSaveNote}
-                  className="flex-1 px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors"
+                  className="flex-1 px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors"
                 >
                   Save
                 </button>
@@ -244,7 +244,7 @@ export function HighlightDetailsPanel({
                     setEditedNote(highlight.note || '')
                     setIsEditing(false)
                   }}
-                  className="flex-1 px-3 py-1.5 bg-secondary text-secondary-foreground text-sm rounded-lg hover:bg-secondary/80 transition-colors"
+                  className="flex-1 px-3 py-1.5 bg-muted text-foreground text-sm rounded-lg hover:bg-muted/80 transition-colors"
                 >
                   Cancel
                 </button>
@@ -264,7 +264,7 @@ export function HighlightDetailsPanel({
 
       {/* Tip Statistics */}
       {tipStats.count > 0 && (
-        <div className="px-4 py-3 border-b border-border bg-muted/40">
+        <div className="px-4 py-3 border-b border-border bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/30 dark:to-orange-950/30">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="w-4 h-4 text-orange-500" />
             <span className="text-xs font-medium text-foreground">
@@ -297,7 +297,7 @@ export function HighlightDetailsPanel({
               <>
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-lg hover:bg-primary/15 transition-colors text-sm font-medium"
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
                 >
                   <Edit className="w-4 h-4" />
                   <span>Edit Note</span>
@@ -309,7 +309,7 @@ export function HighlightDetailsPanel({
                     'w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium',
                     isDeleting
                       ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                      : 'bg-destructive/10 text-destructive hover:bg-destructive/15'
+                      : 'bg-red-50 text-red-700 hover:bg-red-100'
                   )}
                 >
                   {isDeleting ? (

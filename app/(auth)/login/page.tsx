@@ -13,10 +13,10 @@ export default function LoginPage() {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-quill-900">
+        <h2 className="text-2xl font-bold text-foreground">
           Sign in to your account
         </h2>
-        <p className="mt-2 text-sm text-quill-600">
+        <p className="mt-2 text-sm text-muted-foreground">
           Welcome back! Please enter your details.
         </p>
       </div>
@@ -26,7 +26,7 @@ export default function LoginPage() {
 
       {/* Registration Link */}
       <div className="text-center">
-        <p className="text-sm text-quill-600">
+        <p className="text-sm text-muted-foreground">
           Don&apos;t have an account?{' '}
           <Link
             href="/register"

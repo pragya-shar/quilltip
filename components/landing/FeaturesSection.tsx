@@ -71,7 +71,7 @@ export default function FeaturesSection() {
   return (
     <section
       id="features"
-      className="py-32 px-6 bg-gradient-to-b from-white via-neutral-50/30 to-white relative overflow-hidden"
+      className="py-32 px-6 bg-gradient-to-b from-background via-muted/30 to-background relative overflow-hidden"
     >
       <div className="container mx-auto max-w-3xl relative z-10" ref={ref}>
         {/* Header */}
@@ -82,9 +82,9 @@ export default function FeaturesSection() {
           transition={{ duration: 0.8 }}
         >
           <h2 className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-3 leading-[1.15]">
-            <span className="text-neutral-900">Core Features</span>
+            <span className="text-foreground">Core Features</span>
           </h2>
-          <p className="text-[15px] text-neutral-400 leading-relaxed">
+          <p className="text-[15px] text-muted-foreground leading-relaxed">
             Everything writers and readers need.
           </p>
         </motion.div>
@@ -92,9 +92,9 @@ export default function FeaturesSection() {
         {/* Vertical timeline */}
         <div className="relative">
           {/* Center line */}
-          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-neutral-200 -translate-x-1/2" />
+          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-border -translate-x-1/2" />
           <motion.div
-            className="absolute left-1/2 top-0 bottom-0 w-px bg-neutral-900 -translate-x-1/2 origin-top"
+            className="absolute left-1/2 top-0 bottom-0 w-px bg-foreground -translate-x-1/2 origin-top"
             initial={{ scaleY: 0 }}
             animate={isInView ? { scaleY: 1 } : { scaleY: 0 }}
             transition={{ duration: 1.5, delay: 0.3, ease: 'easeOut' }}
@@ -115,18 +115,18 @@ export default function FeaturesSection() {
                   transition={{ duration: 0.5, delay: 0.2 + index * 0.1 }}
                 >
                   {/* Center dot */}
-                  <div className="absolute left-1/2 -translate-x-1/2 z-10 w-10 h-10 rounded-full bg-white border-2 border-neutral-300 group-hover:border-neutral-900 group-hover:scale-110 flex items-center justify-center transition-all duration-300">
-                    <feature.icon className="w-4 h-4 text-neutral-400 group-hover:text-neutral-900 transition-colors duration-300" />
+                  <div className="absolute left-1/2 -translate-x-1/2 z-10 w-10 h-10 rounded-full bg-card border-2 border-border group-hover:border-foreground group-hover:scale-110 flex items-center justify-center transition-all duration-300">
+                    <feature.icon className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors duration-300" />
                   </div>
 
                   {/* Content — alternating sides */}
                   {isLeft ? (
                     <>
                       <div className="w-[calc(50%-36px)] text-right pr-2 group-hover:translate-x-[-4px] transition-transform duration-300">
-                        <h3 className="text-[15px] font-semibold text-neutral-900">
+                        <h3 className="text-[15px] font-semibold text-foreground">
                           {feature.title}
                         </h3>
-                        <p className="text-[13px] text-neutral-400 leading-relaxed mt-0.5">
+                        <p className="text-[13px] text-muted-foreground leading-relaxed mt-0.5">
                           {feature.description}
                         </p>
                       </div>
@@ -136,10 +136,10 @@ export default function FeaturesSection() {
                     <>
                       <div className="w-[calc(50%+36px)]" />
                       <div className="w-[calc(50%-36px)] pl-2 group-hover:translate-x-[4px] transition-transform duration-300">
-                        <h3 className="text-[15px] font-semibold text-neutral-900">
+                        <h3 className="text-[15px] font-semibold text-foreground">
                           {feature.title}
                         </h3>
-                        <p className="text-[13px] text-neutral-400 leading-relaxed mt-0.5">
+                        <p className="text-[13px] text-muted-foreground leading-relaxed mt-0.5">
                           {feature.description}
                         </p>
                       </div>

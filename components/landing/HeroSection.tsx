@@ -102,7 +102,11 @@ export default function HeroSection() {
               style={{ zIndex: 0 }}
             />
           )}
-          <span className="relative z-10">{phrase}</span>
+          <span
+            className={`relative z-10 ${isHighlighted ? 'text-neutral-900' : ''}`}
+          >
+            {phrase}
+          </span>
 
           <AnimatePresence>
             {animationStep === 'tipped' && (
@@ -150,7 +154,7 @@ export default function HeroSection() {
 
           {/* Headline — Fraunces */}
           <motion.h1
-            className="mt-6 font-display text-4xl sm:text-[2.75rem] lg:text-5xl font-medium tracking-[-0.01em] text-neutral-900 leading-[1.2]"
+            className="mt-6 font-display text-4xl sm:text-[2.75rem] lg:text-5xl font-medium tracking-[-0.01em] text-foreground leading-[1.2]"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.5 }}
@@ -202,17 +206,17 @@ export default function HeroSection() {
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
           >
-            <div className="relative bg-white rounded-xl border border-neutral-200/70 shadow-[0_1px_12px_rgba(0,0,0,0.04)] overflow-hidden">
+            <div className="relative bg-card rounded-xl border border-border shadow-[0_1px_12px_rgba(0,0,0,0.04)] overflow-hidden">
               {/* Browser chrome */}
-              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-neutral-100 bg-neutral-50/60">
+              <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/60">
                 <div className="flex gap-1.5">
                   <div className="w-2 h-2 bg-neutral-200 rounded-full" />
                   <div className="w-2 h-2 bg-neutral-200 rounded-full" />
                   <div className="w-2 h-2 bg-neutral-200 rounded-full" />
                 </div>
                 <div className="flex-1 flex justify-center">
-                  <div className="flex items-center gap-1.5 px-3 py-0.5 bg-white rounded-md border border-neutral-100">
-                    <span className="text-[10px] text-neutral-300 font-medium">
+                  <div className="flex items-center gap-1.5 px-3 py-0.5 bg-card rounded-md border border-border">
+                    <span className="text-[10px] text-muted-foreground font-medium">
                       quilltip.app/article/on-open-knowledge
                     </span>
                   </div>
@@ -222,7 +226,7 @@ export default function HeroSection() {
 
               {/* Article content */}
               <div className="px-7 sm:px-10 py-7 sm:py-8">
-                <p className="text-[14px] sm:text-[15px] leading-[1.8] text-neutral-600 text-left">
+                <p className="text-[14px] sm:text-[15px] leading-[1.8] text-muted-foreground text-left">
                   {renderArticleText()}
                 </p>
               </div>
@@ -238,28 +242,28 @@ export default function HeroSection() {
             transition={{ duration: 0.5, delay: 0.1 }}
           >
             <div className="text-center">
-              <p className="text-lg sm:text-xl font-semibold text-neutral-900 tabular-nums">
+              <p className="text-lg sm:text-xl font-semibold text-foreground tabular-nums">
                 97.5%
               </p>
-              <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-widest mt-0.5">
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest mt-0.5">
                 To Authors
               </p>
             </div>
-            <div className="w-px h-6 bg-neutral-150 bg-neutral-200/60" />
+            <div className="w-px h-6 bg-border" />
             <div className="text-center">
-              <p className="text-lg sm:text-xl font-semibold text-neutral-900 tabular-nums">
+              <p className="text-lg sm:text-xl font-semibold text-foreground tabular-nums">
                 3s
               </p>
-              <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-widest mt-0.5">
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest mt-0.5">
                 Settlement
               </p>
             </div>
-            <div className="w-px h-6 bg-neutral-200/60" />
+            <div className="w-px h-6 bg-border" />
             <div className="text-center">
-              <p className="text-lg sm:text-xl font-semibold text-neutral-900 tabular-nums">
+              <p className="text-lg sm:text-xl font-semibold text-foreground tabular-nums">
                 $0.01
               </p>
-              <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-widest mt-0.5">
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest mt-0.5">
                 Min Tip
               </p>
             </div>

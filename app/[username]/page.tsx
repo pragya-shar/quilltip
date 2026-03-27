@@ -199,7 +199,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                   flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
                     activeTab === tab.id
-                      ? 'border-primary text-primary'
+                      ? 'border-brand-blue text-brand-blue'
                       : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                   }
                 `}
@@ -246,8 +246,8 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                   </div>
                 </>
               ) : (
-                <div className="bg-card rounded-lg shadow-sm border border-border p-12 text-center">
-                  <BookOpen className="w-12 h-12 text-muted-foreground/40 mx-auto mb-4" />
+                <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-12 text-center">
+                  <BookOpen className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
                   <p className="text-muted-foreground text-lg">
                     {isOwnProfile
                       ? "You haven't"
@@ -265,7 +265,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
               {/* Owned NFTs */}
               {userNFTs && userNFTs.length > 0 && (
                 <div>
-                  <h3 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
                     <Trophy className="w-5 h-5 text-yellow-500" />
                     Owned NFTs
                   </h3>
@@ -273,7 +273,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                     {userNFTs.map((nft) => (
                       <div
                         key={nft._id}
-                        className="bg-card rounded-lg shadow-sm border border-border p-4"
+                        className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-4"
                       >
                         <div className="aspect-video bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg mb-4 flex items-center justify-center">
                           <Image
@@ -299,14 +299,12 @@ export default function ProfilePage({ params }: ProfilePageProps) {
               {/* Minted NFTs */}
               {mintedNFTs && mintedNFTs.length > 0 && (
                 <div>
-                  <h3 className="text-xl font-semibold text-foreground mb-4">
-                    Minted NFTs
-                  </h3>
+                  <h3 className="text-xl font-semibold mb-4">Minted NFTs</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {mintedNFTs.map((nft) => (
                       <div
                         key={nft._id}
-                        className="bg-card rounded-lg shadow-sm border border-border p-4"
+                        className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-4"
                       >
                         <div className="aspect-video bg-gradient-to-br from-blue-400 to-green-400 rounded-lg mb-4 flex items-center justify-center">
                           <Image
@@ -331,9 +329,9 @@ export default function ProfilePage({ params }: ProfilePageProps) {
 
               {(!userNFTs || userNFTs.length === 0) &&
                 (!mintedNFTs || mintedNFTs.length === 0) && (
-                  <div className="bg-card rounded-lg shadow-sm border border-border p-12 text-center">
+                  <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-12 text-center">
                     <Image
-                      className="w-12 h-12 text-muted-foreground/40 mx-auto mb-4"
+                      className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4"
                       aria-label="No NFTs"
                     />
                     <p className="text-muted-foreground text-lg">
@@ -359,7 +357,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
             <div className="space-y-6">
               {/* Overall Stats */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+                <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-muted-foreground">
                       Total Articles
@@ -370,7 +368,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                     {userWithStats.articleCount}
                   </p>
                 </div>
-                <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+                <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-muted-foreground">Tips Received</span>
                     <DollarSign className="w-5 h-5 text-green-500" />
@@ -379,7 +377,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                     {userWithStats.tipsReceivedCount}
                   </p>
                 </div>
-                <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+                <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-muted-foreground">NFTs Owned</span>
                     <Image

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { LucideIcon } from 'lucide-react'
-import { ThemeToggle } from '@/components/layout/ThemeToggle'
+import { ThemeToggle } from '@/components/theme/ThemeToggle'
 
 interface NavDropdownItem {
   icon: LucideIcon
@@ -38,6 +38,7 @@ interface NavFeatured {
   title: string
   description: string
   href: string
+  bgClass: string
   icon: LucideIcon
 }
 
@@ -55,6 +56,7 @@ const navDropdowns: NavDropdown[] = [
       description:
         'Write, publish, and earn — all in one decentralized platform built on Stellar.',
       href: '#features',
+      bgClass: 'bg-gradient-to-br from-muted/70 to-muted',
       icon: PenTool,
     },
     columns: [
@@ -113,6 +115,7 @@ const navDropdowns: NavDropdown[] = [
       description:
         'Set up your wallet and start earning tips in under 5 minutes.',
       href: '/guide',
+      bgClass: 'bg-gradient-to-br from-muted/60 to-muted',
       icon: BookOpen,
     },
     columns: [
@@ -213,32 +216,34 @@ export default function Navigation() {
     }
   }
 
-  const barClass = scrolled
-    ? 'bg-background/70 backdrop-blur-xl border-b border-border/60 shadow-sm'
-    : 'bg-transparent dark:bg-background/85 dark:backdrop-blur-xl dark:border-b dark:border-border/40'
-
   return (
     <motion.nav
-      className={`fixed top-0 w-full z-50 transition-all duration-500 ${barClass}`}
+      className={`fixed top-0 w-full z-50 transition-all duration-500 ${
+        scrolled
+          ? 'bg-background/70 backdrop-blur-xl border-b border-border/60 shadow-[0_1px_3px_rgba(0,0,0,0.04)]'
+          : 'bg-transparent'
+      }`}
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.6, ease: [0.6, -0.05, 0.01, 0.99] }}
     >
       <div className="container mx-auto max-w-7xl px-6">
         <div className="flex items-center justify-between h-16">
+          {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
             <motion.div
-              className="w-9 h-9 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-sm"
+              className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-accent rounded-xl flex items-center justify-center shadow-sm"
               whileHover={{ scale: 1.05 }}
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
             >
-              <PenTool className="w-[18px] h-[18px] text-primary-foreground" />
+              <PenTool className="w-[18px] h-[18px] text-white" />
             </motion.div>
-            <span className="text-[22px] font-semibold text-neutral-900 dark:text-foreground tracking-tight">
+            <span className="text-[22px] font-semibold text-foreground tracking-tight">
               Quilltip
             </span>
           </Link>
 
+          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1" ref={navRef}>
             <Link
               href="/articles"
@@ -254,7 +259,6 @@ export default function Navigation() {
                 onMouseLeave={handleMouseLeave}
               >
                 <button
-                  type="button"
                   className={`flex items-center gap-1 px-3 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200 ${
                     openDropdown === dropdown.label
                       ? 'text-foreground bg-muted/60'
@@ -272,6 +276,7 @@ export default function Navigation() {
                 <AnimatePresence>
                   {openDropdown === dropdown.label && (
                     <>
+                      {/* Invisible bridge to prevent gap hover loss */}
                       <div className="absolute top-full left-0 h-3 w-full" />
                       <motion.div
                         initial={{ opacity: 0, y: 8 }}
@@ -287,15 +292,16 @@ export default function Navigation() {
                         }}
                       >
                         <div className="flex">
+                          {/* Featured card */}
                           <Link
                             href={dropdown.featured.href}
                             onClick={(e) =>
                               handleSmoothScroll(e, dropdown.featured.href)
                             }
-                            className="w-[200px] shrink-0 p-5 bg-gradient-to-br from-muted to-accent flex flex-col justify-between group/featured"
+                            className={`w-[200px] shrink-0 p-5 ${dropdown.featured.bgClass} flex flex-col justify-between group/featured`}
                           >
                             <div>
-                              <div className="w-10 h-10 bg-background/80 dark:bg-card/80 rounded-xl flex items-center justify-center mb-3 shadow-sm border border-border/50">
+                              <div className="w-10 h-10 bg-card/80 rounded-xl flex items-center justify-center mb-3 shadow-sm">
                                 <dropdown.featured.icon className="w-5 h-5 text-foreground" />
                               </div>
                               <p className="text-[14px] font-semibold text-foreground mb-1.5">
@@ -313,6 +319,7 @@ export default function Navigation() {
                             </span>
                           </Link>
 
+                          {/* Columns */}
                           <div className="flex-1 p-4 flex gap-1">
                             {dropdown.columns.map((column) => (
                               <div key={column.heading} className="flex-1">
@@ -328,16 +335,16 @@ export default function Navigation() {
                                         handleSmoothScroll(e, item.href)
                                         setOpenDropdown(null)
                                       }}
-                                      className="flex items-start gap-2.5 px-2.5 py-2 rounded-xl hover:bg-muted transition-colors duration-150 group/item"
+                                      className="flex items-start gap-2.5 px-2.5 py-2 rounded-xl hover:bg-muted/50 transition-colors duration-150 group/item"
                                     >
-                                      <div className="w-8 h-8 bg-muted group-hover/item:bg-accent rounded-lg flex items-center justify-center shrink-0 transition-colors">
+                                      <div className="w-8 h-8 bg-muted group-hover/item:bg-muted/80 rounded-lg flex items-center justify-center shrink-0 transition-colors">
                                         <item.icon className="w-4 h-4 text-muted-foreground" />
                                       </div>
                                       <div className="min-w-0">
                                         <p className="text-[13px] font-medium text-foreground flex items-center gap-1.5">
                                           {item.title}
                                           {item.badge && (
-                                            <span className="text-[10px] font-semibold bg-primary/15 text-primary px-1.5 py-0.5 rounded-full">
+                                            <span className="text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
                                               {item.badge}
                                             </span>
                                           )}
@@ -373,40 +380,32 @@ export default function Navigation() {
 
             <Link
               href="/register"
-              className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-primary/90 transition-all duration-200 ml-1"
+              className="inline-flex items-center gap-1.5 bg-brand-blue text-white px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-brand-accent transition-all duration-200 ml-1"
             >
               Try on Testnet
-              <span className="text-primary-foreground/70">→</span>
+              <span className="text-white/80">→</span>
             </Link>
           </div>
 
-          <div className="flex items-center gap-1 md:hidden">
-            <ThemeToggle />
-            <button
-              type="button"
-              className="p-2 rounded-lg hover:bg-muted transition-colors"
-              onClick={() => setIsOpen(!isOpen)}
-              aria-label="Toggle menu"
-            >
-              {isOpen ? (
-                <X
-                  size={22}
-                  className="text-neutral-900 dark:text-foreground"
-                />
-              ) : (
-                <Menu
-                  size={22}
-                  className="text-neutral-900 dark:text-foreground"
-                />
-              )}
-            </button>
-          </div>
+          {/* Mobile Menu Button */}
+          <button
+            className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
+            onClick={() => setIsOpen(!isOpen)}
+            aria-label="Toggle menu"
+          >
+            {isOpen ? (
+              <X size={22} className="text-foreground" />
+            ) : (
+              <Menu size={22} className="text-foreground" />
+            )}
+          </button>
         </div>
 
+        {/* Mobile Navigation */}
         <AnimatePresence>
           {isOpen && (
             <motion.div
-              className="md:hidden border-t border-border/60 bg-background/95 backdrop-blur-md"
+              className="md:hidden border-t border-border/60"
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
@@ -473,7 +472,7 @@ export default function Navigation() {
                   </Link>
                   <Link
                     href="/register"
-                    className="block bg-primary text-primary-foreground px-5 py-2.5 rounded-lg hover:bg-primary/90 transition-colors text-center text-sm font-medium"
+                    className="block bg-brand-blue text-white px-5 py-2.5 rounded-lg hover:bg-brand-accent transition-colors text-center text-sm font-medium"
                     onClick={() => setIsOpen(false)}
                   >
                     Try on Testnet →

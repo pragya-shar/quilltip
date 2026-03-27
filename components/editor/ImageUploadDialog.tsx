@@ -177,14 +177,11 @@ export function ImageUploadDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4">
+      <div className="bg-popover text-popover-foreground rounded-lg shadow-xl w-full max-w-md mx-4 border border-border">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
-          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-          <button
-            onClick={handleClose}
-            className="p-1 hover:bg-muted rounded text-foreground"
-          >
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <button onClick={handleClose} className="p-1 hover:bg-muted rounded">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -194,10 +191,10 @@ export function ImageUploadDialog({
           <div className="flex gap-2 mb-4">
             <button
               onClick={() => setUploadMethod('file')}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors border ${
+              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                 uploadMethod === 'file'
-                  ? 'bg-primary/15 text-primary border-primary/30'
-                  : 'bg-muted text-foreground hover:bg-muted/80 border-transparent'
+                  ? 'bg-primary/15 text-primary border border-border'
+                  : 'bg-muted text-foreground hover:bg-muted/80'
               }`}
             >
               <Upload className="w-4 h-4 inline mr-2" />
@@ -205,10 +202,10 @@ export function ImageUploadDialog({
             </button>
             <button
               onClick={() => setUploadMethod('url')}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors border ${
+              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                 uploadMethod === 'url'
-                  ? 'bg-primary/15 text-primary border-primary/30'
-                  : 'bg-muted text-foreground hover:bg-muted/80 border-transparent'
+                  ? 'bg-primary/15 text-primary border border-border'
+                  : 'bg-muted text-foreground hover:bg-muted/80'
               }`}
             >
               <Link2 className="w-4 h-4 inline mr-2" />
@@ -223,7 +220,7 @@ export function ImageUploadDialog({
                 className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
                   dragActive
                     ? 'border-primary bg-primary/10'
-                    : 'border-border hover:border-muted-foreground/50'
+                    : 'border-border hover:border-muted-foreground/40'
                 }`}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -261,7 +258,7 @@ export function ImageUploadDialog({
                         Drag and drop an image, or{' '}
                         <button
                           onClick={() => fileInputRef.current?.click()}
-                          className="text-primary hover:text-primary/90"
+                          className="text-primary hover:text-primary/80"
                         >
                           browse
                         </button>
@@ -342,8 +339,8 @@ export function ImageUploadDialog({
 
           {/* Error Message */}
           {error && (
-            <div className="mt-3 p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
-              <p className="text-sm text-destructive">{error}</p>
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
         </div>

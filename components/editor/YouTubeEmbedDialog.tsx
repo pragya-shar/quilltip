@@ -93,19 +93,14 @@ export function YouTubeEmbedDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md mx-4">
+      <div className="bg-popover text-popover-foreground rounded-lg shadow-xl w-full max-w-md mx-4 border border-border">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-2">
             <Youtube className="w-5 h-5 text-red-600" />
-            <h3 className="text-lg font-semibold text-foreground">
-              Embed YouTube Video
-            </h3>
+            <h3 className="text-lg font-semibold">Embed YouTube Video</h3>
           </div>
-          <button
-            onClick={handleClose}
-            className="p-1 hover:bg-muted rounded text-foreground"
-          >
+          <button onClick={handleClose} className="p-1 hover:bg-muted rounded">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -193,7 +188,7 @@ export function YouTubeEmbedDialog({
                 id="customDimensions"
                 checked={customDimensions}
                 onChange={(e) => setCustomDimensions(e.target.checked)}
-                className="w-4 h-4 text-primary bg-background border-input rounded focus:ring-ring"
+                className="w-4 h-4 text-primary border-input bg-background rounded focus:ring-ring"
               />
               <label
                 htmlFor="customDimensions"
@@ -251,8 +246,8 @@ export function YouTubeEmbedDialog({
 
           {/* Error Message */}
           {error && (
-            <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
-              <p className="text-sm text-destructive">{error}</p>
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
 
@@ -260,7 +255,7 @@ export function YouTubeEmbedDialog({
           <div className="flex gap-3 pt-2">
             <button
               onClick={handleClose}
-              className="flex-1 px-4 py-2 text-foreground bg-secondary hover:bg-secondary/80 rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 text-foreground bg-muted hover:bg-muted/80 rounded-lg transition-colors"
             >
               Cancel
             </button>

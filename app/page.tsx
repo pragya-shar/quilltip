@@ -52,8 +52,8 @@ export default function HomePage() {
                 className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
               >
                 <div className="flex items-center mb-4">
-                  <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-                    <PenSquare className="w-6 h-6 text-blue-600" />
+                  <div className="p-3 bg-blue-100 dark:bg-blue-950/50 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-950/70 transition-colors">
+                    <PenSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                   </div>
                   <h3 className="text-lg font-semibold ml-3">Write Article</h3>
                 </div>
@@ -67,8 +67,8 @@ export default function HomePage() {
                 className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
               >
                 <div className="flex items-center mb-4">
-                  <div className="p-3 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
-                    <BookOpen className="w-6 h-6 text-green-600" />
+                  <div className="p-3 bg-green-100 dark:bg-green-950/50 rounded-lg group-hover:bg-green-200 dark:group-hover:bg-green-950/70 transition-colors">
+                    <BookOpen className="w-6 h-6 text-green-600 dark:text-green-400" />
                   </div>
                   <h3 className="text-lg font-semibold ml-3">
                     Browse Articles
@@ -85,8 +85,8 @@ export default function HomePage() {
                   className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
                 >
                   <div className="flex items-center mb-4">
-                    <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
-                      <TrendingUp className="w-6 h-6 text-purple-600" />
+                    <div className="p-3 bg-purple-100 dark:bg-purple-950/50 rounded-lg group-hover:bg-purple-200 dark:group-hover:bg-purple-950/70 transition-colors">
+                      <TrendingUp className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                     </div>
                     <h3 className="text-lg font-semibold ml-3">
                       Your Earnings
@@ -102,8 +102,8 @@ export default function HomePage() {
                   className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
                 >
                   <div className="flex items-center mb-4">
-                    <div className="p-3 bg-amber-100 rounded-lg group-hover:bg-amber-200 transition-colors">
-                      <Wallet className="w-6 h-6 text-amber-600" />
+                    <div className="p-3 bg-amber-100 dark:bg-amber-950/50 rounded-lg group-hover:bg-amber-200 dark:group-hover:bg-amber-950/70 transition-colors">
+                      <Wallet className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                     </div>
                     <h3 className="text-lg font-semibold ml-3">
                       Set Up Wallet
@@ -124,7 +124,7 @@ export default function HomePage() {
                 </h2>
                 <Link
                   href="/articles"
-                  className="text-sm font-medium text-primary hover:text-primary/90"
+                  className="text-sm text-primary hover:text-primary/80 font-medium"
                 >
                   View all
                 </Link>
@@ -142,7 +142,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-muted/40 to-background">
+    <div className="min-h-screen bg-gradient-to-b from-background via-muted/30 to-background">
       <Navigation />
       <HeroSection />
       <FeaturesSection />

@@ -94,7 +94,7 @@ export function EarningsDashboard() {
           {[1, 2, 3].map((i) => (
             <div
               key={i}
-              className="bg-card border border-border rounded-lg shadow-sm p-6"
+              className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6"
             >
               <Skeleton className="h-4 w-24 mb-4" />
               <Skeleton className="h-8 w-20 mb-2" />
@@ -110,8 +110,8 @@ export function EarningsDashboard() {
   if (!earnings) {
     return (
       <div className="space-y-6">
-        <div className="bg-card border border-border rounded-lg shadow-sm p-12 text-center">
-          <Coins className="w-16 h-16 text-muted-foreground/40 mx-auto mb-4" />
+        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-12 text-center">
+          <Coins className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-foreground mb-2">
             No earnings yet
           </h3>
@@ -130,14 +130,14 @@ export function EarningsDashboard() {
     <div className="space-y-6">
       {/* Wallet Setup Notice */}
       {userProfile && !userProfile.stellarAddress && (
-        <div className="rounded-lg border border-border bg-muted/50 p-6">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
             <div className="flex-1">
-              <h3 className="text-sm font-semibold text-foreground mb-1">
+              <h3 className="text-sm font-semibold text-yellow-900 mb-1">
                 Stellar Wallet Not Configured
               </h3>
-              <p className="text-sm text-muted-foreground mb-3">
+              <p className="text-sm text-yellow-800 mb-3">
                 Please set up your Stellar wallet in the Wallet tab to enable
                 withdrawals.
               </p>
@@ -149,7 +149,7 @@ export function EarningsDashboard() {
                   ) as HTMLButtonElement
                   if (walletTab) walletTab.click()
                 }}
-                className="text-sm font-medium text-primary hover:text-primary/90 underline"
+                className="text-sm font-medium text-yellow-900 hover:text-yellow-700 underline"
               >
                 Go to Wallet Settings →
               </button>
@@ -160,7 +160,7 @@ export function EarningsDashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-lg shadow-sm p-6">
+        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-muted-foreground">Total Earned</span>
             <DollarSign className="w-5 h-5 text-green-500" />
@@ -173,7 +173,7 @@ export function EarningsDashboard() {
           </p>
         </div>
 
-        <div className="bg-card border border-border rounded-lg shadow-sm p-6">
+        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-muted-foreground">Available Balance</span>
             <Coins className="w-5 h-5 text-yellow-500" />
@@ -202,7 +202,7 @@ export function EarningsDashboard() {
           </button>
         </div>
 
-        <div className="bg-card border border-border rounded-lg shadow-sm p-6">
+        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-muted-foreground">Total Withdrawn</span>
             <Clock className="w-5 h-5 text-blue-500" />
@@ -221,10 +221,8 @@ export function EarningsDashboard() {
       {/* Monthly Earnings Chart */}
       {earnings.monthlyEarnings &&
         Object.keys(earnings.monthlyEarnings).length > 0 && (
-          <div className="bg-card border border-border rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-foreground mb-4">
-              Monthly Earnings
-            </h3>
+          <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
+            <h3 className="text-lg font-semibold mb-4">Monthly Earnings</h3>
             <div className="grid grid-cols-6 gap-2">
               {Object.entries(earnings.monthlyEarnings)
                 .sort(([a], [b]) => b.localeCompare(a))
@@ -248,14 +246,14 @@ export function EarningsDashboard() {
 
       {/* Top Articles */}
       {earnings.topArticles && earnings.topArticles.length > 0 && (
-        <div className="bg-card border border-border rounded-lg shadow-sm">
-          <div className="p-6 border-b border-border">
-            <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border">
+          <div className="p-6 border-b">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-green-500" />
               Top Earning Articles
             </h3>
           </div>
-          <div className="divide-y divide-border">
+          <div className="divide-y">
             {earnings.topArticles.slice(0, 5).map((article, index) => (
               <div key={article.articleId} className="p-4 hover:bg-muted/50">
                 <div className="flex items-center justify-between">
@@ -286,13 +284,11 @@ export function EarningsDashboard() {
 
       {/* Recent Tips */}
       {recentTips && recentTips.length > 0 && (
-        <div className="bg-card border border-border rounded-lg shadow-sm">
-          <div className="p-6 border-b border-border">
-            <h3 className="text-lg font-semibold text-foreground">
-              Recent Tips
-            </h3>
+        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border">
+          <div className="p-6 border-b">
+            <h3 className="text-lg font-semibold">Recent Tips</h3>
           </div>
-          <div className="divide-y divide-border">
+          <div className="divide-y">
             {recentTips.slice(0, 10).map((tip) => (
               <div key={tip._id} className="p-4 hover:bg-muted/50">
                 <div className="flex items-center justify-between">
@@ -305,7 +301,7 @@ export function EarningsDashboard() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-green-500">
+                    <p className="font-semibold text-green-600">
                       +${tip.amountUsd.toFixed(2)}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -322,11 +318,9 @@ export function EarningsDashboard() {
       {/* Withdrawal Modal */}
       {showWithdrawModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-lg shadow-xl w-full max-w-md">
+          <div className="bg-popover text-popover-foreground rounded-lg shadow-xl border border-border w-full max-w-md">
             <div className="p-6 border-b border-border">
-              <h3 className="text-lg font-semibold text-foreground">
-                Withdraw Earnings
-              </h3>
+              <h3 className="text-lg font-semibold">Withdraw Earnings</h3>
               <p className="text-sm text-muted-foreground mt-1">
                 Withdraw to your Stellar wallet
               </p>
@@ -386,8 +380,8 @@ export function EarningsDashboard() {
               </div>
 
               {/* Info Box */}
-              <div className="rounded-lg border border-border bg-muted/50 p-3">
-                <p className="text-sm text-muted-foreground">
+              <div className="bg-muted border border-border rounded-lg p-3">
+                <p className="text-sm text-foreground">
                   Withdrawals are processed instantly on the Stellar network.
                   Transaction fees are covered by Quilltip.
                 </p>

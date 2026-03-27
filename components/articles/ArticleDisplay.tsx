@@ -126,7 +126,7 @@ export default function ArticleDisplay({
             {article.tags.map((tag) => (
               <span
                 key={tag.id}
-                className="px-3 py-1 bg-muted text-muted-foreground text-sm rounded-full"
+                className="px-3 py-1 bg-muted text-foreground text-sm rounded-full"
               >
                 {tag.name}
               </span>

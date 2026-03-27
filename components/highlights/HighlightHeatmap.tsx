@@ -58,7 +58,7 @@ export function HighlightHeatmap({
               ? 'No highlight tips yet'
               : 'Be the first to tip a highlight!'}
           </p>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-foreground/85 text-xs">
             {isAuthor
               ? 'Readers can highlight specific phrases and tip them directly'
               : 'Select text to highlight and add a tip to your favorite phrases'}
@@ -67,8 +67,8 @@ export function HighlightHeatmap({
 
         {/* Instructions for readers */}
         {!isAuthor && (
-          <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm text-yellow-800">
+          <div className="mt-4 p-4 rounded-lg border border-border bg-muted">
+            <p className="text-sm text-foreground">
               <strong>How it works:</strong> Select any text in the article,
               then click the tip button to support specific phrases you love!
             </p>
@@ -97,23 +97,23 @@ export function HighlightHeatmap({
 
       {/* Summary Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="text-center p-3 bg-green-50 rounded-lg">
-          <div className="text-2xl font-bold text-green-700">
+        <div className="text-center p-3 rounded-lg border border-border bg-muted/50">
+          <div className="text-2xl font-bold text-foreground">
             {stats.totalTips}
           </div>
-          <div className="text-xs text-green-600">Total Tips</div>
+          <div className="text-xs text-muted-foreground">Total Tips</div>
         </div>
-        <div className="text-center p-3 bg-blue-50 rounded-lg">
-          <div className="text-2xl font-bold text-blue-700">
+        <div className="text-center p-3 rounded-lg border border-border bg-muted/50">
+          <div className="text-2xl font-bold text-foreground">
             ${(stats.totalAmountUsd || 0).toFixed(2)}
           </div>
-          <div className="text-xs text-blue-600">Total Earned</div>
+          <div className="text-xs text-muted-foreground">Total Earned</div>
         </div>
-        <div className="text-center p-3 bg-purple-50 rounded-lg">
-          <div className="text-2xl font-bold text-purple-700">
+        <div className="text-center p-3 rounded-lg border border-border bg-muted/50">
+          <div className="text-2xl font-bold text-foreground">
             {stats.uniqueTippers}
           </div>
-          <div className="text-xs text-purple-600">Unique Tippers</div>
+          <div className="text-xs text-muted-foreground">Unique Tippers</div>
         </div>
       </div>
 

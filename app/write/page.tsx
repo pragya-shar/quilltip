@@ -407,7 +407,7 @@ export default function WritePage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <AppNavigation />
       <div className="flex flex-col pt-16">
         {/* Action bar - full width, Back | Undo | Redo | Save | Preview | Publish */}
@@ -429,7 +429,7 @@ export default function WritePage() {
           hasUnsavedChanges={hasUnsavedChanges}
         />
         <div className="flex-1 flex flex-col min-w-0 pb-8">
-          <div className="sticky top-16 z-40 bg-white w-full mb-6">
+          <div className="sticky top-16 z-40 bg-background w-full mb-6">
             <EditorToolbar
               editor={editor}
               onFocusCoverImage={() => {
@@ -470,7 +470,7 @@ export default function WritePage() {
                     <button
                       type="button"
                       onClick={() => setShowCoverImageDialog(true)}
-                      className="px-4 py-2 bg-white text-gray-800 text-sm font-medium rounded-lg hover:bg-gray-100 transition-colors shadow"
+                      className="px-4 py-2 bg-card text-foreground text-sm font-medium rounded-lg hover:bg-muted transition-colors shadow border border-border"
                     >
                       Change
                     </button>
@@ -480,7 +480,7 @@ export default function WritePage() {
                         setCoverImage('')
                         setHasUnsavedChanges(true)
                       }}
-                      className="px-4 py-2 bg-white text-red-600 text-sm font-medium rounded-lg hover:bg-red-50 transition-colors shadow"
+                      className="px-4 py-2 bg-card text-red-600 text-sm font-medium rounded-lg hover:bg-red-500/10 transition-colors shadow border border-border"
                     >
                       Remove
                     </button>
@@ -490,7 +490,7 @@ export default function WritePage() {
                 <button
                   type="button"
                   onClick={() => setShowCoverImageDialog(true)}
-                  className="w-full h-28 border-2 border-dashed border-gray-200 rounded-xl flex items-center justify-center gap-2 text-gray-400 hover:border-sky-400 hover:text-sky-500 transition-colors group"
+                  className="w-full h-28 border-2 border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:border-sky-400 hover:text-sky-500 transition-colors group"
                 >
                   <svg
                     className="w-5 h-5"
@@ -526,11 +526,11 @@ export default function WritePage() {
                 }}
                 placeholder="Untitled"
                 rows={1}
-                className="w-full resize-none overflow-hidden bg-transparent text-3xl font-semibold text-gray-900 placeholder:text-gray-300 focus:outline-none leading-snug py-2"
+                className="w-full resize-none overflow-hidden bg-transparent text-3xl font-semibold text-foreground placeholder:text-muted-foreground/50 focus:outline-none leading-snug py-2"
               />
               {savedArticleForLink?.authorUsername &&
                 savedArticleForLink.slug && (
-                  <p className="text-xs text-gray-500 mt-1 font-mono">
+                  <p className="text-xs text-muted-foreground mt-1 font-mono">
                     Public URL path (when published): /
                     {savedArticleForLink.authorUsername}/
                     {savedArticleForLink.slug}
@@ -545,10 +545,10 @@ export default function WritePage() {
               />
             )}
 
-            <div className="border-t border-gray-200 mt-8 pt-4">
+            <div className="border-t border-border mt-8 pt-4">
               <label
                 htmlFor="article-tags"
-                className="block text-xs font-medium text-gray-400 mb-1"
+                className="block text-xs font-medium text-muted-foreground mb-1"
               >
                 Tags
               </label>
@@ -561,7 +561,7 @@ export default function WritePage() {
                   setHasUnsavedChanges(true)
                 }}
                 placeholder="Add tags separated by commas (e.g. rust, programming)"
-                className="w-full bg-transparent text-sm text-gray-600 placeholder:text-gray-300 focus:outline-none py-1"
+                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none py-1"
               />
             </div>
           </div>

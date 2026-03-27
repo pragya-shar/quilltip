@@ -164,11 +164,9 @@ export function TipButton({
       {/* Tip Modal */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
-          <div className="bg-card border border-border rounded-xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-popover text-popover-foreground rounded-xl shadow-xl border border-border max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-foreground">
-                Support {authorName}
-              </h3>
+              <h3 className="text-xl font-bold">Support {authorName}</h3>
               <button
                 onClick={() => setIsOpen(false)}
                 className="text-muted-foreground hover:text-foreground"
@@ -184,13 +182,13 @@ export function TipButton({
 
             {/* Wallet Setup Guide (shown when not connected) */}
             {!isConnected && (
-              <div className="mb-4 p-3 rounded-lg border border-border bg-muted/50 text-sm text-foreground">
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
                 <p>Connect your Stellar wallet to send tips to {authorName}.</p>
                 <p className="mt-1">
                   New to crypto?{' '}
                   <Link
                     href="/guide"
-                    className="text-primary underline font-medium hover:text-primary/90"
+                    className="text-amber-700 underline font-medium hover:text-amber-900"
                   >
                     Follow our setup guide
                   </Link>
@@ -209,8 +207,8 @@ export function TipButton({
                   }}
                   className={`relative px-4 py-3 rounded-lg border-2 transition-all ${
                     selectedAmount === amount.cents
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border hover:border-primary/50'
+                      ? 'border-orange-500 bg-orange-50'
+                      : 'border-border hover:border-orange-300'
                   }`}
                 >
                   {amount.popular && (
@@ -218,9 +216,7 @@ export function TipButton({
                       Popular
                     </span>
                   )}
-                  <span className="font-semibold text-foreground">
-                    {amount.label}
-                  </span>
+                  <span className="font-semibold">{amount.label}</span>
                 </button>
               ))}
             </div>
@@ -249,7 +245,7 @@ export function TipButton({
                     setSelectedAmount(null)
                   }}
                   placeholder="0.00"
-                  className="w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent"
+                  className="w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                 />
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -263,7 +259,7 @@ export function TipButton({
               <button
                 onClick={() => setIsOpen(false)}
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 border border-border text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 border border-input bg-background text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>

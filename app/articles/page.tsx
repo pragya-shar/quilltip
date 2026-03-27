@@ -123,7 +123,7 @@ export default function ArticlesPage() {
                     params.set('page', '1')
                     router.push(`/articles?${params.toString()}`)
                   }}
-                  className="ml-2 hover:opacity-80"
+                  className="ml-2 hover:text-primary-foreground/80"
                   aria-label="Remove tag filter"
                 >
                   ×
@@ -142,7 +142,7 @@ export default function ArticlesPage() {
                     params.set('page', '1')
                     router.push(`/articles?${params.toString()}`)
                   }}
-                  className="ml-2 hover:opacity-80"
+                  className="ml-2 hover:text-primary-foreground/80"
                   aria-label="Remove author filter"
                 >
                   ×
@@ -161,7 +161,7 @@ export default function ArticlesPage() {
                     params.set('page', '1')
                     router.push(`/articles?${params.toString()}`)
                   }}
-                  className="ml-2 hover:opacity-80"
+                  className="ml-2 hover:text-primary-foreground/80"
                   aria-label="Remove search filter"
                 >
                   ×
