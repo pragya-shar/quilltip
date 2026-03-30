@@ -10,7 +10,6 @@ import {
 } from './lib/articleSlug'
 import {
   buildSearchContent,
-  extractTextFromContent,
   removeTagLinksForArticle,
   replaceTagLinksForArticle,
 } from './lib/articleListing'
