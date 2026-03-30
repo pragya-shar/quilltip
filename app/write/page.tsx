@@ -36,6 +36,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 
+const PUBLISH_EXCERPT_PREVIEW_MAX = 280
+
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
 type NavConfirmState = null | { kind: 'href'; href: string } | { kind: 'back' }
@@ -87,6 +89,7 @@ export default function WritePage() {
     published: false,
     publishedAt: null,
   })
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false)
 
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
@@ -288,9 +291,23 @@ export default function WritePage() {
     return () => window.removeEventListener('keydown', handler)
   }, [saveNow])
 
+  const requestPublish = useCallback(() => {
+    if (!editor || editor.isEmpty) {
+      toast.warning('Please add content before publishing')
+      return
+    }
+    setPublishConfirmOpen(true)
+  }, [editor])
+
   // Handle publish
   const handlePublish = useCallback(async () => {
+    if (!editor || editor.isEmpty) {
+      setPublishConfirmOpen(false)
+      toast.warning('Please add content before publishing')
+      return
+    }
     if (!editorContent) {
+      setPublishConfirmOpen(false)
       toast.warning('Please add content before publishing')
       return
     }
@@ -352,6 +369,7 @@ export default function WritePage() {
     articleId,
     publishArticleMutation,
     createArticleMutation,
+    editor,
   ])
 
   const handleDelete = useCallback(async () => {
@@ -406,6 +424,20 @@ export default function WritePage() {
     return null
   }
 
+  const tagsPreview =
+    tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .join(', ') || 'No tags'
+  const excerptTrimmed = excerpt.trim()
+  const excerptPreview =
+    excerptTrimmed.length === 0
+      ? 'No excerpt'
+      : excerptTrimmed.length <= PUBLISH_EXCERPT_PREVIEW_MAX
+        ? excerptTrimmed
+        : `${excerptTrimmed.slice(0, PUBLISH_EXCERPT_PREVIEW_MAX).trimEnd()}...`
+
   return (
     <div className="min-h-screen bg-background">
       <AppNavigation />
@@ -418,12 +450,12 @@ export default function WritePage() {
             saveNow()
             setHasUnsavedChanges(false)
           }}
-          onPublish={handlePublish}
+          onPublish={requestPublish}
           isSaving={isSaving}
           error={error?.message ?? null}
           isPublished={publishStatus.published}
           isPublishing={isPublishing}
-          canPublish={!!editorContent}
+          canPublish={!!editor}
           lastSavedAt={lastSavedAt ?? undefined}
           onDelete={handleDelete}
           hasUnsavedChanges={hasUnsavedChanges}
@@ -593,6 +625,61 @@ export default function WritePage() {
           setHasUnsavedChanges(true)
         }}
       />
+
+      <AlertDialog
+        open={publishConfirmOpen}
+        onOpenChange={setPublishConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Publish this article?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-left text-sm text-muted-foreground">
+                <p>
+                  Publishing stores your content on Arweave (permanent storage).
+                  You cannot undo this or remove that snapshot from Arweave.
+                </p>
+                <div className="space-y-2 rounded-md border border-border bg-muted/40 p-3 text-foreground">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Title
+                    </div>
+                    <p className="mt-0.5 font-medium">
+                      {title.trim() || 'Untitled'}
+                    </p>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Tags
+                    </div>
+                    <p className="mt-0.5">{tagsPreview}</p>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Excerpt
+                    </div>
+                    <p className="mt-0.5 whitespace-pre-wrap break-words">
+                      {excerptPreview}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              onClick={() => {
+                setPublishConfirmOpen(false)
+                void handlePublish()
+              }}
+            >
+              Publish
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={navConfirm !== null}
