@@ -66,6 +66,9 @@ export default defineSchema({
     // Tags
     tags: v.optional(v.array(v.string())),
 
+    // Denormalized for full-text listing (title, excerpt, body snippet, tags); see search_listing
+    searchContent: v.optional(v.string()),
+
     // Stats (denormalized)
     viewCount: v.optional(v.number()),
     highlightCount: v.optional(v.number()),
@@ -98,10 +101,21 @@ export default defineSchema({
     .index('by_published', ['published'])
     .index('by_author_published', ['authorId', 'published']) // Composite for author's published articles
     .index('by_published_date', ['published', 'publishedAt']) // For listing by date
-    .searchIndex('search_title', {
-      searchField: 'title',
+    .searchIndex('search_listing', {
+      searchField: 'searchContent',
       filterFields: ['published', 'authorUsername'],
     }),
+
+  // One row per (article, tag) for published articles; used for indexed tag listing
+  articleTagLinks: defineTable({
+    articleId: v.id('articles'),
+    tag: v.string(),
+    authorId: v.id('users'),
+    publishedAt: v.number(),
+  })
+    .index('by_article', ['articleId'])
+    .index('by_tag_publishedAt', ['tag', 'publishedAt'])
+    .index('by_author_tag_publishedAt', ['authorId', 'tag', 'publishedAt']),
 
   // Tags table
   tags: defineTable({
