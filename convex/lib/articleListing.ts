@@ -23,11 +23,13 @@ export function buildSearchContent(
 ): string {
   const t = title.trim()
   const e = excerpt?.trim() ?? ''
-  const tagPart = [...new Set((options?.tags ?? []).map((x) => x.trim()).filter(Boolean))].join(
-    ' '
-  )
+  const tagPart = [
+    ...new Set((options?.tags ?? []).map((x) => x.trim()).filter(Boolean)),
+  ].join(' ')
   const bodySnippet = options?.content
-    ? extractTextFromContent(options.content).slice(0, MAX_BODY_CHARS_FOR_SEARCH).trim()
+    ? extractTextFromContent(options.content)
+        .slice(0, MAX_BODY_CHARS_FOR_SEARCH)
+        .trim()
     : ''
   return [t, e, bodySnippet, tagPart].filter(Boolean).join(' ').trim()
 }

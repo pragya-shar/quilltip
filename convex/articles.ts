@@ -165,9 +165,7 @@ export const listArticles = query({
       .order('desc')
 
     if (authorId) {
-      rowsQuery = rowsQuery.filter((q) =>
-        q.eq(q.field('authorId'), authorId!)
-      )
+      rowsQuery = rowsQuery.filter((q) => q.eq(q.field('authorId'), authorId!))
     }
 
     const rows = await rowsQuery.collect()
