@@ -55,10 +55,7 @@ export function ProfileNftsTabContent({
                 className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-4"
               >
                 <div className="aspect-video bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg mb-4 flex items-center justify-center">
-                  <Image
-                    className="w-12 h-12 text-white"
-                    aria-label="NFT"
-                  />
+                  <Image className="w-12 h-12 text-white" aria-label="NFT" />
                 </div>
                 <h4 className="font-semibold text-foreground truncate">
                   {nft.article?.title || 'Untitled'}
@@ -85,10 +82,7 @@ export function ProfileNftsTabContent({
                 className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-4"
               >
                 <div className="aspect-video bg-gradient-to-br from-blue-400 to-green-400 rounded-lg mb-4 flex items-center justify-center">
-                  <Image
-                    className="w-12 h-12 text-white"
-                    aria-label="NFT"
-                  />
+                  <Image className="w-12 h-12 text-white" aria-label="NFT" />
                 </div>
                 <h4 className="font-semibold text-foreground truncate">
                   {nft.article?.title || 'Untitled'}
@@ -112,10 +106,8 @@ export function ProfileNftsTabContent({
             aria-label="No NFTs"
           />
           <p className="text-muted-foreground text-lg">
-            {isOwnProfile
-              ? "You don't"
-              : `${displayName} doesn't`}{' '}
-            have any NFTs yet.
+            {isOwnProfile ? "You don't" : `${displayName} doesn't`} have any
+            NFTs yet.
           </p>
         </div>
       )}

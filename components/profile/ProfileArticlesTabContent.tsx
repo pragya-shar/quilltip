@@ -37,10 +37,8 @@ export function ProfileArticlesTabContent({
       <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-12 text-center">
         <BookOpen className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4" />
         <p className="text-muted-foreground text-lg">
-          {isOwnProfile
-            ? "You haven't"
-            : `${displayName} hasn't`}{' '}
-          published any articles yet.
+          {isOwnProfile ? "You haven't" : `${displayName} hasn't`} published any
+          articles yet.
         </p>
       </div>
     )

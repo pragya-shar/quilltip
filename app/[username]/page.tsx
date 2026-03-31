@@ -12,13 +12,7 @@ import { ProfileNftsTabContent } from '@/components/profile/ProfileNftsTabConten
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
 import { EarningsDashboard } from '@/components/dashboard/EarningsDashboard'
 import { WalletSettings } from '@/components/stellar'
-import {
-  BookOpen,
-  DollarSign,
-  Image,
-  ChartBar,
-  Wallet,
-} from 'lucide-react'
+import { BookOpen, DollarSign, Image, ChartBar, Wallet } from 'lucide-react'
 
 interface ProfilePageProps {
   params: Promise<{
