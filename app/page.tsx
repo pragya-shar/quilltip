@@ -1,8 +1,6 @@
 'use client'
 
 import { useAuth } from '@/components/providers/AuthContext'
-import { useListArticles } from '@/hooks/convex'
-import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
 import Navigation from '@/components/landing/Navigation'
 import AppNavigation from '@/components/layout/AppNavigation'
 import HeroSection from '@/components/landing/HeroSection'
@@ -11,21 +9,12 @@ import HowItWorksSection from '@/components/landing/HowItWorksSection'
 import FAQSection from '@/components/landing/FAQSection'
 import Footer from '@/components/landing/Footer'
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
-import ArticleGrid from '@/components/articles/ArticleGrid'
-import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
+import { HomeRecentArticlesSection } from '@/components/articles/HomeRecentArticlesSection'
 import Link from 'next/link'
 import { PenSquare, BookOpen, Wallet, TrendingUp } from 'lucide-react'
-import { ArticleForDisplay } from '@/types/index'
 
 export default function HomePage() {
   const { user, isAuthenticated } = useAuth()
-
-  // Fetch recent articles for the dashboard (only when authenticated)
-  const result = useListArticles(isAuthenticated ? { limit: 6 } : 'skip')
-
-  const recentArticles: ArticleForDisplay[] = result
-    ? mapListArticlesToDisplay(result.articles)
-    : []
 
   const hasWallet = !!user?.stellarAddress
   const showOnboarding = isAuthenticated && user && !user.onboardingCompleted
@@ -129,11 +118,7 @@ export default function HomePage() {
                   View all
                 </Link>
               </div>
-              {result === undefined ? (
-                <ArticleGridSkeleton count={6} />
-              ) : (
-                <ArticleGrid articles={recentArticles} variant="home" />
-              )}
+              <HomeRecentArticlesSection />
             </div>
           </div>
         </div>

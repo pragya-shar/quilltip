@@ -20,14 +20,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { DraftsListSkeleton } from '@/components/drafts/DraftsListSkeleton'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function DraftsPage() {
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
 
-  // Fetch drafts using Convex query
-  const drafts = useUserDrafts() || []
-  const loading = drafts === undefined
+  const draftsQuery = useUserDrafts()
+  const loading = draftsQuery === undefined
+  const drafts = draftsQuery ?? []
 
   // Convex mutation for deleting articles
   const deleteArticleMutation = useMutation(api.articles.deleteArticle)
@@ -35,8 +37,15 @@ export default function DraftsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen bg-muted/30">
+        <AppNavigation />
+        <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
+          <div className="flex justify-between items-center mb-8">
+            <Skeleton className="h-9 w-48" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+          <DraftsListSkeleton />
+        </div>
       </div>
     )
   }
@@ -72,9 +81,7 @@ export default function DraftsPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-12">
-            <div className="text-muted-foreground">Loading drafts...</div>
-          </div>
+          <DraftsListSkeleton />
         ) : drafts.length === 0 ? (
           <div className="text-center py-12 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)]">
             <div className="text-muted-foreground mb-4">No drafts yet</div>

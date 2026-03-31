@@ -9,25 +9,23 @@ import {
   useUserReceivedTips,
 } from '@/hooks/convex'
 import { Coins } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { useAuth } from '@/components/providers/AuthContext'
 import { MIN_WITHDRAWAL_USD } from '@/lib/constants'
 import { TipHistory } from '@/components/dashboard/TipHistory'
 import { WithdrawalDialog } from '@/components/dashboard/WithdrawalDialog'
 import { EarningsStats } from '@/components/dashboard/EarningsStats'
+import { EarningsDashboardSkeleton } from '@/components/dashboard/EarningsDashboardSkeleton'
 
 export function EarningsDashboard() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
 
   const { user: currentUser } = useAuth()
 
-  // Fetch earnings data
   const earnings = useAuthorEarnings()
   const recentTips = useUserReceivedTips()
   const userProfile = useUserByUsername(currentUser?.username)
 
-  // Withdrawal mutations
   const withdrawEarnings = useMutation(api.tips.withdrawEarnings)
 
   const handleWithdrawFromDialog = async (args: {
@@ -51,24 +49,10 @@ export function EarningsDashboard() {
     }
   }
 
-  // Loading state
   if (earnings === undefined || recentTips === undefined) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-lg shadow p-6">
-              <Skeleton className="h-4 w-24 mb-4" />
-              <Skeleton className="h-8 w-20 mb-2" />
-              <Skeleton className="h-3 w-16" />
-            </div>
-          ))}
-        </div>
-      </div>
-    )
+    return <EarningsDashboardSkeleton />
   }
 
-  // No earnings yet
   if (!earnings) {
     return (
       <div className="space-y-6">

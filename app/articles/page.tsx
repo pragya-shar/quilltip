@@ -2,14 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { useListArticles } from '@/hooks/convex'
-import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
 import AppNavigation from '@/components/layout/AppNavigation'
-import ArticleGrid from '@/components/articles/ArticleGrid'
-import Pagination from '@/components/articles/Pagination'
 import SearchInput from '@/components/articles/SearchInput'
-import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
-import { ArticleForDisplay } from '@/types/index'
+import { ArticlesBrowseContent } from '@/components/articles/ArticlesBrowseContent'
 
 export default function ArticlesPage() {
   const [searchTerm, setSearchTerm] = useState('')
@@ -22,50 +17,10 @@ export default function ArticlesPage() {
   const author = searchParams?.get('author') || undefined
   const urlSearch = searchParams?.get('search') || undefined
 
-  // Use Convex query to fetch articles
-  const result = useListArticles({
-    page: currentPage,
-    limit: 9,
-    tag,
-    author,
-    search: urlSearch,
-  })
-
-  const articles: ArticleForDisplay[] = result
-    ? mapListArticlesToDisplay(result.articles)
-    : []
-  const pagination = result
-    ? {
-        page: result.page,
-        limit: result.limit,
-        totalCount: result.total,
-        totalPages: result.totalPages || Math.ceil(result.total / result.limit),
-        hasNextPage:
-          result.page <
-          (result.totalPages || Math.ceil(result.total / result.limit)),
-        hasPreviousPage: result.page > 1,
-      }
-    : {
-        page: 1,
-        limit: 9,
-        totalCount: 0,
-        totalPages: 0,
-        hasNextPage: false,
-        hasPreviousPage: false,
-      }
-  const loading = result === undefined
-  const error = null // Convex handles errors automatically
-
   // Sync searchTerm with URL parameter
   useEffect(() => {
     setSearchTerm(urlSearch || '')
   }, [urlSearch])
-
-  const handlePageChange = (page: number) => {
-    const params = new URLSearchParams(searchParams?.toString() || '')
-    params.set('page', page.toString())
-    router.push(`/articles?${params.toString()}`)
-  }
 
   const handleSearchChange = (search: string) => {
     const params = new URLSearchParams(searchParams?.toString() || '')
@@ -177,40 +132,12 @@ export default function ArticlesPage() {
           </div>
         )}
 
-        {/* Loading State */}
-        {loading && <ArticleGridSkeleton count={9} />}
-
-        {/* Error handling is done automatically by Convex */}
-
-        {/* Articles Grid */}
-        {!loading && !error && (
-          <>
-            <ArticleGrid articles={articles} />
-
-            {/* Pagination */}
-            {pagination.totalPages > 1 && (
-              <div className="mt-12">
-                <Pagination
-                  currentPage={pagination.page}
-                  totalPages={pagination.totalPages}
-                  onPageChange={handlePageChange}
-                />
-              </div>
-            )}
-
-            {/* Results Summary */}
-            {articles.length > 0 && (
-              <div className="mt-4 text-center text-sm text-muted-foreground">
-                Showing {(pagination.page - 1) * pagination.limit + 1} -{' '}
-                {Math.min(
-                  pagination.page * pagination.limit,
-                  pagination.totalCount
-                )}{' '}
-                of {pagination.totalCount} articles
-              </div>
-            )}
-          </>
-        )}
+        <ArticlesBrowseContent
+          currentPage={currentPage}
+          tag={tag}
+          author={author}
+          urlSearch={urlSearch}
+        />
       </main>
     </div>
   )

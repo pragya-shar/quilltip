@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useEditor, EditorContent, JSONContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -17,6 +17,7 @@ import { ImageUploadDialog } from '@/components/editor/ImageUploadDialog'
 import { ExcerptTagsDialog } from '@/components/editor/ExcerptTagsDialog'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
+import { EditorChromeSkeleton } from '@/components/editor/EditorChromeSkeleton'
 import { useAutoSave } from '@/hooks/useAutoSave'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -92,6 +93,7 @@ export default function WritePage() {
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false)
 
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { isAuthenticated, isLoading } = useAuth()
 
   useEffect(() => {
@@ -178,16 +180,11 @@ export default function WritePage() {
     },
   })
 
-  // Get draft ID from URL params
-  const urlParams =
-    typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search)
-      : null
-  const draftId = urlParams?.get('id')
+  const draftIdParam = searchParams.get('id')
 
   // Load draft using Convex query
   const draft = useArticleById(
-    draftId ? (draftId as Id<'articles'>) : undefined
+    draftIdParam ? (draftIdParam as Id<'articles'>) : undefined
   )
 
   const savedArticleForLink = useArticleById(
@@ -413,8 +410,9 @@ export default function WritePage() {
   // Authentication checks
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen bg-background">
+        <AppNavigation />
+        <EditorChromeSkeleton />
       </div>
     )
   }
@@ -422,6 +420,16 @@ export default function WritePage() {
   if (!isAuthenticated) {
     router.push('/login')
     return null
+  }
+
+  const draftLoading = Boolean(draftIdParam) && draft === undefined
+  if (draftLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppNavigation />
+        <EditorChromeSkeleton />
+      </div>
+    )
   }
 
   const tagsPreview =
