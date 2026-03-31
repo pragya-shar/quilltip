@@ -33,7 +33,6 @@ export const ChartTooltip = dynamic(
 )
 
 export const ChartLegend = dynamic(
-  () =>
-    import('@/components/ui/chart-recharts').then((mod) => mod.ChartLegend),
+  () => import('@/components/ui/chart-recharts').then((mod) => mod.ChartLegend),
   { ssr: false, loading: () => null }
 )

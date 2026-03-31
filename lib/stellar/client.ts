@@ -219,9 +219,7 @@ export class StellarClient {
   ): Promise<TransactionResult> {
     const { StellarSdk, server } = await this.getSdkContext()
     try {
-      const sourceAccount = await server.loadAccount(
-        sourceKeypair.publicKey()
-      )
+      const sourceAccount = await server.loadAccount(sourceKeypair.publicKey())
       const xlmAmount = (amountStroops / 10_000_000).toFixed(7)
 
       const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {

@@ -71,9 +71,8 @@ export async function uploadArticle(
       )
     }
 
-    const { TurboFactory, ArweaveSigner } = await import(
-      '@ardrive/turbo-sdk/node'
-    )
+    const { TurboFactory, ArweaveSigner } =
+      await import('@ardrive/turbo-sdk/node')
 
     const signer = new ArweaveSigner(jwk)
     const turbo = TurboFactory.authenticated({ signer })
