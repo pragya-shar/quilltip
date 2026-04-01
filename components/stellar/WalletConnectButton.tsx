@@ -52,9 +52,15 @@ export function WalletConnectButton({
   // Show loading state
   if (isLoading) {
     return (
-      <Button disabled size={size} variant={variant} className={className}>
-        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-        Loading...
+      <Button
+        disabled
+        size={size}
+        variant={variant}
+        className={className}
+        aria-busy
+        aria-label="Wallet loading"
+      >
+        <Loader2 className="w-4 h-4 animate-spin" />
       </Button>
     )
   }

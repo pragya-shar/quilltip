@@ -1,13 +1,14 @@
 'use client'
 
 import { notFound } from 'next/navigation'
-import { useState, useEffect, useMemo } from 'react'
+import { use, useState, useMemo } from 'react'
 import {
   useArticleBySlug,
   useArticleHighlightTipStatsOptional,
   useArticleHighlightsQuery,
 } from '@/hooks/convex'
 import ArticleDisplay from '@/components/articles/ArticleDisplay'
+import { ArticlePageLoadingSkeleton } from '@/components/articles/ArticlePageLoadingSkeleton'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { TipStats } from '@/components/tipping/TipStats'
 import { TipButton } from '@/components/tipping/TipButton'
@@ -36,24 +37,11 @@ interface ArticlePageProps {
 }
 
 export default function ArticlePage({ params }: ArticlePageProps) {
-  const [routeParams, setRouteParams] = useState<{
-    username: string | null
-    slug: string | null
-  }>({ username: null, slug: null })
+  const { username, slug } = use(params)
   const [showHighlightsPanel, setShowHighlightsPanel] = useState(false)
   const { user } = useAuth()
 
-  // Get params from promise
-  useEffect(() => {
-    params.then((p) =>
-      setRouteParams({
-        username: p.username,
-        slug: p.slug,
-      })
-    )
-  }, [params])
-
-  const article = useArticleBySlug(routeParams.username, routeParams.slug)
+  const article = useArticleBySlug(username, slug)
 
   const highlights = useArticleHighlightsQuery(article?._id)
 
@@ -70,31 +58,8 @@ export default function ArticlePage({ params }: ArticlePageProps) {
     )
   }, [highlightTipStats])
 
-  // Loading state
-  if (routeParams.username === null || routeParams.slug === null) {
-    return (
-      <div className="min-h-screen bg-background">
-        <AppNavigation />
-        <main className="pt-20">
-          <div className="max-w-4xl mx-auto px-4 py-8">
-            <div className="animate-pulse">
-              <div className="h-96 bg-muted rounded-lg mb-8"></div>
-              <div className="h-8 bg-muted rounded w-3/4 mb-4"></div>
-              <div className="h-4 bg-muted rounded w-1/2 mb-8"></div>
-              <div className="space-y-3">
-                <div className="h-4 bg-muted rounded"></div>
-                <div className="h-4 bg-muted rounded"></div>
-                <div className="h-4 bg-muted rounded w-5/6"></div>
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
-    )
-  }
-
   // Check if article exists (null means not found, undefined means loading)
-  if (routeParams.username && routeParams.slug && article === null) {
+  if (article === null) {
     notFound()
   }
 
@@ -103,20 +68,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
     return (
       <div className="min-h-screen bg-background">
         <AppNavigation />
-        <main className="pt-20">
-          <div className="max-w-4xl mx-auto px-4 py-8">
-            <div className="animate-pulse">
-              <div className="h-96 bg-muted rounded-lg mb-8"></div>
-              <div className="h-8 bg-muted rounded w-3/4 mb-4"></div>
-              <div className="h-4 bg-muted rounded w-1/2 mb-8"></div>
-              <div className="space-y-3">
-                <div className="h-4 bg-muted rounded"></div>
-                <div className="h-4 bg-muted rounded"></div>
-                <div className="h-4 bg-muted rounded w-5/6"></div>
-              </div>
-            </div>
-          </div>
-        </main>
+        <ArticlePageLoadingSkeleton />
       </div>
     )
   }
