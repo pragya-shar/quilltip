@@ -22,8 +22,10 @@ import {
   FileText,
   Tag,
   Youtube,
+  MoreHorizontal,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ImageUploadDialog } from './ImageUploadDialog'
 import { YouTubeEmbedDialog } from './YouTubeEmbedDialog'
@@ -75,8 +77,13 @@ function ToolbarButton({
   )
 }
 
-function ToolbarDivider() {
-  return <div className="w-px h-5 bg-border mx-0.5 shrink-0" aria-hidden />
+function ToolbarDivider({ className = '' }: { className?: string }) {
+  return (
+    <div
+      className={`w-px h-5 bg-border mx-0.5 shrink-0 ${className}`}
+      aria-hidden
+    />
+  )
 }
 
 export function EditorToolbar({
@@ -93,6 +100,31 @@ export function EditorToolbar({
   const [showImageDialog, setShowImageDialog] = useState(false)
   const [showYouTubeDialog, setShowYouTubeDialog] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
+  const linkAnchorRef = useRef<HTMLDivElement>(null)
+  const [linkPopoverPos, setLinkPopoverPos] = useState<{
+    top: number
+    left: number
+  } | null>(null)
+
+  useLayoutEffect(() => {
+    if (!showLinkInput) {
+      setLinkPopoverPos(null)
+      return
+    }
+    const el = linkAnchorRef.current
+    if (!el) return
+    const update = () => {
+      const r = el.getBoundingClientRect()
+      setLinkPopoverPos({ top: r.bottom + 4, left: r.left })
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [showLinkInput])
 
   if (!editor) {
     return null
@@ -170,9 +202,52 @@ export function EditorToolbar({
     }
   }
 
+  const linkPopover =
+    showLinkInput &&
+    linkPopoverPos &&
+    typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="fixed z-[100] bg-popover border border-border rounded-lg shadow-lg p-2 flex flex-wrap items-center gap-2 max-w-[min(100vw-1rem,24rem)]"
+            style={{
+              top: linkPopoverPos.top,
+              left: (() => {
+                if (typeof window === 'undefined') return linkPopoverPos.left
+                const maxLeft = Math.max(8, window.innerWidth - 8 - 320)
+                return Math.max(8, Math.min(linkPopoverPos.left, maxLeft))
+              })(),
+            }}
+          >
+            <input
+              type="url"
+              placeholder="Enter URL"
+              value={linkUrl}
+              onChange={(e) => setLinkUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addLink()
+                else if (e.key === 'Escape') {
+                  setShowLinkInput(false)
+                  setLinkUrl('')
+                }
+              }}
+              className="flex-1 min-w-[12rem] px-2 py-1.5 border border-input bg-background text-foreground rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <button
+              type="button"
+              onClick={addLink}
+              className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90 shrink-0"
+            >
+              Add
+            </button>
+          </div>,
+          document.body
+        )
+      : null
+
   return (
-    <div className="bg-background w-full relative flex items-center justify-center min-h-[44px] px-6 py-2">
-      <div className="flex items-center gap-0.5 flex-nowrap min-w-0 justify-center">
+    <div className="bg-background w-full min-w-0 flex items-stretch min-h-[44px] px-3 sm:px-6 py-2 gap-2">
+      <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:thin]">
+        <div className="inline-flex min-h-[44px] flex-nowrap items-center gap-0.5 justify-start">
         {/* Paragraph / style dropdown */}
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
@@ -266,39 +341,41 @@ export function EditorToolbar({
           <List className="w-4 h-4" />
         </ToolbarButton>
 
-        <ToolbarDivider />
+        <ToolbarDivider className="hidden md:block" />
 
-        {/* Alignment */}
-        <ToolbarButton
-          onClick={() => setTextAlign('left')}
-          isActive={editor.isActive({ textAlign: 'left' })}
-          title="Align left"
-        >
-          <AlignLeft className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => setTextAlign('center')}
-          isActive={editor.isActive({ textAlign: 'center' })}
-          title="Align center"
-        >
-          <AlignCenter className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => setTextAlign('right')}
-          isActive={editor.isActive({ textAlign: 'right' })}
-          title="Align right"
-        >
-          <AlignRight className="w-4 h-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => setTextAlign('justify')}
-          isActive={editor.isActive({ textAlign: 'justify' })}
-          title="Justify"
-        >
-          <AlignJustify className="w-4 h-4" />
-        </ToolbarButton>
+        {/* Alignment — md+ only */}
+        <div className="hidden md:contents">
+          <ToolbarButton
+            onClick={() => setTextAlign('left')}
+            isActive={editor.isActive({ textAlign: 'left' })}
+            title="Align left"
+          >
+            <AlignLeft className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => setTextAlign('center')}
+            isActive={editor.isActive({ textAlign: 'center' })}
+            title="Align center"
+          >
+            <AlignCenter className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => setTextAlign('right')}
+            isActive={editor.isActive({ textAlign: 'right' })}
+            title="Align right"
+          >
+            <AlignRight className="w-4 h-4" />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => setTextAlign('justify')}
+            isActive={editor.isActive({ textAlign: 'justify' })}
+            title="Justify"
+          >
+            <AlignJustify className="w-4 h-4" />
+          </ToolbarButton>
 
-        <ToolbarDivider />
+          <ToolbarDivider />
+        </div>
 
         {/* Add - dropdown: Article Title, Cover Image URL, Excerpt, Tags */}
         <DropdownMenu.Root>
@@ -352,7 +429,7 @@ export function EditorToolbar({
         </DropdownMenu.Root>
 
         {/* Link */}
-        <div className="relative shrink-0">
+        <div ref={linkAnchorRef} className="relative shrink-0">
           {editor.isActive('link') ? (
             <ToolbarButton onClick={removeLink} isActive title="Remove link">
               <Link2 className="w-4 h-4" />
@@ -365,36 +442,84 @@ export function EditorToolbar({
               <Link2 className="w-4 h-4" />
             </ToolbarButton>
           )}
-          {showLinkInput && (
-            <div className="absolute top-full left-0 mt-1 bg-popover border border-border rounded-lg shadow-lg p-2 z-50 flex items-center gap-2">
-              <input
-                type="url"
-                placeholder="Enter URL"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') addLink()
-                  else if (e.key === 'Escape') {
-                    setShowLinkInput(false)
-                    setLinkUrl('')
-                  }
-                }}
-                className="px-2 py-1.5 border border-input bg-background text-foreground rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring min-w-[200px]"
-              />
+        </div>
+
+        {/* More: alignment, image, YouTube on small screens */}
+        <div className="md:hidden shrink-0">
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
               <button
-                onClick={addLink}
-                className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90"
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                className="p-2 rounded hover:bg-muted text-foreground transition-colors cursor-pointer shrink-0"
+                title="More formatting"
+                aria-label="More formatting"
               >
-                Add
+                <MoreHorizontal className="w-4 h-4" />
               </button>
-            </div>
-          )}
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50 min-w-[200px]"
+                sideOffset={4}
+                align="start"
+              >
+                <DropdownMenu.Label className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                  Alignment
+                </DropdownMenu.Label>
+                <DropdownMenu.Item
+                  onSelect={() => setTextAlign('left')}
+                  className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                >
+                  <AlignLeft className="w-4 h-4 shrink-0" />
+                  Align left
+                </DropdownMenu.Item>
+                <DropdownMenu.Item
+                  onSelect={() => setTextAlign('center')}
+                  className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                >
+                  <AlignCenter className="w-4 h-4 shrink-0" />
+                  Align center
+                </DropdownMenu.Item>
+                <DropdownMenu.Item
+                  onSelect={() => setTextAlign('right')}
+                  className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                >
+                  <AlignRight className="w-4 h-4 shrink-0" />
+                  Align right
+                </DropdownMenu.Item>
+                <DropdownMenu.Item
+                  onSelect={() => setTextAlign('justify')}
+                  className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                >
+                  <AlignJustify className="w-4 h-4 shrink-0" />
+                  Justify
+                </DropdownMenu.Item>
+                <DropdownMenu.Separator className="h-px bg-border my-1" />
+                <DropdownMenu.Item
+                  onSelect={() => setShowImageDialog(true)}
+                  className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                >
+                  <Image className="w-4 h-4 shrink-0" />
+                  Insert image
+                </DropdownMenu.Item>
+                <DropdownMenu.Item
+                  onSelect={() => setShowYouTubeDialog(true)}
+                  className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                >
+                  <Youtube className="w-4 h-4 shrink-0" />
+                  Embed YouTube
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
 
         {/* Image */}
         <ToolbarButton
           onClick={() => setShowImageDialog(true)}
           title="Insert image"
+          className="hidden md:inline-flex"
         >
           <Image className="w-4 h-4" />
         </ToolbarButton>
@@ -403,11 +528,16 @@ export function EditorToolbar({
         <ToolbarButton
           onClick={() => setShowYouTubeDialog(true)}
           title="Embed YouTube video"
+          className="hidden md:inline-flex"
         >
           <Youtube className="w-4 h-4" />
         </ToolbarButton>
+        </div>
       </div>
-      <div className="absolute right-6 flex items-center shrink-0">
+
+      {linkPopover}
+
+      <div className="flex shrink-0 items-center border-l border-border pl-2">
         <div className="relative">
           <button
             type="button"

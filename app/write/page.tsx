@@ -449,7 +449,7 @@ export default function WritePage() {
   return (
     <div className="min-h-screen bg-background">
       <AppNavigation />
-      <div className="flex flex-col pt-16">
+      <div className="flex min-w-0 flex-col pt-16">
         {/* Action bar - full width, Back | Undo | Redo | Save | Preview | Publish */}
         <EditorActionBar
           editor={editor}
@@ -469,7 +469,7 @@ export default function WritePage() {
           hasUnsavedChanges={hasUnsavedChanges}
         />
         <div className="flex-1 flex flex-col min-w-0 pb-8">
-          <div className="sticky top-16 z-40 bg-background w-full mb-6">
+          <div className="sticky top-16 z-40 mb-6 w-full min-w-0 bg-background">
             <EditorToolbar
               editor={editor}
               onFocusCoverImage={() => {
