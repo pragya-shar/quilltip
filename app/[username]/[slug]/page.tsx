@@ -28,6 +28,11 @@ import { useAuth } from '@/components/providers/AuthContext'
 import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
 import { cn } from '@/lib/utils'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
+import {
+  ArticleDisplaySectionFallback,
+  ArticleSidebarSectionFallback,
+} from '@/components/error/SectionErrorFallback'
 
 interface ArticlePageProps {
   params: Promise<{
@@ -104,11 +109,14 @@ export default function ArticlePage({ params }: ArticlePageProps) {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Main Article Content */}
             <div className="lg:col-span-8">
-              <ArticleDisplay article={articleForDisplay} />
+              <ErrorBoundary fallback={<ArticleDisplaySectionFallback />}>
+                <ArticleDisplay article={articleForDisplay} />
+              </ErrorBoundary>
             </div>
 
             {/* Engagement Sidebar */}
             <div className="lg:col-span-4">
+              <ErrorBoundary fallback={<ArticleSidebarSectionFallback />}>
               <div className="sticky top-24 space-y-6">
                 {/* Tip Section */}
                 <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
@@ -238,6 +246,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                   </div>
                 )}
               </div>
+              </ErrorBoundary>
             </div>
           </div>
         </div>

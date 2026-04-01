@@ -2,9 +2,14 @@
 
 import { Component, ReactNode } from 'react'
 
+export type ErrorBoundaryFallbackRender = (ctx: {
+  reset: () => void
+  error: Error | null
+}) => ReactNode
+
 interface Props {
   children: ReactNode
-  fallback?: ReactNode
+  fallback?: ReactNode | ErrorBoundaryFallbackRender
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void
 }
 
@@ -25,14 +30,25 @@ export class ErrorBoundary extends Component<Props, State> {
     this.props.onError?.(error, errorInfo)
   }
 
+  private reset = () => {
+    this.setState({ hasError: false, error: null })
+  }
+
   override render() {
     if (this.state.hasError) {
+      const { fallback } = this.props
+      if (typeof fallback === 'function') {
+        return fallback({
+          reset: this.reset,
+          error: this.state.error,
+        })
+      }
       return (
-        this.props.fallback || (
+        fallback || (
           <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
             <p className="text-red-800">Something went wrong.</p>
             <button
-              onClick={() => this.setState({ hasError: false, error: null })}
+              onClick={this.reset}
               className="mt-2 text-sm text-red-600 underline"
             >
               Try again
