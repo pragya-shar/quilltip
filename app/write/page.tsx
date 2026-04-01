@@ -496,6 +496,7 @@ export default function WritePage() {
                     src={coverImage}
                     alt="Article cover"
                     fill
+                    sizes="(max-width: 768px) 100vw, 896px"
                     className="object-cover"
                   />
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">

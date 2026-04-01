@@ -6,9 +6,10 @@ import { ArticleForDisplay } from '@/types/index'
 
 interface ArticleCardProps {
   article: ArticleForDisplay
+  priority?: boolean
 }
 
-export default function ArticleCard({ article }: ArticleCardProps) {
+export default function ArticleCard({ article, priority }: ArticleCardProps) {
   const publishedDate = article.publishedAt
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
     : null
@@ -23,6 +24,8 @@ export default function ArticleCard({ article }: ArticleCardProps) {
               src={article.coverImage}
               alt={article.title}
               fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              priority={priority}
               className="object-cover hover:scale-105 transition-transform duration-200"
             />
           </div>
