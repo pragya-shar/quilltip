@@ -23,8 +23,7 @@ export function EarningsStats({
   onOpenWithdrawModal,
 }: EarningsStatsProps) {
   const lastWithdrawal = earnings.lastWithdrawalAt
-  const belowWithdrawalMinimum =
-    earnings.availableBalanceUsd < minWithdrawalUsd
+  const belowWithdrawalMinimum = earnings.availableBalanceUsd < minWithdrawalUsd
   const showMinimumWithdrawalHelper =
     belowWithdrawalMinimum && Boolean(userProfile?.stellarAddress)
 
