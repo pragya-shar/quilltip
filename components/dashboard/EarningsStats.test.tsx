@@ -87,4 +87,24 @@ describe('EarningsStats', () => {
       screen.getByRole('heading', { name: /Stellar Wallet Not Configured/i })
     ).toBeInTheDocument()
   })
+
+  it('shows minimum withdrawal helper and disables withdraw when balance is below minimum', () => {
+    const earnings = makeEarnings({
+      availableBalanceUsd: 4.5,
+      availableBalanceCents: 450,
+    })
+    render(
+      <EarningsStats
+        earnings={earnings}
+        userProfile={{ stellarAddress: 'G' + 'A'.repeat(55) }}
+        minWithdrawalUsd={10}
+        onOpenWithdrawModal={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.getByText(/minimum available balance of \$10\.00/i)
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /withdraw/i })).toBeDisabled()
+  })
 })
