@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter, MessageSquare, Lock, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { HighlightTipButton } from './HighlightTipButton'
@@ -90,14 +91,19 @@ export function HighlightPopover({
   }
 
   return (
-    <div
-      className="highlight-popover absolute z-50 rounded-2xl p-4 min-w-[320px]"
-      style={{
-        top: position.top,
-        left: position.left,
-        transform: 'translateX(-50%)',
-      }}
-    >
+    <FocusScope trapped loop>
+      <div
+        className="highlight-popover absolute z-50 rounded-2xl p-4 min-w-[320px] outline-none"
+        style={{
+          top: position.top,
+          left: position.left,
+          transform: 'translateX(-50%)',
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create highlight"
+        tabIndex={-1}
+      >
       {/* Text Preview */}
       <div className="highlight-text-preview">
         &ldquo;{selectedText.slice(0, 150)}
@@ -234,6 +240,7 @@ export function HighlightPopover({
           Cancel
         </button>
       </div>
-    </div>
+      </div>
+    </FocusScope>
   )
 }

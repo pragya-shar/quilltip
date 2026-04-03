@@ -13,6 +13,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog'
 import { useStellarWallet } from '@/hooks/useStellarWallet'
 import { nftClient } from '@/lib/stellar/nft-client'
@@ -43,7 +44,7 @@ export function MintButton({
   onMintSuccess,
 }: MintButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [showDialog, setShowDialog] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [mintingStep, setMintingStep] = useState<
     'checking' | 'wallet' | 'blockchain' | 'database'
   >('checking')
@@ -132,7 +133,7 @@ export function MintButton({
 
       if (nftId) {
         toast.success('NFT minted successfully!')
-        setShowDialog(false)
+        setDialogOpen(false)
         onMintSuccess?.()
       } else {
         // Blockchain succeeded but database failed - this is a consistency issue
@@ -185,19 +186,26 @@ export function MintButton({
   }
 
   return (
-    <>
-      <Button
-        onClick={() => setShowDialog(true)}
-        disabled={!canMint}
-        className="w-full"
-        variant="default"
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogTrigger asChild>
+        <Button
+          disabled={!canMint}
+          className="w-full"
+          variant="default"
+          type="button"
+        >
+          <Sparkles className="mr-2 h-4 w-4" />
+          Mint NFT
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        onEscapeKeyDown={(e) => {
+          if (isLoading) e.preventDefault()
+        }}
+        onInteractOutside={(e) => {
+          if (isLoading) e.preventDefault()
+        }}
       >
-        <Sparkles className="mr-2 h-4 w-4" />
-        Mint NFT
-      </Button>
-
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
           <DialogHeader>
             <DialogTitle>Mint Article as NFT</DialogTitle>
             <DialogDescription>
@@ -275,7 +283,8 @@ export function MintButton({
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                onClick={() => setShowDialog(false)}
+                type="button"
+                onClick={() => setDialogOpen(false)}
                 disabled={isLoading}
                 className="flex-1"
               >
@@ -313,7 +322,6 @@ export function MintButton({
             </div>
           </div>
         </DialogContent>
-      </Dialog>
-    </>
+    </Dialog>
   )
 }

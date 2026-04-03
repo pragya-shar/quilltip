@@ -75,8 +75,20 @@ export default function WritePage() {
   const [excerpt, setExcerpt] = useState('')
   const [tags, setTags] = useState('')
   const [showExcerptTagsDialog, setShowExcerptTagsDialog] = useState(false)
+  const excerptTagsDialogTriggerRef = useRef<HTMLElement | null>(null)
+
+  const openExcerptTagsDialog = useCallback(() => {
+    excerptTagsDialogTriggerRef.current = document.activeElement as HTMLElement
+    setShowExcerptTagsDialog(true)
+  }, [])
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
+  const coverImageDialogTriggerRef = useRef<HTMLElement | null>(null)
+
+  const openCoverImageDialog = useCallback(() => {
+    coverImageDialogTriggerRef.current = document.activeElement as HTMLElement
+    setShowCoverImageDialog(true)
+  }, [])
   const [isPublishing, setIsPublishing] = useState(false)
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
@@ -476,7 +488,7 @@ export default function WritePage() {
                 document
                   .getElementById('field-cover-image')
                   ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                if (!coverImage) setShowCoverImageDialog(true)
+                if (!coverImage) openCoverImageDialog()
               }}
               onFocusTitle={() => {
                 const el = document.getElementById(
@@ -487,8 +499,8 @@ export default function WritePage() {
                   ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
                 el?.focus()
               }}
-              onFocusExcerpt={() => setShowExcerptTagsDialog(true)}
-              onFocusTags={() => setShowExcerptTagsDialog(true)}
+              onFocusExcerpt={openExcerptTagsDialog}
+              onFocusTags={openExcerptTagsDialog}
             />
             <div
               className="absolute bottom-0 left-0 right-0 h-[2px] bg-sky-400 pointer-events-none"
@@ -510,7 +522,7 @@ export default function WritePage() {
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100">
                     <button
                       type="button"
-                      onClick={() => setShowCoverImageDialog(true)}
+                      onClick={openCoverImageDialog}
                       className="px-4 py-2 bg-card text-foreground text-sm font-medium rounded-lg hover:bg-muted transition-colors shadow border border-border"
                     >
                       Change
@@ -530,7 +542,7 @@ export default function WritePage() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => setShowCoverImageDialog(true)}
+                  onClick={openCoverImageDialog}
                   className="w-full h-28 border-2 border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-muted-foreground hover:border-sky-400 hover:text-sky-500 transition-colors group"
                 >
                   <svg
@@ -618,11 +630,13 @@ export default function WritePage() {
           setShowCoverImageDialog(false)
         }}
         onClose={() => setShowCoverImageDialog(false)}
+        triggerRef={coverImageDialogTriggerRef}
       />
 
       <ExcerptTagsDialog
         isOpen={showExcerptTagsDialog}
         onClose={() => setShowExcerptTagsDialog(false)}
+        triggerRef={excerptTagsDialogTriggerRef}
         excerpt={excerpt}
         tags={tags}
         onExcerptChange={(v) => {

@@ -244,17 +244,43 @@ export function HighlightableArticle({
     [selectedText, editor, articleId, createHighlight]
   )
 
-  // Handle popover close
   const handlePopoverClose = useCallback(() => {
     setSelectedText(null)
     setPopoverPosition(null)
     window.getSelection()?.removeAllRanges()
-  }, [])
+    editor?.commands.focus()
+  }, [editor])
 
-  // Handle tooltip close
   const handleTooltipClose = useCallback(() => {
     setHighlightTooltip(null)
-  }, [])
+    editor?.commands.focus()
+  }, [editor])
+
+  useEffect(() => {
+    const hasCreationPopover = Boolean(popoverPosition && selectedText)
+    const hasDetailsPanel = highlightTooltip !== null
+    if (!hasCreationPopover && !hasDetailsPanel) return
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      if (hasCreationPopover) {
+        handlePopoverClose()
+      } else if (hasDetailsPanel) {
+        handleTooltipClose()
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [
+    popoverPosition,
+    selectedText,
+    highlightTooltip,
+    handlePopoverClose,
+    handleTooltipClose,
+  ])
 
   return (
     <div

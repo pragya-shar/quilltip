@@ -23,8 +23,13 @@ import {
   Tag,
   Youtube,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef, forwardRef } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { ImageUploadDialog } from './ImageUploadDialog'
 import { YouTubeEmbedDialog } from './YouTubeEmbedDialog'
 
@@ -48,32 +53,39 @@ interface ToolbarButtonProps {
   className?: string
 }
 
-function ToolbarButton({
-  onClick,
-  isActive = false,
-  disabled = false,
-  children,
-  title,
-  className = '',
-}: ToolbarButtonProps) {
-  return (
-    <button
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-label={title}
-      className={`
+const ToolbarButton = forwardRef<HTMLButtonElement, ToolbarButtonProps>(
+  function ToolbarButton(
+    {
+      onClick,
+      isActive = false,
+      disabled = false,
+      children,
+      title,
+      className = '',
+    },
+    ref
+  ) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onClick}
+        disabled={disabled}
+        title={title}
+        aria-label={title}
+        className={`
         p-2 rounded hover:bg-muted transition-colors shrink-0
         ${isActive ? 'bg-muted text-primary' : 'text-foreground'}
         ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         ${className}
       `}
-    >
-      {children}
-    </button>
-  )
-}
+      >
+        {children}
+      </button>
+    )
+  }
+)
 
 function ToolbarDivider() {
   return <div className="w-px h-5 bg-border mx-0.5 shrink-0" aria-hidden />
@@ -89,10 +101,12 @@ export function EditorToolbar({
   onNotesChange,
 }: EditorToolbarProps) {
   const [linkUrl, setLinkUrl] = useState('')
-  const [showLinkInput, setShowLinkInput] = useState(false)
+  const [linkPopoverOpen, setLinkPopoverOpen] = useState(false)
   const [showImageDialog, setShowImageDialog] = useState(false)
   const [showYouTubeDialog, setShowYouTubeDialog] = useState(false)
-  const [showNotes, setShowNotes] = useState(false)
+  const [notesPopoverOpen, setNotesPopoverOpen] = useState(false)
+  const imageDialogTriggerRef = useRef<HTMLButtonElement>(null)
+  const youtubeDialogTriggerRef = useRef<HTMLButtonElement>(null)
 
   if (!editor) {
     return null
@@ -102,7 +116,7 @@ export function EditorToolbar({
     if (linkUrl) {
       editor.chain().focus().setLink({ href: linkUrl }).run()
       setLinkUrl('')
-      setShowLinkInput(false)
+      setLinkPopoverOpen(false)
     }
   }
 
@@ -358,41 +372,51 @@ export function EditorToolbar({
               <Link2 className="w-4 h-4" />
             </ToolbarButton>
           ) : (
-            <ToolbarButton
-              onClick={() => setShowLinkInput(!showLinkInput)}
-              title="Insert link"
+            <Popover
+              modal
+              open={linkPopoverOpen}
+              onOpenChange={(open) => {
+                setLinkPopoverOpen(open)
+                if (!open) setLinkUrl('')
+              }}
             >
-              <Link2 className="w-4 h-4" />
-            </ToolbarButton>
-          )}
-          {showLinkInput && (
-            <div className="absolute top-full left-0 mt-1 bg-popover border border-border rounded-lg shadow-lg p-2 z-50 flex items-center gap-2">
-              <input
-                type="url"
-                placeholder="Enter URL"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') addLink()
-                  else if (e.key === 'Escape') {
-                    setShowLinkInput(false)
-                    setLinkUrl('')
-                  }
-                }}
-                className="px-2 py-1.5 border border-input bg-background text-foreground rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring min-w-[200px]"
-              />
-              <button
-                onClick={addLink}
-                className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90"
+              <PopoverTrigger asChild>
+                <ToolbarButton onClick={() => {}} title="Insert link">
+                  <Link2 className="w-4 h-4" />
+                </ToolbarButton>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-auto p-2 flex items-center gap-2"
+                align="start"
+                side="bottom"
+                sideOffset={4}
               >
-                Add
-              </button>
-            </div>
+                <input
+                  id="toolbar-link-url"
+                  type="url"
+                  placeholder="Enter URL"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') addLink()
+                  }}
+                  className="px-2 py-1.5 border border-input bg-background text-foreground rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring min-w-[200px]"
+                />
+                <button
+                  type="button"
+                  onClick={addLink}
+                  className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90"
+                >
+                  Add
+                </button>
+              </PopoverContent>
+            </Popover>
           )}
         </div>
 
         {/* Image */}
         <ToolbarButton
+          ref={imageDialogTriggerRef}
           onClick={() => setShowImageDialog(true)}
           title="Insert image"
         >
@@ -401,6 +425,7 @@ export function EditorToolbar({
 
         {/* YouTube embed */}
         <ToolbarButton
+          ref={youtubeDialogTriggerRef}
           onClick={() => setShowYouTubeDialog(true)}
           title="Embed YouTube video"
         >
@@ -408,43 +433,49 @@ export function EditorToolbar({
         </ToolbarButton>
       </div>
       <div className="absolute right-6 flex items-center shrink-0">
-        <div className="relative">
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            className={`flex items-center gap-2 pl-3 pr-2 py-2 rounded hover:bg-muted text-sm font-medium ${showNotes ? 'bg-muted text-primary' : 'text-foreground'}`}
-            title="Notes"
-            onClick={() => setShowNotes(!showNotes)}
+        <Popover modal open={notesPopoverOpen} onOpenChange={setNotesPopoverOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              className={`flex items-center gap-2 pl-3 pr-2 py-2 rounded hover:bg-muted text-sm font-medium ${notesPopoverOpen ? 'bg-muted text-primary' : 'text-foreground'}`}
+              title="Notes"
+            >
+              <FileText className="w-4 h-4" />
+              Notes
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-72 p-0"
+            align="end"
+            side="bottom"
+            sideOffset={4}
           >
-            <FileText className="w-4 h-4" />
-            Notes
-          </button>
-          {showNotes && (
-            <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 w-72">
-              <div className="px-3 py-2 border-b border-border text-xs font-medium text-muted-foreground">
-                Personal Notes
-              </div>
-              <textarea
-                value={notes}
-                onChange={(e) => onNotesChange?.(e.target.value)}
-                placeholder="Jot down ideas, reminders, or notes..."
-                className="w-full p-3 text-sm text-foreground bg-popover placeholder:text-muted-foreground resize-none focus:outline-none rounded-b-lg"
-                rows={6}
-              />
+            <div className="px-3 py-2 border-b border-border text-xs font-medium text-muted-foreground">
+              Personal Notes
             </div>
-          )}
-        </div>
+            <textarea
+              value={notes}
+              onChange={(e) => onNotesChange?.(e.target.value)}
+              placeholder="Jot down ideas, reminders, or notes..."
+              className="w-full p-3 text-sm text-foreground bg-popover placeholder:text-muted-foreground resize-none focus:outline-none rounded-b-lg"
+              rows={6}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
       <ImageUploadDialog
         isOpen={showImageDialog}
         onClose={() => setShowImageDialog(false)}
         onImageSelect={handleImageSelect}
+        triggerRef={imageDialogTriggerRef}
       />
 
       <YouTubeEmbedDialog
         isOpen={showYouTubeDialog}
         onClose={() => setShowYouTubeDialog(false)}
+        triggerRef={youtubeDialogTriggerRef}
         onVideoEmbed={(url, width, height) => {
           const chain = editor.chain().focus() as {
             setYoutubeVideo: (opts: {
