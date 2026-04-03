@@ -5,6 +5,7 @@ import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useHighlightTipsByHighlight } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
+import { motion } from 'motion/react'
 import {
   X,
   Coins,
@@ -39,6 +40,7 @@ interface HighlightDetailsPanelProps {
     userAvatar?: string
     createdAt: number
   }
+  position: { top: number; left: number }
   onClose: () => void
   currentUserId?: Id<'users'>
   // Article data for tipping
@@ -50,6 +52,7 @@ interface HighlightDetailsPanelProps {
 
 export function HighlightDetailsPanel({
   highlight,
+  position,
   onClose,
   currentUserId,
   articleId,
@@ -125,7 +128,18 @@ export function HighlightDetailsPanel({
       : highlight.text
 
   return (
-    <div className="w-full max-w-md rounded-xl border border-border bg-popover text-popover-foreground shadow-2xl">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 10 }}
+      transition={{ duration: 0.2 }}
+      className="fixed z-50 bg-popover text-popover-foreground rounded-xl shadow-2xl border border-border max-w-md w-full"
+      style={{
+        top: position.top,
+        left: position.left,
+        transform: 'translateX(-50%)',
+      }}
+    >
       {/* Header */}
       <div className="flex items-start justify-between p-4 border-b border-border">
         <div className="flex-1">
@@ -349,6 +363,6 @@ export function HighlightDetailsPanel({
           tipped this highlight
         </div>
       )}
-    </div>
+    </motion.div>
   )
 }

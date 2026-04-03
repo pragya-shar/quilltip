@@ -16,13 +16,9 @@ import { useArticleById, useArticleHighlightsQuery } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
 import { HighlightPopover } from '@/components/highlights/HighlightPopover'
 import { HighlightDetailsPanel } from '@/components/highlights/HighlightDetailsPanel'
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-} from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 import { JSONContent } from '@tiptap/react'
+import { AnimatePresence } from 'motion/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { toast } from 'sonner'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
@@ -146,7 +142,7 @@ export function HighlightableArticle({
               setHighlightTooltip({
                 highlight: fullHighlight,
                 position: {
-                  top: rect.bottom + 4,
+                  top: rect.top - 10,
                   left: rect.left + rect.width / 2,
                 },
               })
@@ -179,7 +175,7 @@ export function HighlightableArticle({
 
           setSelectedText({ text, from, to })
           setPopoverPosition({
-            top: rect.bottom,
+            top: rect.top + window.scrollY - 60,
             left: rect.left + rect.width / 2,
           })
         }
@@ -267,85 +263,39 @@ export function HighlightableArticle({
     >
       <EditorContent editor={editor} />
 
-      {popoverPosition && selectedText && article && (
-        <Popover
-          modal
-          open
-          onOpenChange={(open) => {
-            if (!open) handlePopoverClose()
-          }}
-        >
-          <PopoverAnchor asChild>
-            <div
-              className="pointer-events-none fixed z-40 h-px w-px"
-              style={{
-                top: popoverPosition.top,
-                left: popoverPosition.left,
-                transform: 'translate(-50%, 0)',
-              }}
-              aria-hidden
-            />
-          </PopoverAnchor>
-          <PopoverContent
-            side="bottom"
-            align="center"
-            sideOffset={8}
-            collisionPadding={16}
-            className="z-50 w-auto max-w-[min(100vw-2rem,400px)] border-0 bg-transparent p-0 shadow-none outline-none data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
-          >
-            <HighlightPopover
-              onCreateHighlight={handleCreateHighlight}
-              onClose={handlePopoverClose}
-              selectedText={selectedText.text}
-              articleId={articleId}
-              articleSlug={article.slug}
-              authorName={article.author?.name || article.authorName || 'Author'}
-              authorStellarAddress={article.author?.stellarAddress}
-              startOffset={selectedText.from}
-              endOffset={selectedText.to}
-            />
-          </PopoverContent>
-        </Popover>
-      )}
+      {/* Highlight creation popover */}
+      <AnimatePresence>
+        {popoverPosition && selectedText && article && (
+          <HighlightPopover
+            position={popoverPosition}
+            onCreateHighlight={handleCreateHighlight}
+            onClose={handlePopoverClose}
+            selectedText={selectedText.text}
+            articleId={articleId}
+            articleSlug={article.slug}
+            authorName={article.author?.name || article.authorName || 'Author'}
+            authorStellarAddress={article.author?.stellarAddress}
+            startOffset={selectedText.from}
+            endOffset={selectedText.to}
+          />
+        )}
+      </AnimatePresence>
 
-      {highlightTooltip && article && (
-        <Popover
-          modal
-          open
-          onOpenChange={(open) => {
-            if (!open) handleTooltipClose()
-          }}
-        >
-          <PopoverAnchor asChild>
-            <div
-              className="pointer-events-none fixed z-40 h-px w-px"
-              style={{
-                top: highlightTooltip.position.top,
-                left: highlightTooltip.position.left,
-                transform: 'translate(-50%, 0)',
-              }}
-              aria-hidden
-            />
-          </PopoverAnchor>
-          <PopoverContent
-            side="bottom"
-            align="center"
-            sideOffset={8}
-            collisionPadding={16}
-            className="z-50 w-auto max-w-[min(100vw-2rem,28rem)] border-0 bg-transparent p-0 shadow-none outline-none data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
-          >
-            <HighlightDetailsPanel
-              highlight={highlightTooltip.highlight}
-              onClose={handleTooltipClose}
-              currentUserId={user?._id as Id<'users'> | undefined}
-              articleId={articleId}
-              articleSlug={article.slug}
-              authorName={article.author?.name || article.authorName || 'Author'}
-              authorStellarAddress={article.author?.stellarAddress}
-            />
-          </PopoverContent>
-        </Popover>
-      )}
+      {/* Highlight details panel */}
+      <AnimatePresence>
+        {highlightTooltip && article && (
+          <HighlightDetailsPanel
+            highlight={highlightTooltip.highlight}
+            position={highlightTooltip.position}
+            onClose={handleTooltipClose}
+            currentUserId={user?._id as Id<'users'> | undefined}
+            articleId={articleId}
+            articleSlug={article.slug}
+            authorName={article.author?.name || article.authorName || 'Author'}
+            authorStellarAddress={article.author?.stellarAddress}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

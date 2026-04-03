@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
@@ -21,14 +21,6 @@ import {
   TIP_MIN_USD,
   TIP_MAX_USD,
 } from '@/lib/constants'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
 
 interface HighlightTipButtonProps {
   articleId: Id<'articles'>
@@ -67,23 +59,35 @@ export function HighlightTipButton({
 
   const createHighlightTip = useMutation(api.highlightTips.create)
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open && isLoading) return
-    setIsOpen(open)
-  }
+  // Close modal on Escape key
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isLoading) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, isLoading])
 
   const handleTip = async () => {
+    // Check authentication
     if (!isAuthenticated) {
       toast.error('Please sign in to send tips')
       router.push('/login')
       return
     }
 
+    // Check wallet connection
     if (!isConnected || !publicKey) {
       toast.error('Please connect your Stellar wallet to send tips')
       return
     }
 
+    // Check author has Stellar address
     if (!authorStellarAddress) {
       toast.error('Author has not set up their Stellar wallet yet')
       return
@@ -104,6 +108,7 @@ export function HighlightTipButton({
     setIsLoading(true)
 
     try {
+      // Generate deterministic highlight ID
       const highlightId = await generateHighlightId(
         articleSlug,
         highlightText,
@@ -111,20 +116,24 @@ export function HighlightTipButton({
         endOffset
       )
 
+      // Build Stellar transaction
       const transactionData = await stellarClient.buildHighlightTipTransaction(
         publicKey,
         {
           highlightId,
-          articleId: articleId.toString(),
+          articleId: articleId.toString(), // Use Convex ID (alphanumeric, Symbol-safe) to match article tipping
           authorAddress: authorStellarAddress,
           amountCents,
         }
       )
 
+      // Sign transaction with wallet
       const signedXDR = await signTransaction(transactionData.xdr)
 
+      // Submit transaction to Stellar network
       const receipt = await stellarClient.submitTipTransaction(signedXDR)
 
+      // Record tip in Convex
       await createHighlightTip({
         highlightId,
         articleId,
@@ -147,10 +156,12 @@ export function HighlightTipButton({
         authorShare: transactionData.authorReceived,
       })
 
+      // Close modal first
       setIsOpen(false)
       setSelectedAmount(null)
       setCustomAmount('')
 
+      // Show success toast
       toast.success(
         `Successfully tipped ${authorName} ${formatTipAmount(amountCents)} for this highlight!`,
         {
@@ -170,6 +181,7 @@ export function HighlightTipButton({
         }
       )
 
+      // Call success callback
       if (onSuccess) {
         onSuccess()
       }
@@ -179,6 +191,7 @@ export function HighlightTipButton({
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to send tip'
 
+      // Check for wallet signature rejection
       if (
         errorMessage.includes('User declined') ||
         errorMessage.includes('rejected')
@@ -194,174 +207,195 @@ export function HighlightTipButton({
     }
   }
 
+  // Truncate long text for display
   const displayText =
     highlightText.length > 60
       ? highlightText.slice(0, 60) + '...'
       : highlightText
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <button
-          type="button"
-          className={`inline-flex transform items-center gap-2 rounded-lg bg-gradient-to-r from-yellow-400 to-orange-500 px-3 py-1.5 text-sm font-medium text-white shadow-md transition-all hover:from-yellow-500 hover:to-orange-600 hover:scale-105 ${className}`}
-          title="Tip this highlight"
-        >
-          <Coins className="h-3.5 w-3.5" />
-          <span className="font-medium">Tip Highlight</span>
-        </button>
-      </DialogTrigger>
-      <DialogContent
-        className="max-h-[90vh] max-w-md overflow-y-auto"
-        onInteractOutside={(e) => {
-          if (isLoading) e.preventDefault()
-        }}
-        onEscapeKeyDown={(e) => {
-          if (isLoading) e.preventDefault()
-        }}
+    <>
+      {/* Tip Button */}
+      <button
+        onClick={() => setIsOpen(true)}
+        className={`inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105 shadow-md text-sm ${className}`}
+        title="Tip this highlight"
       >
-        <DialogHeader>
-          <DialogTitle>Tip Highlight</DialogTitle>
-          <DialogDescription className="sr-only">
-            Send a tip to {authorName} for this highlighted passage.
-          </DialogDescription>
-        </DialogHeader>
+        <Coins className="w-3.5 h-3.5" />
+        <span className="font-medium">Tip Highlight</span>
+      </button>
 
-        <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 p-3 dark:border-yellow-900 dark:bg-yellow-950/30">
-          <p className="text-sm italic text-foreground">
-            &ldquo;{displayText}&rdquo;
-          </p>
-        </div>
-
-        <p className="mb-4 text-muted-foreground">
-          Tip {authorName} for this specific insight. 97.5% goes directly to the
-          author!
-        </p>
-
-        {!isConnected && (
-          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-            <p>Connect your Stellar wallet to tip this highlight.</p>
-          </div>
-        )}
-
-        <div className="mb-4 grid grid-cols-3 gap-3">
-          {TIP_PRESETS_HIGHLIGHT.map((amount) => (
-            <button
-              key={amount.cents}
-              type="button"
-              onClick={() => {
-                setSelectedAmount(amount.cents)
-                setCustomAmount('')
-              }}
-              className={`relative rounded-lg border-2 px-4 py-3 transition-all ${
-                selectedAmount === amount.cents
-                  ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/40'
-                  : 'border-border hover:border-orange-300'
-              }`}
-            >
-              {amount.popular && (
-                <span className="absolute -top-2 left-1/2 -translate-x-1/2 transform rounded-full bg-orange-500 px-2 py-0.5 text-xs text-white">
-                  Popular
-                </span>
-              )}
-              <span className="font-semibold">{amount.label}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="mb-6">
-          <label
-            htmlFor="highlight-tip-custom-amount"
-            className="mb-2 block text-sm font-medium text-foreground"
-          >
-            Or enter custom amount
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 transform text-muted-foreground">
-              $
-            </span>
-            <input
-              id="highlight-tip-custom-amount"
-              type="number"
-              min={TIP_MIN_USD}
-              max={TIP_MAX_USD}
-              step="0.01"
-              value={customAmount}
-              onChange={(e) => {
-                setCustomAmount(e.target.value)
-                setSelectedAmount(null)
-              }}
-              placeholder="0.00"
-              className="w-full rounded-lg border border-input bg-background py-2 pl-8 pr-4 text-foreground focus:border-transparent focus:ring-2 focus:ring-orange-500"
-            />
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Minimum: ${TIP_MIN_USD.toFixed(2)} Maximum: ${TIP_MAX_USD.toFixed(2)}
-          </p>
-        </div>
-
-        <div className="flex gap-3">
+      {/* Tip Modal */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="highlight-tip-dialog-title"
+        >
+          {/* Backdrop — interactive button so a11y rules are satisfied */}
           <button
-            type="button"
-            onClick={() => setIsOpen(false)}
-            disabled={isLoading}
-            className="flex-1 rounded-lg border border-input bg-background px-4 py-2 text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Cancel
-          </button>
+            className="absolute inset-0 bg-black/50"
+            onClick={() => {
+              if (!isLoading) setIsOpen(false)
+            }}
+            aria-label="Close dialog"
+            tabIndex={-1}
+          />
+          <div className="relative bg-popover text-popover-foreground rounded-xl shadow-xl border border-border max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 id="highlight-tip-dialog-title" className="text-xl font-bold">
+                Tip Highlight
+              </h3>
+              <button
+                onClick={() => setIsOpen(false)}
+                className="text-muted-foreground hover:text-foreground text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
 
-          {!isConnected ? (
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  await connect()
-                  toast.success('Wallet connected successfully!')
-                } catch {
-                  toast.error('Failed to connect wallet')
-                }
-              }}
-              disabled={isLoading}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2 text-white hover:from-blue-600 hover:to-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Wallet className="h-4 w-4" />
-              <span>Connect Wallet</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void handleTip()}
-              disabled={isLoading || (!selectedAmount && !customAmount)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-yellow-400 to-orange-500 px-4 py-2 text-white hover:from-yellow-500 hover:to-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Sending...</span>
-                </>
+            {/* Highlight Preview */}
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-foreground italic">
+                &ldquo;{displayText}&rdquo;
+              </p>
+            </div>
+
+            <p className="text-muted-foreground mb-4">
+              Tip {authorName} for this specific insight. 97.5% goes directly to
+              the author!
+            </p>
+
+            {/* Wallet Setup Guide */}
+            {!isConnected && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+                <p>Connect your Stellar wallet to tip this highlight.</p>
+              </div>
+            )}
+
+            {/* Preset Amounts */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {TIP_PRESETS_HIGHLIGHT.map((amount) => (
+                <button
+                  key={amount.cents}
+                  onClick={() => {
+                    setSelectedAmount(amount.cents)
+                    setCustomAmount('')
+                  }}
+                  className={`relative px-4 py-3 rounded-lg border-2 transition-all ${
+                    selectedAmount === amount.cents
+                      ? 'border-orange-500 bg-orange-50'
+                      : 'border-border hover:border-orange-300'
+                  }`}
+                >
+                  {amount.popular && (
+                    <span className="absolute -top-2 left-1/2 transform -translate-x-1/2 px-2 py-0.5 bg-orange-500 text-white text-xs rounded-full">
+                      Popular
+                    </span>
+                  )}
+                  <span className="font-semibold">{amount.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Amount */}
+            <div className="mb-6">
+              <label
+                htmlFor="highlight-tip-custom-amount"
+                className="block text-sm font-medium text-foreground mb-2"
+              >
+                Or enter custom amount
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">
+                  $
+                </span>
+                <input
+                  id="highlight-tip-custom-amount"
+                  type="number"
+                  min={TIP_MIN_USD}
+                  max={TIP_MAX_USD}
+                  step="0.01"
+                  value={customAmount}
+                  onChange={(e) => {
+                    setCustomAmount(e.target.value)
+                    setSelectedAmount(null)
+                  }}
+                  placeholder="0.00"
+                  className="w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Minimum: ${TIP_MIN_USD.toFixed(2)} • Maximum: $
+                {TIP_MAX_USD.toFixed(2)}
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsOpen(false)}
+                disabled={isLoading}
+                className="flex-1 px-4 py-2 border border-input bg-background text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+
+              {!isConnected ? (
+                <button
+                  onClick={async () => {
+                    try {
+                      await connect()
+                      toast.success('Wallet connected successfully!')
+                    } catch {
+                      toast.error('Failed to connect wallet')
+                    }
+                  }}
+                  disabled={isLoading}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span>Connect Wallet</span>
+                </button>
               ) : (
-                <>
-                  <Heart className="h-4 w-4" />
-                  <span>Send Tip</span>
-                </>
+                <button
+                  onClick={handleTip}
+                  disabled={isLoading || (!selectedAmount && !customAmount)}
+                  className="flex-1 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Sending...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Heart className="w-4 h-4" />
+                      <span>Send Tip</span>
+                    </>
+                  )}
+                </button>
               )}
-            </button>
-          )}
-        </div>
+            </div>
 
-        {isConnected && publicKey && (
-          <div className="mt-4 text-center text-xs text-green-600 dark:text-green-500">
-            <p className="flex items-center justify-center gap-1">
-              <Wallet className="h-3 w-3" />
-              Connected: {publicKey.slice(0, 6)}...{publicKey.slice(-6)}
+            {/* Wallet Connection Status */}
+            {isConnected && publicKey && (
+              <div className="text-xs text-green-600 text-center mt-4">
+                <p className="flex items-center justify-center gap-1">
+                  <Wallet className="w-3 h-3" />
+                  Connected: {publicKey.slice(0, 6)}...{publicKey.slice(-6)}
+                </p>
+              </div>
+            )}
+
+            {/* Info */}
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              Powered by Stellar • Instant settlement • Low fees
             </p>
           </div>
-        )}
-
-        <p className="mt-2 text-center text-xs text-muted-foreground">
-          Powered by Stellar &middot; Instant settlement &middot; Low fees
-        </p>
-      </DialogContent>
-    </Dialog>
+        </div>
+      )}
+    </>
   )
 }

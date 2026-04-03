@@ -1,15 +1,8 @@
 'use client'
 
-import { useEffect, useState, type RefObject } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { WithdrawalDialogView } from '@/components/dashboard/WithdrawalDialogView'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 
 export type WithdrawalDialogProps = {
   open: boolean
@@ -21,8 +14,6 @@ export type WithdrawalDialogProps = {
     amountUsd: number
     stellarAddress: string
   }) => Promise<void>
-  /** Button that opens the dialog; focus returns here after close (Radix has no DialogTrigger). */
-  triggerRef?: RefObject<HTMLButtonElement | null>
 }
 
 export function WithdrawalDialog({
@@ -32,7 +23,6 @@ export function WithdrawalDialog({
   minWithdrawalUsd,
   savedStellarAddress,
   onWithdraw,
-  triggerRef,
 }: WithdrawalDialogProps) {
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [stellarAddress, setStellarAddress] = useState('')
@@ -85,46 +75,19 @@ export function WithdrawalDialog({
     }
   }
 
-  const handleOpenChange = (next: boolean) => {
-    if (!next && isSubmitting) return
-    onOpenChange(next)
-  }
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="sm:max-w-md"
-        onCloseAutoFocus={(e) => {
-          if (triggerRef?.current) {
-            e.preventDefault()
-            triggerRef.current.focus()
-          }
-        }}
-        onInteractOutside={(e) => {
-          if (isSubmitting) e.preventDefault()
-        }}
-        onEscapeKeyDown={(e) => {
-          if (isSubmitting) e.preventDefault()
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle>Withdraw Earnings</DialogTitle>
-          <DialogDescription>Withdraw to your Stellar wallet</DialogDescription>
-        </DialogHeader>
-        <WithdrawalDialogView
-          minWithdrawalUsd={minWithdrawalUsd}
-          availableBalanceUsd={availableBalanceUsd}
-          savedStellarAddress={savedStellarAddress}
-          withdrawAmount={withdrawAmount}
-          onWithdrawAmountChange={setWithdrawAmount}
-          stellarAddress={stellarAddress}
-          onStellarAddressChange={setStellarAddress}
-          addressForSubmit={addressForSubmit}
-          isSubmitting={isSubmitting}
-          onCancel={() => handleOpenChange(false)}
-          onSubmit={handleSubmit}
-        />
-      </DialogContent>
-    </Dialog>
+    <WithdrawalDialogView
+      minWithdrawalUsd={minWithdrawalUsd}
+      availableBalanceUsd={availableBalanceUsd}
+      savedStellarAddress={savedStellarAddress}
+      withdrawAmount={withdrawAmount}
+      onWithdrawAmountChange={setWithdrawAmount}
+      stellarAddress={stellarAddress}
+      onStellarAddressChange={setStellarAddress}
+      addressForSubmit={addressForSubmit}
+      isSubmitting={isSubmitting}
+      onCancel={() => onOpenChange(false)}
+      onSubmit={handleSubmit}
+    />
   )
 }

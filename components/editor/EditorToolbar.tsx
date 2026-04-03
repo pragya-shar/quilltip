@@ -27,11 +27,6 @@ import { useState } from 'react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ImageUploadDialog } from './ImageUploadDialog'
 import { YouTubeEmbedDialog } from './YouTubeEmbedDialog'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 
 interface EditorToolbarProps {
   editor: Editor | null
@@ -63,7 +58,6 @@ function ToolbarButton({
 }: ToolbarButtonProps) {
   return (
     <button
-      type="button"
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       disabled={disabled}
@@ -358,56 +352,42 @@ export function EditorToolbar({
         </DropdownMenu.Root>
 
         {/* Link */}
-        <div className="shrink-0">
+        <div className="relative shrink-0">
           {editor.isActive('link') ? (
             <ToolbarButton onClick={removeLink} isActive title="Remove link">
               <Link2 className="w-4 h-4" />
             </ToolbarButton>
           ) : (
-            <Popover
-              modal
-              open={showLinkInput}
-              onOpenChange={(open) => {
-                setShowLinkInput(open)
-                if (!open) setLinkUrl('')
-              }}
+            <ToolbarButton
+              onClick={() => setShowLinkInput(!showLinkInput)}
+              title="Insert link"
             >
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  title="Insert link"
-                  aria-label="Insert link"
-                  className="shrink-0 cursor-pointer rounded p-2 text-foreground transition-colors hover:bg-muted"
-                >
-                  <Link2 className="h-4 w-4" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                side="bottom"
-                align="start"
-                sideOffset={4}
-                className="flex w-auto items-center gap-2 border border-border bg-popover p-2 shadow-lg"
+              <Link2 className="w-4 h-4" />
+            </ToolbarButton>
+          )}
+          {showLinkInput && (
+            <div className="absolute top-full left-0 mt-1 bg-popover border border-border rounded-lg shadow-lg p-2 z-50 flex items-center gap-2">
+              <input
+                type="url"
+                placeholder="Enter URL"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addLink()
+                  else if (e.key === 'Escape') {
+                    setShowLinkInput(false)
+                    setLinkUrl('')
+                  }
+                }}
+                className="px-2 py-1.5 border border-input bg-background text-foreground rounded text-sm focus:outline-none focus:ring-2 focus:ring-ring min-w-[200px]"
+              />
+              <button
+                onClick={addLink}
+                className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm hover:bg-primary/90"
               >
-                <input
-                  type="url"
-                  placeholder="Enter URL"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') addLink()
-                  }}
-                  className="min-w-[200px] rounded border border-input bg-background px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-                <button
-                  type="button"
-                  onClick={addLink}
-                  className="rounded bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90"
-                >
-                  Add
-                </button>
-              </PopoverContent>
-            </Popover>
+                Add
+              </button>
+            </div>
           )}
         </div>
 
@@ -427,37 +407,33 @@ export function EditorToolbar({
           <Youtube className="w-4 h-4" />
         </ToolbarButton>
       </div>
-      <div className="absolute right-6 flex shrink-0 items-center">
-        <Popover modal open={showNotes} onOpenChange={setShowNotes}>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              className={`flex items-center gap-2 rounded py-2 pl-3 pr-2 text-sm font-medium hover:bg-muted ${showNotes ? 'bg-muted text-primary' : 'text-foreground'}`}
-              title="Notes"
-            >
-              <FileText className="h-4 w-4" />
-              Notes
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            side="bottom"
-            align="end"
-            sideOffset={4}
-            className="w-72 border border-border bg-popover p-0 shadow-lg"
+      <div className="absolute right-6 flex items-center shrink-0">
+        <div className="relative">
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            className={`flex items-center gap-2 pl-3 pr-2 py-2 rounded hover:bg-muted text-sm font-medium ${showNotes ? 'bg-muted text-primary' : 'text-foreground'}`}
+            title="Notes"
+            onClick={() => setShowNotes(!showNotes)}
           >
-            <div className="border-b border-border px-3 py-2 text-xs font-medium text-muted-foreground">
-              Personal Notes
+            <FileText className="w-4 h-4" />
+            Notes
+          </button>
+          {showNotes && (
+            <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 w-72">
+              <div className="px-3 py-2 border-b border-border text-xs font-medium text-muted-foreground">
+                Personal Notes
+              </div>
+              <textarea
+                value={notes}
+                onChange={(e) => onNotesChange?.(e.target.value)}
+                placeholder="Jot down ideas, reminders, or notes..."
+                className="w-full p-3 text-sm text-foreground bg-popover placeholder:text-muted-foreground resize-none focus:outline-none rounded-b-lg"
+                rows={6}
+              />
             </div>
-            <textarea
-              value={notes}
-              onChange={(e) => onNotesChange?.(e.target.value)}
-              placeholder="Jot down ideas, reminders, or notes..."
-              className="w-full resize-none rounded-b-lg bg-popover p-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-              rows={6}
-            />
-          </PopoverContent>
-        </Popover>
+          )}
+        </div>
       </div>
 
       <ImageUploadDialog

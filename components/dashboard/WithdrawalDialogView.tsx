@@ -1,7 +1,6 @@
 'use client'
 
 import { Loader2, Wallet } from 'lucide-react'
-import { DialogFooter } from '@/components/ui/dialog'
 
 export type WithdrawalDialogViewProps = {
   minWithdrawalUsd: number
@@ -31,100 +30,104 @@ export function WithdrawalDialogView({
   onSubmit,
 }: WithdrawalDialogViewProps) {
   return (
-    <>
-      <div className="space-y-4 py-2">
-        <div>
-          <label
-            htmlFor="withdraw-amount"
-            className="mb-2 block text-sm font-medium text-foreground"
-          >
-            Amount (USD)
-          </label>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-              $
-            </span>
-            <input
-              id="withdraw-amount"
-              type="number"
-              min={minWithdrawalUsd}
-              max={availableBalanceUsd}
-              step="0.01"
-              value={withdrawAmount}
-              onChange={(e) => onWithdrawAmountChange(e.target.value)}
-              disabled={isSubmitting}
-              className="w-full rounded-lg border border-input bg-background py-2 pl-8 pr-3 text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              placeholder={`${minWithdrawalUsd.toFixed(2)}`}
-            />
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div className="p-6 border-b">
+          <h3 className="text-lg font-semibold">Withdraw Earnings</h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Withdraw to your Stellar wallet
+          </p>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label
+              htmlFor="withdraw-amount"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Amount (USD)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                $
+              </span>
+              <input
+                id="withdraw-amount"
+                type="number"
+                min={minWithdrawalUsd}
+                max={availableBalanceUsd}
+                step="0.01"
+                value={withdrawAmount}
+                onChange={(e) => onWithdrawAmountChange(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                placeholder={`${minWithdrawalUsd.toFixed(2)}`}
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Available: ${availableBalanceUsd.toFixed(2)} | Min: $
+              {minWithdrawalUsd.toFixed(2)}
+            </p>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Available: ${availableBalanceUsd.toFixed(2)} | Min: $
-            {minWithdrawalUsd.toFixed(2)}
-          </p>
+
+          <div>
+            <label
+              htmlFor="stellar-address"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Stellar Address
+            </label>
+            <input
+              id="stellar-address"
+              type="text"
+              value={stellarAddress || savedStellarAddress || ''}
+              onChange={(e) => onStellarAddressChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              placeholder="G..."
+              readOnly={!!savedStellarAddress}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {savedStellarAddress
+                ? 'Using your saved wallet address from Wallet settings'
+                : 'Enter your Stellar wallet address'}
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-800">
+              Withdrawals are processed instantly on the Stellar network.
+              Transaction fees are covered by Quilltip.
+            </p>
+          </div>
         </div>
 
-        <div>
-          <label
-            htmlFor="stellar-address"
-            className="mb-2 block text-sm font-medium text-foreground"
+        <div className="p-6 border-t flex gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
           >
-            Stellar Address
-          </label>
-          <input
-            id="stellar-address"
-            type="text"
-            value={stellarAddress || savedStellarAddress || ''}
-            onChange={(e) => onStellarAddressChange(e.target.value)}
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-ring read-only:bg-muted"
-            placeholder="G..."
-            readOnly={!!savedStellarAddress}
-            disabled={isSubmitting}
-          />
-          <p className="mt-1 text-xs text-muted-foreground">
-            {savedStellarAddress
-              ? 'Using your saved wallet address from Wallet settings'
-              : 'Enter your Stellar wallet address'}
-          </p>
-        </div>
-
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-900 dark:bg-blue-950/40">
-          <p className="text-sm text-blue-800 dark:text-blue-200">
-            Withdrawals are processed instantly on the Stellar network.
-            Transaction fees are covered by Quilltip.
-          </p>
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={isSubmitting || !withdrawAmount || !addressForSubmit}
+            className="flex-1 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <Wallet className="w-4 h-4" />
+                Withdraw
+              </>
+            )}
+          </button>
         </div>
       </div>
-
-      <DialogFooter className="gap-2 sm:gap-0">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isSubmitting}
-          className="inline-flex flex-1 items-center justify-center rounded-lg border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-50 sm:flex-none"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={
-            isSubmitting || !withdrawAmount || !addressForSubmit
-          }
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-yellow-400 to-orange-500 px-4 py-2 text-sm font-medium text-white hover:from-yellow-500 hover:to-orange-600 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            <>
-              <Wallet className="h-4 w-4" />
-              Withdraw
-            </>
-          )}
-        </button>
-      </DialogFooter>
-    </>
+    </div>
   )
 }
