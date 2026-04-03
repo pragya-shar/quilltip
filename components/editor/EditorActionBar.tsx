@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect, useState, type ReactNode } from 'react'
 import { Editor } from '@tiptap/react'
+import { formatDistanceToNow } from 'date-fns'
 import {
   ArrowLeft,
   Undo2,
@@ -9,6 +11,7 @@ import {
   Trash2,
   Clock,
   LetterText,
+  Loader2,
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
@@ -28,6 +31,8 @@ interface EditorActionBarProps {
   hasUnsavedChanges?: boolean
 }
 
+const RELATIVE_TIME_INTERVAL_MS = 30_000
+
 export function EditorActionBar({
   editor,
   onBack,
@@ -43,15 +48,50 @@ export function EditorActionBar({
   onDelete,
   hasUnsavedChanges = false,
 }: EditorActionBarProps) {
+  const [relativeTick, setRelativeTick] = useState(0)
+
   const canUndo = editor?.can().undo ?? false
   const canRedo = editor?.can().redo ?? false
-  const savedAtText = lastSavedAt
-    ? lastSavedAt.toLocaleTimeString(undefined, {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      })
-    : null
+
+  const showRelativeSaved =
+    !isSaving &&
+    !error &&
+    !hasUnsavedChanges &&
+    lastSavedAt != null
+
+  useEffect(() => {
+    if (!showRelativeSaved) return
+    const id = setInterval(() => {
+      setRelativeTick((n) => n + 1)
+    }, RELATIVE_TIME_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [showRelativeSaved, lastSavedAt])
+
+  let statusText: ReactNode
+  let statusClassName = 'text-muted-foreground'
+
+  if (isSaving) {
+    statusText = (
+      <>
+        <Loader2
+          className="h-3.5 w-3.5 shrink-0 animate-spin opacity-70"
+          aria-hidden
+        />
+        Saving...
+      </>
+    )
+  } else if (error) {
+    statusText = "Couldn't save"
+    statusClassName = 'text-destructive'
+  } else if (hasUnsavedChanges) {
+    statusText = 'Unsaved changes'
+    statusClassName = 'text-red-500'
+  } else if (lastSavedAt) {
+    statusText = `Saved ${formatDistanceToNow(lastSavedAt, { addSuffix: true })}`
+  } else {
+    statusText = 'Not saved yet'
+    statusClassName = 'text-muted-foreground opacity-70'
+  }
 
   return (
     <div className="flex items-center justify-between w-full gap-4 py-3 px-4 bg-card border-b border-border shadow-sm">
@@ -66,7 +106,7 @@ export function EditorActionBar({
       </button>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         {/* Undo / Redo */}
         <button
           type="button"
@@ -87,12 +127,12 @@ export function EditorActionBar({
           <Redo2 className="h-4 w-4" />
         </button>
 
-        <div className="w-px h-6 bg-border mx-1" />
+        <div className="w-px h-6 bg-border mx-1 shrink-0" />
 
-        {/* Draft pill (light yellow, dot indicator) + Not saved yet / Saved at */}
-        <span className="flex items-center gap-2 text-sm">
+        {/* Draft pill + autosave status */}
+        <span className="flex items-center gap-2 text-sm min-w-0">
           <span
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium ${hasUnsavedChanges ? 'bg-red-50 text-red-700' : 'bg-yellow-100 text-amber-800'}`}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium shrink-0 ${hasUnsavedChanges ? 'bg-red-50 text-red-700' : 'bg-yellow-100 text-amber-800'}`}
           >
             <span
               className={`w-1.5 h-1.5 rounded-full shrink-0 ${hasUnsavedChanges ? 'bg-red-500' : 'bg-amber-500'}`}
@@ -100,40 +140,43 @@ export function EditorActionBar({
             />
             Draft
           </span>
-          {hasUnsavedChanges ? (
-            <span className="text-red-500">Unsaved changes</span>
-          ) : savedAtText != null ? (
-            <span className="text-muted-foreground">
-              Saved at {savedAtText}
-            </span>
-          ) : (
-            <span className="text-muted-foreground opacity-70">
-              Not saved yet
-            </span>
-          )}
+          <span
+            role="status"
+            aria-live="polite"
+            data-relative-tick={relativeTick}
+            title={
+              lastSavedAt && !isSaving && !error
+                ? lastSavedAt.toLocaleString()
+                : error || undefined
+            }
+            className={`flex items-center text-xs sm:text-sm truncate ${statusClassName} ${isSaving ? 'gap-2' : 'gap-1.5'}`}
+          >
+            {statusText}
+          </span>
         </span>
 
-        <div className="w-px h-6 bg-border mx-1" />
+        <div className="w-px h-6 bg-border mx-1 shrink-0" />
 
         {/* Save - always clickable so user can manually save even after auto-save */}
         <button
           type="button"
           onClick={onSave}
           disabled={isSaving}
-          className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded transition-colors"
-          title="Save draft"
+          aria-busy={isSaving}
+          className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded transition-colors shrink-0"
+          title={isSaving ? 'Saving draft...' : 'Save draft'}
         >
-          {isSaving ? 'Saving...' : 'Save'}
+          Save
         </button>
 
         {/* Preview */}
         {onPreview && (
           <>
-            <div className="w-px h-6 bg-border mx-1" />
+            <div className="w-px h-6 bg-border mx-1 shrink-0" />
             <button
               type="button"
               onClick={onPreview}
-              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors shrink-0"
               title="Preview"
             >
               Preview
@@ -142,9 +185,9 @@ export function EditorActionBar({
         )}
 
         {/* Publish */}
-        <div className="w-px h-6 bg-border mx-1" />
+        <div className="w-px h-6 bg-border mx-1 shrink-0" />
         {isPublished ? (
-          <span className="px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-full">
+          <span className="px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-full shrink-0">
             Published
           </span>
         ) : (
@@ -152,7 +195,7 @@ export function EditorActionBar({
             type="button"
             onClick={onPublish}
             disabled={isPublishing || !canPublish}
-            className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-full transition-colors"
+            className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-full transition-colors shrink-0"
             title="Publish article"
           >
             {isPublishing ? 'Publishing...' : 'Publish'}
@@ -164,7 +207,7 @@ export function EditorActionBar({
           <DropdownMenu.Trigger asChild>
             <button
               type="button"
-              className="p-2 rounded-full border border-border text-muted-foreground hover:bg-muted hover:border-border transition-colors"
+              className="p-2 rounded-full border border-border text-muted-foreground hover:bg-muted hover:border-border transition-colors shrink-0"
               title="More options"
             >
               <MoreHorizontal className="h-4 w-4" />
@@ -215,13 +258,6 @@ export function EditorActionBar({
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
       </div>
-
-      {/* Save error indicator */}
-      {error && (
-        <span className="text-xs text-red-500" title={error}>
-          Save failed
-        </span>
-      )}
     </div>
   )
 }
