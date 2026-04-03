@@ -54,10 +54,7 @@ export function EditorActionBar({
   const canRedo = editor?.can().redo ?? false
 
   const showRelativeSaved =
-    !isSaving &&
-    !error &&
-    !hasUnsavedChanges &&
-    lastSavedAt != null
+    !isSaving && !error && !hasUnsavedChanges && lastSavedAt != null
 
   useEffect(() => {
     if (!showRelativeSaved) return

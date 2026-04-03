@@ -80,11 +80,7 @@ describe('EditorActionBar autosave status', () => {
 
   it('shows error state when save failed', () => {
     render(
-      <EditorActionBar
-        {...baseProps}
-        error="Network error"
-        hasUnsavedChanges
-      />
+      <EditorActionBar {...baseProps} error="Network error" hasUnsavedChanges />
     )
     const status = screen.getByRole('status')
     expect(status).toHaveTextContent("Couldn't save")
