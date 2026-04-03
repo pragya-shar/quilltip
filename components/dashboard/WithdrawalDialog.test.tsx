@@ -91,4 +91,20 @@ describe('WithdrawalDialog', () => {
     )
     expect(container.firstChild).toBeNull()
   })
+
+  it('exposes an accessible dialog when open', () => {
+    render(
+      <WithdrawalDialog
+        open
+        onOpenChange={() => {}}
+        availableBalanceUsd={100}
+        minWithdrawalUsd={5}
+        savedStellarAddress={validGAddress}
+        onWithdraw={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Withdraw Earnings/i })).toBeInTheDocument()
+  })
 })

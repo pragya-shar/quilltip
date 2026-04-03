@@ -1,8 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Youtube, Link2, Play } from 'lucide-react'
+import { Youtube, Link2, Play } from 'lucide-react'
 import Image from 'next/image'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface YouTubeEmbedDialogProps {
   onVideoEmbed: (url: string, width?: number, height?: number) => void
@@ -22,9 +28,6 @@ export function YouTubeEmbedDialog({
   const [error, setError] = useState('')
   const [imageError, setImageError] = useState(false)
 
-  if (!isOpen) return null
-
-  // Extract YouTube video ID from various URL formats
   const extractYouTubeId = (url: string): string | null => {
     const patterns = [
       /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
@@ -40,12 +43,10 @@ export function YouTubeEmbedDialog({
     return null
   }
 
-  // Validate YouTube URL
   const isValidYouTubeUrl = (url: string): boolean => {
     return extractYouTubeId(url) !== null
   }
 
-  // Generate preview URL
   const getPreviewUrl = (url: string): string | null => {
     const videoId = extractYouTubeId(url)
     if (!videoId) return null
@@ -65,7 +66,6 @@ export function YouTubeEmbedDialog({
       return
     }
 
-    // Call the callback with the URL and optional dimensions
     onVideoEmbed(
       videoUrl.trim(),
       customDimensions ? width : undefined,
@@ -92,22 +92,21 @@ export function YouTubeEmbedDialog({
   const previewUrl = videoUrl ? getPreviewUrl(videoUrl) : null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-popover text-popover-foreground rounded-lg shadow-xl w-full max-w-md mx-4 border border-border">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <div className="flex items-center gap-2">
-            <Youtube className="w-5 h-5 text-red-600" />
-            <h3 className="text-lg font-semibold">Embed YouTube Video</h3>
-          </div>
-          <button onClick={handleClose} className="p-1 hover:bg-muted rounded">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleClose()
+      }}
+    >
+      <DialogContent className="max-w-md gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogHeader className="border-b border-border p-4 text-left">
+          <DialogTitle className="flex items-center gap-2">
+            <Youtube className="h-5 w-5 shrink-0 text-red-600" />
+            Embed YouTube Video
+          </DialogTitle>
+        </DialogHeader>
 
-        {/* Content */}
-        <div className="p-4 space-y-4">
-          {/* URL Input */}
+        <div className="space-y-4 p-4">
           <div className="space-y-2">
             <label
               htmlFor="youtube-url"
@@ -116,7 +115,7 @@ export function YouTubeEmbedDialog({
               YouTube URL
             </label>
             <div className="relative">
-              <Link2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Link2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
               <input
                 id="youtube-url"
                 type="url"
@@ -128,7 +127,7 @@ export function YouTubeEmbedDialog({
                     handleSubmit()
                   }
                 }}
-                className="w-full pl-10 pr-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                className="w-full rounded-lg border border-input bg-background py-2 pl-10 pr-3 text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring"
                 // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
               />
@@ -138,41 +137,39 @@ export function YouTubeEmbedDialog({
             </p>
           </div>
 
-          {/* Preview */}
           {previewUrl && !imageError && (
             <div className="space-y-2">
               <span className="block text-sm font-medium text-foreground">
                 Preview
               </span>
-              <div className="relative bg-muted rounded-lg overflow-hidden">
+              <div className="relative overflow-hidden rounded-lg bg-muted">
                 <Image
                   src={previewUrl}
                   alt="Video preview"
                   width={400}
                   height={128}
-                  className="w-full h-32 object-cover"
+                  className="h-32 w-full object-cover"
                   onError={() => setImageError(true)}
                   unoptimized
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center">
-                    <Play className="w-6 h-6 text-white ml-1" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-600">
+                    <Play className="ml-1 h-6 w-6 text-white" />
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Fallback preview for when image fails to load */}
           {previewUrl && imageError && (
             <div className="space-y-2">
               <span className="block text-sm font-medium text-foreground">
                 Preview
               </span>
-              <div className="relative bg-muted rounded-lg overflow-hidden h-32 flex items-center justify-center">
+              <div className="relative flex h-32 items-center justify-center overflow-hidden rounded-lg bg-muted">
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <Youtube className="w-6 h-6 text-white" />
+                  <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-red-600">
+                    <Youtube className="h-6 w-6 text-white" />
                   </div>
                   <p className="text-sm text-muted-foreground">YouTube Video</p>
                 </div>
@@ -180,7 +177,6 @@ export function YouTubeEmbedDialog({
             </div>
           )}
 
-          {/* Custom Dimensions */}
           <div className="space-y-3">
             <div className="flex items-center">
               <input
@@ -188,7 +184,7 @@ export function YouTubeEmbedDialog({
                 id="customDimensions"
                 checked={customDimensions}
                 onChange={(e) => setCustomDimensions(e.target.checked)}
-                className="w-4 h-4 text-primary border-input bg-background rounded focus:ring-ring"
+                className="h-4 w-4 rounded border-input bg-background text-primary focus:ring-ring"
               />
               <label
                 htmlFor="customDimensions"
@@ -203,7 +199,7 @@ export function YouTubeEmbedDialog({
                 <div>
                   <label
                     htmlFor="youtube-width"
-                    className="block text-sm font-medium text-foreground mb-1"
+                    className="mb-1 block text-sm font-medium text-foreground"
                   >
                     Width (px)
                   </label>
@@ -214,13 +210,13 @@ export function YouTubeEmbedDialog({
                     onChange={(e) => setWidth(Number(e.target.value))}
                     min="100"
                     max="1920"
-                    className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
                 <div>
                   <label
                     htmlFor="youtube-height"
-                    className="block text-sm font-medium text-foreground mb-1"
+                    className="mb-1 block text-sm font-medium text-foreground"
                   >
                     Height (px)
                   </label>
@@ -231,7 +227,7 @@ export function YouTubeEmbedDialog({
                     onChange={(e) => setHeight(Number(e.target.value))}
                     min="100"
                     max="1080"
-                    className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-foreground focus:outline-none focus:ring-ring"
                   />
                 </div>
               </div>
@@ -239,36 +235,36 @@ export function YouTubeEmbedDialog({
 
             {!customDimensions && (
               <p className="text-xs text-muted-foreground">
-                Default size: 640 × 480 pixels
+                Default size: 640 x 480 pixels
               </p>
             )}
           </div>
 
-          {/* Error Message */}
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3">
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
 
-          {/* Actions */}
           <div className="flex gap-3 pt-2">
             <button
+              type="button"
               onClick={handleClose}
-              className="flex-1 px-4 py-2 text-foreground bg-muted hover:bg-muted/80 rounded-lg transition-colors"
+              className="flex-1 rounded-lg bg-muted px-4 py-2 text-foreground transition-colors hover:bg-muted/80"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={!videoUrl.trim()}
-              className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Embed Video
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

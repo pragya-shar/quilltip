@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import {
@@ -19,6 +19,7 @@ import { EarningsDashboardSkeleton } from '@/components/dashboard/EarningsDashbo
 
 export function EarningsDashboard() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const withdrawTriggerRef = useRef<HTMLButtonElement>(null)
 
   const { user: currentUser } = useAuth()
 
@@ -76,6 +77,7 @@ export function EarningsDashboard() {
         userProfile={userProfile}
         minWithdrawalUsd={MIN_WITHDRAWAL_USD}
         onOpenWithdrawModal={() => setShowWithdrawModal(true)}
+        withdrawTriggerRef={withdrawTriggerRef}
       />
 
       <TipHistory tips={recentTips} />
@@ -87,6 +89,7 @@ export function EarningsDashboard() {
         minWithdrawalUsd={MIN_WITHDRAWAL_USD}
         savedStellarAddress={userProfile?.stellarAddress}
         onWithdraw={handleWithdrawFromDialog}
+        triggerRef={withdrawTriggerRef}
       />
     </div>
   )
