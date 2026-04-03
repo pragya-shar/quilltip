@@ -206,122 +206,120 @@ export function MintButton({
           if (isLoading) e.preventDefault()
         }}
       >
-          <DialogHeader>
-            <DialogTitle>Mint Article as NFT</DialogTitle>
-            <DialogDescription>
-              Convert your article into a unique NFT on the Stellar blockchain
-            </DialogDescription>
-          </DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Mint Article as NFT</DialogTitle>
+          <DialogDescription>
+            Convert your article into a unique NFT on the Stellar blockchain
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="space-y-4">
-            {!wallet.isConnected && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <p className="text-sm text-amber-900">
-                  Connect your wallet to mint this article as an NFT.
-                </p>
+        <div className="space-y-4">
+          {!wallet.isConnected && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-sm text-amber-900">
+                Connect your wallet to mint this article as an NFT.
+              </p>
+            </div>
+          )}
+          <div className="bg-secondary p-4 rounded-lg space-y-2">
+            <h4 className="font-medium">{articleTitle}</h4>
+            <div className="text-sm space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Tips:</span>
+                <span className="font-medium">${totalTips.toFixed(2)}</span>
               </div>
-            )}
-            <div className="bg-secondary p-4 rounded-lg space-y-2">
-              <h4 className="font-medium">{articleTitle}</h4>
-              <div className="text-sm space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Tips:</span>
-                  <span className="font-medium">${totalTips.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Threshold Met:</span>
-                  <span className="font-medium text-green-600">✓ Yes</span>
-                </div>
-                {wallet.isConnected && wallet.publicKey ? (
-                  <div className="bg-green-50 border border-green-200 rounded p-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-green-900 font-medium">
-                        ✓ Wallet Connected
-                      </span>
-                      <span className="font-mono text-green-700">
-                        {`${wallet.publicKey.slice(0, 4)}...${wallet.publicKey.slice(-4)}`}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-amber-50 border border-amber-200 rounded p-2">
-                    <span className="text-xs text-amber-900">
-                      ⚠ Wallet not connected
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Threshold Met:</span>
+                <span className="font-medium text-green-600">✓ Yes</span>
+              </div>
+              {wallet.isConnected && wallet.publicKey ? (
+                <div className="bg-green-50 border border-green-200 rounded p-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-green-900 font-medium">
+                      ✓ Wallet Connected
+                    </span>
+                    <span className="font-mono text-green-700">
+                      {`${wallet.publicKey.slice(0, 4)}...${wallet.publicKey.slice(-4)}`}
                     </span>
                   </div>
-                )}
-              </div>
-            </div>
-
-            {isLoading && (
-              <div className="bg-blue-50 p-4 rounded-lg space-y-2">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="font-medium">Minting in Progress...</span>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  {mintingStep === 'checking' && 'Verifying eligibility...'}
-                  {mintingStep === 'wallet' && 'Sign in your wallet...'}
-                  {mintingStep === 'blockchain' && 'Minting NFT...'}
-                  {mintingStep === 'database' && 'Finalizing...'}
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <p>By minting this NFT:</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>
-                  You&apos;ll create a unique token representing ownership
-                </li>
-                <li>The NFT can be transferred or traded</li>
-                <li>You&apos;ll retain authorship attribution</li>
-                <li>This action cannot be undone</li>
-              </ul>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                type="button"
-                onClick={() => setDialogOpen(false)}
-                disabled={isLoading}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-
-              {!wallet.isConnected ? (
-                <Button
-                  onClick={wallet.connect}
-                  disabled={isLoading}
-                  className="flex-1"
-                >
-                  <Wallet className="mr-2 h-4 w-4" />
-                  Connect Wallet
-                </Button>
               ) : (
-                <Button
-                  onClick={handleMint}
-                  disabled={isLoading}
-                  className="flex-1"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Minting...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Mint NFT
-                    </>
-                  )}
-                </Button>
+                <div className="bg-amber-50 border border-amber-200 rounded p-2">
+                  <span className="text-xs text-amber-900">
+                    ⚠ Wallet not connected
+                  </span>
+                </div>
               )}
             </div>
           </div>
-        </DialogContent>
+
+          {isLoading && (
+            <div className="bg-blue-50 p-4 rounded-lg space-y-2">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="font-medium">Minting in Progress...</span>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {mintingStep === 'checking' && 'Verifying eligibility...'}
+                {mintingStep === 'wallet' && 'Sign in your wallet...'}
+                {mintingStep === 'blockchain' && 'Minting NFT...'}
+                {mintingStep === 'database' && 'Finalizing...'}
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2 text-sm text-muted-foreground">
+            <p>By minting this NFT:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>You&apos;ll create a unique token representing ownership</li>
+              <li>The NFT can be transferred or traded</li>
+              <li>You&apos;ll retain authorship attribution</li>
+              <li>This action cannot be undone</li>
+            </ul>
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setDialogOpen(false)}
+              disabled={isLoading}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+
+            {!wallet.isConnected ? (
+              <Button
+                onClick={wallet.connect}
+                disabled={isLoading}
+                className="flex-1"
+              >
+                <Wallet className="mr-2 h-4 w-4" />
+                Connect Wallet
+              </Button>
+            ) : (
+              <Button
+                onClick={handleMint}
+                disabled={isLoading}
+                className="flex-1"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Minting...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Mint NFT
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
+      </DialogContent>
     </Dialog>
   )
 }

@@ -433,7 +433,11 @@ export function EditorToolbar({
         </ToolbarButton>
       </div>
       <div className="absolute right-6 flex items-center shrink-0">
-        <Popover modal open={notesPopoverOpen} onOpenChange={setNotesPopoverOpen}>
+        <Popover
+          modal
+          open={notesPopoverOpen}
+          onOpenChange={setNotesPopoverOpen}
+        >
           <PopoverTrigger asChild>
             <button
               type="button"
