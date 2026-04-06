@@ -27,9 +27,7 @@ export function UserAvatar({
   const trimmedSrc = src?.trim()
   return (
     <Avatar className={cn(className)} role="img" aria-label={alt}>
-      {trimmedSrc ? (
-        <AvatarImage src={trimmedSrc} alt="" />
-      ) : null}
+      {trimmedSrc ? <AvatarImage src={trimmedSrc} alt="" /> : null}
       <AvatarFallback
         className={cn(
           'bg-brand-blue text-white font-semibold text-sm',
