@@ -2,27 +2,8 @@
 
 import { useNFTsByOwner, useUserMintedNFTs } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
-import { Skeleton } from '@/components/ui/skeleton'
+import { ProfileNftsTabSkeleton } from '@/components/profile/ProfileNftsTabSkeleton'
 import { Image, Trophy } from 'lucide-react'
-
-function ProfileNftsSkeleton() {
-  return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-4"
-          >
-            <Skeleton className="aspect-video w-full rounded-lg mb-4" />
-            <Skeleton className="h-5 w-3/4 mb-2" />
-            <Skeleton className="h-4 w-1/2" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 export function ProfileNftsTabContent({
   userId,
@@ -37,7 +18,7 @@ export function ProfileNftsTabContent({
   const mintedNFTs = useUserMintedNFTs(userId)
 
   if (userNFTs === undefined || mintedNFTs === undefined) {
-    return <ProfileNftsSkeleton />
+    return <ProfileNftsTabSkeleton />
   }
 
   return (
