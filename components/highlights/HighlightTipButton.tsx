@@ -217,8 +217,9 @@ export function HighlightTipButton({
     <>
       {/* Tip Button */}
       <button
+        type="button"
         onClick={() => setIsOpen(true)}
-        className={`inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105 shadow-md text-sm ${className}`}
+        className={`focus-ring inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105 shadow-md text-sm ${className}`}
         title="Tip this highlight"
       >
         <Coins className="w-3.5 h-3.5" />
@@ -235,6 +236,7 @@ export function HighlightTipButton({
         >
           {/* Backdrop — interactive button so a11y rules are satisfied */}
           <button
+            type="button"
             className="absolute inset-0 bg-black/50"
             onClick={() => {
               if (!isLoading) setIsOpen(false)
@@ -248,8 +250,9 @@ export function HighlightTipButton({
                 Tip Highlight
               </h3>
               <button
+                type="button"
                 onClick={() => setIsOpen(false)}
-                className="text-muted-foreground hover:text-foreground text-2xl leading-none"
+                className="focus-ring rounded-sm text-muted-foreground hover:text-foreground text-2xl leading-none"
               >
                 ×
               </button>
@@ -279,11 +282,12 @@ export function HighlightTipButton({
               {TIP_PRESETS_HIGHLIGHT.map((amount) => (
                 <button
                   key={amount.cents}
+                  type="button"
                   onClick={() => {
                     setSelectedAmount(amount.cents)
                     setCustomAmount('')
                   }}
-                  className={`relative px-4 py-3 rounded-lg border-2 transition-all ${
+                  className={`focus-ring relative px-4 py-3 rounded-lg border-2 transition-all ${
                     selectedAmount === amount.cents
                       ? 'border-orange-500 bg-orange-50'
                       : 'border-border hover:border-orange-300'
@@ -323,7 +327,7 @@ export function HighlightTipButton({
                     setSelectedAmount(null)
                   }}
                   placeholder="0.00"
-                  className="w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  className="focus-ring w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg"
                 />
               </div>
               <p className="text-xs text-muted-foreground mt-1">
@@ -335,15 +339,17 @@ export function HighlightTipButton({
             {/* Action Buttons */}
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={() => setIsOpen(false)}
                 disabled={isLoading}
-                className="flex-1 px-4 py-2 border border-input bg-background text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                className="focus-ring flex-1 px-4 py-2 border border-input bg-background text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
 
               {!isConnected ? (
                 <button
+                  type="button"
                   onClick={async () => {
                     try {
                       await connect()
@@ -353,16 +359,17 @@ export function HighlightTipButton({
                     }
                   }}
                   disabled={isLoading}
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <Wallet className="w-4 h-4" />
                   <span>Connect Wallet</span>
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={handleTip}
                   disabled={isLoading || (!selectedAmount && !customAmount)}
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isLoading ? (
                     <>

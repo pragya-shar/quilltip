@@ -114,7 +114,7 @@ export default function Pagination({
       <PaginationButton
         page={currentPage - 1}
         disabled={currentPage === 1}
-        className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+        className="focus-ring relative inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
         ariaLabel="Previous page"
       >
         <ChevronLeft className="h-4 w-4" />
@@ -135,7 +135,7 @@ export default function Pagination({
             <PaginationButton
               key={page}
               page={page as number}
-              className={`relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`focus-ring relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                 currentPage === page
                   ? 'z-10 bg-brand-blue text-white'
                   : 'text-foreground bg-background border border-border hover:bg-muted'
@@ -157,7 +157,7 @@ export default function Pagination({
       <PaginationButton
         page={currentPage + 1}
         disabled={currentPage === totalPages}
-        className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+        className="focus-ring relative inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
         ariaLabel="Next page"
       >
         <span className="mr-1 hidden sm:inline">Next</span>

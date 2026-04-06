@@ -196,6 +196,19 @@ export default function Navigation() {
     }, 150)
   }, [])
 
+  const toggleDropdown = useCallback((label: string) => {
+    setOpenDropdown((prev) => (prev === label ? null : label))
+  }, [])
+
+  useEffect(() => {
+    if (!openDropdown) return
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenDropdown(null)
+    }
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [openDropdown])
+
   const handleSmoothScroll = (
     e: React.MouseEvent<HTMLAnchorElement>,
     href: string
@@ -230,7 +243,10 @@ export default function Navigation() {
       <div className="container mx-auto max-w-7xl px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
+          <Link
+            href="/"
+            className="focus-ring flex items-center gap-3 group rounded-lg"
+          >
             <motion.div
               className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-accent rounded-xl flex items-center justify-center shadow-sm"
               whileHover={{ scale: 1.05 }}
@@ -247,7 +263,7 @@ export default function Navigation() {
           <div className="hidden md:flex items-center gap-1" ref={navRef}>
             <Link
               href="/articles"
-              className="px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-all duration-200"
+              className="focus-ring px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-all duration-200"
             >
               Articles
             </Link>
@@ -259,11 +275,21 @@ export default function Navigation() {
                 onMouseLeave={handleMouseLeave}
               >
                 <button
-                  className={`flex items-center gap-1 px-3 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200 ${
+                  type="button"
+                  aria-expanded={openDropdown === dropdown.label}
+                  aria-haspopup="true"
+                  className={`focus-ring flex items-center gap-1 px-3 py-1.5 text-[13px] font-medium rounded-lg transition-all duration-200 ${
                     openDropdown === dropdown.label
                       ? 'text-foreground bg-muted/60'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
                   }`}
+                  onClick={() => toggleDropdown(dropdown.label)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      toggleDropdown(dropdown.label)
+                    }
+                  }}
                 >
                   {dropdown.label}
                   <ChevronDown
@@ -283,7 +309,7 @@ export default function Navigation() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 8 }}
                         transition={{ duration: 0.18, ease: 'easeOut' }}
-                        className="absolute top-[calc(100%+8px)] right-0 w-[560px] bg-popover text-popover-foreground rounded-2xl shadow-xl border border-border overflow-hidden"
+                        className="absolute top-[calc(100%+8px)] right-0 w-[560px] bg-popover text-popover-foreground rounded-2xl shadow-xl border border-border"
                         style={{
                           transform:
                             dropdown.label === 'Product'
@@ -298,7 +324,7 @@ export default function Navigation() {
                             onClick={(e) =>
                               handleSmoothScroll(e, dropdown.featured.href)
                             }
-                            className={`w-[200px] shrink-0 p-5 ${dropdown.featured.bgClass} flex flex-col justify-between group/featured`}
+                            className={`focus-ring w-[200px] shrink-0 p-5 ${dropdown.featured.bgClass} flex flex-col justify-between group/featured rounded-l-2xl`}
                           >
                             <div>
                               <div className="w-10 h-10 bg-card/80 rounded-xl flex items-center justify-center mb-3 shadow-sm">
@@ -335,7 +361,7 @@ export default function Navigation() {
                                         handleSmoothScroll(e, item.href)
                                         setOpenDropdown(null)
                                       }}
-                                      className="flex items-start gap-2.5 px-2.5 py-2 rounded-xl hover:bg-muted/50 transition-colors duration-150 group/item"
+                                      className="focus-ring flex items-start gap-2.5 px-2.5 py-2 rounded-xl hover:bg-muted/50 transition-colors duration-150 group/item"
                                     >
                                       <div className="w-8 h-8 bg-muted group-hover/item:bg-muted/80 rounded-lg flex items-center justify-center shrink-0 transition-colors">
                                         <item.icon className="w-4 h-4 text-muted-foreground" />
@@ -373,14 +399,14 @@ export default function Navigation() {
 
             <Link
               href="/login"
-              className="px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-all duration-200"
+              className="focus-ring px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-all duration-200"
             >
               Sign In
             </Link>
 
             <Link
               href="/register"
-              className="inline-flex items-center gap-1.5 bg-brand-blue text-white px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-brand-accent transition-all duration-200 ml-1"
+              className="focus-ring inline-flex items-center gap-1.5 bg-brand-blue text-white px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-brand-accent transition-all duration-200 ml-1"
             >
               Try on Testnet
               <span className="text-white/80">→</span>
@@ -389,8 +415,10 @@ export default function Navigation() {
 
           {/* Mobile Menu Button */}
           <button
-            className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
+            type="button"
+            className="focus-ring md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
             onClick={() => setIsOpen(!isOpen)}
+            aria-expanded={isOpen}
             aria-label="Toggle menu"
           >
             {isOpen ? (
@@ -414,7 +442,7 @@ export default function Navigation() {
               <div className="py-4 space-y-4">
                 <Link
                   href="/articles"
-                  className="flex items-center gap-3 py-1.5 text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
+                  className="focus-ring flex items-center gap-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   Articles
@@ -435,7 +463,7 @@ export default function Navigation() {
                           <Link
                             key={item.title}
                             href={item.href}
-                            className="flex items-center gap-2.5 py-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                            className="focus-ring flex items-center gap-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors"
                             onClick={(e) => {
                               handleSmoothScroll(e, item.href)
                               setIsOpen(false)
@@ -465,14 +493,14 @@ export default function Navigation() {
                 >
                   <Link
                     href="/login"
-                    className="block text-muted-foreground hover:text-foreground text-sm font-medium transition-colors py-1.5"
+                    className="focus-ring block rounded-md text-muted-foreground hover:text-foreground text-sm font-medium transition-colors py-1.5"
                     onClick={() => setIsOpen(false)}
                   >
                     Sign In
                   </Link>
                   <Link
                     href="/register"
-                    className="block bg-brand-blue text-white px-5 py-2.5 rounded-lg hover:bg-brand-accent transition-colors text-center text-sm font-medium"
+                    className="focus-ring block bg-brand-blue text-white px-5 py-2.5 rounded-lg hover:bg-brand-accent transition-colors text-center text-sm font-medium"
                     onClick={() => setIsOpen(false)}
                   >
                     Try on Testnet →
