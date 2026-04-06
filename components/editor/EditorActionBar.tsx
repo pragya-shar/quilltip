@@ -1,6 +1,8 @@
 'use client'
 
+import { useEffect, useState, type ReactNode } from 'react'
 import { Editor } from '@tiptap/react'
+import { formatDistanceToNow } from 'date-fns'
 import {
   ArrowLeft,
   Undo2,
@@ -9,6 +11,7 @@ import {
   Trash2,
   Clock,
   LetterText,
+  Loader2,
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 
@@ -27,6 +30,8 @@ interface EditorActionBarProps {
   onDelete?: () => void
   hasUnsavedChanges?: boolean
 }
+
+const RELATIVE_TIME_INTERVAL_MS = 30_000
 
 function MoreMenu({
   editor,
@@ -106,25 +111,58 @@ export function EditorActionBar({
   onDelete,
   hasUnsavedChanges = false,
 }: EditorActionBarProps) {
+  const [relativeTick, setRelativeTick] = useState(0)
+
   const canUndo = editor?.can().undo ?? false
   const canRedo = editor?.can().redo ?? false
-  const savedAtText = lastSavedAt
-    ? lastSavedAt.toLocaleTimeString(undefined, {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      })
-    : null
+
+  const showRelativeSaved =
+    !isSaving && !error && !hasUnsavedChanges && lastSavedAt != null
+
+  useEffect(() => {
+    if (!showRelativeSaved) return
+    const id = setInterval(() => {
+      setRelativeTick((n) => n + 1)
+    }, RELATIVE_TIME_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [showRelativeSaved, lastSavedAt])
+
+  let statusText: ReactNode
+  let statusClassName = 'text-muted-foreground'
+
+  if (isSaving) {
+    statusText = (
+      <>
+        <Loader2
+          className="h-3.5 w-3.5 shrink-0 animate-spin opacity-70"
+          aria-hidden
+        />
+        Saving...
+      </>
+    )
+  } else if (error) {
+    statusText = "Couldn't save"
+    statusClassName = 'text-destructive'
+  } else if (hasUnsavedChanges) {
+    statusText = 'Unsaved changes'
+    statusClassName = 'text-red-500'
+  } else if (lastSavedAt) {
+    statusText = `Saved ${formatDistanceToNow(lastSavedAt, { addSuffix: true })}`
+  } else {
+    statusText = 'Not saved yet'
+    statusClassName = 'text-muted-foreground opacity-70'
+  }
 
   const saveButton = (
     <button
       type="button"
       onClick={onSave}
       disabled={isSaving}
+      aria-busy={isSaving}
       className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded transition-colors shrink-0"
-      title="Save draft"
+      title={isSaving ? 'Saving draft...' : 'Save draft'}
     >
-      {isSaving ? 'Saving...' : 'Save'}
+      Save
     </button>
   )
 
@@ -155,25 +193,19 @@ export function EditorActionBar({
         />
         Draft
       </span>
-      {hasUnsavedChanges ? (
-        <span className="whitespace-nowrap text-red-500">
-          <span className="hidden sm:inline">Unsaved changes</span>
-          <span className="sm:hidden">Unsaved</span>
-        </span>
-      ) : savedAtText != null ? (
-        <span
-          className="text-muted-foreground sm:whitespace-nowrap"
-          title={`Saved at ${savedAtText}`}
-        >
-          <span className="hidden sm:inline">Saved at {savedAtText}</span>
-          <span className="sm:hidden">Saved</span>
-        </span>
-      ) : (
-        <span className="text-muted-foreground opacity-70 sm:whitespace-nowrap">
-          <span className="hidden sm:inline">Not saved yet</span>
-          <span className="sm:hidden">Not saved</span>
-        </span>
-      )}
+      <span
+        role="status"
+        aria-live="polite"
+        data-relative-tick={relativeTick}
+        title={
+          lastSavedAt && !isSaving && !error
+            ? lastSavedAt.toLocaleString()
+            : error || undefined
+        }
+        className={`flex items-center text-xs sm:text-sm truncate ${statusClassName} ${isSaving ? 'gap-2' : 'gap-1.5'}`}
+      >
+        {statusText}
+      </span>
     </span>
   )
 
