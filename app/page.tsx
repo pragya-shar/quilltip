@@ -10,6 +10,8 @@ import FAQSection from '@/components/landing/FAQSection'
 import Footer from '@/components/landing/Footer'
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
 import { HomeRecentArticlesSection } from '@/components/articles/HomeRecentArticlesSection'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
+import { DashboardRecentArticlesFallback } from '@/components/error/SectionErrorFallback'
 import Link from 'next/link'
 import { PenSquare, BookOpen, Wallet, TrendingUp } from 'lucide-react'
 
@@ -118,7 +120,9 @@ export default function HomePage() {
                   View all
                 </Link>
               </div>
-              <HomeRecentArticlesSection />
+              <ErrorBoundary fallback={<DashboardRecentArticlesFallback />}>
+                <HomeRecentArticlesSection />
+              </ErrorBoundary>
             </div>
           </div>
         </div>
