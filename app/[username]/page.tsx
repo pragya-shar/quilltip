@@ -133,7 +133,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                   flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
                     activeTab === tab.id
-                      ? 'border-brand-blue text-brand-blue'
+                      ? 'border-brand-blue text-foreground dark:border-primary'
                       : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                   }
                 `}

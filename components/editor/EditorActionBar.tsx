@@ -107,9 +107,7 @@ export function EditorActionBar({
               Saved at {savedAtText}
             </span>
           ) : (
-            <span className="text-muted-foreground opacity-70">
-              Not saved yet
-            </span>
+            <span className="text-muted-foreground">Not saved yet</span>
           )}
         </span>
 

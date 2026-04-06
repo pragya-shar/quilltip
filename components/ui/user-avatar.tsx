@@ -24,16 +24,19 @@ export function UserAvatar({
   className,
   fallbackClassName,
 }: UserAvatarProps) {
+  const trimmedSrc = src?.trim()
   return (
-    <Avatar className={cn(className)}>
-      <AvatarImage src={src || undefined} alt={alt} />
+    <Avatar className={cn(className)} role="img" aria-label={alt}>
+      {trimmedSrc ? (
+        <AvatarImage src={trimmedSrc} alt="" />
+      ) : null}
       <AvatarFallback
         className={cn(
           'bg-brand-blue text-white font-semibold text-sm',
           fallbackClassName
         )}
       >
-        {avatarInitials(name)}
+        <span aria-hidden>{avatarInitials(name)}</span>
       </AvatarFallback>
     </Avatar>
   )

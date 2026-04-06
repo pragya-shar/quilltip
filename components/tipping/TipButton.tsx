@@ -306,7 +306,7 @@ export function TipButton({
         </div>
 
         {isConnected && publicKey && (
-          <div className="text-xs text-green-600 text-center">
+          <div className="text-xs text-green-800 dark:text-green-300 text-center">
             <p className="flex items-center justify-center gap-1">
               <Wallet className="w-3 h-3" />
               Connected: {publicKey.slice(0, 6)}...{publicKey.slice(-6)}

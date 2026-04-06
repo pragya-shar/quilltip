@@ -188,8 +188,10 @@ export default function ShareButtons({
         >
           {copied ? (
             <>
-              <Check className="h-4 w-4 text-green-600" />
-              <span className="hidden sm:inline text-green-600">Copied!</span>
+              <Check className="h-4 w-4 text-green-800 dark:text-green-300" />
+              <span className="hidden sm:inline text-green-800 dark:text-green-300">
+                Copied!
+              </span>
             </>
           ) : (
             <>

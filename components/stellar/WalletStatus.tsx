@@ -137,8 +137,8 @@ export function WalletStatus({ className }: WalletStatusProps) {
     <Card className={className}>
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-            <Wallet className="w-4 h-4 text-green-600" />
+          <div className="w-8 h-8 bg-green-100 dark:bg-green-950/50 rounded-full flex items-center justify-center">
+            <Wallet className="w-4 h-4 text-green-800 dark:text-green-300" />
           </div>
           <div className="flex flex-col">
             <span>Wallet Connected</span>

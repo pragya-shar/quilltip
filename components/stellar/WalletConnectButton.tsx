@@ -92,7 +92,7 @@ export function WalletConnectButton({
         variant="outline"
         className={cn('gap-2', className)}
       >
-        <CheckCircle className="w-4 h-4 text-green-600" />
+        <CheckCircle className="w-4 h-4 text-green-800 dark:text-green-300" />
         <div className="flex flex-col items-start">
           <span className="text-sm font-medium">
             {formatAddress(publicKey)}
