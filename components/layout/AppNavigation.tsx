@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'motion/react'
 
 export default function AppNavigation() {
   const { user, isAuthenticated, signOut } = useAuth()

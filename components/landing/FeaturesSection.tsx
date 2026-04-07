@@ -10,8 +10,7 @@ import {
   Globe,
   Sparkles,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { useInView } from 'framer-motion'
+import { motion, useInView } from 'motion/react'
 import { useRef } from 'react'
 import { LucideIcon } from 'lucide-react'
 
