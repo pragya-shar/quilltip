@@ -214,6 +214,7 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --accent: #f1f3f4;
   --accent-foreground: #202124;
   --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
   --border: #e8eaed;
   --input: #e8eaed;
   --ring: #9aa0a6;
@@ -232,12 +233,10 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --sidebar-ring: oklch(0.708 0 0);
 
   /*
-   * Semantic status tokens (foundation for error/success/warning/info UI).
-   * Each pair is background (--*) and text (--*-foreground).
-   * Example (later): bg-[var(--error)] text-[var(--error-foreground)]
+   * Semantic status tokens. Each pair: background (--*) + legible text (--*-foreground).
+   * Use as Tailwind utilities: bg-success text-success-foreground, bg-warning text-warning-foreground, etc.
+   * For error/danger states use --destructive / --destructive-foreground (already present above).
    */
-  --error: oklch(0.965 0.03 25);
-  --error-foreground: oklch(0.47 0.19 25);
   --success: oklch(0.965 0.03 145);
   --success-foreground: oklch(0.44 0.15 145);
   --warning: oklch(0.97 0.04 85);
@@ -581,6 +580,13 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-surface: var(--surface);
   --color-text: var(--text);
@@ -642,6 +648,7 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --accent: #3c4043;
   --accent-foreground: #f8f9fa;
   --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
   --border: #6e7378;
   --input: #5f6368;
   --ring: #9aa0a6;
@@ -660,12 +667,10 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --sidebar-ring: #9aa0a6;
 
   /*
-   * Semantic status tokens (foundation for error/success/warning/info UI).
-   * Each pair is background (--*) and text (--*-foreground).
-   * Example (later): bg-[var(--error)] text-[var(--error-foreground)]
+   * Semantic status tokens. Each pair: background (--*) + legible text (--*-foreground).
+   * Use as Tailwind utilities: bg-success text-success-foreground, bg-warning text-warning-foreground, etc.
+   * For error/danger states use --destructive / --destructive-foreground (already present above).
    */
-  --error: oklch(0.28 0.08 25);
-  --error-foreground: oklch(0.88 0.09 25);
   --success: oklch(0.28 0.07 145);
   --success-foreground: oklch(0.89 0.08 145);
   --warning: oklch(0.3 0.07 85);
