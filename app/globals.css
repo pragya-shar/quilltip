@@ -230,6 +230,20 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /*
+   * Semantic status tokens (foundation for error/success/warning/info UI).
+   * Each pair is background (--*) and text (--*-foreground).
+   * Example (later): bg-[var(--error)] text-[var(--error-foreground)]
+   */
+  --error: oklch(0.965 0.03 25);
+  --error-foreground: oklch(0.47 0.19 25);
+  --success: oklch(0.965 0.03 145);
+  --success-foreground: oklch(0.44 0.15 145);
+  --warning: oklch(0.97 0.04 85);
+  --warning-foreground: oklch(0.45 0.14 85);
+  --info: oklch(0.965 0.03 240);
+  --info-foreground: oklch(0.48 0.17 240);
 }
 
 /* Clean Typography for Article Content */
@@ -644,6 +658,20 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --sidebar-accent-foreground: #f8f9fa;
   --sidebar-border: #5f6368;
   --sidebar-ring: #9aa0a6;
+
+  /*
+   * Semantic status tokens (foundation for error/success/warning/info UI).
+   * Each pair is background (--*) and text (--*-foreground).
+   * Example (later): bg-[var(--error)] text-[var(--error-foreground)]
+   */
+  --error: oklch(0.28 0.08 25);
+  --error-foreground: oklch(0.88 0.09 25);
+  --success: oklch(0.28 0.07 145);
+  --success-foreground: oklch(0.89 0.08 145);
+  --warning: oklch(0.3 0.07 85);
+  --warning-foreground: oklch(0.9 0.1 85);
+  --info: oklch(0.28 0.06 240);
+  --info-foreground: oklch(0.9 0.07 240);
 }
 
 @layer base {
