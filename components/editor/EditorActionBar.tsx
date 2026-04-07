@@ -194,9 +194,6 @@ export function EditorActionBar({
         Draft
       </span>
       <span
-        role="status"
-        aria-live="polite"
-        data-relative-tick={relativeTick}
         title={
           lastSavedAt && !isSaving && !error
             ? lastSavedAt.toLocaleString()
@@ -234,6 +231,19 @@ export function EditorActionBar({
 
   return (
     <div className="w-full min-w-0 bg-card border-b border-border shadow-sm">
+      <span
+        role="status"
+        aria-live="polite"
+        data-relative-tick={relativeTick}
+        title={
+          lastSavedAt && !isSaving && !error
+            ? lastSavedAt.toLocaleString()
+            : error || undefined
+        }
+        className="sr-only"
+      >
+        {statusText}
+      </span>
       {/* Mobile: primary row (Back + Save + Publish + More), secondary scroll row */}
       <div className="flex flex-col gap-2 px-4 py-3 sm:hidden">
         <div className="flex min-w-0 items-center justify-between gap-2">
