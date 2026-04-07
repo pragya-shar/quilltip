@@ -41,8 +41,10 @@ describe('EditorActionBar autosave status', () => {
 
   it('shows Saving... in the status line while isSaving', () => {
     render(<EditorActionBar {...baseProps} isSaving />)
-    const status = screen.getByRole('status')
-    expect(status).toHaveTextContent('Saving...')
+    const statuses = screen.getAllByRole('status')
+    for (const status of statuses) {
+      expect(status).toHaveTextContent('Saving...')
+    }
   })
 
   it('shows relative saved label when lastSavedAt is set and not dirty', () => {
@@ -54,8 +56,10 @@ describe('EditorActionBar autosave status', () => {
         hasUnsavedChanges={false}
       />
     )
-    const status = screen.getByRole('status')
-    expect(status.textContent).toMatch(/^Saved .+ ago$/)
+    const statuses = screen.getAllByRole('status')
+    for (const status of statuses) {
+      expect(status.textContent).toMatch(/^Saved .+ ago$/)
+    }
   })
 
   it('increments relative tick on interval while showing saved time', () => {
@@ -68,32 +72,43 @@ describe('EditorActionBar autosave status', () => {
         hasUnsavedChanges={false}
       />
     )
-    const status = screen.getByRole('status')
-    expect(status.getAttribute('data-relative-tick')).toBe('0')
+    const statuses = screen.getAllByRole('status')
+    for (const status of statuses) {
+      expect(status.getAttribute('data-relative-tick')).toBe('0')
+    }
     act(() => {
       vi.advanceTimersByTime(30_000)
     })
-    expect(screen.getByRole('status').getAttribute('data-relative-tick')).toBe(
-      '1'
-    )
+    const statusesAfter = screen.getAllByRole('status')
+    for (const status of statusesAfter) {
+      expect(status.getAttribute('data-relative-tick')).toBe('1')
+    }
   })
 
   it('shows error state when save failed', () => {
     render(
       <EditorActionBar {...baseProps} error="Network error" hasUnsavedChanges />
     )
-    const status = screen.getByRole('status')
-    expect(status).toHaveTextContent("Couldn't save")
-    expect(status).toHaveAttribute('title', 'Network error')
+    const statuses = screen.getAllByRole('status')
+    for (const status of statuses) {
+      expect(status).toHaveTextContent("Couldn't save")
+      expect(status).toHaveAttribute('title', 'Network error')
+    }
   })
 
   it('shows Unsaved changes when dirty and not saving', () => {
     render(<EditorActionBar {...baseProps} hasUnsavedChanges />)
-    expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes')
+    const statuses = screen.getAllByRole('status')
+    for (const status of statuses) {
+      expect(status).toHaveTextContent('Unsaved changes')
+    }
   })
 
   it('shows Not saved yet when no save and not dirty', () => {
     render(<EditorActionBar {...baseProps} />)
-    expect(screen.getByRole('status')).toHaveTextContent('Not saved yet')
+    const statuses = screen.getAllByRole('status')
+    for (const status of statuses) {
+      expect(status).toHaveTextContent('Not saved yet')
+    }
   })
 })
