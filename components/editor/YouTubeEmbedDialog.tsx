@@ -1,19 +1,53 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Youtube, Link2, Play } from 'lucide-react'
+import { useState, type RefObject } from 'react'
+import { Youtube, Link2, Play } from 'lucide-react'
 import Image from 'next/image'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface YouTubeEmbedDialogProps {
   onVideoEmbed: (url: string, width?: number, height?: number) => void
   onClose: () => void
   isOpen: boolean
+  triggerRef?: RefObject<HTMLElement | null>
+}
+
+function extractYouTubeId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+    /youtube\.com\/watch\?.*v=([^&\n?#]+)/,
+  ]
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern)
+    if (match?.[1]) {
+      return match[1]
+    }
+  }
+  return null
+}
+
+function isValidYouTubeUrl(url: string): boolean {
+  return extractYouTubeId(url) !== null
+}
+
+function getPreviewUrl(url: string): string | null {
+  const videoId = extractYouTubeId(url)
+  if (!videoId) return null
+  return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
 }
 
 export function YouTubeEmbedDialog({
   onVideoEmbed,
   onClose,
   isOpen,
+  triggerRef,
 }: YouTubeEmbedDialogProps) {
   const [videoUrl, setVideoUrl] = useState('')
   const [customDimensions, setCustomDimensions] = useState(false)
@@ -21,36 +55,6 @@ export function YouTubeEmbedDialog({
   const [height, setHeight] = useState(480)
   const [error, setError] = useState('')
   const [imageError, setImageError] = useState(false)
-
-  if (!isOpen) return null
-
-  // Extract YouTube video ID from various URL formats
-  const extractYouTubeId = (url: string): string | null => {
-    const patterns = [
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
-      /youtube\.com\/watch\?.*v=([^&\n?#]+)/,
-    ]
-
-    for (const pattern of patterns) {
-      const match = url.match(pattern)
-      if (match && match[1]) {
-        return match[1]
-      }
-    }
-    return null
-  }
-
-  // Validate YouTube URL
-  const isValidYouTubeUrl = (url: string): boolean => {
-    return extractYouTubeId(url) !== null
-  }
-
-  // Generate preview URL
-  const getPreviewUrl = (url: string): string | null => {
-    const videoId = extractYouTubeId(url)
-    if (!videoId) return null
-    return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
-  }
 
   const handleSubmit = () => {
     setError('')
@@ -65,7 +69,6 @@ export function YouTubeEmbedDialog({
       return
     }
 
-    // Call the callback with the URL and optional dimensions
     onVideoEmbed(
       videoUrl.trim(),
       customDimensions ? width : undefined,
@@ -89,25 +92,34 @@ export function YouTubeEmbedDialog({
     resetState()
   }
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) handleClose()
+  }
+
   const previewUrl = videoUrl ? getPreviewUrl(videoUrl) : null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-popover text-popover-foreground rounded-lg shadow-xl w-full max-w-md mx-4 border border-border">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="sm:max-w-md p-0 gap-0 overflow-hidden max-h-[min(90dvh,calc(100%-2rem))] overflow-y-auto"
+        onCloseAutoFocus={(e) => {
+          if (triggerRef?.current) {
+            e.preventDefault()
+            triggerRef.current.focus()
+          }
+        }}
+      >
+        <DialogHeader className="p-4 border-b border-border space-y-0 text-left pr-12">
           <div className="flex items-center gap-2">
-            <Youtube className="w-5 h-5 text-red-600" />
-            <h3 className="text-lg font-semibold">Embed YouTube Video</h3>
+            <Youtube className="w-5 h-5 text-red-600 shrink-0" />
+            <DialogTitle>Embed YouTube Video</DialogTitle>
           </div>
-          <button onClick={handleClose} className="p-1 hover:bg-muted rounded">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+          <DialogDescription className="sr-only">
+            Paste a YouTube URL to embed the video in your article.
+          </DialogDescription>
+        </DialogHeader>
 
-        {/* Content */}
         <div className="p-4 space-y-4">
-          {/* URL Input */}
           <div className="space-y-2">
             <label
               htmlFor="youtube-url"
@@ -129,7 +141,7 @@ export function YouTubeEmbedDialog({
                   }
                 }}
                 className="w-full pl-10 pr-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                // eslint-disable-next-line jsx-a11y/no-autofocus
+                // eslint-disable-next-line jsx-a11y/no-autofocus -- primary field when dialog opens
                 autoFocus
               />
             </div>
@@ -138,7 +150,6 @@ export function YouTubeEmbedDialog({
             </p>
           </div>
 
-          {/* Preview */}
           {previewUrl && !imageError && (
             <div className="space-y-2">
               <span className="block text-sm font-medium text-foreground">
@@ -163,7 +174,6 @@ export function YouTubeEmbedDialog({
             </div>
           )}
 
-          {/* Fallback preview for when image fails to load */}
           {previewUrl && imageError && (
             <div className="space-y-2">
               <span className="block text-sm font-medium text-foreground">
@@ -180,7 +190,6 @@ export function YouTubeEmbedDialog({
             </div>
           )}
 
-          {/* Custom Dimensions */}
           <div className="space-y-3">
             <div className="flex items-center">
               <input
@@ -212,8 +221,8 @@ export function YouTubeEmbedDialog({
                     type="number"
                     value={width}
                     onChange={(e) => setWidth(Number(e.target.value))}
-                    min="100"
-                    max="1920"
+                    min={100}
+                    max={1920}
                     className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
@@ -229,8 +238,8 @@ export function YouTubeEmbedDialog({
                     type="number"
                     value={height}
                     onChange={(e) => setHeight(Number(e.target.value))}
-                    min="100"
-                    max="1080"
+                    min={100}
+                    max={1080}
                     className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
@@ -244,22 +253,22 @@ export function YouTubeEmbedDialog({
             )}
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
 
-          {/* Actions */}
           <div className="flex gap-3 pt-2">
             <button
+              type="button"
               onClick={handleClose}
               className="flex-1 px-4 py-2 text-foreground bg-muted hover:bg-muted/80 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={!videoUrl.trim()}
               className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -268,7 +277,7 @@ export function YouTubeEmbedDialog({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

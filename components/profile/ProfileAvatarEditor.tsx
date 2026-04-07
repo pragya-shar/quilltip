@@ -55,6 +55,7 @@ export function ProfileAvatarEditor({
     api.wikimedia.resolveWikimediaFileUrl
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const avatarMenuTriggerRef = useRef<HTMLButtonElement>(null)
   const [urlDialogOpen, setUrlDialogOpen] = useState(false)
   const [urlInput, setUrlInput] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -150,6 +151,7 @@ export function ProfileAvatarEditor({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
+              ref={avatarMenuTriggerRef}
               type="button"
               disabled={isUploading || isRemoving}
               className={cn(
@@ -217,7 +219,13 @@ export function ProfileAvatarEditor({
       </div>
 
       <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className="sm:max-w-md"
+          onCloseAutoFocus={(e) => {
+            e.preventDefault()
+            avatarMenuTriggerRef.current?.focus()
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Image URL</DialogTitle>
             <DialogDescription>

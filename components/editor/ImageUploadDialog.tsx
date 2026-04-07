@@ -1,15 +1,24 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Upload, Link2, X, Image as ImageIcon } from 'lucide-react'
+import { useState, useRef, type RefObject } from 'react'
+import { Upload, Link2, Image as ImageIcon } from 'lucide-react'
 import { uploadFile, compressImage } from '@/lib/upload'
 import { useConvex } from 'convex/react'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface ImageUploadDialogProps {
   onImageSelect: (url: string) => void
   onClose: () => void
   isOpen: boolean
   title?: string
+  /** Element to restore focus after close when using controlled open without DialogTrigger */
+  triggerRef?: RefObject<HTMLElement | null>
 }
 
 export function ImageUploadDialog({
@@ -17,6 +26,7 @@ export function ImageUploadDialog({
   onClose,
   isOpen,
   title = 'Add Image',
+  triggerRef,
 }: ImageUploadDialogProps) {
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file')
   const [imageUrl, setImageUrl] = useState('')
@@ -26,10 +36,7 @@ export function ImageUploadDialog({
   const [error, setError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Get Convex client for uploads
   const convex = useConvex()
-
-  if (!isOpen) return null
 
   const handleFileSelect = async (file: File) => {
     setError('')
@@ -37,13 +44,12 @@ export function ImageUploadDialog({
     setUploadProgress(0)
 
     try {
-      // Compress image before upload for better performance
       const compressedFile = await compressImage(file, 1200, 0.8)
       const result = await uploadFile(
         compressedFile,
         convex,
         'article_image',
-        undefined, // no specific article
+        undefined,
         (progress) => {
           setUploadProgress(progress.percentage)
         }
@@ -101,7 +107,6 @@ export function ImageUploadDialog({
     setUploadProgress(0)
 
     try {
-      // Fetch the image from the URL
       setUploadProgress(20)
       const response = await fetch(imageUrl)
 
@@ -112,16 +117,13 @@ export function ImageUploadDialog({
       const blob = await response.blob()
       setUploadProgress(40)
 
-      // Check if it's actually an image
       if (!blob.type.startsWith('image/')) {
         throw new Error('URL does not point to a valid image')
       }
 
-      // Convert blob to File
       const file = new File([blob], 'image-from-url', { type: blob.type })
       setUploadProgress(60)
 
-      // Compress and upload to Convex storage
       const compressedFile = await compressImage(file, 1200, 0.8)
       setUploadProgress(80)
 
@@ -129,9 +131,8 @@ export function ImageUploadDialog({
         compressedFile,
         convex,
         'article_image',
-        undefined, // no specific article
+        undefined,
         (progress) => {
-          // Map the remaining progress from 80 to 100
           setUploadProgress(80 + Math.floor(progress.percentage * 0.2))
         }
       )
@@ -145,7 +146,6 @@ export function ImageUploadDialog({
       }
     } catch (error) {
       if (error instanceof Error) {
-        // Check for CORS errors
         if (error.message.includes('Failed to fetch')) {
           setError(
             'Unable to fetch image from URL. The image may be protected by CORS policy.'
@@ -175,21 +175,38 @@ export function ImageUploadDialog({
     resetState()
   }
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-popover text-popover-foreground rounded-lg shadow-xl w-full max-w-md mx-4 border border-border">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h3 className="text-lg font-semibold">{title}</h3>
-          <button onClick={handleClose} className="p-1 hover:bg-muted rounded">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+  const handleOpenChange = (open: boolean) => {
+    if (!open) handleClose()
+  }
 
-        {/* Method Selection */}
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="sm:max-w-md p-0 gap-0 overflow-hidden"
+        onCloseAutoFocus={(e) => {
+          if (triggerRef?.current) {
+            e.preventDefault()
+            triggerRef.current.focus()
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isUploading) e.preventDefault()
+        }}
+        onInteractOutside={(e) => {
+          if (isUploading) e.preventDefault()
+        }}
+      >
+        <DialogHeader className="p-4 border-b border-border space-y-0 text-left pr-12">
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Upload a file or paste an image URL to insert into your article.
+          </DialogDescription>
+        </DialogHeader>
+
         <div className="p-4">
           <div className="flex gap-2 mb-4">
             <button
+              type="button"
               onClick={() => setUploadMethod('file')}
               className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                 uploadMethod === 'file'
@@ -201,6 +218,7 @@ export function ImageUploadDialog({
               Upload File
             </button>
             <button
+              type="button"
               onClick={() => setUploadMethod('url')}
               className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                 uploadMethod === 'url'
@@ -213,7 +231,6 @@ export function ImageUploadDialog({
             </button>
           </div>
 
-          {/* File Upload */}
           {uploadMethod === 'file' && (
             <div>
               <div
@@ -257,6 +274,7 @@ export function ImageUploadDialog({
                       <p className="text-sm font-medium text-foreground">
                         Drag and drop an image, or{' '}
                         <button
+                          type="button"
                           onClick={() => fileInputRef.current?.click()}
                           className="text-primary hover:text-primary/80"
                         >
@@ -281,7 +299,6 @@ export function ImageUploadDialog({
             </div>
           )}
 
-          {/* URL Input */}
           {uploadMethod === 'url' && (
             <div className="space-y-3">
               {isUploading ? (
@@ -315,15 +332,16 @@ export function ImageUploadDialog({
                     onChange={(e) => setImageUrl(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !isUploading) {
-                        handleUrlSubmit()
+                        void handleUrlSubmit()
                       }
                     }}
                     className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                    // eslint-disable-next-line jsx-a11y/no-autofocus
+                    // eslint-disable-next-line jsx-a11y/no-autofocus -- focus first field when URL tab is chosen
                     autoFocus
                   />
                   <button
-                    onClick={handleUrlSubmit}
+                    type="button"
+                    onClick={() => void handleUrlSubmit()}
                     disabled={!imageUrl.trim() || isUploading}
                     className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -337,14 +355,13 @@ export function ImageUploadDialog({
             </div>
           )}
 
-          {/* Error Message */}
           {error && (
             <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-sm text-red-600">{error}</p>
             </div>
           )}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

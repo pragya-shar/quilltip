@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNFTByArticle } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
 import { MintButton } from './MintButton'
@@ -37,6 +37,7 @@ export function NFTIntegration({
   currentUserAddress,
 }: NFTIntegrationProps) {
   const [showTransferModal, setShowTransferModal] = useState(false)
+  const transferTriggerRef = useRef<HTMLButtonElement>(null)
 
   const nftStatus = useNFTByArticle(articleId)
 
@@ -235,6 +236,8 @@ export function NFTIntegration({
               {/* Transfer Button */}
               {canTransfer && (
                 <Button
+                  ref={transferTriggerRef}
+                  type="button"
                   onClick={() => setShowTransferModal(true)}
                   className="w-full"
                   variant="outline"
@@ -276,6 +279,7 @@ export function NFTIntegration({
           currentOwner={nftStatus.owner}
           nftId={nftStatus._id}
           onTransferComplete={handleTransferComplete}
+          triggerRef={transferTriggerRef}
         />
       )}
     </div>

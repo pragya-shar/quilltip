@@ -6,6 +6,9 @@ import { Id } from '@/convex/_generated/dataModel'
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
+/** Convex may retry for a long time when offline; cap wait so the UI can show an error. */
+const SAVE_DRAFT_TIMEOUT_MS = 30_000
+
 interface DraftResponse {
   id: string
   title: string
@@ -72,16 +75,26 @@ export function useAutoSave({
       return { ...prev, isSaving: true, error: null }
     })
 
+    const contentToSave = content ?? EMPTY_DOC
+    const mutationPromise = saveDraftMutation({
+      id: articleId as Id<'articles'> | undefined,
+      title: title || 'Untitled',
+      content: contentToSave,
+      excerpt,
+      tags: tags?.length ? tags : undefined,
+      coverImage: coverImage || undefined,
+    })
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error('Save timed out. Check your connection.'))
+      }, SAVE_DRAFT_TIMEOUT_MS)
+    })
+
     try {
-      const contentToSave = content ?? EMPTY_DOC
-      const draftId = await saveDraftMutation({
-        id: articleId as Id<'articles'> | undefined,
-        title: title || 'Untitled',
-        content: contentToSave,
-        excerpt,
-        tags: tags?.length ? tags : undefined,
-        coverImage: coverImage || undefined,
-      })
+      const draftId = await Promise.race([mutationPromise, timeoutPromise])
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
 
       setState((prev) => ({
         ...prev,
@@ -90,19 +103,21 @@ export function useAutoSave({
         error: null,
       }))
 
-      // Create response compatible with existing interface
       const response: DraftResponse = {
         id: draftId,
         title: title || 'Untitled',
         content: contentToSave,
         excerpt,
-        version: 1, // Convex handles versioning internally
+        version: 1,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }
 
       onSaveSuccess?.(response)
     } catch (error) {
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
+      void mutationPromise.catch(() => {})
+
       const err =
         error instanceof Error ? error : new Error('Failed to save draft')
 

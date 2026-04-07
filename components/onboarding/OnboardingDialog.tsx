@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useMutation } from 'convex/react'
+import { toast } from 'sonner'
 import { api } from '@/convex/_generated/api'
 import {
   Dialog,
@@ -19,6 +21,7 @@ import {
   PenSquare,
   ArrowRight,
   HelpCircle,
+  X,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -47,24 +50,42 @@ const steps = [
 ]
 
 export function OnboardingDialog() {
+  const router = useRouter()
   const [open, setOpen] = useState(true)
   const [currentStep, setCurrentStep] = useState(0)
+  const [isCompleting, setIsCompleting] = useState(false)
+  const completingRef = useRef(false)
   const completeOnboarding = useMutation(api.users.completeOnboarding)
 
-  const handleComplete = async () => {
+  const handleComplete = async (): Promise<boolean> => {
+    if (completingRef.current) return false
+    completingRef.current = true
+    setIsCompleting(true)
     try {
       await completeOnboarding()
+      setOpen(false)
+      return true
     } catch {
-      // Non-critical — silently fail
+      toast.error('Could not save your progress. Please try again.')
+      return false
+    } finally {
+      completingRef.current = false
+      setIsCompleting(false)
     }
-    setOpen(false)
+  }
+
+  const navigateAfterComplete = async (href: string) => {
+    const ok = await handleComplete()
+    if (ok) {
+      router.push(href)
+    }
   }
 
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1)
     } else {
-      handleComplete()
+      void handleComplete()
     }
   }
 
@@ -73,13 +94,27 @@ export function OnboardingDialog() {
   const StepIcon = step.icon
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(isOpen) => {
-        if (!isOpen) handleComplete()
-      }}
-    >
-      <DialogContent className="sm:max-w-md">
+    <Dialog modal={false} open={open} onOpenChange={setOpen}>
+      <DialogContent
+        className="sm:max-w-md pointer-events-auto"
+        overlayClassName="pointer-events-none bg-black/40"
+        hideCloseButton
+        onEscapeKeyDown={(e) => {
+          e.preventDefault()
+          void handleComplete()
+        }}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="absolute right-4 top-4 h-8 w-8"
+          onClick={() => void handleComplete()}
+          disabled={isCompleting}
+          aria-label="Close onboarding"
+        >
+          <X className="h-4 w-4" />
+        </Button>
         <DialogHeader>
           <DialogTitle className="sr-only">Welcome to Quilltip</DialogTitle>
           <DialogDescription className="sr-only">
@@ -87,7 +122,6 @@ export function OnboardingDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        {/* Step indicators */}
         <div className="flex justify-center gap-2 mb-2">
           {steps.map((_, i) => (
             <div
@@ -120,21 +154,32 @@ export function OnboardingDialog() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Actions */}
-        <div className="flex flex-col gap-2 mt-2">
+        <div className="flex flex-col gap-3 mt-2">
           {currentStep === 1 && (
             <div className="flex gap-2">
               <Link
                 href="/guide"
-                onClick={() => handleComplete()}
                 className="flex-1"
+                onClick={(e) => {
+                  e.preventDefault()
+                  void navigateAfterComplete('/guide')
+                }}
               >
-                <Button className="w-full" variant="default">
+                <Button
+                  className="w-full"
+                  variant="default"
+                  disabled={isCompleting}
+                >
                   <HelpCircle className="w-4 h-4 mr-2" />
                   Set Up Now
                 </Button>
               </Link>
-              <Button variant="outline" className="flex-1" onClick={handleNext}>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={handleNext}
+                disabled={isCompleting}
+              >
                 I&apos;ll do this later
               </Button>
             </div>
@@ -142,20 +187,53 @@ export function OnboardingDialog() {
 
           {currentStep === 2 && (
             <div className="grid grid-cols-3 gap-2">
-              <Link href="/articles" onClick={() => handleComplete()}>
-                <Button variant="outline" className="w-full" size="sm">
+              <Link
+                href="/articles"
+                onClick={(e) => {
+                  e.preventDefault()
+                  void navigateAfterComplete('/articles')
+                }}
+              >
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  size="sm"
+                  disabled={isCompleting}
+                >
                   <BookOpen className="w-3.5 h-3.5 mr-1" />
                   Read
                 </Button>
               </Link>
-              <Link href="/write" onClick={() => handleComplete()}>
-                <Button variant="outline" className="w-full" size="sm">
+              <Link
+                href="/write"
+                onClick={(e) => {
+                  e.preventDefault()
+                  void navigateAfterComplete('/write')
+                }}
+              >
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  size="sm"
+                  disabled={isCompleting}
+                >
                   <PenSquare className="w-3.5 h-3.5 mr-1" />
                   Write
                 </Button>
               </Link>
-              <Link href="/guide" onClick={() => handleComplete()}>
-                <Button variant="outline" className="w-full" size="sm">
+              <Link
+                href="/guide"
+                onClick={(e) => {
+                  e.preventDefault()
+                  void navigateAfterComplete('/guide')
+                }}
+              >
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  size="sm"
+                  disabled={isCompleting}
+                >
                   <HelpCircle className="w-3.5 h-3.5 mr-1" />
                   Guide
                 </Button>
@@ -164,24 +242,37 @@ export function OnboardingDialog() {
           )}
 
           {currentStep < 2 && currentStep !== 1 && (
-            <Button onClick={handleNext} className="w-full">
+            <Button
+              onClick={handleNext}
+              className="w-full min-h-11"
+              disabled={isCompleting}
+            >
               Next
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           )}
 
           {currentStep === 2 && (
-            <Button onClick={handleComplete} className="w-full">
+            <Button
+              onClick={() => void handleComplete()}
+              className="w-full min-h-11"
+              disabled={isCompleting}
+            >
               Get Started
             </Button>
           )}
 
-          <button
-            onClick={handleComplete}
-            className="text-sm text-neutral-400 hover:text-neutral-600 transition-colors"
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="w-full min-h-12 text-base font-medium"
+            onClick={() => void handleComplete()}
+            disabled={isCompleting}
+            aria-label="Skip onboarding"
           >
-            Skip
-          </button>
+            Skip onboarding
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

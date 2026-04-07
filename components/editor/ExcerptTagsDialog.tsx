@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,7 @@ interface ExcerptTagsDialogProps {
   onExcerptChange: (value: string) => void
   onTagsChange: (value: string) => void
   initialFocus?: 'excerpt' | 'tags'
+  triggerRef?: RefObject<HTMLElement | null>
 }
 
 export function ExcerptTagsDialog({
@@ -32,6 +33,7 @@ export function ExcerptTagsDialog({
   onExcerptChange,
   onTagsChange,
   initialFocus = 'excerpt',
+  triggerRef,
 }: ExcerptTagsDialogProps) {
   const excerptRef = useRef<HTMLTextAreaElement>(null)
   const tagsRef = useRef<HTMLInputElement>(null)
@@ -51,7 +53,15 @@ export function ExcerptTagsDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        onCloseAutoFocus={(e) => {
+          if (triggerRef?.current) {
+            e.preventDefault()
+            triggerRef.current.focus()
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Excerpt and Tags</DialogTitle>
           <DialogDescription>
