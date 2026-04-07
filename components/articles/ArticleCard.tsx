@@ -15,11 +15,14 @@ export default function ArticleCard({ article, priority }: ArticleCardProps) {
     : null
 
   return (
-    <article className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border ring-1 ring-border/60 overflow-hidden hover:shadow-md transition-shadow duration-200">
+    <article className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border ring-1 ring-border/60 hover:shadow-md transition-shadow duration-200">
       {/* Cover Image */}
       {article.coverImage && (
-        <Link href={`/${article.author.username}/${article.slug}`}>
-          <div className="relative h-48 w-full overflow-hidden">
+        <Link
+          href={`/${article.author.username}/${article.slug}`}
+          className="focus-ring block rounded-t-[var(--card-radius)]"
+        >
+          <div className="relative h-48 w-full overflow-hidden rounded-t-[var(--card-radius)]">
             <Image
               src={article.coverImage}
               alt={article.title}
@@ -34,7 +37,10 @@ export default function ArticleCard({ article, priority }: ArticleCardProps) {
 
       <div className="p-[var(--card-padding)]">
         {/* Title */}
-        <Link href={`/${article.author.username}/${article.slug}`}>
+        <Link
+          href={`/${article.author.username}/${article.slug}`}
+          className="focus-ring rounded-md"
+        >
           <h2 className="text-xl font-bold text-foreground mb-2 hover:text-brand-blue transition-colors line-clamp-2">
             {article.title}
           </h2>
@@ -70,7 +76,7 @@ export default function ArticleCard({ article, priority }: ArticleCardProps) {
         <div className="flex items-center justify-between pt-4 border-t border-border">
           <Link
             href={`/${article.author.username}`}
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            className="focus-ring flex items-center gap-3 rounded-md hover:opacity-80 transition-opacity"
           >
             <UserAvatar
               src={article.author.avatar}

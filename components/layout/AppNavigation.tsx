@@ -40,14 +40,14 @@ export default function AppNavigation() {
   const closeMenu = () => setMenuOpen(false)
 
   const desktopLinkClass = (active: boolean) =>
-    `flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
+    `focus-ring flex items-center gap-2 px-3 py-1.5 rounded-lg transition ${
       active
         ? 'bg-primary text-primary-foreground'
         : 'text-muted-foreground hover:text-foreground'
     }`
 
   const mobileLinkClass = (active: boolean) =>
-    `flex items-center gap-2 px-3 py-2 rounded-lg transition text-sm font-medium ${
+    `focus-ring flex items-center gap-2 px-3 py-2 rounded-lg transition text-sm font-medium ${
       active
         ? 'bg-muted text-primary'
         : 'text-muted-foreground hover:text-foreground'
@@ -59,7 +59,7 @@ export default function AppNavigation() {
         <div className="flex items-center justify-between h-16">
           <Link
             href="/"
-            className="flex items-center space-x-2"
+            className="focus-ring flex items-center space-x-2 rounded-md"
             onClick={closeMenu}
           >
             <span className="text-3xl font-handwritten text-foreground">
@@ -117,7 +117,7 @@ export default function AppNavigation() {
                 <button
                   type="button"
                   onClick={() => signOut()}
-                  className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground hover:text-destructive transition"
+                  className="focus-ring flex items-center gap-2 px-3 py-1.5 rounded-lg text-muted-foreground hover:text-destructive transition"
                 >
                   <LogOut className="w-4 h-4" />
                   <span>Sign Out</span>
@@ -127,13 +127,13 @@ export default function AppNavigation() {
               <>
                 <Link
                   href="/login"
-                  className="text-muted-foreground hover:text-foreground transition"
+                  className="focus-ring rounded-md text-muted-foreground hover:text-foreground transition"
                 >
                   Sign In
                 </Link>
                 <Link
                   href="/register"
-                  className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition"
+                  className="focus-ring bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition"
                 >
                   Get Started
                 </Link>
@@ -143,7 +143,7 @@ export default function AppNavigation() {
 
           <button
             type="button"
-            className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
+            className="focus-ring md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
             onClick={() => setMenuOpen((open) => !open)}
             aria-expanded={menuOpen}
             aria-label="Toggle menu"
@@ -225,7 +225,7 @@ export default function AppNavigation() {
                         closeMenu()
                         signOut()
                       }}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-destructive transition text-left"
+                      className="focus-ring flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-destructive transition text-left"
                     >
                       <LogOut className="w-4 h-4 shrink-0" />
                       <span>Sign Out</span>
@@ -235,14 +235,14 @@ export default function AppNavigation() {
                   <div className="flex flex-col gap-2 pt-2 border-t border-border mt-2">
                     <Link
                       href="/login"
-                      className="px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition"
+                      className="focus-ring rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition"
                       onClick={closeMenu}
                     >
                       Sign In
                     </Link>
                     <Link
                       href="/register"
-                      className="mx-3 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg hover:bg-primary/90 transition text-center text-sm font-medium"
+                      className="focus-ring mx-3 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg hover:bg-primary/90 transition text-center text-sm font-medium"
                       onClick={closeMenu}
                     >
                       Get Started
