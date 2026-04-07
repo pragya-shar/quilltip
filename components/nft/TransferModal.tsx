@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type RefObject } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useNFTByArticle } from '@/hooks/convex'
@@ -27,6 +27,7 @@ interface TransferModalProps {
   currentOwner: string
   nftId?: Id<'articleNFTs'>
   onTransferComplete?: (newOwner: string) => void
+  triggerRef?: RefObject<HTMLElement | null>
 }
 
 export function TransferModal({
@@ -37,6 +38,7 @@ export function TransferModal({
   currentOwner,
   nftId,
   onTransferComplete,
+  triggerRef,
 }: TransferModalProps) {
   const [recipientUsername, setRecipientUsername] = useState('')
   const [isTransferring, setIsTransferring] = useState(false)
@@ -164,8 +166,27 @@ export function TransferModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleClose()
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-md"
+        onCloseAutoFocus={(e) => {
+          if (triggerRef?.current) {
+            e.preventDefault()
+            triggerRef.current.focus()
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isTransferring) e.preventDefault()
+        }}
+        onInteractOutside={(e) => {
+          if (isTransferring) e.preventDefault()
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Transfer NFT Ownership</DialogTitle>
           <DialogDescription>

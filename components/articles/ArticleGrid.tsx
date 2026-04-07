@@ -27,15 +27,15 @@ export default function ArticleGrid({
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link
                 href="/articles"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-muted text-foreground hover:bg-muted/80 h-9 px-4 border border-border"
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4"
               >
                 Browse articles
               </Link>
               <Link
                 href="/write"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4"
+                className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-muted text-foreground hover:bg-muted/80 h-9 px-4 border border-border"
               >
-                Write article
+                Write your first article
               </Link>
             </div>
           </div>
