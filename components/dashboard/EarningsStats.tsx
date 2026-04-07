@@ -1,5 +1,6 @@
 'use client'
 
+import type { RefObject } from 'react'
 import { Coins, Clock, DollarSign, Wallet } from 'lucide-react'
 import type { Doc } from '@/types/convex'
 import { MonthlyEarningsChart } from '@/components/dashboard/monthly-earnings-chart'
@@ -14,6 +15,7 @@ export type EarningsStatsProps = {
   userProfile: { stellarAddress?: string | null } | null | undefined
   minWithdrawalUsd: number
   onOpenWithdrawModal: () => void
+  withdrawTriggerRef?: RefObject<HTMLButtonElement | null>
 }
 
 export function EarningsStats({
@@ -21,6 +23,7 @@ export function EarningsStats({
   userProfile,
   minWithdrawalUsd,
   onOpenWithdrawModal,
+  withdrawTriggerRef,
 }: EarningsStatsProps) {
   const lastWithdrawal = earnings.lastWithdrawalAt
   const belowWithdrawalMinimum = earnings.availableBalanceUsd < minWithdrawalUsd
@@ -54,6 +57,7 @@ export function EarningsStats({
             ${earnings.availableBalanceUsd.toFixed(2)}
           </p>
           <button
+            ref={withdrawTriggerRef}
             type="button"
             onClick={() => {
               if (!userProfile?.stellarAddress) {

@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import { createRef } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -11,6 +12,7 @@ describe('WithdrawalDialog', () => {
     const user = userEvent.setup()
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
     const onOpenChange = vi.fn()
+    const triggerRef = createRef<HTMLButtonElement>()
 
     render(
       <WithdrawalDialog
@@ -20,6 +22,7 @@ describe('WithdrawalDialog', () => {
         minWithdrawalUsd={5}
         savedStellarAddress={null}
         onWithdraw={onWithdraw}
+        triggerRef={triggerRef}
       />
     )
 
@@ -37,6 +40,7 @@ describe('WithdrawalDialog', () => {
   it('uses saved Stellar address without manual entry', async () => {
     const user = userEvent.setup()
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
+    const triggerRef = createRef<HTMLButtonElement>()
 
     render(
       <WithdrawalDialog
@@ -46,6 +50,7 @@ describe('WithdrawalDialog', () => {
         minWithdrawalUsd={5}
         savedStellarAddress={validGAddress}
         onWithdraw={onWithdraw}
+        triggerRef={triggerRef}
       />
     )
 
@@ -61,6 +66,7 @@ describe('WithdrawalDialog', () => {
   it('does not call onWithdraw when amount is below minimum', async () => {
     const user = userEvent.setup()
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
+    const triggerRef = createRef<HTMLButtonElement>()
 
     render(
       <WithdrawalDialog
@@ -70,6 +76,7 @@ describe('WithdrawalDialog', () => {
         minWithdrawalUsd={5}
         savedStellarAddress={validGAddress}
         onWithdraw={onWithdraw}
+        triggerRef={triggerRef}
       />
     )
 
@@ -80,6 +87,7 @@ describe('WithdrawalDialog', () => {
   })
 
   it('renders nothing when closed', () => {
+    const triggerRef = createRef<HTMLButtonElement>()
     const { container } = render(
       <WithdrawalDialog
         open={false}
@@ -87,6 +95,7 @@ describe('WithdrawalDialog', () => {
         availableBalanceUsd={100}
         minWithdrawalUsd={5}
         onWithdraw={vi.fn()}
+        triggerRef={triggerRef}
       />
     )
     expect(container.firstChild).toBeNull()

@@ -24,7 +24,7 @@ import {
   Youtube,
   MoreHorizontal,
 } from 'lucide-react'
-import { useState, useRef, useLayoutEffect } from 'react'
+import { useState, useRef, useLayoutEffect, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ImageUploadDialog } from './ImageUploadDialog'
@@ -50,32 +50,39 @@ interface ToolbarButtonProps {
   className?: string
 }
 
-function ToolbarButton({
-  onClick,
-  isActive = false,
-  disabled = false,
-  children,
-  title,
-  className = '',
-}: ToolbarButtonProps) {
-  return (
-    <button
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-label={title}
-      className={`
+const ToolbarButton = forwardRef<HTMLButtonElement, ToolbarButtonProps>(
+  function ToolbarButton(
+    {
+      onClick,
+      isActive = false,
+      disabled = false,
+      children,
+      title,
+      className = '',
+    },
+    ref
+  ) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onClick}
+        disabled={disabled}
+        title={title}
+        aria-label={title}
+        className={`
         p-2 rounded hover:bg-muted transition-colors shrink-0
         ${isActive ? 'bg-muted text-primary' : 'text-foreground'}
         ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         ${className}
       `}
-    >
-      {children}
-    </button>
-  )
-}
+      >
+        {children}
+      </button>
+    )
+  }
+)
 
 function ToolbarDivider({ className = '' }: { className?: string }) {
   return (
@@ -101,6 +108,8 @@ export function EditorToolbar({
   const [showYouTubeDialog, setShowYouTubeDialog] = useState(false)
   const [showNotes, setShowNotes] = useState(false)
   const linkAnchorRef = useRef<HTMLDivElement>(null)
+  const imageDialogTriggerRef = useRef<HTMLButtonElement>(null)
+  const youtubeDialogTriggerRef = useRef<HTMLButtonElement>(null)
   const [linkPopoverPos, setLinkPopoverPos] = useState<{
     top: number
     left: number
@@ -515,6 +524,7 @@ export function EditorToolbar({
 
           {/* Image */}
           <ToolbarButton
+            ref={imageDialogTriggerRef}
             onClick={() => setShowImageDialog(true)}
             title="Insert image"
             className="hidden md:inline-flex"
@@ -524,6 +534,7 @@ export function EditorToolbar({
 
           {/* YouTube embed */}
           <ToolbarButton
+            ref={youtubeDialogTriggerRef}
             onClick={() => setShowYouTubeDialog(true)}
             title="Embed YouTube video"
             className="hidden md:inline-flex"
@@ -568,11 +579,13 @@ export function EditorToolbar({
         isOpen={showImageDialog}
         onClose={() => setShowImageDialog(false)}
         onImageSelect={handleImageSelect}
+        triggerRef={imageDialogTriggerRef}
       />
 
       <YouTubeEmbedDialog
         isOpen={showYouTubeDialog}
         onClose={() => setShowYouTubeDialog(false)}
+        triggerRef={youtubeDialogTriggerRef}
         onVideoEmbed={(url, width, height) => {
           const chain = editor.chain().focus() as {
             setYoutubeVideo: (opts: {
