@@ -214,6 +214,7 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --accent: #f1f3f4;
   --accent-foreground: #202124;
   --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
   --border: #e8eaed;
   --input: #e8eaed;
   --ring: #9aa0a6;
@@ -230,6 +231,18 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /*
+   * Semantic status tokens. Each pair: background (--*) + legible text (--*-foreground).
+   * Use as Tailwind utilities: bg-success text-success-foreground, bg-warning text-warning-foreground, etc.
+   * For error/danger states use --destructive / --destructive-foreground (already present above).
+   */
+  --success: oklch(0.965 0.03 145);
+  --success-foreground: oklch(0.44 0.15 145);
+  --warning: oklch(0.97 0.04 85);
+  --warning-foreground: oklch(0.45 0.14 85);
+  --info: oklch(0.965 0.03 240);
+  --info-foreground: oklch(0.48 0.17 240);
 }
 
 /* Clean Typography for Article Content */
@@ -567,6 +580,13 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-surface: var(--surface);
   --color-text: var(--text);
@@ -628,6 +648,7 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --accent: #3c4043;
   --accent-foreground: #f8f9fa;
   --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
   --border: #6e7378;
   --input: #5f6368;
   --ring: #9aa0a6;
@@ -644,6 +665,18 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --sidebar-accent-foreground: #f8f9fa;
   --sidebar-border: #5f6368;
   --sidebar-ring: #9aa0a6;
+
+  /*
+   * Semantic status tokens. Each pair: background (--*) + legible text (--*-foreground).
+   * Use as Tailwind utilities: bg-success text-success-foreground, bg-warning text-warning-foreground, etc.
+   * For error/danger states use --destructive / --destructive-foreground (already present above).
+   */
+  --success: oklch(0.28 0.07 145);
+  --success-foreground: oklch(0.89 0.08 145);
+  --warning: oklch(0.3 0.07 85);
+  --warning-foreground: oklch(0.9 0.1 85);
+  --info: oklch(0.28 0.06 240);
+  --info-foreground: oklch(0.9 0.07 240);
 }
 
 @layer base {
