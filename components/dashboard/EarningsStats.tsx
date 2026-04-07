@@ -26,6 +26,9 @@ export function EarningsStats({
   withdrawTriggerRef,
 }: EarningsStatsProps) {
   const lastWithdrawal = earnings.lastWithdrawalAt
+  const belowWithdrawalMinimum = earnings.availableBalanceUsd < minWithdrawalUsd
+  const showMinimumWithdrawalHelper =
+    belowWithdrawalMinimum && Boolean(userProfile?.stellarAddress)
 
   return (
     <>
@@ -69,6 +72,13 @@ export function EarningsStats({
             <Wallet className="w-4 h-4" />
             {!userProfile?.stellarAddress ? 'Set Up Wallet' : 'Withdraw'}
           </button>
+          {showMinimumWithdrawalHelper && (
+            <p className="mt-2 text-sm text-gray-500">
+              Withdrawals require a minimum available balance of $
+              {minWithdrawalUsd.toFixed(2)}. Add earnings until your balance
+              reaches this amount.
+            </p>
+          )}
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
