@@ -159,7 +159,7 @@ export function HighlightPopover({
           >
             {isPublic ? (
               <>
-                <Globe className="w-4 h-4 text-green-600" />
+                <Globe className="w-4 h-4 text-green-800 dark:text-green-300" />
                 <span className="text-sm text-foreground">Public</span>
               </>
             ) : (

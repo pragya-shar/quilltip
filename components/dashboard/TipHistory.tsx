@@ -34,7 +34,7 @@ export function TipHistory({ tips }: TipHistoryProps) {
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-semibold text-green-600">
+                <p className="font-semibold text-green-800 dark:text-green-300">
                   +${tip.amountUsd.toFixed(2)}
                 </p>
                 <p className="text-xs text-gray-500">

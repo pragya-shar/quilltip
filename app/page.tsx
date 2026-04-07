@@ -59,7 +59,7 @@ export default function HomePage() {
               >
                 <div className="flex items-center mb-4">
                   <div className="p-3 bg-green-100 dark:bg-green-950/50 rounded-lg group-hover:bg-green-200 dark:group-hover:bg-green-950/70 transition-colors">
-                    <BookOpen className="w-6 h-6 text-green-600 dark:text-green-400" />
+                    <BookOpen className="w-6 h-6 text-green-800 dark:text-green-400" />
                   </div>
                   <h3 className="text-lg font-semibold ml-3">
                     Browse Articles

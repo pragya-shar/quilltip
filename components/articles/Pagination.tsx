@@ -127,9 +127,10 @@ export default function Pagination({
           page === '...' ? (
             <span
               key={`ellipsis-${index}`}
-              className="px-3 py-2 text-muted-foreground"
+              className="inline-flex items-center px-3 py-2 text-quill-800 dark:text-foreground/90"
             >
-              ...
+              <span aria-hidden>...</span>
+              <span className="sr-only">More pages</span>
             </span>
           ) : (
             <PaginationButton

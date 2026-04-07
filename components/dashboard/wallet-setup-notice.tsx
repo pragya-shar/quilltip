@@ -13,7 +13,7 @@ export function WalletSetupNotice() {
   return (
     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
       <div className="flex items-start gap-3">
-        <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+        <AlertCircle className="w-5 h-5 text-yellow-900 mt-0.5" />
         <div className="flex-1">
           <h3 className="text-sm font-semibold text-yellow-900 mb-1">
             Stellar Wallet Not Configured

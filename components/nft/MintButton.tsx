@@ -230,7 +230,9 @@ export function MintButton({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Threshold Met:</span>
-                <span className="font-medium text-green-600">✓ Yes</span>
+                <span className="font-medium text-green-800 dark:text-green-300">
+                  ✓ Yes
+                </span>
               </div>
               {wallet.isConnected && wallet.publicKey ? (
                 <div className="bg-green-50 border border-green-200 rounded p-2">
@@ -246,7 +248,7 @@ export function MintButton({
               ) : (
                 <div className="bg-amber-50 border border-amber-200 rounded p-2">
                   <span className="text-xs text-amber-900">
-                    ⚠ Wallet not connected
+                    Wallet not connected
                   </span>
                 </div>
               )}
