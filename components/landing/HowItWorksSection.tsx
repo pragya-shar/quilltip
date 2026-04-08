@@ -137,8 +137,12 @@ export default function HowItWorksSection() {
               </motion.div>
 
               <h2 className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-4 leading-[1.15]">
-                <span className="text-spotlight-foreground">From idea to impact, </span>
-                <span className="text-spotlight-muted italic">in four steps.</span>
+                <span className="text-spotlight-foreground">
+                  From idea to impact,{' '}
+                </span>
+                <span className="text-spotlight-muted italic">
+                  in four steps.
+                </span>
               </h2>
               <p className="text-[15px] text-spotlight-muted max-w-lg leading-relaxed">
                 Whether you write or read, Quilltip makes it simple to
