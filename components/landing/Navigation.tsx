@@ -233,7 +233,7 @@ export default function Navigation() {
     <motion.nav
       className={`fixed top-0 w-full z-50 transition-all duration-500 ${
         scrolled
-          ? 'bg-background/70 backdrop-blur-xl border-b border-border/60 shadow-[0_1px_3px_rgba(0,0,0,0.04)]'
+          ? 'bg-background/70 backdrop-blur-xl border-b border-border/60 shadow-sm'
           : 'bg-transparent'
       }`}
       initial={{ y: -100 }}
@@ -252,7 +252,7 @@ export default function Navigation() {
               whileHover={{ scale: 1.05 }}
               transition={{ type: 'spring', stiffness: 400, damping: 10 }}
             >
-              <PenTool className="w-[18px] h-[18px] text-white" />
+              <PenTool className="w-[18px] h-[18px] text-brand-foreground" />
             </motion.div>
             <span className="text-[22px] font-semibold text-foreground tracking-tight">
               Quilltip
@@ -370,7 +370,7 @@ export default function Navigation() {
                                         <p className="text-[13px] font-medium text-foreground flex items-center gap-1.5">
                                           {item.title}
                                           {item.badge && (
-                                            <span className="text-[10px] font-semibold bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full">
+                                            <span className="text-[10px] font-semibold bg-success text-success-foreground px-1.5 py-0.5 rounded-full">
                                               {item.badge}
                                             </span>
                                           )}
@@ -406,10 +406,10 @@ export default function Navigation() {
 
             <Link
               href="/register"
-              className="focus-ring inline-flex items-center gap-1.5 bg-brand-blue text-white px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-brand-accent transition-all duration-200 ml-1"
+              className="focus-ring inline-flex items-center gap-1.5 bg-brand text-brand-foreground px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-brand-hover transition-all duration-200 ml-1"
             >
               Try on Testnet
-              <span className="text-white/80">→</span>
+              <span className="text-brand-foreground/80">→</span>
             </Link>
           </div>
 
@@ -500,7 +500,7 @@ export default function Navigation() {
                   </Link>
                   <Link
                     href="/register"
-                    className="focus-ring block bg-brand-blue text-white px-5 py-2.5 rounded-lg hover:bg-brand-accent transition-colors text-center text-sm font-medium"
+                    className="focus-ring block bg-brand text-brand-foreground px-5 py-2.5 rounded-lg hover:bg-brand-hover transition-colors text-center text-sm font-medium"
                     onClick={() => setIsOpen(false)}
                   >
                     Try on Testnet →
