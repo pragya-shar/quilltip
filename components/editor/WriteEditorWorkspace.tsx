@@ -396,24 +396,18 @@ export function WriteEditorWorkspace() {
     }
   }, [hasUnsavedChanges, router])
 
-  const handleCoverPlaceholderDragOver = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setCoverDropActive(true)
-    },
-    []
-  )
+  const handleCoverPlaceholderDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCoverDropActive(true)
+  }, [])
 
-  const handleCoverPlaceholderDragLeave = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-        setCoverDropActive(false)
-      }
-    },
-    []
-  )
+  const handleCoverPlaceholderDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setCoverDropActive(false)
+    }
+  }, [])
 
   const handleCoverPlaceholderDrop = useCallback(
     async (e: React.DragEvent) => {
