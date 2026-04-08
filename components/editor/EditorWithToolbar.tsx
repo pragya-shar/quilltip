@@ -73,7 +73,7 @@ export function EditorWithToolbar({
         lowlight,
         HTMLAttributes: {
           class:
-            'rounded-lg bg-gray-900 text-gray-100 p-4 my-4 overflow-x-auto',
+            'rounded-lg bg-muted text-foreground border border-border p-4 my-4 overflow-x-auto',
         },
       }),
     ],

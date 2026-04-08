@@ -236,7 +236,7 @@ export function ImageUploadDialog({
               <div
                 className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
                   dragActive
-                    ? 'border-primary bg-primary/10'
+                    ? 'border-primary bg-primary/15'
                     : 'border-border hover:border-muted-foreground/40'
                 }`}
                 onDragOver={handleDragOver}
@@ -356,8 +356,8 @@ export function ImageUploadDialog({
           )}
 
           {error && (
-            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="mt-3 rounded-lg border border-destructive/25 bg-destructive/10 p-3">
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
         </div>

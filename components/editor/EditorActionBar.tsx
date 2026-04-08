@@ -83,7 +83,7 @@ function MoreMenu({
               <DropdownMenu.Separator className="h-px bg-border my-1" />
               <DropdownMenu.Item
                 onSelect={onDelete}
-                className="px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 cursor-pointer outline-none flex items-center gap-2"
+                className="px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer outline-none flex items-center gap-2"
               >
                 <Trash2 className="w-4 h-4 shrink-0" />
                 Delete draft
@@ -145,7 +145,7 @@ export function EditorActionBar({
     statusClassName = 'text-destructive'
   } else if (hasUnsavedChanges) {
     statusText = 'Unsaved changes'
-    statusClassName = 'text-red-500'
+    statusClassName = 'text-destructive'
   } else if (lastSavedAt) {
     statusText = `Saved ${formatDistanceToNow(lastSavedAt, { addSuffix: true })}`
   } else {
@@ -167,7 +167,7 @@ export function EditorActionBar({
   )
 
   const publishControl = isPublished ? (
-    <span className="px-4 py-2 text-sm font-medium text-green-700 bg-green-50 rounded-full shrink-0">
+    <span className="px-4 py-2 text-sm font-medium bg-success text-success-foreground rounded-full shrink-0">
       Published
     </span>
   ) : (
@@ -175,7 +175,7 @@ export function EditorActionBar({
       type="button"
       onClick={onPublish}
       disabled={isPublishing || !canPublish}
-      className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-full transition-colors shrink-0"
+      className="px-5 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-full transition-colors shrink-0"
       title="Publish article"
     >
       {isPublishing ? 'Publishing...' : 'Publish'}
@@ -185,10 +185,10 @@ export function EditorActionBar({
   const draftStatus = (
     <span className="flex min-w-0 items-center gap-2 text-sm shrink-0">
       <span
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium ${hasUnsavedChanges ? 'bg-red-50 text-red-700' : 'bg-yellow-100 text-amber-800'}`}
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium border ${hasUnsavedChanges ? 'bg-destructive/15 text-destructive border-destructive/25' : 'bg-warning text-warning-foreground border-transparent'}`}
       >
         <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${hasUnsavedChanges ? 'bg-red-500' : 'bg-amber-500'}`}
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${hasUnsavedChanges ? 'bg-destructive' : 'bg-warning-foreground/80'}`}
           aria-hidden
         />
         Draft
@@ -327,7 +327,7 @@ export function EditorActionBar({
 
       {error && (
         <div
-          className="border-t border-border px-4 py-2 text-xs text-red-500"
+          className="border-t border-border bg-destructive/10 px-4 py-2 text-xs text-destructive"
           title={error}
         >
           Save failed
