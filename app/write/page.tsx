@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
@@ -12,6 +13,11 @@ export default function WritePage() {
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
 
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return
+    router.replace('/login')
+  }, [isLoading, isAuthenticated, router])
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -22,7 +28,6 @@ export default function WritePage() {
   }
 
   if (!isAuthenticated) {
-    router.push('/login')
     return null
   }
 

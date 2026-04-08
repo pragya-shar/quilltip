@@ -14,8 +14,7 @@ import {
   Wallet,
   Heart,
 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useInView } from 'framer-motion'
+import { motion, AnimatePresence, useInView } from 'motion/react'
 import { useRef } from 'react'
 import { LucideIcon } from 'lucide-react'
 

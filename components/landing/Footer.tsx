@@ -1,7 +1,7 @@
 'use client'
 
 import { Heart, PenTool } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 
 export default function Footer() {
   const currentYear = new Date().getFullYear()

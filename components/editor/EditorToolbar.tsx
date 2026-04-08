@@ -252,7 +252,7 @@ export function EditorToolbar({
       : null
 
   return (
-    <div className="bg-background w-full min-w-0 flex items-stretch min-h-[44px] px-3 sm:px-6 py-2 gap-2">
+    <div className="bg-background w-full min-w-0 flex items-stretch min-h-[44px] py-2 gap-2">
       <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:thin]">
         <div className="inline-flex min-h-[44px] flex-nowrap items-center gap-0.5 justify-start">
           {/* Paragraph / style dropdown */}
