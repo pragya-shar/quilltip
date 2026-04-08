@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
 import Link from 'next/link'
@@ -35,6 +35,11 @@ export default function DraftsPage() {
   const deleteArticleMutation = useMutation(api.articles.deleteArticle)
   const [deleteTarget, setDeleteTarget] = useState<Id<'articles'> | null>(null)
 
+  useEffect(() => {
+    if (isLoading || isAuthenticated) return
+    router.replace('/login')
+  }, [isLoading, isAuthenticated, router])
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-muted/30">
@@ -50,8 +55,7 @@ export default function DraftsPage() {
     )
   }
 
-  if (!isAuthenticated && !isLoading) {
-    router.push('/login')
+  if (!isAuthenticated) {
     return null
   }
 

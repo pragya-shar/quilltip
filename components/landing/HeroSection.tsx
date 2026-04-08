@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { ArrowRight, Zap } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'motion/react'
 import { useEffect, useState, useCallback, useRef } from 'react'
 
 const ARTICLE_TEXT = `Writers pour their hearts into stories that shape how we think — yet most see nothing in return. The quiet revolution of open knowledge deserves better. What if readers could reward the exact words that moved them?`
