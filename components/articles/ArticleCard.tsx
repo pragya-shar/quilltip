@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { formatDistanceToNow } from 'date-fns'
 import { ArticleForDisplay } from '@/types/index'
+import { TagFilterLink } from '@/components/articles/TagFilterLink'
 
 interface ArticleCardProps {
   article: ArticleForDisplay
@@ -57,12 +58,9 @@ export default function ArticleCard({ article, priority }: ArticleCardProps) {
         {article.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {article.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag.id}
-                className="text-xs px-2 py-1 bg-muted text-foreground rounded-full"
-              >
+              <TagFilterLink key={tag.id} tag={tag.name}>
                 {tag.name}
-              </span>
+              </TagFilterLink>
             ))}
             {article.tags.length > 3 && (
               <span className="text-xs px-2 py-1 text-muted-foreground">
