@@ -17,6 +17,7 @@ import { useAuth } from '@/components/providers/AuthContext'
 import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { TagFilterLink } from '@/components/articles/TagFilterLink'
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
@@ -119,12 +120,13 @@ export default function ArticleDisplay({
         {article.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-6">
             {article.tags.map((tag) => (
-              <span
+              <TagFilterLink
                 key={tag.id}
-                className="px-3 py-1 bg-muted text-foreground text-sm rounded-full"
+                tag={tag.name}
+                className="px-3 py-1 text-sm"
               >
                 {tag.name}
-              </span>
+              </TagFilterLink>
             ))}
           </div>
         )}
