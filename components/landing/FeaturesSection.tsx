@@ -94,7 +94,7 @@ export default function FeaturesSection() {
           {/* Center line */}
           <div className="absolute left-1/2 top-0 bottom-0 w-px bg-border -translate-x-1/2" />
           <motion.div
-            className="absolute left-1/2 top-0 bottom-0 w-px bg-foreground -translate-x-1/2 origin-top"
+            className="absolute left-1/2 top-0 bottom-0 w-px bg-brand -translate-x-1/2 origin-top"
             initial={{ scaleY: 0 }}
             animate={isInView ? { scaleY: 1 } : { scaleY: 0 }}
             transition={{ duration: 1.5, delay: 0.3, ease: 'easeOut' }}

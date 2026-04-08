@@ -243,6 +243,20 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --warning-foreground: oklch(0.45 0.14 85);
   --info: oklch(0.965 0.03 240);
   --info-foreground: oklch(0.48 0.17 240);
+
+  /*
+   * Landing semantic tokens
+   * - brand: consistent CTA color across modes
+   * - spotlight: intentionally darker section surface that still adapts in dark mode
+   */
+  --brand: #1a365d;
+  --brand-foreground: #fefefe;
+  --brand-hover: #2d5a87;
+
+  --spotlight: #202124;
+  --spotlight-foreground: #f8f9fa;
+  --spotlight-muted: #c9ccd1;
+  --spotlight-border: #3c4043;
 }
 
 /* Clean Typography for Article Content */
@@ -587,6 +601,13 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-hover: var(--brand-hover);
+  --color-spotlight: var(--spotlight);
+  --color-spotlight-foreground: var(--spotlight-foreground);
+  --color-spotlight-muted: var(--spotlight-muted);
+  --color-spotlight-border: var(--spotlight-border);
   --color-border: var(--border);
   --color-surface: var(--surface);
   --color-text: var(--text);
@@ -677,6 +698,16 @@ mark[data-highlight-id] mark[data-highlight-id] {
   --warning-foreground: oklch(0.9 0.1 85);
   --info: oklch(0.28 0.06 240);
   --info-foreground: oklch(0.9 0.07 240);
+
+  /* Landing semantic tokens */
+  --brand: #1a365d;
+  --brand-foreground: #fefefe;
+  --brand-hover: #2d5a87;
+
+  --spotlight: #17181a;
+  --spotlight-foreground: #f8f9fa;
+  --spotlight-muted: #c9ccd1;
+  --spotlight-border: #2a2c2f;
 }
 
 @layer base {

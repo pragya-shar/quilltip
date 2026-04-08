@@ -96,8 +96,8 @@ export default function FAQSection() {
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors duration-200 ${
                     openIndex === index
-                      ? 'bg-brand-accent/20 text-brand-accent'
-                      : 'bg-foreground text-background'
+                      ? 'bg-brand/15 text-brand'
+                      : 'bg-muted text-foreground border border-border'
                   }`}
                 >
                   <ChevronDown className="w-4 h-4" />
