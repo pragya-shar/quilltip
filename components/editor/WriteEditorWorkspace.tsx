@@ -14,7 +14,6 @@ import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { EditorToolbar } from '@/components/editor/EditorToolbar'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
 import { ImageUploadDialog } from '@/components/editor/ImageUploadDialog'
-import { ExcerptTagsDialog } from '@/components/editor/ExcerptTagsDialog'
 import { useAuth } from '@/components/providers/AuthContext'
 import { EditorChromeSkeleton } from '@/components/editor/EditorChromeSkeleton'
 import { useAutoSave } from '@/hooks/useAutoSave'
@@ -25,6 +24,13 @@ import type { Id } from '@/types/convex'
 import { toast } from 'sonner'
 import Image from 'next/image'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Textarea } from '@/components/ui/textarea'
+import { ChevronDown } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +43,7 @@ import {
 } from '@/components/ui/alert-dialog'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
+const EXCERPT_MAX_CHARS = 500
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
@@ -73,7 +80,6 @@ export function WriteEditorWorkspace() {
   const [title, setTitle] = useState('')
   const [excerpt, setExcerpt] = useState('')
   const [tags, setTags] = useState('')
-  const [showExcerptTagsDialog, setShowExcerptTagsDialog] = useState(false)
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
   const [isPublishing, setIsPublishing] = useState(false)
@@ -82,6 +88,9 @@ export function WriteEditorWorkspace() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [navConfirm, setNavConfirm] = useState<NavConfirmState>(null)
   const hasUnsavedRef = useRef(hasUnsavedChanges)
+  const [excerptOpen, setExcerptOpen] = useState(false)
+  const excerptTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const tagsInputRef = useRef<HTMLInputElement>(null)
   const [publishStatus, setPublishStatus] = useState<{
     published: boolean
     publishedAt: Date | null
@@ -438,26 +447,39 @@ export function WriteEditorWorkspace() {
       />
       <div className="flex min-w-0 flex-1 flex-col pb-8">
         <div className="sticky top-16 z-40 mb-6 w-full bg-background">
-          <EditorToolbar
-            editor={editor}
-            onFocusCoverImage={() => {
-              document
-                .getElementById('field-cover-image')
-                ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-              if (!coverImage) setShowCoverImageDialog(true)
-            }}
-            onFocusTitle={() => {
-              const el = document.getElementById(
-                'article-title'
-              ) as HTMLInputElement | null
-              document
-                .getElementById('field-article-title')
-                ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-              el?.focus()
-            }}
-            onFocusExcerpt={() => setShowExcerptTagsDialog(true)}
-            onFocusTags={() => setShowExcerptTagsDialog(true)}
-          />
+          <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
+            <EditorToolbar
+              editor={editor}
+              onFocusCoverImage={() => {
+                document
+                  .getElementById('field-cover-image')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                if (!coverImage) setShowCoverImageDialog(true)
+              }}
+              onFocusTitle={() => {
+                const el = document.getElementById(
+                  'article-title'
+                ) as HTMLInputElement | null
+                document
+                  .getElementById('field-article-title')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                el?.focus()
+              }}
+              onFocusExcerpt={() => {
+                document
+                  .getElementById('field-excerpt')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                setExcerptOpen(true)
+                window.setTimeout(() => excerptTextareaRef.current?.focus(), 0)
+              }}
+              onFocusTags={() => {
+                document
+                  .getElementById('field-tags')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                window.setTimeout(() => tagsInputRef.current?.focus(), 0)
+              }}
+            />
+          </div>
           <div
             className="pointer-events-none absolute bottom-0 left-0 right-0 h-[2px] bg-sky-400"
             aria-hidden
@@ -546,6 +568,69 @@ export function WriteEditorWorkspace() {
               )}
           </div>
 
+          <div id="field-excerpt" className="mb-4">
+            <Collapsible open={excerptOpen} onOpenChange={setExcerptOpen}>
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Excerpt
+                    </span>
+                    <span className="text-[11px] tabular-nums text-muted-foreground">
+                      {Math.min(excerpt.length, EXCERPT_MAX_CHARS)}/
+                      {EXCERPT_MAX_CHARS}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Optional. Shown on article cards and in the publish preview.
+                  </p>
+                  {!excerptOpen && excerpt.trim().length > 0 && (
+                    <p className="mt-2 line-clamp-2 whitespace-pre-wrap break-words text-sm text-foreground/80">
+                      {excerpt.trim()}
+                    </p>
+                  )}
+                </div>
+
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={() => {
+                      if (!excerptOpen) {
+                        window.setTimeout(
+                          () => excerptTextareaRef.current?.focus(),
+                          0
+                        )
+                      }
+                    }}
+                    aria-label={excerptOpen ? 'Hide excerpt' : 'Add excerpt'}
+                  >
+                    <span>{excerptOpen ? 'Hide' : 'Add excerpt'}</span>
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 transition-transform ${excerptOpen ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+              </div>
+
+              <CollapsibleContent className="mt-3">
+                <Textarea
+                  ref={excerptTextareaRef}
+                  id="article-excerpt"
+                  value={excerpt}
+                  onChange={(e) => {
+                    setExcerpt(e.target.value)
+                    setHasUnsavedChanges(true)
+                  }}
+                  placeholder="Brief description of your article (optional)"
+                  rows={3}
+                  maxLength={EXCERPT_MAX_CHARS}
+                  className="resize-none"
+                />
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+
           {editor && (
             <EditorContent
               editor={editor}
@@ -553,7 +638,7 @@ export function WriteEditorWorkspace() {
             />
           )}
 
-          <div className="mt-8 border-t border-border pt-4">
+          <div id="field-tags" className="mt-8 border-t border-border pt-4">
             <label
               htmlFor="article-tags"
               className="mb-1 block text-xs font-medium text-muted-foreground"
@@ -562,6 +647,7 @@ export function WriteEditorWorkspace() {
             </label>
             <input
               id="article-tags"
+              ref={tagsInputRef}
               type="text"
               value={tags}
               onChange={(e) => {
@@ -584,21 +670,6 @@ export function WriteEditorWorkspace() {
           setShowCoverImageDialog(false)
         }}
         onClose={() => setShowCoverImageDialog(false)}
-      />
-
-      <ExcerptTagsDialog
-        isOpen={showExcerptTagsDialog}
-        onClose={() => setShowExcerptTagsDialog(false)}
-        excerpt={excerpt}
-        tags={tags}
-        onExcerptChange={(v) => {
-          setExcerpt(v)
-          setHasUnsavedChanges(true)
-        }}
-        onTagsChange={(v) => {
-          setTags(v)
-          setHasUnsavedChanges(true)
-        }}
       />
 
       <AlertDialog

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { ArrowRight, Zap } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'motion/react'
 import { useEffect, useState, useCallback, useRef } from 'react'
 
 const ARTICLE_TEXT = `Writers pour their hearts into stories that shape how we think — yet most see nothing in return. The quiet revolution of open knowledge deserves better. What if readers could reward the exact words that moved them?`
@@ -86,7 +86,7 @@ export default function HeroSection() {
         <span className="relative inline">
           {isSelecting && (
             <motion.span
-              className="absolute inset-y-0 left-0 bg-blue-200/50 rounded-[2px]"
+              className="absolute inset-y-0 left-0 bg-info/25 rounded-[2px]"
               initial={{ width: '0%' }}
               animate={{ width: '100%' }}
               transition={{ duration: 0.4, ease: 'easeOut' }}
@@ -95,7 +95,7 @@ export default function HeroSection() {
           )}
           {isHighlighted && (
             <motion.span
-              className="absolute -inset-y-0.5 -left-0.5 -right-0.5 bg-amber-200/70 rounded-[3px]"
+              className="absolute -inset-y-0.5 -left-0.5 -right-0.5 bg-warning/30 rounded-[3px]"
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
@@ -103,7 +103,7 @@ export default function HeroSection() {
             />
           )}
           <span
-            className={`relative z-10 ${isHighlighted ? 'text-neutral-900' : ''}`}
+            className={`relative z-10 ${isHighlighted ? 'text-foreground' : ''}`}
           >
             {phrase}
           </span>
@@ -111,13 +111,13 @@ export default function HeroSection() {
           <AnimatePresence>
             {animationStep === 'tipped' && (
               <motion.span
-                className="absolute -top-9 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 bg-neutral-900 text-white text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-xl shadow-neutral-900/10 whitespace-nowrap"
+                className="absolute -top-9 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 bg-popover text-popover-foreground border border-border text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-xl whitespace-nowrap"
                 initial={{ opacity: 0, y: 6, scale: 0.9 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -4, scale: 0.9 }}
                 transition={{ duration: 0.18, ease: 'easeOut' }}
               >
-                <Zap className="w-3 h-3 text-amber-400" />
+                <Zap className="w-3 h-3 text-warning-foreground" />
                 {currentPhrase.tip}
               </motion.span>
             )}
@@ -130,7 +130,7 @@ export default function HeroSection() {
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
-      <div className="absolute inset-0 bg-gradient-to-b from-neutral-50/80 via-white to-neutral-50/30" />
+      <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-muted/30" />
 
       <div className="container mx-auto max-w-4xl px-6 relative z-10 py-20">
         <motion.div
@@ -146,8 +146,8 @@ export default function HeroSection() {
             viewport={{ once: true }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
           >
-            <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-neutral-100 text-[11px] font-semibold text-neutral-500 uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-muted/60 border border-border/60 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 bg-success rounded-full animate-pulse" />
               Live on Stellar Testnet
             </span>
           </motion.div>
@@ -165,7 +165,7 @@ export default function HeroSection() {
 
           {/* Subtitle — Inter */}
           <motion.p
-            className="mt-4 text-[15px] sm:text-base text-neutral-400 max-w-md leading-relaxed"
+            className="mt-4 text-[15px] sm:text-base text-muted-foreground max-w-md leading-relaxed"
             initial={{ opacity: 0, y: 14 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.5 }}
@@ -184,14 +184,14 @@ export default function HeroSection() {
           >
             <Link
               href="/articles"
-              className="group inline-flex items-center gap-2 bg-neutral-900 text-white px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-neutral-800 hover:shadow-lg transition-all duration-200"
+              className="group inline-flex items-center gap-2 bg-brand text-brand-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-brand-hover hover:shadow-lg transition-all duration-200"
             >
               Start Reading
               <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200" />
             </Link>
             <Link
               href="/register"
-              className="inline-flex items-center gap-2 text-neutral-600 px-6 py-2.5 rounded-lg text-[13px] font-medium hover:text-neutral-900 hover:bg-neutral-100 transition-all duration-200"
+              className="inline-flex items-center gap-2 text-muted-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:text-foreground hover:bg-muted/60 transition-all duration-200"
             >
               Start Writing
               <ArrowRight className="w-3.5 h-3.5" />
@@ -206,13 +206,13 @@ export default function HeroSection() {
             viewport={{ once: true, amount: 0.3 }}
             transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
           >
-            <div className="relative bg-card rounded-xl border border-border shadow-[0_1px_12px_rgba(0,0,0,0.04)] overflow-hidden">
+            <div className="relative bg-card rounded-xl border border-border shadow-[var(--card-shadow)] overflow-hidden">
               {/* Browser chrome */}
               <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/60">
                 <div className="flex gap-1.5">
-                  <div className="w-2 h-2 bg-neutral-200 rounded-full" />
-                  <div className="w-2 h-2 bg-neutral-200 rounded-full" />
-                  <div className="w-2 h-2 bg-neutral-200 rounded-full" />
+                  <div className="w-2 h-2 bg-border rounded-full" />
+                  <div className="w-2 h-2 bg-border rounded-full" />
+                  <div className="w-2 h-2 bg-border rounded-full" />
                 </div>
                 <div className="flex-1 flex justify-center">
                   <div className="flex items-center gap-1.5 px-3 py-0.5 bg-card rounded-md border border-border">

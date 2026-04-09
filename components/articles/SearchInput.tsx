@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Search, X } from 'lucide-react'
 
 interface SearchInputProps {
@@ -19,36 +19,42 @@ export default function SearchInput({
   debounceMs = 300,
 }: SearchInputProps) {
   const [localValue, setLocalValue] = useState(value)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onChangeRef = useRef(onChange)
 
-  // Debounced onChange callback
-  const debouncedOnChange = useCallback(
-    (searchValue: string) => {
-      const timer = setTimeout(() => {
-        onChange(searchValue)
-      }, debounceMs)
-
-      return () => clearTimeout(timer)
-    },
-    [onChange, debounceMs]
-  )
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   // Update local value when prop value changes (for external updates)
   useEffect(() => {
     setLocalValue(value)
   }, [value])
 
-  // Handle input change
+  // Cancel pending timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current)
+    }
+  }, [])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
     setLocalValue(newValue)
 
-    // Clear previous timeout and set new one
-    const cleanup = debouncedOnChange(newValue)
-    return cleanup
+    if (timerRef.current !== null) clearTimeout(timerRef.current)
+
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null
+      onChangeRef.current(newValue)
+    }, debounceMs)
   }
 
-  // Clear search
   const clearSearch = () => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
     setLocalValue('')
     onChange('')
   }
