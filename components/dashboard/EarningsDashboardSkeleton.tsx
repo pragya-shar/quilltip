@@ -6,7 +6,7 @@ function StatCardsSkeleton() {
       {[1, 2, 3].map((i) => (
         <div
           key={i}
-          className="bg-white rounded-lg shadow p-6 dark:bg-card dark:border dark:border-border"
+          className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6"
         >
           <Skeleton className="h-4 w-24 mb-4" />
           <Skeleton className="h-8 w-20 mb-2" />
@@ -19,7 +19,7 @@ function StatCardsSkeleton() {
 
 function MonthlyChartSkeleton() {
   return (
-    <div className="bg-white rounded-lg shadow p-6 dark:bg-card dark:border dark:border-border">
+    <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
       <Skeleton className="h-6 w-40 mb-4" />
       <div className="grid grid-cols-6 gap-2">
         {Array.from({ length: 6 }).map((_, i) => (
@@ -35,7 +35,7 @@ function MonthlyChartSkeleton() {
 
 function TopArticlesListSkeleton() {
   return (
-    <div className="bg-white rounded-lg shadow dark:bg-card dark:border dark:border-border">
+    <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border">
       <div className="p-6 border-b border-border">
         <Skeleton className="h-6 w-56" />
       </div>
@@ -58,7 +58,7 @@ function TopArticlesListSkeleton() {
 
 function RecentTipsSkeleton() {
   return (
-    <div className="bg-white rounded-lg shadow dark:bg-card dark:border dark:border-border">
+    <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border">
       <div className="p-6 border-b border-border">
         <Skeleton className="h-6 w-32" />
       </div>

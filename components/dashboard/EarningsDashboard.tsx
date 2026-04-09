@@ -57,12 +57,12 @@ export function EarningsDashboard() {
   if (!earnings) {
     return (
       <div className="space-y-6">
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <Coins className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-12 text-center">
+          <Coins className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-foreground mb-2">
             No earnings yet
           </h3>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             Start earning by sharing great content that readers love!
           </p>
         </div>
