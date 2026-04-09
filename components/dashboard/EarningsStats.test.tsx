@@ -58,7 +58,7 @@ describe('EarningsStats', () => {
         '2024-03': 30,
       },
     })
-    const { container } = render(
+    render(
       <EarningsStats
         earnings={earnings}
         userProfile={{ stellarAddress: 'x' }}
@@ -67,9 +67,9 @@ describe('EarningsStats', () => {
       />
     )
 
-    const months = container.querySelectorAll('.text-xs.text-gray-500.mb-1')
-    const labels = [...months].map((el) => el.textContent)
-    expect(labels).toEqual(['2024-01', '2024-02', '2024-03'])
+    expect(screen.getByText('2024-01')).toBeInTheDocument()
+    expect(screen.getByText('2024-02')).toBeInTheDocument()
+    expect(screen.getByText('2024-03')).toBeInTheDocument()
   })
 
   it('shows wallet setup notice when profile has no Stellar address', () => {

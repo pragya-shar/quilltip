@@ -19,30 +19,32 @@ export function TopEarningArticles({ articles }: TopEarningArticlesProps) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow">
-      <div className="p-6 border-b">
+    <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border">
+      <div className="p-6 border-b border-border">
         <h3 className="text-lg font-semibold flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-green-500" />
+          <TrendingUp className="w-5 h-5 text-success-foreground" />
           Top Earning Articles
         </h3>
       </div>
-      <div className="divide-y">
+      <div className="divide-y divide-border">
         {articles.slice(0, 5).map((article, index) => (
-          <div key={article.articleId} className="p-4 hover:bg-gray-50">
+          <div key={article.articleId} className="p-4 hover:bg-muted/50">
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-500">
+                  <span className="text-sm font-medium text-muted-foreground">
                     #{index + 1}
                   </span>
-                  <h4 className="font-medium text-gray-900">{article.title}</h4>
+                  <h4 className="font-medium text-foreground">
+                    {article.title}
+                  </h4>
                 </div>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   {article.tipCount} tips
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-semibold text-gray-900">
+                <p className="font-semibold text-foreground">
                   ${article.earnings.toFixed(2)}
                 </p>
               </div>
