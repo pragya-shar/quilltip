@@ -23,9 +23,7 @@ export function MonthlyEarningsChart({
             <div key={month} className="text-center">
               <div className="text-xs text-muted-foreground mb-1">{month}</div>
               <div className="bg-success text-success-foreground rounded-lg p-2">
-                <p className="text-sm font-semibold">
-                  ${amount.toFixed(0)}
-                </p>
+                <p className="text-sm font-semibold">${amount.toFixed(0)}</p>
               </div>
             </div>
           ))}

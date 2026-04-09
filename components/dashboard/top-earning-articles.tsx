@@ -35,7 +35,9 @@ export function TopEarningArticles({ articles }: TopEarningArticlesProps) {
                   <span className="text-sm font-medium text-muted-foreground">
                     #{index + 1}
                   </span>
-                  <h4 className="font-medium text-foreground">{article.title}</h4>
+                  <h4 className="font-medium text-foreground">
+                    {article.title}
+                  </h4>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
                   {article.tipCount} tips
