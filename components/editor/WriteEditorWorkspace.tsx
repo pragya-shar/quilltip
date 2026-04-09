@@ -17,7 +17,7 @@ import { ImageUploadDialog } from '@/components/editor/ImageUploadDialog'
 import { useAuth } from '@/components/providers/AuthContext'
 import { EditorChromeSkeleton } from '@/components/editor/EditorChromeSkeleton'
 import { useAutoSave } from '@/hooks/useAutoSave'
-import { useMutation } from 'convex/react'
+import { useConvex, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useArticleById } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
@@ -41,6 +41,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { cn } from '@/lib/utils'
+import { compressImage, uploadFile } from '@/lib/upload'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const EXCERPT_MAX_CHARS = 500
@@ -77,11 +79,17 @@ function getInternalNavHref(
 }
 
 export function WriteEditorWorkspace() {
+  const convex = useConvex()
   const [title, setTitle] = useState('')
   const [excerpt, setExcerpt] = useState('')
   const [tags, setTags] = useState('')
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
+  const [coverDropActive, setCoverDropActive] = useState(false)
+  const [coverDropUploading, setCoverDropUploading] = useState(false)
+  const [bodyImageDragging, setBodyImageDragging] = useState(false)
+  const [bodyImageUploading, setBodyImageUploading] = useState(false)
+  const [bodyImageUploadProgress, setBodyImageUploadProgress] = useState(0)
   const [isPublishing, setIsPublishing] = useState(false)
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
@@ -140,7 +148,7 @@ export function WriteEditorWorkspace() {
         lowlight,
         HTMLAttributes: {
           class:
-            'rounded-lg bg-gray-900 text-gray-100 p-4 my-4 overflow-x-auto',
+            'rounded-lg bg-muted text-foreground border border-border p-4 my-4 overflow-x-auto',
         },
       }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
@@ -388,6 +396,117 @@ export function WriteEditorWorkspace() {
     }
   }, [hasUnsavedChanges, router])
 
+  const handleCoverPlaceholderDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCoverDropActive(true)
+  }, [])
+
+  const handleCoverPlaceholderDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setCoverDropActive(false)
+    }
+  }, [])
+
+  const handleCoverPlaceholderDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setCoverDropActive(false)
+
+      const file = e.dataTransfer.files?.[0]
+      if (!file) return
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please drop an image file')
+        return
+      }
+
+      setCoverDropUploading(true)
+      try {
+        const compressedFile = await compressImage(file, 1200, 0.8)
+        const result = await uploadFile(
+          compressedFile,
+          convex,
+          'article_image',
+          undefined,
+          undefined
+        )
+        if (result.success && result.url) {
+          setCoverImage(result.url)
+          setHasUnsavedChanges(true)
+        } else {
+          toast.error(result.error || 'Upload failed')
+        }
+      } catch (err) {
+        console.error('Cover drop upload error:', err)
+        toast.error('Upload failed. Please try again.')
+      } finally {
+        setCoverDropUploading(false)
+      }
+    },
+    [convex]
+  )
+
+  const handleBodyEditorDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setBodyImageDragging(true)
+  }, [])
+
+  const handleBodyEditorDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setBodyImageDragging(false)
+    }
+  }, [])
+
+  const handleBodyEditorDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setBodyImageDragging(false)
+
+      if (!editor) return
+
+      const files = Array.from(e.dataTransfer.files)
+      const imageFiles = files.filter((file) => file.type.startsWith('image/'))
+      if (imageFiles.length === 0) return
+
+      const file = imageFiles[0]
+      if (!file) return
+
+      setBodyImageUploading(true)
+      setBodyImageUploadProgress(0)
+
+      try {
+        const compressedFile = await compressImage(file, 1200, 0.8)
+        const result = await uploadFile(
+          compressedFile,
+          convex,
+          'article_image',
+          undefined,
+          (progress) => {
+            setBodyImageUploadProgress(progress.percentage)
+          }
+        )
+
+        if (result.success && result.url) {
+          editor.chain().focus().setResizableImage({ src: result.url }).run()
+        } else {
+          toast.error(result.error || 'Upload failed')
+        }
+      } catch (err) {
+        console.error('Error uploading dropped image:', err)
+        toast.error('Upload failed. Please try again.')
+      } finally {
+        setBodyImageUploading(false)
+      }
+    },
+    [convex, editor]
+  )
+
   const confirmLeaveNavigation = useCallback(() => {
     setNavConfirm((current) => {
       if (!current) return null
@@ -481,7 +600,7 @@ export function WriteEditorWorkspace() {
             />
           </div>
           <div
-            className="pointer-events-none absolute bottom-0 left-0 right-0 h-[2px] bg-sky-400"
+            className="pointer-events-none absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
             aria-hidden
           />
         </div>
@@ -510,23 +629,39 @@ export function WriteEditorWorkspace() {
                       setCoverImage('')
                       setHasUnsavedChanges(true)
                     }}
-                    className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-red-600 shadow hover:bg-red-500/10"
+                    className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-destructive shadow hover:bg-destructive/10"
                   >
                     Remove
                   </button>
                 </div>
               </div>
             ) : (
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setShowCoverImageDialog(true)}
-                className="group flex h-28 w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-sky-400 hover:text-sky-500"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setShowCoverImageDialog(true)
+                  }
+                }}
+                onDragOver={handleCoverPlaceholderDragOver}
+                onDragLeave={handleCoverPlaceholderDragLeave}
+                onDrop={handleCoverPlaceholderDrop}
+                className={cn(
+                  'group flex h-28 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary',
+                  coverDropActive &&
+                    'border-primary bg-primary/15 text-primary',
+                  coverDropUploading && 'pointer-events-none opacity-70'
+                )}
               >
                 <svg
-                  className="h-5 w-5"
+                  className="h-5 w-5 shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden
                 >
                   <path
                     strokeLinecap="round"
@@ -535,8 +670,14 @@ export function WriteEditorWorkspace() {
                     d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                   />
                 </svg>
-                <span className="text-sm font-medium">Add cover image</span>
-              </button>
+                <span className="text-sm font-medium">
+                  {coverDropUploading
+                    ? 'Uploading…'
+                    : coverDropActive
+                      ? 'Drop image to set cover'
+                      : 'Add cover image'}
+                </span>
+              </div>
             )}
           </div>
 
@@ -632,10 +773,54 @@ export function WriteEditorWorkspace() {
           </div>
 
           {editor && (
-            <EditorContent
-              editor={editor}
-              className="editor-content min-h-[400px]"
-            />
+            <div
+              className={cn(
+                'relative min-h-[400px] rounded-[var(--card-radius)] border border-transparent transition-colors',
+                bodyImageDragging && 'border-primary bg-primary/10',
+                bodyImageUploading && 'pointer-events-none'
+              )}
+              onDragOver={handleBodyEditorDragOver}
+              onDragLeave={handleBodyEditorDragLeave}
+              onDrop={handleBodyEditorDrop}
+            >
+              <EditorContent
+                editor={editor}
+                className="editor-content min-h-[400px]"
+              />
+
+              {bodyImageDragging && (
+                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--card-radius)] border-2 border-dashed border-primary bg-primary/15">
+                  <div className="text-center">
+                    <div className="mb-2 text-lg font-medium text-primary">
+                      Drop image here
+                    </div>
+                    <div className="text-sm text-primary/80">
+                      Release to add to article
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {bodyImageUploading && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[var(--card-radius)] bg-card/90">
+                  <div className="text-center">
+                    <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+                    <div className="text-sm text-muted-foreground">
+                      Optimizing and uploading image...
+                    </div>
+                    <div className="mx-auto mt-2 h-2 w-48 rounded-full bg-muted">
+                      <div
+                        className="h-2 rounded-full bg-primary transition-all duration-300"
+                        style={{ width: `${bodyImageUploadProgress}%` }}
+                      />
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {bodyImageUploadProgress}%
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
 
           <div id="field-tags" className="mt-8 border-t border-border pt-4">
