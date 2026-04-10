@@ -119,12 +119,12 @@ export function WithdrawEarningsDialog({
           <div>
             <label
               htmlFor="withdraw-amount"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-sm font-medium text-foreground mb-2"
             >
               Amount (USD)
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                 $
               </span>
               <input
@@ -136,11 +136,11 @@ export function WithdrawEarningsDialog({
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
                 disabled={isWithdrawing}
-                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full pl-8 pr-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder={`${MIN_WITHDRAWAL_USD.toFixed(2)}`}
               />
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Available: ${availableBalanceUsd.toFixed(2)} | Min: $
               {MIN_WITHDRAWAL_USD.toFixed(2)}
             </p>
@@ -149,7 +149,7 @@ export function WithdrawEarningsDialog({
           <div>
             <label
               htmlFor="stellar-address"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-sm font-medium text-foreground mb-2"
             >
               Stellar Address
             </label>
@@ -160,18 +160,18 @@ export function WithdrawEarningsDialog({
               onChange={(e) => setStellarAddress(e.target.value)}
               readOnly={addressReadOnly}
               disabled={isWithdrawing}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 read-only:bg-gray-50"
+              className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring read-only:bg-muted/50"
               placeholder="G..."
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {savedStellarAddress
                 ? 'Using your saved wallet address from Wallet settings'
                 : 'Enter your Stellar wallet address'}
             </p>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm text-blue-800">
+          <div className="bg-info border border-info/50 rounded-lg p-3">
+            <p className="text-sm text-info-foreground">
               Withdrawals are processed instantly on the Stellar network.
               Transaction fees are covered by Quilltip.
             </p>
@@ -183,7 +183,7 @@ export function WithdrawEarningsDialog({
             type="button"
             onClick={() => handleOpenChange(false)}
             disabled={isWithdrawing}
-            className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed sm:flex-none"
+            className="flex-1 px-4 py-2 border border-input bg-background text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed sm:flex-none"
           >
             Cancel
           </button>
@@ -195,7 +195,7 @@ export function WithdrawEarningsDialog({
               !withdrawAmount ||
               !effectiveAddress.startsWith('G')
             }
-            className="flex-1 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 sm:flex-none"
+            className="flex-1 px-4 py-2 bg-brand text-brand-foreground rounded-lg hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 sm:flex-none"
           >
             {isWithdrawing ? (
               <>

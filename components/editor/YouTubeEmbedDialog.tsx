@@ -111,7 +111,7 @@ export function YouTubeEmbedDialog({
       >
         <DialogHeader className="p-4 border-b border-border space-y-0 text-left pr-12">
           <div className="flex items-center gap-2">
-            <Youtube className="w-5 h-5 text-red-600 shrink-0" />
+            <Youtube className="w-5 h-5 text-muted-foreground shrink-0" />
             <DialogTitle>Embed YouTube Video</DialogTitle>
           </div>
           <DialogDescription className="sr-only">
@@ -166,8 +166,8 @@ export function YouTubeEmbedDialog({
                   unoptimized
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center">
-                    <Play className="w-6 h-6 text-white ml-1" />
+                  <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+                    <Play className="w-6 h-6 text-primary-foreground ml-1" />
                   </div>
                 </div>
               </div>
@@ -181,8 +181,8 @@ export function YouTubeEmbedDialog({
               </span>
               <div className="relative bg-muted rounded-lg overflow-hidden h-32 flex items-center justify-center">
                 <div className="text-center">
-                  <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <Youtube className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Youtube className="w-6 h-6 text-primary-foreground" />
                   </div>
                   <p className="text-sm text-muted-foreground">YouTube Video</p>
                 </div>
@@ -254,8 +254,8 @@ export function YouTubeEmbedDialog({
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="rounded-lg border border-destructive/25 bg-destructive/10 p-3">
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           )}
 

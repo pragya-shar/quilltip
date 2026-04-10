@@ -79,7 +79,7 @@ export function Editor({
         lowlight,
         HTMLAttributes: {
           class:
-            'rounded-lg bg-gray-900 text-gray-100 p-4 my-4 overflow-x-auto',
+            'rounded-lg bg-muted text-foreground border border-border p-4 my-4 overflow-x-auto',
         },
       }),
     ],
@@ -171,19 +171,19 @@ export function Editor({
   return (
     <div
       className={`editor-wrapper bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border relative ${className} ${
-        isDragging ? 'border-blue-400 bg-blue-50' : ''
+        isDragging ? 'border-primary bg-primary/10' : ''
       } ${isUploading ? 'pointer-events-none' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {isDragging && (
-        <div className="absolute inset-0 bg-blue-50 bg-opacity-90 flex items-center justify-center z-10 rounded-lg border-2 border-dashed border-blue-400">
+        <div className="absolute inset-0 bg-primary/15 flex items-center justify-center z-10 rounded-lg border-2 border-dashed border-primary">
           <div className="text-center">
-            <div className="text-blue-600 text-lg font-medium mb-2">
+            <div className="text-primary text-lg font-medium mb-2">
               Drop image here
             </div>
-            <div className="text-blue-500 text-sm">Release to upload</div>
+            <div className="text-primary/80 text-sm">Release to upload</div>
           </div>
         </div>
       )}
@@ -191,13 +191,13 @@ export function Editor({
       {isUploading && (
         <div className="absolute inset-0 bg-card bg-opacity-90 flex items-center justify-center z-10 rounded-lg">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
             <div className="text-muted-foreground text-sm">
               Optimizing and uploading image...
             </div>
             <div className="mt-2 w-48 bg-muted rounded-full h-2 mx-auto">
               <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                className="bg-primary h-2 rounded-full transition-all duration-300"
                 style={{ width: `${uploadProgress}%` }}
               ></div>
             </div>

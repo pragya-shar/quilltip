@@ -35,25 +35,25 @@ export function EarningsStats({
       {userProfile && !userProfile.stellarAddress && <WalletSetupNotice />}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-600">Total Earned</span>
-            <DollarSign className="w-5 h-5 text-green-500" />
+            <span className="text-muted-foreground">Total Earned</span>
+            <DollarSign className="w-5 h-5 text-success-foreground" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="text-2xl font-bold text-foreground">
             ${earnings.totalEarnedUsd.toFixed(2)}
           </p>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             {earnings.tipCount} tips received
           </p>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-600">Available Balance</span>
-            <Coins className="w-5 h-5 text-yellow-500" />
+            <span className="text-muted-foreground">Available Balance</span>
+            <Coins className="w-5 h-5 text-warning-foreground" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="text-2xl font-bold text-foreground">
             ${earnings.availableBalanceUsd.toFixed(2)}
           </p>
           <button
@@ -67,13 +67,13 @@ export function EarningsStats({
               }
             }}
             disabled={earnings.availableBalanceUsd < minWithdrawalUsd}
-            className="mt-3 w-full px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-sm rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="mt-3 w-full px-3 py-1.5 bg-brand text-brand-foreground text-sm rounded-lg hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             <Wallet className="w-4 h-4" />
             {!userProfile?.stellarAddress ? 'Set Up Wallet' : 'Withdraw'}
           </button>
           {showMinimumWithdrawalHelper && (
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-2 text-sm text-muted-foreground">
               Withdrawals require a minimum available balance of $
               {minWithdrawalUsd.toFixed(2)}. Add earnings until your balance
               reaches this amount.
@@ -81,16 +81,16 @@ export function EarningsStats({
           )}
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-600">Total Withdrawn</span>
-            <Clock className="w-5 h-5 text-blue-500" />
+            <span className="text-muted-foreground">Total Withdrawn</span>
+            <Clock className="w-5 h-5 text-info-foreground" />
           </div>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="text-2xl font-bold text-foreground">
             ${earnings.withdrawnUsd.toFixed(2)}
           </p>
           {lastWithdrawal && (
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Last: {new Date(lastWithdrawal).toLocaleDateString()}
             </p>
           )}
