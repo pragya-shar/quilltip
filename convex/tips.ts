@@ -56,16 +56,14 @@ export const getArticleTipStats = query({
 
 // Get user's sent tips
 export const getUserSentTips = query({
-  args: {
-    userId: v.optional(v.id('users')),
-  },
-  handler: async (ctx, args) => {
-    const targetUserId = args.userId || (await getAuthUserId(ctx))
-    if (!targetUserId) return []
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return []
 
     const tips = await ctx.db
       .query('tips')
-      .withIndex('by_tipper', (q) => q.eq('tipperId', targetUserId))
+      .withIndex('by_tipper', (q) => q.eq('tipperId', userId))
       .order('desc')
       .collect()
 
@@ -93,16 +91,14 @@ export const getUserSentTips = query({
 
 // Get user's received tips
 export const getUserReceivedTips = query({
-  args: {
-    userId: v.optional(v.id('users')),
-  },
-  handler: async (ctx, args) => {
-    const targetUserId = args.userId || (await getAuthUserId(ctx))
-    if (!targetUserId) return []
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return []
 
     const tips = await ctx.db
       .query('tips')
-      .withIndex('by_author', (q) => q.eq('authorId', targetUserId))
+      .withIndex('by_author', (q) => q.eq('authorId', userId))
       .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .order('desc')
       .collect()
@@ -331,16 +327,14 @@ export const confirmTip = internalMutation({
 
 // Get author earnings
 export const getAuthorEarnings = query({
-  args: {
-    userId: v.optional(v.id('users')),
-  },
-  handler: async (ctx, args) => {
-    const targetUserId = args.userId || (await getAuthUserId(ctx))
-    if (!targetUserId) return null
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return null
 
     const earnings = await ctx.db
       .query('authorEarnings')
-      .withIndex('by_user', (q) => q.eq('userId', targetUserId))
+      .withIndex('by_user', (q) => q.eq('userId', userId))
       .first()
 
     return earnings

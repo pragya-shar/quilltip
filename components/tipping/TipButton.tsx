@@ -59,7 +59,7 @@ export function TipButton({
   const handleTip = async () => {
     if (!isAuthenticated) {
       toast.error('Please sign in to send tips')
-      router.push('/auth/signin')
+      router.push('/login')
       return
     }
 
