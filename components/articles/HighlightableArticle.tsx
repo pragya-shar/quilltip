@@ -72,6 +72,12 @@ export function HighlightableArticle({
   } | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const isApplyingHighlightsRef = useRef(false)
+  // Tracks whether the user is in the middle of a mouse/touch drag-select.
+  // During a drag, onSelectionUpdate fires on every move; if we let it mount
+  // the popover at 3 chars, HighlightPopover's FocusScope trap steals focus
+  // from the article body and the native selection collapses, capping
+  // selections at 3 characters. Defer popover display to pointerup instead.
+  const isDraggingRef = useRef(false)
 
   // Get current user for ownership checks
   const { user } = useAuth()
@@ -161,6 +167,9 @@ export function HighlightableArticle({
     },
     onSelectionUpdate: ({ editor }) => {
       if (editable || isApplyingHighlightsRef.current) return
+      // During active mouse/touch drag, defer popover creation to pointerup.
+      // Keyboard selection (shift+arrow, ctrl+a) still runs this path.
+      if (isDraggingRef.current) return
 
       const { selection } = editor.state
       const { from, to } = selection
@@ -198,6 +207,58 @@ export function HighlightableArticle({
       isApplyingHighlightsRef.current = false
     })
   }, [editor, highlights, showHighlights])
+
+  // Show the highlight popover only after the user releases a drag-select.
+  // Mounting it mid-drag traps focus and collapses the selection.
+  useEffect(() => {
+    const container = editorRef.current
+    if (!container || editable) return
+
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null
+      // Ignore events originating from an open popover/details dialog so
+      // their own buttons still receive the click.
+      if (target?.closest('[role="dialog"]')) return
+      isDraggingRef.current = true
+      setSelectedText(null)
+      setPopoverPosition(null)
+    }
+
+    const handlePointerUp = () => {
+      if (!isDraggingRef.current) return
+      isDraggingRef.current = false
+      // Defer one tick so the browser and Tiptap commit the final selection.
+      setTimeout(() => {
+        if (!editor) return
+        const { from, to } = editor.state.selection
+        const text = editor.state.doc.textBetween(from, to, ' ')
+        if (text.trim().length < 3) return
+        const domSelection = window.getSelection()
+        if (!domSelection || domSelection.rangeCount === 0) return
+        const range = domSelection.getRangeAt(0)
+        const rect = range.getBoundingClientRect()
+        setSelectedText({ text, from, to })
+        setPopoverPosition({
+          top: rect.top + window.scrollY - 60,
+          left: rect.left + rect.width / 2,
+        })
+      }, 0)
+    }
+
+    container.addEventListener('mousedown', handlePointerDown)
+    container.addEventListener('touchstart', handlePointerDown, {
+      passive: true,
+    })
+    document.addEventListener('mouseup', handlePointerUp)
+    document.addEventListener('touchend', handlePointerUp)
+
+    return () => {
+      container.removeEventListener('mousedown', handlePointerDown)
+      container.removeEventListener('touchstart', handlePointerDown)
+      document.removeEventListener('mouseup', handlePointerUp)
+      document.removeEventListener('touchend', handlePointerUp)
+    }
+  }, [editor, editable])
 
   // Handle highlight creation
   const handleCreateHighlight = useCallback(

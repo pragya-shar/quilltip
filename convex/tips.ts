@@ -375,8 +375,8 @@ export const withdrawEarnings = mutation({
       throw new Error('No earnings found')
     }
 
-    // Validate withdrawal amount
-    if (args.amountUsd <= 0) {
+    // Validate withdrawal amount (reject NaN, Infinity, and non-positive)
+    if (!Number.isFinite(args.amountUsd) || args.amountUsd <= 0) {
       throw new Error('Invalid withdrawal amount')
     }
 

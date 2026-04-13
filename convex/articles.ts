@@ -136,13 +136,12 @@ export const listArticles = query({
             .collect()
       const total = linkRows.length
       const pageLinks = linkRows.slice(offset, offset + limit)
-      const articles = []
-      for (const row of pageLinks) {
-        const article = await ctx.db.get(row.articleId)
-        if (article?.published) {
-          articles.push(article)
-        }
-      }
+      const fetched = await Promise.all(
+        pageLinks.map((row) => ctx.db.get(row.articleId))
+      )
+      const articles = fetched.filter(
+        (a): a is NonNullable<typeof a> => a?.published === true
+      )
       const enrichedArticles = await Promise.all(
         articles.map(async (article) => ({
           ...article,

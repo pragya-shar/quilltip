@@ -60,6 +60,21 @@ export const create = mutation({
       )
     }
 
+    // Dedup: Convex mutations have at-least-once delivery, so a lost ack
+    // could cause the client to retry and insert a duplicate row. Non-empty
+    // stellarTxIds are unique per Stellar transaction, so we look up by index
+    // and return the existing row if found. Empty stellarTxIds are not deduped
+    // because two unrelated tips could legitimately share that sentinel value.
+    if (args.stellarTxId !== '') {
+      const existing = await ctx.db
+        .query('highlightTips')
+        .withIndex('by_stellar_tx', (q) =>
+          q.eq('stellarTxId', args.stellarTxId)
+        )
+        .first()
+      if (existing) return existing._id
+    }
+
     const amountUsd = args.amountCents / 100
 
     // Insert highlight tip

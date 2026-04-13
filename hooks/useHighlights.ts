@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useMutation } from 'convex/react'
+import { toast } from 'sonner'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/types/convex'
 import {
@@ -168,6 +169,9 @@ export function useHighlights({
         clearSelection()
       } catch (error) {
         console.error('Error creating highlight:', error)
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to save highlight'
+        )
       } finally {
         setIsCreating(false)
       }
@@ -201,6 +205,9 @@ export function useHighlights({
         onHighlightUpdated?.(highlightId)
       } catch (error) {
         console.error('Error updating highlight:', error)
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to update highlight'
+        )
       }
     },
     [updateHighlight, onHighlightUpdated]
@@ -214,6 +221,9 @@ export function useHighlights({
         onHighlightDeleted?.(highlightId)
       } catch (error) {
         console.error('Error deleting highlight:', error)
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to delete highlight'
+        )
       }
     },
     [deleteHighlight, onHighlightDeleted]
