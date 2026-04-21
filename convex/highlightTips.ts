@@ -2,6 +2,7 @@ import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { TIP_MIN_CENTS, TIP_MAX_CENTS } from './lib/constants'
+import { enforceTipCooldown } from './lib/rateLimit'
 
 /**
  * Create a new highlight tip after Stellar transaction
@@ -74,6 +75,10 @@ export const create = mutation({
         .first()
       if (existing) return existing._id
     }
+
+    // Cooldown check runs after the dedup short-circuit so that at-least-once
+    // retries of the same Stellar tx are not mistaken for spam.
+    await enforceTipCooldown(ctx, userId)
 
     const amountUsd = args.amountCents / 100
 

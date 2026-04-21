@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useMutation } from 'convex/react'
+import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { useRouter } from 'next/navigation'
@@ -49,6 +49,7 @@ export function TipButton({
   const [customAmount, setCustomAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
+  const convex = useConvex()
   const sendTip = useMutation(api.tips.sendTip)
 
   const handleOpenChange = (open: boolean) => {
@@ -85,6 +86,23 @@ export function TipButton({
         'Author has not set up their Stellar wallet for receiving tips'
       )
       return
+    }
+
+    // Pre-flight cooldown check: avoids building a Stellar transaction that
+    // the server would ultimately reject, which would otherwise leave an
+    // on-chain payment with no matching DB record. This is an optimization;
+    // the sendTip mutation still enforces the cooldown server-side, so any
+    // network hiccup here falls through silently to the real gate below.
+    try {
+      const cooldown = await convex.query(api.tips.canTip, {})
+      if (!cooldown.allowed) {
+        toast.error('Slow down', {
+          description: `Please wait ${cooldown.waitSec}s before tipping again.`,
+        })
+        return
+      }
+    } catch {
+      // Fall through: the server-side cooldown check will catch it if needed.
     }
 
     setIsLoading(true)

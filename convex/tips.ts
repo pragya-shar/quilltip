@@ -4,6 +4,7 @@ import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import { enrichWithUser } from './lib/enrich'
 import { TIP_MIN_USD, TIP_MAX_USD, MIN_WITHDRAWAL_USD } from './lib/constants'
+import { checkTipCooldown, enforceTipCooldown } from './lib/rateLimit'
 
 // Get tips for an article
 export const getArticleTips = query({
@@ -129,6 +130,19 @@ export const getUserReceivedTips = query({
   },
 })
 
+// Pre-flight cooldown check used by the UI before starting the Stellar signing
+// flow. Returning { allowed: true } for unauthenticated callers keeps anonymous
+// page views from ever seeing a false rate-limit signal; the sendTip mutation
+// still requires authentication as usual.
+export const canTip = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return { allowed: true as const }
+    return await checkTipCooldown(ctx, userId)
+  },
+})
+
 // Send tip mutation
 export const sendTip = mutation({
   args: {
@@ -139,6 +153,8 @@ export const sendTip = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
+
+    await enforceTipCooldown(ctx, userId)
 
     const user = await ctx.db.get(userId)
     if (!user) throw new Error('User not found')

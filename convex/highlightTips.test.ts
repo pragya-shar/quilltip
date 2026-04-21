@@ -98,6 +98,13 @@ describe('highlightTips.create', () => {
       api.highlightTips.create,
       tipArgs(articleId, '')
     )
+    // Backdate so the cooldown does not block the second empty-tx insert.
+    await t.run(async (ctx) => {
+      const tip = await ctx.db.get(first)
+      if (tip) {
+        await ctx.db.patch(first, { createdAt: tip.createdAt - 60_000 })
+      }
+    })
     const second = await asTipper.mutation(
       api.highlightTips.create,
       tipArgs(articleId, '')
@@ -123,6 +130,13 @@ describe('highlightTips.create', () => {
       api.highlightTips.create,
       tipArgs(articleId, 'stellar-tx-1')
     )
+    // Backdate the first tip so the cooldown does not block the second insert.
+    await t.run(async (ctx) => {
+      const tip = await ctx.db.get(first)
+      if (tip) {
+        await ctx.db.patch(first, { createdAt: tip.createdAt - 60_000 })
+      }
+    })
     const second = await asTipper.mutation(
       api.highlightTips.create,
       tipArgs(articleId, 'stellar-tx-2')
@@ -137,5 +151,63 @@ describe('highlightTips.create', () => {
       const article = await ctx.db.get(articleId)
       expect(article?.tipCount).toBe(2)
     })
+  })
+
+  it('rejects a second distinct-tx tip within the cooldown window', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-1')
+    )
+
+    await expect(
+      asTipper.mutation(
+        api.highlightTips.create,
+        tipArgs(articleId, 'stellar-tx-2')
+      )
+    ).rejects.toThrow(/wait .* before tipping again/i)
+  })
+
+  it('allows a second tip once the cooldown has elapsed', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const first = await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-1')
+    )
+    // Backdate the first tip so its createdAt is older than TIP_COOLDOWN_MS.
+    await t.run(async (ctx) => {
+      const tip = await ctx.db.get(first)
+      if (tip) {
+        await ctx.db.patch(first, { createdAt: tip.createdAt - 60_000 })
+      }
+    })
+
+    const second = await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-2')
+    )
+    expect(second).not.toBe(first)
+  })
+
+  it('still dedups a retried stellarTxId even within the cooldown', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const first = await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-1')
+    )
+    const retried = await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-1')
+    )
+    expect(retried).toBe(first)
   })
 })
