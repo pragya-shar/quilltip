@@ -1,7 +1,12 @@
 import { mutation, query } from './_generated/server'
 import { v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
-import { TIP_MIN_CENTS, TIP_MAX_CENTS } from './lib/constants'
+import { internal } from './_generated/api'
+import {
+  TIP_MIN_CENTS,
+  TIP_MAX_CENTS,
+  HORIZON_VERIFY_INITIAL_DELAY_MS,
+} from './lib/constants'
 import { enforceTipCooldown } from './lib/rateLimit'
 
 /**
@@ -81,16 +86,17 @@ export const create = mutation({
     await enforceTipCooldown(ctx, userId)
 
     const amountUsd = args.amountCents / 100
+    const now = Date.now()
 
-    // Insert highlight tip
+    // Insert tip as PENDING. Counter updates and author-stat bumps intentionally
+    // live in internal.stellarVerify.markHighlightTipConfirmed so that we only
+    // credit the author once Horizon confirms the on-chain tx is real.
     const highlightTipId = await ctx.db.insert('highlightTips', {
-      // Core references
       highlightId: args.highlightId,
       articleId: args.articleId,
       tipperId: userId,
       authorId: article.authorId,
 
-      // Denormalized data
       highlightText: args.highlightText,
       articleTitle: article.title,
       articleSlug: article.slug,
@@ -99,11 +105,9 @@ export const create = mutation({
       authorName: author.name,
       authorAvatar: author.avatar,
 
-      // Tip details
       amountUsd,
       amountCents: args.amountCents,
 
-      // Stellar transaction data
       stellarTxId: args.stellarTxId,
       stellarNetwork: args.stellarNetwork || 'TESTNET',
       stellarMemo: args.stellarMemo,
@@ -114,47 +118,33 @@ export const create = mutation({
       stellarAmountXlm: args.stellarAmountXlm,
       contractTipId: args.contractTipId,
 
-      // Position data
       startOffset: args.startOffset,
       endOffset: args.endOffset,
       startContainerPath: args.startContainerPath,
       endContainerPath: args.endContainerPath,
 
-      // Status
-      status: 'CONFIRMED',
+      status: 'PENDING',
       platformFee: args.platformFee,
       authorShare: args.authorShare,
 
-      // Timestamps
-      createdAt: Date.now(),
-      processedAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      processedAt: now,
+      updatedAt: now,
     })
 
-    // Update article tip stats (tipCount and totalTipsUsd, not highlightCount)
-    await ctx.db.patch(args.articleId, {
-      tipCount: (article.tipCount || 0) + 1,
-      totalTipsUsd: (article.totalTipsUsd || 0) + amountUsd,
-      updatedAt: Date.now(),
-    })
-
-    // Update user tip counts
-    await ctx.db.patch(userId, {
-      tipsSentCount: (user.tipsSentCount || 0) + 1,
-      updatedAt: Date.now(),
-    })
-
-    await ctx.db.patch(article.authorId, {
-      tipsReceivedCount: (author.tipsReceivedCount || 0) + 1,
-      updatedAt: Date.now(),
-    })
+    await ctx.scheduler.runAfter(
+      HORIZON_VERIFY_INITIAL_DELAY_MS,
+      internal.stellarVerify.verifyHighlightTip,
+      { highlightTipId, attempt: 1 }
+    )
 
     return highlightTipId
   },
 })
 
 /**
- * Get all tips for a specific highlight
+ * Get all tips for a specific highlight. Only CONFIRMED tips are returned;
+ * PENDING tips (awaiting Horizon verification) and FAILED tips are excluded.
  */
 export const getByHighlight = query({
   args: {
@@ -164,12 +154,15 @@ export const getByHighlight = query({
     return await ctx.db
       .query('highlightTips')
       .withIndex('by_highlight', (q) => q.eq('highlightId', args.highlightId))
+      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .collect()
   },
 })
 
 /**
- * Get all highlight tips for an article (for heatmap)
+ * Get all highlight tips for an article (for heatmap). Only CONFIRMED tips
+ * are returned so the heatmap never shows tips that ultimately failed
+ * verification.
  */
 export const getByArticle = query({
   args: {
@@ -179,6 +172,7 @@ export const getByArticle = query({
     return await ctx.db
       .query('highlightTips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
+      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .collect()
   },
 })
@@ -200,7 +194,8 @@ export const getByTipper = query({
 })
 
 /**
- * Get highlight tips received by author
+ * Get highlight tips received by author. PENDING/FAILED tips are excluded —
+ * mirrors tips.getUserReceivedTips so authors only see verified earnings.
  */
 export const getByAuthor = query({
   args: {
@@ -210,13 +205,15 @@ export const getByAuthor = query({
     return await ctx.db
       .query('highlightTips')
       .withIndex('by_author', (q) => q.eq('authorId', args.authorId))
+      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .order('desc')
       .collect()
   },
 })
 
 /**
- * Get aggregate stats for an article's highlight tips
+ * Get aggregate stats for an article's highlight tips. PENDING and FAILED
+ * tips are excluded so the numbers match what the heatmap displays.
  */
 export const getArticleStats = query({
   args: {
@@ -226,6 +223,7 @@ export const getArticleStats = query({
     const tips = await ctx.db
       .query('highlightTips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
+      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .collect()
 
     const totalTips = tips.length
