@@ -40,7 +40,7 @@ describe('verifyTipTransaction', () => {
       expectedSource: SOURCE,
       horizonUrl: HORIZON,
     })
-    expect(result).toEqual({ ok: true, ledger: 12345 })
+    expect(result).toEqual({ ok: true, ledger: 12345, onChainStroops: null })
   })
 
   it('returns transient not_found on 404 (Horizon propagation lag)', async () => {

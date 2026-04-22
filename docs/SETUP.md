@@ -43,6 +43,16 @@ npx convex env set SITE_URL http://localhost:3000
 
 This is read by `convex/auth.config.ts` as `process.env.CONVEX_SITE_URL`.
 
+## Tip Verification
+
+The Convex action that verifies Stellar tip transactions needs the tipping contract ID at runtime. Set it on the **Convex deployment**:
+
+```bash
+npx convex env set TIPPING_CONTRACT_ID <your-tipping-contract-id>
+```
+
+For testnet, use the same value as `NEXT_PUBLIC_TIPPING_CONTRACT_ID` in `.env.local`. Without this, tip verification will throw and tips will remain `PENDING`.
+
 ## Development Commands
 
 ```bash

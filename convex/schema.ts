@@ -260,6 +260,13 @@ export default defineSchema({
     // Status
     status: v.string(), // PENDING, CONFIRMED, FAILED
     failureReason: v.optional(v.string()),
+    // Set when verification confirms the tip but could not fully validate the
+    // claimed USD amount — e.g. XLM price oracle was unreachable, or the
+    // on-chain amount diverged from the claim beyond tolerance. CONFIRMED
+    // tips with this flag are trusted for the tipper's history but should
+    // be surfaced for audit rather than silently included in earnings.
+    amountUsdSuspicious: v.optional(v.boolean()),
+    amountUsdSuspicionReason: v.optional(v.string()),
     platformFee: v.optional(v.number()),
     authorShare: v.optional(v.number()),
 

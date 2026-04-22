@@ -24,6 +24,7 @@ import type * as lib_horizon from "../lib/horizon.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
 import type * as lib_tiptapContent from "../lib/tiptapContent.js";
 import type * as lib_wikimediaFileUrl from "../lib/wikimediaFileUrl.js";
+import type * as lib_xlmPrice from "../lib/xlmPrice.js";
 import type * as nfts from "../nfts.js";
 import type * as stellarVerify from "../stellarVerify.js";
 import type * as tips from "../tips.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rateLimit": typeof lib_rateLimit;
   "lib/tiptapContent": typeof lib_tiptapContent;
   "lib/wikimediaFileUrl": typeof lib_wikimediaFileUrl;
+  "lib/xlmPrice": typeof lib_xlmPrice;
   nfts: typeof nfts;
   stellarVerify: typeof stellarVerify;
   tips: typeof tips;
