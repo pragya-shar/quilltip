@@ -59,5 +59,6 @@ contracts/article-nft/target
 CONTRACT_DEPLOYMENT_PLAN.md
 IMPROVEMENTS_MOSCOW.md
 docs/tranche-2.md
+docs/tipping-verification-plan.md
 
 .agents/*
