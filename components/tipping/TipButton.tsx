@@ -124,7 +124,16 @@ export function TipButton({
       await sendTip({
         articleId,
         amountUsd: amountCents / 100,
-        message: `Stellar tip: ${receipt.transactionHash}`,
+        stellarTxId: receipt.transactionHash ?? '',
+        stellarNetwork: 'TESTNET',
+        stellarLedger: undefined,
+        stellarFeeCharged: undefined,
+        stellarSourceAccount: publicKey,
+        stellarDestinationAccount: authorStellarAddress,
+        stellarAmountXlm: (transactionData.stroops / 10_000_000).toString(),
+        contractTipId: receipt.tipId,
+        platformFee: transactionData.platformFee,
+        authorShare: transactionData.authorReceived,
       })
 
       setIsOpen(false)

@@ -216,7 +216,8 @@ export default defineSchema({
     .index('by_tipper', ['tipperId'])
     .index('by_author', ['authorId'])
     .index('by_status', ['status'])
-    .index('by_status_created', ['status', 'createdAt']), // For paginated status queries
+    .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
+    .index('by_stellar_tx', ['stellarTxId']), // For dedup on at-least-once retries
 
   // Highlight Tips table (NEW - granular tipping)
   highlightTips: defineTable({

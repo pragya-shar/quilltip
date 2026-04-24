@@ -149,11 +149,38 @@ export const sendTip = mutation({
     articleId: v.id('articles'),
     amountUsd: v.number(),
     message: v.optional(v.string()),
+    stellarTxId: v.string(),
+    stellarNetwork: v.optional(v.string()),
+    stellarLedger: v.optional(v.number()),
+    stellarFeeCharged: v.optional(v.string()),
+    stellarSourceAccount: v.optional(v.string()),
+    stellarDestinationAccount: v.optional(v.string()),
+    stellarAmountXlm: v.optional(v.string()),
+    contractTipId: v.optional(v.string()),
+    platformFee: v.optional(v.number()),
+    authorShare: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
+    // Dedup: Convex mutations have at-least-once delivery, so a lost ack
+    // could cause the client to retry and insert a duplicate row. Non-empty
+    // stellarTxIds are unique per Stellar transaction, so we look up by index
+    // and return the existing row if found. Empty stellarTxIds are not deduped
+    // because two unrelated tips could legitimately share that sentinel value.
+    if (args.stellarTxId !== '') {
+      const existing = await ctx.db
+        .query('tips')
+        .withIndex('by_stellar_tx', (q) =>
+          q.eq('stellarTxId', args.stellarTxId)
+        )
+        .first()
+      if (existing) return existing._id
+    }
+
+    // Cooldown check runs after the dedup short-circuit so that at-least-once
+    // retries of the same Stellar tx are not mistaken for spam.
     await enforceTipCooldown(ctx, userId)
 
     const user = await ctx.db.get(userId)
@@ -184,7 +211,9 @@ export const sendTip = mutation({
 
     const now = Date.now()
 
-    // Create tip record (initially pending)
+    // Create tip record (initially pending). Stellar metadata is persisted
+    // at insert time so the reconciliation job can verify the on-chain tx
+    // later without relying on confirmTip to stamp a placeholder.
     const tipId = await ctx.db.insert('tips', {
       articleId: args.articleId,
       articleTitle: article.title,
@@ -198,6 +227,16 @@ export const sendTip = mutation({
       amountUsd: args.amountUsd,
       amountCents,
       message: args.message,
+      stellarTxId: args.stellarTxId,
+      stellarNetwork: args.stellarNetwork || 'TESTNET',
+      stellarLedger: args.stellarLedger,
+      stellarFeeCharged: args.stellarFeeCharged,
+      stellarSourceAccount: args.stellarSourceAccount,
+      stellarDestinationAccount: args.stellarDestinationAccount,
+      stellarAmountXlm: args.stellarAmountXlm,
+      contractTipId: args.contractTipId,
+      platformFee: args.platformFee,
+      authorShare: args.authorShare,
       status: 'PENDING',
       createdAt: now,
       updatedAt: now,
@@ -215,7 +254,6 @@ export const sendTip = mutation({
 export const confirmTip = internalMutation({
   args: {
     tipId: v.id('tips'),
-    stellarTxId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const tip = await ctx.db.get(args.tipId)
@@ -224,10 +262,10 @@ export const confirmTip = internalMutation({
 
     const now = Date.now()
 
-    // Update tip status
+    // Flip status to CONFIRMED. stellarTxId was stored at insert time by
+    // sendTip, so there's nothing to stamp here.
     await ctx.db.patch(args.tipId, {
       status: 'CONFIRMED',
-      stellarTxId: args.stellarTxId || `pending_${args.tipId}`,
       updatedAt: now,
     })
 
