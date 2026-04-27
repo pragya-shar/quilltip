@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test'
-import { describe, expect, it } from 'vitest'
-import { api } from './_generated/api'
+import { describe, expect, it, vi } from 'vitest'
+import { api, internal } from './_generated/api'
 import schema from './schema'
 import type { Id } from './_generated/dataModel'
 
@@ -372,5 +372,193 @@ describe('sendTip', () => {
         stellarTxId: 'tx-unauth',
       })
     ).rejects.toThrow(/not authenticated/i)
+  })
+})
+
+describe('markArticleTipFraudulent', () => {
+  // Send a tip, directly invoke confirmTip to credit counters, and return ids
+  // for assertions. Returns baseline (pre-tip) counter values so tests can
+  // verify the reversal returns to that exact state.
+  async function seedConfirmedTip(
+    t: ReturnType<typeof convexTest>,
+    opts: { amountUsd?: number; stellarTxId?: string } = {}
+  ) {
+    const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const tipId = await asTipper.mutation(api.tips.sendTip, {
+      articleId,
+      amountUsd: opts.amountUsd ?? 1,
+      stellarTxId: opts.stellarTxId ?? 'tx-fraud-fixture',
+    })
+    await t.mutation(internal.tips.confirmTip, { tipId })
+    return { tipperId, authorId, articleId, tipId }
+  }
+
+  it('reverses every counter confirmTip applied and flips status to FRAUDULENT', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, authorId, articleId, tipId } = await seedConfirmedTip(t)
+
+    // Pre-state: counters bumped
+    const pre = await t.run(async (ctx) => ({
+      tipper: await ctx.db.get(tipperId),
+      author: await ctx.db.get(authorId),
+      article: await ctx.db.get(articleId),
+      earnings: await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .first(),
+    }))
+    expect(pre.tipper?.tipsSentCount).toBe(1)
+    expect(pre.author?.tipsReceivedCount).toBe(1)
+    expect(pre.article?.tipCount).toBe(1)
+    expect(pre.article?.totalTipsUsd).toBe(1)
+    expect(pre.earnings?.tipCount).toBe(1)
+    expect(pre.earnings?.totalEarnedCents).toBe(100)
+    expect(pre.earnings?.availableBalanceCents).toBe(100)
+
+    await t.mutation(internal.tips.markArticleTipFraudulent, {
+      tipId,
+      reason: 'contract_mismatch',
+    })
+
+    const post = await t.run(async (ctx) => ({
+      tip: await ctx.db.get(tipId),
+      tipper: await ctx.db.get(tipperId),
+      author: await ctx.db.get(authorId),
+      article: await ctx.db.get(articleId),
+      earnings: await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .first(),
+    }))
+    expect(post.tip?.status).toBe('FRAUDULENT')
+    expect(post.tip?.failureReason).toBe('contract_mismatch')
+    expect(post.tipper?.tipsSentCount).toBe(0)
+    expect(post.author?.tipsReceivedCount).toBe(0)
+    expect(post.article?.tipCount).toBe(0)
+    expect(post.article?.totalTipsUsd).toBe(0)
+    expect(post.earnings?.tipCount).toBe(0)
+    expect(post.earnings?.totalEarnedCents).toBe(0)
+    expect(post.earnings?.availableBalanceCents).toBe(0)
+  })
+
+  it('is idempotent: a second call on a FRAUDULENT tip does not double-reverse', async () => {
+    const t = convexTest(schema, modules)
+    const { authorId, articleId, tipId } = await seedConfirmedTip(t)
+
+    await t.mutation(internal.tips.markArticleTipFraudulent, {
+      tipId,
+      reason: 'first_reason',
+    })
+    await t.mutation(internal.tips.markArticleTipFraudulent, {
+      tipId,
+      reason: 'second_reason',
+    })
+
+    const post = await t.run(async (ctx) => ({
+      tip: await ctx.db.get(tipId),
+      article: await ctx.db.get(articleId),
+      earnings: await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .first(),
+    }))
+    // failureReason from the FIRST call — second call no-oped
+    expect(post.tip?.failureReason).toBe('first_reason')
+    // Counters at 0, not -1 (no double decrement)
+    expect(post.article?.tipCount).toBe(0)
+    expect(post.earnings?.totalEarnedCents).toBe(0)
+  })
+
+  it('does nothing on a PENDING tip (guard prevents negative counter math)', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seedTipperAndArticle(t)
+    const asTipper = t.withIdentity({ subject: tipperId })
+
+    // Send tip but DO NOT run confirmTip — tip stays PENDING with no counter
+    // credits applied.
+    const tipId = await asTipper.mutation(api.tips.sendTip, {
+      articleId,
+      amountUsd: 1,
+      stellarTxId: 'tx-still-pending',
+    })
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await t.mutation(internal.tips.markArticleTipFraudulent, {
+      tipId,
+      reason: 'should_be_skipped',
+    })
+
+    const { tip, article } = await t.run(async (ctx) => ({
+      tip: await ctx.db.get(tipId),
+      article: await ctx.db.get(articleId),
+    }))
+    expect(tip?.status).toBe('PENDING')
+    expect(tip?.failureReason).toBeUndefined()
+    // Article counters untouched (still at seed state)
+    expect(article?.tipCount).toBe(0)
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[reconcileTips] markArticleTipFraudulent skipped: tip not CONFIRMED',
+      expect.objectContaining({ currentStatus: 'PENDING' })
+    )
+    warnSpy.mockRestore()
+  })
+
+  it('deletes the monthlyEarnings key when its value hits zero', async () => {
+    const t = convexTest(schema, modules)
+    const { authorId, tipId } = await seedConfirmedTip(t)
+
+    // Before reverse: exactly one month key with the tip's amount
+    const preKeys = await t.run(async (ctx) => {
+      const e = await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .first()
+      return Object.keys((e?.monthlyEarnings ?? {}) as Record<string, number>)
+    })
+    expect(preKeys).toHaveLength(1)
+
+    await t.mutation(internal.tips.markArticleTipFraudulent, {
+      tipId,
+      reason: 'amount_mismatch',
+    })
+
+    const postKeys = await t.run(async (ctx) => {
+      const e = await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .first()
+      return Object.keys((e?.monthlyEarnings ?? {}) as Record<string, number>)
+    })
+    expect(postKeys).toHaveLength(0)
+  })
+
+  it('removes a topArticles entry when both earnings and tipCount hit zero', async () => {
+    const t = convexTest(schema, modules)
+    const { authorId, articleId, tipId } = await seedConfirmedTip(t)
+
+    const preTopArticles = await t.run(async (ctx) => {
+      const e = await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .first()
+      return e?.topArticles ?? []
+    })
+    expect(preTopArticles).toHaveLength(1)
+    expect(preTopArticles[0]?.articleId).toBe(articleId)
+
+    await t.mutation(internal.tips.markArticleTipFraudulent, {
+      tipId,
+      reason: 'function_mismatch',
+    })
+
+    const postTopArticles = await t.run(async (ctx) => {
+      const e = await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .first()
+      return e?.topArticles ?? []
+    })
+    expect(postTopArticles).toHaveLength(0)
   })
 })

@@ -35,7 +35,7 @@ export const getHighlightTipForVerify = internalQuery({
   },
 })
 
-function resolveHorizonUrl(network: string | undefined): string {
+export function resolveHorizonUrl(network: string | undefined): string {
   const override = process.env.HORIZON_URL
   if (override) return override
   if (network === 'MAINNET') return HORIZON_URLS.MAINNET
@@ -47,7 +47,7 @@ function resolveHorizonUrl(network: string | undefined): string {
  * stroops (1 XLM = 10_000_000 stroops). No float math — works by string-splitting
  * so we don't drop precision on amounts like "0.0454545".
  */
-function xlmStringToStroops(xlm: string): bigint | null {
+export function xlmStringToStroops(xlm: string): bigint | null {
   if (!/^\d+(\.\d+)?$/.test(xlm)) return null
   const [whole = '0', frac = ''] = xlm.split('.')
   const paddedFrac = frac.padEnd(7, '0').slice(0, 7)

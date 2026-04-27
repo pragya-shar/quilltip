@@ -379,6 +379,146 @@ export const confirmTip = internalMutation({
   },
 })
 
+// Internal mutation: mark a previously-CONFIRMED tip as FRAUDULENT and reverse
+// every counter/earnings increment that confirmTip applied. Called exclusively
+// by the reconciliation action when on-chain verification proves the tip was
+// faked (e.g., no matching Stellar tx, wrong contract, wrong recipient).
+//
+// Idempotent: safe to call twice on the same tip; the second call is a no-op.
+// Guarded: only reverses CONFIRMED tips. PENDING/FAILED tips never had counters
+// credited, so reversal would decrement into negatives.
+export const markArticleTipFraudulent = internalMutation({
+  args: {
+    tipId: v.id('tips'),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const tip = await ctx.db.get(args.tipId)
+    if (!tip) return
+    if (tip.status === 'FRAUDULENT') return
+    if (tip.status !== 'CONFIRMED') {
+      console.warn(
+        '[reconcileTips] markArticleTipFraudulent skipped: tip not CONFIRMED',
+        { tipId: args.tipId, currentStatus: tip.status }
+      )
+      return
+    }
+
+    const now = Date.now()
+
+    // Flip tip status + record reason
+    await ctx.db.patch(args.tipId, {
+      status: 'FRAUDULENT',
+      failureReason: args.reason,
+      processedAt: now,
+      updatedAt: now,
+    })
+
+    // Reverse article counters
+    const article = await ctx.db.get(tip.articleId)
+    if (article) {
+      await ctx.db.patch(tip.articleId, {
+        tipCount: Math.max(0, (article.tipCount || 0) - 1),
+        totalTipsUsd: Math.max(0, (article.totalTipsUsd || 0) - tip.amountUsd),
+      })
+    }
+
+    // Reverse authorEarnings
+    const earnings = await ctx.db
+      .query('authorEarnings')
+      .withIndex('by_user', (q) => q.eq('userId', tip.authorId))
+      .first()
+
+    if (!earnings) {
+      console.warn(
+        '[reconcileTips] markArticleTipFraudulent: no authorEarnings row for CONFIRMED tip; skipping earnings reversal',
+        { tipId: args.tipId, authorId: tip.authorId }
+      )
+    } else {
+      const monthKey = getMonthKey(tip.createdAt)
+      const monthlyEarnings = { ...(earnings.monthlyEarnings || {}) }
+      const newMonthlyValue = Math.max(
+        0,
+        (monthlyEarnings[monthKey] || 0) - tip.amountUsd
+      )
+      if (newMonthlyValue === 0) {
+        delete monthlyEarnings[monthKey]
+      } else {
+        monthlyEarnings[monthKey] = newMonthlyValue
+      }
+
+      // Reverse topArticles entry. If both earnings and tipCount hit zero,
+      // drop the entry entirely. Re-sort descending but do not re-splice to
+      // top 10: a decrement here could have pushed a hidden article into
+      // range, but we cannot recover that state from this code path.
+      const topArticles = [...(earnings.topArticles || [])]
+      const articleIndex = topArticles.findIndex(
+        (a) => a.articleId === tip.articleId
+      )
+      if (articleIndex >= 0 && topArticles[articleIndex]) {
+        const entry = topArticles[articleIndex]
+        const newEarnings = Math.max(0, entry.earnings - tip.amountUsd)
+        const newTipCount = Math.max(0, entry.tipCount - 1)
+        if (newEarnings === 0 && newTipCount === 0) {
+          topArticles.splice(articleIndex, 1)
+        } else {
+          entry.earnings = newEarnings
+          entry.tipCount = newTipCount
+        }
+        topArticles.sort((a, b) => b.earnings - a.earnings)
+      }
+
+      const newTotalCents = Math.max(
+        0,
+        earnings.totalEarnedCents - tip.amountCents
+      )
+      const newAvailableCents = Math.max(
+        0,
+        earnings.availableBalanceCents - tip.amountCents
+      )
+      await ctx.db.patch(earnings._id, {
+        totalEarnedCents: newTotalCents,
+        totalEarnedUsd: newTotalCents / 100,
+        availableBalanceCents: newAvailableCents,
+        availableBalanceUsd: newAvailableCents / 100,
+        tipCount: Math.max(0, earnings.tipCount - 1),
+        monthlyEarnings,
+        topArticles,
+        updatedAt: now,
+      })
+    }
+
+    // Reverse user stats
+    const [tipper, author] = await Promise.all([
+      ctx.db.get(tip.tipperId),
+      ctx.db.get(tip.authorId),
+    ])
+
+    if (tipper) {
+      await ctx.db.patch(tip.tipperId, {
+        tipsSentCount: Math.max(0, (tipper.tipsSentCount || 0) - 1),
+      })
+    }
+
+    if (author) {
+      await ctx.db.patch(tip.authorId, {
+        tipsReceivedCount: Math.max(0, (author.tipsReceivedCount || 0) - 1),
+      })
+    }
+
+    console.error('[reconcileTips] marked FRAUDULENT', {
+      tipId: args.tipId,
+      articleId: tip.articleId,
+      tipperId: tip.tipperId,
+      authorId: tip.authorId,
+      amountUsd: tip.amountUsd,
+      reason: args.reason,
+    })
+
+    return { success: true }
+  },
+})
+
 // Get author earnings
 export const getAuthorEarnings = query({
   args: {},

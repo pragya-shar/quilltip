@@ -202,7 +202,7 @@ export default defineSchema({
     contractTipId: v.optional(v.string()),
 
     // Status
-    status: v.string(), // PENDING, CONFIRMING, CONFIRMED, FAILED
+    status: v.string(), // PENDING, CONFIRMING, CONFIRMED, FAILED, FRAUDULENT
     failureReason: v.optional(v.string()), // Error message if failed
     platformFee: v.optional(v.number()),
     authorShare: v.optional(v.number()),
