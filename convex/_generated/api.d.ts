@@ -33,6 +33,7 @@ import type * as tips from "../tips.js";
 import type * as uploads from "../uploads.js";
 import type * as users from "../users.js";
 import type * as wikimedia from "../wikimedia.js";
+import type * as xlmPrice from "../xlmPrice.js";
 
 import type {
   ApiFromModules,
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   uploads: typeof uploads;
   users: typeof users;
   wikimedia: typeof wikimedia;
+  xlmPrice: typeof xlmPrice;
 }>;
 
 /**

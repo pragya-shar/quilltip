@@ -495,3 +495,180 @@ describe('reconcileArticleTips', () => {
     expect(tipper?.tipsSentCount).toBe(0)
   })
 })
+
+// Insert a PENDING highlightTips row directly (bypassing the create
+// mutation) so we can control createdAt and skip the auto-scheduled verify.
+async function seedPendingHighlightTip(
+  t: ReturnType<typeof convexTest>,
+  overrides: {
+    createdAt?: number
+    status?: 'PENDING' | 'CONFIRMED' | 'FAILED'
+    stellarTxId?: string
+  } = {}
+) {
+  return await t.run(async (ctx) => {
+    const now = Date.now()
+    const tipperId = await ctx.db.insert('users', {
+      email: 'h-tipper@x.test',
+      username: 'h-tipper',
+      stellarAddress: TIPPER_STELLAR,
+      tipsSentCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const authorId = await ctx.db.insert('users', {
+      email: 'h-author@x.test',
+      username: 'h-author',
+      stellarAddress: AUTHOR_STELLAR,
+      tipsReceivedCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const articleId: Id<'articles'> = await ctx.db.insert('articles', {
+      slug: 'h-hello',
+      title: 'Hello',
+      content: emptyDoc,
+      published: true,
+      publishedAt: now,
+      authorId,
+      authorUsername: 'h-author',
+      tags: [],
+      viewCount: 0,
+      highlightCount: 0,
+      tipCount: 0,
+      totalTipsUsd: 0,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const tipId = await ctx.db.insert('highlightTips', {
+      highlightId: 'hash-stuck',
+      articleId,
+      tipperId,
+      authorId,
+      highlightText: 'stuck text',
+      articleTitle: 'Hello',
+      articleSlug: 'h-hello',
+      amountUsd: 1,
+      amountCents: 100,
+      stellarTxId: overrides.stellarTxId ?? 'stuck-stellar-tx',
+      stellarNetwork: 'TESTNET',
+      stellarMemo: 'hash-stuck',
+      stellarSourceAccount: TIPPER_STELLAR,
+      stellarDestinationAccount: AUTHOR_STELLAR,
+      stellarAmountXlm: '1',
+      startOffset: 0,
+      endOffset: 10,
+      status: overrides.status ?? 'PENDING',
+      createdAt: overrides.createdAt ?? now,
+      processedAt: now,
+      updatedAt: now,
+    })
+    return { tipId, articleId, tipperId, authorId }
+  })
+}
+
+// Asserts on the action's contract: which rows it picks up and re-kicks.
+// The verify chain itself (Horizon stub → CONFIRMED/FAILED transitions) is
+// covered in highlightTips.test.ts. Tests that schedule a verify must drain
+// the scheduler before teardown — leaving a verify in flight surfaces as a
+// "Write outside of transaction" unhandled rejection. We stub Horizon to
+// return a malformed response, which the verifier treats as a permanent
+// failure (no further reschedule), giving the chain a clean exit.
+function stubMalformedHorizonResponse() {
+  vi.stubGlobal('fetch', async () => ({
+    status: 200,
+    ok: true,
+    json: async () => ({ unexpected: 'shape' }),
+  }))
+}
+
+// Drain everything the action just scheduled. The yield gives queued
+// setTimeout(0) callbacks a chance to fire and move scheduled jobs into the
+// 'inProgress' state that `finishAllScheduledFunctions` knows how to await;
+// without it, a `runAfter(0, ...)` job stays 'pending' past test teardown
+// and re-fires onto a closed transaction.
+async function drainScheduler(t: ReturnType<typeof convexTest>) {
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  await t.finishAllScheduledFunctions(() => {})
+}
+
+describe('recoverStuckPendingHighlightTips', () => {
+  it('reschedules a PENDING tip older than the stuck threshold', async () => {
+    const t = convexTest(schema, modules)
+    const elevenMinutesAgo = Date.now() - 11 * 60 * 1000
+    await seedPendingHighlightTip(t, { createdAt: elevenMinutesAgo })
+    stubMalformedHorizonResponse()
+
+    const summary = await t.action(
+      internal.reconcileTips.recoverStuckPendingHighlightTips,
+      {}
+    )
+    expect(summary.rescheduled).toBe(1)
+
+    await drainScheduler(t)
+  })
+
+  it('leaves a freshly-created PENDING tip alone', async () => {
+    const t = convexTest(schema, modules)
+    const oneMinuteAgo = Date.now() - 60 * 1000
+    const { tipId } = await seedPendingHighlightTip(t, {
+      createdAt: oneMinuteAgo,
+    })
+
+    const summary = await t.action(
+      internal.reconcileTips.recoverStuckPendingHighlightTips,
+      {}
+    )
+    expect(summary.rescheduled).toBe(0)
+
+    const tip = await t.run(async (ctx) => ctx.db.get(tipId))
+    expect(tip?.status).toBe('PENDING')
+  })
+
+  it('ignores CONFIRMED and FAILED tips even when older than the threshold', async () => {
+    const t = convexTest(schema, modules)
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000
+    await seedPendingHighlightTip(t, {
+      createdAt: twoHoursAgo,
+      status: 'CONFIRMED',
+      stellarTxId: 'confirmed-tx',
+    })
+    await seedPendingHighlightTip(t, {
+      createdAt: twoHoursAgo,
+      status: 'FAILED',
+      stellarTxId: 'failed-tx',
+    })
+
+    const summary = await t.action(
+      internal.reconcileTips.recoverStuckPendingHighlightTips,
+      {}
+    )
+    expect(summary.rescheduled).toBe(0)
+  })
+
+  it('reschedules every stuck tip in a single sweep', async () => {
+    const t = convexTest(schema, modules)
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000
+    await seedPendingHighlightTip(t, {
+      createdAt: twoHoursAgo,
+      stellarTxId: 'stuck-1',
+    })
+    await seedPendingHighlightTip(t, {
+      createdAt: twoHoursAgo,
+      stellarTxId: 'stuck-2',
+    })
+    await seedPendingHighlightTip(t, {
+      createdAt: twoHoursAgo,
+      stellarTxId: 'stuck-3',
+    })
+    stubMalformedHorizonResponse()
+
+    const summary = await t.action(
+      internal.reconcileTips.recoverStuckPendingHighlightTips,
+      {}
+    )
+    expect(summary.rescheduled).toBe(3)
+
+    await drainScheduler(t)
+  })
+})

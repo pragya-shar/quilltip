@@ -428,6 +428,18 @@ export default defineSchema({
     .index('by_article', ['articleId'])
     .index('by_type', ['uploadType']),
 
+  // Server-side XLM/USD price cache. Refreshed by a cron job every 5 minutes
+  // so the browser does not have to call public price oracles directly —
+  // collapses the CSP allowlist (no per-oracle hosts) and amortises the
+  // oracle hits across all users to one fetch per refresh interval.
+  // Modeled as a singleton row: queries always read .first(), the refresh
+  // mutation patches if a row exists or inserts otherwise.
+  xlmPriceCache: defineTable({
+    priceUsd: v.number(),
+    source: v.string(), // 'CoinGecko', 'CoinCap', 'Binance', 'Kraken'
+    fetchedAt: v.number(),
+  }),
+
   // Waitlist table
   waitlist: defineTable({
     email: v.string(),

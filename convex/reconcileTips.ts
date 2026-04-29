@@ -1,6 +1,7 @@
 import { v } from 'convex/values'
 import { internalAction, internalQuery } from './_generated/server'
 import { internal } from './_generated/api'
+import type { Id } from './_generated/dataModel'
 import { verifyTipTransaction } from './lib/horizon'
 import { TIP_ARTICLE_FUNCTIONS, getTippingContractId } from './lib/constants'
 import { resolveHorizonUrl, xlmStringToStroops } from './stellarVerify'
@@ -9,6 +10,14 @@ import { resolveHorizonUrl, xlmStringToStroops } from './stellarVerify'
 // tip skipped by one run for any reason still gets a second chance before
 // drifting out of the window.
 const RECONCILE_WINDOW_MS = 7 * 60 * 60 * 1000
+
+// A highlight tip whose verification chain died (process crash, indexing
+// delay beyond the retry budget) sits in PENDING forever otherwise. 10
+// minutes is well past the longest legitimate verify window (initial 2s
+// + 5s + 15s = 22s under the current schedule) so we won't race a healthy
+// chain. Reconciliation runs every 6h, so a tip can sit stuck for at most
+// one cycle before being re-kicked.
+const STUCK_PENDING_THRESHOLD_MS = 10 * 60 * 1000
 
 /**
  * Internal read used by the reconciliation action to hydrate recent
@@ -166,6 +175,60 @@ export const reconcileArticleTips = internalAction({
       dryRun: !destructiveEnabled,
     }
     console.log('[reconcileTips] summary', summary)
+    return summary
+  },
+})
+
+/**
+ * Internal read for the stuck-PENDING highlight tip sweep. Returns ids of
+ * highlightTips rows that are PENDING and older than STUCK_PENDING_THRESHOLD_MS,
+ * which is well past any legitimate retry window. Indexed by status + createdAt
+ * so the scan stays cheap as the table grows.
+ */
+export const getStuckPendingHighlightTipIds = internalQuery({
+  args: { cutoffMs: v.number() },
+  handler: async (ctx, args): Promise<Id<'highlightTips'>[]> => {
+    const tips = await ctx.db
+      .query('highlightTips')
+      .withIndex('by_status_created', (q) =>
+        q.eq('status', 'PENDING').lt('createdAt', args.cutoffMs)
+      )
+      .collect()
+    return tips.map((tip) => tip._id)
+  },
+})
+
+/**
+ * Recover highlight tips whose verification chain died. For each PENDING
+ * tip older than STUCK_PENDING_THRESHOLD_MS we reschedule verifyHighlightTip
+ * with attempt=1, restarting the retry budget. The verify action's status
+ * guard (`if (tip.status !== 'PENDING') return`) makes this safe even if the
+ * original chain happens to be alive — at worst the tip sees one extra run
+ * that no-ops on the already-flipped status.
+ *
+ * Not gated by RECONCILE_TIPS_ENABLED: rescheduling a verify is non-destructive
+ * (it cannot mark a tip FRAUDULENT or move money), so dry-run vs enabled is
+ * not meaningful here.
+ */
+export const recoverStuckPendingHighlightTips = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ rescheduled: number }> => {
+    const cutoff = Date.now() - STUCK_PENDING_THRESHOLD_MS
+    const ids: Id<'highlightTips'>[] = await ctx.runQuery(
+      internal.reconcileTips.getStuckPendingHighlightTipIds,
+      { cutoffMs: cutoff }
+    )
+
+    for (const id of ids) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.stellarVerify.verifyHighlightTip,
+        { highlightTipId: id, attempt: 1 }
+      )
+    }
+
+    const summary = { rescheduled: ids.length }
+    console.log('[reconcileTips] stuck-PENDING highlight sweep', summary)
     return summary
   },
 })

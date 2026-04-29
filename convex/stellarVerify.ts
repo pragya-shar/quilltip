@@ -10,11 +10,11 @@ import { fetchXlmPriceUsd } from './lib/xlmPrice'
 import {
   HORIZON_URLS,
   HORIZON_VERIFY_MAX_ATTEMPTS,
-  HORIZON_VERIFY_RETRY_DELAY_MS,
   STROOPS_PER_XLM,
   TIP_AMOUNT_USD_TOLERANCE,
   TIP_HIGHLIGHT_FUNCTIONS,
   getTippingContractId,
+  verifyDelayMs,
 } from './lib/constants'
 
 /**
@@ -58,10 +58,14 @@ export function xlmStringToStroops(xlm: string): bigint | null {
  * Verifies a highlight tip against Horizon. The tip must be in status
  * 'PENDING'. On success, flips status to 'CONFIRMED' and credits counters;
  * on a transient failure (propagation lag, Horizon 5xx, network error) the
- * action reschedules itself up to HORIZON_VERIFY_MAX_ATTEMPTS times; on a
- * permanent failure (tx unsuccessful, source mismatch, contract/function
- * mismatch, author/amount mismatch, etc.) the tip is marked 'FAILED' and
- * no counters are touched.
+ * action reschedules itself up to HORIZON_VERIFY_MAX_ATTEMPTS times with
+ * exponential backoff via verifyDelayMs(); on a permanent failure (tx
+ * unsuccessful, source mismatch, contract/function mismatch, author/amount
+ * mismatch, etc.) the tip is marked 'FAILED' and no counters are touched.
+ *
+ * Long-horizon recovery (process crash mid-chain, indexing delays beyond the
+ * retry budget) is delegated to recoverStuckPendingHighlightTips in the
+ * reconciliation cron — this action's retry only covers fast transients.
  */
 export const verifyHighlightTip = internalAction({
   args: {
@@ -125,7 +129,7 @@ export const verifyHighlightTip = internalAction({
         args.attempt < HORIZON_VERIFY_MAX_ATTEMPTS
       ) {
         await ctx.scheduler.runAfter(
-          HORIZON_VERIFY_RETRY_DELAY_MS,
+          verifyDelayMs(args.attempt),
           internal.stellarVerify.verifyHighlightTip,
           { highlightTipId: args.highlightTipId, attempt: args.attempt + 1 }
         )

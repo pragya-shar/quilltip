@@ -37,9 +37,12 @@ export function EditorWithToolbar({
         heading: {
           levels: [1, 2, 3, 4, 5, 6],
         },
+        // StarterKit v3 ships codeBlock, link, and underline by default; we
+        // register customised versions of each below, so disable them here
+        // to avoid duplicate-extension warnings.
         codeBlock: false,
-        // Disable Link from StarterKit since we're adding it separately
         link: false,
+        underline: false,
       }),
       // Add Link separately with our configuration
       Link.configure({

@@ -1,6 +1,8 @@
 import { createHash } from 'crypto'
+import { ConvexHttpClient } from 'convex/browser'
 import { STELLAR_CONFIG } from './config'
 import { loadStellarSdk } from './sdk-loader'
+import { api } from '@/convex/_generated/api'
 import type { Keypair } from '@stellar/stellar-sdk'
 // Note: Memos cannot be used with Soroban source account auth
 // (Stellar protocol restriction: "non-source auth Soroban tx uses memo or muxed source account")
@@ -21,99 +23,69 @@ function shortArticleId(articleId: string): string {
   return createHash('sha256').update(articleId).digest('hex').slice(0, 10)
 }
 
-// Cache for XLM price to avoid excessive API calls
+// In-tab cache so a single user opening the tip dialog and clicking through
+// doesn't burn a Convex round-trip per click. Real freshness is enforced
+// server-side by the cron that refreshes xlmPriceCache every 5 min.
 let xlmPriceCache: { price: number; timestamp: number; source: string } | null =
   null
-const PRICE_CACHE_TTL = 60 * 1000 // 1 minute cache
-const PRICE_FETCH_TIMEOUT = 5000 // 5 second timeout per oracle
-const MAX_REASONABLE_XLM_PRICE = 100 // Sanity check upper bound
+const PRICE_CACHE_TTL = 60 * 1000 // 1 minute in-tab cache
 
-// Price oracles with parsers (in priority order)
-const PRICE_ORACLES = [
-  {
-    name: 'CoinGecko',
-    url: 'https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd',
-    parse: (data: Record<string, unknown>) =>
-      (data?.stellar as Record<string, number>)?.usd,
-  },
-  {
-    name: 'CoinCap',
-    url: 'https://api.coincap.io/v2/assets/stellar',
-    parse: (data: Record<string, unknown>) => {
-      const priceUsd = (data?.data as Record<string, string>)?.priceUsd
-      return priceUsd ? parseFloat(priceUsd) : undefined
-    },
-  },
-  {
-    name: 'Binance',
-    url: 'https://api.binance.com/api/v3/ticker/price?symbol=XLMUSDT',
-    parse: (data: Record<string, unknown>) => {
-      const price = (data as { price?: string })?.price
-      return price ? parseFloat(price) : undefined
-    },
-  },
-  {
-    name: 'Kraken',
-    url: 'https://api.kraken.com/0/public/Ticker?pair=XLMUSD',
-    parse: (data: Record<string, unknown>) => {
-      const result = (data as { result?: Record<string, { c?: string[] }> })
-        ?.result
-      const ticker = result?.XXLMZUSD || result?.XLMUSD
-      return ticker?.c?.[0] ? parseFloat(ticker.c[0]) : undefined
-    },
-  },
-]
+let convexHttpClient: ConvexHttpClient | null = null
+function getConvexHttpClient(): ConvexHttpClient {
+  if (!convexHttpClient) {
+    const url = process.env.NEXT_PUBLIC_CONVEX_URL
+    if (!url) {
+      throw new Error('NEXT_PUBLIC_CONVEX_URL is not set')
+    }
+    convexHttpClient = new ConvexHttpClient(url)
+  }
+  return convexHttpClient
+}
 
 /**
- * Fetch real-time XLM price with fallback oracles
+ * Read the latest XLM/USD price from the Convex-backed cache. The cache is
+ * refreshed every 5 minutes by an internal cron that calls the public
+ * oracles server-side, which lets us keep the browser CSP tight (no
+ * coingecko/coincap/binance/kraken hosts in connect-src) and amortises the
+ * oracle hits across all users.
+ *
+ * If the Convex query fails or the cache is empty/stale (cold deploy,
+ * extended oracle outage), we fall back to STELLAR_CONFIG.XLM_TO_USD_RATE
+ * so tipping never blocks. Same fallback behavior as before.
  */
 async function fetchXLMPrice(): Promise<number> {
   if (xlmPriceCache && Date.now() - xlmPriceCache.timestamp < PRICE_CACHE_TTL) {
     return xlmPriceCache.price
   }
 
-  for (const oracle of PRICE_ORACLES) {
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        PRICE_FETCH_TIMEOUT
+  try {
+    const cached = await getConvexHttpClient().query(
+      api.xlmPrice.getCachedXlmPrice,
+      {}
+    )
+    if (cached) {
+      xlmPriceCache = {
+        price: cached.priceUsd,
+        timestamp: Date.now(),
+        source: cached.source,
+      }
+      console.debug(
+        `[XLM Price] $${cached.priceUsd.toFixed(4)} from ${cached.source} (server cache, age ${Math.round(cached.ageMs / 1000)}s)`
       )
-
-      const response = await fetch(oracle.url, {
-        signal: controller.signal,
-        next: { revalidate: 60 },
-      })
-      clearTimeout(timeoutId)
-
-      if (!response.ok) continue
-
-      const data = await response.json()
-      const price = oracle.parse(data)
-
-      if (
-        typeof price === 'number' &&
-        price > 0 &&
-        price < MAX_REASONABLE_XLM_PRICE
-      ) {
-        xlmPriceCache = { price, timestamp: Date.now(), source: oracle.name }
-        console.debug(`[XLM Price] $${price.toFixed(4)} from ${oracle.name}`)
-        return price
-      }
-    } catch (error) {
-      const errorName = error instanceof Error ? error.name : 'Unknown'
-      if (errorName === 'AbortError') {
-        console.warn(`[XLM Price] ${oracle.name} timeout`)
-      } else {
-        console.warn(`[XLM Price] ${oracle.name} error:`, error)
-      }
+      return cached.priceUsd
     }
+    console.warn(
+      '[XLM Price] server cache empty or stale — using fallback rate $' +
+        STELLAR_CONFIG.XLM_TO_USD_RATE
+    )
+  } catch (error) {
+    console.warn(
+      '[XLM Price] Convex price query failed, using fallback rate $' +
+        STELLAR_CONFIG.XLM_TO_USD_RATE,
+      error
+    )
   }
 
-  console.error(
-    '[XLM Price] ALL ORACLES FAILED - using fallback rate $' +
-      STELLAR_CONFIG.XLM_TO_USD_RATE
-  )
   xlmPriceCache = {
     price: STELLAR_CONFIG.XLM_TO_USD_RATE,
     timestamp: Date.now(),

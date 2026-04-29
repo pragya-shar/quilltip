@@ -23,11 +23,20 @@ export const HORIZON_URLS = {
 } as const
 
 // First verification attempt runs after this delay so Horizon has time to
-// index the transaction we just submitted. Retry fires after the longer
-// delay if the first attempt returns a transient failure (404, 5xx, network).
+// index the transaction we just submitted. Subsequent retries use exponential
+// backoff via verifyDelayMs() — long-horizon recovery for stuck PENDING tips
+// is delegated to the reconciliation cron, so the in-action retry stays short.
 export const HORIZON_VERIFY_INITIAL_DELAY_MS = 2_000
 export const HORIZON_VERIFY_RETRY_DELAY_MS = 5_000
-export const HORIZON_VERIFY_MAX_ATTEMPTS = 2
+export const HORIZON_VERIFY_MAX_ATTEMPTS = 3
+
+// Delay before the (attempt+1)th verification fires, given that `attempt`
+// just returned a transient failure. Tripling backoff: 5s, 15s, 45s. Only
+// 5s and 15s are reachable today (MAX_ATTEMPTS=3 → at most two reschedules),
+// but the formula stays correct if we ever raise the cap.
+export function verifyDelayMs(attempt: number): number {
+  return HORIZON_VERIFY_RETRY_DELAY_MS * Math.pow(3, attempt - 1)
+}
 
 // Allowed Soroban functions on the tipping contract. Any invocation whose
 // function name is outside this list fails verification. Arg layouts used

@@ -43,7 +43,14 @@ export default function ArticleDisplay({
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        // StarterKit v3 ships codeBlock, link, and underline by default; we
+        // register customised versions of each below, so disable them here
+        // to avoid duplicate-extension warnings.
+        codeBlock: false,
+        link: false,
+        underline: false,
+      }),
       Underline,
       Link.configure({
         openOnClick: false,
