@@ -54,7 +54,6 @@ function buildSegments(text: string, phrases: HighlightPhrase[]): Segment[] {
 }
 
 const SEGMENTS = buildSegments(ARTICLE_TEXT, HIGHLIGHT_PHRASES)
-const HIGHLIGHT_BG = 'rgba(255, 235, 59, 0.55)'
 
 export default function HeroSection() {
   const [activeIndex, setActiveIndex] = useState(0)
@@ -117,11 +116,11 @@ export default function HeroSection() {
             )}
             {isHighlighted && (
               <motion.span
-                className="absolute -inset-y-0.5 -left-0.5 -right-0.5 rounded-[3px]"
+                className="absolute -inset-y-0.5 -left-0.5 -right-0.5 rounded-[3px] bg-warning/30"
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
-                style={{ backgroundColor: HIGHLIGHT_BG, zIndex: 0 }}
+                style={{ zIndex: 0 }}
               />
             )}
             <span
