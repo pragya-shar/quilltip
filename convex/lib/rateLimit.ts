@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values'
 import type { DatabaseReader } from '../_generated/server'
 import { Id } from '../_generated/dataModel'
 import { TIP_COOLDOWN_MS } from './constants'
@@ -70,6 +71,12 @@ export async function enforceTipCooldown(
 ): Promise<void> {
   const status = await checkTipCooldown(ctx, tipperId, now)
   if (!status.allowed) {
-    throw new Error(`Please wait ${status.waitSec}s before tipping again.`)
+    // ConvexError (vs plain Error) keeps the message intact across the wire to
+    // the client — Convex strips message text from generic Error throws as a
+    // safety measure, so a plain `throw new Error(...)` here would surface as
+    // a generic "server error" on the frontend.
+    throw new ConvexError(
+      `Please wait ${status.waitSec}s before tipping again.`
+    )
   }
 }

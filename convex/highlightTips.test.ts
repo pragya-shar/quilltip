@@ -229,6 +229,56 @@ describe('highlightTips.create', () => {
     })
   })
 
+  it('rejects when the same stellarTxId is reused for a different highlight', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-cross-highlight')
+    )
+
+    // Same txId, different highlightId — should be rejected.
+    await expect(
+      asTipper.mutation(api.highlightTips.create, {
+        ...tipArgs(articleId, 'stellar-tx-cross-highlight'),
+        highlightId: 'hash-other',
+      })
+    ).rejects.toThrow(/already linked to a different tip/i)
+  })
+
+  it('rejects when the same stellarTxId is reused by a different tipper', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+
+    const otherTipperId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('users', {
+        email: 'tipper2@x.test',
+        username: 'tipper2',
+        stellarAddress: TIPPER_STELLAR,
+        tipsSentCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-cross-user')
+    )
+
+    const asOther = t.withIdentity({ subject: otherTipperId })
+    await expect(
+      asOther.mutation(
+        api.highlightTips.create,
+        tipArgs(articleId, 'stellar-tx-cross-user')
+      )
+    ).rejects.toThrow(/already linked to a different tip/i)
+  })
+
   it('does not dedup when stellarTxId is empty', async () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
@@ -850,6 +900,59 @@ describe('verifyHighlightTip action', () => {
       expect(tip?.amountUsdSuspicionReason).toBe(
         'price_oracle_unavailable:all_oracles_failed'
       )
+    })
+  })
+
+  it('flips to FAILED with verification_unreachable:* when retries are exhausted on a transient outage', async () => {
+    // Horizon returns 5xx on every attempt. The first two calls reschedule
+    // (attempt < HORIZON_VERIFY_MAX_ATTEMPTS); the third gives up and marks
+    // the tip FAILED with the verification_unreachable: prefix that
+    // monitoring/dashboards can filter on. Pins the prefix format so a
+    // future refactor of the reason string surfaces here, not silently
+    // breaks the alerting path.
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const tipId = await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-1')
+    )
+
+    // Drain the auto-scheduled verify chain that .create kicked off — we
+    // want a clean slate before driving the chain ourselves with attempt=3.
+    vi.stubGlobal('fetch', async () => ({
+      status: 500,
+      ok: false,
+      json: async () => ({}),
+    }))
+    await new Promise((r) => setTimeout(r, 50))
+    await t.finishAllScheduledFunctions(() => {})
+
+    // Reset the tip to PENDING so we can drive the final attempt explicitly.
+    await t.run(async (ctx) => {
+      const tip = await ctx.db.get(tipId)
+      if (tip?.status !== 'PENDING') {
+        await ctx.db.patch(tipId, {
+          status: 'PENDING',
+          failureReason: undefined,
+        })
+      }
+    })
+
+    const { HORIZON_VERIFY_MAX_ATTEMPTS } = await import('./lib/constants')
+    await t.action(internal.stellarVerify.verifyHighlightTip, {
+      highlightTipId: tipId,
+      attempt: HORIZON_VERIFY_MAX_ATTEMPTS, // last attempt; no reschedule after this
+    })
+    await t.finishAllScheduledFunctions(() => {})
+
+    await t.run(async (ctx) => {
+      const tip = await ctx.db.get(tipId)
+      expect(tip?.status).toBe('FAILED')
+      expect(tip?.failureReason).toMatch(/^verification_unreachable:/)
+      // 500 from Horizon → server_error transient reason on the verifier.
+      expect(tip?.failureReason).toBe('verification_unreachable:server_error')
     })
   })
 })

@@ -101,8 +101,11 @@ export function TipButton({
         })
         return
       }
-    } catch {
+    } catch (err) {
       // Fall through: the server-side cooldown check will catch it if needed.
+      // Logging so the failure is visible in monitoring even though we don't
+      // surface it to the user.
+      console.error('[TipButton] canTip pre-flight failed', err)
     }
 
     setIsLoading(true)

@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { query, mutation, internalMutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
@@ -55,7 +55,11 @@ export const getArticleTipStats = query({
   },
 })
 
-// Get user's sent tips
+// Get the caller's full tip history. Intentionally returns rows in every status
+// (PENDING / CONFIRMED / FAILED / FRAUDULENT) so the tipper sees in-flight and
+// rejected tips in their own history — do NOT add a `status === 'CONFIRMED'`
+// filter here. Public-facing aggregations (article counters, leaderboards)
+// have their own CONFIRMED-only filters.
 export const getUserSentTips = query({
   args: {},
   handler: async (ctx) => {
@@ -169,6 +173,12 @@ export const sendTip = mutation({
     // stellarTxIds are unique per Stellar transaction, so we look up by index
     // and return the existing row if found. Empty stellarTxIds are not deduped
     // because two unrelated tips could legitimately share that sentinel value.
+    //
+    // We additionally require articleId AND tipperId to match the existing
+    // row before short-circuiting. A txId reused across a different article
+    // or by a different user is never a legit retry — silently returning the
+    // mismatched original would tell the caller "your tip succeeded" when in
+    // fact no tip on the requested article was created. Reject explicitly.
     if (args.stellarTxId !== '') {
       const existing = await ctx.db
         .query('tips')
@@ -176,7 +186,17 @@ export const sendTip = mutation({
           q.eq('stellarTxId', args.stellarTxId)
         )
         .first()
-      if (existing) return existing._id
+      if (existing) {
+        if (
+          existing.articleId === args.articleId &&
+          existing.tipperId === userId
+        ) {
+          return existing._id
+        }
+        throw new ConvexError(
+          'This Stellar transaction is already linked to a different tip.'
+        )
+      }
     }
 
     // Cooldown check runs after the dedup short-circuit so that at-least-once

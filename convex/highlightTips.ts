@@ -1,5 +1,5 @@
 import { mutation, query } from './_generated/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import {
@@ -71,6 +71,13 @@ export const create = mutation({
     // stellarTxIds are unique per Stellar transaction, so we look up by index
     // and return the existing row if found. Empty stellarTxIds are not deduped
     // because two unrelated tips could legitimately share that sentinel value.
+    //
+    // We additionally require highlightId, articleId, and tipperId to match
+    // the existing row before short-circuiting. A txId reused across a
+    // different highlight or by a different user is never a legit retry —
+    // silently returning the mismatched original would tell the caller "your
+    // tip succeeded" when in fact no tip on the requested highlight was
+    // created. Reject explicitly.
     if (args.stellarTxId !== '') {
       const existing = await ctx.db
         .query('highlightTips')
@@ -78,7 +85,18 @@ export const create = mutation({
           q.eq('stellarTxId', args.stellarTxId)
         )
         .first()
-      if (existing) return existing._id
+      if (existing) {
+        if (
+          existing.highlightId === args.highlightId &&
+          existing.articleId === args.articleId &&
+          existing.tipperId === userId
+        ) {
+          return existing._id
+        }
+        throw new ConvexError(
+          'This Stellar transaction is already linked to a different tip.'
+        )
+      }
     }
 
     // Cooldown check runs after the dedup short-circuit so that at-least-once
@@ -178,7 +196,11 @@ export const getByArticle = query({
 })
 
 /**
- * Get highlight tips by tipper (user's tipping history)
+ * Get highlight tips by tipper (the caller's tipping history). Intentionally
+ * returns rows in every status (PENDING / CONFIRMED / FAILED) so the tipper
+ * sees in-flight and rejected tips in their own history — do NOT add a
+ * `status === 'CONFIRMED'` filter here. Public-facing aggregations (heatmap,
+ * author earnings) have their own CONFIRMED-only filters.
  */
 export const getByTipper = query({
   args: {

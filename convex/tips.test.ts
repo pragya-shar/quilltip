@@ -159,6 +159,47 @@ describe('canTip pre-flight query', () => {
     }
   })
 
+  it('allows when elapsed is exactly TIP_COOLDOWN_MS (boundary)', async () => {
+    // Pins the >= comparison in checkTipCooldown so a future refactor to >
+    // (off-by-one in the wrong direction) is caught immediately. We bypass
+    // the public mutation here to control `now` and the previous tip's
+    // createdAt to the millisecond — Date.now() inside the mutation would
+    // drift between insert and check, masking the exact boundary.
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seedTipperAndArticle(t)
+
+    const tipTime = 1_700_000_000_000
+    await t.run(async (ctx) => {
+      await ctx.db.insert('tips', {
+        articleId,
+        articleTitle: 'X',
+        articleSlug: 'x',
+        tipperId,
+        authorId: tipperId, // self-ref ok for cooldown logic; not enforced here
+        amountUsd: 1,
+        amountCents: 100,
+        status: 'CONFIRMED',
+        createdAt: tipTime,
+        updatedAt: tipTime,
+      })
+    })
+
+    const { TIP_COOLDOWN_MS } = await import('./lib/constants')
+    const { checkTipCooldown } = await import('./lib/rateLimit')
+
+    // Exactly TIP_COOLDOWN_MS elapsed → allowed.
+    const atBoundary = await t.run(async (ctx) =>
+      checkTipCooldown(ctx, tipperId, tipTime + TIP_COOLDOWN_MS)
+    )
+    expect(atBoundary).toEqual({ allowed: true })
+
+    // One ms before the boundary → still blocked. Pins the other side of >=.
+    const justBefore = await t.run(async (ctx) =>
+      checkTipCooldown(ctx, tipperId, tipTime + TIP_COOLDOWN_MS - 1)
+    )
+    expect(justBefore.allowed).toBe(false)
+  })
+
   it('returns allowed=true once the cooldown has elapsed', async () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seedTipperAndArticle(t)
@@ -331,6 +372,94 @@ describe('sendTip', () => {
         .collect()
     )
     expect(rowsForTxId).toHaveLength(1)
+  })
+
+  it('rejects when the same stellarTxId is reused for a different article', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seedTipperAndArticle(t)
+
+    // Seed a second article so we can attempt the cross-article reuse.
+    const otherArticleId: Id<'articles'> = await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('articles', {
+        slug: 'goodbye',
+        title: 'Goodbye',
+        content: emptyDoc,
+        published: true,
+        publishedAt: now,
+        authorId: (await ctx.db.get(articleId))!.authorId,
+        authorUsername: 'author',
+        tags: [],
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+
+    await asTipper.mutation(api.tips.sendTip, {
+      articleId,
+      amountUsd: 1,
+      stellarTxId: 'tx-cross-article',
+    })
+
+    // Backdate the first tip so the cooldown does not block the second call.
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query('tips')
+        .withIndex('by_stellar_tx', (q) =>
+          q.eq('stellarTxId', 'tx-cross-article')
+        )
+        .first()
+      if (row) {
+        await ctx.db.patch(row._id, { createdAt: row.createdAt - 60_000 })
+      }
+    })
+
+    await expect(
+      asTipper.mutation(api.tips.sendTip, {
+        articleId: otherArticleId,
+        amountUsd: 1,
+        stellarTxId: 'tx-cross-article',
+      })
+    ).rejects.toThrow(/already linked to a different tip/i)
+  })
+
+  it('rejects when the same stellarTxId is reused by a different tipper', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seedTipperAndArticle(t)
+
+    // Seed a second tipper.
+    const otherTipperId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('users', {
+        email: 'tipper2@x.test',
+        username: 'tipper2',
+        tipsSentCount: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    await asTipper.mutation(api.tips.sendTip, {
+      articleId,
+      amountUsd: 1,
+      stellarTxId: 'tx-cross-user',
+    })
+
+    const asOther = t.withIdentity({ subject: otherTipperId })
+    await expect(
+      asOther.mutation(api.tips.sendTip, {
+        articleId,
+        amountUsd: 1,
+        stellarTxId: 'tx-cross-user',
+      })
+    ).rejects.toThrow(/already linked to a different tip/i)
   })
 
   it('does not dedup when stellarTxId is the empty sentinel', async () => {
