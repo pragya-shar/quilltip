@@ -117,7 +117,6 @@ export function TransferModal({
         throw new Error('Transfer failed')
       }
     } catch (error) {
-      console.error('Transfer error:', error)
       setTransferStatus('error')
       setErrorMessage(
         error instanceof Error
