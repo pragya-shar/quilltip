@@ -8,6 +8,8 @@ interface PaginationProps {
   totalPages: number
   onPageChange?: (page: number) => void
   basePath?: string
+  /** When set, used for Link hrefs instead of `basePath` + `?page=`. */
+  getPageHref?: (page: number) => string
 }
 
 export default function Pagination({
@@ -15,6 +17,7 @@ export default function Pagination({
   totalPages,
   onPageChange,
   basePath,
+  getPageHref,
 }: PaginationProps) {
   const getPageNumbers = () => {
     const pages = []
@@ -68,6 +71,12 @@ export default function Pagination({
     return '#'
   }
 
+  const resolveLinkHref = (page: number) => {
+    if (getPageHref) return getPageHref(page)
+    if (basePath) return getPageUrl(page)
+    return null
+  }
+
   // Render button or link based on whether we have onPageChange or basePath
   const PaginationButton = ({
     page,
@@ -82,10 +91,11 @@ export default function Pagination({
     className: string
     ariaLabel: string
   }) => {
-    if (basePath && !disabled) {
+    const linkHref = !disabled ? resolveLinkHref(page) : null
+    if (linkHref !== null) {
       return (
         <Link
-          href={getPageUrl(page)}
+          href={linkHref}
           className={className}
           aria-label={ariaLabel}
         >

@@ -46,6 +46,62 @@ export const getNFTsByOwner = query({
   },
 })
 
+export const getNFTsByOwnerPaginated = query({
+  args: {
+    ownerId: v.id('users'),
+    page: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const page = Math.max(args.page ?? 1, 1)
+    const limit = Math.min(Math.max(args.limit ?? 9, 1), 50)
+    const offset = (page - 1) * limit
+
+    const rows = await ctx.db
+      .query('articleNFTs')
+      .withIndex('by_current_owner', (q) =>
+        q.eq('currentOwner', args.ownerId)
+      )
+      .collect()
+
+    rows.sort((a, b) => b.mintedAt - a.mintedAt)
+    const total = rows.length
+    const slice = rows.slice(offset, offset + limit)
+
+    const nfts = await Promise.all(
+      slice.map(async (nft) => {
+        const [article, minter] = await Promise.all([
+          ctx.db.get(nft.articleId),
+          enrichWithUser(ctx, nft.mintedBy),
+        ])
+
+        return {
+          ...nft,
+          article: article
+            ? {
+                id: article._id,
+                title: article.title,
+                slug: article.slug,
+                excerpt: article.excerpt,
+                coverImage: article.coverImage,
+                authorUsername: article.authorUsername,
+              }
+            : null,
+          minter,
+        }
+      })
+    )
+
+    return {
+      nfts,
+      total,
+      page,
+      limit,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    }
+  },
+})
+
 // Get NFT by article
 export const getNFTByArticle = query({
   args: {
@@ -386,6 +442,60 @@ export const getUserMintedNFTs = query({
     )
 
     return enrichedNfts
+  },
+})
+
+export const getUserMintedNFTsPaginated = query({
+  args: {
+    userId: v.id('users'),
+    page: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const page = Math.max(args.page ?? 1, 1)
+    const limit = Math.min(Math.max(args.limit ?? 9, 1), 50)
+    const offset = (page - 1) * limit
+
+    const rows = await ctx.db
+      .query('articleNFTs')
+      .withIndex('by_minted_by', (q) =>
+        q.eq('mintedBy', args.userId)
+      )
+      .collect()
+
+    rows.sort((a, b) => b.mintedAt - a.mintedAt)
+    const total = rows.length
+    const slice = rows.slice(offset, offset + limit)
+
+    const nfts = await Promise.all(
+      slice.map(async (nft) => {
+        const [article, currentOwnerInfo] = await Promise.all([
+          ctx.db.get(nft.articleId),
+          enrichWithUser(ctx, nft.currentOwner),
+        ])
+
+        return {
+          ...nft,
+          article: article
+            ? {
+                id: article._id,
+                title: article.title,
+                slug: article.slug,
+                authorUsername: article.authorUsername,
+              }
+            : null,
+          currentOwnerInfo,
+        }
+      })
+    )
+
+    return {
+      nfts,
+      total,
+      page,
+      limit,
+      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    }
   },
 })
 
