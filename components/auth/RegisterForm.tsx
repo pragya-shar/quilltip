@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { registerSchema, type RegisterFormData } from '@/lib/validations/auth'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/components/providers/AuthContext'
 
 /**
@@ -63,8 +63,14 @@ export default function RegisterForm() {
     return (
       <div className="text-center space-y-4">
         <div className="p-4 bg-muted border border-border rounded-lg">
-          <p className="text-sm text-foreground">
-            Account created successfully! Redirecting to dashboard...
+          <p className="inline-flex items-center justify-center gap-2 text-sm text-foreground">
+            <CheckCircle
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 text-success-foreground"
+            />
+            <span>
+              Account created successfully! Redirecting to dashboard...
+            </span>
           </p>
         </div>
       </div>
