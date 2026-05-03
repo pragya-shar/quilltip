@@ -16,11 +16,7 @@ describe('Pagination getPageHref', () => {
   it('uses getPageHref for links when basePath is omitted', () => {
     const getPageHref = (page: number) => `/u?nftOwnedPage=${page}`
     render(
-      <Pagination
-        currentPage={2}
-        totalPages={5}
-        getPageHref={getPageHref}
-      />
+      <Pagination currentPage={2} totalPages={5} getPageHref={getPageHref} />
     )
 
     const next = screen.getByRole('link', { name: 'Next' })

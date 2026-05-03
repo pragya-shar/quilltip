@@ -94,11 +94,7 @@ export default function Pagination({
     const linkHref = !disabled ? resolveLinkHref(page) : null
     if (linkHref !== null) {
       return (
-        <Link
-          href={linkHref}
-          className={className}
-          aria-label={ariaLabel}
-        >
+        <Link href={linkHref} className={className} aria-label={ariaLabel}>
           {children}
         </Link>
       )

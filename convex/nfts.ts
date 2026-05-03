@@ -59,9 +59,7 @@ export const getNFTsByOwnerPaginated = query({
 
     const rows = await ctx.db
       .query('articleNFTs')
-      .withIndex('by_current_owner', (q) =>
-        q.eq('currentOwner', args.ownerId)
-      )
+      .withIndex('by_current_owner', (q) => q.eq('currentOwner', args.ownerId))
       .collect()
 
     rows.sort((a, b) => b.mintedAt - a.mintedAt)
@@ -458,9 +456,7 @@ export const getUserMintedNFTsPaginated = query({
 
     const rows = await ctx.db
       .query('articleNFTs')
-      .withIndex('by_minted_by', (q) =>
-        q.eq('mintedBy', args.userId)
-      )
+      .withIndex('by_minted_by', (q) => q.eq('mintedBy', args.userId))
       .collect()
 
     rows.sort((a, b) => b.mintedAt - a.mintedAt)
