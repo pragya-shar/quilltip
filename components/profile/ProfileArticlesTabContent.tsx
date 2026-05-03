@@ -57,8 +57,7 @@ export function ProfileArticlesTabContent({
     )
   }
 
-  const totalPages =
-    data.totalPages || Math.ceil(data.total / data.limit) || 0
+  const totalPages = data.totalPages || Math.ceil(data.total / data.limit) || 0
 
   return (
     <>
