@@ -30,7 +30,18 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   const [localWalletAddress, setLocalWalletAddress] = useState<
     string | null | undefined
   >()
-  const page = parseInt(searchParams?.get('page') || '1', 10)
+  const page = Math.max(
+    parseInt(searchParams?.get('page') || '1', 10) || 1,
+    1
+  )
+  const parsePositivePage = (raw: string | null) => {
+    const n = parseInt(raw || '1', 10)
+    return Number.isFinite(n) && n >= 1 ? n : 1
+  }
+  const nftOwnedPage = parsePositivePage(searchParams?.get('nftOwnedPage') ?? null)
+  const nftMintedPage = parsePositivePage(
+    searchParams?.get('nftMintedPage') ?? null
+  )
 
   // Fetch user profile
   const user = useUserByUsername(username)
@@ -169,6 +180,9 @@ export default function ProfilePage({ params }: ProfilePageProps) {
           {activeTab === 'nfts' && (
             <ProfileNftsTabContent
               userId={user._id}
+              username={username}
+              nftOwnedPage={nftOwnedPage}
+              nftMintedPage={nftMintedPage}
               isOwnProfile={isOwnProfile}
               displayName={user.name || user.username}
             />
