@@ -1,8 +1,7 @@
 const DUPLICATE_ACCOUNT =
   'An account with this email already exists. Try signing in, or use a different email.'
 
-const USERNAME_UNAVAILABLE =
-  'This username is not available. Try another one.'
+const USERNAME_UNAVAILABLE = 'This username is not available. Try another one.'
 
 const GENERIC = 'Registration failed. Please try again.'
 

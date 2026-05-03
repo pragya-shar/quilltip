@@ -29,9 +29,9 @@ describe('mapRegisterSignInError', () => {
   })
 
   it('passes through a short single-line client message', () => {
-    expect(mapRegisterSignInError(new Error('Sign up is temporarily disabled.'))).toBe(
-      'Sign up is temporarily disabled.'
-    )
+    expect(
+      mapRegisterSignInError(new Error('Sign up is temporarily disabled.'))
+    ).toBe('Sign up is temporarily disabled.')
   })
 
   it('maps username conflict phrasing when present', () => {
