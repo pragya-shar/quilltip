@@ -76,9 +76,6 @@ describe('TipHistory', () => {
     expect(timeEl.tagName).toBe('TIME')
     expect(timeEl).toHaveAttribute('dateTime', tipDate.toISOString())
     expect(timeEl).toHaveAttribute('title', absolute)
-    expect(timeEl).toHaveAttribute(
-      'aria-label',
-      `2 days ago. ${absolute}.`
-    )
+    expect(timeEl).toHaveAttribute('aria-label', `2 days ago. ${absolute}.`)
   })
 })
