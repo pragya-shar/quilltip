@@ -1,5 +1,4 @@
 import { STELLAR_CONFIG } from './config'
-import { createMemo } from './memo-utils'
 import { loadStellarSdk } from './sdk-loader'
 import type { MintNFTParams, NFTOwnership, NFTTransactionResult } from './types'
 
@@ -153,8 +152,6 @@ export class NFTClient {
 
       const contract = new StellarSdk.Contract(STELLAR_CONFIG.NFT_CONTRACT_ID)
 
-      const memo = await createMemo({ type: 'nft', id: params.articleId })
-
       const transaction = new StellarSdk.TransactionBuilder(account, {
         fee: StellarSdk.BASE_FEE,
         networkPassphrase: this.networkPassphrase,
@@ -168,7 +165,6 @@ export class NFTClient {
             StellarSdk.nativeToScVal(params.metadataUrl, { type: 'string' })
           )
         )
-        .addMemo(memo)
         .setTimeout(180)
         .build()
 
