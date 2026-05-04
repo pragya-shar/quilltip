@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { Wallet, Loader2, AlertCircle, CheckCircle } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 interface WalletConnectButtonProps {
@@ -39,7 +40,9 @@ export function WalletConnectButton({
     try {
       await connect()
     } catch (error) {
-      console.error('Failed to connect wallet:', error)
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to connect wallet'
+      )
     } finally {
       setIsConnecting(false)
     }
