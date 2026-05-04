@@ -310,15 +310,9 @@ export default function Navigation() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 8 }}
                         transition={{ duration: 0.18, ease: 'easeOut' }}
-                        className="absolute top-[calc(100%+8px)] right-0 w-[560px] bg-popover text-popover-foreground rounded-2xl shadow-xl border border-border"
-                        style={{
-                          transform:
-                            dropdown.label === 'Product'
-                              ? 'translateX(10%)'
-                              : 'translateX(30%)',
-                        }}
+                        className="absolute top-[calc(100%+8px)] right-0 w-[min(560px,calc(100vw-2rem))] bg-popover text-popover-foreground rounded-2xl shadow-xl border border-border"
                       >
-                        <div className="flex">
+                        <div className="flex min-w-0">
                           {/* Featured card */}
                           <Link
                             href={dropdown.featured.href}
