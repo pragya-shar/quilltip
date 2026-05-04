@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   TipHistory,
   type ReceivedTipRow,
@@ -27,6 +27,10 @@ function makeTip(overrides: Partial<ReceivedTipRow>): ReceivedTipRow {
 }
 
 describe('TipHistory', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('renders nothing when tips are empty or undefined', () => {
     const { container: a } = render(<TipHistory tips={undefined} />)
     expect(a.firstChild).toBeNull()
@@ -34,7 +38,7 @@ describe('TipHistory', () => {
     expect(b.firstChild).toBeNull()
   })
 
-  it('shows tipper, article title, amount, and formatted date', () => {
+  it('shows tipper, article title, amount, and relative tip time', () => {
     const tips = [
       makeTip({
         _id: 'a1' as Id<'tips'>,
@@ -57,5 +61,24 @@ describe('TipHistory', () => {
     const tips = [makeTip({ tipper: null })]
     render(<TipHistory tips={tips} />)
     expect(screen.getByText('Anonymous')).toBeInTheDocument()
+  })
+
+  it('shows relative time with absolute date on title and aria-label', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-05T12:00:00Z'))
+    const createdAt = new Date('2026-05-03T12:00:00Z').getTime()
+    const tipDate = new Date(createdAt)
+    const absolute = tipDate.toLocaleDateString('en-US', { dateStyle: 'long' })
+
+    render(<TipHistory tips={[makeTip({ createdAt })]} />)
+
+    const timeEl = screen.getByText('2 days ago')
+    expect(timeEl.tagName).toBe('TIME')
+    expect(timeEl).toHaveAttribute('dateTime', tipDate.toISOString())
+    expect(timeEl).toHaveAttribute('title', absolute)
+    expect(timeEl).toHaveAttribute(
+      'aria-label',
+      `2 days ago. ${absolute}.`
+    )
   })
 })
