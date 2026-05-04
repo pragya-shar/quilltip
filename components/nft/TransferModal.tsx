@@ -172,7 +172,7 @@ export function TransferModal({
       }}
     >
       <DialogContent
-        className="sm:max-w-md"
+        className="w-[calc(100vw-2rem)] sm:max-w-md"
         onCloseAutoFocus={(e) => {
           if (triggerRef?.current) {
             e.preventDefault()
@@ -200,7 +200,7 @@ export function TransferModal({
             <Label className="text-sm text-muted-foreground">
               Current Owner
             </Label>
-            <div className="px-3 py-2 bg-muted rounded-lg text-sm">
+            <div className="max-w-full overflow-hidden px-3 py-2 bg-muted rounded-lg text-sm font-mono break-all">
               @{currentOwner}
             </div>
           </div>
@@ -233,7 +233,9 @@ export function TransferModal({
               }`}
             >
               {getStatusIcon()}
-              <span className="text-sm">{getStatusMessage()}</span>
+              <span className="min-w-0 text-sm break-words">
+                {getStatusMessage()}
+              </span>
             </div>
           )}
 
