@@ -14,7 +14,11 @@ export {
 export {
   useNFTByArticle,
   useNFTsByOwner,
+  useNFTsByOwnerPaginated,
   useUserMintedNFTs,
+  useUserMintedNFTsPaginated,
+  type NFTsByOwnerPaginatedArgs,
+  type UserMintedNFTsPaginatedArgs,
 } from './useNftsQueries'
 export {
   useArticleHighlightsQuery,
