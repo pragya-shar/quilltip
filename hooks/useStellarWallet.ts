@@ -5,6 +5,7 @@ import {
   walletAdapter,
   WalletInfo,
   NO_WALLET_AVAILABLE_ERROR_CODE,
+  ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
 } from '@/lib/stellar/wallet-adapter'
 
 export interface StellarWalletState {
@@ -138,6 +139,9 @@ export function useStellarWallet(): StellarWalletState & StellarWalletActions {
       }))
 
       if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+        throw new Error(message)
+      }
+      if (message.startsWith(`${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}:`)) {
         throw new Error(message)
       }
       return false

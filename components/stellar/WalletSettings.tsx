@@ -30,7 +30,10 @@ import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import { toast } from 'sonner'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
-import { NO_WALLET_AVAILABLE_ERROR_CODE } from '@/lib/stellar/wallet-adapter'
+import {
+  NO_WALLET_AVAILABLE_ERROR_CODE,
+  ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
+} from '@/lib/stellar/wallet-adapter'
 
 interface WalletSettingsProps {
   walletAddress?: string | null
@@ -91,6 +94,10 @@ export function WalletSettings({
 
       if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
         setInstallDialogOpen(true)
+        return
+      }
+
+      if (message.startsWith(`${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}:`)) {
         return
       }
 
