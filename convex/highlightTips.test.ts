@@ -428,6 +428,47 @@ describe('highlightTips.create', () => {
     expect(stats.totalTips).toBe(0)
     expect(stats.totalAmountCents).toBe(0)
   })
+
+  it('filters heatmap stats by sinceMs', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const oldTipId = await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-old')
+    )
+    // Backdate so it falls outside the time window.
+    await t.run(async (ctx) => {
+      const tip = await ctx.db.get(oldTipId)
+      if (tip) {
+        await ctx.db.patch(oldTipId, { createdAt: tip.createdAt - 40 * 864e5 })
+      }
+    })
+    await confirmPending(t, oldTipId)
+
+    // Avoid cooldown: make the first tip older so the second insert is allowed.
+    await t.run(async (ctx) => {
+      const tip = await ctx.db.get(oldTipId)
+      if (tip) {
+        await ctx.db.patch(oldTipId, { createdAt: tip.createdAt - 60_000 })
+      }
+    })
+
+    const newTipId = await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-new')
+    )
+    await confirmPending(t, newTipId)
+
+    const sinceMs = Date.now() - 30 * 864e5
+    const stats = await t.query(api.highlightTips.getArticleStats, {
+      articleId,
+      sinceMs,
+    })
+    expect(stats.totalTips).toBe(1)
+    expect(stats.totalAmountCents).toBe(100)
+  })
 })
 
 describe('markHighlightTipConfirmed', () => {

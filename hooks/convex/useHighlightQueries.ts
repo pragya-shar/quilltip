@@ -23,15 +23,27 @@ export function useHighlightTipsByHighlight(highlightId: string) {
   return useQuery(api.highlightTips.getByHighlight, { highlightId })
 }
 
-export function useArticleHighlightTipStats(articleId: Id<'articles'>) {
-  return useQuery(api.highlightTips.getArticleStats, { articleId })
+export function useArticleHighlightTipStats(
+  articleId: Id<'articles'>,
+  opts?: { sinceMs?: number }
+) {
+  return useQuery(api.highlightTips.getArticleStats, {
+    articleId,
+    sinceMs: opts?.sinceMs,
+  })
 }
 
 export function useArticleHighlightTipStatsOptional(
-  articleId: Id<'articles'> | undefined
+  articleId: Id<'articles'> | undefined,
+  opts?: { sinceMs?: number }
 ) {
   return useQuery(
     api.highlightTips.getArticleStats,
-    articleId ? { articleId } : 'skip'
+    articleId
+      ? {
+          articleId,
+          sinceMs: opts?.sinceMs,
+        }
+      : 'skip'
   )
 }

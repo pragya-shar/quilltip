@@ -240,13 +240,21 @@ export const getByAuthor = query({
 export const getArticleStats = query({
   args: {
     articleId: v.id('articles'),
+    sinceMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const tips = await ctx.db
+    let tipsQuery = ctx.db
       .query('highlightTips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
       .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
-      .collect()
+
+    if (args.sinceMs !== undefined) {
+      tipsQuery = tipsQuery.filter((q) =>
+        q.gte(q.field('createdAt'), args.sinceMs!)
+      )
+    }
+
+    const tips = await tipsQuery.collect()
 
     const totalTips = tips.length
     const totalAmountCents = tips.reduce((sum, tip) => sum + tip.amountCents, 0)
