@@ -29,6 +29,8 @@ import {
 import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import { toast } from 'sonner'
 import { useWallet } from '@/components/providers/WalletProvider'
+import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { NO_WALLET_AVAILABLE_ERROR_CODE } from '@/lib/stellar/wallet-adapter'
 
 interface WalletSettingsProps {
   walletAddress?: string | null
@@ -47,6 +49,7 @@ export function WalletSettings({
   const { isLoading, connect, disconnect } = useWallet()
   const [isCopied, setIsCopied] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [installDialogOpen, setInstallDialogOpen] = useState(false)
 
   const handleCopy = async () => {
     if (!walletAddress) return
@@ -80,8 +83,18 @@ export function WalletSettings({
       } else {
         toast.error('Failed to connect wallet')
       }
-    } catch {
-      toast.error('Failed to connect and save wallet address')
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to connect and save wallet address'
+
+      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+        setInstallDialogOpen(true)
+        return
+      }
+
+      toast.error(message)
     } finally {
       setIsConnecting(false)
     }
@@ -144,7 +157,8 @@ export function WalletSettings({
   }
 
   return (
-    <Card className={className}>
+    <>
+      <Card className={className}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Wallet className="h-5 w-5" />
@@ -338,6 +352,12 @@ export function WalletSettings({
           </div>
         )}
       </CardContent>
-    </Card>
+      </Card>
+
+      <InstallWalletDialog
+        open={installDialogOpen}
+        onOpenChange={setInstallDialogOpen}
+      />
+    </>
   )
 }
