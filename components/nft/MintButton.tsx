@@ -20,7 +20,10 @@ import { nftClient } from '@/lib/stellar/nft-client'
 import { stellarClient } from '@/lib/stellar/client'
 import { ConvexHttpClient } from 'convex/browser'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
-import { NO_WALLET_AVAILABLE_ERROR_CODE } from '@/lib/stellar/wallet-adapter'
+import {
+  NO_WALLET_AVAILABLE_ERROR_CODE,
+  ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
+} from '@/lib/stellar/wallet-adapter'
 
 interface MintButtonProps {
   articleId: string | Id<'articles'>
@@ -82,6 +85,10 @@ export function MintButton({
 
       if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
         setInstallDialogOpen(true)
+        return
+      }
+
+      if (message.startsWith(`${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}:`)) {
         return
       }
 

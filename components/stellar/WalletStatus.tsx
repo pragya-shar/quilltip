@@ -15,7 +15,10 @@ import {
   Power,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { NO_WALLET_AVAILABLE_ERROR_CODE } from '@/lib/stellar/wallet-adapter'
+import {
+  NO_WALLET_AVAILABLE_ERROR_CODE,
+  ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
+} from '@/lib/stellar/wallet-adapter'
 
 interface WalletStatusProps {
   className?: string
@@ -48,6 +51,10 @@ export function WalletStatus({ className }: WalletStatusProps) {
 
       if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
         setInstallDialogOpen(true)
+        return
+      }
+
+      if (message.startsWith(`${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}:`)) {
         return
       }
 
