@@ -119,11 +119,11 @@ describe('TipHistory', () => {
     const createObjectURL = vi
       .spyOn(URL, 'createObjectURL')
       .mockImplementation(() => 'blob:mock' as unknown as string)
-    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(
-      () => {
+    const revokeObjectURL = vi
+      .spyOn(URL, 'revokeObjectURL')
+      .mockImplementation(() => {
         // noop
-      }
-    )
+      })
 
     const click = vi.fn()
     const remove = vi.fn()

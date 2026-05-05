@@ -8,9 +8,7 @@ import { WithdrawalDialog } from '@/components/dashboard/WithdrawalDialog'
 const validGAddress = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
 
 describe('WithdrawalDialog', () => {
-  it(
-    'calls onWithdraw with entered amount and address',
-    async () => {
+  it('calls onWithdraw with entered amount and address', async () => {
     const user = userEvent.setup()
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
     const onOpenChange = vi.fn()
@@ -39,9 +37,7 @@ describe('WithdrawalDialog', () => {
       })
       expect(onOpenChange).toHaveBeenCalledWith(false)
     })
-    },
-    10_000
-  )
+  }, 10_000)
 
   it('uses saved Stellar address without manual entry', async () => {
     const user = userEvent.setup()
