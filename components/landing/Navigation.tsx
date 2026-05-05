@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
+  ArrowRight,
   Menu,
   X,
   PenTool,
@@ -309,15 +310,9 @@ export default function Navigation() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 8 }}
                         transition={{ duration: 0.18, ease: 'easeOut' }}
-                        className="absolute top-[calc(100%+8px)] right-0 w-[560px] bg-popover text-popover-foreground rounded-2xl shadow-xl border border-border"
-                        style={{
-                          transform:
-                            dropdown.label === 'Product'
-                              ? 'translateX(10%)'
-                              : 'translateX(30%)',
-                        }}
+                        className="absolute top-[calc(100%+8px)] right-0 w-[min(560px,calc(100vw-2rem))] bg-popover text-popover-foreground rounded-2xl shadow-xl border border-border"
                       >
-                        <div className="flex">
+                        <div className="flex min-w-0">
                           {/* Featured card */}
                           <Link
                             href={dropdown.featured.href}
@@ -339,9 +334,7 @@ export default function Navigation() {
                             </div>
                             <span className="text-[12px] font-medium text-muted-foreground group-hover/featured:text-foreground transition-colors mt-4 inline-flex items-center gap-1">
                               Learn more
-                              <span className="transition-transform group-hover/featured:translate-x-0.5">
-                                →
-                              </span>
+                              <ArrowRight className="w-3 h-3 shrink-0 transition-transform group-hover/featured:translate-x-0.5" />
                             </span>
                           </Link>
 
@@ -409,7 +402,7 @@ export default function Navigation() {
               className="focus-ring inline-flex items-center gap-1.5 bg-brand text-brand-foreground px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-brand-hover transition-all duration-200 ml-1"
             >
               Try on Testnet
-              <span className="text-brand-foreground/80">→</span>
+              <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
             </Link>
           </div>
 
@@ -500,10 +493,11 @@ export default function Navigation() {
                   </Link>
                   <Link
                     href="/register"
-                    className="focus-ring block bg-brand text-brand-foreground px-5 py-2.5 rounded-lg hover:bg-brand-hover transition-colors text-center text-sm font-medium"
+                    className="focus-ring inline-flex w-full items-center justify-center gap-1.5 bg-brand text-brand-foreground px-5 py-2.5 rounded-lg hover:bg-brand-hover transition-colors text-sm font-medium"
                     onClick={() => setIsOpen(false)}
                   >
-                    Try on Testnet →
+                    Try on Testnet
+                    <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
                   </Link>
                 </motion.div>
               </div>
