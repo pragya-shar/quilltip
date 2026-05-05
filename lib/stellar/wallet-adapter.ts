@@ -24,6 +24,7 @@ import {
   HANA_ID,
   HOTWALLET_ID,
 } from '@creit.tech/stellar-wallets-kit'
+import { hasInstalledWalletForKitModal as supportedWalletsAllowKitModal } from '@/lib/stellar/wallet-availability'
 
 // Wallet type definitions
 export type WalletType =
@@ -46,6 +47,8 @@ export interface ConnectionResult {
   network: string
   networkPassphrase: string
 }
+
+export const NO_WALLET_AVAILABLE_ERROR_CODE = 'NO_WALLET_AVAILABLE' as const
 
 // Wallet metadata mapping
 export const WALLET_METADATA: Record<string, WalletInfo> = {
@@ -232,6 +235,13 @@ class StellarWalletAdapter {
     return this.kit
   }
 
+  private async hasInstalledWalletForKitModal(): Promise<boolean> {
+    await this.initialize()
+    const kit = this.ensureKit()
+    const supported = (await kit.getSupportedWallets()) as ISupportedWallet[]
+    return supportedWalletsAllowKitModal(supported)
+  }
+
   /**
    * Initialize the adapter (lazy initialization)
    * Note: Does NOT auto-reconnect to avoid triggering wallet popups on every page load
@@ -255,10 +265,7 @@ class StellarWalletAdapter {
    * Check if any wallet is installed/available
    */
   async isInstalled(): Promise<boolean> {
-    await this.initialize()
-    // Always return true since the kit supports multiple wallets
-    // The modal will show which wallets are actually available
-    return true
+    return await this.hasInstalledWalletForKitModal()
   }
 
   /**
@@ -268,6 +275,13 @@ class StellarWalletAdapter {
   async connect(): Promise<ConnectionResult> {
     await this.initialize()
     const kit = this.ensureKit()
+
+    const hasWallet = await this.hasInstalledWalletForKitModal()
+    if (!hasWallet) {
+      throw new Error(
+        `${NO_WALLET_AVAILABLE_ERROR_CODE}: No Stellar wallet detected`
+      )
+    }
 
     // Warn about Albedo on localhost
     if (isLocalhost()) {

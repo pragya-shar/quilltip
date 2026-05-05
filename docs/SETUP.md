@@ -7,6 +7,23 @@
 - A free [Convex](https://convex.dev) account
 - Stellar wallet (only for blockchain features)
 
+## Wallet install / connect troubleshooting
+
+If you click **Connect Wallet** and don’t have any Stellar wallet installed, Quilltip will show an install dialog with links to supported wallets. After installing a wallet, **reload the page** and try connecting again.
+
+To test this behavior locally:
+
+- **No-wallet flow**:
+  - Open Chrome with a fresh profile (or a browser where you have no Stellar wallet extensions installed).
+  - Run `bun run dev` and open Quilltip.
+  - Click **Connect Wallet** (from the header, wallet status card, tipping modal, or minting modal).
+  - Expected: install dialog appears with links for **Freighter**, **xBull**, **Albedo**, **HOT Wallet** (and the wallet selection modal does not open empty).
+- **After install + reload**:
+  - Install one wallet from the provided link.
+  - Reload the page.
+  - Click **Connect Wallet** again.
+  - Expected: the normal wallet selection/connect flow works as before.
+
 ## Installation
 
 ```bash
