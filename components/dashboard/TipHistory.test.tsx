@@ -31,11 +31,20 @@ describe('TipHistory', () => {
     vi.useRealTimers()
   })
 
-  it('renders nothing when tips are empty or undefined', () => {
-    const { container: a } = render(<TipHistory tips={undefined} />)
-    expect(a.firstChild).toBeNull()
-    const { container: b } = render(<TipHistory tips={[]} />)
-    expect(b.firstChild).toBeNull()
+  it('shows empty state when tips are empty or undefined', () => {
+    const { unmount, container } = render(<TipHistory tips={undefined} />)
+    expect(
+      screen.getByRole('heading', { name: 'Recent Tips' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('No tips yet')).toBeInTheDocument()
+    expect(container.firstChild).not.toBeNull()
+    unmount()
+
+    render(<TipHistory tips={[]} />)
+    expect(
+      screen.getByRole('heading', { name: 'Recent Tips' })
+    ).toBeInTheDocument()
+    expect(screen.getByText('No tips yet')).toBeInTheDocument()
   })
 
   it('shows tipper, article title, amount, and relative tip time', () => {
