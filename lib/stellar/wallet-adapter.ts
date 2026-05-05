@@ -116,7 +116,7 @@ function extractErrorMessage(error: unknown, walletId?: string): string {
     // Albedo CORS error
     if (error.message.includes("origins don't match")) {
       const localhostMsg = isInsecureLocalhost()
-        ? " Try Freighter or xBull instead, or open the site with https:// in the address bar."
+        ? ' Try Freighter or xBull instead, or open the site with https:// in the address bar.'
         : ''
       return `Albedo needs a secure connection.${localhostMsg}`
     }
