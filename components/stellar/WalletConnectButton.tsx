@@ -51,9 +51,7 @@ export function WalletConnectButton({
         return
       }
 
-      toast.error(
-        message
-      )
+      toast.error(message)
     } finally {
       setIsConnecting(false)
     }

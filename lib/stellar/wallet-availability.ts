@@ -13,7 +13,6 @@ export function hasInstalledWalletForKitModal(
 ): boolean {
   return supported.some(
     (w) =>
-      w.isAvailable &&
-      !WALLETS_ALWAYS_AVAILABLE_WITHOUT_EXTENSION.has(w.id)
+      w.isAvailable && !WALLETS_ALWAYS_AVAILABLE_WITHOUT_EXTENSION.has(w.id)
   )
 }
