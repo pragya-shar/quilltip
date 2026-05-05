@@ -4,9 +4,15 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { mapRegisterSignInError } from '@/lib/auth/map-register-error'
 import { registerSchema, type RegisterFormData } from '@/lib/validations/auth'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/components/providers/AuthContext'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+
+const authInputClassName =
+  'rounded-lg bg-background text-foreground focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:border-transparent'
 
 /**
  * Register Form Component
@@ -50,11 +56,7 @@ export default function RegisterForm() {
       // Use replace to prevent back button returning to register
       router.replace('/')
     } catch (error) {
-      setError(
-        error instanceof Error
-          ? error.message
-          : 'Registration failed. Please try again.'
-      )
+      setError(mapRegisterSignInError(error))
       setIsLoading(false)
     }
   }
@@ -63,8 +65,14 @@ export default function RegisterForm() {
     return (
       <div className="text-center space-y-4">
         <div className="p-4 bg-muted border border-border rounded-lg">
-          <p className="text-sm text-foreground">
-            Account created successfully! Redirecting to dashboard...
+          <p className="inline-flex items-center justify-center gap-2 text-sm text-foreground">
+            <CheckCircle
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 text-success-foreground"
+            />
+            <span>
+              Account created successfully! Redirecting to dashboard...
+            </span>
           </p>
         </div>
       </div>
@@ -88,12 +96,12 @@ export default function RegisterForm() {
         >
           Email address
         </label>
-        <input
+        <Input
           {...register('email')}
           type="email"
           id="email"
           autoComplete="email"
-          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+          className={authInputClassName}
           placeholder="you@example.com"
         />
         {errors.email && (
@@ -109,12 +117,12 @@ export default function RegisterForm() {
         >
           Username
         </label>
-        <input
+        <Input
           {...register('username')}
           type="text"
           id="username"
           autoComplete="username"
-          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+          className={authInputClassName}
           placeholder="Choose a unique username"
         />
         {errors.username && (
@@ -130,12 +138,12 @@ export default function RegisterForm() {
         >
           Full Name <span className="text-muted-foreground">(optional)</span>
         </label>
-        <input
+        <Input
           {...register('name')}
           type="text"
           id="name"
           autoComplete="name"
-          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+          className={authInputClassName}
           placeholder="Your full name"
         />
         {errors.name && (
@@ -152,25 +160,27 @@ export default function RegisterForm() {
           Password
         </label>
         <div className="relative">
-          <input
+          <Input
             {...register('password')}
             type={showPassword ? 'text' : 'password'}
             id="password"
             autoComplete="new-password"
-            className="w-full px-3 py-2 pr-10 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+            className={`pr-10 ${authInputClassName}`}
             placeholder="Create a secure password"
           />
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             {showPassword ? (
               <EyeOff className="h-4 w-4" />
             ) : (
               <Eye className="h-4 w-4" />
             )}
-          </button>
+          </Button>
         </div>
         {errors.password && (
           <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
@@ -186,25 +196,27 @@ export default function RegisterForm() {
           Confirm Password
         </label>
         <div className="relative">
-          <input
+          <Input
             {...register('confirmPassword')}
             type={showConfirmPassword ? 'text' : 'password'}
             id="confirmPassword"
             autoComplete="new-password"
-            className="w-full px-3 py-2 pr-10 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+            className={`pr-10 ${authInputClassName}`}
             placeholder="Confirm your password"
           />
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             {showConfirmPassword ? (
               <EyeOff className="h-4 w-4" />
             ) : (
               <Eye className="h-4 w-4" />
             )}
-          </button>
+          </Button>
         </div>
         {errors.confirmPassword && (
           <p className="mt-1 text-sm text-red-600">
@@ -214,20 +226,20 @@ export default function RegisterForm() {
       </div>
 
       {/* Submit Button */}
-      <button
+      <Button
         type="submit"
         disabled={isLoading}
-        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-brand-blue hover:bg-brand-accent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full rounded-lg shadow-sm hover:bg-brand-accent focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-blue"
       >
         {isLoading ? (
           <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
             Creating account...
           </>
         ) : (
           'Create account'
         )}
-      </button>
+      </Button>
     </form>
   )
 }

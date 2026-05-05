@@ -40,8 +40,9 @@ export function WalletStatus({ className }: WalletStatusProps) {
       await connect()
       toast.success('Wallet connected successfully!')
     } catch (error) {
-      console.error('Failed to connect wallet:', error)
-      toast.error('Failed to connect wallet')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to connect wallet'
+      )
     } finally {
       setIsConnecting(false)
     }

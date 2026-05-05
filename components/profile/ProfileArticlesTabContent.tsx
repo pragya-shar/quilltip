@@ -1,10 +1,12 @@
 'use client'
 
 import { useListArticles } from '@/hooks/convex'
+import { usePaginationTransition } from '@/hooks/usePaginationTransition'
 import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
 import ArticleGrid from '@/components/articles/ArticleGrid'
 import Pagination from '@/components/articles/Pagination'
 import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
+import { PaginationTransition } from '@/components/profile/PaginationTransition'
 import { BookOpen } from 'lucide-react'
 import Link from 'next/link'
 
@@ -27,11 +29,13 @@ export function ProfileArticlesTabContent({
     limit: 9,
   })
 
-  if (articlesData === undefined) {
+  const { data, isPaginating } = usePaginationTransition(articlesData)
+
+  if (data === undefined) {
     return <ArticleGridSkeleton count={9} />
   }
 
-  const articles = mapListArticlesToDisplay(articlesData.articles)
+  const articles = mapListArticlesToDisplay(data.articles)
 
   if (articles.length === 0) {
     return (
@@ -53,14 +57,13 @@ export function ProfileArticlesTabContent({
     )
   }
 
-  const totalPages =
-    articlesData.totalPages ||
-    Math.ceil(articlesData.total / articlesData.limit) ||
-    0
+  const totalPages = data.totalPages || Math.ceil(data.total / data.limit) || 0
 
   return (
     <>
-      <ArticleGrid articles={articles} />
+      <PaginationTransition isPaginating={isPaginating}>
+        <ArticleGrid articles={articles} />
+      </PaginationTransition>
 
       {totalPages > 1 && (
         <div className="mt-12">
@@ -73,8 +76,8 @@ export function ProfileArticlesTabContent({
       )}
 
       <div className="mt-4 text-center text-sm text-muted-foreground">
-        Showing {(page - 1) * 9 + 1} - {Math.min(page * 9, articlesData.total)}{' '}
-        of {articlesData.total} articles
+        Showing {(page - 1) * 9 + 1} - {Math.min(page * 9, data.total)} of{' '}
+        {data.total} articles
       </div>
     </>
   )
