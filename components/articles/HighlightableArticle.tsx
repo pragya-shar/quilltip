@@ -188,12 +188,15 @@ export function HighlightableArticle({
         if (domSelection && domSelection.rangeCount > 0) {
           const range = domSelection.getRangeAt(0)
           const rect = range.getBoundingClientRect()
+          const containerRect = editorRef.current?.getBoundingClientRect()
 
           setSelectedText({ text, from, to })
-          setPopoverPosition({
-            top: rect.top + window.scrollY - 60,
-            left: rect.left + rect.width / 2,
-          })
+          if (containerRect) {
+            setPopoverPosition({
+              top: rect.top - containerRect.top - 60,
+              left: rect.left - containerRect.left + rect.width / 2,
+            })
+          }
         }
       } else {
         setSelectedText(null)
@@ -244,10 +247,12 @@ export function HighlightableArticle({
         if (!domSelection || domSelection.rangeCount === 0) return
         const range = domSelection.getRangeAt(0)
         const rect = range.getBoundingClientRect()
+        const containerRect = editorRef.current?.getBoundingClientRect()
+        if (!containerRect) return
         setSelectedText({ text, from, to })
         setPopoverPosition({
-          top: rect.top + window.scrollY - 60,
-          left: rect.left + rect.width / 2,
+          top: rect.top - containerRect.top - 60,
+          left: rect.left - containerRect.left + rect.width / 2,
         })
       }, 0)
     }

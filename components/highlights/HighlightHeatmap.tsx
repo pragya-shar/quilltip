@@ -5,6 +5,7 @@ import type { Id } from '@/types/convex'
 import { getHeatmapColor, formatTipAmount } from '@/lib/stellar/highlight-utils'
 import { Flame, TrendingUp, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useMemo, useState } from 'react'
 
 interface HighlightHeatmapProps {
   articleId: Id<'articles'>
@@ -12,13 +13,24 @@ interface HighlightHeatmapProps {
   className?: string
 }
 
+type HeatmapWindow = 'all' | '7d' | '30d'
+
 export function HighlightHeatmap({
   articleId,
   isAuthor = false,
   className,
 }: HighlightHeatmapProps) {
+  const [window, setWindow] = useState<HeatmapWindow>('all')
+
+  const sinceMs = useMemo(() => {
+    const dayMs = 24 * 60 * 60 * 1000
+    if (window === '7d') return Date.now() - 7 * dayMs
+    if (window === '30d') return Date.now() - 30 * dayMs
+    return undefined
+  }, [window])
+
   // Fetch highlight tip stats for this article
-  const stats = useArticleHighlightTipStats(articleId)
+  const stats = useArticleHighlightTipStats(articleId, { sinceMs })
 
   // Loading state
   if (stats === undefined) {
@@ -30,12 +42,15 @@ export function HighlightHeatmap({
         )}
       >
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-muted rounded w-1/2"></div>
+          <div className="h-6 bg-muted rounded w-1/2" />
           <div className="h-20 bg-muted rounded"></div>
         </div>
       </div>
     )
   }
+
+  const windowLabel =
+    window === '7d' ? '7 days' : window === '30d' ? '30 days' : 'all time'
 
   // Empty state - No tips yet
   if (!stats || stats.totalTips === 0) {
@@ -46,17 +61,62 @@ export function HighlightHeatmap({
           className
         )}
       >
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Flame className="w-5 h-5 text-orange-500" />
-          Highlight Heatmap
-        </h3>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Flame className="w-5 h-5 text-orange-500" />
+            Highlight Heatmap
+          </h3>
+
+          <div className="flex items-center rounded-md border border-border overflow-hidden bg-muted/40">
+            <button
+              type="button"
+              onClick={() => setWindow('all')}
+              className={cn(
+                'px-2.5 py-1 text-xs font-medium transition-colors',
+                window === 'all'
+                  ? 'bg-background text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              All
+            </button>
+            <div className="w-px self-stretch bg-border" />
+            <button
+              type="button"
+              onClick={() => setWindow('7d')}
+              className={cn(
+                'px-2.5 py-1 text-xs font-medium transition-colors',
+                window === '7d'
+                  ? 'bg-background text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              7d
+            </button>
+            <div className="w-px self-stretch bg-border" />
+            <button
+              type="button"
+              onClick={() => setWindow('30d')}
+              className={cn(
+                'px-2.5 py-1 text-xs font-medium transition-colors',
+                window === '30d'
+                  ? 'bg-background text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              30d
+            </button>
+          </div>
+        </div>
 
         <div className="text-center py-8">
           <Sparkles className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
           <p className="text-muted-foreground text-sm mb-2">
-            {isAuthor
-              ? 'No highlight tips yet'
-              : 'Be the first to tip a highlight!'}
+            {window === 'all'
+              ? isAuthor
+                ? 'No highlight tips yet'
+                : 'Be the first to tip a highlight!'
+              : `No highlight tips in the last ${windowLabel}`}
           </p>
           <p className="text-foreground/85 text-xs">
             {isAuthor
@@ -90,10 +150,53 @@ export function HighlightHeatmap({
         className
       )}
     >
-      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <Flame className="w-5 h-5 text-orange-500" />
-        Highlight Heatmap
-      </h3>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <Flame className="w-5 h-5 text-orange-500" />
+          Highlight Heatmap
+        </h3>
+
+        <div className="flex items-center rounded-md border border-border overflow-hidden bg-muted/40">
+          <button
+            type="button"
+            onClick={() => setWindow('all')}
+            className={cn(
+              'px-2.5 py-1 text-xs font-medium transition-colors',
+              window === 'all'
+                ? 'bg-background text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            All
+          </button>
+          <div className="w-px self-stretch bg-border" />
+          <button
+            type="button"
+            onClick={() => setWindow('7d')}
+            className={cn(
+              'px-2.5 py-1 text-xs font-medium transition-colors',
+              window === '7d'
+                ? 'bg-background text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            7d
+          </button>
+          <div className="w-px self-stretch bg-border" />
+          <button
+            type="button"
+            onClick={() => setWindow('30d')}
+            className={cn(
+              'px-2.5 py-1 text-xs font-medium transition-colors',
+              window === '30d'
+                ? 'bg-background text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            30d
+          </button>
+        </div>
+      </div>
 
       {/* Summary Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
