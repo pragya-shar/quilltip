@@ -6,6 +6,8 @@ import { useWallet } from '@/components/providers/WalletProvider'
 import { Wallet, Loader2, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { NO_WALLET_AVAILABLE_ERROR_CODE } from '@/lib/stellar/wallet-adapter'
 
 interface WalletConnectButtonProps {
   className?: string
@@ -29,6 +31,7 @@ export function WalletConnectButton({
     disconnect,
   } = useWallet()
   const [isConnecting, setIsConnecting] = useState(false)
+  const [installDialogOpen, setInstallDialogOpen] = useState(false)
 
   const handleConnect = async () => {
     if (isConnected) {
@@ -40,8 +43,16 @@ export function WalletConnectButton({
     try {
       await connect()
     } catch (error) {
-      toast.error(
+      const message =
         error instanceof Error ? error.message : 'Failed to connect wallet'
+
+      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+        setInstallDialogOpen(true)
+        return
+      }
+
+      toast.error(
+        message
       )
     } finally {
       setIsConnecting(false)
@@ -114,24 +125,31 @@ export function WalletConnectButton({
 
   // Show connect button
   return (
-    <Button
-      onClick={handleConnect}
-      disabled={isConnecting}
-      size={size}
-      variant={variant}
-      className={className}
-    >
-      {isConnecting ? (
-        <>
-          <Loader2 className="w-4 h-4 animate-spin mr-2" />
-          Connecting...
-        </>
-      ) : (
-        <>
-          <Wallet className="w-4 h-4 mr-2" />
-          Connect Wallet
-        </>
-      )}
-    </Button>
+    <>
+      <Button
+        onClick={handleConnect}
+        disabled={isConnecting}
+        size={size}
+        variant={variant}
+        className={className}
+      >
+        {isConnecting ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            Connecting...
+          </>
+        ) : (
+          <>
+            <Wallet className="w-4 h-4 mr-2" />
+            Connect Wallet
+          </>
+        )}
+      </Button>
+
+      <InstallWalletDialog
+        open={installDialogOpen}
+        onOpenChange={setInstallDialogOpen}
+      />
+    </>
   )
 }

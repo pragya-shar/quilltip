@@ -29,6 +29,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { NO_WALLET_AVAILABLE_ERROR_CODE } from '@/lib/stellar/wallet-adapter'
 
 interface HighlightTipButtonProps {
   articleId: Id<'articles'>
@@ -61,6 +63,7 @@ export function HighlightTipButton({
   const { isConnected, publicKey, signTransaction, connect } = useWallet()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
+  const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -219,32 +222,50 @@ export function HighlightTipButton({
     }
   }
 
+  const handleConnectWallet = async () => {
+    try {
+      await connect()
+      toast.success('Wallet connected successfully!')
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to connect wallet'
+
+      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+        setInstallDialogOpen(true)
+        return
+      }
+
+      toast.error(message)
+    }
+  }
+
   const displayText =
     highlightText.length > 60
       ? highlightText.slice(0, 60) + '...'
       : highlightText
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <button
-          type="button"
-          className={`focus-ring inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105 shadow-md text-sm ${className}`}
-          title="Tip this highlight"
+    <>
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+        <DialogTrigger asChild>
+          <button
+            type="button"
+            className={`focus-ring inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105 shadow-md text-sm ${className}`}
+            title="Tip this highlight"
+          >
+            <Coins className="w-3.5 h-3.5" />
+            <span className="font-medium">Tip Highlight</span>
+          </button>
+        </DialogTrigger>
+        <DialogContent
+          className="max-w-md max-h-[min(90dvh,calc(100%-2rem))] overflow-y-auto"
+          onEscapeKeyDown={(e) => {
+            if (isLoading) e.preventDefault()
+          }}
+          onInteractOutside={(e) => {
+            if (isLoading) e.preventDefault()
+          }}
         >
-          <Coins className="w-3.5 h-3.5" />
-          <span className="font-medium">Tip Highlight</span>
-        </button>
-      </DialogTrigger>
-      <DialogContent
-        className="max-w-md max-h-[min(90dvh,calc(100%-2rem))] overflow-y-auto"
-        onEscapeKeyDown={(e) => {
-          if (isLoading) e.preventDefault()
-        }}
-        onInteractOutside={(e) => {
-          if (isLoading) e.preventDefault()
-        }}
-      >
         <DialogHeader>
           <DialogTitle>Tip Highlight</DialogTitle>
           <DialogDescription className="sr-only">
@@ -339,14 +360,7 @@ export function HighlightTipButton({
           {!isConnected ? (
             <button
               type="button"
-              onClick={async () => {
-                try {
-                  await connect()
-                  toast.success('Wallet connected successfully!')
-                } catch {
-                  toast.error('Failed to connect wallet')
-                }
-              }}
+              onClick={handleConnectWallet}
               disabled={isLoading}
               className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
@@ -387,7 +401,13 @@ export function HighlightTipButton({
         <p className="text-xs text-muted-foreground text-center mt-2">
           Powered by Stellar • Instant settlement • Low fees
         </p>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <InstallWalletDialog
+        open={installDialogOpen}
+        onOpenChange={setInstallDialogOpen}
+      />
+    </>
   )
 }

@@ -27,6 +27,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { NO_WALLET_AVAILABLE_ERROR_CODE } from '@/lib/stellar/wallet-adapter'
 
 interface TipButtonProps {
   articleId: Id<'articles'>
@@ -45,6 +47,7 @@ export function TipButton({
   const { isConnected, publicKey, signTransaction, connect } = useWallet()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
+  const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -182,26 +185,44 @@ export function TipButton({
     }
   }
 
+  const handleConnectWallet = async () => {
+    try {
+      await connect()
+      toast.success('Wallet connected successfully!')
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to connect wallet'
+
+      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+        setInstallDialogOpen(true)
+        return
+      }
+
+      toast.error(message)
+    }
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <button
-          type="button"
-          className={`focus-ring inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105 shadow-lg ${className}`}
+    <>
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+        <DialogTrigger asChild>
+          <button
+            type="button"
+            className={`focus-ring inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105 shadow-lg ${className}`}
+          >
+            <Coins className="w-4 h-4" />
+            <span className="font-medium">Tip Author</span>
+          </button>
+        </DialogTrigger>
+        <DialogContent
+          className="top-auto bottom-0 left-1/2 max-h-[min(90dvh,calc(100%-2rem))] max-w-md translate-x-[-50%] translate-y-0 gap-4 overflow-y-auto rounded-b-none rounded-t-xl border border-border bg-popover p-6 shadow-xl data-[state=closed]:slide-out-to-bottom-[48%] data-[state=open]:slide-in-from-bottom-[48%] sm:top-[50%] sm:bottom-auto sm:max-h-[min(90dvh,100%)] sm:translate-y-[-50%] sm:rounded-xl sm:data-[state=closed]:slide-out-to-left-1/2 sm:data-[state=closed]:slide-out-to-top-[48%] sm:data-[state=open]:slide-in-from-left-1/2 sm:data-[state=open]:slide-in-from-top-[48%]"
+          onInteractOutside={(e) => {
+            if (isLoading) e.preventDefault()
+          }}
+          onEscapeKeyDown={(e) => {
+            if (isLoading) e.preventDefault()
+          }}
         >
-          <Coins className="w-4 h-4" />
-          <span className="font-medium">Tip Author</span>
-        </button>
-      </DialogTrigger>
-      <DialogContent
-        className="top-auto bottom-0 left-1/2 max-h-[min(90dvh,calc(100%-2rem))] max-w-md translate-x-[-50%] translate-y-0 gap-4 overflow-y-auto rounded-b-none rounded-t-xl border border-border bg-popover p-6 shadow-xl data-[state=closed]:slide-out-to-bottom-[48%] data-[state=open]:slide-in-from-bottom-[48%] sm:top-[50%] sm:bottom-auto sm:max-h-[min(90dvh,100%)] sm:translate-y-[-50%] sm:rounded-xl sm:data-[state=closed]:slide-out-to-left-1/2 sm:data-[state=closed]:slide-out-to-top-[48%] sm:data-[state=open]:slide-in-from-left-1/2 sm:data-[state=open]:slide-in-from-top-[48%]"
-        onInteractOutside={(e) => {
-          if (isLoading) e.preventDefault()
-        }}
-        onEscapeKeyDown={(e) => {
-          if (isLoading) e.preventDefault()
-        }}
-      >
         <DialogHeader className="text-left">
           <DialogTitle className="text-xl font-bold">
             Support {authorName}
@@ -299,14 +320,7 @@ export function TipButton({
           {!isConnected ? (
             <button
               type="button"
-              onClick={async () => {
-                try {
-                  await connect()
-                  toast.success('Wallet connected successfully!')
-                } catch {
-                  toast.error('Failed to connect wallet')
-                }
-              }}
+              onClick={handleConnectWallet}
               disabled={isLoading}
               className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
@@ -348,7 +362,13 @@ export function TipButton({
           Powered by Stellar <WalletTooltip concept="stellar" /> • Instant
           settlement • Low fees
         </p>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <InstallWalletDialog
+        open={installDialogOpen}
+        onOpenChange={setInstallDialogOpen}
+      />
+    </>
   )
 }

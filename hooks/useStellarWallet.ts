@@ -1,7 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { walletAdapter, WalletInfo } from '@/lib/stellar/wallet-adapter'
+import {
+  walletAdapter,
+  WalletInfo,
+  NO_WALLET_AVAILABLE_ERROR_CODE,
+} from '@/lib/stellar/wallet-adapter'
 
 export interface StellarWalletState {
   isInstalled: boolean
@@ -124,11 +128,18 @@ export function useStellarWallet(): StellarWalletState & StellarWalletActions {
 
       return true
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Connection failed'
+
       setState((prev) => ({
         ...prev,
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Connection failed',
+        error: message,
       }))
+
+      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+        throw new Error(message)
+      }
       return false
     }
   }, [])

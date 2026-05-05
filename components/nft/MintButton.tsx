@@ -19,6 +19,8 @@ import { useStellarWallet } from '@/hooks/useStellarWallet'
 import { nftClient } from '@/lib/stellar/nft-client'
 import { stellarClient } from '@/lib/stellar/client'
 import { ConvexHttpClient } from 'convex/browser'
+import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { NO_WALLET_AVAILABLE_ERROR_CODE } from '@/lib/stellar/wallet-adapter'
 
 interface MintButtonProps {
   articleId: string | Id<'articles'>
@@ -45,6 +47,7 @@ export function MintButton({
 }: MintButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const [mintingStep, setMintingStep] = useState<
     'checking' | 'wallet' | 'blockchain' | 'database'
   >('checking')
@@ -68,6 +71,23 @@ export function MintButton({
 
   // Initialize Convex HTTP client for async calls
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
+
+  const handleConnectWallet = async () => {
+    try {
+      await wallet.connect()
+      toast.success('Wallet connected successfully!')
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to connect wallet'
+
+      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+        setInstallDialogOpen(true)
+        return
+      }
+
+      toast.error(message)
+    }
+  }
 
   const handleMint = async () => {
     if (!wallet.isConnected || !wallet.publicKey) {
@@ -186,26 +206,27 @@ export function MintButton({
   }
 
   return (
-    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-      <DialogTrigger asChild>
-        <Button
-          disabled={!canMint}
-          className="w-full"
-          variant="default"
-          type="button"
+    <>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogTrigger asChild>
+          <Button
+            disabled={!canMint}
+            className="w-full"
+            variant="default"
+            type="button"
+          >
+            <Sparkles className="mr-2 h-4 w-4" />
+            Mint NFT
+          </Button>
+        </DialogTrigger>
+        <DialogContent
+          onEscapeKeyDown={(e) => {
+            if (isLoading) e.preventDefault()
+          }}
+          onInteractOutside={(e) => {
+            if (isLoading) e.preventDefault()
+          }}
         >
-          <Sparkles className="mr-2 h-4 w-4" />
-          Mint NFT
-        </Button>
-      </DialogTrigger>
-      <DialogContent
-        onEscapeKeyDown={(e) => {
-          if (isLoading) e.preventDefault()
-        }}
-        onInteractOutside={(e) => {
-          if (isLoading) e.preventDefault()
-        }}
-      >
         <DialogHeader>
           <DialogTitle>Mint Article as NFT</DialogTitle>
           <DialogDescription>
@@ -293,7 +314,7 @@ export function MintButton({
 
             {!wallet.isConnected ? (
               <Button
-                onClick={wallet.connect}
+                onClick={handleConnectWallet}
                 disabled={isLoading}
                 className="flex-1"
               >
@@ -321,7 +342,13 @@ export function MintButton({
             )}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <InstallWalletDialog
+        open={installDialogOpen}
+        onOpenChange={setInstallDialogOpen}
+      />
+    </>
   )
 }
