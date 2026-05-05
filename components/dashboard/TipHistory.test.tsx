@@ -33,13 +33,17 @@ describe('TipHistory', () => {
 
   it('shows empty state when tips are empty or undefined', () => {
     const { unmount, container } = render(<TipHistory tips={undefined} />)
-    expect(screen.getByRole('heading', { name: 'Recent Tips' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Recent Tips' })
+    ).toBeInTheDocument()
     expect(screen.getByText('No tips yet')).toBeInTheDocument()
     expect(container.firstChild).not.toBeNull()
     unmount()
 
     render(<TipHistory tips={[]} />)
-    expect(screen.getByRole('heading', { name: 'Recent Tips' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Recent Tips' })
+    ).toBeInTheDocument()
     expect(screen.getByText('No tips yet')).toBeInTheDocument()
   })
 
