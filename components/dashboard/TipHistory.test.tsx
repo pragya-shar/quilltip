@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   TipHistory,
@@ -60,9 +60,7 @@ describe('TipHistory', () => {
     render(<TipHistory tips={tips} />)
 
     expect(screen.getByText('bob')).toBeInTheDocument()
-    expect(
-      screen.getByText((_, el) => el?.textContent === 'tipped on “My Article”')
-    ).toBeInTheDocument()
+    expect(screen.getByText('My Article')).toBeInTheDocument()
     expect(screen.getByText('+$12.50')).toBeInTheDocument()
   })
 
@@ -86,5 +84,98 @@ describe('TipHistory', () => {
     expect(timeEl).toHaveAttribute('dateTime', tipDate.toISOString())
     expect(timeEl).toHaveAttribute('title', absolute)
     expect(timeEl).toHaveAttribute('aria-label', `2 days ago. ${absolute}.`)
+  })
+
+  it('toggles sort direction and shows indicator on active column', () => {
+    const tips = [
+      makeTip({
+        _id: 'a1' as Id<'tips'>,
+        amountUsd: 3,
+        createdAt: new Date('2024-03-01T00:00:00Z').getTime(),
+        tipper: { username: 'bob' },
+      }),
+      makeTip({
+        _id: 'a2' as Id<'tips'>,
+        amountUsd: 10,
+        createdAt: new Date('2024-03-02T00:00:00Z').getTime(),
+        tipper: { username: 'alice' },
+      }),
+    ]
+
+    render(<TipHistory tips={tips} />)
+
+    const amountBtn = screen.getByRole('button', { name: /amount/i })
+
+    fireEvent.click(amountBtn)
+    expect(amountBtn.textContent).toMatch(/▲|▼/)
+    expect(screen.getAllByText(/\+\$/)[0]).toHaveTextContent('+$3.00')
+
+    fireEvent.click(amountBtn)
+    expect(amountBtn.textContent).toMatch(/▲|▼/)
+    expect(screen.getAllByText(/\+\$/)[0]).toHaveTextContent('+$10.00')
+  })
+
+  it('downloads CSV in current sort order and escapes commas/quotes/newlines', () => {
+    const createObjectURL = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockImplementation(() => 'blob:mock' as unknown as string)
+    const revokeObjectURL = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(
+      () => {
+        // noop
+      }
+    )
+
+    const click = vi.fn()
+    const remove = vi.fn()
+
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
+      if (tag !== 'a') return originalCreateElement(tag)
+      const a = originalCreateElement('a') as HTMLAnchorElement
+      vi.spyOn(a, 'click').mockImplementation(click)
+      vi.spyOn(a, 'remove').mockImplementation(remove)
+      return a
+    }) as typeof document.createElement)
+
+    const blobSpy = vi.spyOn(globalThis, 'Blob')
+
+    const tips = [
+      makeTip({
+        _id: 'a1' as Id<'tips'>,
+        articleTitle: 'Zeta',
+        amountUsd: 5,
+        createdAt: new Date('2024-03-01T00:00:00Z').getTime(),
+        tipper: { username: 'bob, "the"\nnew' },
+      }),
+      makeTip({
+        _id: 'a2' as Id<'tips'>,
+        articleTitle: 'Alpha',
+        amountUsd: 1,
+        createdAt: new Date('2024-03-02T00:00:00Z').getTime(),
+        tipper: { username: 'alice' },
+      }),
+    ]
+
+    render(<TipHistory tips={tips} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /article/i }))
+    fireEvent.click(screen.getByRole('button', { name: /download csv/i }))
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
+    const anchor = document.body.querySelector('a')
+    if (!(anchor instanceof HTMLAnchorElement)) {
+      throw new Error('Expected an anchor element to be created')
+    }
+    expect(anchor.getAttribute('href')).toBe('blob:mock')
+    expect(anchor.download).toMatch(/^tip-history-\d{4}-\d{2}-\d{2}\.csv$/)
+    expect(click).toHaveBeenCalledTimes(1)
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock')
+    expect(remove).toHaveBeenCalled()
+
+    const blobArg = blobSpy.mock.calls[0]?.[0]
+    const csvText = Array.isArray(blobArg) ? String(blobArg[0]) : ''
+    expect(csvText).toContain('Tipper,Article,AmountUsd,CreatedAt')
+    expect(csvText).toMatch(/\n.*Alpha,1\.00,/)
+    expect(csvText).toMatch(/"bob, ""the""\nnew"/)
   })
 })
