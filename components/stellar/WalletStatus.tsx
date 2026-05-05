@@ -51,9 +51,7 @@ export function WalletStatus({ className }: WalletStatusProps) {
         return
       }
 
-      toast.error(
-        message
-      )
+      toast.error(message)
     } finally {
       setIsConnecting(false)
     }
@@ -155,106 +153,106 @@ export function WalletStatus({ className }: WalletStatusProps) {
   return (
     <>
       <Card className={className}>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-green-100 dark:bg-green-950/50 rounded-full flex items-center justify-center">
-            <Wallet className="w-4 h-4 text-green-800 dark:text-green-300" />
-          </div>
-          <div className="flex flex-col">
-            <span>Wallet Connected</span>
-            {selectedWallet && (
-              <span className="text-sm font-normal text-muted-foreground">
-                via {selectedWallet.name}
-              </span>
-            )}
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-3">
-          <div>
-            <span className="text-sm font-medium text-muted-foreground">
-              Address
-            </span>
-            <div className="flex items-center gap-2 mt-1">
-              <code className="flex-1 text-sm bg-muted px-2 py-1 rounded truncate">
-                {publicKey}
-              </code>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => publicKey && copyToClipboard(publicKey)}
-              >
-                <Copy className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => publicKey && openInExplorer(publicKey)}
-              >
-                <ExternalLink className="w-4 h-4" />
-              </Button>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-green-100 dark:bg-green-950/50 rounded-full flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-green-800 dark:text-green-300" />
             </div>
-          </div>
-
-          {network && (
+            <div className="flex flex-col">
+              <span>Wallet Connected</span>
+              {selectedWallet && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  via {selectedWallet.name}
+                </span>
+              )}
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
             <div>
               <span className="text-sm font-medium text-muted-foreground">
-                Network
-              </span>
-              <div className="mt-1">
-                <Badge
-                  variant={network === 'TESTNET' ? 'secondary' : 'default'}
-                  className="capitalize"
-                >
-                  {network.toLowerCase()}
-                </Badge>
-              </div>
-            </div>
-          )}
-
-          {networkPassphrase && (
-            <div>
-              <span className="text-sm font-medium text-muted-foreground">
-                Network Passphrase
+                Address
               </span>
               <div className="flex items-center gap-2 mt-1">
-                <code className="flex-1 text-xs bg-muted px-2 py-1 rounded truncate">
-                  {networkPassphrase}
+                <code className="flex-1 text-sm bg-muted px-2 py-1 rounded truncate">
+                  {publicKey}
                 </code>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => copyToClipboard(networkPassphrase)}
+                  onClick={() => publicKey && copyToClipboard(publicKey)}
                 >
-                  <Copy className="w-3 h-3" />
+                  <Copy className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => publicKey && openInExplorer(publicKey)}
+                >
+                  <ExternalLink className="w-4 h-4" />
                 </Button>
               </div>
             </div>
-          )}
-        </div>
 
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refreshConnection}
-            className="flex-1"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh Connection
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDisconnect}
-            className="flex-1"
-          >
-            <Power className="w-4 h-4 mr-2" />
-            Disconnect
-          </Button>
-        </div>
-      </CardContent>
+            {network && (
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">
+                  Network
+                </span>
+                <div className="mt-1">
+                  <Badge
+                    variant={network === 'TESTNET' ? 'secondary' : 'default'}
+                    className="capitalize"
+                  >
+                    {network.toLowerCase()}
+                  </Badge>
+                </div>
+              </div>
+            )}
+
+            {networkPassphrase && (
+              <div>
+                <span className="text-sm font-medium text-muted-foreground">
+                  Network Passphrase
+                </span>
+                <div className="flex items-center gap-2 mt-1">
+                  <code className="flex-1 text-xs bg-muted px-2 py-1 rounded truncate">
+                    {networkPassphrase}
+                  </code>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => copyToClipboard(networkPassphrase)}
+                  >
+                    <Copy className="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshConnection}
+              className="flex-1"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh Connection
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDisconnect}
+              className="flex-1"
+            >
+              <Power className="w-4 h-4 mr-2" />
+              Disconnect
+            </Button>
+          </div>
+        </CardContent>
       </Card>
 
       <InstallWalletDialog

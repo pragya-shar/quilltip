@@ -1,6 +1,11 @@
 'use client'
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { ExternalLink, Download } from 'lucide-react'
 
@@ -49,8 +54,9 @@ export function InstallWalletDialog({
 
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            We couldn&apos;t find a Stellar wallet in your browser. Install one of
-            the options below, then reload this page and try connecting again.
+            We couldn&apos;t find a Stellar wallet in your browser. Install one
+            of the options below, then reload this page and try connecting
+            again.
           </p>
 
           <div className="grid gap-2">
@@ -66,7 +72,9 @@ export function InstallWalletDialog({
                   <div className="min-w-0">
                     <div className="font-medium text-sm">{w.name}</div>
                     {w.note ? (
-                      <div className="text-xs text-muted-foreground">{w.note}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {w.note}
+                      </div>
                     ) : null}
                   </div>
                   <span className="inline-flex items-center text-xs text-muted-foreground">
@@ -88,4 +96,3 @@ export function InstallWalletDialog({
     </Dialog>
   )
 }
-
