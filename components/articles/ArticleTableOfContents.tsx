@@ -33,7 +33,9 @@ function pickActiveId(ids: string[]): string | null {
   return active ?? firstFound
 }
 
-export function ArticleTableOfContents({ headings }: ArticleTableOfContentsProps) {
+export function ArticleTableOfContents({
+  headings,
+}: ArticleTableOfContentsProps) {
   const enabled = headings.length >= 3
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -42,8 +44,7 @@ export function ArticleTableOfContents({ headings }: ArticleTableOfContentsProps
   useEffect(() => {
     if (!enabled) return
 
-    const root =
-      document.querySelector(ARTICLE_ROOT_SELECTOR) ?? document.body
+    const root = document.querySelector(ARTICLE_ROOT_SELECTOR) ?? document.body
 
     let scrollCleanup: (() => void) | null = null
     let mo: MutationObserver | null = null

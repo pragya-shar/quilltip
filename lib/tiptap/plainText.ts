@@ -5,12 +5,8 @@ export function extractPlainTextFromTiptapJson(node: unknown): string {
   if (n.type === 'text' && typeof n.text === 'string') return n.text
 
   if (Array.isArray(n.content)) {
-    return n.content
-      .map(extractPlainTextFromTiptapJson)
-      .join(' ')
-      .trim()
+    return n.content.map(extractPlainTextFromTiptapJson).join(' ').trim()
   }
 
   return ''
 }
-

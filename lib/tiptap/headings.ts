@@ -27,7 +27,9 @@ export type TocHeading = {
   level: 2
 }
 
-export function extractH2HeadingsFromTiptapJson(content: unknown): TocHeading[] {
+export function extractH2HeadingsFromTiptapJson(
+  content: unknown
+): TocHeading[] {
   const headings: Omit<TocHeading, 'id'>[] = []
 
   const walk = (node: unknown) => {
@@ -57,4 +59,3 @@ export function extractH2HeadingsFromTiptapJson(content: unknown): TocHeading[] 
     return { ...h, id }
   })
 }
-
