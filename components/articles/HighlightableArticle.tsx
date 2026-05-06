@@ -24,7 +24,9 @@ import { toast } from 'sonner'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 import { getRangeBoundingBox } from '@/lib/highlights/utils'
 
-function getRangeTopCenterAnchor(range: Range): { top: number; left: number } | null {
+function getRangeTopCenterAnchor(
+  range: Range
+): { top: number; left: number } | null {
   const box = getRangeBoundingBox(range)
   if (!box) return null
   return {
