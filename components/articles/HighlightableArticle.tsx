@@ -23,6 +23,15 @@ import { useAuth } from '@/components/providers/AuthContext'
 import { toast } from 'sonner'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 
+function getRangeEndRect(range: Range): DOMRect | null {
+  // For multi-line selections, getBoundingClientRect() can span multiple lines and
+  // won't represent the actual end point. Prefer the last client rect.
+  const rects = range.getClientRects()
+  if (rects.length > 0) return rects[rects.length - 1] ?? null
+  const r = range.getBoundingClientRect()
+  return r.width || r.height ? r : null
+}
+
 interface HighlightData {
   _id: Id<'highlights'>
   text: string
@@ -187,16 +196,16 @@ export function HighlightableArticle({
         const domSelection = window.getSelection()
         if (domSelection && domSelection.rangeCount > 0) {
           const range = domSelection.getRangeAt(0)
-          const rect = range.getBoundingClientRect()
-          const containerRect = editorRef.current?.getBoundingClientRect()
+          const endRect = getRangeEndRect(range)
+          if (!endRect) return
 
           setSelectedText({ text, from, to })
-          if (containerRect) {
-            setPopoverPosition({
-              top: rect.top - containerRect.top - 60,
-              left: rect.left - containerRect.left + rect.width / 2,
-            })
-          }
+          setPopoverPosition({
+            // Viewport coordinates (HighlightPopover is `position: fixed`).
+            // Anchor beside the end of the selection (near rect.right).
+            top: endRect.top + endRect.height / 2,
+            left: endRect.right + 12,
+          })
         }
       } else {
         setSelectedText(null)
@@ -246,13 +255,14 @@ export function HighlightableArticle({
         const domSelection = window.getSelection()
         if (!domSelection || domSelection.rangeCount === 0) return
         const range = domSelection.getRangeAt(0)
-        const rect = range.getBoundingClientRect()
-        const containerRect = editorRef.current?.getBoundingClientRect()
-        if (!containerRect) return
+        const endRect = getRangeEndRect(range)
+        if (!endRect) return
         setSelectedText({ text, from, to })
         setPopoverPosition({
-          top: rect.top - containerRect.top - 60,
-          left: rect.left - containerRect.left + rect.width / 2,
+          // Viewport coordinates (HighlightPopover is `position: fixed`).
+          // Anchor beside the end of the selection (near rect.right).
+          top: endRect.top + endRect.height / 2,
+          left: endRect.right + 12,
         })
       }, 0)
     }
@@ -318,6 +328,12 @@ export function HighlightableArticle({
   )
 
   const handlePopoverClose = useCallback(() => {
+    if (editor) {
+      const { from, to } = editor.state.selection
+      if (from !== to) {
+        editor.chain().setTextSelection(from).run()
+      }
+    }
     setSelectedText(null)
     setPopoverPosition(null)
     window.getSelection()?.removeAllRanges()
@@ -330,30 +346,18 @@ export function HighlightableArticle({
   }, [editor])
 
   useEffect(() => {
-    const hasCreationPopover = Boolean(popoverPosition && selectedText)
-    const hasDetailsPanel = highlightTooltip !== null
-    if (!hasCreationPopover && !hasDetailsPanel) return
+    if (highlightTooltip === null) return
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       e.preventDefault()
       e.stopPropagation()
-      if (hasCreationPopover) {
-        handlePopoverClose()
-      } else if (hasDetailsPanel) {
-        handleTooltipClose()
-      }
+      handleTooltipClose()
     }
 
     document.addEventListener('keydown', onKeyDown, true)
     return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [
-    popoverPosition,
-    selectedText,
-    highlightTooltip,
-    handlePopoverClose,
-    handleTooltipClose,
-  ])
+  }, [highlightTooltip, handleTooltipClose])
 
   return (
     <div
