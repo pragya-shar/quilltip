@@ -70,8 +70,7 @@ function MoreMenu({
             onSelect={(e) => e.preventDefault()}
           >
             <Clock className="w-4 h-4 shrink-0" />~
-            {estimateReadingMinutes(editor?.getText() ?? '')}{' '}
-            min read
+            {estimateReadingMinutes(editor?.getText() ?? '')} min read
           </DropdownMenu.Item>
           {onDelete && (
             <>

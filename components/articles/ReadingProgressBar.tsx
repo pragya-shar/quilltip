@@ -40,7 +40,11 @@ function findLikelyNestedScrollRoot(): HTMLElement | null {
     if (node === document.body || node === document.documentElement) continue
 
     const { overflowY } = getComputedStyle(node)
-    if (overflowY !== 'auto' && overflowY !== 'scroll' && overflowY !== 'overlay')
+    if (
+      overflowY !== 'auto' &&
+      overflowY !== 'scroll' &&
+      overflowY !== 'overlay'
+    )
       continue
     if (node.scrollHeight <= node.clientHeight + 1) continue
     if (node.clientHeight < vh * 0.55) continue
