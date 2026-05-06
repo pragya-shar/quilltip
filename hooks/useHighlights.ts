@@ -13,6 +13,7 @@ import {
   HighlightRenderer,
   HighlightSegment,
 } from '@/lib/highlights/HighlightRenderer'
+import { getRangeBoundingBox } from '@/lib/highlights/utils'
 
 export interface UseHighlightsOptions {
   articleId: Id<'articles'>
@@ -67,7 +68,8 @@ export function useHighlights({
     const manager = new SelectionManager(
       containerRef.current,
       (textSelection) => {
-        const rect = textSelection.range.getBoundingClientRect()
+        const rect = getRangeBoundingBox(textSelection.range)
+        if (!rect) return
 
         setSelection({
           text: textSelection.text,

@@ -90,13 +90,13 @@ export function HighlightPopover({
     const width = rect?.width ?? 320
     const height = rect?.height ?? 260
 
-    // `left`/`top` are popover's top-left corner.
+    // `position` is the anchor point for the popover's top-center.
+    const desiredLeft = position.left - width / 2
     const minLeft = margin
     const maxLeft = window.innerWidth - margin - width
-    const left = clamp(position.left, minLeft, Math.max(minLeft, maxLeft))
+    const left = clamp(desiredLeft, minLeft, Math.max(minLeft, maxLeft))
 
-    // `position.top` comes in as the anchor Y (mid-line) next to the selection end.
-    const desiredTop = position.top - height / 2
+    const desiredTop = position.top
     const minTop = margin
     const maxTop = window.innerHeight - margin - height
     const top = clamp(desiredTop, minTop, Math.max(minTop, maxTop))
