@@ -209,7 +209,10 @@ const HighlightExtension = Mark.create<HighlightOptions>({
 
   addProseMirrorPlugins() {
     const { onHighlightClick } = this.options
-    const tapState: { startX: number; startY: number } = { startX: 0, startY: 0 }
+    const tapState: { startX: number; startY: number } = {
+      startX: 0,
+      startY: 0,
+    }
 
     return [
       new Plugin({
