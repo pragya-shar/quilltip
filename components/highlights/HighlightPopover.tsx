@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useRef, useState, useEffect } from 'react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter, MessageSquare, Lock, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -79,6 +79,36 @@ export function HighlightPopover({
   const [note, setNote] = useState('')
   const [isPublic, setIsPublic] = useState(true)
   const [showNoteInput, setShowNoteInput] = useState(false)
+  const popoverRef = useRef<HTMLDivElement>(null)
+
+  const [computedPosition, setComputedPosition] = useState(position)
+
+  useEffect(() => {
+    setComputedPosition(position)
+  }, [position.top, position.left])
+
+  const clampedPosition = useMemo(() => {
+    const clamp = (v: number, min: number, max: number) =>
+      Math.min(max, Math.max(min, v))
+
+    const margin = 12
+    const rect = popoverRef.current?.getBoundingClientRect()
+    const width = rect?.width ?? 320
+    const height = rect?.height ?? 260
+
+    // `left`/`top` are popover's top-left corner.
+    const minLeft = margin
+    const maxLeft = window.innerWidth - margin - width
+    const left = clamp(computedPosition.left, minLeft, Math.max(minLeft, maxLeft))
+
+    // `position.top` comes in as the anchor Y (mid-line) next to the selection end.
+    const desiredTop = computedPosition.top - height / 2
+    const minTop = margin
+    const maxTop = window.innerHeight - margin - height
+    const top = clamp(desiredTop, minTop, Math.max(minTop, maxTop))
+
+    return { top, left }
+  }, [computedPosition.left, computedPosition.top])
 
   const handleSaveHighlight = () => {
     onCreateHighlight(selectedColor, note || undefined, isPublic)
@@ -90,14 +120,25 @@ export function HighlightPopover({
     // Just select the color, don't create highlight automatically
   }
 
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      onClose()
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [onClose])
+
   return (
     <FocusScope trapped loop>
       <div
-        className="highlight-popover absolute z-50 rounded-2xl p-4 min-w-[320px] outline-none"
+        ref={popoverRef}
+        className="highlight-popover fixed z-50 w-[360px] max-w-[calc(100vw-24px)] rounded-2xl p-4 outline-none"
         style={{
-          top: position.top,
-          left: position.left,
-          transform: 'translateX(-50%)',
+          top: clampedPosition.top,
+          left: clampedPosition.left,
         }}
         role="dialog"
         aria-modal="true"
