@@ -18,6 +18,8 @@ import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 import { TagFilterLink } from '@/components/articles/TagFilterLink'
+import { extractPlainTextFromTiptapJson } from '@/lib/tiptap/plainText'
+import { estimateReadingMinutes } from '@/lib/reading-time'
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
@@ -74,6 +76,10 @@ export default function ArticleDisplay({
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
     : null
 
+  const readingMinutes = estimateReadingMinutes(
+    extractPlainTextFromTiptapJson(article.content)
+  )
+
   return (
     <article className="max-w-4xl mx-auto px-4 py-8">
       {/* Article Header */}
@@ -98,12 +104,14 @@ export default function ArticleDisplay({
               </p>
               <p className="text-sm text-muted-foreground">
                 @{article.author.username}
+                <span className="mx-1">•</span>
                 {publishedDate && (
                   <>
-                    <span className="mx-1">•</span>
                     {publishedDate}
+                    <span className="mx-1">•</span>
                   </>
                 )}
+                {readingMinutes} min read
               </p>
             </div>
           </div>

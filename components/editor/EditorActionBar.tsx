@@ -14,6 +14,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { estimateReadingMinutes } from '@/lib/reading-time'
 
 interface EditorActionBarProps {
   editor: Editor | null
@@ -69,13 +70,7 @@ function MoreMenu({
             onSelect={(e) => e.preventDefault()}
           >
             <Clock className="w-4 h-4 shrink-0" />~
-            {Math.max(
-              1,
-              Math.ceil(
-                (editor?.getText().split(/\s+/).filter(Boolean).length ?? 0) /
-                  200
-              )
-            )}{' '}
+            {estimateReadingMinutes(editor?.getText() ?? '')}{' '}
             min read
           </DropdownMenu.Item>
           {onDelete && (
