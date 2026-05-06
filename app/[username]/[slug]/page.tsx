@@ -33,6 +33,7 @@ import {
   ArticleDisplaySectionFallback,
   ArticleSidebarSectionFallback,
 } from '@/components/error/SectionErrorFallback'
+import { ReadingProgressBar } from '@/components/articles/ReadingProgressBar'
 
 interface ArticlePageProps {
   params: Promise<{
@@ -104,6 +105,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   return (
     <div className="min-h-screen bg-background">
       <AppNavigation />
+      <ReadingProgressBar />
       <main className="pt-20">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
