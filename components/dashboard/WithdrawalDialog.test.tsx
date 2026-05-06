@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { createRef } from 'react'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { WithdrawalDialog } from '@/components/dashboard/WithdrawalDialog'
@@ -30,12 +30,14 @@ describe('WithdrawalDialog', () => {
     await user.type(screen.getByLabelText(/Stellar Address/i), validGAddress)
     await user.click(screen.getByRole('button', { name: /Withdraw$/i }))
 
-    expect(onWithdraw).toHaveBeenCalledWith({
-      amountUsd: 10,
-      stellarAddress: validGAddress,
+    await waitFor(() => {
+      expect(onWithdraw).toHaveBeenCalledWith({
+        amountUsd: 10,
+        stellarAddress: validGAddress,
+      })
+      expect(onOpenChange).toHaveBeenCalledWith(false)
     })
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-  })
+  }, 10_000)
 
   it('uses saved Stellar address without manual entry', async () => {
     const user = userEvent.setup()

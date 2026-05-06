@@ -2,6 +2,7 @@
 
 import { useArticleTipStats } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Coins, Users } from 'lucide-react'
 
 interface TipStatsProps {
@@ -12,9 +13,24 @@ interface TipStatsProps {
 export function TipStats({ articleId, className = '' }: TipStatsProps) {
   const stats = useArticleTipStats(articleId)
 
-  // Don't show anything while loading
   if (stats === undefined) {
-    return null
+    return (
+      <div
+        className={`flex items-center gap-4 text-sm text-muted-foreground ${className}`}
+        aria-hidden
+      >
+        <div className="flex items-center gap-1">
+          <Skeleton className="h-4 w-4 rounded" />
+          <Skeleton className="h-4 w-14" />
+          <Skeleton className="h-4 w-12" />
+        </div>
+        <div className="flex items-center gap-1">
+          <Skeleton className="h-4 w-4 rounded" />
+          <Skeleton className="h-4 w-6" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+      </div>
+    )
   }
 
   return (
