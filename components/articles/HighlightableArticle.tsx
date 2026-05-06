@@ -22,14 +22,17 @@ import { AnimatePresence } from 'motion/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { toast } from 'sonner'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { getRangeBoundingBox } from '@/lib/highlights/utils'
 
-function getRangeEndRect(range: Range): DOMRect | null {
-  // For multi-line selections, getBoundingClientRect() can span multiple lines and
-  // won't represent the actual end point. Prefer the last client rect.
-  const rects = range.getClientRects()
-  if (rects.length > 0) return rects[rects.length - 1] ?? null
-  const r = range.getBoundingClientRect()
-  return r.width || r.height ? r : null
+function getRangeTopCenterAnchor(
+  range: Range
+): { top: number; left: number } | null {
+  const box = getRangeBoundingBox(range)
+  if (!box) return null
+  return {
+    top: box.top,
+    left: box.left + box.width / 2,
+  }
 }
 
 interface HighlightData {
@@ -196,15 +199,15 @@ export function HighlightableArticle({
         const domSelection = window.getSelection()
         if (domSelection && domSelection.rangeCount > 0) {
           const range = domSelection.getRangeAt(0)
-          const endRect = getRangeEndRect(range)
-          if (!endRect) return
+          const anchor = getRangeTopCenterAnchor(range)
+          if (!anchor) return
 
           setSelectedText({ text, from, to })
           setPopoverPosition({
             // Viewport coordinates (HighlightPopover is `position: fixed`).
-            // Anchor beside the end of the selection (near rect.right).
-            top: endRect.top + endRect.height / 2,
-            left: endRect.right + 12,
+            // Anchor at top-center of the selection bounding box.
+            top: anchor.top,
+            left: anchor.left,
           })
         }
       } else {
@@ -246,8 +249,8 @@ export function HighlightableArticle({
     const handlePointerUp = () => {
       if (!isDraggingRef.current) return
       isDraggingRef.current = false
-      // Defer one tick so the browser and Tiptap commit the final selection.
-      setTimeout(() => {
+      // Defer one frame so the browser and Tiptap commit the final selection.
+      requestAnimationFrame(() => {
         if (!editor) return
         const { from, to } = editor.state.selection
         const text = editor.state.doc.textBetween(from, to, ' ')
@@ -255,16 +258,16 @@ export function HighlightableArticle({
         const domSelection = window.getSelection()
         if (!domSelection || domSelection.rangeCount === 0) return
         const range = domSelection.getRangeAt(0)
-        const endRect = getRangeEndRect(range)
-        if (!endRect) return
+        const anchor = getRangeTopCenterAnchor(range)
+        if (!anchor) return
         setSelectedText({ text, from, to })
         setPopoverPosition({
           // Viewport coordinates (HighlightPopover is `position: fixed`).
-          // Anchor beside the end of the selection (near rect.right).
-          top: endRect.top + endRect.height / 2,
-          left: endRect.right + 12,
+          // Anchor at top-center of the selection bounding box.
+          top: anchor.top,
+          left: anchor.left,
         })
-      }, 0)
+      })
     }
 
     container.addEventListener('mousedown', handlePointerDown)

@@ -209,6 +209,10 @@ const HighlightExtension = Mark.create<HighlightOptions>({
 
   addProseMirrorPlugins() {
     const { onHighlightClick } = this.options
+    const tapState: { startX: number; startY: number } = {
+      startX: 0,
+      startY: 0,
+    }
 
     return [
       new Plugin({
@@ -248,6 +252,14 @@ const HighlightExtension = Mark.create<HighlightOptions>({
             return false
           },
           handleDOMEvents: {
+            touchstart: (_view, event) => {
+              const touchEvent = event as TouchEvent
+              const touch = touchEvent.touches[0]
+              if (!touch) return false
+              tapState.startX = touch.clientX
+              tapState.startY = touch.clientY
+              return false
+            },
             // Handle touch events for mobile devices
             touchend: (view, event) => {
               if (!onHighlightClick) {
@@ -257,6 +269,11 @@ const HighlightExtension = Mark.create<HighlightOptions>({
               // Get the touch position
               const touch = event.changedTouches[0]
               if (!touch) return false
+              const dx = touch.clientX - tapState.startX
+              const dy = touch.clientY - tapState.startY
+              if (Math.hypot(dx, dy) > 10) {
+                return false
+              }
 
               // Find the position in the document
               const pos = view.posAtCoords({
