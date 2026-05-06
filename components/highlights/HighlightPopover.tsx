@@ -81,12 +81,6 @@ export function HighlightPopover({
   const [showNoteInput, setShowNoteInput] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
 
-  const [computedPosition, setComputedPosition] = useState(position)
-
-  useEffect(() => {
-    setComputedPosition(position)
-  }, [position.top, position.left])
-
   const clampedPosition = useMemo(() => {
     const clamp = (v: number, min: number, max: number) =>
       Math.min(max, Math.max(min, v))
@@ -99,16 +93,16 @@ export function HighlightPopover({
     // `left`/`top` are popover's top-left corner.
     const minLeft = margin
     const maxLeft = window.innerWidth - margin - width
-    const left = clamp(computedPosition.left, minLeft, Math.max(minLeft, maxLeft))
+    const left = clamp(position.left, minLeft, Math.max(minLeft, maxLeft))
 
     // `position.top` comes in as the anchor Y (mid-line) next to the selection end.
-    const desiredTop = computedPosition.top - height / 2
+    const desiredTop = position.top - height / 2
     const minTop = margin
     const maxTop = window.innerHeight - margin - height
     const top = clamp(desiredTop, minTop, Math.max(minTop, maxTop))
 
     return { top, left }
-  }, [computedPosition.left, computedPosition.top])
+  }, [position.left, position.top])
 
   const handleSaveHighlight = () => {
     onCreateHighlight(selectedColor, note || undefined, isPublic)
