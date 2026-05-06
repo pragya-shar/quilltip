@@ -18,17 +18,23 @@ import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 import { TagFilterLink } from '@/components/articles/TagFilterLink'
+import { extractPlainTextFromTiptapJson } from '@/lib/tiptap/plainText'
+import { estimateReadingMinutes } from '@/lib/reading-time'
+import type { TocHeading } from '@/lib/tiptap/headings'
+import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
 interface ArticleDisplayProps {
   article: ArticleForDisplay
   showHighlights?: boolean
+  tocHeadings?: TocHeading[]
 }
 
 export default function ArticleDisplay({
   article,
   showHighlights = true,
+  tocHeadings = [],
 }: ArticleDisplayProps) {
   const [currentUrl, setCurrentUrl] = useState('')
   const { isAuthenticated } = useAuth()
@@ -74,6 +80,12 @@ export default function ArticleDisplay({
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
     : null
 
+  const readingMinutes = estimateReadingMinutes(
+    extractPlainTextFromTiptapJson(article.content)
+  )
+
+  useEnsureHeadingIds(tocHeadings, { rootSelector: '.article-content' })
+
   return (
     <article className="max-w-4xl mx-auto px-4 py-8">
       {/* Article Header */}
@@ -98,12 +110,14 @@ export default function ArticleDisplay({
               </p>
               <p className="text-sm text-muted-foreground">
                 @{article.author.username}
+                <span className="mx-1">•</span>
                 {publishedDate && (
                   <>
-                    <span className="mx-1">•</span>
                     {publishedDate}
+                    <span className="mx-1">•</span>
                   </>
                 )}
+                {readingMinutes} min read
               </p>
             </div>
           </div>
@@ -146,6 +160,7 @@ export default function ArticleDisplay({
             articleId={article.id as Id<'articles'>}
             content={article.content ?? EMPTY_DOC}
             showHighlights={showHighlights}
+            tocHeadings={tocHeadings}
           />
         ) : (
           <EditorContent editor={editor} />

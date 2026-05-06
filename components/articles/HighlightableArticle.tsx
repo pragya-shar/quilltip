@@ -23,6 +23,8 @@ import { useAuth } from '@/components/providers/AuthContext'
 import { toast } from 'sonner'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 import { getRangeBoundingBox } from '@/lib/highlights/utils'
+import type { TocHeading } from '@/lib/tiptap/headings'
+import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
 
 function getRangeTopCenterAnchor(
   range: Range
@@ -59,6 +61,7 @@ interface HighlightableArticleProps {
   showHighlights?: boolean
   onHighlightClick?: (highlight: HighlightData) => void
   className?: string
+  tocHeadings?: TocHeading[]
 }
 
 export function HighlightableArticle({
@@ -68,6 +71,7 @@ export function HighlightableArticle({
   showHighlights = true,
   onHighlightClick,
   className,
+  tocHeadings = [],
 }: HighlightableArticleProps) {
   const [selectedText, setSelectedText] = useState<{
     text: string
@@ -93,6 +97,8 @@ export function HighlightableArticle({
 
   // Get current user for ownership checks
   const { user } = useAuth()
+
+  useEnsureHeadingIds(tocHeadings, { rootSelector: '.highlightable-article' })
 
   // Fetch article data (for author info, Stellar address, etc.)
   const article = useArticleById(articleId)
