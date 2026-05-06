@@ -51,11 +51,7 @@ export function WithdrawalDialog({
     onOpenChange(next)
   }
 
-  const trimmedAddress = (
-    stellarAddress ||
-    savedStellarAddress ||
-    ''
-  ).trim()
+  const trimmedAddress = (stellarAddress || savedStellarAddress || '').trim()
   const showAddressError =
     trimmedAddress.length > 0 && !isValidStellarAccountId(trimmedAddress)
 
