@@ -34,6 +34,8 @@ import {
   ArticleSidebarSectionFallback,
 } from '@/components/error/SectionErrorFallback'
 import { ReadingProgressBar } from '@/components/articles/ReadingProgressBar'
+import { extractH2HeadingsFromTiptapJson } from '@/lib/tiptap/headings'
+import { ArticleTableOfContents } from '@/components/articles/ArticleTableOfContents'
 
 interface ArticlePageProps {
   params: Promise<{
@@ -52,6 +54,11 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   const highlights = useArticleHighlightsQuery(article?._id)
 
   const highlightTipStats = useArticleHighlightTipStatsOptional(article?._id)
+
+  const tocHeadings = useMemo(
+    () => extractH2HeadingsFromTiptapJson(article?.content),
+    [article?.content]
+  )
 
   // Build lookup map for tip badges
   const tipsByHighlight = useMemo(() => {
@@ -112,14 +119,22 @@ export default function ArticlePage({ params }: ArticlePageProps) {
             {/* Main Article Content */}
             <div className="lg:col-span-8">
               <ErrorBoundary fallback={<ArticleDisplaySectionFallback />}>
-                <ArticleDisplay article={articleForDisplay} />
+                <ArticleDisplay
+                  article={articleForDisplay}
+                  tocHeadings={tocHeadings}
+                />
               </ErrorBoundary>
             </div>
 
             {/* Engagement Sidebar */}
-            <div className="lg:col-span-4">
+            <div className="lg:col-span-4 flex flex-col gap-6">
               <ErrorBoundary fallback={<ArticleSidebarSectionFallback />}>
-                <div className="sticky top-24 space-y-6">
+                {tocHeadings.length >= 3 && (
+                  <div className="sticky top-24 z-10 w-full self-start bg-background lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
+                    <ArticleTableOfContents headings={tocHeadings} />
+                  </div>
+                )}
+                <div className="space-y-6">
                   {/* Tip Section */}
                   <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
                     <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
