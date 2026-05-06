@@ -93,7 +93,9 @@ describe('WithdrawalDialog', () => {
     await user.type(screen.getByLabelText(/Amount \(USD\)/i), '10')
     await user.type(screen.getByLabelText(/Stellar Address/i), invalidAddress)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Invalid Stellar address')
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Invalid Stellar address'
+    )
     const withdraw = screen.getByRole('button', { name: /Withdraw$/i })
     expect(withdraw).toBeDisabled()
     await user.click(withdraw)
