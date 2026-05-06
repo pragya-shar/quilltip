@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { isValidStellarAccountId } from '@/lib/stellar/is-valid-stellar-account-id'
 
 export type WithdrawalDialogProps = {
   open: boolean
@@ -50,7 +51,13 @@ export function WithdrawalDialog({
     onOpenChange(next)
   }
 
-  const addressForSubmit = stellarAddress || savedStellarAddress || ''
+  const trimmedAddress = (
+    stellarAddress ||
+    savedStellarAddress ||
+    ''
+  ).trim()
+  const showAddressError =
+    trimmedAddress.length > 0 && !isValidStellarAccountId(trimmedAddress)
 
   const handleSubmit = async () => {
     const amount = parseFloat(withdrawAmount)
@@ -62,7 +69,7 @@ export function WithdrawalDialog({
       return
     }
 
-    if (!addressForSubmit || !addressForSubmit.startsWith('G')) {
+    if (!isValidStellarAccountId(trimmedAddress)) {
       toast.error('Please enter a valid Stellar address')
       return
     }
@@ -76,7 +83,7 @@ export function WithdrawalDialog({
     try {
       await onWithdraw({
         amountUsd: amount,
-        stellarAddress: addressForSubmit,
+        stellarAddress: trimmedAddress,
       })
       onOpenChange(false)
     } catch {
@@ -153,16 +160,27 @@ export function WithdrawalDialog({
               type="text"
               value={stellarAddress || savedStellarAddress || ''}
               onChange={(e) => setStellarAddress(e.target.value)}
-              className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring read-only:bg-muted/50"
+              aria-invalid={showAddressError}
+              className={`w-full px-3 py-2 border bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring read-only:bg-muted/50 ${
+                showAddressError
+                  ? 'border-destructive focus:ring-destructive'
+                  : 'border-input focus:ring-ring'
+              }`}
               placeholder="G..."
               readOnly={!!savedStellarAddress}
               disabled={isSubmitting}
             />
-            <p className="text-xs text-muted-foreground mt-1">
-              {savedStellarAddress
-                ? 'Using your saved wallet address from Wallet settings'
-                : 'Enter your Stellar wallet address'}
-            </p>
+            {showAddressError ? (
+              <p className="text-xs text-destructive mt-1" role="alert">
+                Invalid Stellar address
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground mt-1">
+                {savedStellarAddress
+                  ? 'Using your saved wallet address from Wallet settings'
+                  : 'Enter your Stellar wallet address'}
+              </p>
+            )}
           </div>
 
           <div className="bg-info border border-info/50 rounded-lg p-3">
@@ -188,8 +206,8 @@ export function WithdrawalDialog({
             disabled={
               isSubmitting ||
               !withdrawAmount ||
-              !addressForSubmit ||
-              !addressForSubmit.startsWith('G')
+              !trimmedAddress ||
+              !isValidStellarAccountId(trimmedAddress)
             }
             className="flex-1 px-4 py-2 bg-brand text-brand-foreground rounded-lg hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 sm:flex-none"
           >
