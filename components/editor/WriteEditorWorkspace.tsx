@@ -42,7 +42,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
-import { compressImage, uploadFile } from '@/lib/upload'
+import { compressImage, uploadFile, validateImageUploadFile } from '@/lib/upload'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const EXCERPT_MAX_CHARS = 500
@@ -422,8 +422,10 @@ export function WriteEditorWorkspace() {
 
       const file = e.dataTransfer.files?.[0]
       if (!file) return
-      if (!file.type.startsWith('image/')) {
-        toast.error('Please drop an image file')
+
+      const validation = validateImageUploadFile(file)
+      if (!validation.ok) {
+        toast.error(validation.error)
         return
       }
 
@@ -481,6 +483,12 @@ export function WriteEditorWorkspace() {
 
       const file = imageFiles[0]
       if (!file) return
+
+      const validation = validateImageUploadFile(file)
+      if (!validation.ok) {
+        toast.error(validation.error)
+        return
+      }
 
       setBodyImageUploading(true)
       setBodyImageUploadProgress(0)
