@@ -6,6 +6,39 @@ import { ConvexReactClient } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 
+export const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
+
+export const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+])
+
+export type ImageUploadValidationResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export function validateImageUploadFile(
+  file: File
+): ImageUploadValidationResult {
+  if (!file.type || !ALLOWED_IMAGE_MIME_TYPES.has(file.type)) {
+    return {
+      ok: false,
+      error: 'Unsupported image type. Use PNG, JPG, GIF, or WEBP.',
+    }
+  }
+
+  if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+    return {
+      ok: false,
+      error: 'Image must be 10MB or smaller',
+    }
+  }
+
+  return { ok: true }
+}
+
 interface UploadResult {
   success: boolean
   url?: string
@@ -33,21 +66,9 @@ export async function uploadFile(
   onProgress?: (progress: UploadProgress) => void
 ): Promise<UploadResult> {
   try {
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      return {
-        success: false,
-        error: 'Please select an image file',
-      }
-    }
-
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024
-    if (file.size > maxSize) {
-      return {
-        success: false,
-        error: 'Image must be smaller than 10MB',
-      }
+    const validation = validateImageUploadFile(file)
+    if (!validation.ok) {
+      return { success: false, error: validation.error }
     }
 
     // Step 1: Get upload URL from Convex
@@ -143,19 +164,9 @@ export async function uploadAvatarFile(
   convexClient: ConvexReactClient,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<UploadResult> {
-  if (!file.type.startsWith('image/')) {
-    return {
-      success: false,
-      error: 'Please select an image file',
-    }
-  }
-
-  const maxSize = 10 * 1024 * 1024
-  if (file.size > maxSize) {
-    return {
-      success: false,
-      error: 'Image must be smaller than 10MB',
-    }
+  const validation = validateImageUploadFile(file)
+  if (!validation.ok) {
+    return { success: false, error: validation.error }
   }
 
   try {

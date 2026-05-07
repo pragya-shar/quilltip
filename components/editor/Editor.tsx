@@ -10,9 +10,14 @@ import Youtube from '@tiptap/extension-youtube'
 import { lowlight } from '@/lib/lowlight'
 import { useEffect, useState } from 'react'
 import { ResizableImage } from './extensions/ResizableImage'
-import { uploadFile, compressImage } from '@/lib/upload'
+import {
+  uploadFile,
+  compressImage,
+  validateImageUploadFile,
+} from '@/lib/upload'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 import { useConvex } from 'convex/react'
+import { toast } from 'sonner'
 
 interface EditorProps {
   content?: string
@@ -140,14 +145,20 @@ export function Editor({
       return // No image files dropped
     }
 
+    const file = imageFiles[0]
+    if (!file) return
+
+    const validation = validateImageUploadFile(file)
+    if (!validation.ok) {
+      toast.error(validation.error)
+      return
+    }
+
     setIsUploading(true)
     setUploadProgress(0)
 
     try {
       // Upload the first image file
-      const file = imageFiles[0]
-      if (!file) return
-
       // Compress image before upload for better performance
       const compressedFile = await compressImage(file, 1200, 0.8)
       const result = await uploadFile(
@@ -163,9 +174,12 @@ export function Editor({
       if (result.success && result.url) {
         // Insert the image at the current cursor position
         editor.chain().focus().setResizableImage({ src: result.url }).run()
+      } else if (result.error) {
+        toast.error(result.error)
       }
     } catch (error) {
       console.error('Error uploading dropped image:', error)
+      toast.error('Upload failed. Please try again.')
     } finally {
       setIsUploading(false)
     }
