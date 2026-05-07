@@ -24,7 +24,10 @@ export const EditorKeymap = Extension.create({
         if (typeof window === 'undefined') return false
 
         const previousUrl = this.editor.getAttributes('link')?.href
-        const url = window.prompt('Enter URL', isNonEmptyString(previousUrl) ? previousUrl : '')
+        const url = window.prompt(
+          'Enter URL',
+          isNonEmptyString(previousUrl) ? previousUrl : ''
+        )
 
         if (url == null) return false
 
@@ -38,4 +41,3 @@ export const EditorKeymap = Extension.create({
     }
   },
 })
-
