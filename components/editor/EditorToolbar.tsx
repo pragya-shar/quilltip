@@ -24,13 +24,7 @@ import {
   Youtube,
   MoreHorizontal,
 } from 'lucide-react'
-import {
-  useEffect,
-  useState,
-  useRef,
-  useLayoutEffect,
-  forwardRef,
-} from 'react'
+import { useEffect, useState, useRef, useLayoutEffect, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ImageUploadDialog } from './ImageUploadDialog'
@@ -188,7 +182,13 @@ export function EditorToolbar({
     syncRovingTabIndex()
     // We intentionally do not include syncRovingTabIndex in deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeItemKey, showNotes, showLinkInput, showImageDialog, showYouTubeDialog])
+  }, [
+    activeItemKey,
+    showNotes,
+    showLinkInput,
+    showImageDialog,
+    showYouTubeDialog,
+  ])
 
   useEffect(() => {
     const root = toolbarRef.current
