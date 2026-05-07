@@ -19,7 +19,9 @@ export type ImageUploadValidationResult =
   | { ok: true }
   | { ok: false; error: string }
 
-export function validateImageUploadFile(file: File): ImageUploadValidationResult {
+export function validateImageUploadFile(
+  file: File
+): ImageUploadValidationResult {
   if (!file.type || !ALLOWED_IMAGE_MIME_TYPES.has(file.type)) {
     return {
       ok: false,

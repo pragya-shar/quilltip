@@ -2,7 +2,11 @@
 
 import { useState, useRef, type RefObject } from 'react'
 import { Upload, Link2, Image as ImageIcon } from 'lucide-react'
-import { uploadFile, compressImage, validateImageUploadFile } from '@/lib/upload'
+import {
+  uploadFile,
+  compressImage,
+  validateImageUploadFile,
+} from '@/lib/upload'
 import { useConvex } from 'convex/react'
 import {
   Dialog,
