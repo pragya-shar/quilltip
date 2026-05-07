@@ -42,7 +42,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
-import { compressImage, uploadFile, validateImageUploadFile } from '@/lib/upload'
+import {
+  compressImage,
+  uploadFile,
+  validateImageUploadFile,
+} from '@/lib/upload'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const EXCERPT_MAX_CHARS = 500
