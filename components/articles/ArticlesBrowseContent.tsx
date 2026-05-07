@@ -1,11 +1,13 @@
 'use client'
 
+import { useLayoutEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useListArticles } from '@/hooks/convex'
 import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
 import ArticleGrid from '@/components/articles/ArticleGrid'
 import Pagination from '@/components/articles/Pagination'
 import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
+import { readBrowseScrollY } from '@/lib/articles/browseListScrollStorage'
 
 function buildPagination(result: {
   page: number
@@ -30,11 +32,15 @@ export function ArticlesBrowseContent({
   tag,
   author,
   urlSearch,
+  scrollStorageKey,
+  onArticleNavigate,
 }: {
   currentPage: number
   tag?: string
   author?: string
   urlSearch?: string
+  scrollStorageKey: string
+  onArticleNavigate?: () => void
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -45,6 +51,15 @@ export function ArticlesBrowseContent({
     author,
     search: urlSearch,
   })
+
+  const listReady = result !== undefined
+
+  useLayoutEffect(() => {
+    if (!listReady) return
+    const y = readBrowseScrollY(scrollStorageKey)
+    if (y === null) return
+    window.scrollTo(0, y)
+  }, [scrollStorageKey, listReady])
 
   if (result === undefined) {
     return <ArticleGridSkeleton count={9} />
@@ -61,7 +76,10 @@ export function ArticlesBrowseContent({
 
   return (
     <>
-      <ArticleGrid articles={articles} />
+      <ArticleGrid
+        articles={articles}
+        onArticleNavigate={onArticleNavigate}
+      />
 
       {pagination.totalPages > 1 && (
         <div className="mt-12">

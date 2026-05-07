@@ -8,9 +8,14 @@ import { TagFilterLink } from '@/components/articles/TagFilterLink'
 interface ArticleCardProps {
   article: ArticleForDisplay
   priority?: boolean
+  onArticleNavigate?: () => void
 }
 
-export default function ArticleCard({ article, priority }: ArticleCardProps) {
+export default function ArticleCard({
+  article,
+  priority,
+  onArticleNavigate,
+}: ArticleCardProps) {
   const publishedDate = article.publishedAt
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
     : null
@@ -21,7 +26,10 @@ export default function ArticleCard({ article, priority }: ArticleCardProps) {
       {article.coverImage && (
         <Link
           href={`/${article.author.username}/${article.slug}`}
+          scroll={false}
           className="focus-ring block rounded-t-[var(--card-radius)]"
+          onPointerDown={() => onArticleNavigate?.()}
+          onClick={() => onArticleNavigate?.()}
         >
           <div className="relative h-48 w-full overflow-hidden rounded-t-[var(--card-radius)]">
             <Image
@@ -40,7 +48,10 @@ export default function ArticleCard({ article, priority }: ArticleCardProps) {
         {/* Title */}
         <Link
           href={`/${article.author.username}/${article.slug}`}
+          scroll={false}
           className="focus-ring rounded-md"
+          onPointerDown={() => onArticleNavigate?.()}
+          onClick={() => onArticleNavigate?.()}
         >
           <h2 className="text-xl font-bold text-foreground mb-2 hover:text-brand-blue transition-colors line-clamp-2">
             {article.title}
