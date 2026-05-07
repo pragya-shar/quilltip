@@ -10,6 +10,7 @@ import Youtube from '@tiptap/extension-youtube'
 import { lowlight } from '@/lib/lowlight'
 import { useEffect, useRef, useState } from 'react'
 import { ResizableImage } from './extensions/ResizableImage'
+import { EditorKeymap } from './extensions/EditorKeymap'
 import {
   uploadFile,
   compressImage,
@@ -98,6 +99,7 @@ export function Editor({
             'rounded-lg bg-muted text-foreground border border-border p-4 my-4 overflow-x-auto',
         },
       }),
+      EditorKeymap,
     ],
     content,
     editable,

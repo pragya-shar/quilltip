@@ -16,6 +16,21 @@ import {
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { estimateReadingMinutes } from '@/lib/reading-time'
 
+function useUndoRedoShortcuts() {
+  const [isApple, setIsApple] = useState(false)
+
+  useEffect(() => {
+    const platform = navigator.platform?.toLowerCase() ?? ''
+    const ua = navigator.userAgent?.toLowerCase() ?? ''
+    setIsApple(platform.includes('mac') || platform.includes('iphone') || ua.includes('mac os'))
+  }, [])
+
+  return {
+    undo: isApple ? '⌘Z' : 'Ctrl+Z',
+    redo: isApple ? '⌘⇧Z' : 'Ctrl+Shift+Z / Ctrl+Y',
+  }
+}
+
 interface EditorActionBarProps {
   editor: Editor | null
   onBack: () => void
@@ -106,6 +121,7 @@ export function EditorActionBar({
   hasUnsavedChanges = false,
 }: EditorActionBarProps) {
   const [relativeTick, setRelativeTick] = useState(0)
+  const shortcuts = useUndoRedoShortcuts()
 
   const canUndo = editor?.can().undo ?? false
   const canRedo = editor?.can().redo ?? false
@@ -207,7 +223,7 @@ export function EditorActionBar({
         onClick={() => editor?.chain().focus().undo().run()}
         disabled={!canUndo}
         className="p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors shrink-0"
-        title="Undo"
+        title={`Undo (${shortcuts.undo})`}
       >
         <Undo2 className="h-4 w-4" />
       </button>
@@ -216,7 +232,7 @@ export function EditorActionBar({
         onClick={() => editor?.chain().focus().redo().run()}
         disabled={!canRedo}
         className="p-2 rounded-md text-muted-foreground opacity-70 hover:bg-muted hover:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors shrink-0"
-        title="Redo"
+        title={`Redo (${shortcuts.redo})`}
       >
         <Redo2 className="h-4 w-4" />
       </button>
