@@ -11,6 +11,7 @@ import { lowlight } from '@/lib/lowlight'
 import { useEffect } from 'react'
 import { EditorToolbar } from './EditorToolbar'
 import { ResizableImage } from './extensions/ResizableImage'
+import { EditorKeymap } from './extensions/EditorKeymap'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 
 interface EditorWithToolbarProps {
@@ -79,6 +80,7 @@ export function EditorWithToolbar({
             'rounded-lg bg-muted text-foreground border border-border p-4 my-4 overflow-x-auto',
         },
       }),
+      EditorKeymap,
     ],
     content,
     editable,

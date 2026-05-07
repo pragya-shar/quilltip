@@ -30,6 +30,18 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { ImageUploadDialog } from './ImageUploadDialog'
 import { YouTubeEmbedDialog } from './YouTubeEmbedDialog'
 
+function useShortcutLabel() {
+  const [isApple, setIsApple] = useState(false)
+
+  useEffect(() => {
+    const platform = navigator.platform?.toLowerCase() ?? ''
+    const ua = navigator.userAgent?.toLowerCase() ?? ''
+    setIsApple(platform.includes('mac') || platform.includes('iphone') || ua.includes('mac os'))
+  }, [])
+
+  return (key: string) => (isApple ? `⌘${key}` : `Ctrl+${key}`)
+}
+
 interface EditorToolbarProps {
   editor: Editor | null
   /** When Add icon is used to jump to a field */
@@ -113,6 +125,7 @@ export function EditorToolbar({
   notes = '',
   onNotesChange,
 }: EditorToolbarProps) {
+  const shortcut = useShortcutLabel()
   const [linkUrl, setLinkUrl] = useState('')
   const [showLinkInput, setShowLinkInput] = useState(false)
   const [showImageDialog, setShowImageDialog] = useState(false)
@@ -445,7 +458,7 @@ export function EditorToolbar({
           <ToolbarButton
             onClick={() => editor.chain().focus().toggleBold().run()}
             isActive={editor.isActive('bold')}
-            title="Bold"
+            title={`Bold (${shortcut('B')})`}
             tabIndex={-1}
             onFocus={() => setActiveItemKey('bold')}
             toolbarKey="bold"
@@ -455,7 +468,7 @@ export function EditorToolbar({
           <ToolbarButton
             onClick={() => editor.chain().focus().toggleItalic().run()}
             isActive={editor.isActive('italic')}
-            title="Italic"
+            title={`Italic (${shortcut('I')})`}
             tabIndex={-1}
             onFocus={() => setActiveItemKey('italic')}
             toolbarKey="italic"
@@ -637,7 +650,7 @@ export function EditorToolbar({
               <ToolbarButton
                 onClick={removeLink}
                 isActive
-                title="Remove link"
+                title={`Remove link (${shortcut('K')})`}
                 tabIndex={-1}
                 onFocus={() => setActiveItemKey('linkRemove')}
                 toolbarKey="linkRemove"
@@ -647,7 +660,7 @@ export function EditorToolbar({
             ) : (
               <ToolbarButton
                 onClick={() => setShowLinkInput(!showLinkInput)}
-                title="Insert link"
+                title={`Insert link (${shortcut('K')})`}
                 tabIndex={-1}
                 onFocus={() => setActiveItemKey('linkInsert')}
                 toolbarKey="linkInsert"

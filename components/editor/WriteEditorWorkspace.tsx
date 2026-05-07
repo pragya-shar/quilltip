@@ -11,6 +11,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
+import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
 import { EditorToolbar } from '@/components/editor/EditorToolbar'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
 import { ImageUploadDialog } from '@/components/editor/ImageUploadDialog'
@@ -174,6 +175,7 @@ export function WriteEditorWorkspace() {
         },
       }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      EditorKeymap,
     ],
     content: '',
     editorProps: {
