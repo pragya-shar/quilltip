@@ -36,7 +36,11 @@ function useShortcutLabel() {
   useEffect(() => {
     const platform = navigator.platform?.toLowerCase() ?? ''
     const ua = navigator.userAgent?.toLowerCase() ?? ''
-    setIsApple(platform.includes('mac') || platform.includes('iphone') || ua.includes('mac os'))
+    setIsApple(
+      platform.includes('mac') ||
+        platform.includes('iphone') ||
+        ua.includes('mac os')
+    )
   }, [])
 
   return (key: string) => (isApple ? `⌘${key}` : `Ctrl+${key}`)
