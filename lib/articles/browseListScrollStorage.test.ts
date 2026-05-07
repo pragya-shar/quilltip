@@ -16,9 +16,7 @@ describe('buildArticlesBrowseScrollStorageKey', () => {
   it('joins pathname and search string with question mark', () => {
     expect(
       buildArticlesBrowseScrollStorageKey('/articles', 'page=2&tag=x')
-    ).toBe(
-      `${ARTICLES_BROWSE_SCROLL_STORAGE_PREFIX}/articles?page=2&tag=x`
-    )
+    ).toBe(`${ARTICLES_BROWSE_SCROLL_STORAGE_PREFIX}/articles?page=2&tag=x`)
   })
 })
 
