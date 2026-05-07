@@ -1,16 +1,53 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useSearchParams, useRouter } from 'next/navigation'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import AppNavigation from '@/components/layout/AppNavigation'
 import SearchInput from '@/components/articles/SearchInput'
 import { ArticlesBrowseContent } from '@/components/articles/ArticlesBrowseContent'
+import {
+  buildArticlesBrowseScrollStorageKey,
+  writeBrowseScrollY,
+} from '@/lib/articles/browseListScrollStorage'
 
 export default function ArticlesPage() {
   const [searchTerm, setSearchTerm] = useState('')
+  const didSaveOnNavigateRef = useRef(false)
 
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const router = useRouter()
+
+  const searchString = searchParams?.toString() ?? ''
+  const scrollStorageKey = buildArticlesBrowseScrollStorageKey(
+    pathname,
+    searchString
+  )
+
+  useEffect(() => {
+    const previous = history.scrollRestoration
+    history.scrollRestoration = 'manual'
+    return () => {
+      history.scrollRestoration = previous
+    }
+  }, [])
+
+  useEffect(() => {
+    const onPageHide = () => {
+      // If we already saved right before a click navigation, don't overwrite it.
+      if (didSaveOnNavigateRef.current) return
+      writeBrowseScrollY(scrollStorageKey, window.scrollY)
+    }
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      window.removeEventListener('pagehide', onPageHide)
+    }
+  }, [scrollStorageKey])
+
+  const saveBrowseScrollPosition = useCallback(() => {
+    didSaveOnNavigateRef.current = true
+    writeBrowseScrollY(scrollStorageKey, window.scrollY)
+  }, [scrollStorageKey])
 
   const currentPage = parseInt(searchParams?.get('page') || '1')
   const tag = searchParams?.get('tag') || undefined
@@ -137,6 +174,8 @@ export default function ArticlesPage() {
           tag={tag}
           author={author}
           urlSearch={urlSearch}
+          scrollStorageKey={scrollStorageKey}
+          onArticleNavigate={saveBrowseScrollPosition}
         />
       </main>
     </div>
