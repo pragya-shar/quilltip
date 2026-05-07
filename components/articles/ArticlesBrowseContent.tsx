@@ -76,10 +76,7 @@ export function ArticlesBrowseContent({
 
   return (
     <>
-      <ArticleGrid
-        articles={articles}
-        onArticleNavigate={onArticleNavigate}
-      />
+      <ArticleGrid articles={articles} onArticleNavigate={onArticleNavigate} />
 
       {pagination.totalPages > 1 && (
         <div className="mt-12">
