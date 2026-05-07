@@ -46,6 +46,7 @@ import {
   compressImage,
   uploadFile,
   validateImageUploadFile,
+  isAbortError,
 } from '@/lib/upload'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
@@ -115,6 +116,18 @@ export function WriteEditorWorkspace() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isAuthenticated } = useAuth()
+
+  const coverUploadAbortRef = useRef<AbortController | null>(null)
+  const bodyUploadAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      coverUploadAbortRef.current?.abort()
+      bodyUploadAbortRef.current?.abort()
+      coverUploadAbortRef.current = null
+      bodyUploadAbortRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     hasUnsavedRef.current = hasUnsavedChanges
@@ -433,15 +446,25 @@ export function WriteEditorWorkspace() {
         return
       }
 
+      coverUploadAbortRef.current?.abort()
+      const controller = new AbortController()
+      coverUploadAbortRef.current = controller
+
       setCoverDropUploading(true)
       try {
-        const compressedFile = await compressImage(file, 1200, 0.8)
+        const compressedFile = await compressImage(
+          file,
+          1200,
+          0.8,
+          controller.signal
+        )
         const result = await uploadFile(
           compressedFile,
           convex,
           'article_image',
           undefined,
-          undefined
+          undefined,
+          controller.signal
         )
         if (result.success && result.url) {
           setCoverImage(result.url)
@@ -450,9 +473,19 @@ export function WriteEditorWorkspace() {
           toast.error(result.error || 'Upload failed')
         }
       } catch (err) {
+        if (isAbortError(err)) {
+          return
+        }
         console.error('Cover drop upload error:', err)
-        toast.error('Upload failed. Please try again.')
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Upload failed. Please try again.'
+        )
       } finally {
+        if (coverUploadAbortRef.current === controller) {
+          coverUploadAbortRef.current = null
+        }
         setCoverDropUploading(false)
       }
     },
@@ -494,11 +527,20 @@ export function WriteEditorWorkspace() {
         return
       }
 
+      bodyUploadAbortRef.current?.abort()
+      const controller = new AbortController()
+      bodyUploadAbortRef.current = controller
+
       setBodyImageUploading(true)
       setBodyImageUploadProgress(0)
 
       try {
-        const compressedFile = await compressImage(file, 1200, 0.8)
+        const compressedFile = await compressImage(
+          file,
+          1200,
+          0.8,
+          controller.signal
+        )
         const result = await uploadFile(
           compressedFile,
           convex,
@@ -506,7 +548,8 @@ export function WriteEditorWorkspace() {
           undefined,
           (progress) => {
             setBodyImageUploadProgress(progress.percentage)
-          }
+          },
+          controller.signal
         )
 
         if (result.success && result.url) {
@@ -515,9 +558,19 @@ export function WriteEditorWorkspace() {
           toast.error(result.error || 'Upload failed')
         }
       } catch (err) {
+        if (isAbortError(err)) {
+          return
+        }
         console.error('Error uploading dropped image:', err)
-        toast.error('Upload failed. Please try again.')
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Upload failed. Please try again.'
+        )
       } finally {
+        if (bodyUploadAbortRef.current === controller) {
+          bodyUploadAbortRef.current = null
+        }
         setBodyImageUploading(false)
       }
     },
