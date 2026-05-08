@@ -83,7 +83,7 @@ export function TipButton({
     }
 
     if (amountCents > TIP_MAX_CENTS) {
-      toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(0)}`)
+      toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(2)}`)
       return
     }
 
