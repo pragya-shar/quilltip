@@ -2,9 +2,9 @@
 
 import { Id } from '@/convex/_generated/dataModel'
 import { formatDistanceToNow } from 'date-fns'
-import { MessageSquare, User, Coins } from 'lucide-react'
+import { MessageSquare, Coins } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import Image from 'next/image'
+import { UserAvatar } from '@/components/ui/user-avatar'
 
 interface HighlightData {
   _id: Id<'highlights'>
@@ -42,8 +42,8 @@ export function HighlightNotes({
   if (highlightsWithNotes.length === 0) {
     return (
       <div className={cn('p-6 text-center', className)}>
-        <MessageSquare className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-        <p className="text-gray-500 text-sm">
+        <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+        <p className="text-muted-foreground text-sm">
           No notes yet. Highlight text and add a note to see it here.
         </p>
       </div>
@@ -51,13 +51,13 @@ export function HighlightNotes({
   }
 
   return (
-    <div className={cn('divide-y divide-gray-100', className)}>
+    <div className={cn('divide-y divide-border', className)}>
       {highlightsWithNotes.map((highlight) => (
         <div
           key={highlight._id}
           role="button"
           tabIndex={0}
-          className="p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+          className="p-4 hover:bg-muted/50 transition-colors cursor-pointer"
           onClick={() => onNoteClick?.(highlight)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
@@ -69,27 +69,21 @@ export function HighlightNotes({
           {/* Note header */}
           <div className="flex items-start justify-between mb-2">
             <div className="flex items-center gap-2">
-              {highlight.userAvatar ? (
-                <Image
-                  src={highlight.userAvatar}
-                  alt={highlight.userName || 'User'}
-                  width={24}
-                  height={24}
-                  className="w-6 h-6 rounded-full"
-                />
-              ) : (
-                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
-                  <User className="w-3 h-3 text-gray-500" />
-                </div>
-              )}
-              <span className="text-sm font-medium text-gray-900">
+              <UserAvatar
+                src={highlight.userAvatar}
+                alt={highlight.userName || 'User'}
+                name={highlight.userName || 'Anonymous'}
+                className="h-6 w-6"
+                fallbackClassName="text-xs"
+              />
+              <span className="text-sm font-medium text-foreground">
                 {highlight.userName || 'Anonymous'}
               </span>
               {highlight.userId === currentUserId && (
-                <span className="text-xs text-gray-500">(You)</span>
+                <span className="text-xs text-muted-foreground">(You)</span>
               )}
             </div>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-muted-foreground">
               {formatDistanceToNow(new Date(highlight.createdAt), {
                 addSuffix: true,
               })}
@@ -98,7 +92,7 @@ export function HighlightNotes({
 
           {/* Highlighted text snippet */}
           <div
-            className="mb-2 px-2 py-1 rounded text-sm text-gray-700 line-clamp-2"
+            className="mb-2 px-2 py-1 rounded text-sm text-foreground line-clamp-2"
             style={{
               backgroundColor: `${highlight.color || '#FFEB3B'}40`,
               borderLeft: `3px solid ${highlight.color || '#FFEB3B'}`,
@@ -125,12 +119,14 @@ export function HighlightNotes({
           })()}
 
           {/* Note content */}
-          <div className="text-sm text-gray-600 italic">{highlight.note}</div>
+          <div className="text-sm text-muted-foreground italic">
+            {highlight.note}
+          </div>
 
           {/* Visibility indicator */}
           {!highlight.isPublic && (
             <div className="mt-2">
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
                 Private
               </span>
             </div>

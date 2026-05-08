@@ -14,7 +14,7 @@ export default function AuthLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-brand-cream to-white">
+    <div className="min-h-screen bg-gradient-to-br from-brand-cream to-background dark:from-background dark:to-muted">
       {/* Navigation Header */}
       <header className="absolute top-0 left-0 right-0 z-10">
         <nav className="container mx-auto px-6 py-6">
@@ -38,28 +38,28 @@ export default function AuthLayout({
                 Q
               </span>
             </div>
-            <h1 className="text-3xl font-bold text-quill-900">
+            <h1 className="text-3xl font-bold text-foreground">
               Welcome to Quilltip
             </h1>
-            <p className="mt-2 text-quill-600">
+            <p className="mt-2 text-muted-foreground">
               Where your words find their worth
             </p>
           </div>
 
           {/* Auth Form Card */}
-          <div className="bg-white rounded-2xl shadow-xl border border-quill-200 p-8">
+          <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-8">
             {children}
           </div>
 
           {/* Footer Links */}
-          <div className="mt-8 text-center text-sm text-quill-600">
+          <div className="mt-8 text-center text-sm text-muted-foreground">
             <p>
               By continuing, you agree to Quilltip&apos;s{' '}
-              <Link href="/terms" className="text-brand-blue hover:underline">
+              <Link href="/terms" className="text-primary hover:underline">
                 Terms of Service
               </Link>{' '}
               and{' '}
-              <Link href="/privacy" className="text-brand-blue hover:underline">
+              <Link href="/privacy" className="text-primary hover:underline">
                 Privacy Policy
               </Link>
             </p>

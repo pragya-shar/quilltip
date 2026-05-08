@@ -148,35 +148,35 @@ export default function ResizableImageComponent({
             {/* Resize Handle - mouse-only interaction for drag resizing */}
             {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
             <div
-              className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 border-2 border-white rounded cursor-nw-resize opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute bottom-0 right-0 w-4 h-4 bg-primary border-2 border-background rounded cursor-nw-resize opacity-0 group-hover:opacity-100 transition-opacity"
               onMouseDown={handleMouseDown}
               style={{ transform: 'translate(50%, 50%)' }}
             />
 
             {/* Size Controls */}
             <div className="absolute top-0 left-0 transform -translate-y-full mb-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="flex gap-1 bg-white rounded-lg shadow-lg border p-1">
+              <div className="flex gap-1 bg-popover rounded-lg shadow-lg border border-border p-1">
                 <button
                   onClick={() => handleSizeChange('small')}
-                  className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
+                  className="px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded text-foreground"
                 >
                   Small
                 </button>
                 <button
                   onClick={() => handleSizeChange('medium')}
-                  className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
+                  className="px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded text-foreground"
                 >
                   Medium
                 </button>
                 <button
                   onClick={() => handleSizeChange('large')}
-                  className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
+                  className="px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded text-foreground"
                 >
                   Large
                 </button>
                 <button
                   onClick={() => handleSizeChange('original')}
-                  className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
+                  className="px-2 py-1 text-xs bg-muted hover:bg-muted/80 rounded text-foreground"
                 >
                   Original
                 </button>

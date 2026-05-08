@@ -7,13 +7,12 @@ import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Youtube from '@tiptap/extension-youtube'
-import { common, createLowlight } from 'lowlight'
+import { lowlight } from '@/lib/lowlight'
 import { useEffect, useState } from 'react'
 import { ResizableImage } from './extensions/ResizableImage'
 import { uploadFile, compressImage } from '@/lib/upload'
+import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 import { useConvex } from 'convex/react'
-
-const lowlight = createLowlight(common)
 
 interface EditorProps {
   content?: string
@@ -44,9 +43,12 @@ export function Editor({
         heading: {
           levels: [1, 2, 3, 4, 5, 6],
         },
+        // StarterKit v3 ships codeBlock, link, and underline by default; we
+        // register customised versions of each below, so disable them here
+        // to avoid duplicate-extension warnings.
         codeBlock: false,
-        // Disable Link from StarterKit since we're adding it separately
         link: false,
+        underline: false,
       }),
       // Add Link separately with our configuration
       Link.configure({
@@ -80,7 +82,7 @@ export function Editor({
         lowlight,
         HTMLAttributes: {
           class:
-            'rounded-lg bg-gray-900 text-gray-100 p-4 my-4 overflow-x-auto',
+            'rounded-lg bg-muted text-foreground border border-border p-4 my-4 overflow-x-auto',
         },
       }),
     ],
@@ -88,8 +90,7 @@ export function Editor({
     editable,
     editorProps: {
       attributes: {
-        class:
-          'prose prose-lg max-w-none focus:outline-none min-h-[400px] px-8 py-4',
+        class: `${EDITOR_PROSE_CLASS} min-h-[400px] px-8 py-4`,
       },
     },
     onUpdate: ({ editor }) => {
@@ -172,38 +173,40 @@ export function Editor({
 
   return (
     <div
-      className={`editor-wrapper bg-white rounded-lg shadow-sm border border-gray-200 relative ${className} ${
-        isDragging ? 'border-blue-400 bg-blue-50' : ''
+      className={`editor-wrapper bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border relative ${className} ${
+        isDragging ? 'border-primary bg-primary/10' : ''
       } ${isUploading ? 'pointer-events-none' : ''}`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {isDragging && (
-        <div className="absolute inset-0 bg-blue-50 bg-opacity-90 flex items-center justify-center z-10 rounded-lg border-2 border-dashed border-blue-400">
+        <div className="absolute inset-0 bg-primary/15 flex items-center justify-center z-10 rounded-lg border-2 border-dashed border-primary">
           <div className="text-center">
-            <div className="text-blue-600 text-lg font-medium mb-2">
+            <div className="text-primary text-lg font-medium mb-2">
               Drop image here
             </div>
-            <div className="text-blue-500 text-sm">Release to upload</div>
+            <div className="text-primary/80 text-sm">Release to upload</div>
           </div>
         </div>
       )}
 
       {isUploading && (
-        <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-10 rounded-lg">
+        <div className="absolute inset-0 bg-card bg-opacity-90 flex items-center justify-center z-10 rounded-lg">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-            <div className="text-gray-600 text-sm">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+            <div className="text-muted-foreground text-sm">
               Optimizing and uploading image...
             </div>
-            <div className="mt-2 w-48 bg-gray-200 rounded-full h-2 mx-auto">
+            <div className="mt-2 w-48 bg-muted rounded-full h-2 mx-auto">
               <div
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                className="bg-primary h-2 rounded-full transition-all duration-300"
                 style={{ width: `${uploadProgress}%` }}
               ></div>
             </div>
-            <div className="text-gray-500 text-xs mt-1">{uploadProgress}%</div>
+            <div className="text-muted-foreground text-xs mt-1">
+              {uploadProgress}%
+            </div>
           </div>
         </div>
       )}

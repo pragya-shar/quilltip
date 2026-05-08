@@ -1,4 +1,3 @@
-import { TurboFactory, ArweaveSigner } from '@ardrive/turbo-sdk/node'
 import { createHash } from 'crypto'
 import { ARWEAVE_CONFIG } from './config'
 import type {
@@ -72,7 +71,9 @@ export async function uploadArticle(
       )
     }
 
-    // Create authenticated client with server wallet
+    const { TurboFactory, ArweaveSigner } =
+      await import('@ardrive/turbo-sdk/node')
+
     const signer = new ArweaveSigner(jwk)
     const turbo = TurboFactory.authenticated({ signer })
 

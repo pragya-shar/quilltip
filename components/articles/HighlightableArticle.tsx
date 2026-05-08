@@ -6,13 +6,14 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import { common, createLowlight } from 'lowlight'
+import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import HighlightExtension from '@/components/editor/extensions/HighlightExtension'
 import { HighlightConverter } from '@/lib/highlights/HighlightConverter'
-import { useQuery, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useArticleById, useArticleHighlightsQuery } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { HighlightPopover } from '@/components/highlights/HighlightPopover'
 import { HighlightDetailsPanel } from '@/components/highlights/HighlightDetailsPanel'
 import { cn } from '@/lib/utils'
@@ -20,8 +21,21 @@ import { JSONContent } from '@tiptap/react'
 import { AnimatePresence } from 'motion/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { toast } from 'sonner'
+import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { getRangeBoundingBox } from '@/lib/highlights/utils'
+import type { TocHeading } from '@/lib/tiptap/headings'
+import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
 
-const lowlight = createLowlight(common)
+function getRangeTopCenterAnchor(
+  range: Range
+): { top: number; left: number } | null {
+  const box = getRangeBoundingBox(range)
+  if (!box) return null
+  return {
+    top: box.top,
+    left: box.left + box.width / 2,
+  }
+}
 
 interface HighlightData {
   _id: Id<'highlights'>
@@ -47,6 +61,7 @@ interface HighlightableArticleProps {
   showHighlights?: boolean
   onHighlightClick?: (highlight: HighlightData) => void
   className?: string
+  tocHeadings?: TocHeading[]
 }
 
 export function HighlightableArticle({
@@ -56,6 +71,7 @@ export function HighlightableArticle({
   showHighlights = true,
   onHighlightClick,
   className,
+  tocHeadings = [],
 }: HighlightableArticleProps) {
   const [selectedText, setSelectedText] = useState<{
     text: string
@@ -72,17 +88,22 @@ export function HighlightableArticle({
   } | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const isApplyingHighlightsRef = useRef(false)
+  // Tracks whether the user is in the middle of a mouse/touch drag-select.
+  // During a drag, onSelectionUpdate fires on every move; if we let it mount
+  // the popover at 3 chars, HighlightPopover's FocusScope trap steals focus
+  // from the article body and the native selection collapses, capping
+  // selections at 3 characters. Defer popover display to pointerup instead.
+  const isDraggingRef = useRef(false)
 
   // Get current user for ownership checks
   const { user } = useAuth()
 
-  // Fetch article data (for author info, Stellar address, etc.)
-  const article = useQuery(api.articles.getArticleById, { id: articleId })
+  useEnsureHeadingIds(tocHeadings, { rootSelector: '.highlightable-article' })
 
-  // Fetch highlights for the article
-  const highlights = useQuery(api.highlights.getArticleHighlights, {
-    articleId,
-  })
+  // Fetch article data (for author info, Stellar address, etc.)
+  const article = useArticleById(articleId)
+
+  const highlights = useArticleHighlightsQuery(articleId)
 
   // Use ref to avoid stale closure in onHighlightClick callback
   const highlightsRef = useRef(highlights)
@@ -96,7 +117,14 @@ export function HighlightableArticle({
   // Initialize TipTap editor with highlight extension
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        // StarterKit v3 ships codeBlock, link, and underline by default; we
+        // register customised versions of each below, so disable them here
+        // to avoid duplicate-extension warnings.
+        codeBlock: false,
+        link: false,
+        underline: false,
+      }),
       Underline,
       Link.configure({
         openOnClick: false,
@@ -159,11 +187,14 @@ export function HighlightableArticle({
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        class: 'prose prose-lg prose-stone max-w-none focus:outline-none',
+        class: `${EDITOR_PROSE_CLASS} prose-stone`,
       },
     },
     onSelectionUpdate: ({ editor }) => {
       if (editable || isApplyingHighlightsRef.current) return
+      // During active mouse/touch drag, defer popover creation to pointerup.
+      // Keyboard selection (shift+arrow, ctrl+a) still runs this path.
+      if (isDraggingRef.current) return
 
       const { selection } = editor.state
       const { from, to } = selection
@@ -174,12 +205,15 @@ export function HighlightableArticle({
         const domSelection = window.getSelection()
         if (domSelection && domSelection.rangeCount > 0) {
           const range = domSelection.getRangeAt(0)
-          const rect = range.getBoundingClientRect()
+          const anchor = getRangeTopCenterAnchor(range)
+          if (!anchor) return
 
           setSelectedText({ text, from, to })
           setPopoverPosition({
-            top: rect.top + window.scrollY - 60,
-            left: rect.left + rect.width / 2,
+            // Viewport coordinates (HighlightPopover is `position: fixed`).
+            // Anchor at top-center of the selection bounding box.
+            top: anchor.top,
+            left: anchor.left,
           })
         }
       } else {
@@ -201,6 +235,61 @@ export function HighlightableArticle({
       isApplyingHighlightsRef.current = false
     })
   }, [editor, highlights, showHighlights])
+
+  // Show the highlight popover only after the user releases a drag-select.
+  // Mounting it mid-drag traps focus and collapses the selection.
+  useEffect(() => {
+    const container = editorRef.current
+    if (!container || editable) return
+
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null
+      // Ignore events originating from an open popover/details dialog so
+      // their own buttons still receive the click.
+      if (target?.closest('[role="dialog"]')) return
+      isDraggingRef.current = true
+      setSelectedText(null)
+      setPopoverPosition(null)
+    }
+
+    const handlePointerUp = () => {
+      if (!isDraggingRef.current) return
+      isDraggingRef.current = false
+      // Defer one frame so the browser and Tiptap commit the final selection.
+      requestAnimationFrame(() => {
+        if (!editor) return
+        const { from, to } = editor.state.selection
+        const text = editor.state.doc.textBetween(from, to, ' ')
+        if (text.trim().length < 3) return
+        const domSelection = window.getSelection()
+        if (!domSelection || domSelection.rangeCount === 0) return
+        const range = domSelection.getRangeAt(0)
+        const anchor = getRangeTopCenterAnchor(range)
+        if (!anchor) return
+        setSelectedText({ text, from, to })
+        setPopoverPosition({
+          // Viewport coordinates (HighlightPopover is `position: fixed`).
+          // Anchor at top-center of the selection bounding box.
+          top: anchor.top,
+          left: anchor.left,
+        })
+      })
+    }
+
+    container.addEventListener('mousedown', handlePointerDown)
+    container.addEventListener('touchstart', handlePointerDown, {
+      passive: true,
+    })
+    document.addEventListener('mouseup', handlePointerUp)
+    document.addEventListener('touchend', handlePointerUp)
+
+    return () => {
+      container.removeEventListener('mousedown', handlePointerDown)
+      container.removeEventListener('touchstart', handlePointerDown)
+      document.removeEventListener('mouseup', handlePointerUp)
+      document.removeEventListener('touchend', handlePointerUp)
+    }
+  }, [editor, editable])
 
   // Handle highlight creation
   const handleCreateHighlight = useCallback(
@@ -247,17 +336,37 @@ export function HighlightableArticle({
     [selectedText, editor, articleId, createHighlight]
   )
 
-  // Handle popover close
   const handlePopoverClose = useCallback(() => {
+    if (editor) {
+      const { from, to } = editor.state.selection
+      if (from !== to) {
+        editor.chain().setTextSelection(from).run()
+      }
+    }
     setSelectedText(null)
     setPopoverPosition(null)
     window.getSelection()?.removeAllRanges()
-  }, [])
+    editor?.commands.focus()
+  }, [editor])
 
-  // Handle tooltip close
   const handleTooltipClose = useCallback(() => {
     setHighlightTooltip(null)
-  }, [])
+    editor?.commands.focus()
+  }, [editor])
+
+  useEffect(() => {
+    if (highlightTooltip === null) return
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      handleTooltipClose()
+    }
+
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [highlightTooltip, handleTooltipClose])
 
   return (
     <div

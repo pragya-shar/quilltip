@@ -7,12 +7,11 @@ import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Youtube from '@tiptap/extension-youtube'
-import { common, createLowlight } from 'lowlight'
+import { lowlight } from '@/lib/lowlight'
 import { useEffect } from 'react'
 import { EditorToolbar } from './EditorToolbar'
 import { ResizableImage } from './extensions/ResizableImage'
-
-const lowlight = createLowlight(common)
+import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 
 interface EditorWithToolbarProps {
   content?: string
@@ -38,9 +37,12 @@ export function EditorWithToolbar({
         heading: {
           levels: [1, 2, 3, 4, 5, 6],
         },
+        // StarterKit v3 ships codeBlock, link, and underline by default; we
+        // register customised versions of each below, so disable them here
+        // to avoid duplicate-extension warnings.
         codeBlock: false,
-        // Disable Link from StarterKit since we're adding it separately
         link: false,
+        underline: false,
       }),
       // Add Link separately with our configuration
       Link.configure({
@@ -74,7 +76,7 @@ export function EditorWithToolbar({
         lowlight,
         HTMLAttributes: {
           class:
-            'rounded-lg bg-gray-900 text-gray-100 p-4 my-4 overflow-x-auto',
+            'rounded-lg bg-muted text-foreground border border-border p-4 my-4 overflow-x-auto',
         },
       }),
     ],
@@ -82,8 +84,7 @@ export function EditorWithToolbar({
     editable,
     editorProps: {
       attributes: {
-        class:
-          'prose prose-lg max-w-none focus:outline-none min-h-[400px] px-8 py-4',
+        class: `${EDITOR_PROSE_CLASS} min-h-[400px] px-8 py-4`,
       },
     },
     onUpdate: ({ editor }) => {
@@ -106,7 +107,7 @@ export function EditorWithToolbar({
 
   return (
     <div
-      className={`editor-wrapper bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden ${className}`}
+      className={`editor-wrapper bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border overflow-hidden ${className}`}
     >
       {showToolbar && editable && <EditorToolbar editor={editor} />}
       <EditorContent editor={editor} className="editor-content" />

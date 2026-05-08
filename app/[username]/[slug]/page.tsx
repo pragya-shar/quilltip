@@ -1,10 +1,14 @@
 'use client'
 
 import { notFound } from 'next/navigation'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { useState, useEffect, useMemo } from 'react'
+import { use, useState, useMemo } from 'react'
+import {
+  useArticleBySlug,
+  useArticleHighlightTipStatsOptional,
+  useArticleHighlightsQuery,
+} from '@/hooks/convex'
 import ArticleDisplay from '@/components/articles/ArticleDisplay'
+import { ArticlePageLoadingSkeleton } from '@/components/articles/ArticlePageLoadingSkeleton'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { TipStats } from '@/components/tipping/TipStats'
 import { TipButton } from '@/components/tipping/TipButton'
@@ -21,8 +25,17 @@ import { ArweaveStatus } from '@/components/articles/ArweaveStatus'
 import { HighlightNotes } from '@/components/highlights/HighlightNotes'
 import { HighlightHeatmap } from '@/components/highlights/HighlightHeatmap'
 import { useAuth } from '@/components/providers/AuthContext'
-import { Id } from '@/convex/_generated/dataModel'
+import type { Id } from '@/types/convex'
+import type { ArticleForDisplay } from '@/types/index'
 import { cn } from '@/lib/utils'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
+import {
+  ArticleDisplaySectionFallback,
+  ArticleSidebarSectionFallback,
+} from '@/components/error/SectionErrorFallback'
+import { ReadingProgressBar } from '@/components/articles/ReadingProgressBar'
+import { extractH2HeadingsFromTiptapJson } from '@/lib/tiptap/headings'
+import { ArticleTableOfContents } from '@/components/articles/ArticleTableOfContents'
 
 interface ArticlePageProps {
   params: Promise<{
@@ -32,41 +45,19 @@ interface ArticlePageProps {
 }
 
 export default function ArticlePage({ params }: ArticlePageProps) {
-  const [routeParams, setRouteParams] = useState<{
-    username: string | null
-    slug: string | null
-  }>({ username: null, slug: null })
+  const { username, slug } = use(params)
   const [showHighlightsPanel, setShowHighlightsPanel] = useState(false)
   const { user } = useAuth()
 
-  // Get params from promise
-  useEffect(() => {
-    params.then((p) =>
-      setRouteParams({
-        username: p.username,
-        slug: p.slug,
-      })
-    )
-  }, [params])
+  const article = useArticleBySlug(username, slug)
 
-  // Fetch article
-  const article = useQuery(
-    api.articles.getArticleBySlug,
-    routeParams.username && routeParams.slug
-      ? { username: routeParams.username, slug: routeParams.slug }
-      : 'skip'
-  )
+  const highlights = useArticleHighlightsQuery(article?._id)
 
-  // Fetch highlights if article exists
-  const highlights = useQuery(
-    api.highlights.getArticleHighlights,
-    article ? { articleId: article._id as Id<'articles'> } : 'skip'
-  )
+  const highlightTipStats = useArticleHighlightTipStatsOptional(article?._id)
 
-  // Fetch highlight tip stats for tip badges in notes sidebar
-  const highlightTipStats = useQuery(
-    api.highlightTips.getArticleStats,
-    article ? { articleId: article._id as Id<'articles'> } : 'skip'
+  const tocHeadings = useMemo(
+    () => extractH2HeadingsFromTiptapJson(article?.content),
+    [article?.content]
   )
 
   // Build lookup map for tip badges
@@ -80,59 +71,22 @@ export default function ArticlePage({ params }: ArticlePageProps) {
     )
   }, [highlightTipStats])
 
-  // Loading state
-  if (routeParams.username === null || routeParams.slug === null) {
-    return (
-      <div className="min-h-screen bg-brand-cream">
-        <AppNavigation />
-        <main className="pt-20">
-          <div className="max-w-4xl mx-auto px-4 py-8">
-            <div className="animate-pulse">
-              <div className="h-96 bg-gray-200 rounded-lg mb-8"></div>
-              <div className="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
-              <div className="space-y-3">
-                <div className="h-4 bg-gray-200 rounded"></div>
-                <div className="h-4 bg-gray-200 rounded"></div>
-                <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
-    )
-  }
-
   // Check if article exists (null means not found, undefined means loading)
-  if (routeParams.username && routeParams.slug && article === null) {
+  if (article === null) {
     notFound()
   }
 
   // Show loading while article is being fetched
   if (!article) {
     return (
-      <div className="min-h-screen bg-brand-cream">
+      <div className="min-h-screen bg-background">
         <AppNavigation />
-        <main className="pt-20">
-          <div className="max-w-4xl mx-auto px-4 py-8">
-            <div className="animate-pulse">
-              <div className="h-96 bg-gray-200 rounded-lg mb-8"></div>
-              <div className="h-8 bg-gray-200 rounded w-3/4 mb-4"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
-              <div className="space-y-3">
-                <div className="h-4 bg-gray-200 rounded"></div>
-                <div className="h-4 bg-gray-200 rounded"></div>
-                <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-              </div>
-            </div>
-          </div>
-        </main>
+        <ArticlePageLoadingSkeleton />
       </div>
     )
   }
 
-  // Map Convex article to match ArticleDisplay interface
-  const articleForDisplay = {
+  const articleForDisplay: ArticleForDisplay = {
     id: article._id,
     slug: article.slug,
     title: article.title,
@@ -140,8 +94,13 @@ export default function ArticlePage({ params }: ArticlePageProps) {
     excerpt: article.excerpt,
     coverImage: article.coverImage,
     publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
-    author: article.author,
-    // Transform string tags to objects
+    author: {
+      id: article.author.id,
+      name: article.author.name ?? null,
+      username: article.author.username,
+      avatar: article.author.avatar ?? null,
+      bio: undefined,
+    },
     tags: (article.tags || []).map((tag: string, index: number) => ({
       id: `tag-${index}`,
       name: tag,
@@ -151,143 +110,164 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-brand-cream">
+    <div className="min-h-screen bg-background">
       <AppNavigation />
+      <ReadingProgressBar />
       <main className="pt-20">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Main Article Content */}
             <div className="lg:col-span-8">
-              <ArticleDisplay article={articleForDisplay} />
+              <ErrorBoundary fallback={<ArticleDisplaySectionFallback />}>
+                <ArticleDisplay
+                  article={articleForDisplay}
+                  tocHeadings={tocHeadings}
+                />
+              </ErrorBoundary>
             </div>
 
             {/* Engagement Sidebar */}
-            <div className="lg:col-span-4">
-              <div className="sticky top-24 space-y-6">
-                {/* Tip Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Heart className="w-5 h-5 text-red-500" />
-                    Support the Author
-                  </h3>
-                  <TipButton
-                    articleId={article._id}
-                    authorName={article.author.name || article.author.username}
-                    authorStellarAddress={article.author.stellarAddress}
-                  />
-                  <div className="mt-4 pt-4 border-t">
-                    <TipStats articleId={article._id} />
+            <div className="lg:col-span-4 flex flex-col gap-6">
+              <ErrorBoundary fallback={<ArticleSidebarSectionFallback />}>
+                {tocHeadings.length >= 3 && (
+                  <div className="sticky top-24 z-10 w-full self-start bg-background lg:max-h-[calc(100dvh-7rem)] lg:overflow-y-auto">
+                    <ArticleTableOfContents headings={tocHeadings} />
                   </div>
-                </div>
-
-                {/* NFT Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Trophy className="w-5 h-5 text-purple-500" />
-                    NFT Collection
-                  </h3>
-                  <NFTIntegration
-                    articleId={article._id}
-                    articleTitle={article.title}
-                    articleSlug={article.slug}
-                    authorId={article.author.id}
-                    currentUserId={user?._id as Id<'users'> | undefined}
-                    currentUserAddress={user?.stellarAddress}
-                  />
-                </div>
-
-                {/* Highlight Heatmap Section */}
-                <HighlightHeatmap
-                  articleId={article._id}
-                  isAuthor={user?._id === article.author.id}
-                />
-
-                {/* Highlight Notes Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                  <button
-                    onClick={() => setShowHighlightsPanel(!showHighlightsPanel)}
-                    className="w-full p-6 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                  >
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                      <MessageSquare className="w-5 h-5 text-blue-500" />
-                      Highlight Notes
-                      {highlights &&
-                        highlights.filter((h) => h.note).length > 0 && (
-                          <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-sm rounded-full">
-                            {highlights.filter((h) => h.note).length}
-                          </span>
-                        )}
+                )}
+                <div className="space-y-6">
+                  {/* Tip Section */}
+                  <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <Heart className="w-5 h-5 text-red-500" />
+                      Support the Author
                     </h3>
-                    <ChevronDown
-                      className={cn(
-                        'w-4 h-4 transform transition-transform',
-                        showHighlightsPanel ? 'rotate-180' : ''
-                      )}
+                    <TipButton
+                      articleId={article._id}
+                      authorName={
+                        article.author.name || article.author.username
+                      }
+                      authorStellarAddress={article.author.stellarAddress}
                     />
-                  </button>
+                    <div className="mt-4 pt-4 border-t">
+                      <TipStats articleId={article._id} />
+                    </div>
+                  </div>
 
-                  {showHighlightsPanel && (
-                    <div className="border-t">
-                      <HighlightNotes
-                        highlights={highlights || []}
-                        currentUserId={user?._id as Id<'users'> | undefined}
-                        tipsByHighlight={tipsByHighlight}
-                        onNoteClick={(highlight) => {
-                          // Scroll to highlight in article
-                          const element = document.querySelector(
-                            `[data-highlight-id="${highlight._id}"]`
-                          )
-                          element?.scrollIntoView({
-                            behavior: 'smooth',
-                            block: 'center',
-                          })
-                        }}
-                        className="max-h-[500px] overflow-y-auto"
+                  {/* NFT Section */}
+                  <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-purple-500" />
+                      NFT Collection
+                    </h3>
+                    <NFTIntegration
+                      articleId={article._id}
+                      articleTitle={article.title}
+                      articleSlug={article.slug}
+                      authorId={article.author.id}
+                      currentUserId={user?._id as Id<'users'> | undefined}
+                      currentUserAddress={user?.stellarAddress}
+                    />
+                  </div>
+
+                  {/* Highlight Heatmap Section */}
+                  <HighlightHeatmap
+                    articleId={article._id}
+                    isAuthor={user?._id === article.author.id}
+                  />
+
+                  {/* Highlight Notes Section */}
+                  <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border">
+                    <button
+                      onClick={() =>
+                        setShowHighlightsPanel(!showHighlightsPanel)
+                      }
+                      className="w-full p-[var(--card-padding)] flex items-center justify-between hover:bg-muted transition-colors"
+                    >
+                      <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <MessageSquare className="w-5 h-5 text-blue-500" />
+                        Highlight Notes
+                        {highlights &&
+                          highlights.filter((h) => h.note).length > 0 && (
+                            <span className="ml-2 px-2 py-0.5 bg-primary/15 text-primary text-sm rounded-full">
+                              {highlights.filter((h) => h.note).length}
+                            </span>
+                          )}
+                      </h3>
+                      <ChevronDown
+                        className={cn(
+                          'w-4 h-4 transform transition-transform',
+                          showHighlightsPanel ? 'rotate-180' : ''
+                        )}
+                      />
+                    </button>
+
+                    {showHighlightsPanel && (
+                      <div className="border-t">
+                        <HighlightNotes
+                          highlights={highlights || []}
+                          currentUserId={user?._id as Id<'users'> | undefined}
+                          tipsByHighlight={tipsByHighlight}
+                          onNoteClick={(highlight) => {
+                            // Scroll to highlight in article
+                            const element = document.querySelector(
+                              `[data-highlight-id="${highlight._id}"]`
+                            )
+                            element?.scrollIntoView({
+                              behavior: 'smooth',
+                              block: 'center',
+                            })
+                          }}
+                          className="max-h-[500px] overflow-y-auto"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Article Stats */}
+                  {article.tipStats && (
+                    <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <DollarSign className="w-5 h-5 text-green-500" />
+                        Article Stats
+                      </h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            Total Tips
+                          </span>
+                          <span className="font-semibold">
+                            {article.tipStats.count || 0}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            Total Earned
+                          </span>
+                          <span className="font-semibold">
+                            ${(article.tipStats.total || 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Arweave Permanent Storage */}
+                  {article.arweaveStatus && (
+                    <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
+                      <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <Archive className="w-5 h-5 text-blue-500" />
+                        Permanent Storage
+                      </h3>
+                      <ArweaveStatus
+                        status={article.arweaveStatus}
+                        txId={article.arweaveTxId}
+                        url={article.arweaveUrl}
+                        timestamp={article.arweaveTimestamp}
                       />
                     </div>
                   )}
                 </div>
-
-                {/* Article Stats */}
-                {article.tipStats && (
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <DollarSign className="w-5 h-5 text-green-500" />
-                      Article Stats
-                    </h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Tips</span>
-                        <span className="font-semibold">
-                          {article.tipStats.count || 0}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Earned</span>
-                        <span className="font-semibold">
-                          ${(article.tipStats.total || 0).toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Arweave Permanent Storage */}
-                {article.arweaveStatus && (
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <Archive className="w-5 h-5 text-blue-500" />
-                      Permanent Storage
-                    </h3>
-                    <ArweaveStatus
-                      status={article.arweaveStatus}
-                      txId={article.arweaveTxId}
-                      url={article.arweaveUrl}
-                      timestamp={article.arweaveTimestamp}
-                    />
-                  </div>
-                )}
-              </div>
+              </ErrorBoundary>
             </div>
           </div>
         </div>

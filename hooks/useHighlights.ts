@@ -1,13 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useQuery, useMutation } from 'convex/react'
+import { useMutation } from 'convex/react'
+import { toast } from 'sonner'
 import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import type { Id } from '@/types/convex'
+import {
+  useArticleHighlightsQuery,
+  useUserHighlightsQuery,
+} from '@/hooks/convex'
 import { SelectionManager } from '@/lib/highlights/SelectionManager'
 import { HighlightSerializer } from '@/lib/highlights/HighlightSerializer'
 import {
   HighlightRenderer,
   HighlightSegment,
 } from '@/lib/highlights/HighlightRenderer'
+import { getRangeBoundingBox } from '@/lib/highlights/utils'
 
 export interface UseHighlightsOptions {
   articleId: Id<'articles'>
@@ -48,10 +54,7 @@ export function useHighlights({
   const rendererRef = useRef<HighlightRenderer | null>(null)
 
   // Fetch highlights
-  const highlights = useQuery(
-    api.highlights.getArticleHighlights,
-    enabled ? { articleId } : 'skip'
-  )
+  const highlights = useArticleHighlightsQuery(articleId, enabled)
 
   // Mutations
   const createHighlight = useMutation(api.highlights.createHighlight)
@@ -65,7 +68,8 @@ export function useHighlights({
     const manager = new SelectionManager(
       containerRef.current,
       (textSelection) => {
-        const rect = textSelection.range.getBoundingClientRect()
+        const rect = getRangeBoundingBox(textSelection.range)
+        if (!rect) return
 
         setSelection({
           text: textSelection.text,
@@ -167,6 +171,9 @@ export function useHighlights({
         clearSelection()
       } catch (error) {
         console.error('Error creating highlight:', error)
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to save highlight'
+        )
       } finally {
         setIsCreating(false)
       }
@@ -200,6 +207,9 @@ export function useHighlights({
         onHighlightUpdated?.(highlightId)
       } catch (error) {
         console.error('Error updating highlight:', error)
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to update highlight'
+        )
       }
     },
     [updateHighlight, onHighlightUpdated]
@@ -213,6 +223,9 @@ export function useHighlights({
         onHighlightDeleted?.(highlightId)
       } catch (error) {
         console.error('Error deleting highlight:', error)
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to delete highlight'
+        )
       }
     },
     [deleteHighlight, onHighlightDeleted]
@@ -260,9 +273,7 @@ export function useHighlights({
  * Hook specifically for managing article highlights display
  */
 export function useArticleHighlights(articleId: Id<'articles'>) {
-  const highlights = useQuery(api.highlights.getArticleHighlights, {
-    articleId,
-  })
+  const highlights = useArticleHighlightsQuery(articleId)
 
   const publicHighlights = highlights?.filter((h) => h.isPublic) || []
   const highlightCount = highlights?.length || 0
@@ -280,10 +291,7 @@ export function useArticleHighlights(articleId: Id<'articles'>) {
  * Hook for managing user's highlights across all articles
  */
 export function useUserHighlights(userId?: Id<'users'>) {
-  const highlights = useQuery(
-    api.highlights.getUserHighlights,
-    userId ? { userId } : 'skip'
-  )
+  const highlights = useUserHighlightsQuery(userId)
 
   // Group highlights by article
   const highlightsByArticle =

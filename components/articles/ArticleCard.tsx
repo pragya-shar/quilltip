@@ -1,59 +1,80 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import { formatDistanceToNow } from 'date-fns'
 import { ArticleForDisplay } from '@/types/index'
+import { TagFilterLink } from '@/components/articles/TagFilterLink'
 
 interface ArticleCardProps {
   article: ArticleForDisplay
+  priority?: boolean
+  onArticleNavigate?: () => void
 }
 
-export default function ArticleCard({ article }: ArticleCardProps) {
+export default function ArticleCard({
+  article,
+  priority,
+  onArticleNavigate,
+}: ArticleCardProps) {
   const publishedDate = article.publishedAt
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
     : null
 
   return (
-    <article className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+    <article className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border ring-1 ring-border/60 hover:shadow-md transition-shadow duration-200">
       {/* Cover Image */}
       {article.coverImage && (
-        <Link href={`/${article.author.username}/${article.slug}`}>
-          <div className="relative h-48 w-full overflow-hidden">
+        <Link
+          href={`/${article.author.username}/${article.slug}`}
+          scroll={false}
+          className="focus-ring block rounded-t-[var(--card-radius)]"
+          onPointerDown={() => onArticleNavigate?.()}
+          onClick={() => onArticleNavigate?.()}
+        >
+          <div className="relative h-48 w-full overflow-hidden rounded-t-[var(--card-radius)]">
             <Image
               src={article.coverImage}
               alt={article.title}
               fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              priority={priority}
               className="object-cover hover:scale-105 transition-transform duration-200"
             />
           </div>
         </Link>
       )}
 
-      <div className="p-6">
+      <div className="p-[var(--card-padding)]">
         {/* Title */}
-        <Link href={`/${article.author.username}/${article.slug}`}>
-          <h2 className="text-xl font-bold text-gray-900 mb-2 hover:text-brand-blue transition-colors line-clamp-2">
+        <Link
+          href={`/${article.author.username}/${article.slug}`}
+          scroll={false}
+          className="focus-ring rounded-md"
+          onPointerDown={() => onArticleNavigate?.()}
+          onClick={() => onArticleNavigate?.()}
+        >
+          <h2 className="text-xl font-bold text-foreground mb-2 hover:text-brand-blue transition-colors line-clamp-2">
             {article.title}
           </h2>
         </Link>
 
         {/* Excerpt */}
         {article.excerpt && (
-          <p className="text-gray-600 mb-4 line-clamp-3">{article.excerpt}</p>
+          <p className="text-muted-foreground mb-4 line-clamp-3">
+            {article.excerpt}
+          </p>
         )}
 
         {/* Tags */}
         {article.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {article.tags.slice(0, 3).map((tag) => (
-              <span
-                key={tag.id}
-                className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full"
-              >
+              <TagFilterLink key={tag.id} tag={tag.name}>
                 {tag.name}
-              </span>
+              </TagFilterLink>
             ))}
             {article.tags.length > 3 && (
-              <span className="text-xs px-2 py-1 text-gray-500">
+              <span className="text-xs px-2 py-1 text-muted-foreground">
                 +{article.tags.length - 3} more
               </span>
             )}
@@ -61,31 +82,22 @@ export default function ArticleCard({ article }: ArticleCardProps) {
         )}
 
         {/* Author Info */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+        <div className="flex items-center justify-between pt-4 border-t border-border">
           <Link
             href={`/${article.author.username}`}
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            className="focus-ring flex items-center gap-3 rounded-md hover:opacity-80 transition-opacity"
           >
-            {article.author.avatar ? (
-              <Image
-                src={article.author.avatar}
-                alt={article.author.name || article.author.username}
-                width={36}
-                height={36}
-                className="w-9 h-9 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-9 h-9 rounded-full bg-brand-blue text-white flex items-center justify-center font-semibold text-sm">
-                {(article.author.name || article.author.username)
-                  .charAt(0)
-                  .toUpperCase()}
-              </div>
-            )}
+            <UserAvatar
+              src={article.author.avatar}
+              alt={article.author.name || article.author.username}
+              name={article.author.name || article.author.username}
+              className="h-9 w-9"
+            />
             <div>
-              <p className="text-sm font-medium text-gray-900">
+              <p className="text-sm font-medium text-foreground">
                 {article.author.name || article.author.username}
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 @{article.author.username}
               </p>
             </div>
@@ -93,7 +105,9 @@ export default function ArticleCard({ article }: ArticleCardProps) {
 
           {/* Published Date */}
           {publishedDate && (
-            <span className="text-xs text-gray-500">{publishedDate}</span>
+            <span className="text-xs text-muted-foreground">
+              {publishedDate}
+            </span>
           )}
         </div>
       </div>

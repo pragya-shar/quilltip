@@ -17,7 +17,10 @@ export const getCurrentUser = query({
     const userId = await getAuthUserId(ctx)
     if (!userId) return null
 
-    return await ctx.db.get(userId)
+    const user = await ctx.db.get(userId)
+    if (!user) return null
+    const { hashedPassword: _, ...safeUser } = user
+    return safeUser
   },
 })
 
@@ -84,7 +87,30 @@ export const updateProfile = mutation({
     updates.updatedAt = Date.now()
 
     await ctx.db.patch(userId, updates)
-    return await ctx.db.get(userId)
+    const updated = await ctx.db.get(userId)
+    if (!updated) return null
+    const { hashedPassword: _, ...safeUser } = updated
+    return safeUser
+  },
+})
+
+// Clear profile avatar (patch cannot remove optional fields; replace omits avatar)
+export const clearAvatar = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+
+    const user = await ctx.db.get(userId)
+    if (!user) throw new Error('User not found')
+
+    const next = { ...user }
+    delete next.avatar
+    await ctx.db.replace(userId, next)
+    const updated = await ctx.db.get(userId)
+    if (!updated) return null
+    const { hashedPassword: _, ...safeUser } = updated
+    return safeUser
   },
 })
 

@@ -1,6 +1,6 @@
 {
   "name": "quilltip-app",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "scripts": {
     "dev": "npm-run-all --parallel dev:frontend dev:backend",
@@ -8,6 +8,7 @@
     "dev:backend": "convex dev",
     "predev": "convex dev --until-success",
     "build": "next build",
+    "analyze": "ANALYZE=true next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -16,9 +17,7 @@
     "test": "vitest",
     "test:once": "vitest run",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:coverage": "vitest run --coverage --coverage.reporter=text",
-    "changeset": "changeset",
-    "version": "changeset version"
+    "test:coverage": "vitest run --coverage --coverage.reporter=text"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -105,11 +104,14 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^0.5.2",
-    "@changesets/cli": "^2.29.8",
     "@commitlint/cli": "^20.4.2",
     "@commitlint/config-conventional": "^20.4.2",
+    "@edge-runtime/vm": "^5.0.0",
     "@eslint/eslintrc": "^3.3.4",
+    "@next/bundle-analyzer": "^16.2.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.3.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
@@ -117,6 +119,7 @@
     "eslint-config-next": "16.0.10",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
+    "jsdom": "^29.0.1",
     "lint-staged": "^16.2.7",
     "npm-run-all": "^4.1.5",
     "prettier": "^3.8.1",

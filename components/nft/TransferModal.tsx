@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { useMutation, useQuery } from 'convex/react'
+import { useState, type RefObject } from 'react'
+import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useNFTByArticle } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { Loader2, CheckCircle, AlertCircle, Send } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ interface TransferModalProps {
   currentOwner: string
   nftId?: Id<'articleNFTs'>
   onTransferComplete?: (newOwner: string) => void
+  triggerRef?: RefObject<HTMLElement | null>
 }
 
 export function TransferModal({
@@ -36,6 +38,7 @@ export function TransferModal({
   currentOwner,
   nftId,
   onTransferComplete,
+  triggerRef,
 }: TransferModalProps) {
   const [recipientUsername, setRecipientUsername] = useState('')
   const [isTransferring, setIsTransferring] = useState(false)
@@ -46,10 +49,8 @@ export function TransferModal({
 
   const transferNFT = useMutation(api.nfts.transferNFT)
 
-  // Get NFT data if we don't have the ID
-  const nftData = useQuery(
-    api.nfts.getNFTByArticle,
-    !nftId ? { articleId: articleId as Id<'articles'> } : 'skip'
+  const nftData = useNFTByArticle(
+    !nftId ? (articleId as Id<'articles'>) : undefined
   )
 
   const actualNftId =
@@ -116,7 +117,6 @@ export function TransferModal({
         throw new Error('Transfer failed')
       }
     } catch (error) {
-      console.error('Transfer error:', error)
       setTransferStatus('error')
       setErrorMessage(
         error instanceof Error
@@ -165,8 +165,27 @@ export function TransferModal({
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) handleClose()
+      }}
+    >
+      <DialogContent
+        className="w-[calc(100vw-2rem)] sm:max-w-md"
+        onCloseAutoFocus={(e) => {
+          if (triggerRef?.current) {
+            e.preventDefault()
+            triggerRef.current.focus()
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isTransferring) e.preventDefault()
+        }}
+        onInteractOutside={(e) => {
+          if (isTransferring) e.preventDefault()
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Transfer NFT Ownership</DialogTitle>
           <DialogDescription>
@@ -178,8 +197,10 @@ export function TransferModal({
         <div className="space-y-4">
           {/* Current Owner */}
           <div className="space-y-2">
-            <Label className="text-sm text-gray-600">Current Owner</Label>
-            <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm">
+            <Label className="text-sm text-muted-foreground">
+              Current Owner
+            </Label>
+            <div className="max-w-full overflow-hidden px-3 py-2 bg-muted rounded-lg text-sm font-mono break-all">
               @{currentOwner}
             </div>
           </div>
@@ -195,7 +216,7 @@ export function TransferModal({
               disabled={isTransferring || transferStatus === 'success'}
               className="font-mono"
             />
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               Enter the username of the recipient (e.g., johndoe)
             </p>
           </div>
@@ -212,7 +233,9 @@ export function TransferModal({
               }`}
             >
               {getStatusIcon()}
-              <span className="text-sm">{getStatusMessage()}</span>
+              <span className="min-w-0 text-sm break-words">
+                {getStatusMessage()}
+              </span>
             </div>
           )}
 

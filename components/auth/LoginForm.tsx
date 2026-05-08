@@ -7,6 +7,11 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loginSchema, type LoginFormData } from '@/lib/validations/auth'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+
+const authInputClassName =
+  'rounded-lg bg-background text-foreground focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:border-transparent'
 
 /**
  * Login Form Component
@@ -65,16 +70,16 @@ export default function LoginForm() {
       <div>
         <label
           htmlFor="email"
-          className="block text-sm font-medium text-quill-700 mb-2"
+          className="block text-sm font-medium text-foreground mb-2"
         >
           Email address
         </label>
-        <input
+        <Input
           {...register('email')}
           type="email"
           id="email"
           autoComplete="email"
-          className="w-full px-3 py-2 border border-quill-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+          className={authInputClassName}
           placeholder="you@example.com"
         />
         {errors.email && (
@@ -86,30 +91,32 @@ export default function LoginForm() {
       <div>
         <label
           htmlFor="password"
-          className="block text-sm font-medium text-quill-700 mb-2"
+          className="block text-sm font-medium text-foreground mb-2"
         >
           Password
         </label>
         <div className="relative">
-          <input
+          <Input
             {...register('password')}
             type={showPassword ? 'text' : 'password'}
             id="password"
             autoComplete="current-password"
-            className="w-full px-3 py-2 pr-10 border border-quill-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+            className={`pr-10 ${authInputClassName}`}
             placeholder="Enter your password"
           />
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-quill-500 hover:text-quill-700"
+            className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             {showPassword ? (
               <EyeOff className="h-4 w-4" />
             ) : (
               <Eye className="h-4 w-4" />
             )}
-          </button>
+          </Button>
         </div>
         {errors.password && (
           <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
@@ -117,20 +124,20 @@ export default function LoginForm() {
       </div>
 
       {/* Submit Button */}
-      <button
+      <Button
         type="submit"
         disabled={isLoading}
-        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-brand-blue hover:bg-brand-accent focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full rounded-lg shadow-sm hover:bg-brand-accent focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-blue"
       >
         {isLoading ? (
           <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
             Signing in...
           </>
         ) : (
           'Sign in'
         )}
-      </button>
+      </Button>
     </form>
   )
 }

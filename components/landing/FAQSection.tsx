@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useInView } from 'framer-motion'
+import { motion, AnimatePresence, useInView } from 'motion/react'
 import { useRef } from 'react'
 
 export default function FAQSection() {
@@ -68,11 +67,11 @@ export default function FAQSection() {
   }
 
   return (
-    <section id="faq" className="py-32 px-8 bg-white">
+    <section id="faq" className="py-32 px-8 bg-background">
       <div className="container mx-auto max-w-6xl" ref={ref}>
         {/* Section Header */}
         <motion.h2
-          className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-16 leading-[1.2] text-neutral-900"
+          className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-16 leading-[1.2] text-foreground"
           initial={{ opacity: 0, y: 30 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
           transition={{ duration: 0.8 }}
@@ -96,13 +95,13 @@ export default function FAQSection() {
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors duration-200 ${
                     openIndex === index
-                      ? 'bg-brand-accent/20 text-brand-accent'
-                      : 'bg-neutral-800 text-white'
+                      ? 'bg-brand/15 text-brand'
+                      : 'bg-muted text-foreground border border-border'
                   }`}
                 >
                   <ChevronDown className="w-4 h-4" />
                 </div>
-                <h3 className="font-semibold text-neutral-900 text-[15px] leading-relaxed pt-1">
+                <h3 className="font-semibold text-foreground text-[15px] leading-relaxed pt-1">
                   {faq.question}
                 </h3>
               </button>
@@ -116,7 +115,7 @@ export default function FAQSection() {
                     transition={{ duration: 0.3 }}
                     className="overflow-hidden"
                   >
-                    <div className="ml-12 pb-4 text-[14px] text-neutral-500 leading-relaxed">
+                    <div className="ml-12 pb-4 text-[14px] text-muted-foreground leading-relaxed">
                       {faq.answer}
                     </div>
                   </motion.div>

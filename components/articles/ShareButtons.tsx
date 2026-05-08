@@ -135,13 +135,15 @@ export default function ShareButtons({
 
       <div className="flex items-center gap-3">
         {/* Share label */}
-        <span className="text-sm text-gray-600 font-medium">Share:</span>
+        <span className="text-sm text-muted-foreground font-medium">
+          Share:
+        </span>
 
         {/* Native share button (mobile) */}
         {hasNativeShare && (
           <button
             onClick={handleNativeShare}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-brand-blue hover:bg-gray-50 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand-blue hover:bg-muted rounded-lg transition-colors"
             aria-label="Share article"
           >
             <Share2 className="h-4 w-4" />
@@ -151,7 +153,7 @@ export default function ShareButtons({
         {/* Twitter */}
         <button
           onClick={() => openShareWindow(shareUrls.twitter)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-blue-500 hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on Twitter"
         >
           <Twitter className="h-4 w-4" />
@@ -161,7 +163,7 @@ export default function ShareButtons({
         {/* LinkedIn */}
         <button
           onClick={() => openShareWindow(shareUrls.linkedin)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-blue-600 hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on LinkedIn"
         >
           <Linkedin className="h-4 w-4" />
@@ -171,7 +173,7 @@ export default function ShareButtons({
         {/* Facebook */}
         <button
           onClick={() => openShareWindow(shareUrls.facebook)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-blue-700 hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on Facebook"
         >
           <Facebook className="h-4 w-4" />
@@ -181,13 +183,15 @@ export default function ShareButtons({
         {/* Copy Link */}
         <button
           onClick={handleCopyLink}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:text-brand-blue hover:bg-gray-50 rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand-blue hover:bg-muted rounded-lg transition-colors"
           aria-label={copied ? 'Link copied!' : 'Copy link'}
         >
           {copied ? (
             <>
-              <Check className="h-4 w-4 text-green-600" />
-              <span className="hidden sm:inline text-green-600">Copied!</span>
+              <Check className="h-4 w-4 text-green-800 dark:text-green-300" />
+              <span className="hidden sm:inline text-green-800 dark:text-green-300">
+                Copied!
+              </span>
             </>
           ) : (
             <>

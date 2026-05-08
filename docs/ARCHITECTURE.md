@@ -116,7 +116,7 @@ Phrase-level tipping — readers select text, tip specific highlights, authors s
 - **Heatmap**: Yellow → Orange → Red gradient based on tip totals per highlight
 
 **Status:** Implementation complete, pending user validation.
-See [docs/planning/highlight-tipping.md](planning/highlight-tipping.md) for contract history, DB schema, and component map.
+See [highlight-tipping.md](highlight-tipping.md) for contract history, DB schema, and component map.
 
 ### Deliverable 2: Permanent Content Storage (Arweave)
 
@@ -128,8 +128,7 @@ Articles stored permanently on Arweave via Turbo SDK (FREE for < 100 KiB).
 - Verification job confirms permanent storage after ~10 min
 - Status flow: `pending` → `uploaded` → `verified`
 
-**Status:** In progress — Turbo SDK migration pending (currently using raw `arweave` SDK).
-See [docs/planning/arweave-integration.md](planning/arweave-integration.md) for upload flow, key files, and remaining work.
+**Status:** Implementation complete.
 
 ## Arweave Integration
 
@@ -141,12 +140,3 @@ See [docs/planning/arweave-integration.md](planning/arweave-integration.md) for 
 Status flow: `pending` → `uploaded` → `verified`
 
 View on blockchain: `https://arweave.net/{txId}`
-
-## Security
-
-- **Authentication**: Secure password hashing with Argon2
-- **Data Validation**: Zod schemas for all inputs
-- **XSS Protection**: Content sanitization
-- **CSRF Protection**: Built into Convex
-- **Rate Limiting**: API throttling
-- **Secure File Uploads**: Type validation and size limits

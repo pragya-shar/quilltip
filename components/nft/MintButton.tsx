@@ -13,11 +13,17 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog'
 import { useStellarWallet } from '@/hooks/useStellarWallet'
 import { nftClient } from '@/lib/stellar/nft-client'
 import { stellarClient } from '@/lib/stellar/client'
 import { ConvexHttpClient } from 'convex/browser'
+import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import {
+  NO_WALLET_AVAILABLE_ERROR_CODE,
+  ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
+} from '@/lib/stellar/wallet-adapter'
 
 interface MintButtonProps {
   articleId: string | Id<'articles'>
@@ -43,7 +49,8 @@ export function MintButton({
   onMintSuccess,
 }: MintButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [showDialog, setShowDialog] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const [mintingStep, setMintingStep] = useState<
     'checking' | 'wallet' | 'blockchain' | 'database'
   >('checking')
@@ -67,6 +74,27 @@ export function MintButton({
 
   // Initialize Convex HTTP client for async calls
   const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
+
+  const handleConnectWallet = async () => {
+    try {
+      await wallet.connect()
+      toast.success('Wallet connected successfully!')
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to connect wallet'
+
+      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+        setInstallDialogOpen(true)
+        return
+      }
+
+      if (message.startsWith(`${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}:`)) {
+        return
+      }
+
+      toast.error(message)
+    }
+  }
 
   const handleMint = async () => {
     if (!wallet.isConnected || !wallet.publicKey) {
@@ -132,7 +160,7 @@ export function MintButton({
 
       if (nftId) {
         toast.success('NFT minted successfully!')
-        setShowDialog(false)
+        setDialogOpen(false)
         onMintSuccess?.()
       } else {
         // Blockchain succeeded but database failed - this is a consistency issue
@@ -186,18 +214,26 @@ export function MintButton({
 
   return (
     <>
-      <Button
-        onClick={() => setShowDialog(true)}
-        disabled={!canMint}
-        className="w-full"
-        variant="default"
-      >
-        <Sparkles className="mr-2 h-4 w-4" />
-        Mint NFT
-      </Button>
-
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogTrigger asChild>
+          <Button
+            disabled={!canMint}
+            className="w-full"
+            variant="default"
+            type="button"
+          >
+            <Sparkles className="mr-2 h-4 w-4" />
+            Mint NFT
+          </Button>
+        </DialogTrigger>
+        <DialogContent
+          onEscapeKeyDown={(e) => {
+            if (isLoading) e.preventDefault()
+          }}
+          onInteractOutside={(e) => {
+            if (isLoading) e.preventDefault()
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Mint Article as NFT</DialogTitle>
             <DialogDescription>
@@ -222,7 +258,9 @@ export function MintButton({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Threshold Met:</span>
-                  <span className="font-medium text-green-600">✓ Yes</span>
+                  <span className="font-medium text-green-800 dark:text-green-300">
+                    ✓ Yes
+                  </span>
                 </div>
                 {wallet.isConnected && wallet.publicKey ? (
                   <div className="bg-green-50 border border-green-200 rounded p-2">
@@ -238,7 +276,7 @@ export function MintButton({
                 ) : (
                   <div className="bg-amber-50 border border-amber-200 rounded p-2">
                     <span className="text-xs text-amber-900">
-                      ⚠ Wallet not connected
+                      Wallet not connected
                     </span>
                   </div>
                 )}
@@ -275,7 +313,8 @@ export function MintButton({
             <div className="flex gap-3">
               <Button
                 variant="outline"
-                onClick={() => setShowDialog(false)}
+                type="button"
+                onClick={() => setDialogOpen(false)}
                 disabled={isLoading}
                 className="flex-1"
               >
@@ -284,7 +323,7 @@ export function MintButton({
 
               {!wallet.isConnected ? (
                 <Button
-                  onClick={wallet.connect}
+                  onClick={handleConnectWallet}
                   disabled={isLoading}
                   className="flex-1"
                 >
@@ -314,6 +353,11 @@ export function MintButton({
           </div>
         </DialogContent>
       </Dialog>
+
+      <InstallWalletDialog
+        open={installDialogOpen}
+        onOpenChange={setInstallDialogOpen}
+      />
     </>
   )
 }

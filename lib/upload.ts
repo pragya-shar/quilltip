@@ -136,6 +136,103 @@ export async function uploadFile(
 }
 
 /**
+ * Upload an image to Convex storage and set it as the signed-in user's avatar.
+ */
+export async function uploadAvatarFile(
+  file: File,
+  convexClient: ConvexReactClient,
+  onProgress?: (progress: UploadProgress) => void
+): Promise<UploadResult> {
+  if (!file.type.startsWith('image/')) {
+    return {
+      success: false,
+      error: 'Please select an image file',
+    }
+  }
+
+  const maxSize = 10 * 1024 * 1024
+  if (file.size > maxSize) {
+    return {
+      success: false,
+      error: 'Image must be smaller than 10MB',
+    }
+  }
+
+  try {
+    const uploadUrl = await convexClient.mutation(
+      api.uploads.generateUploadUrl,
+      {}
+    )
+
+    const result = await new Promise<{
+      storageId?: Id<'_storage'>
+      error?: string
+    }>((resolve) => {
+      const xhr = new XMLHttpRequest()
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          onProgress({
+            loaded: event.loaded,
+            total: event.total,
+            percentage: Math.round((event.loaded / event.total) * 100),
+          })
+        }
+      })
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText)
+            resolve({ storageId: response.storageId })
+          } catch {
+            resolve({ error: 'Failed to parse upload response' })
+          }
+        } else {
+          resolve({ error: 'Failed to upload file to storage' })
+        }
+      })
+
+      xhr.addEventListener('error', () => {
+        resolve({ error: 'Network error occurred during upload' })
+      })
+
+      xhr.open('POST', uploadUrl)
+      xhr.send(file)
+    })
+
+    if (result.error || !result.storageId) {
+      return {
+        success: false,
+        error: result.error || 'Upload failed',
+      }
+    }
+
+    const { avatarUrl } = await convexClient.mutation(
+      api.uploads.updateUserAvatar,
+      {
+        storageId: result.storageId,
+        fileName: file.name,
+      }
+    )
+
+    return {
+      success: true,
+      url: avatarUrl ?? undefined,
+    }
+  } catch (error) {
+    console.error('Avatar upload error:', error)
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Network error occurred during upload',
+    }
+  }
+}
+
+/**
  * Generate a unique filename with timestamp
  */
 export function generateUniqueFilename(originalName: string): string {

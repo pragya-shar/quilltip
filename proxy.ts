@@ -16,11 +16,24 @@ export function proxy(request: NextRequest) {
 
   // Content Security Policy (production only - dev needs full access for HMR/React)
   if (process.env.NODE_ENV === 'production') {
+    // Vercel injects a feedback widget on preview deployments served from
+    // vercel.live. Whitelist it on previews only so it doesn't widen the
+    // production CSP attack surface.
+    const isVercelPreview = process.env.VERCEL_ENV === 'preview'
+    const scriptSrc = [
+      "'self'",
+      "'unsafe-inline'",
+      ...(isVercelPreview ? ['https://vercel.live'] : []),
+    ].join(' ')
+
     const csp = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      `script-src ${scriptSrc}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: *.convex.cloud *.convex.site img.youtube.com images.unsplash.com plus.unsplash.com arweave.net",
+      // XLM price is now fetched server-side by a cron and cached in Convex;
+      // the browser reads the cached row via api.xlmPrice.getCachedXlmPrice,
+      // so there is no per-oracle host to allowlist here.
       "connect-src 'self' *.convex.cloud wss://*.convex.cloud *.convex.site wss://*.convex.site *.stellar.org arweave.net ar-io.dev",
       "font-src 'self'",
       "frame-src 'self' www.youtube.com",

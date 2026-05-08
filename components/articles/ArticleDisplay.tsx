@@ -1,53 +1,40 @@
 'use client'
 
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, type JSONContent } from '@tiptap/react'
 import { useEffect, useState } from 'react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import { common, createLowlight } from 'lowlight'
+import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { formatDistanceToNow } from 'date-fns'
-import { JSONContent } from '@tiptap/react'
 import Image from 'next/image'
+import { UserAvatar } from '@/components/ui/user-avatar'
 import ShareButtons from './ShareButtons'
 import { HighlightableArticle } from '@/components/articles/HighlightableArticle'
 import { useAuth } from '@/components/providers/AuthContext'
-import { Id } from '@/convex/_generated/dataModel'
+import type { Id } from '@/types/convex'
+import type { ArticleForDisplay } from '@/types/index'
+import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { TagFilterLink } from '@/components/articles/TagFilterLink'
+import { extractPlainTextFromTiptapJson } from '@/lib/tiptap/plainText'
+import { estimateReadingMinutes } from '@/lib/reading-time'
+import type { TocHeading } from '@/lib/tiptap/headings'
+import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
 
-const lowlight = createLowlight(common)
-
-interface Article {
-  id: string
-  slug: string
-  title: string
-  content: JSONContent
-  excerpt?: string | null
-  coverImage?: string | null
-  publishedAt: Date | string | null
-  author: {
-    id: string
-    name?: string | null
-    username: string
-    avatar?: string | null
-    bio?: string | null
-  }
-  tags: Array<{
-    id: string
-    name: string
-    slug: string
-  }>
-}
+const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
 interface ArticleDisplayProps {
-  article: Article
+  article: ArticleForDisplay
   showHighlights?: boolean
+  tocHeadings?: TocHeading[]
 }
 
 export default function ArticleDisplay({
   article,
   showHighlights = true,
+  tocHeadings = [],
 }: ArticleDisplayProps) {
   const [currentUrl, setCurrentUrl] = useState('')
   const { isAuthenticated } = useAuth()
@@ -62,7 +49,14 @@ export default function ArticleDisplay({
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        // StarterKit v3 ships codeBlock, link, and underline by default; we
+        // register customised versions of each below, so disable them here
+        // to avoid duplicate-extension warnings.
+        codeBlock: false,
+        link: false,
+        underline: false,
+      }),
       Underline,
       Link.configure({
         openOnClick: false,
@@ -72,12 +66,12 @@ export default function ArticleDisplay({
       }),
       ResizableImage,
     ],
-    content: article.content,
+    content: article.content ?? EMPTY_DOC,
     editable: false,
     immediatelyRender: false, // Fix SSR hydration issue
     editorProps: {
       attributes: {
-        class: 'prose prose-lg prose-stone max-w-none focus:outline-none',
+        class: `${EDITOR_PROSE_CLASS} prose-stone`,
       },
     },
   })
@@ -86,44 +80,44 @@ export default function ArticleDisplay({
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
     : null
 
+  const readingMinutes = estimateReadingMinutes(
+    extractPlainTextFromTiptapJson(article.content)
+  )
+
+  useEnsureHeadingIds(tocHeadings, { rootSelector: '.article-content' })
+
   return (
     <article className="max-w-4xl mx-auto px-4 py-8">
       {/* Article Header */}
       <header className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-semibold text-gray-900 mb-3 leading-snug">
+        <h1 className="text-3xl md:text-4xl font-semibold text-foreground mb-3 leading-snug">
           {article.title}
         </h1>
 
         {/* Author Info */}
         <div className="flex items-center gap-4 mb-6">
           <div className="flex items-center gap-3">
-            {article.author.avatar ? (
-              <Image
-                src={article.author.avatar}
-                alt={article.author.name || article.author.username}
-                width={48}
-                height={48}
-                className="w-12 h-12 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full bg-brand-blue text-white flex items-center justify-center font-semibold">
-                {(article.author.name || article.author.username)
-                  .charAt(0)
-                  .toUpperCase()}
-              </div>
-            )}
+            <UserAvatar
+              src={article.author.avatar}
+              alt={article.author.name || article.author.username}
+              name={article.author.name || article.author.username}
+              className="h-12 w-12"
+              fallbackClassName="text-base"
+            />
             <div>
-              <p className="font-medium text-gray-900">
+              <p className="font-medium text-foreground">
                 {article.author.name || article.author.username}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 @{article.author.username}
+                <span className="mx-1">•</span>
                 {publishedDate && (
                   <>
-                    <span className="mx-1">•</span>
                     {publishedDate}
+                    <span className="mx-1">•</span>
                   </>
                 )}
+                {readingMinutes} min read
               </p>
             </div>
           </div>
@@ -136,6 +130,8 @@ export default function ArticleDisplay({
               src={article.coverImage}
               alt={article.title}
               fill
+              sizes="(max-width: 768px) 100vw, 896px"
+              priority
               className="object-cover rounded-lg"
             />
           </div>
@@ -145,12 +141,13 @@ export default function ArticleDisplay({
         {article.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-6">
             {article.tags.map((tag) => (
-              <span
+              <TagFilterLink
                 key={tag.id}
-                className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full"
+                tag={tag.name}
+                className="px-3 py-1 text-sm"
               >
                 {tag.name}
-              </span>
+              </TagFilterLink>
             ))}
           </div>
         )}
@@ -161,8 +158,9 @@ export default function ArticleDisplay({
         {useHighlightable ? (
           <HighlightableArticle
             articleId={article.id as Id<'articles'>}
-            content={article.content}
+            content={article.content ?? EMPTY_DOC}
             showHighlights={showHighlights}
+            tocHeadings={tocHeadings}
           />
         ) : (
           <EditorContent editor={editor} />
@@ -171,7 +169,7 @@ export default function ArticleDisplay({
 
       {/* Share Buttons */}
       {currentUrl && (
-        <div className="mt-8 pt-6 border-t border-gray-200">
+        <div className="mt-8 pt-6 border-t border-border">
           <ShareButtons
             title={article.title}
             url={currentUrl}

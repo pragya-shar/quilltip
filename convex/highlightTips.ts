@@ -1,6 +1,13 @@
 import { mutation, query } from './_generated/server'
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
+import { internal } from './_generated/api'
+import {
+  TIP_MIN_CENTS,
+  TIP_MAX_CENTS,
+  HORIZON_VERIFY_INITIAL_DELAY_MS,
+} from './lib/constants'
+import { enforceTipCooldown } from './lib/rateLimit'
 
 /**
  * Create a new highlight tip after Stellar transaction
@@ -51,23 +58,63 @@ export const create = mutation({
     // Validate tip amount (must be between $0.01 and $100)
     if (
       !Number.isFinite(args.amountCents) ||
-      args.amountCents < 1 ||
-      args.amountCents > 10000
+      args.amountCents < TIP_MIN_CENTS ||
+      args.amountCents > TIP_MAX_CENTS
     ) {
-      throw new Error('Tip amount must be between $0.01 and $100')
+      throw new Error(
+        `Tip amount must be between $${(TIP_MIN_CENTS / 100).toFixed(2)} and $${(TIP_MAX_CENTS / 100).toFixed(0)}`
+      )
     }
 
-    const amountUsd = args.amountCents / 100
+    // Dedup: Convex mutations have at-least-once delivery, so a lost ack
+    // could cause the client to retry and insert a duplicate row. Non-empty
+    // stellarTxIds are unique per Stellar transaction, so we look up by index
+    // and return the existing row if found. Empty stellarTxIds are not deduped
+    // because two unrelated tips could legitimately share that sentinel value.
+    //
+    // We additionally require highlightId, articleId, and tipperId to match
+    // the existing row before short-circuiting. A txId reused across a
+    // different highlight or by a different user is never a legit retry —
+    // silently returning the mismatched original would tell the caller "your
+    // tip succeeded" when in fact no tip on the requested highlight was
+    // created. Reject explicitly.
+    if (args.stellarTxId !== '') {
+      const existing = await ctx.db
+        .query('highlightTips')
+        .withIndex('by_stellar_tx', (q) =>
+          q.eq('stellarTxId', args.stellarTxId)
+        )
+        .first()
+      if (existing) {
+        if (
+          existing.highlightId === args.highlightId &&
+          existing.articleId === args.articleId &&
+          existing.tipperId === userId
+        ) {
+          return existing._id
+        }
+        throw new ConvexError(
+          'This Stellar transaction is already linked to a different tip.'
+        )
+      }
+    }
 
-    // Insert highlight tip
+    // Cooldown check runs after the dedup short-circuit so that at-least-once
+    // retries of the same Stellar tx are not mistaken for spam.
+    await enforceTipCooldown(ctx, userId)
+
+    const amountUsd = args.amountCents / 100
+    const now = Date.now()
+
+    // Insert tip as PENDING. Counter updates and author-stat bumps intentionally
+    // live in internal.stellarVerify.markHighlightTipConfirmed so that we only
+    // credit the author once Horizon confirms the on-chain tx is real.
     const highlightTipId = await ctx.db.insert('highlightTips', {
-      // Core references
       highlightId: args.highlightId,
       articleId: args.articleId,
       tipperId: userId,
       authorId: article.authorId,
 
-      // Denormalized data
       highlightText: args.highlightText,
       articleTitle: article.title,
       articleSlug: article.slug,
@@ -76,11 +123,9 @@ export const create = mutation({
       authorName: author.name,
       authorAvatar: author.avatar,
 
-      // Tip details
       amountUsd,
       amountCents: args.amountCents,
 
-      // Stellar transaction data
       stellarTxId: args.stellarTxId,
       stellarNetwork: args.stellarNetwork || 'TESTNET',
       stellarMemo: args.stellarMemo,
@@ -91,47 +136,33 @@ export const create = mutation({
       stellarAmountXlm: args.stellarAmountXlm,
       contractTipId: args.contractTipId,
 
-      // Position data
       startOffset: args.startOffset,
       endOffset: args.endOffset,
       startContainerPath: args.startContainerPath,
       endContainerPath: args.endContainerPath,
 
-      // Status
-      status: 'CONFIRMED',
+      status: 'PENDING',
       platformFee: args.platformFee,
       authorShare: args.authorShare,
 
-      // Timestamps
-      createdAt: Date.now(),
-      processedAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      processedAt: now,
+      updatedAt: now,
     })
 
-    // Update article tip stats (tipCount and totalTipsUsd, not highlightCount)
-    await ctx.db.patch(args.articleId, {
-      tipCount: (article.tipCount || 0) + 1,
-      totalTipsUsd: (article.totalTipsUsd || 0) + amountUsd,
-      updatedAt: Date.now(),
-    })
-
-    // Update user tip counts
-    await ctx.db.patch(userId, {
-      tipsSentCount: (user.tipsSentCount || 0) + 1,
-      updatedAt: Date.now(),
-    })
-
-    await ctx.db.patch(article.authorId, {
-      tipsReceivedCount: (author.tipsReceivedCount || 0) + 1,
-      updatedAt: Date.now(),
-    })
+    await ctx.scheduler.runAfter(
+      HORIZON_VERIFY_INITIAL_DELAY_MS,
+      internal.stellarVerify.verifyHighlightTip,
+      { highlightTipId, attempt: 1 }
+    )
 
     return highlightTipId
   },
 })
 
 /**
- * Get all tips for a specific highlight
+ * Get all tips for a specific highlight. Only CONFIRMED tips are returned;
+ * PENDING tips (awaiting Horizon verification) and FAILED tips are excluded.
  */
 export const getByHighlight = query({
   args: {
@@ -141,12 +172,15 @@ export const getByHighlight = query({
     return await ctx.db
       .query('highlightTips')
       .withIndex('by_highlight', (q) => q.eq('highlightId', args.highlightId))
+      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .collect()
   },
 })
 
 /**
- * Get all highlight tips for an article (for heatmap)
+ * Get all highlight tips for an article (for heatmap). Only CONFIRMED tips
+ * are returned so the heatmap never shows tips that ultimately failed
+ * verification.
  */
 export const getByArticle = query({
   args: {
@@ -156,12 +190,17 @@ export const getByArticle = query({
     return await ctx.db
       .query('highlightTips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
+      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .collect()
   },
 })
 
 /**
- * Get highlight tips by tipper (user's tipping history)
+ * Get highlight tips by tipper (the caller's tipping history). Intentionally
+ * returns rows in every status (PENDING / CONFIRMED / FAILED) so the tipper
+ * sees in-flight and rejected tips in their own history — do NOT add a
+ * `status === 'CONFIRMED'` filter here. Public-facing aggregations (heatmap,
+ * author earnings) have their own CONFIRMED-only filters.
  */
 export const getByTipper = query({
   args: {
@@ -177,7 +216,8 @@ export const getByTipper = query({
 })
 
 /**
- * Get highlight tips received by author
+ * Get highlight tips received by author. PENDING/FAILED tips are excluded —
+ * mirrors tips.getUserReceivedTips so authors only see verified earnings.
  */
 export const getByAuthor = query({
   args: {
@@ -187,23 +227,34 @@ export const getByAuthor = query({
     return await ctx.db
       .query('highlightTips')
       .withIndex('by_author', (q) => q.eq('authorId', args.authorId))
+      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .order('desc')
       .collect()
   },
 })
 
 /**
- * Get aggregate stats for an article's highlight tips
+ * Get aggregate stats for an article's highlight tips. PENDING and FAILED
+ * tips are excluded so the numbers match what the heatmap displays.
  */
 export const getArticleStats = query({
   args: {
     articleId: v.id('articles'),
+    sinceMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const tips = await ctx.db
+    let tipsQuery = ctx.db
       .query('highlightTips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .collect()
+      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+
+    if (args.sinceMs !== undefined) {
+      tipsQuery = tipsQuery.filter((q) =>
+        q.gte(q.field('createdAt'), args.sinceMs!)
+      )
+    }
+
+    const tips = await tipsQuery.collect()
 
     const totalTips = tips.length
     const totalAmountCents = tips.reduce((sum, tip) => sum + tip.amountCents, 0)

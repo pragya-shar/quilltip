@@ -9,7 +9,7 @@ export default function GuidePage() {
   const { isAuthenticated } = useAuth()
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {isAuthenticated ? <AppNavigation /> : <Navigation />}
       <div className="pt-24 pb-16 px-4">
         <WalletGuide />

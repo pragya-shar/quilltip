@@ -8,6 +8,8 @@ interface PaginationProps {
   totalPages: number
   onPageChange?: (page: number) => void
   basePath?: string
+  /** When set, used for Link hrefs instead of `basePath` + `?page=`. */
+  getPageHref?: (page: number) => string
 }
 
 export default function Pagination({
@@ -15,6 +17,7 @@ export default function Pagination({
   totalPages,
   onPageChange,
   basePath,
+  getPageHref,
 }: PaginationProps) {
   const getPageNumbers = () => {
     const pages = []
@@ -68,6 +71,12 @@ export default function Pagination({
     return '#'
   }
 
+  const resolveLinkHref = (page: number) => {
+    if (getPageHref) return getPageHref(page)
+    if (basePath) return getPageUrl(page)
+    return null
+  }
+
   // Render button or link based on whether we have onPageChange or basePath
   const PaginationButton = ({
     page,
@@ -82,13 +91,10 @@ export default function Pagination({
     className: string
     ariaLabel: string
   }) => {
-    if (basePath && !disabled) {
+    const linkHref = !disabled ? resolveLinkHref(page) : null
+    if (linkHref !== null) {
       return (
-        <Link
-          href={getPageUrl(page)}
-          className={className}
-          aria-label={ariaLabel}
-        >
+        <Link href={linkHref} className={className} aria-label={ariaLabel}>
           {children}
         </Link>
       )
@@ -114,7 +120,7 @@ export default function Pagination({
       <PaginationButton
         page={currentPage - 1}
         disabled={currentPage === 1}
-        className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="focus-ring relative inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
         ariaLabel="Previous page"
       >
         <ChevronLeft className="h-4 w-4" />
@@ -125,17 +131,21 @@ export default function Pagination({
       <div className="hidden sm:flex space-x-1">
         {getPageNumbers().map((page, index) =>
           page === '...' ? (
-            <span key={`ellipsis-${index}`} className="px-3 py-2 text-gray-500">
-              ...
+            <span
+              key={`ellipsis-${index}`}
+              className="inline-flex items-center px-3 py-2 text-quill-800 dark:text-foreground/90"
+            >
+              <span aria-hidden>...</span>
+              <span className="sr-only">More pages</span>
             </span>
           ) : (
             <PaginationButton
               key={page}
               page={page as number}
-              className={`relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+              className={`focus-ring relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                 currentPage === page
                   ? 'z-10 bg-brand-blue text-white'
-                  : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                  : 'text-foreground bg-background border border-border hover:bg-muted'
               }`}
               ariaLabel={`Go to page ${page}`}
             >
@@ -146,7 +156,7 @@ export default function Pagination({
       </div>
 
       {/* Mobile Page Indicator */}
-      <div className="flex sm:hidden items-center px-4 py-2 text-sm text-gray-700">
+      <div className="flex sm:hidden items-center px-4 py-2 text-sm text-foreground">
         Page {currentPage} of {totalPages}
       </div>
 
@@ -154,7 +164,7 @@ export default function Pagination({
       <PaginationButton
         page={currentPage + 1}
         disabled={currentPage === totalPages}
-        className="relative inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="focus-ring relative inline-flex items-center px-3 py-2 text-sm font-medium text-foreground bg-background border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
         ariaLabel="Next page"
       >
         <span className="mr-1 hidden sm:inline">Next</span>

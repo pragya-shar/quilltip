@@ -1,9 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
-import { Id } from '@/convex/_generated/dataModel'
+import { useState, useRef } from 'react'
+import { useNFTByArticle } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 import { MintButton } from './MintButton'
 import { NFTBadge } from './NFTBadge'
 import { TransferModal } from './TransferModal'
@@ -29,17 +28,6 @@ interface NFTIntegrationProps {
   currentUserAddress?: string | null
 }
 
-interface NFTStatus {
-  isMinted: boolean
-  isEligible: boolean
-  totalTips: number
-  tipThreshold: number
-  owner?: string
-  mintedAt?: string
-  transferCount: number
-  rarity?: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
-}
-
 export function NFTIntegration({
   articleId,
   articleTitle,
@@ -49,11 +37,9 @@ export function NFTIntegration({
   currentUserAddress,
 }: NFTIntegrationProps) {
   const [showTransferModal, setShowTransferModal] = useState(false)
+  const transferTriggerRef = useRef<HTMLButtonElement>(null)
 
-  // Use Convex query to fetch NFT status
-  const nftStatus = useQuery(api.nfts.getNFTByArticle, { articleId }) as
-    | NFTStatus
-    | undefined
+  const nftStatus = useNFTByArticle(articleId)
 
   const isLoading = nftStatus === undefined
 
@@ -66,9 +52,12 @@ export function NFTIntegration({
   }
 
   const isAuthor = currentUserId === authorId
-  const isOwner = currentUserAddress === nftStatus?.owner
+  const isOwner =
+    nftStatus != null &&
+    nftStatus.isMinted === true &&
+    currentUserAddress === nftStatus.owner
   const canMint = isAuthor && !nftStatus?.isMinted && nftStatus?.isEligible
-  const canTransfer = isOwner && nftStatus?.isMinted
+  const canTransfer = isOwner && nftStatus?.isMinted === true
 
   const progressPercentage = nftStatus
     ? (nftStatus.totalTips / nftStatus.tipThreshold) * 100
@@ -131,14 +120,14 @@ export function NFTIntegration({
               {!nftStatus.isMinted ? (
                 <div className="space-y-4">
                   <div>
-                    <div className="flex justify-between text-sm mb-2">
+                    <div className="flex justify-between text-sm mb-2 text-foreground">
                       <span>Minting Progress</span>
                       <span className="font-medium">
                         ${(nftStatus.totalTips / 100).toFixed(2)} / $
                         {(nftStatus.tipThreshold / 100).toFixed(2)}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-muted rounded-full h-2">
                       <div
                         className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500"
                         style={{
@@ -247,6 +236,8 @@ export function NFTIntegration({
               {/* Transfer Button */}
               {canTransfer && (
                 <Button
+                  ref={transferTriggerRef}
+                  type="button"
                   onClick={() => setShowTransferModal(true)}
                   className="w-full"
                   variant="outline"
@@ -286,7 +277,9 @@ export function NFTIntegration({
           articleId={articleId}
           articleTitle={articleTitle}
           currentOwner={nftStatus.owner}
+          nftId={nftStatus._id}
           onTransferComplete={handleTransferComplete}
+          triggerRef={transferTriggerRef}
         />
       )}
     </div>

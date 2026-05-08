@@ -66,6 +66,9 @@ export default defineSchema({
     // Tags
     tags: v.optional(v.array(v.string())),
 
+    // Denormalized for full-text listing (title, excerpt, body snippet, tags); see search_listing
+    searchContent: v.optional(v.string()),
+
     // Stats (denormalized)
     viewCount: v.optional(v.number()),
     highlightCount: v.optional(v.number()),
@@ -98,10 +101,21 @@ export default defineSchema({
     .index('by_published', ['published'])
     .index('by_author_published', ['authorId', 'published']) // Composite for author's published articles
     .index('by_published_date', ['published', 'publishedAt']) // For listing by date
-    .searchIndex('search_title', {
-      searchField: 'title',
+    .searchIndex('search_listing', {
+      searchField: 'searchContent',
       filterFields: ['published', 'authorUsername'],
     }),
+
+  // One row per (article, tag) for published articles; used for indexed tag listing
+  articleTagLinks: defineTable({
+    articleId: v.id('articles'),
+    tag: v.string(),
+    authorId: v.id('users'),
+    publishedAt: v.number(),
+  })
+    .index('by_article', ['articleId'])
+    .index('by_tag_publishedAt', ['tag', 'publishedAt'])
+    .index('by_author_tag_publishedAt', ['authorId', 'tag', 'publishedAt']),
 
   // Tags table
   tags: defineTable({
@@ -188,7 +202,7 @@ export default defineSchema({
     contractTipId: v.optional(v.string()),
 
     // Status
-    status: v.string(), // PENDING, CONFIRMING, CONFIRMED, FAILED
+    status: v.string(), // PENDING, CONFIRMING, CONFIRMED, FAILED, FRAUDULENT
     failureReason: v.optional(v.string()), // Error message if failed
     platformFee: v.optional(v.number()),
     authorShare: v.optional(v.number()),
@@ -202,7 +216,8 @@ export default defineSchema({
     .index('by_tipper', ['tipperId'])
     .index('by_author', ['authorId'])
     .index('by_status', ['status'])
-    .index('by_status_created', ['status', 'createdAt']), // For paginated status queries
+    .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
+    .index('by_stellar_tx', ['stellarTxId']), // For dedup on at-least-once retries
 
   // Highlight Tips table (NEW - granular tipping)
   highlightTips: defineTable({
@@ -246,6 +261,13 @@ export default defineSchema({
     // Status
     status: v.string(), // PENDING, CONFIRMED, FAILED
     failureReason: v.optional(v.string()),
+    // Set when verification confirms the tip but could not fully validate the
+    // claimed USD amount — e.g. XLM price oracle was unreachable, or the
+    // on-chain amount diverged from the claim beyond tolerance. CONFIRMED
+    // tips with this flag are trusted for the tipper's history but should
+    // be surfaced for audit rather than silently included in earnings.
+    amountUsdSuspicious: v.optional(v.boolean()),
+    amountUsdSuspicionReason: v.optional(v.string()),
     platformFee: v.optional(v.number()),
     authorShare: v.optional(v.number()),
 
@@ -259,7 +281,8 @@ export default defineSchema({
     .index('by_tipper', ['tipperId'])
     .index('by_author', ['authorId'])
     .index('by_status', ['status'])
-    .index('by_status_created', ['status', 'createdAt']), // For paginated status queries
+    .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
+    .index('by_stellar_tx', ['stellarTxId']),
 
   // Author Earnings table
   authorEarnings: defineTable({
@@ -404,6 +427,18 @@ export default defineSchema({
     .index('by_user', ['uploadedBy'])
     .index('by_article', ['articleId'])
     .index('by_type', ['uploadType']),
+
+  // Server-side XLM/USD price cache. Refreshed by a cron job every 5 minutes
+  // so the browser does not have to call public price oracles directly —
+  // collapses the CSP allowlist (no per-oracle hosts) and amortises the
+  // oracle hits across all users to one fetch per refresh interval.
+  // Modeled as a singleton row: queries always read .first(), the refresh
+  // mutation patches if a row exists or inserts otherwise.
+  xlmPriceCache: defineTable({
+    priceUsd: v.number(),
+    source: v.string(), // 'CoinGecko', 'CoinCap', 'Binance', 'Kraken'
+    fetchedAt: v.number(),
+  }),
 
   // Waitlist table
   waitlist: defineTable({
