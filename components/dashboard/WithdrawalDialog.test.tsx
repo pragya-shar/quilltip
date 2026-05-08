@@ -5,7 +5,15 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { WithdrawalDialog } from '@/components/dashboard/WithdrawalDialog'
 
-const validGAddress = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
+const VALID_TEST_PUBLIC_KEY =
+  'GC2BKLYOOYPDEFJKLKY6FNNRQMGFLVHJKQRGNSSRRGSMPGF32LHCQVGF'
+
+function corruptAccountId(address: string): string {
+  const chars = address.split('')
+  const idx = 15
+  chars[idx] = chars[idx] === 'A' ? 'B' : 'A'
+  return chars.join('')
+}
 
 describe('WithdrawalDialog', () => {
   it('calls onWithdraw with entered amount and address', async () => {
@@ -13,7 +21,6 @@ describe('WithdrawalDialog', () => {
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
     const onOpenChange = vi.fn()
     const triggerRef = createRef<HTMLButtonElement>()
-
     render(
       <WithdrawalDialog
         open
@@ -27,13 +34,16 @@ describe('WithdrawalDialog', () => {
     )
 
     await user.type(screen.getByLabelText(/Amount \(USD\)/i), '10')
-    await user.type(screen.getByLabelText(/Stellar Address/i), validGAddress)
+    await user.type(
+      screen.getByLabelText(/Stellar Address/i),
+      VALID_TEST_PUBLIC_KEY
+    )
     await user.click(screen.getByRole('button', { name: /Withdraw$/i }))
 
     await waitFor(() => {
       expect(onWithdraw).toHaveBeenCalledWith({
         amountUsd: 10,
-        stellarAddress: validGAddress,
+        stellarAddress: VALID_TEST_PUBLIC_KEY,
       })
       expect(onOpenChange).toHaveBeenCalledWith(false)
     })
@@ -43,14 +53,13 @@ describe('WithdrawalDialog', () => {
     const user = userEvent.setup()
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
     const triggerRef = createRef<HTMLButtonElement>()
-
     render(
       <WithdrawalDialog
         open
         onOpenChange={() => {}}
         availableBalanceUsd={100}
         minWithdrawalUsd={5}
-        savedStellarAddress={validGAddress}
+        savedStellarAddress={VALID_TEST_PUBLIC_KEY}
         onWithdraw={onWithdraw}
         triggerRef={triggerRef}
       />
@@ -61,14 +70,15 @@ describe('WithdrawalDialog', () => {
 
     expect(onWithdraw).toHaveBeenCalledWith({
       amountUsd: 20,
-      stellarAddress: validGAddress,
+      stellarAddress: VALID_TEST_PUBLIC_KEY,
     })
   })
 
-  it('does not call onWithdraw when amount is below minimum', async () => {
+  it('shows inline error and disables withdraw for an invalid address', async () => {
     const user = userEvent.setup()
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
     const triggerRef = createRef<HTMLButtonElement>()
+    const invalidAddress = corruptAccountId(VALID_TEST_PUBLIC_KEY)
 
     render(
       <WithdrawalDialog
@@ -76,7 +86,35 @@ describe('WithdrawalDialog', () => {
         onOpenChange={() => {}}
         availableBalanceUsd={100}
         minWithdrawalUsd={5}
-        savedStellarAddress={validGAddress}
+        savedStellarAddress={null}
+        onWithdraw={onWithdraw}
+        triggerRef={triggerRef}
+      />
+    )
+
+    await user.type(screen.getByLabelText(/Amount \(USD\)/i), '10')
+    await user.type(screen.getByLabelText(/Stellar Address/i), invalidAddress)
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Invalid Stellar address'
+    )
+    const withdraw = screen.getByRole('button', { name: /Withdraw$/i })
+    expect(withdraw).toBeDisabled()
+    await user.click(withdraw)
+    expect(onWithdraw).not.toHaveBeenCalled()
+  })
+
+  it('does not call onWithdraw when amount is below minimum', async () => {
+    const user = userEvent.setup()
+    const onWithdraw = vi.fn().mockResolvedValue(undefined)
+    const triggerRef = createRef<HTMLButtonElement>()
+    render(
+      <WithdrawalDialog
+        open
+        onOpenChange={() => {}}
+        availableBalanceUsd={100}
+        minWithdrawalUsd={5}
+        savedStellarAddress={VALID_TEST_PUBLIC_KEY}
         onWithdraw={onWithdraw}
         triggerRef={triggerRef}
       />

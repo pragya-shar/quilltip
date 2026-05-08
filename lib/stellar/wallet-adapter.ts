@@ -6,7 +6,7 @@
  * Maintains compatibility with previous Freighter-only implementation
  *
  * FIXES:
- * - Albedo: Special handling for localhost CORS issues
+ * - Albedo: On http:// localhost, warn and abort (no Albedo popup); HTTPS or other wallets OK
  * - xBull: Proper error extraction and retry logic
  * - Hot wallets: Eager connection strategy to prevent double-popups
  * - Better error messages for all wallet types
@@ -24,6 +24,8 @@ import {
   HANA_ID,
   HOTWALLET_ID,
 } from '@creit.tech/stellar-wallets-kit'
+import { toast } from 'sonner'
+import { hasInstalledWalletForKitModal as supportedWalletsAllowKitModal } from '@/lib/stellar/wallet-availability'
 
 // Wallet type definitions
 export type WalletType =
@@ -45,6 +47,21 @@ export interface ConnectionResult {
   publicKey: string
   network: string
   networkPassphrase: string
+}
+
+export const NO_WALLET_AVAILABLE_ERROR_CODE = 'NO_WALLET_AVAILABLE' as const
+
+/** Prefixed on Error.message when Albedo is blocked on http:// localhost (UI may skip duplicate toasts). */
+export const ALBEDO_INSECURE_LOCALHOST_ERROR_CODE =
+  'ALBEDO_INSECURE_LOCALHOST' as const
+
+const ALBEDO_INSECURE_LOCALHOST_USER_MESSAGE =
+  "Albedo needs a secure (https) connection and can't be used on this page. Please connect with Freighter or xBull instead."
+
+function albedoInsecureLocalhostError(): Error {
+  return new Error(
+    `${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}: ${ALBEDO_INSECURE_LOCALHOST_USER_MESSAGE}`
+  )
 }
 
 // Wallet metadata mapping
@@ -98,10 +115,10 @@ function extractErrorMessage(error: unknown, walletId?: string): string {
   if (error instanceof Error) {
     // Albedo CORS error
     if (error.message.includes("origins don't match")) {
-      const localhostMsg = isLocalhost()
-        ? ' Run ./scripts/setup-https-dev.sh to enable HTTPS locally.'
+      const localhostMsg = isInsecureLocalhost()
+        ? ' Try Freighter or xBull instead, or open the site with https:// in the address bar.'
         : ''
-      return `Albedo requires HTTPS.${localhostMsg} See WALLET_INTEGRATION_GUIDE.md for details.`
+      return `Albedo needs a secure connection.${localhostMsg}`
     }
 
     // xBull specific errors
@@ -151,6 +168,19 @@ function isLocalhost(): boolean {
     window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1'
   )
+}
+
+/**
+ * Plain http:// on localhost. Browsers set isSecureContext true for http://localhost,
+ * so we key off the URL scheme (matches “HTTPS” messaging and Albedo behavior).
+ */
+function isInsecureLocalhost(): boolean {
+  if (typeof window === 'undefined') return false
+  return isLocalhost() && window.location.protocol === 'http:'
+}
+
+function notifyAlbedoInsecureLocalhost(): void {
+  toast.warning(ALBEDO_INSECURE_LOCALHOST_USER_MESSAGE)
 }
 
 /**
@@ -232,6 +262,13 @@ class StellarWalletAdapter {
     return this.kit
   }
 
+  private async hasInstalledWalletForKitModal(): Promise<boolean> {
+    await this.initialize()
+    const kit = this.ensureKit()
+    const supported = (await kit.getSupportedWallets()) as ISupportedWallet[]
+    return supportedWalletsAllowKitModal(supported)
+  }
+
   /**
    * Initialize the adapter (lazy initialization)
    * Note: Does NOT auto-reconnect to avoid triggering wallet popups on every page load
@@ -255,10 +292,7 @@ class StellarWalletAdapter {
    * Check if any wallet is installed/available
    */
   async isInstalled(): Promise<boolean> {
-    await this.initialize()
-    // Always return true since the kit supports multiple wallets
-    // The modal will show which wallets are actually available
-    return true
+    return await this.hasInstalledWalletForKitModal()
   }
 
   /**
@@ -269,10 +303,10 @@ class StellarWalletAdapter {
     await this.initialize()
     const kit = this.ensureKit()
 
-    // Warn about Albedo on localhost
-    if (isLocalhost()) {
-      console.warn(
-        '[Wallet Adapter] Running on localhost. Albedo wallet may not work due to CORS restrictions. Use HTTPS or choose a different wallet.'
+    const hasWallet = await this.hasInstalledWalletForKitModal()
+    if (!hasWallet) {
+      throw new Error(
+        `${NO_WALLET_AVAILABLE_ERROR_CODE}: No Stellar wallet detected`
       )
     }
 
@@ -280,61 +314,10 @@ class StellarWalletAdapter {
       kit.openModal({
         onWalletSelected: async (option: ISupportedWallet) => {
           try {
-            // Albedo-specific warning for localhost (but allow trying)
-            if (option.id === ALBEDO_ID && isLocalhost()) {
-              console.warn(
-                '[Wallet Adapter] Albedo may not work on localhost due to CORS. Consider using HTTPS.'
-              )
-
-              // Try to connect anyway with special handling
-              try {
-                await this.setWalletWithRetry(option.id, 1) // Single attempt for Albedo on localhost
-                this.storeWalletId(option.id)
-
-                // Add timeout for Albedo on localhost
-                const timeoutPromise = new Promise<never>((_, reject) =>
-                  setTimeout(
-                    () =>
-                      reject(
-                        new Error('Albedo connection timeout on localhost')
-                      ),
-                    5000
-                  )
-                )
-
-                const addressPromise = kit.getAddress()
-                const networkPromise = kit.getNetwork()
-
-                const [{ address }, network] = (await Promise.race([
-                  Promise.all([addressPromise, networkPromise]),
-                  timeoutPromise,
-                ])) as [
-                  { address: string },
-                  { network: string; networkPassphrase: string },
-                ]
-
-                const result = {
-                  publicKey: address,
-                  network: network.network,
-                  networkPassphrase: network.networkPassphrase,
-                }
-
-                this.connectionCache.set(option.id, result)
-                resolve(result)
-                return
-              } catch {
-                // Provide helpful error message
-                reject(
-                  new Error(
-                    'Albedo requires HTTPS to work properly. ' +
-                      'Please either:\n' +
-                      '1. Use HTTPS locally (run ./scripts/setup-https-dev.sh)\n' +
-                      '2. Deploy to a staging environment\n' +
-                      '3. Use a different wallet like Freighter'
-                  )
-                )
-                return
-              }
+            if (option.id === ALBEDO_ID && isInsecureLocalhost()) {
+              notifyAlbedoInsecureLocalhost()
+              reject(albedoInsecureLocalhostError())
+              return
             }
 
             // Set the selected wallet with retry logic for xBull and other wallets
@@ -504,53 +487,9 @@ class StellarWalletAdapter {
     }
 
     try {
-      // Albedo-specific handling for localhost
-      if (walletId === ALBEDO_ID && isLocalhost()) {
-        console.warn(
-          '[Wallet Adapter] Albedo may not work on localhost due to CORS. Attempting connection...'
-        )
-
-        // Try to connect with timeout
-        try {
-          await this.setWalletWithRetry(walletId, 1) // Single attempt for Albedo on localhost
-          this.storeWalletId(walletId)
-
-          // Add timeout for Albedo on localhost
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(
-              () => reject(new Error('Albedo connection timeout on localhost')),
-              5000
-            )
-          )
-
-          const addressPromise = kit.getAddress()
-          const networkPromise = kit.getNetwork()
-
-          const [{ address }, network] = (await Promise.race([
-            Promise.all([addressPromise, networkPromise]),
-            timeoutPromise,
-          ])) as [
-            { address: string },
-            { network: string; networkPassphrase: string },
-          ]
-
-          const result = {
-            publicKey: address,
-            network: network.network,
-            networkPassphrase: network.networkPassphrase,
-          }
-
-          this.connectionCache.set(walletId, result)
-          return result
-        } catch {
-          throw new Error(
-            'Albedo requires HTTPS to work properly. ' +
-              'Please either:\n' +
-              '1. Use HTTPS locally (run ./scripts/setup-https-dev.sh)\n' +
-              '2. Deploy to a staging environment\n' +
-              '3. Use a different wallet like Freighter'
-          )
-        }
+      if (walletId === ALBEDO_ID && isInsecureLocalhost()) {
+        notifyAlbedoInsecureLocalhost()
+        throw albedoInsecureLocalhostError()
       }
 
       await this.setWalletWithRetry(walletId)
