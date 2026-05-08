@@ -41,16 +41,16 @@ export function readDisplayCache(): XlmUsdTipRateDisplayCache | null {
   }
 }
 
-export function writeDisplayCache(priceUsd: number, clientFetchedAt: number): void {
+export function writeDisplayCache(
+  priceUsd: number,
+  clientFetchedAt: number
+): void {
   try {
     if (typeof localStorage === 'undefined') return
     if (!Number.isFinite(priceUsd) || priceUsd <= 0) return
     if (!Number.isFinite(clientFetchedAt)) return
     const payload: XlmUsdTipRateDisplayCache = { priceUsd, clientFetchedAt }
-    localStorage.setItem(
-      XLM_USD_TIP_RATE_STORAGE_KEY,
-      JSON.stringify(payload)
-    )
+    localStorage.setItem(XLM_USD_TIP_RATE_STORAGE_KEY, JSON.stringify(payload))
   } catch {
     // quota / private mode — display cache is optional
   }

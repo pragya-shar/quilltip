@@ -1,10 +1,6 @@
 import { formatUsdToXlmHint } from '@/lib/tipping/xlmRateDisplay'
 
-export function TipUsdXlmRateLine({
-  priceUsd,
-}: {
-  priceUsd: number | null
-}) {
+export function TipUsdXlmRateLine({ priceUsd }: { priceUsd: number | null }) {
   if (priceUsd === null) return null
   const text = formatUsdToXlmHint(priceUsd)
   if (!text) return null

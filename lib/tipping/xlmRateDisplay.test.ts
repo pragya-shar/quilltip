@@ -38,10 +38,7 @@ describe('isDisplayCacheFresh', () => {
   it('returns false for negative age (clock skew)', () => {
     const now = 1_000_000
     expect(
-      isDisplayCacheFresh(
-        { priceUsd: 0.4, clientFetchedAt: now + 1000 },
-        now
-      )
+      isDisplayCacheFresh({ priceUsd: 0.4, clientFetchedAt: now + 1000 }, now)
     ).toBe(false)
   })
 })
