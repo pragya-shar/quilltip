@@ -17,6 +17,8 @@ import {
   formatTipAmount,
 } from '@/lib/stellar/highlight-utils'
 import { TipBreakdownSummaryLine } from '@/components/tipping/TipBreakdownSummaryLine'
+import { TipUsdXlmRateLine } from '@/components/tipping/TipUsdXlmRateLine'
+import { useTipDialogXlmUsdRate } from '@/hooks/useTipDialogXlmUsdRate'
 import {
   TIP_PRESETS_ARTICLE,
   TIP_MIN_CENTS,
@@ -62,6 +64,7 @@ export function TipButton({
 
   const convex = useConvex()
   const sendTip = useMutation(api.tips.sendTip)
+  const { priceUsd: displayXlmUsdRate } = useTipDialogXlmUsdRate(isOpen)
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
@@ -323,6 +326,7 @@ export function TipButton({
               Minimum: ${TIP_MIN_USD.toFixed(2)} • Maximum: $
               {TIP_MAX_USD.toFixed(2)}
             </p>
+            <TipUsdXlmRateLine priceUsd={displayXlmUsdRate} />
           </div>
 
           {tipBreakdownPreview && (
