@@ -12,8 +12,10 @@ import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
 import {
   generateHighlightId,
+  calculateTipBreakdown,
   formatTipAmount,
 } from '@/lib/stellar/highlight-utils'
+import { TipBreakdownSummaryLine } from '@/components/tipping/TipBreakdownSummaryLine'
 import {
   TIP_PRESETS_HIGHLIGHT,
   TIP_MIN_CENTS,
@@ -251,6 +253,12 @@ export function HighlightTipButton({
       ? highlightText.slice(0, 60) + '...'
       : highlightText
 
+  const previewCents = selectedAmount || parseFloat(customAmount) * 100
+  const tipBreakdownPreview =
+    Number.isFinite(previewCents) && previewCents > 0
+      ? calculateTipBreakdown(previewCents)
+      : null
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -353,6 +361,14 @@ export function HighlightTipButton({
               {TIP_MAX_USD.toFixed(2)}
             </p>
           </div>
+
+          {tipBreakdownPreview && (
+            <TipBreakdownSummaryLine
+              totalFormatted={formatTipAmount(previewCents)}
+              authorFormatted={tipBreakdownPreview.authorShareFormatted}
+              platformFeeFormatted={tipBreakdownPreview.platformFeeFormatted}
+            />
+          )}
 
           <div className="flex gap-3">
             <button

@@ -13,6 +13,11 @@ import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
 import {
+  calculateTipBreakdown,
+  formatTipAmount,
+} from '@/lib/stellar/highlight-utils'
+import { TipBreakdownSummaryLine } from '@/components/tipping/TipBreakdownSummaryLine'
+import {
   TIP_PRESETS_ARTICLE,
   TIP_MIN_CENTS,
   TIP_MIN_USD,
@@ -188,6 +193,12 @@ export function TipButton({
     }
   }
 
+  const previewCents = selectedAmount || parseFloat(customAmount) * 100
+  const tipBreakdownPreview =
+    Number.isFinite(previewCents) && previewCents > 0
+      ? calculateTipBreakdown(previewCents)
+      : null
+
   const handleConnectWallet = async () => {
     try {
       await connect()
@@ -313,6 +324,14 @@ export function TipButton({
               {TIP_MAX_USD.toFixed(2)}
             </p>
           </div>
+
+          {tipBreakdownPreview && (
+            <TipBreakdownSummaryLine
+              totalFormatted={formatTipAmount(previewCents)}
+              authorFormatted={tipBreakdownPreview.authorShareFormatted}
+              platformFeeFormatted={tipBreakdownPreview.platformFeeFormatted}
+            />
+          )}
 
           <div className="flex gap-3">
             <button

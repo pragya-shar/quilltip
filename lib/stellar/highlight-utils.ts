@@ -2,6 +2,8 @@
  * Utility functions for highlight tipping
  */
 
+import { STELLAR_CONFIG } from './config'
+
 /**
  * Generate deterministic highlight ID from text selection
  * This ID will be stored in Stellar memo field and used to track tips
@@ -63,6 +65,8 @@ export function formatTipAmount(amountCents: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(dollars)
 }
 
@@ -75,7 +79,7 @@ export function formatTipAmount(amountCents: number): string {
  */
 export function calculateTipBreakdown(
   amountCents: number,
-  feeBps: number = 250
+  feeBps: number = STELLAR_CONFIG.PLATFORM_FEE_BPS
 ) {
   const platformFee = Math.floor((amountCents * feeBps) / 10_000)
   const authorShare = amountCents - platformFee
