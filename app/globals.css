@@ -295,6 +295,7 @@ mark[data-highlight-id] mark[data-highlight-id] {
   margin-top: 1.25rem;
   margin-bottom: 0.375rem;
   color: var(--foreground);
+  scroll-margin-top: 6rem;
 }
 
 .prose h3 {

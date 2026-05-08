@@ -94,3 +94,56 @@ export function validateTextSelection(
 
   return { isValid: true }
 }
+
+export type RangeBoundingBox = {
+  top: number
+  left: number
+  right: number
+  bottom: number
+  width: number
+  height: number
+}
+
+/**
+ * Compute a bounding box for a Range that spans multiple lines.
+ * `range.getBoundingClientRect()` can behave inconsistently across browsers for
+ * multi-line ranges; unioning `getClientRects()` is more reliable.
+ */
+export function getRangeBoundingBox(range: Range): RangeBoundingBox | null {
+  const rects = Array.from(range.getClientRects())
+
+  const usableRects = rects.filter((r) => r.width > 0 || r.height > 0)
+  if (usableRects.length > 0) {
+    let top = usableRects[0]!.top
+    let left = usableRects[0]!.left
+    let right = usableRects[0]!.right
+    let bottom = usableRects[0]!.bottom
+
+    for (const r of usableRects) {
+      top = Math.min(top, r.top)
+      left = Math.min(left, r.left)
+      right = Math.max(right, r.right)
+      bottom = Math.max(bottom, r.bottom)
+    }
+
+    return {
+      top,
+      left,
+      right,
+      bottom,
+      width: Math.max(0, right - left),
+      height: Math.max(0, bottom - top),
+    }
+  }
+
+  const r = range.getBoundingClientRect()
+  if (!r || (!r.width && !r.height)) return null
+  return {
+    top: r.top,
+    left: r.left,
+    right: r.right,
+    bottom: r.bottom,
+    width: r.width,
+    height: r.height,
+  }
+}

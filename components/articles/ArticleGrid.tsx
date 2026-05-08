@@ -6,11 +6,13 @@ import { BookOpen } from 'lucide-react'
 interface ArticleGridProps {
   articles: ArticleForDisplay[]
   variant?: 'home' | 'articles'
+  onArticleNavigate?: () => void
 }
 
 export default function ArticleGrid({
   articles,
   variant = 'articles',
+  onArticleNavigate,
 }: ArticleGridProps) {
   if (articles.length === 0) {
     if (variant === 'home') {
@@ -78,6 +80,7 @@ export default function ArticleGrid({
           key={article.id}
           article={article}
           priority={index === 0}
+          onArticleNavigate={onArticleNavigate}
         />
       ))}
     </div>

@@ -22,6 +22,20 @@ import { AnimatePresence } from 'motion/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { toast } from 'sonner'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { getRangeBoundingBox } from '@/lib/highlights/utils'
+import type { TocHeading } from '@/lib/tiptap/headings'
+import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
+
+function getRangeTopCenterAnchor(
+  range: Range
+): { top: number; left: number } | null {
+  const box = getRangeBoundingBox(range)
+  if (!box) return null
+  return {
+    top: box.top,
+    left: box.left + box.width / 2,
+  }
+}
 
 interface HighlightData {
   _id: Id<'highlights'>
@@ -47,6 +61,7 @@ interface HighlightableArticleProps {
   showHighlights?: boolean
   onHighlightClick?: (highlight: HighlightData) => void
   className?: string
+  tocHeadings?: TocHeading[]
 }
 
 export function HighlightableArticle({
@@ -56,6 +71,7 @@ export function HighlightableArticle({
   showHighlights = true,
   onHighlightClick,
   className,
+  tocHeadings = [],
 }: HighlightableArticleProps) {
   const [selectedText, setSelectedText] = useState<{
     text: string
@@ -81,6 +97,8 @@ export function HighlightableArticle({
 
   // Get current user for ownership checks
   const { user } = useAuth()
+
+  useEnsureHeadingIds(tocHeadings, { rootSelector: '.highlightable-article' })
 
   // Fetch article data (for author info, Stellar address, etc.)
   const article = useArticleById(articleId)
@@ -187,16 +205,16 @@ export function HighlightableArticle({
         const domSelection = window.getSelection()
         if (domSelection && domSelection.rangeCount > 0) {
           const range = domSelection.getRangeAt(0)
-          const rect = range.getBoundingClientRect()
-          const containerRect = editorRef.current?.getBoundingClientRect()
+          const anchor = getRangeTopCenterAnchor(range)
+          if (!anchor) return
 
           setSelectedText({ text, from, to })
-          if (containerRect) {
-            setPopoverPosition({
-              top: rect.top - containerRect.top - 60,
-              left: rect.left - containerRect.left + rect.width / 2,
-            })
-          }
+          setPopoverPosition({
+            // Viewport coordinates (HighlightPopover is `position: fixed`).
+            // Anchor at top-center of the selection bounding box.
+            top: anchor.top,
+            left: anchor.left,
+          })
         }
       } else {
         setSelectedText(null)
@@ -237,8 +255,8 @@ export function HighlightableArticle({
     const handlePointerUp = () => {
       if (!isDraggingRef.current) return
       isDraggingRef.current = false
-      // Defer one tick so the browser and Tiptap commit the final selection.
-      setTimeout(() => {
+      // Defer one frame so the browser and Tiptap commit the final selection.
+      requestAnimationFrame(() => {
         if (!editor) return
         const { from, to } = editor.state.selection
         const text = editor.state.doc.textBetween(from, to, ' ')
@@ -246,15 +264,16 @@ export function HighlightableArticle({
         const domSelection = window.getSelection()
         if (!domSelection || domSelection.rangeCount === 0) return
         const range = domSelection.getRangeAt(0)
-        const rect = range.getBoundingClientRect()
-        const containerRect = editorRef.current?.getBoundingClientRect()
-        if (!containerRect) return
+        const anchor = getRangeTopCenterAnchor(range)
+        if (!anchor) return
         setSelectedText({ text, from, to })
         setPopoverPosition({
-          top: rect.top - containerRect.top - 60,
-          left: rect.left - containerRect.left + rect.width / 2,
+          // Viewport coordinates (HighlightPopover is `position: fixed`).
+          // Anchor at top-center of the selection bounding box.
+          top: anchor.top,
+          left: anchor.left,
         })
-      }, 0)
+      })
     }
 
     container.addEventListener('mousedown', handlePointerDown)
@@ -318,6 +337,12 @@ export function HighlightableArticle({
   )
 
   const handlePopoverClose = useCallback(() => {
+    if (editor) {
+      const { from, to } = editor.state.selection
+      if (from !== to) {
+        editor.chain().setTextSelection(from).run()
+      }
+    }
     setSelectedText(null)
     setPopoverPosition(null)
     window.getSelection()?.removeAllRanges()
@@ -330,30 +355,18 @@ export function HighlightableArticle({
   }, [editor])
 
   useEffect(() => {
-    const hasCreationPopover = Boolean(popoverPosition && selectedText)
-    const hasDetailsPanel = highlightTooltip !== null
-    if (!hasCreationPopover && !hasDetailsPanel) return
+    if (highlightTooltip === null) return
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       e.preventDefault()
       e.stopPropagation()
-      if (hasCreationPopover) {
-        handlePopoverClose()
-      } else if (hasDetailsPanel) {
-        handleTooltipClose()
-      }
+      handleTooltipClose()
     }
 
     document.addEventListener('keydown', onKeyDown, true)
     return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [
-    popoverPosition,
-    selectedText,
-    highlightTooltip,
-    handlePopoverClose,
-    handleTooltipClose,
-  ])
+  }, [highlightTooltip, handleTooltipClose])
 
   return (
     <div
