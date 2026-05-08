@@ -1,13 +1,7 @@
 'use client'
 
-import { useEditor, EditorContent, type JSONContent } from '@tiptap/react'
+import { type JSONContent } from '@tiptap/react'
 import { useEffect, useState } from 'react'
-import StarterKit from '@tiptap/starter-kit'
-import Underline from '@tiptap/extension-underline'
-import Link from '@tiptap/extension-link'
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import { lowlight } from '@/lib/lowlight'
-import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { formatDistanceToNow } from 'date-fns'
 import Image from 'next/image'
 import { UserAvatar } from '@/components/ui/user-avatar'
@@ -16,7 +10,6 @@ import { HighlightableArticle } from '@/components/articles/HighlightableArticle
 import { useAuth } from '@/components/providers/AuthContext'
 import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
-import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 import { TagFilterLink } from '@/components/articles/TagFilterLink'
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
@@ -32,43 +25,12 @@ export default function ArticleDisplay({
 }: ArticleDisplayProps) {
   const [currentUrl, setCurrentUrl] = useState('')
   const { isAuthenticated } = useAuth()
-  const [useHighlightable, setUseHighlightable] = useState(false)
 
-  // Get current URL on client side only
   useEffect(() => {
     setCurrentUrl(window.location.href)
-    // Enable highlightable article for authenticated users
-    setUseHighlightable(showHighlights && isAuthenticated)
-  }, [showHighlights, isAuthenticated])
+  }, [])
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        // StarterKit v3 ships codeBlock, link, and underline by default; we
-        // register customised versions of each below, so disable them here
-        // to avoid duplicate-extension warnings.
-        codeBlock: false,
-        link: false,
-        underline: false,
-      }),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-      }),
-      CodeBlockLowlight.configure({
-        lowlight,
-      }),
-      ResizableImage,
-    ],
-    content: article.content ?? EMPTY_DOC,
-    editable: false,
-    immediatelyRender: false, // Fix SSR hydration issue
-    editorProps: {
-      attributes: {
-        class: `${EDITOR_PROSE_CLASS} prose-stone`,
-      },
-    },
-  })
+  const effectiveShowHighlights = showHighlights && isAuthenticated
 
   const publishedDate = article.publishedAt
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
@@ -76,13 +38,11 @@ export default function ArticleDisplay({
 
   return (
     <article className="max-w-4xl mx-auto px-4 py-8">
-      {/* Article Header */}
       <header className="mb-8">
         <h1 className="text-3xl md:text-4xl font-semibold text-foreground mb-3 leading-snug">
           {article.title}
         </h1>
 
-        {/* Author Info */}
         <div className="flex items-center gap-4 mb-6">
           <div className="flex items-center gap-3">
             <UserAvatar
@@ -109,7 +69,6 @@ export default function ArticleDisplay({
           </div>
         </div>
 
-        {/* Cover Image */}
         {article.coverImage && (
           <div className="relative mb-8 w-full h-64 md:h-96">
             <Image
@@ -123,7 +82,6 @@ export default function ArticleDisplay({
           </div>
         )}
 
-        {/* Tags */}
         {article.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-6">
             {article.tags.map((tag) => (
@@ -139,20 +97,15 @@ export default function ArticleDisplay({
         )}
       </header>
 
-      {/* Article Content */}
       <div className="article-content">
-        {useHighlightable ? (
-          <HighlightableArticle
-            articleId={article.id as Id<'articles'>}
-            content={article.content ?? EMPTY_DOC}
-            showHighlights={showHighlights}
-          />
-        ) : (
-          <EditorContent editor={editor} />
-        )}
+        <HighlightableArticle
+          articleId={article.id as Id<'articles'>}
+          content={article.content ?? EMPTY_DOC}
+          editable={false}
+          showHighlights={effectiveShowHighlights}
+        />
       </div>
 
-      {/* Share Buttons */}
       {currentUrl && (
         <div className="mt-8 pt-6 border-t border-border">
           <ShareButtons
