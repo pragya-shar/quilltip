@@ -14,7 +14,10 @@ describe('calculateTipBreakdown', () => {
   })
 
   it('uses PLATFORM_FEE_BPS when feeBps is omitted', () => {
-    const explicit = calculateTipBreakdown(1000, STELLAR_CONFIG.PLATFORM_FEE_BPS)
+    const explicit = calculateTipBreakdown(
+      1000,
+      STELLAR_CONFIG.PLATFORM_FEE_BPS
+    )
     const implicit = calculateTipBreakdown(1000)
     expect(implicit).toEqual(explicit)
   })
