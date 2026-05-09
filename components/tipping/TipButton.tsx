@@ -269,7 +269,7 @@ export function TipButton({
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {TIP_PRESETS_ARTICLE.map((amount) => (
               <button
                 key={amount.cents}
@@ -279,7 +279,7 @@ export function TipButton({
                   setCustomAmount('')
                 }}
                 disabled={isLoading}
-                className={`focus-ring relative px-4 py-3 rounded-lg border-2 transition-all disabled:opacity-50 ${
+                className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border-2 transition-all disabled:opacity-50 ${
                   selectedAmount === amount.cents
                     ? 'border-orange-500 bg-orange-50'
                     : 'border-border hover:border-orange-300'

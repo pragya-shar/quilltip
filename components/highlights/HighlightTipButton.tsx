@@ -308,7 +308,7 @@ export function HighlightTipButton({
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
             {TIP_PRESETS_HIGHLIGHT.map((amount) => (
               <button
                 key={amount.cents}
@@ -317,7 +317,7 @@ export function HighlightTipButton({
                   setSelectedAmount(amount.cents)
                   setCustomAmount('')
                 }}
-                className={`focus-ring relative px-4 py-3 rounded-lg border-2 transition-all ${
+                className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border-2 transition-all ${
                   selectedAmount === amount.cents
                     ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/30'
                     : 'border-border hover:border-orange-300'
