@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
@@ -10,6 +10,11 @@ import { Coins, Heart, Loader2, Wallet } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
+import {
+  stellarFlowEmitter,
+  type TipFlowStep,
+  tipFlowProgressLabel,
+} from '@/lib/stellar/stellar-flow-emitter'
 import {
   generateHighlightId,
   calculateTipBreakdown,
@@ -74,10 +79,19 @@ export function HighlightTipButton({
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [tipFlowStep, setTipFlowStep] = useState<TipFlowStep | null>(null)
 
   const convex = useConvex()
   const createHighlightTip = useMutation(api.highlightTips.create)
   const { priceUsd: displayXlmUsdRate } = useTipDialogXlmUsdRate(isOpen)
+
+  useEffect(() => {
+    return stellarFlowEmitter.subscribe((event) => {
+      if (event.flow === 'tip') {
+        setTipFlowStep(event.step)
+      }
+    })
+  }, [])
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
@@ -140,6 +154,7 @@ export function HighlightTipButton({
     setIsLoading(true)
 
     try {
+      stellarFlowEmitter.emit({ flow: 'tip', step: 'awaiting_signature' })
       const highlightId = await generateHighlightId(
         articleSlug,
         highlightText,
@@ -227,6 +242,7 @@ export function HighlightTipButton({
       }
     } finally {
       setIsLoading(false)
+      setTipFlowStep(null)
     }
   }
 
@@ -313,11 +329,12 @@ export function HighlightTipButton({
               <button
                 key={amount.cents}
                 type="button"
+                disabled={isLoading}
                 onClick={() => {
                   setSelectedAmount(amount.cents)
                   setCustomAmount('')
                 }}
-                className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border-2 transition-all ${
+                className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border-2 transition-all disabled:opacity-50 ${
                   selectedAmount === amount.cents
                     ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/30'
                     : 'border-border hover:border-orange-300'
@@ -355,8 +372,9 @@ export function HighlightTipButton({
                   setCustomAmount(e.target.value)
                   setSelectedAmount(null)
                 }}
+                disabled={isLoading}
                 placeholder="0.00"
-                className="focus-ring w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg"
+                className="focus-ring w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg disabled:opacity-50"
               />
             </div>
             <p className="text-xs text-muted-foreground mt-1">
@@ -404,7 +422,11 @@ export function HighlightTipButton({
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Sending...</span>
+                    <span>
+                      {tipFlowStep
+                        ? tipFlowProgressLabel(tipFlowStep)
+                        : 'Awaiting signature'}
+                    </span>
                   </>
                 ) : (
                   <>
