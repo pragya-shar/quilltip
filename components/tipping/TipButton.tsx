@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
@@ -12,6 +12,11 @@ import Link from 'next/link'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
+import {
+  stellarFlowEmitter,
+  type TipFlowStep,
+  tipFlowProgressLabel,
+} from '@/lib/stellar/stellar-flow-emitter'
 import {
   calculateTipBreakdown,
   formatTipAmount,
@@ -61,10 +66,19 @@ export function TipButton({
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [tipFlowStep, setTipFlowStep] = useState<TipFlowStep | null>(null)
 
   const convex = useConvex()
   const sendTip = useMutation(api.tips.sendTip)
   const { priceUsd: displayXlmUsdRate } = useTipDialogXlmUsdRate(isOpen)
+
+  useEffect(() => {
+    return stellarFlowEmitter.subscribe((event) => {
+      if (event.flow === 'tip') {
+        setTipFlowStep(event.step)
+      }
+    })
+  }, [])
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
@@ -193,6 +207,7 @@ export function TipButton({
       }
     } finally {
       setIsLoading(false)
+      setTipFlowStep(null)
     }
   }
 
@@ -367,7 +382,11 @@ export function TipButton({
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Sending...</span>
+                    <span>
+                      {tipFlowStep
+                        ? tipFlowProgressLabel(tipFlowStep)
+                        : 'Awaiting signature'}
+                    </span>
                   </>
                 ) : (
                   <>
