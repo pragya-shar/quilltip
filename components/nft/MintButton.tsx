@@ -18,7 +18,7 @@ import {
 import { useStellarWallet } from '@/hooks/useStellarWallet'
 import { nftClient } from '@/lib/stellar/nft-client'
 import { stellarClient } from '@/lib/stellar/client'
-import { ConvexHttpClient } from 'convex/browser'
+import { getConvexHttpClient } from '@/lib/convex-http-client'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
 import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
@@ -72,9 +72,6 @@ export function MintButton({
     ? Math.floor((totalTips / xlmPrice) * 10_000_000)
     : 0
 
-  // Initialize Convex HTTP client for async calls
-  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
-
   const handleConnectWallet = async () => {
     try {
       await wallet.connect()
@@ -119,10 +116,13 @@ export function MintButton({
 
       // Step 2: Generate metadata using Convex
       setMintingStep('wallet')
-      const metadata = await convex.query(api.nfts.generateNFTMetadata, {
-        articleId: articleId as Id<'articles'>,
-        xlmPrice: xlmPrice!, // Pass live price for accurate conversion
-      })
+      const metadata = await getConvexHttpClient().query(
+        api.nfts.generateNFTMetadata,
+        {
+          articleId: articleId as Id<'articles'>,
+          xlmPrice: xlmPrice!, // Pass live price for accurate conversion
+        }
+      )
 
       if (!metadata) {
         throw new Error('Failed to generate NFT metadata')
