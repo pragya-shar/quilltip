@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { ConvexHttpClient } from 'convex/browser'
+import { getConvexHttpClient } from '@/lib/convex-http-client'
 import { STELLAR_CONFIG } from './config'
 import { loadStellarSdk } from './sdk-loader'
 import { api } from '@/convex/_generated/api'
@@ -29,18 +29,6 @@ function shortArticleId(articleId: string): string {
 let xlmPriceCache: { price: number; timestamp: number; source: string } | null =
   null
 const PRICE_CACHE_TTL = 60 * 1000 // 1 minute in-tab cache
-
-let convexHttpClient: ConvexHttpClient | null = null
-function getConvexHttpClient(): ConvexHttpClient {
-  if (!convexHttpClient) {
-    const url = process.env.NEXT_PUBLIC_CONVEX_URL
-    if (!url) {
-      throw new Error('NEXT_PUBLIC_CONVEX_URL is not set')
-    }
-    convexHttpClient = new ConvexHttpClient(url)
-  }
-  return convexHttpClient
-}
 
 /**
  * Read the latest XLM/USD price from the Convex-backed cache. The cache is
