@@ -6,7 +6,7 @@ import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Coins, Heart, Loader2, Wallet } from 'lucide-react'
+import { AlertCircle, Coins, Heart, Loader2, Wallet } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
@@ -43,6 +43,11 @@ import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
 } from '@/lib/stellar/wallet-adapter'
+import {
+  formatTipFailureMessage,
+  type TipFailureMessage,
+} from '@/lib/stellar/tip-error-messages'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 interface HighlightTipButtonProps {
   articleId: Id<'articles'>
@@ -80,6 +85,7 @@ export function HighlightTipButton({
   const [customAmount, setCustomAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [tipFlowStep, setTipFlowStep] = useState<TipFlowStep | null>(null)
+  const [tipFailure, setTipFailure] = useState<TipFailureMessage | null>(null)
 
   const convex = useConvex()
   const createHighlightTip = useMutation(api.highlightTips.create)
@@ -96,6 +102,7 @@ export function HighlightTipButton({
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
     setIsOpen(open)
+    setTipFailure(null)
     if (!open) {
       setSelectedAmount(null)
       setCustomAmount('')
@@ -151,6 +158,7 @@ export function HighlightTipButton({
       console.error('[HighlightTipButton] canTip pre-flight failed', err)
     }
 
+    setTipFailure(null)
     setIsLoading(true)
 
     try {
@@ -198,6 +206,7 @@ export function HighlightTipButton({
         authorShare: transactionData.authorReceived,
       })
 
+      setTipFailure(null)
       setIsOpen(false)
       setSelectedAmount(null)
       setCustomAmount('')
@@ -226,20 +235,7 @@ export function HighlightTipButton({
       }
     } catch (error) {
       console.error('Highlight tip error:', error)
-
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to send tip'
-
-      if (
-        errorMessage.includes('User declined') ||
-        errorMessage.includes('rejected')
-      ) {
-        toast.error('Transaction cancelled by user')
-      } else {
-        toast.error('Transaction failed', {
-          description: errorMessage,
-        })
-      }
+      setTipFailure(formatTipFailureMessage(error))
     } finally {
       setIsLoading(false)
       setTipFlowStep(null)
@@ -306,6 +302,16 @@ export function HighlightTipButton({
               Choose an amount to tip this highlight on the Stellar network.
             </DialogDescription>
           </DialogHeader>
+
+          {tipFailure && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>{tipFailure.title}</AlertTitle>
+              {tipFailure.detail ? (
+                <AlertDescription>{tipFailure.detail}</AlertDescription>
+              ) : null}
+            </Alert>
+          )}
 
           <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
             <p className="text-sm text-foreground italic">
@@ -431,7 +437,7 @@ export function HighlightTipButton({
                 ) : (
                   <>
                     <Heart className="w-4 h-4" />
-                    <span>Send Tip</span>
+                    <span>{tipFailure ? 'Retry' : 'Send Tip'}</span>
                   </>
                 )}
               </button>
