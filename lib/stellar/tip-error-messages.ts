@@ -44,20 +44,14 @@ export function formatTipFailureMessage(error: unknown): TipFailureMessage {
     }
   }
 
-  if (
-    raw.startsWith('Transaction failed') ||
-    raw.includes('errorResult')
-  ) {
+  if (raw.startsWith('Transaction failed') || raw.includes('errorResult')) {
     return {
       title: 'Transaction could not be confirmed',
       detail: raw.length > 320 ? `${raw.slice(0, 317)}...` : raw,
     }
   }
 
-  if (
-    raw.includes('Please wait') &&
-    raw.includes('before tipping')
-  ) {
+  if (raw.includes('Please wait') && raw.includes('before tipping')) {
     return {
       title: 'Tip cooldown',
       detail: raw,
