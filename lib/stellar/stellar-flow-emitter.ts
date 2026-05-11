@@ -48,3 +48,16 @@ export function tipFlowProgressLabel(step: TipFlowStep): string {
       return 'Confirming on-chain'
   }
 }
+
+export function nftMintFlowProgressLabel(step: NftMintFlowStep): string {
+  switch (step) {
+    case 'awaiting_signature':
+      return 'Wallet'
+    case 'submitting':
+      return 'Submitted'
+    case 'confirming':
+      return 'Confirmed'
+    case 'idle':
+      return ''
+  }
+}
