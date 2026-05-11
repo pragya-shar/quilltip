@@ -14,6 +14,7 @@ import type {
   TipData,
   XLMPriceData,
 } from './types'
+import { stellarFlowEmitter } from './stellar-flow-emitter'
 
 /**
  * Generate a deterministic short ID from article ID using SHA256
@@ -329,9 +330,11 @@ export class StellarClient {
       this.networkPassphrase
     )
 
+    stellarFlowEmitter.emit({ flow: 'tip', step: 'submitting' })
     const result = await sorobanServer.sendTransaction(transaction)
 
     if (result.status === 'PENDING') {
+      stellarFlowEmitter.emit({ flow: 'tip', step: 'confirming' })
       let txResult = await sorobanServer.getTransaction(result.hash)
       let retries = 0
       const maxRetries = 30
