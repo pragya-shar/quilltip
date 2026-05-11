@@ -33,15 +33,12 @@ export function buildNftMetadataPayload(
   mintDateIso: string = new Date().toISOString()
 ): NftMetadataPayload {
   const totalTipsUsd = tips.reduce((sum, tip) => sum + tip.amountUsd, 0)
-  const tipAmountInStroops = Math.floor(
-    (totalTipsUsd / xlmPrice) * 10_000_000
-  )
+  const tipAmountInStroops = Math.floor((totalTipsUsd / xlmPrice) * 10_000_000)
 
   return {
     name: `Quilltip Article: ${article.title}`,
     description:
-      article.excerpt ||
-      `An article by ${article.authorUsername} on Quilltip`,
+      article.excerpt || `An article by ${article.authorUsername} on Quilltip`,
     image: article.coverImage || 'https://quilltip.me/default-nft-image.png',
     external_url: `https://quilltip.me/${article.authorUsername}/${article.slug}`,
     attributes: {

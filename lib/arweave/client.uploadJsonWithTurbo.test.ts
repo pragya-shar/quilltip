@@ -16,7 +16,9 @@ vi.mock('@ardrive/turbo-sdk/node', () => ({
 describe('uploadJsonWithTurbo', () => {
   beforeEach(() => {
     uploadMock.mockReset()
-    uploadMock.mockResolvedValue({ id: 'abcdefghijklmnopqrstuvwxyz0123456789AB' })
+    uploadMock.mockResolvedValue({
+      id: 'abcdefghijklmnopqrstuvwxyz0123456789AB',
+    })
   })
 
   afterEach(() => {
@@ -37,11 +39,9 @@ describe('uploadJsonWithTurbo', () => {
       qi: 'qi',
     }
 
-    const result = await uploadJsonWithTurbo(
-      { hello: 'world' },
-      jwk as never,
-      [{ name: 'Article-Id', value: 'test123' }]
-    )
+    const result = await uploadJsonWithTurbo({ hello: 'world' }, jwk as never, [
+      { name: 'Article-Id', value: 'test123' },
+    ])
 
     expect(result.success).toBe(true)
     expect(result.url).toBe(
