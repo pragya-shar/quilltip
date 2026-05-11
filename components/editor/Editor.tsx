@@ -8,11 +8,18 @@ import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import Youtube from '@tiptap/extension-youtube'
 import { lowlight } from '@/lib/lowlight'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ResizableImage } from './extensions/ResizableImage'
-import { uploadFile, compressImage } from '@/lib/upload'
+import { EditorKeymap } from './extensions/EditorKeymap'
+import {
+  uploadFile,
+  compressImage,
+  validateImageUploadFile,
+  isAbortError,
+} from '@/lib/upload'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
 import { useConvex } from 'convex/react'
+import { toast } from 'sonner'
 
 interface EditorProps {
   content?: string
@@ -32,9 +39,16 @@ export function Editor({
   const [isDragging, setIsDragging] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const uploadAbortRef = useRef<AbortController | null>(null)
 
-  // Get Convex client for uploads
   const convex = useConvex()
+
+  useEffect(() => {
+    return () => {
+      uploadAbortRef.current?.abort()
+      uploadAbortRef.current = null
+    }
+  }, [])
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -85,6 +99,7 @@ export function Editor({
             'rounded-lg bg-muted text-foreground border border-border p-4 my-4 overflow-x-auto',
         },
       }),
+      EditorKeymap,
     ],
     content,
     editable,
@@ -140,33 +155,59 @@ export function Editor({
       return // No image files dropped
     }
 
+    const file = imageFiles[0]
+    if (!file) return
+
+    const validation = validateImageUploadFile(file)
+    if (!validation.ok) {
+      toast.error(validation.error)
+      return
+    }
+
+    uploadAbortRef.current?.abort()
+    const controller = new AbortController()
+    uploadAbortRef.current = controller
+
     setIsUploading(true)
     setUploadProgress(0)
 
     try {
-      // Upload the first image file
-      const file = imageFiles[0]
-      if (!file) return
-
-      // Compress image before upload for better performance
-      const compressedFile = await compressImage(file, 1200, 0.8)
+      const compressedFile = await compressImage(
+        file,
+        1200,
+        0.8,
+        controller.signal
+      )
       const result = await uploadFile(
         compressedFile,
         convex,
         'article_image',
-        undefined, // no specific article
+        undefined,
         (progress) => {
           setUploadProgress(progress.percentage)
-        }
+        },
+        controller.signal
       )
 
       if (result.success && result.url) {
-        // Insert the image at the current cursor position
         editor.chain().focus().setResizableImage({ src: result.url }).run()
+      } else if (result.error) {
+        toast.error(result.error)
       }
     } catch (error) {
+      if (isAbortError(error)) {
+        return
+      }
       console.error('Error uploading dropped image:', error)
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Upload failed. Please try again.'
+      )
     } finally {
+      if (uploadAbortRef.current === controller) {
+        uploadAbortRef.current = null
+      }
       setIsUploading(false)
     }
   }

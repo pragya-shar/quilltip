@@ -11,6 +11,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
+import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
 import { EditorToolbar } from '@/components/editor/EditorToolbar'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
 import { ImageUploadDialog } from '@/components/editor/ImageUploadDialog'
@@ -42,7 +43,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
-import { compressImage, uploadFile } from '@/lib/upload'
+import {
+  compressImage,
+  uploadFile,
+  validateImageUploadFile,
+  isAbortError,
+} from '@/lib/upload'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const EXCERPT_MAX_CHARS = 500
@@ -112,6 +118,18 @@ export function WriteEditorWorkspace() {
   const searchParams = useSearchParams()
   const { isAuthenticated } = useAuth()
 
+  const coverUploadAbortRef = useRef<AbortController | null>(null)
+  const bodyUploadAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => {
+      coverUploadAbortRef.current?.abort()
+      bodyUploadAbortRef.current?.abort()
+      coverUploadAbortRef.current = null
+      bodyUploadAbortRef.current = null
+    }
+  }, [])
+
   useEffect(() => {
     hasUnsavedRef.current = hasUnsavedChanges
   }, [hasUnsavedChanges])
@@ -157,6 +175,7 @@ export function WriteEditorWorkspace() {
         },
       }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      EditorKeymap,
     ],
     content: '',
     editorProps: {
@@ -422,20 +441,32 @@ export function WriteEditorWorkspace() {
 
       const file = e.dataTransfer.files?.[0]
       if (!file) return
-      if (!file.type.startsWith('image/')) {
-        toast.error('Please drop an image file')
+
+      const validation = validateImageUploadFile(file)
+      if (!validation.ok) {
+        toast.error(validation.error)
         return
       }
 
+      coverUploadAbortRef.current?.abort()
+      const controller = new AbortController()
+      coverUploadAbortRef.current = controller
+
       setCoverDropUploading(true)
       try {
-        const compressedFile = await compressImage(file, 1200, 0.8)
+        const compressedFile = await compressImage(
+          file,
+          1200,
+          0.8,
+          controller.signal
+        )
         const result = await uploadFile(
           compressedFile,
           convex,
           'article_image',
           undefined,
-          undefined
+          undefined,
+          controller.signal
         )
         if (result.success && result.url) {
           setCoverImage(result.url)
@@ -444,9 +475,19 @@ export function WriteEditorWorkspace() {
           toast.error(result.error || 'Upload failed')
         }
       } catch (err) {
+        if (isAbortError(err)) {
+          return
+        }
         console.error('Cover drop upload error:', err)
-        toast.error('Upload failed. Please try again.')
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Upload failed. Please try again.'
+        )
       } finally {
+        if (coverUploadAbortRef.current === controller) {
+          coverUploadAbortRef.current = null
+        }
         setCoverDropUploading(false)
       }
     },
@@ -482,11 +523,26 @@ export function WriteEditorWorkspace() {
       const file = imageFiles[0]
       if (!file) return
 
+      const validation = validateImageUploadFile(file)
+      if (!validation.ok) {
+        toast.error(validation.error)
+        return
+      }
+
+      bodyUploadAbortRef.current?.abort()
+      const controller = new AbortController()
+      bodyUploadAbortRef.current = controller
+
       setBodyImageUploading(true)
       setBodyImageUploadProgress(0)
 
       try {
-        const compressedFile = await compressImage(file, 1200, 0.8)
+        const compressedFile = await compressImage(
+          file,
+          1200,
+          0.8,
+          controller.signal
+        )
         const result = await uploadFile(
           compressedFile,
           convex,
@@ -494,7 +550,8 @@ export function WriteEditorWorkspace() {
           undefined,
           (progress) => {
             setBodyImageUploadProgress(progress.percentage)
-          }
+          },
+          controller.signal
         )
 
         if (result.success && result.url) {
@@ -503,9 +560,19 @@ export function WriteEditorWorkspace() {
           toast.error(result.error || 'Upload failed')
         }
       } catch (err) {
+        if (isAbortError(err)) {
+          return
+        }
         console.error('Error uploading dropped image:', err)
-        toast.error('Upload failed. Please try again.')
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : 'Upload failed. Please try again.'
+        )
       } finally {
+        if (bodyUploadAbortRef.current === controller) {
+          bodyUploadAbortRef.current = null
+        }
         setBodyImageUploading(false)
       }
     },
