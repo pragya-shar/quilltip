@@ -71,7 +71,9 @@ describe('isValidArweaveNftMetadataUrl', () => {
   it('rejects non-arweave and malformed URLs', () => {
     expect(isValidArweaveNftMetadataUrl('http://arweave.net/abc')).toBe(false)
     expect(
-      isValidArweaveNftMetadataUrl('https://example.com/abcdefghijklmnopqrstuvwxyz0123456789AB')
+      isValidArweaveNftMetadataUrl(
+        'https://example.com/abcdefghijklmnopqrstuvwxyz0123456789AB'
+      )
     ).toBe(false)
     expect(
       isValidArweaveNftMetadataUrl(
@@ -83,8 +85,6 @@ describe('isValidArweaveNftMetadataUrl', () => {
         'https://arweave.net/ab/cd' // path segment
       )
     ).toBe(false)
-    expect(isValidArweaveNftMetadataUrl('data:application/json,{}')).toBe(
-      false
-    )
+    expect(isValidArweaveNftMetadataUrl('data:application/json,{}')).toBe(false)
   })
 })

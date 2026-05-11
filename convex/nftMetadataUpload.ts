@@ -72,8 +72,7 @@ export const uploadNftMetadataForMint = action({
         }
         lastError = result.error || 'Unknown error'
       } catch (error) {
-        lastError =
-          error instanceof Error ? error.message : 'Unknown error'
+        lastError = error instanceof Error ? error.message : 'Unknown error'
       }
 
       if (attempt < maxRetries) {
