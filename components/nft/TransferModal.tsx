@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useNFTByArticle } from '@/hooks/convex'
@@ -18,6 +18,16 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { userFacingTransferNftError } from '@/lib/convex/userFacingTransferNftError'
+
+type TransferMessage =
+  | { kind: 'none' }
+  | { kind: 'progress'; text: string }
+  | { kind: 'success'; text: string }
+  | { kind: 'error'; text: string }
+
+const PROGRESS_COPY = 'Processing transfer...'
+const SUCCESS_COPY = 'Transfer completed successfully!'
 
 interface TransferModalProps {
   isOpen: boolean
@@ -41,11 +51,9 @@ export function TransferModal({
   triggerRef,
 }: TransferModalProps) {
   const [recipientUsername, setRecipientUsername] = useState('')
-  const [isTransferring, setIsTransferring] = useState(false)
-  const [transferStatus, setTransferStatus] = useState<
-    'idle' | 'confirming' | 'success' | 'error'
-  >('idle')
-  const [errorMessage, setErrorMessage] = useState('')
+  const [transferMessage, setTransferMessage] = useState<TransferMessage>({
+    kind: 'none',
+  })
 
   const transferNFT = useMutation(api.nfts.transferNFT)
 
@@ -56,39 +64,58 @@ export function TransferModal({
   const actualNftId =
     nftId || (nftData && nftData.isMinted ? nftData._id : null)
 
+  const prevOpenRef = useRef(false)
+
+  useEffect(() => {
+    if (isOpen && !prevOpenRef.current) {
+      setRecipientUsername('')
+      setTransferMessage({ kind: 'none' })
+    }
+    prevOpenRef.current = isOpen
+  }, [isOpen])
+
+  const isBusy = transferMessage.kind === 'progress'
+
   const validateUsername = (username: string): boolean => {
-    // Basic username validation
     return /^[a-zA-Z0-9_-]{3,30}$/.test(username)
   }
 
   const handleTransfer = async () => {
-    setErrorMessage('')
+    setTransferMessage({ kind: 'none' })
 
-    // Validate username
     if (!recipientUsername.trim()) {
-      setErrorMessage('Please enter a recipient username')
+      setTransferMessage({
+        kind: 'error',
+        text: 'Please enter a recipient username',
+      })
       return
     }
 
     if (!validateUsername(recipientUsername)) {
-      setErrorMessage(
-        'Invalid username format. Use only letters, numbers, underscores, and hyphens (3-30 characters).'
-      )
+      setTransferMessage({
+        kind: 'error',
+        text: 'Invalid username format. Use only letters, numbers, underscores, and hyphens (3-30 characters).',
+      })
       return
     }
 
     if (recipientUsername.toLowerCase() === currentOwner.toLowerCase()) {
-      setErrorMessage('Cannot transfer to the current owner')
+      setTransferMessage({
+        kind: 'error',
+        text: 'Cannot transfer to the current owner',
+      })
       return
     }
 
     if (!actualNftId) {
-      setErrorMessage('NFT not found for this article')
+      setTransferMessage({
+        kind: 'error',
+        text: 'NFT not found for this article',
+      })
       return
     }
 
-    setIsTransferring(true)
-    setTransferStatus('confirming')
+    setTransferMessage({ kind: 'progress', text: PROGRESS_COPY })
 
     try {
       const transferId = await transferNFT({
@@ -97,19 +124,16 @@ export function TransferModal({
       })
 
       if (transferId) {
-        setTransferStatus('success')
+        setTransferMessage({ kind: 'success', text: SUCCESS_COPY })
 
-        // Show success toast
         toast.success(
           `NFT Transferred Successfully! Article NFT has been transferred to @${recipientUsername}`
         )
 
-        // Notify parent component
         if (onTransferComplete) {
           onTransferComplete(recipientUsername)
         }
 
-        // Close modal after a short delay
         setTimeout(() => {
           handleClose()
         }, 2000)
@@ -117,52 +141,36 @@ export function TransferModal({
         throw new Error('Transfer failed')
       }
     } catch (error) {
-      setTransferStatus('error')
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : 'Transfer failed. Please try again.'
-      )
-      toast.error(error instanceof Error ? error.message : 'Transfer failed')
-    } finally {
-      setIsTransferring(false)
+      const text = userFacingTransferNftError(error)
+      setTransferMessage({ kind: 'error', text })
+      toast.error(text)
     }
   }
 
   const handleClose = () => {
-    if (!isTransferring) {
-      setRecipientUsername('')
-      setTransferStatus('idle')
-      setErrorMessage('')
-      onClose()
-    }
+    if (isBusy) return
+    setRecipientUsername('')
+    setTransferMessage({ kind: 'none' })
+    onClose()
   }
 
-  const getStatusMessage = () => {
-    switch (transferStatus) {
-      case 'confirming':
-        return 'Processing transfer...'
-      case 'success':
-        return 'Transfer completed successfully!'
-      case 'error':
-        return errorMessage || 'Transfer failed. Please try again.'
-      default:
-        return ''
-    }
-  }
+  const messageBannerClass =
+    transferMessage.kind === 'success'
+      ? 'bg-green-50 text-green-700'
+      : transferMessage.kind === 'error'
+        ? 'bg-red-50 text-red-700'
+        : transferMessage.kind === 'progress'
+          ? 'bg-blue-50 text-blue-700'
+          : ''
 
-  const getStatusIcon = () => {
-    switch (transferStatus) {
-      case 'confirming':
-        return <Loader2 className="h-4 w-4 animate-spin" />
-      case 'success':
-        return <CheckCircle className="h-4 w-4 text-green-500" />
-      case 'error':
-        return <AlertCircle className="h-4 w-4 text-red-500" />
-      default:
-        return null
-    }
-  }
+  const messageIcon =
+    transferMessage.kind === 'progress' ? (
+      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+    ) : transferMessage.kind === 'success' ? (
+      <CheckCircle className="h-4 w-4 shrink-0 text-green-500" />
+    ) : transferMessage.kind === 'error' ? (
+      <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+    ) : null
 
   return (
     <Dialog
@@ -180,10 +188,10 @@ export function TransferModal({
           }
         }}
         onEscapeKeyDown={(e) => {
-          if (isTransferring) e.preventDefault()
+          if (isBusy) e.preventDefault()
         }}
         onInteractOutside={(e) => {
-          if (isTransferring) e.preventDefault()
+          if (isBusy) e.preventDefault()
         }}
       >
         <DialogHeader>
@@ -195,7 +203,6 @@ export function TransferModal({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Current Owner */}
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">
               Current Owner
@@ -205,7 +212,6 @@ export function TransferModal({
             </div>
           </div>
 
-          {/* Recipient Input */}
           <div className="space-y-2">
             <Label htmlFor="recipient">Transfer To (Username)</Label>
             <Input
@@ -213,7 +219,7 @@ export function TransferModal({
               placeholder="Enter recipient username"
               value={recipientUsername}
               onChange={(e) => setRecipientUsername(e.target.value)}
-              disabled={isTransferring || transferStatus === 'success'}
+              disabled={isBusy || transferMessage.kind === 'success'}
               className="font-mono"
             />
             <p className="text-xs text-muted-foreground">
@@ -221,55 +227,48 @@ export function TransferModal({
             </p>
           </div>
 
-          {/* Status Message */}
-          {transferStatus !== 'idle' && (
-            <div
-              className={`flex items-center gap-2 p-3 rounded-lg ${
-                transferStatus === 'success'
-                  ? 'bg-green-50 text-green-700'
-                  : transferStatus === 'error'
-                    ? 'bg-red-50 text-red-700'
-                    : 'bg-blue-50 text-blue-700'
-              }`}
-            >
-              {getStatusIcon()}
-              <span className="min-w-0 text-sm break-words">
-                {getStatusMessage()}
-              </span>
-            </div>
-          )}
-
-          {/* Error Message */}
-          {errorMessage && transferStatus === 'idle' && (
-            <div className="text-sm text-red-500">{errorMessage}</div>
-          )}
+          <div
+            className="flex min-h-[3.75rem] items-center rounded-lg"
+            data-testid="transfer-modal-message"
+            aria-live="polite"
+          >
+            {transferMessage.kind === 'none' ? (
+              <span className="sr-only">No transfer status</span>
+            ) : (
+              <div
+                className={`flex w-full items-center gap-2 rounded-lg p-3 ${messageBannerClass}`}
+              >
+                {messageIcon}
+                <span className="min-w-0 text-sm break-words">
+                  {transferMessage.text}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={handleClose}
-            disabled={isTransferring}
-          >
+          <Button variant="outline" onClick={handleClose} disabled={isBusy}>
             Cancel
           </Button>
           <Button
             onClick={handleTransfer}
             disabled={
-              isTransferring ||
-              transferStatus === 'success' ||
+              isBusy ||
+              transferMessage.kind === 'success' ||
               !recipientUsername.trim()
             }
+            aria-busy={isBusy}
             className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
           >
-            {isTransferring ? (
+            {isBusy ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Transferring...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                Transfer NFT
               </>
             ) : (
               <>
-                <Send className="mr-2 h-4 w-4" />
+                <Send className="mr-2 h-4 w-4" aria-hidden />
                 Transfer NFT
               </>
             )}
