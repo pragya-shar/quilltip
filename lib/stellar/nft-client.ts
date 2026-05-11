@@ -1,5 +1,6 @@
 import { STELLAR_CONFIG } from './config'
 import { loadStellarSdk } from './sdk-loader'
+import { stellarFlowEmitter } from './stellar-flow-emitter'
 import type { MintNFTParams, NFTOwnership, NFTTransactionResult } from './types'
 
 type StellarSdkContext = {
@@ -192,9 +193,11 @@ export class NFTClient {
         this.networkPassphrase
       )
 
+      stellarFlowEmitter.emit({ flow: 'nft_mint', step: 'submitting' })
       const result = await sorobanServer.sendTransaction(transaction)
 
       if (result.status === 'PENDING') {
+        stellarFlowEmitter.emit({ flow: 'nft_mint', step: 'confirming' })
         let txResult = await sorobanServer.getTransaction(result.hash)
         let retries = 0
         const maxRetries = 30

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
@@ -10,6 +10,12 @@ import { Coins, Heart, Loader2, Wallet } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
+import {
+  stellarFlowEmitter,
+  type StellarFlowEvent,
+  type TipFlowStep,
+  tipFlowProgressLabel,
+} from '@/lib/stellar/stellar-flow-emitter'
 import {
   generateHighlightId,
   formatTipAmount,
@@ -70,9 +76,18 @@ export function HighlightTipButton({
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [tipFlowStep, setTipFlowStep] = useState<TipFlowStep | null>(null)
 
   const convex = useConvex()
   const createHighlightTip = useMutation(api.highlightTips.create)
+
+  useEffect(() => {
+    return stellarFlowEmitter.subscribe((event: StellarFlowEvent) => {
+      if (event.flow === 'tip') {
+        setTipFlowStep(event.step)
+      }
+    })
+  }, [])
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
@@ -135,6 +150,7 @@ export function HighlightTipButton({
     setIsLoading(true)
 
     try {
+      stellarFlowEmitter.emit({ flow: 'tip', step: 'awaiting_signature' })
       const highlightId = await generateHighlightId(
         articleSlug,
         highlightText,
@@ -221,6 +237,7 @@ export function HighlightTipButton({
         })
       }
     } finally {
+      setTipFlowStep(null)
       setIsLoading(false)
     }
   }
@@ -384,7 +401,11 @@ export function HighlightTipButton({
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Sending...</span>
+                    <span>
+                      {tipFlowStep
+                        ? tipFlowProgressLabel(tipFlowStep)
+                        : 'Awaiting signature'}
+                    </span>
                   </>
                 ) : (
                   <>
