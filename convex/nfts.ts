@@ -1,7 +1,11 @@
 import { v } from 'convex/values'
-import { query, mutation } from './_generated/server'
+import { query, mutation, internalQuery } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { enrichWithUser } from './lib/enrich'
+import {
+  buildNftMetadataPayload,
+  isValidArweaveNftMetadataUrl,
+} from './lib/nftMetadata'
 
 // Get NFTs by owner
 export const getNFTsByOwner = query({
@@ -268,11 +272,26 @@ export const getNFTDetails = query({
   },
 })
 
+export const loadArticleTipsForNftMetadata = internalQuery({
+  args: { articleId: v.id('articles') },
+  handler: async (ctx, args) => {
+    const article = await ctx.db.get(args.articleId)
+    if (!article) return null
+    const tips = await ctx.db
+      .query('tips')
+      .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
+      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .collect()
+    return { article, tips }
+  },
+})
+
 // Mint NFT for article
 export const mintNFT = mutation({
   args: {
     articleId: v.id('articles'),
     tipThreshold: v.optional(v.number()),
+    metadataUrl: v.string(),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
@@ -296,11 +315,16 @@ export const mintNFT = mutation({
       throw new Error('NFT already minted for this article')
     }
 
+    if (!isValidArweaveNftMetadataUrl(args.metadataUrl)) {
+      throw new Error(
+        'Invalid metadata URL: must be https://arweave.net/ followed by a transaction id'
+      )
+    }
+
     const now = Date.now()
 
-    // Generate NFT data
     const tokenId = `QUILL-${crypto.randomUUID()}`
-    const metadataUrl = `https://quilltip.me/api/nft/${tokenId}`
+    const metadataUrl = args.metadataUrl
 
     // Get total tips for the article
     const tips = await ctx.db
@@ -549,25 +573,6 @@ export const generateNFTMetadata = query({
       .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .collect()
 
-    const totalTipsUsd = tips.reduce((sum, tip) => sum + tip.amountUsd, 0)
-    const tipAmountInStroops = Math.floor(
-      (totalTipsUsd / args.xlmPrice) * 10_000_000
-    ) // Convert to stroops using live price
-
-    // Generate NFT metadata following OpenSea/standard format
-    return {
-      name: `Quilltip Article: ${article.title}`,
-      description:
-        article.excerpt ||
-        `An article by ${article.authorUsername} on Quilltip`,
-      image: article.coverImage || 'https://quilltip.me/default-nft-image.png',
-      external_url: `https://quilltip.me/${article.authorUsername}/${article.slug}`,
-      attributes: {
-        author: article.authorUsername,
-        tipAmount: tipAmountInStroops,
-        mintDate: new Date().toISOString(),
-        articleSlug: article.slug,
-      },
-    }
+    return buildNftMetadataPayload(article, tips, args.xlmPrice)
   },
 })
