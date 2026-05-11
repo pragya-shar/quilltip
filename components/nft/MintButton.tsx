@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useMutation } from 'convex/react'
+import { useAction, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
@@ -18,7 +18,6 @@ import {
 import { useStellarWallet } from '@/hooks/useStellarWallet'
 import { nftClient } from '@/lib/stellar/nft-client'
 import { stellarClient } from '@/lib/stellar/client'
-import { getConvexHttpClient } from '@/lib/convex-http-client'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
 import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
@@ -40,6 +39,24 @@ const NFT_MINT_UI_STEPS: readonly NftMintFlowStep[] = [
 
 function nftMintStepIndex(step: NftMintFlowStep): number {
   return NFT_MINT_UI_STEPS.indexOf(step)
+}
+
+function getFriendlyMintErrorMessage(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : ''
+
+  if (
+    message.includes('Arweave uploads are disabled') ||
+    message.includes('Arweave wallet key is not configured') ||
+    message.includes('Arweave wallet key is invalid')
+  ) {
+    return 'NFT minting is temporarily unavailable. Please try again later.'
+  }
+
+  if (message.includes('NFT metadata upload to Arweave failed')) {
+    return "We couldn't prepare your NFT metadata right now. Please try again in a moment."
+  }
+
+  return message || fallback
 }
 
 interface MintButtonProps {
@@ -73,6 +90,9 @@ export function MintButton({
   const nftMintFlowStepRef = useRef<NftMintFlowStep | null>(null)
 
   const mintNFT = useMutation(api.nfts.mintNFT)
+  const uploadNftMetadataForMint = useAction(
+    api.nftMetadataUpload.uploadNftMetadataForMint
+  )
   const wallet = useStellarWallet()
   const [xlmPrice, setXlmPrice] = useState<number | null>(null)
 
@@ -146,21 +166,10 @@ export function MintButton({
         )
       }
 
-      const metadata = await getConvexHttpClient().query(
-        api.nfts.generateNFTMetadata,
-        {
-          articleId: articleId as Id<'articles'>,
-          xlmPrice: xlmPrice!, // Pass live price for accurate conversion
-        }
-      )
-
-      if (!metadata) {
-        throw new Error('Failed to generate NFT metadata')
-      }
-
-      // For now, we'll use a simple URL that returns this metadata
-      // In the future, this will be stored on IPFS
-      const metadataUrl = `data:application/json,${encodeURIComponent(JSON.stringify(metadata))}`
+      const { metadataUrl } = await uploadNftMetadataForMint({
+        articleId: articleId as Id<'articles'>,
+        xlmPrice: xlmPrice!,
+      })
 
       const { xdr } = await nftClient.buildMintTransaction(wallet.publicKey, {
         authorAddress: wallet.publicKey,
@@ -180,6 +189,7 @@ export function MintButton({
       const nftId = await mintNFT({
         articleId: articleId as Id<'articles'>,
         tipThreshold: threshold,
+        metadataUrl,
       })
 
       if (nftId) {
@@ -204,7 +214,7 @@ export function MintButton({
         fallback = 'Blockchain transaction failed. Please try again'
       }
 
-      toast.error(error instanceof Error ? error.message : fallback)
+      toast.error(getFriendlyMintErrorMessage(error, fallback))
     } finally {
       setNftMintFlowStep(null)
       nftMintFlowStepRef.current = null
