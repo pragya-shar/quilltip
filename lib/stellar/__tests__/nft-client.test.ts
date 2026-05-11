@@ -59,9 +59,8 @@ describe('NFTClient.submitMintTransaction', () => {
   let emitSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(async () => {
-    const { stellarFlowEmitter } = await import(
-      '@/lib/stellar/stellar-flow-emitter'
-    )
+    const { stellarFlowEmitter } =
+      await import('@/lib/stellar/stellar-flow-emitter')
     emitSpy = vi.spyOn(stellarFlowEmitter, 'emit')
   })
 
@@ -76,12 +75,14 @@ describe('NFTClient.submitMintTransaction', () => {
     vi.spyOn(StellarSdk.TransactionBuilder, 'fromXDR').mockReturnValue(
       {} as never
     )
-    vi.spyOn(StellarSdk.rpc.Server.prototype, 'sendTransaction').mockResolvedValue(
-      { status: 'PENDING', hash: 'testhash' } as never
-    )
-    vi.spyOn(StellarSdk.rpc.Server.prototype, 'getTransaction').mockResolvedValue(
-      { status: 'SUCCESS', returnValue: undefined } as never
-    )
+    vi.spyOn(
+      StellarSdk.rpc.Server.prototype,
+      'sendTransaction'
+    ).mockResolvedValue({ status: 'PENDING', hash: 'testhash' } as never)
+    vi.spyOn(
+      StellarSdk.rpc.Server.prototype,
+      'getTransaction'
+    ).mockResolvedValue({ status: 'SUCCESS', returnValue: undefined } as never)
 
     const client = new NFTClient()
     const result = await client.submitMintTransaction('AAAAxdr')
