@@ -68,9 +68,8 @@ export function MintButton({
   const [isLoading, setIsLoading] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
-  const [nftMintFlowStep, setNftMintFlowStep] = useState<NftMintFlowStep | null>(
-    null
-  )
+  const [nftMintFlowStep, setNftMintFlowStep] =
+    useState<NftMintFlowStep | null>(null)
   const nftMintFlowStepRef = useRef<NftMintFlowStep | null>(null)
 
   const mintNFT = useMutation(api.nfts.mintNFT)
@@ -321,7 +320,8 @@ export function MintButton({
                 </p>
                 <ol className="flex w-full items-start gap-2 sm:gap-3">
                   {NFT_MINT_UI_STEPS.map((stepKey, i) => {
-                    const activeIdx = mintStepActiveIndex >= 0 ? mintStepActiveIndex : 0
+                    const activeIdx =
+                      mintStepActiveIndex >= 0 ? mintStepActiveIndex : 0
                     const isComplete = i < activeIdx
                     const isCurrent = i === activeIdx
                     return (
@@ -363,9 +363,7 @@ export function MintButton({
                             'text-center text-[10px] font-medium leading-tight sm:text-xs',
                             isCurrent && 'text-foreground',
                             isComplete && 'text-green-800 dark:text-green-300',
-                            !isCurrent &&
-                              !isComplete &&
-                              'text-muted-foreground'
+                            !isCurrent && !isComplete && 'text-muted-foreground'
                           )}
                         >
                           {nftMintFlowProgressLabel(stepKey)}

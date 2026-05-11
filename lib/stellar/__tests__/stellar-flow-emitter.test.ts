@@ -32,8 +32,6 @@ describe('stellarFlowEmitter', () => {
     unsub()
     stellarFlowEmitter.emit({ flow: 'tip', step: 'confirming' })
 
-    expect(received).toEqual([
-      { flow: 'nft_mint', step: 'awaiting_signature' },
-    ])
+    expect(received).toEqual([{ flow: 'nft_mint', step: 'awaiting_signature' }])
   })
 })
