@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as admin from "../admin.js";
 import type * as articles from "../articles.js";
 import type * as arweave from "../arweave.js";
 import type * as arweaveHelpers from "../arweaveHelpers.js";
@@ -44,6 +45,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  admin: typeof admin;
   articles: typeof articles;
   arweave: typeof arweave;
   arweaveHelpers: typeof arweaveHelpers;
