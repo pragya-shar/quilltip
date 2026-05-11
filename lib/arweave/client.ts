@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import { ARWEAVE_CONFIG } from './config'
 import type {
   ArweaveArticleContent,
+  ArweaveDataTag,
   ArweaveUploadResult,
   ArweaveTransactionStatus,
 } from './types'
@@ -103,6 +104,72 @@ export async function uploadArticle(
     }
   } catch (error) {
     console.error('[Arweave] Upload error:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }
+  }
+}
+
+/**
+ * Upload arbitrary JSON to Arweave via Turbo (same path as article uploads).
+ * Caller supplies short tags only; full payloads belong in the JSON body.
+ */
+export async function uploadJsonWithTurbo(
+  payload: unknown,
+  jwk: JWKInterface,
+  extraTags: ArweaveDataTag[]
+): Promise<ArweaveUploadResult> {
+  try {
+    const data = JSON.stringify(payload)
+    const dataBuffer = Buffer.from(data)
+    const contentHash = createHash('sha256').update(dataBuffer).digest('hex')
+    const sizeBytes = dataBuffer.length
+    const sizeKiB = sizeBytes / 1024
+
+    if (sizeBytes > ARWEAVE_CONFIG.HARD_LIMIT_BYTES) {
+      return {
+        success: false,
+        error: `JSON payload ${sizeKiB.toFixed(1)} KiB exceeds maximum allowed (${ARWEAVE_CONFIG.HARD_LIMIT_BYTES / 1024} KiB)`,
+      }
+    }
+
+    if (sizeBytes > ARWEAVE_CONFIG.FREE_TIER_LIMIT_BYTES) {
+      console.warn(
+        `[Arweave] JSON payload ${sizeKiB.toFixed(1)} KiB exceeds free tier (100 KiB). ` +
+          `Upload may require credits.`
+      )
+    }
+
+    const { TurboFactory, ArweaveSigner } =
+      await import('@ardrive/turbo-sdk/node')
+
+    const signer = new ArweaveSigner(jwk)
+    const turbo = TurboFactory.authenticated({ signer })
+
+    const result = await turbo.upload({
+      data: dataBuffer,
+      signal: AbortSignal.timeout(60000),
+      dataItemOpts: {
+        tags: [
+          { name: 'Content-Type', value: 'application/json' },
+          { name: 'App-Name', value: ARWEAVE_CONFIG.APP_NAME },
+          { name: 'App-Version', value: ARWEAVE_CONFIG.APP_VERSION },
+          { name: 'Data-Type', value: 'quilltip-nft-metadata' },
+          ...extraTags,
+          { name: 'Content-Hash', value: contentHash },
+        ],
+      },
+    })
+
+    return {
+      success: true,
+      txId: result.id,
+      url: `https://arweave.net/${result.id}`,
+      contentHash,
+    }
+  } catch (error) {
+    console.error('[Arweave] JSON upload error:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
