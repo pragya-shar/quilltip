@@ -169,10 +169,7 @@ describe('TransferModal', () => {
 
     render(<ControlledTransferModal />)
 
-    await user.type(
-      screen.getByLabelText(/Transfer To \(Username\)/i),
-      'ab'
-    )
+    await user.type(screen.getByLabelText(/Transfer To \(Username\)/i), 'ab')
     await user.click(screen.getByRole('button', { name: /^Transfer NFT$/i }))
     await waitFor(() => {
       expect(screen.getByTestId('transfer-modal-message')).toHaveTextContent(
@@ -183,6 +180,8 @@ describe('TransferModal', () => {
     await user.click(screen.getByRole('button', { name: /^Cancel$/i }))
     await user.click(screen.getByRole('button', { name: /^Reopen$/i }))
 
-    expect(screen.queryByText(/Invalid username format/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/Invalid username format/)
+    ).not.toBeInTheDocument()
   })
 })

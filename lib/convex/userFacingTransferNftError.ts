@@ -3,8 +3,7 @@ const GENERIC = 'Transfer could not be completed. Please try again.'
 const FRIENDLY_BY_SUBSTRING: Array<{ match: string; message: string }> = [
   {
     match: 'recipient not found',
-    message:
-      'No account uses that username. Check the spelling and try again.',
+    message: 'No account uses that username. Check the spelling and try again.',
   },
   {
     match: 'not authenticated',
@@ -73,11 +72,7 @@ export function userFacingTransferNftError(error: unknown): string {
   const polished = polishKnownMessage(inner)
   if (polished) return polished
 
-  if (
-    inner.length > 0 &&
-    inner.length <= 200 &&
-    !looksLikeDevNoise(inner)
-  ) {
+  if (inner.length > 0 && inner.length <= 200 && !looksLikeDevNoise(inner)) {
     return inner
   }
 
