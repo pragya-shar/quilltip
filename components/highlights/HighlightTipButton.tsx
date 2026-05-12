@@ -1,19 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Coins, Heart, Loader2, Wallet } from 'lucide-react'
+import { AlertCircle, Coins, Heart, Loader2, Wallet } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
 import {
+  stellarFlowEmitter,
+  type TipFlowStep,
+  tipFlowProgressLabel,
+} from '@/lib/stellar/stellar-flow-emitter'
+import {
   generateHighlightId,
+  calculateTipBreakdown,
   formatTipAmount,
 } from '@/lib/stellar/highlight-utils'
+import { TipBreakdownSummaryLine } from '@/components/tipping/TipBreakdownSummaryLine'
+import { TipUsdXlmRateLine } from '@/components/tipping/TipUsdXlmRateLine'
+import { useTipDialogXlmUsdRate } from '@/hooks/useTipDialogXlmUsdRate'
 import {
   TIP_PRESETS_HIGHLIGHT,
   TIP_MIN_CENTS,
@@ -34,6 +43,11 @@ import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
 } from '@/lib/stellar/wallet-adapter'
+import {
+  formatTipFailureMessage,
+  type TipFailureMessage,
+} from '@/lib/stellar/tip-error-messages'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 interface HighlightTipButtonProps {
   articleId: Id<'articles'>
@@ -70,13 +84,25 @@ export function HighlightTipButton({
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [tipFlowStep, setTipFlowStep] = useState<TipFlowStep | null>(null)
+  const [tipFailure, setTipFailure] = useState<TipFailureMessage | null>(null)
 
   const convex = useConvex()
   const createHighlightTip = useMutation(api.highlightTips.create)
+  const { priceUsd: displayXlmUsdRate } = useTipDialogXlmUsdRate(isOpen)
+
+  useEffect(() => {
+    return stellarFlowEmitter.subscribe((event) => {
+      if (event.flow === 'tip') {
+        setTipFlowStep(event.step)
+      }
+    })
+  }, [])
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
     setIsOpen(open)
+    setTipFailure(null)
     if (!open) {
       setSelectedAmount(null)
       setCustomAmount('')
@@ -108,7 +134,7 @@ export function HighlightTipButton({
     }
 
     if (amountCents > TIP_MAX_CENTS) {
-      toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(0)}`)
+      toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(2)}`)
       return
     }
 
@@ -132,9 +158,11 @@ export function HighlightTipButton({
       console.error('[HighlightTipButton] canTip pre-flight failed', err)
     }
 
+    setTipFailure(null)
     setIsLoading(true)
 
     try {
+      stellarFlowEmitter.emit({ flow: 'tip', step: 'awaiting_signature' })
       const highlightId = await generateHighlightId(
         articleSlug,
         highlightText,
@@ -178,6 +206,7 @@ export function HighlightTipButton({
         authorShare: transactionData.authorReceived,
       })
 
+      setTipFailure(null)
       setIsOpen(false)
       setSelectedAmount(null)
       setCustomAmount('')
@@ -206,22 +235,10 @@ export function HighlightTipButton({
       }
     } catch (error) {
       console.error('Highlight tip error:', error)
-
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to send tip'
-
-      if (
-        errorMessage.includes('User declined') ||
-        errorMessage.includes('rejected')
-      ) {
-        toast.error('Transaction cancelled by user')
-      } else {
-        toast.error('Transaction failed', {
-          description: errorMessage,
-        })
-      }
+      setTipFailure(formatTipFailureMessage(error))
     } finally {
       setIsLoading(false)
+      setTipFlowStep(null)
     }
   }
 
@@ -250,6 +267,12 @@ export function HighlightTipButton({
     highlightText.length > 60
       ? highlightText.slice(0, 60) + '...'
       : highlightText
+
+  const previewCents = selectedAmount || parseFloat(customAmount) * 100
+  const tipBreakdownPreview =
+    Number.isFinite(previewCents) && previewCents > 0
+      ? calculateTipBreakdown(previewCents)
+      : null
 
   return (
     <>
@@ -280,6 +303,16 @@ export function HighlightTipButton({
             </DialogDescription>
           </DialogHeader>
 
+          {tipFailure && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>{tipFailure.title}</AlertTitle>
+              {tipFailure.detail ? (
+                <AlertDescription>{tipFailure.detail}</AlertDescription>
+              ) : null}
+            </Alert>
+          )}
+
           <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
             <p className="text-sm text-foreground italic">
               &ldquo;{displayText}&rdquo;
@@ -297,16 +330,17 @@ export function HighlightTipButton({
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
             {TIP_PRESETS_HIGHLIGHT.map((amount) => (
               <button
                 key={amount.cents}
                 type="button"
+                disabled={isLoading}
                 onClick={() => {
                   setSelectedAmount(amount.cents)
                   setCustomAmount('')
                 }}
-                className={`focus-ring relative px-4 py-3 rounded-lg border-2 transition-all ${
+                className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border-2 transition-all disabled:opacity-50 ${
                   selectedAmount === amount.cents
                     ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/30'
                     : 'border-border hover:border-orange-300'
@@ -344,15 +378,25 @@ export function HighlightTipButton({
                   setCustomAmount(e.target.value)
                   setSelectedAmount(null)
                 }}
+                disabled={isLoading}
                 placeholder="0.00"
-                className="focus-ring w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg"
+                className="focus-ring w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg disabled:opacity-50"
               />
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Minimum: ${TIP_MIN_USD.toFixed(2)} • Maximum: $
               {TIP_MAX_USD.toFixed(2)}
             </p>
+            <TipUsdXlmRateLine priceUsd={displayXlmUsdRate} />
           </div>
+
+          {tipBreakdownPreview && (
+            <TipBreakdownSummaryLine
+              totalFormatted={formatTipAmount(previewCents)}
+              authorFormatted={tipBreakdownPreview.authorShareFormatted}
+              platformFeeFormatted={tipBreakdownPreview.platformFeeFormatted}
+            />
+          )}
 
           <div className="flex gap-3">
             <button
@@ -384,12 +428,16 @@ export function HighlightTipButton({
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Sending...</span>
+                    <span>
+                      {tipFlowStep
+                        ? tipFlowProgressLabel(tipFlowStep)
+                        : 'Awaiting signature'}
+                    </span>
                   </>
                 ) : (
                   <>
                     <Heart className="w-4 h-4" />
-                    <span>Send Tip</span>
+                    <span>{tipFailure ? 'Retry' : 'Send Tip'}</span>
                   </>
                 )}
               </button>

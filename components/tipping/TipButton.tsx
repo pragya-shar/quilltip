@@ -1,17 +1,29 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Coins, Heart, Loader2, Wallet } from 'lucide-react'
+import { AlertCircle, Coins, Heart, Loader2, Wallet } from 'lucide-react'
 import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import Link from 'next/link'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
+import {
+  stellarFlowEmitter,
+  type TipFlowStep,
+  tipFlowProgressLabel,
+} from '@/lib/stellar/stellar-flow-emitter'
+import {
+  calculateTipBreakdown,
+  formatTipAmount,
+} from '@/lib/stellar/highlight-utils'
+import { TipBreakdownSummaryLine } from '@/components/tipping/TipBreakdownSummaryLine'
+import { TipUsdXlmRateLine } from '@/components/tipping/TipUsdXlmRateLine'
+import { useTipDialogXlmUsdRate } from '@/hooks/useTipDialogXlmUsdRate'
 import {
   TIP_PRESETS_ARTICLE,
   TIP_MIN_CENTS,
@@ -32,6 +44,11 @@ import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
 } from '@/lib/stellar/wallet-adapter'
+import {
+  formatTipFailureMessage,
+  type TipFailureMessage,
+} from '@/lib/stellar/tip-error-messages'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 interface TipButtonProps {
   articleId: Id<'articles'>
@@ -54,13 +71,26 @@ export function TipButton({
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [tipFlowStep, setTipFlowStep] = useState<TipFlowStep | null>(null)
+  const [tipFailure, setTipFailure] = useState<TipFailureMessage | null>(null)
+  const [tipMessage, setTipMessage] = useState('')
 
   const convex = useConvex()
   const sendTip = useMutation(api.tips.sendTip)
+  const { priceUsd: displayXlmUsdRate } = useTipDialogXlmUsdRate(isOpen)
+
+  useEffect(() => {
+    return stellarFlowEmitter.subscribe((event) => {
+      if (event.flow === 'tip') {
+        setTipFlowStep(event.step)
+      }
+    })
+  }, [])
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
     setIsOpen(open)
+    setTipFailure(null)
   }
 
   const handleTip = async () => {
@@ -83,7 +113,7 @@ export function TipButton({
     }
 
     if (amountCents > TIP_MAX_CENTS) {
-      toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(0)}`)
+      toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(2)}`)
       return
     }
 
@@ -91,6 +121,11 @@ export function TipButton({
       toast.error(
         'Author has not set up their Stellar wallet for receiving tips'
       )
+      return
+    }
+
+    if (tipMessage.length > 500) {
+      toast.error('Message must be 500 characters or less')
       return
     }
 
@@ -114,6 +149,7 @@ export function TipButton({
       console.error('[TipButton] canTip pre-flight failed', err)
     }
 
+    setTipFailure(null)
     setIsLoading(true)
 
     try {
@@ -133,6 +169,7 @@ export function TipButton({
       await sendTip({
         articleId,
         amountUsd: amountCents / 100,
+        message: tipMessage.trim() ? tipMessage.trim() : undefined,
         stellarTxId: receipt.transactionHash ?? '',
         stellarNetwork: 'TESTNET',
         stellarLedger: undefined,
@@ -145,9 +182,11 @@ export function TipButton({
         authorShare: transactionData.authorReceived,
       })
 
+      setTipFailure(null)
       setIsOpen(false)
       setSelectedAmount(null)
       setCustomAmount('')
+      setTipMessage('')
 
       toast.success(
         `Successfully tipped ${authorName} $${(amountCents / 100).toFixed(2)} via Stellar!`,
@@ -169,24 +208,18 @@ export function TipButton({
       )
     } catch (error) {
       console.error('Stellar tip error:', error)
-
-      const errorMessage =
-        error instanceof Error ? error.message : 'Failed to send tip'
-
-      if (
-        errorMessage.includes('User declined') ||
-        errorMessage.includes('rejected')
-      ) {
-        toast.error('Transaction cancelled by user')
-      } else {
-        toast.error('Transaction failed', {
-          description: errorMessage,
-        })
-      }
+      setTipFailure(formatTipFailureMessage(error))
     } finally {
       setIsLoading(false)
+      setTipFlowStep(null)
     }
   }
+
+  const previewCents = selectedAmount || parseFloat(customAmount) * 100
+  const tipBreakdownPreview =
+    Number.isFinite(previewCents) && previewCents > 0
+      ? calculateTipBreakdown(previewCents)
+      : null
 
   const handleConnectWallet = async () => {
     try {
@@ -240,6 +273,16 @@ export function TipButton({
             </DialogDescription>
           </DialogHeader>
 
+          {tipFailure && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>{tipFailure.title}</AlertTitle>
+              {tipFailure.detail ? (
+                <AlertDescription>{tipFailure.detail}</AlertDescription>
+              ) : null}
+            </Alert>
+          )}
+
           {!isConnected && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
               <p>Connect your Stellar wallet to send tips to {authorName}.</p>
@@ -255,7 +298,7 @@ export function TipButton({
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {TIP_PRESETS_ARTICLE.map((amount) => (
               <button
                 key={amount.cents}
@@ -265,7 +308,7 @@ export function TipButton({
                   setCustomAmount('')
                 }}
                 disabled={isLoading}
-                className={`focus-ring relative px-4 py-3 rounded-lg border-2 transition-all disabled:opacity-50 ${
+                className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border-2 transition-all disabled:opacity-50 ${
                   selectedAmount === amount.cents
                     ? 'border-orange-500 bg-orange-50'
                     : 'border-border hover:border-orange-300'
@@ -312,7 +355,38 @@ export function TipButton({
               Minimum: ${TIP_MIN_USD.toFixed(2)} • Maximum: $
               {TIP_MAX_USD.toFixed(2)}
             </p>
+            <TipUsdXlmRateLine priceUsd={displayXlmUsdRate} />
           </div>
+
+          <div>
+            <label
+              htmlFor="tip-optional-message"
+              className="block text-sm font-medium text-foreground mb-2"
+            >
+              Message to author (optional)
+            </label>
+            <textarea
+              id="tip-optional-message"
+              value={tipMessage}
+              onChange={(e) => setTipMessage(e.target.value)}
+              disabled={isLoading}
+              maxLength={500}
+              rows={3}
+              placeholder="Say thanks or leave context for your tip..."
+              className="focus-ring w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              {tipMessage.length}/500 characters
+            </p>
+          </div>
+
+          {tipBreakdownPreview && (
+            <TipBreakdownSummaryLine
+              totalFormatted={formatTipAmount(previewCents)}
+              authorFormatted={tipBreakdownPreview.authorShareFormatted}
+              platformFeeFormatted={tipBreakdownPreview.platformFeeFormatted}
+            />
+          )}
 
           <div className="flex gap-3">
             <button
@@ -344,12 +418,16 @@ export function TipButton({
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Sending...</span>
+                    <span>
+                      {tipFlowStep
+                        ? tipFlowProgressLabel(tipFlowStep)
+                        : 'Awaiting signature'}
+                    </span>
                   </>
                 ) : (
                   <>
                     <Heart className="w-4 h-4" />
-                    <span>Send Tip</span>
+                    <span>{tipFailure ? 'Retry' : 'Send Tip'}</span>
                   </>
                 )}
               </button>
