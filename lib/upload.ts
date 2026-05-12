@@ -6,6 +6,39 @@ import { ConvexReactClient } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 
+export const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
+
+export const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+])
+
+export type ImageUploadValidationResult =
+  | { ok: true }
+  | { ok: false; error: string }
+
+export function validateImageUploadFile(
+  file: File
+): ImageUploadValidationResult {
+  if (!file.type || !ALLOWED_IMAGE_MIME_TYPES.has(file.type)) {
+    return {
+      ok: false,
+      error: 'Unsupported image type. Use PNG, JPG, GIF, or WEBP.',
+    }
+  }
+
+  if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+    return {
+      ok: false,
+      error: 'Image must be 10MB or smaller',
+    }
+  }
+
+  return { ok: true }
+}
+
 interface UploadResult {
   success: boolean
   url?: string
@@ -18,8 +51,21 @@ interface UploadProgress {
   percentage: number
 }
 
+const COMPRESS_IMAGE_TIMEOUT_MS = 30_000
+
+function makeAbortError(message = 'Upload canceled'): DOMException {
+  return new DOMException(message, 'AbortError')
+}
+
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
 /**
- * Upload a file using Convex storage and get back the public URL
+ * Upload a file using Convex storage and get back the public URL.
+ *
+ * Throws a `DOMException('AbortError')` when the provided signal is aborted,
+ * so callers can distinguish cancellation from real failures.
  */
 export async function uploadFile(
   file: File,
@@ -30,40 +76,39 @@ export async function uploadFile(
     | 'cover_image'
     | 'article_cover' = 'article_image',
   articleId?: Id<'articles'>,
-  onProgress?: (progress: UploadProgress) => void
+  onProgress?: (progress: UploadProgress) => void,
+  signal?: AbortSignal
 ): Promise<UploadResult> {
+  if (signal?.aborted) {
+    throw makeAbortError()
+  }
+
   try {
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      return {
-        success: false,
-        error: 'Please select an image file',
-      }
+    const validation = validateImageUploadFile(file)
+    if (!validation.ok) {
+      return { success: false, error: validation.error }
     }
 
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024
-    if (file.size > maxSize) {
-      return {
-        success: false,
-        error: 'Image must be smaller than 10MB',
-      }
-    }
-
-    // Step 1: Get upload URL from Convex
     const uploadUrl = await convexClient.mutation(
       api.uploads.generateUploadUrl,
       {}
     )
 
-    // Step 2: Upload file to Convex storage with progress tracking
+    if (signal?.aborted) {
+      throw makeAbortError()
+    }
+
     const result = await new Promise<{
       storageId?: Id<'_storage'>
       error?: string
+      aborted?: boolean
     }>((resolve) => {
       const xhr = new XMLHttpRequest()
 
-      // Track upload progress
+      const onAbort = () => xhr.abort()
+      signal?.addEventListener('abort', onAbort)
+      const detach = () => signal?.removeEventListener('abort', onAbort)
+
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable && onProgress) {
           const progress: UploadProgress = {
@@ -75,8 +120,8 @@ export async function uploadFile(
         }
       })
 
-      // Handle completion
-      xhr.addEventListener('load', async () => {
+      xhr.addEventListener('load', () => {
+        detach()
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText)
@@ -89,15 +134,23 @@ export async function uploadFile(
         }
       })
 
-      // Handle errors
       xhr.addEventListener('error', () => {
+        detach()
         resolve({ error: 'Network error occurred during upload' })
       })
 
-      // Start upload
+      xhr.addEventListener('abort', () => {
+        detach()
+        resolve({ aborted: true })
+      })
+
       xhr.open('POST', uploadUrl)
       xhr.send(file)
     })
+
+    if (result.aborted) {
+      throw makeAbortError()
+    }
 
     if (result.error || !result.storageId) {
       return {
@@ -106,7 +159,6 @@ export async function uploadFile(
       }
     }
 
-    // Step 3: Store file metadata and get public URL
     const metadata = await convexClient.mutation(
       api.uploads.storeFileMetadata,
       {
@@ -124,6 +176,9 @@ export async function uploadFile(
       url: metadata.url || undefined,
     }
   } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw error
+    }
     console.error('Upload error:', error)
     return {
       success: false,
@@ -143,19 +198,9 @@ export async function uploadAvatarFile(
   convexClient: ConvexReactClient,
   onProgress?: (progress: UploadProgress) => void
 ): Promise<UploadResult> {
-  if (!file.type.startsWith('image/')) {
-    return {
-      success: false,
-      error: 'Please select an image file',
-    }
-  }
-
-  const maxSize = 10 * 1024 * 1024
-  if (file.size > maxSize) {
-    return {
-      success: false,
-      error: 'Image must be smaller than 10MB',
-    }
+  const validation = validateImageUploadFile(file)
+  if (!validation.ok) {
+    return { success: false, error: validation.error }
   }
 
   try {
@@ -243,23 +288,59 @@ export function generateUniqueFilename(originalName: string): string {
 }
 
 /**
- * Compress image before upload (basic client-side compression)
+ * Compress image before upload (basic client-side compression).
+ *
+ * Rejects on decode failure, abort, or a 30s timeout so callers never hang.
  */
 export function compressImage(
   file: File,
   maxWidth: number = 1200,
-  quality: number = 0.8
+  quality: number = 0.8,
+  signal?: AbortSignal
 ): Promise<File> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(makeAbortError())
+      return
+    }
+
     const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')!
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      reject(new Error('Failed to get 2D canvas context'))
+      return
+    }
+
     const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    let settled = false
+
+    const cleanup = () => {
+      window.clearTimeout(timeoutId)
+      signal?.removeEventListener('abort', onAbort)
+      URL.revokeObjectURL(objectUrl)
+      img.onload = null
+      img.onerror = null
+    }
+
+    const settle = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      fn()
+    }
+
+    const onAbort = () => settle(() => reject(makeAbortError()))
+
+    const timeoutId = window.setTimeout(() => {
+      settle(() =>
+        reject(new Error('Image compression timed out. Try a smaller image.'))
+      )
+    }, COMPRESS_IMAGE_TIMEOUT_MS)
+
+    signal?.addEventListener('abort', onAbort)
 
     img.onload = () => {
-      // Revoke object URL to prevent memory leak
-      URL.revokeObjectURL(img.src)
-
-      // Calculate new dimensions
       let { width, height } = img
       if (width > maxWidth) {
         height = (height * maxWidth) / width
@@ -268,8 +349,6 @@ export function compressImage(
 
       canvas.width = width
       canvas.height = height
-
-      // Draw and compress
       ctx.drawImage(img, 0, 0, width, height)
 
       canvas.toBlob(
@@ -279,9 +358,9 @@ export function compressImage(
               type: file.type,
               lastModified: Date.now(),
             })
-            resolve(compressedFile)
+            settle(() => resolve(compressedFile))
           } else {
-            resolve(file) // Fallback to original
+            settle(() => resolve(file))
           }
         },
         file.type,
@@ -289,6 +368,16 @@ export function compressImage(
       )
     }
 
-    img.src = URL.createObjectURL(file)
+    img.onerror = () => {
+      settle(() =>
+        reject(
+          new Error(
+            'Could not read image. The file may be corrupt or unsupported.'
+          )
+        )
+      )
+    }
+
+    img.src = objectUrl
   })
 }

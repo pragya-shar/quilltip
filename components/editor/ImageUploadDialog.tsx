@@ -2,7 +2,11 @@
 
 import { useState, useRef, type RefObject } from 'react'
 import { Upload, Link2, Image as ImageIcon } from 'lucide-react'
-import { uploadFile, compressImage } from '@/lib/upload'
+import {
+  uploadFile,
+  compressImage,
+  validateImageUploadFile,
+} from '@/lib/upload'
 import { useConvex } from 'convex/react'
 import {
   Dialog,
@@ -28,6 +32,7 @@ export function ImageUploadDialog({
   title = 'Add Image',
   triggerRef,
 }: ImageUploadDialogProps) {
+  const IMAGE_ACCEPT = 'image/png,image/jpeg,image/gif,image/webp'
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file')
   const [imageUrl, setImageUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
@@ -40,6 +45,13 @@ export function ImageUploadDialog({
 
   const handleFileSelect = async (file: File) => {
     setError('')
+
+    const validation = validateImageUploadFile(file)
+    if (!validation.ok) {
+      setError(validation.error)
+      return
+    }
+
     setIsUploading(true)
     setUploadProgress(0)
 
@@ -92,11 +104,12 @@ export function ImageUploadDialog({
     setDragActive(false)
 
     const file = e.dataTransfer.files?.[0]
-    if (file && file.type.startsWith('image/')) {
-      handleFileSelect(file)
-    } else {
+    if (!file) {
       setError('Please drop an image file')
+      return
     }
+
+    void handleFileSelect(file)
   }
 
   const handleUrlSubmit = async () => {
@@ -117,11 +130,12 @@ export function ImageUploadDialog({
       const blob = await response.blob()
       setUploadProgress(40)
 
-      if (!blob.type.startsWith('image/')) {
-        throw new Error('URL does not point to a valid image')
+      const file = new File([blob], 'image-from-url', { type: blob.type })
+      const validation = validateImageUploadFile(file)
+      if (!validation.ok) {
+        throw new Error(validation.error)
       }
 
-      const file = new File([blob], 'image-from-url', { type: blob.type })
       setUploadProgress(60)
 
       const compressedFile = await compressImage(file, 1200, 0.8)
@@ -282,7 +296,7 @@ export function ImageUploadDialog({
                         </button>
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        PNG, JPG, GIF up to 10MB
+                        PNG, JPG, GIF, WEBP up to 10MB
                       </p>
                     </div>
                   </div>
@@ -292,7 +306,7 @@ export function ImageUploadDialog({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept={IMAGE_ACCEPT}
                 onChange={handleFileChange}
                 className="hidden"
               />
