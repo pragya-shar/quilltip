@@ -153,6 +153,7 @@ export function TipButton({
     setIsLoading(true)
 
     try {
+      stellarFlowEmitter.emit({ flow: 'tip', step: 'awaiting_signature' })
       const transactionData = await stellarClient.buildTipTransaction(
         publicKey,
         {
