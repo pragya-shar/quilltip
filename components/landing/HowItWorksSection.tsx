@@ -13,10 +13,10 @@ import {
   Highlighter,
   Wallet,
   Heart,
+  type LucideIcon,
 } from 'lucide-react'
-import { motion, AnimatePresence, useInView } from 'motion/react'
-import { useRef } from 'react'
-import { LucideIcon } from 'lucide-react'
+import { motion, AnimatePresence } from 'motion/react'
+import { Reveal } from '@/components/landing/Reveal'
 
 interface Step {
   icon: LucideIcon
@@ -26,8 +26,6 @@ interface Step {
 }
 
 export default function HowItWorksSection() {
-  const ref = useRef(null)
-  const isInView = useInView(ref, { once: true, margin: '-100px' })
   const [activeTab, setActiveTab] = useState<'writers' | 'readers'>('writers')
   const [activeStep, setActiveStep] = useState(0)
 
@@ -105,29 +103,19 @@ export default function HowItWorksSection() {
   return (
     <section
       id="how-it-works"
-      className="py-32 px-6 bg-spotlight text-spotlight-foreground relative overflow-hidden"
+      className="scroll-mt-20 py-20 md:py-28 px-6 bg-spotlight text-spotlight-foreground relative overflow-hidden"
     >
-      {/* Subtle background grain */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_color-mix(in_oklab,var(--spotlight-foreground)_6%,transparent)_0%,_transparent_60%)]" />
 
-      <div className="container mx-auto max-w-7xl relative z-10" ref={ref}>
-        {/* Section Header */}
-        <motion.div
-          className="mb-16"
-          initial={{ opacity: 0, y: 30 }}
-          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ duration: 0.8 }}
-        >
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
+      <div className="container mx-auto max-w-7xl relative z-10">
+        <Reveal className="mb-16">
+          <motion.div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
             <div>
               <motion.div
                 className="inline-flex items-center gap-2 px-4 py-2 bg-foreground/5 backdrop-blur-sm rounded-full border border-foreground/10 mb-6"
                 initial={{ opacity: 0, scale: 0.9 }}
-                animate={
-                  isInView
-                    ? { opacity: 1, scale: 1 }
-                    : { opacity: 0, scale: 0.9 }
-                }
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true, amount: 0.15 }}
                 transition={{ duration: 0.5 }}
               >
                 <Sparkles className="w-3.5 h-3.5 text-spotlight-muted" />
@@ -150,8 +138,7 @@ export default function HowItWorksSection() {
               </p>
             </div>
 
-            {/* Writer / Reader Toggle */}
-            <div className="inline-flex items-center bg-foreground/5 rounded-lg p-1 border border-foreground/10 shrink-0">
+            <motion.div className="inline-flex items-center bg-foreground/5 rounded-lg p-1 border border-foreground/10 shrink-0">
               <button
                 onClick={() => handleTabChange('writers')}
                 className={`px-5 py-2 rounded-md text-[13px] font-medium transition-all duration-200 ${
@@ -172,17 +159,11 @@ export default function HowItWorksSection() {
               >
                 For Readers
               </button>
-            </div>
-          </div>
-        </motion.div>
+            </motion.div>
+          </motion.div>
+        </Reveal>
 
-        {/* Expandable Steps — Desktop */}
-        <motion.div
-          className="hidden md:flex gap-2 h-[340px]"
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-        >
+        <Reveal className="hidden md:flex gap-2 h-[340px]" delay={0.2}>
           {steps.map((step, index) => {
             const isActive = activeStep === index
             return (
@@ -197,7 +178,6 @@ export default function HowItWorksSection() {
                 transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
                 onMouseEnter={() => setActiveStep(index)}
               >
-                {/* Collapsed state */}
                 <AnimatePresence mode="wait">
                   {!isActive ? (
                     <motion.div
@@ -225,17 +205,15 @@ export default function HowItWorksSection() {
                       transition={{ duration: 0.3, delay: 0.15 }}
                     >
                       <div>
-                        {/* Icon + Title */}
                         <div className="flex items-center gap-4 mb-6">
-                          <div className="w-14 h-14 rounded-2xl bg-foreground/10 border border-foreground/10 flex items-center justify-center">
+                          <motion.div className="w-14 h-14 rounded-2xl bg-foreground/10 border border-foreground/10 flex items-center justify-center">
                             <step.icon className="w-6 h-6 text-spotlight-foreground" />
-                          </div>
+                          </motion.div>
                           <h3 className="text-3xl font-display font-medium text-spotlight-foreground tracking-tight">
                             {step.title}
                           </h3>
                         </div>
 
-                        {/* Description */}
                         <p className="text-[15px] text-spotlight-foreground/85 leading-relaxed mb-3 max-w-md">
                           {step.description}
                         </p>
@@ -244,7 +222,6 @@ export default function HowItWorksSection() {
                         </p>
                       </div>
 
-                      {/* Step indicator dots */}
                       <div className="flex items-center gap-2">
                         {steps.map((_, i) => (
                           <div
@@ -263,15 +240,9 @@ export default function HowItWorksSection() {
               </motion.div>
             )
           })}
-        </motion.div>
+        </Reveal>
 
-        {/* Steps — Mobile (vertical accordion) */}
-        <motion.div
-          className="md:hidden space-y-2"
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-        >
+        <Reveal className="md:hidden space-y-2" delay={0.2}>
           {steps.map((step, index) => {
             const isActive = activeStep === index
             return (
@@ -284,7 +255,6 @@ export default function HowItWorksSection() {
                 }`}
                 onClick={() => setActiveStep(index)}
               >
-                {/* Header row */}
                 <div className="flex items-center gap-4 p-5">
                   <div
                     className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-300 ${
@@ -304,7 +274,6 @@ export default function HowItWorksSection() {
                   </span>
                 </div>
 
-                {/* Expandable content */}
                 <AnimatePresence>
                   {isActive && (
                     <motion.div
@@ -327,15 +296,9 @@ export default function HowItWorksSection() {
               </motion.div>
             )
           })}
-        </motion.div>
+        </Reveal>
 
-        {/* CTA */}
-        <motion.div
-          className="mt-16 text-center"
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.8, delay: 0.8 }}
-        >
+        <Reveal className="mt-16 text-center" delay={0.4}>
           <Link
             href="/register"
             className="group inline-flex items-center justify-center gap-2 bg-card text-card-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-muted transition-all duration-200"
@@ -343,7 +306,7 @@ export default function HowItWorksSection() {
             Start Writing & Earning Today
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200" />
           </Link>
-        </motion.div>
+        </Reveal>
       </div>
     </section>
   )
