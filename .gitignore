@@ -64,3 +64,4 @@ docs/final-gtm-plan.md
 
 .agents/*
 certificates
+.gstack/
