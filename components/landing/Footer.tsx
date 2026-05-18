@@ -25,8 +25,8 @@ export default function Footer() {
               </h3>
             </div>
             <p className="text-spotlight-muted text-[15px] leading-relaxed max-w-2xl mx-auto">
-              Empowering writers with blockchain-powered micro-tipping and
-              content monetization.
+              Empowering writers with blockchain-powered micro-tipping on
+              Stellar testnet. Practice with free test XLM today.
             </p>
           </Reveal>
         </div>

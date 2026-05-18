@@ -444,9 +444,11 @@ export function TipButton({
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
-            Powered by Stellar <WalletTooltip concept="stellar" /> • Instant
-            settlement • Low fees
+          <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1 flex-wrap">
+            Powered by Stellar testnet{' '}
+            <WalletTooltip concept="stellar" />{' '}
+            <WalletTooltip concept="testnet" /> • Fast testnet settlement • Low
+            fees
           </p>
         </DialogContent>
       </Dialog>

@@ -171,11 +171,12 @@ export function WalletSettings({
             <Wallet className="h-5 w-5" />
             Stellar Wallet
             <WalletTooltip concept="stellar" />
+            <WalletTooltip concept="testnet" />
           </CardTitle>
           <CardDescription>
             {isOwnProfile
-              ? 'Manage your Stellar wallet for sending and receiving tips'
-              : 'Send tips directly to this user&apos;s Stellar wallet'}
+              ? 'Manage your Stellar testnet wallet for sending and receiving practice tips'
+              : 'Send testnet tips directly to this user&apos;s Stellar wallet'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -198,7 +199,8 @@ export function WalletSettings({
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      Connect your Stellar wallet to send and receive tips
+                      Connect your Stellar testnet wallet to send and receive
+                      practice tips
                     </AlertDescription>
                   </Alert>
 

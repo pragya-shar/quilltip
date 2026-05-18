@@ -122,7 +122,8 @@ export function WalletStatus({ className }: WalletStatusProps) {
               <div>
                 <h3 className="font-semibold">Wallet Not Connected</h3>
                 <p className="text-sm text-muted-foreground">
-                  Connect your Stellar wallet to start tipping authors
+                  Connect your Stellar testnet wallet to start practice tipping
+                  authors
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
                   Supports Freighter, xBull, Albedo, Rabet, and more
@@ -207,13 +208,18 @@ export function WalletStatus({ className }: WalletStatusProps) {
                 <span className="text-sm font-medium text-muted-foreground">
                   Network
                 </span>
-                <div className="mt-1">
+                <div className="mt-1 space-y-1">
                   <Badge
                     variant={network === 'TESTNET' ? 'secondary' : 'default'}
                     className="capitalize"
                   >
                     {network.toLowerCase()}
                   </Badge>
+                  {network === 'TESTNET' && (
+                    <p className="text-xs text-muted-foreground">
+                      Practice network — not real money
+                    </p>
+                  )}
                 </div>
               </div>
             )}

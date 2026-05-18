@@ -23,7 +23,7 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   title: 'Quilltip - Decentralized Publishing Platform',
   description:
-    'Write, share, and monetize your content with Stellar-powered microtipping',
+    'Write, share, and practice micro-tipping on Stellar testnet with free test XLM',
 }
 
 export default function RootLayout({

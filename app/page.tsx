@@ -84,7 +84,7 @@ export default function HomePage() {
                     </h3>
                   </div>
                   <p className="text-muted-foreground">
-                    Track tips received and article performance
+                    Track testnet tip activity and article performance
                   </p>
                 </Link>
               ) : (
@@ -97,11 +97,12 @@ export default function HomePage() {
                       <Wallet className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                     </div>
                     <h3 className="text-lg font-semibold ml-3">
-                      Set Up Wallet
+                      Set Up Testnet Wallet
                     </h3>
                   </div>
                   <p className="text-muted-foreground">
-                    Connect a Stellar wallet to send and receive tips
+                    Connect a Stellar testnet wallet to send and receive practice
+                    tips
                   </p>
                 </Link>
               )}

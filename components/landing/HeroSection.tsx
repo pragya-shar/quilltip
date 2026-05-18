@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { ArrowRight, Zap } from 'lucide-react'
+import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 import { motion, AnimatePresence } from 'motion/react'
 import { useEffect, useState, useCallback, useRef } from 'react'
 
@@ -190,7 +191,8 @@ export default function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
           >
-            Highlight what resonates. Tip writers instantly. Powered by Stellar.
+            Highlight what resonates. Practice tipping writers on Stellar
+            testnet with free test XLM.
           </motion.p>
 
           {/* CTAs */}
@@ -212,6 +214,13 @@ export default function HeroSection() {
               className="inline-flex items-center gap-2 text-muted-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:text-foreground hover:bg-muted/60 transition-all duration-200"
             >
               Start Writing
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <Link
+              href="/guide"
+              className="inline-flex items-center gap-2 text-muted-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:text-foreground hover:bg-muted/60 transition-all duration-200"
+            >
+              Set Up Testnet Wallet
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </motion.div>
@@ -284,6 +293,15 @@ export default function HeroSection() {
               </p>
             </div>
           </motion.div>
+
+          <motion.p
+            className="mt-6 text-[12px] text-muted-foreground max-w-md leading-relaxed"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.35 }}
+          >
+            {TESTNET_PRACTICE_NOTE}
+          </motion.p>
         </motion.div>
       </div>
     </section>

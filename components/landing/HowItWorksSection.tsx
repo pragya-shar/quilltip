@@ -34,9 +34,9 @@ export default function HowItWorksSection() {
       icon: UserPlus,
       title: 'Sign Up',
       description:
-        'Create your account and connect your Stellar wallet in seconds',
+        'Create your account and connect your Stellar testnet wallet in seconds',
       detail:
-        'One-click registration with your email. Connect Freighter wallet to start receiving tips instantly.',
+        'One-click registration with your email. Connect a Freighter testnet wallet to start receiving practice tips.',
     },
     {
       icon: Edit3,
@@ -56,9 +56,9 @@ export default function HowItWorksSection() {
     {
       icon: Coins,
       title: 'Earn',
-      description: 'Receive instant tips from readers who value your work',
+      description: 'Receive testnet tips from readers who value your work',
       detail:
-        'Tips settle in 3 seconds via Stellar. You keep 97.5% of every tip — no waiting periods.',
+        'Tips settle in about 3 seconds on Stellar testnet. You keep 97.5% of every tip. Withdraw from your dashboard when your balance reaches $10.',
     },
   ]
 
@@ -89,7 +89,7 @@ export default function HowItWorksSection() {
       title: 'Tip',
       description: 'Send micro-tips starting at $0.01',
       detail:
-        'Tip an article or a specific highlight. 97.5% goes directly to the author — near-zero fees.',
+        'Tip an article or a specific highlight with free testnet XLM. 97.5% goes directly to the author — near-zero fees.',
     },
   ]
 
@@ -303,7 +303,7 @@ export default function HowItWorksSection() {
             href="/register"
             className="group inline-flex items-center justify-center gap-2 bg-card text-card-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-muted transition-all duration-200"
           >
-            Start Writing & Earning Today
+            Start Writing on Testnet
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200" />
           </Link>
         </Reveal>

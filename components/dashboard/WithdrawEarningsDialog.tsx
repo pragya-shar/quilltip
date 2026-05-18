@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { api } from '@/convex/_generated/api'
 import { MIN_WITHDRAWAL_USD } from '@/lib/constants'
+import { TESTNET_WITHDRAWAL_NOTE } from '@/lib/copy/network-status'
 
 interface WithdrawEarningsDialogProps {
   open: boolean
@@ -79,7 +80,7 @@ export function WithdrawEarningsDialog({
       })
 
       toast.success(
-        `Withdrawal initiated! $${amount.toFixed(2)} will be sent to your Stellar wallet shortly.`
+        `Withdrawal initiated! $${amount.toFixed(2)} in testnet XLM will be sent to your Stellar wallet, typically within seconds on testnet.`
       )
       onOpenChange(false)
     } catch (error) {
@@ -111,8 +112,10 @@ export function WithdrawEarningsDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Withdraw Earnings</DialogTitle>
-          <DialogDescription>Withdraw to your Stellar wallet</DialogDescription>
+          <DialogTitle>Withdraw Testnet Earnings</DialogTitle>
+          <DialogDescription>
+            Send testnet XLM to your Stellar wallet
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -172,8 +175,8 @@ export function WithdrawEarningsDialog({
 
           <div className="bg-info border border-info/50 rounded-lg p-3">
             <p className="text-sm text-info-foreground">
-              Withdrawals are processed instantly on the Stellar network.
-              Transaction fees are covered by Quilltip.
+              {TESTNET_WITHDRAWAL_NOTE} Transaction fees are covered by
+              Quilltip.
             </p>
           </div>
         </div>
