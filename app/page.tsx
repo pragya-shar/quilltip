@@ -7,13 +7,31 @@ import HeroSection from '@/components/landing/HeroSection'
 import FeaturesSection from '@/components/landing/FeaturesSection'
 import HowItWorksSection from '@/components/landing/HowItWorksSection'
 import FAQSection from '@/components/landing/FAQSection'
+import TrustSection from '@/components/landing/TrustSection'
 import Footer from '@/components/landing/Footer'
+import { useLandingHashScroll } from '@/components/landing/useLandingHashScroll'
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
 import { HomeRecentArticlesSection } from '@/components/articles/HomeRecentArticlesSection'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { DashboardRecentArticlesFallback } from '@/components/error/SectionErrorFallback'
 import Link from 'next/link'
 import { PenSquare, BookOpen, Wallet, TrendingUp } from 'lucide-react'
+
+function PublicLandingPage() {
+  useLandingHashScroll()
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background via-muted/30 to-background">
+      <Navigation />
+      <HeroSection />
+      <FeaturesSection />
+      <HowItWorksSection />
+      <TrustSection />
+      <FAQSection />
+      <Footer />
+    </div>
+  )
+}
 
 export default function HomePage() {
   const { user, isAuthenticated } = useAuth()
@@ -131,14 +149,5 @@ export default function HomePage() {
     )
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-muted/30 to-background">
-      <Navigation />
-      <HeroSection />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <FAQSection />
-      <Footer />
-    </div>
-  )
+  return <PublicLandingPage />
 }
