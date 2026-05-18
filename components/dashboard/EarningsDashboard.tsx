@@ -39,7 +39,7 @@ export function EarningsDashboard() {
         stellarAddress: args.stellarAddress,
       })
       toast.success(
-        `Withdrawal initiated! $${args.amountUsd.toFixed(2)} will be sent to your Stellar wallet shortly.`
+        `Withdrawal initiated! $${args.amountUsd.toFixed(2)} in testnet XLM will be sent to your Stellar wallet, typically within seconds on testnet.`
       )
     } catch (error) {
       console.error('Withdrawal error:', error)
@@ -60,10 +60,10 @@ export function EarningsDashboard() {
         <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-12 text-center">
           <Coins className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-foreground mb-2">
-            No earnings yet
+            No testnet tips yet
           </h3>
           <p className="text-muted-foreground">
-            Start earning by sharing great content that readers love!
+            Share great content and receive practice tips on Stellar testnet.
           </p>
         </div>
       </div>

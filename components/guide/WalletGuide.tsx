@@ -15,6 +15,8 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import Link from 'next/link'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 
 export function WalletGuide() {
   return (
@@ -25,9 +27,16 @@ export function WalletGuide() {
         </h1>
         <p className="text-muted-foreground max-w-xl mx-auto">
           Everything you need to know to start reading, highlighting, and
-          tipping writers — even if you&apos;ve never used crypto before.
+          practicing tips on Stellar testnet — even if you&apos;ve never used
+          crypto before.
         </p>
       </div>
+
+      <Alert className="mb-8 border-border bg-muted/60">
+        <AlertDescription className="text-sm text-muted-foreground">
+          {TESTNET_PRACTICE_NOTE}
+        </AlertDescription>
+      </Alert>
 
       <Tabs defaultValue="what-is-wallet" className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-8">
@@ -62,13 +71,13 @@ export function WalletGuide() {
             step={1}
             icon={Wallet}
             title="A wallet is like a digital account"
-            description="Think of it as a simple app that holds your digital currency (XLM). It's similar to a payment app like Venmo or PayPal, but it runs on the Stellar blockchain — meaning payments are instant and fees are nearly zero."
+            description="Think of it as a simple app that holds your digital currency (XLM). It's similar to a payment app like Venmo or PayPal, but it runs on the Stellar blockchain — on testnet, tips settle in seconds with near-zero fees."
           />
           <WalletStepCard
             step={2}
             icon={Key}
-            title="You control your money"
-            description="Unlike traditional banks, your wallet is fully yours. Nobody — not even Quilltip — can access your funds without your permission. When you tip a writer, you approve each transaction yourself."
+            title="You control your wallet"
+            description="Unlike traditional banks, your wallet is fully yours. Nobody — not even Quilltip — can access your testnet funds without your permission. When you tip a writer, you approve each transaction yourself."
           />
           <WalletStepCard
             step={3}
@@ -180,8 +189,9 @@ export function WalletGuide() {
               Tipping on Quilltip is simple
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              You can tip an entire article or a specific highlight. 97.5% goes
-              directly to the writer — instantly.
+              You can tip an entire article or a specific highlight with testnet
+              XLM. 97.5% goes directly to the writer — typically within seconds
+              on testnet.
             </p>
           </div>
 

@@ -13,6 +13,8 @@ import {
 } from 'lucide-react'
 import { motion } from 'motion/react'
 import { Reveal } from '@/components/landing/Reveal'
+import { MIN_WITHDRAWAL_USD } from '@/lib/constants'
+import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 
 interface Feature {
   icon: LucideIcon
@@ -28,8 +30,9 @@ const features: Feature[] = [
   },
   {
     icon: DollarSign,
-    title: 'Instant Tips',
-    description: 'Payments in 3 seconds via Stellar with near-zero fees.',
+    title: 'Fast Testnet Tips',
+    description:
+      'Tips settle in about 3 seconds on Stellar testnet with near-zero fees.',
   },
   {
     icon: MessageSquare,
@@ -43,13 +46,14 @@ const features: Feature[] = [
   },
   {
     icon: TrendingUp,
-    title: 'Real-Time Analytics',
-    description: 'Track earnings and audience growth as it happens.',
+    title: 'Testnet Analytics',
+    description:
+      'Track testnet tip activity and audience growth as it happens.',
   },
   {
     icon: Zap,
-    title: 'Instant Withdrawals',
-    description: 'Withdraw your earnings instantly. No thresholds.',
+    title: 'Withdraw Testnet Earnings',
+    description: `Move testnet earnings to your wallet once your balance reaches $${MIN_WITHDRAWAL_USD.toFixed(0)}.`,
   },
   {
     icon: Globe,
@@ -93,7 +97,10 @@ export default function FeaturesSection() {
             <span className="text-foreground">Core Features</span>
           </h2>
           <p className="text-[15px] text-muted-foreground leading-relaxed">
-            Everything writers and readers need.
+            Everything writers and readers need on testnet.
+          </p>
+          <p className="text-[13px] text-muted-foreground leading-relaxed mt-2 max-w-lg mx-auto">
+            {TESTNET_PRACTICE_NOTE}
           </p>
         </Reveal>
 

@@ -247,7 +247,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                 </h2>
                 <p className="text-muted-foreground">
                   {isOwnProfile
-                    ? 'Manage your Stellar wallet for sending and receiving tips on the network.'
+                    ? 'Manage your Stellar testnet wallet for sending and receiving practice tips.'
                     : 'View wallet address for sending tips to this user.'}
                 </p>
               </div>

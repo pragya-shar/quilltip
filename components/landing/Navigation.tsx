@@ -55,7 +55,7 @@ const navDropdowns: NavDropdown[] = [
     featured: {
       title: 'Quilltip Platform',
       description:
-        'Write, publish, and earn — all in one decentralized platform built on Stellar.',
+        'Write, publish, and receive testnet tips — all on Stellar testnet.',
       href: '#features',
       bgClass: 'bg-gradient-to-br from-muted/70 to-muted',
       icon: PenTool,
@@ -89,8 +89,8 @@ const navDropdowns: NavDropdown[] = [
         items: [
           {
             icon: Zap,
-            title: 'Instant Tips',
-            description: 'Get paid via Stellar network',
+            title: 'Testnet Tips',
+            description: 'Receive tips via Stellar testnet',
             href: '#how-it-works',
           },
           {
@@ -114,7 +114,7 @@ const navDropdowns: NavDropdown[] = [
     featured: {
       title: 'Getting Started',
       description:
-        'Set up your wallet and start earning tips in under 5 minutes.',
+        'Set up a testnet wallet and practice tipping in under 5 minutes.',
       href: '/guide',
       bgClass: 'bg-gradient-to-br from-muted/60 to-muted',
       icon: BookOpen,
