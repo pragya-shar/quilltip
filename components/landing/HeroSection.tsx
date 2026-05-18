@@ -192,8 +192,8 @@ export default function HeroSection() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
           >
-            Browse published articles and practice tipping writers on
-            Stellar testnet with free test XLM.
+            Browse published articles and practice tipping writers on Stellar
+            testnet with free test XLM.
           </motion.p>
 
           <motion.div

@@ -38,7 +38,9 @@ function LandingProofScreenshotFallback() {
       />
       <p className="border-t border-border px-4 py-3 text-left text-[12px] text-muted-foreground">
         {HERO_PROOF_FALLBACK_CAPTION}
-        <span className="ml-1 font-medium text-foreground">Browse articles</span>
+        <span className="ml-1 font-medium text-foreground">
+          Browse articles
+        </span>
         <ArrowRight className="ml-0.5 inline h-3 w-3" aria-hidden />
       </p>
     </Link>
@@ -47,7 +49,10 @@ function LandingProofScreenshotFallback() {
 
 export function LandingProductProof() {
   const result = useListArticles({ limit: 2 })
-  const mode = resolveHeroProofMode(result?.articles.length, result === undefined)
+  const mode = resolveHeroProofMode(
+    result?.articles.length,
+    result === undefined
+  )
 
   return (
     <div
