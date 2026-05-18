@@ -455,8 +455,8 @@ export function HighlightTipButton({
           )}
 
           <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1 flex-wrap">
-            Powered by Stellar testnet <WalletTooltip concept="testnet" /> • Fast
-            testnet settlement • Low fees
+            Powered by Stellar testnet <WalletTooltip concept="testnet" /> •
+            Fast testnet settlement • Low fees
           </p>
         </DialogContent>
       </Dialog>

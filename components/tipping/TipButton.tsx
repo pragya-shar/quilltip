@@ -445,8 +445,7 @@ export function TipButton({
           )}
 
           <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1 flex-wrap">
-            Powered by Stellar testnet{' '}
-            <WalletTooltip concept="stellar" />{' '}
+            Powered by Stellar testnet <WalletTooltip concept="stellar" />{' '}
             <WalletTooltip concept="testnet" /> • Fast testnet settlement • Low
             fees
           </p>

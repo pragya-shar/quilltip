@@ -101,8 +101,8 @@ export default function HomePage() {
                     </h3>
                   </div>
                   <p className="text-muted-foreground">
-                    Connect a Stellar testnet wallet to send and receive practice
-                    tips
+                    Connect a Stellar testnet wallet to send and receive
+                    practice tips
                   </p>
                 </Link>
               )}

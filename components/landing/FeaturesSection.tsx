@@ -47,7 +47,8 @@ const features: Feature[] = [
   {
     icon: TrendingUp,
     title: 'Testnet Analytics',
-    description: 'Track testnet tip activity and audience growth as it happens.',
+    description:
+      'Track testnet tip activity and audience growth as it happens.',
   },
   {
     icon: Zap,
