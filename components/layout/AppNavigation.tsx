@@ -40,9 +40,7 @@ export default function AppNavigation() {
 
   const mobileLinkClass = (active: boolean) =>
     `focus-ring flex items-center gap-2 px-3 py-2 rounded-lg transition text-sm font-medium ${
-      active
-        ? 'bg-muted text-primary'
-        : 'text-foreground hover:bg-muted'
+      active ? 'bg-muted text-primary' : 'text-foreground hover:bg-muted'
     }`
 
   return (
@@ -149,91 +147,91 @@ export default function AppNavigation() {
               className="w-full sm:max-w-sm p-0 flex flex-col"
             >
               <SheetTitle className="sr-only">Navigation menu</SheetTitle>
-          <div className="flex flex-col gap-1 px-4 pt-14 pb-6 overflow-y-auto">
-            <Link
-              href="/"
-              className={mobileLinkClass(isActive('/'))}
-              onClick={closeMenu}
-            >
-              <Home className="w-4 h-4 shrink-0" />
-              <span>Home</span>
-            </Link>
-            <Link
-              href="/articles"
-              className={mobileLinkClass(isActive('/articles'))}
-              onClick={closeMenu}
-            >
-              <BookOpen className="w-4 h-4 shrink-0" />
-              <span>Articles</span>
-            </Link>
-            <Link
-              href="/guide"
-              className={mobileLinkClass(isActive('/guide'))}
-              onClick={closeMenu}
-            >
-              <HelpCircle className="w-4 h-4 shrink-0" />
-              <span>Guide</span>
-            </Link>
+              <div className="flex flex-col gap-1 px-4 pt-14 pb-6 overflow-y-auto">
+                <Link
+                  href="/"
+                  className={mobileLinkClass(isActive('/'))}
+                  onClick={closeMenu}
+                >
+                  <Home className="w-4 h-4 shrink-0" />
+                  <span>Home</span>
+                </Link>
+                <Link
+                  href="/articles"
+                  className={mobileLinkClass(isActive('/articles'))}
+                  onClick={closeMenu}
+                >
+                  <BookOpen className="w-4 h-4 shrink-0" />
+                  <span>Articles</span>
+                </Link>
+                <Link
+                  href="/guide"
+                  className={mobileLinkClass(isActive('/guide'))}
+                  onClick={closeMenu}
+                >
+                  <HelpCircle className="w-4 h-4 shrink-0" />
+                  <span>Guide</span>
+                </Link>
 
-            {isAuthenticated ? (
-              <>
-                <Link
-                  href="/write"
-                  className={mobileLinkClass(isActive('/write'))}
-                  onClick={closeMenu}
-                >
-                  <PenSquare className="w-4 h-4 shrink-0" />
-                  <span>Write</span>
-                </Link>
-                <Link
-                  href="/drafts"
-                  className={mobileLinkClass(isActive('/drafts'))}
-                  onClick={closeMenu}
-                >
-                  <FileText className="w-4 h-4 shrink-0" />
-                  <span>Drafts</span>
-                </Link>
-                <Link
-                  href={`/${user?.username || 'profile'}`}
-                  className={mobileLinkClass(
-                    pathname === `/${user?.username}`
-                  )}
-                  onClick={closeMenu}
-                >
-                  <User className="w-4 h-4 shrink-0" />
-                  <span>Profile</span>
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => {
-                    closeMenu()
-                    signOut()
-                  }}
-                  className="focus-ring flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-muted hover:text-destructive transition text-left"
-                >
-                  <LogOut className="w-4 h-4 shrink-0" />
-                  <span>Sign Out</span>
-                </button>
-              </>
-            ) : (
-              <div className="flex flex-col gap-2 pt-2 border-t border-border mt-2">
-                <Link
-                  href="/login"
-                  className="focus-ring rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition"
-                  onClick={closeMenu}
-                >
-                  Sign In
-                </Link>
-                <Link
-                  href="/register"
-                  className="focus-ring bg-primary text-primary-foreground px-4 py-2.5 rounded-lg hover:bg-primary/90 transition text-center text-sm font-medium"
-                  onClick={closeMenu}
-                >
-                  Get Started
-                </Link>
+                {isAuthenticated ? (
+                  <>
+                    <Link
+                      href="/write"
+                      className={mobileLinkClass(isActive('/write'))}
+                      onClick={closeMenu}
+                    >
+                      <PenSquare className="w-4 h-4 shrink-0" />
+                      <span>Write</span>
+                    </Link>
+                    <Link
+                      href="/drafts"
+                      className={mobileLinkClass(isActive('/drafts'))}
+                      onClick={closeMenu}
+                    >
+                      <FileText className="w-4 h-4 shrink-0" />
+                      <span>Drafts</span>
+                    </Link>
+                    <Link
+                      href={`/${user?.username || 'profile'}`}
+                      className={mobileLinkClass(
+                        pathname === `/${user?.username}`
+                      )}
+                      onClick={closeMenu}
+                    >
+                      <User className="w-4 h-4 shrink-0" />
+                      <span>Profile</span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenu()
+                        signOut()
+                      }}
+                      className="focus-ring flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-muted hover:text-destructive transition text-left"
+                    >
+                      <LogOut className="w-4 h-4 shrink-0" />
+                      <span>Sign Out</span>
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex flex-col gap-2 pt-2 border-t border-border mt-2">
+                    <Link
+                      href="/login"
+                      className="focus-ring rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition"
+                      onClick={closeMenu}
+                    >
+                      Sign In
+                    </Link>
+                    <Link
+                      href="/register"
+                      className="focus-ring bg-primary text-primary-foreground px-4 py-2.5 rounded-lg hover:bg-primary/90 transition text-center text-sm font-medium"
+                      onClick={closeMenu}
+                    >
+                      Get Started
+                    </Link>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
             </SheetContent>
           </Sheet>
         </div>

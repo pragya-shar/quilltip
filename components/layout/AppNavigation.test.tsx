@@ -41,7 +41,9 @@ describe('AppNavigation mobile menu', () => {
     await user.click(screen.getByRole('button', { name: 'Toggle menu' }))
 
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Navigation menu' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Navigation menu' })
+    ).toBeInTheDocument()
   })
 
   it('closes the dialog when Escape is pressed', async () => {

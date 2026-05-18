@@ -429,62 +429,62 @@ export default function Navigation() {
               className="w-full sm:max-w-sm p-0 flex flex-col"
             >
               <SheetTitle className="sr-only">Navigation menu</SheetTitle>
-          <div className="px-4 pt-14 pb-6 space-y-4 overflow-y-auto">
-            <Link
-              href="/articles"
-              className="focus-ring flex items-center gap-3 py-2 rounded-lg text-foreground hover:bg-muted text-sm font-medium transition-colors"
-              onClick={() => setIsOpen(false)}
-            >
-              Articles
-            </Link>
-            {navDropdowns.map((dropdown) => (
-              <div key={dropdown.label}>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
-                  {dropdown.label}
-                </p>
-                <div className="space-y-0.5">
-                  {dropdown.columns.map((column) =>
-                    column.items.map((item) => (
-                      <Link
-                        key={item.title}
-                        href={item.href}
-                        className="focus-ring flex items-center gap-2.5 py-2 px-1 rounded-lg text-foreground hover:bg-muted transition-colors"
-                        onClick={(e) => {
-                          handleSmoothScroll(e, item.href)
-                          setIsOpen(false)
-                        }}
-                      >
-                        <div className="w-7 h-7 bg-muted rounded-lg flex items-center justify-center shrink-0">
-                          <item.icon className="w-3.5 h-3.5 text-foreground" />
-                        </div>
-                        <span className="text-sm font-medium">
-                          {item.title}
-                        </span>
-                      </Link>
-                    ))
-                  )}
+              <div className="px-4 pt-14 pb-6 space-y-4 overflow-y-auto">
+                <Link
+                  href="/articles"
+                  className="focus-ring flex items-center gap-3 py-2 rounded-lg text-foreground hover:bg-muted text-sm font-medium transition-colors"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Articles
+                </Link>
+                {navDropdowns.map((dropdown) => (
+                  <div key={dropdown.label}>
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+                      {dropdown.label}
+                    </p>
+                    <div className="space-y-0.5">
+                      {dropdown.columns.map((column) =>
+                        column.items.map((item) => (
+                          <Link
+                            key={item.title}
+                            href={item.href}
+                            className="focus-ring flex items-center gap-2.5 py-2 px-1 rounded-lg text-foreground hover:bg-muted transition-colors"
+                            onClick={(e) => {
+                              handleSmoothScroll(e, item.href)
+                              setIsOpen(false)
+                            }}
+                          >
+                            <div className="w-7 h-7 bg-muted rounded-lg flex items-center justify-center shrink-0">
+                              <item.icon className="w-3.5 h-3.5 text-foreground" />
+                            </div>
+                            <span className="text-sm font-medium">
+                              {item.title}
+                            </span>
+                          </Link>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="pt-3 space-y-2 border-t border-border">
+                  <Link
+                    href="/login"
+                    className="focus-ring block rounded-lg text-foreground hover:bg-muted text-sm font-medium transition-colors py-2 px-1"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="focus-ring inline-flex w-full items-center justify-center gap-1.5 bg-brand text-brand-foreground px-5 py-2.5 rounded-lg hover:bg-brand-hover transition-colors text-sm font-medium"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Try on Testnet
+                    <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
+                  </Link>
                 </div>
               </div>
-            ))}
-
-            <div className="pt-3 space-y-2 border-t border-border">
-              <Link
-                href="/login"
-                className="focus-ring block rounded-lg text-foreground hover:bg-muted text-sm font-medium transition-colors py-2 px-1"
-                onClick={() => setIsOpen(false)}
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/register"
-                className="focus-ring inline-flex w-full items-center justify-center gap-1.5 bg-brand text-brand-foreground px-5 py-2.5 rounded-lg hover:bg-brand-hover transition-colors text-sm font-medium"
-                onClick={() => setIsOpen(false)}
-              >
-                Try on Testnet
-                <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
-              </Link>
-            </div>
-          </div>
             </SheetContent>
           </Sheet>
         </div>
