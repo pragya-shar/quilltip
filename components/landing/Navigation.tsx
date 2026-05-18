@@ -21,6 +21,12 @@ import {
 import { motion, AnimatePresence } from 'motion/react'
 import { LucideIcon } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import {
+  handleLandingHashClick,
+  scrollToLandingSection,
+} from '@/lib/landing/scroll-to-section'
+
+const MOBILE_MENU_CLOSE_MS = 280
 
 interface NavDropdownItem {
   icon: LucideIcon
@@ -144,13 +150,13 @@ const navDropdowns: NavDropdown[] = [
             icon: Shield,
             title: 'Security',
             description: 'Blockchain security overview',
-            href: '#faq',
+            href: '#security',
           },
           {
             icon: Globe,
             title: 'Arweave Storage',
             description: 'How permanent storage works',
-            href: '#faq',
+            href: '#arweave-storage',
           },
         ],
       },
@@ -210,24 +216,25 @@ export default function Navigation() {
     return () => document.removeEventListener('keydown', handleEscape)
   }, [openDropdown])
 
-  const handleSmoothScroll = (
+  const onHashNavClick = (
     e: React.MouseEvent<HTMLAnchorElement>,
     href: string
   ) => {
-    if (href.startsWith('#')) {
-      e.preventDefault()
-      const element = document.querySelector(href)
-      if (element) {
-        const offsetTop =
-          element.getBoundingClientRect().top + window.pageYOffset - 80
-        window.scrollTo({
-          top: offsetTop,
-          behavior: 'smooth',
-        })
-      }
+    if (handleLandingHashClick(e, href)) {
       setIsOpen(false)
       setOpenDropdown(null)
     }
+  }
+
+  const onMobileHashNavClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => {
+    if (!href.startsWith('#')) return
+
+    e.preventDefault()
+    setIsOpen(false)
+    window.setTimeout(() => scrollToLandingSection(href), MOBILE_MENU_CLOSE_MS)
   }
 
   return (
@@ -317,7 +324,7 @@ export default function Navigation() {
                           <Link
                             href={dropdown.featured.href}
                             onClick={(e) =>
-                              handleSmoothScroll(e, dropdown.featured.href)
+                              onHashNavClick(e, dropdown.featured.href)
                             }
                             className={`focus-ring w-[200px] shrink-0 p-5 ${dropdown.featured.bgClass} flex flex-col justify-between group/featured rounded-l-2xl`}
                           >
@@ -351,7 +358,7 @@ export default function Navigation() {
                                       key={item.title}
                                       href={item.href}
                                       onClick={(e) => {
-                                        handleSmoothScroll(e, item.href)
+                                        onHashNavClick(e, item.href)
                                         setOpenDropdown(null)
                                       }}
                                       className="focus-ring flex items-start gap-2.5 px-2.5 py-2 rounded-xl hover:bg-muted/50 transition-colors duration-150 group/item"
@@ -458,7 +465,10 @@ export default function Navigation() {
                             href={item.href}
                             className="focus-ring flex items-center gap-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors"
                             onClick={(e) => {
-                              handleSmoothScroll(e, item.href)
+                              if (item.href.startsWith('#')) {
+                                onMobileHashNavClick(e, item.href)
+                                return
+                              }
                               setIsOpen(false)
                             }}
                           >

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   UserPlus,
   Edit3,
@@ -16,7 +16,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Reveal } from '@/components/landing/Reveal'
+import { Reveal, LANDING_REVEAL_EVENT } from '@/components/landing/Reveal'
 
 interface Step {
   icon: LucideIcon
@@ -99,6 +99,30 @@ export default function HowItWorksSection() {
     setActiveTab(tab)
     setActiveStep(0)
   }
+
+  useEffect(() => {
+    const section = document.getElementById('how-it-works')
+    if (!section) return
+
+    const resetSteps = () => {
+      setActiveTab('writers')
+      setActiveStep(0)
+    }
+
+    const onHashChange = () => {
+      if (window.location.hash === '#how-it-works') resetSteps()
+    }
+
+    if (window.location.hash === '#how-it-works') resetSteps()
+
+    section.addEventListener(LANDING_REVEAL_EVENT, resetSteps)
+    window.addEventListener('hashchange', onHashChange)
+
+    return () => {
+      section.removeEventListener(LANDING_REVEAL_EVENT, resetSteps)
+      window.removeEventListener('hashchange', onHashChange)
+    }
+  }, [])
 
   return (
     <section
