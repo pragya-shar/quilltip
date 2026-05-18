@@ -2,12 +2,10 @@
 
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { motion, AnimatePresence, useInView } from 'motion/react'
-import { useRef } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
+import { Reveal } from '@/components/landing/Reveal'
 
 export default function FAQSection() {
-  const ref = useRef(null)
-  const isInView = useInView(ref, { once: true, margin: '-100px' })
   const [openIndex, setOpenIndex] = useState<number | null>(0)
 
   const faqs = [
@@ -67,27 +65,20 @@ export default function FAQSection() {
   }
 
   return (
-    <section id="faq" className="py-32 px-8 bg-background">
-      <div className="container mx-auto max-w-6xl" ref={ref}>
-        {/* Section Header */}
-        <motion.h2
-          className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-16 leading-[1.2] text-foreground"
-          initial={{ opacity: 0, y: 30 }}
-          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-          transition={{ duration: 0.8 }}
-        >
-          Frequently Asked Questions
-        </motion.h2>
+    <section
+      id="faq"
+      className="scroll-mt-20 py-20 md:py-28 px-8 bg-background"
+    >
+      <div className="container mx-auto max-w-6xl">
+        <Reveal>
+          <h2 className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-16 leading-[1.2] text-foreground">
+            Frequently Asked Questions
+          </h2>
+        </Reveal>
 
-        {/* FAQ Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-6">
           {faqs.map((faq, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-              transition={{ duration: 0.5, delay: index * 0.08 }}
-            >
+            <Reveal key={index} delay={index * 0.05}>
               <button
                 onClick={() => toggleFAQ(index)}
                 className="w-full flex items-start gap-4 text-left py-2"
@@ -115,13 +106,13 @@ export default function FAQSection() {
                     transition={{ duration: 0.3 }}
                     className="overflow-hidden"
                   >
-                    <div className="ml-12 pb-4 text-[14px] text-muted-foreground leading-relaxed">
+                    <motion.div className="ml-12 pb-4 text-[14px] text-muted-foreground leading-relaxed">
                       {faq.answer}
-                    </div>
+                    </motion.div>
                   </motion.div>
                 )}
               </AnimatePresence>
-            </motion.div>
+            </Reveal>
           ))}
         </div>
       </div>

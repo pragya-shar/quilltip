@@ -164,8 +164,7 @@ export default function HeroSection() {
           {/* Label chip */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
           >
             <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-muted/60 border border-border/60 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -178,8 +177,7 @@ export default function HeroSection() {
           <motion.h1
             className="mt-6 font-display text-4xl sm:text-[2.75rem] lg:text-5xl font-medium tracking-[-0.01em] text-foreground leading-[1.2]"
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.05, ease: 'easeOut' }}
           >
             Reward the words that move you
@@ -189,8 +187,7 @@ export default function HeroSection() {
           <motion.p
             className="mt-4 text-[15px] sm:text-base text-muted-foreground max-w-md leading-relaxed"
             initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
           >
             Highlight what resonates. Tip writers instantly. Powered by Stellar.
@@ -200,8 +197,7 @@ export default function HeroSection() {
           <motion.div
             className="mt-8 flex flex-col sm:flex-row items-center gap-2.5"
             initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.15, ease: 'easeOut' }}
           >
             <Link
@@ -224,9 +220,8 @@ export default function HeroSection() {
           <motion.div
             className="mt-14 w-full max-w-2xl"
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
           >
             <div className="relative bg-card rounded-xl border border-border shadow-[var(--card-shadow)] overflow-hidden">
               {/* Browser chrome */}
@@ -259,9 +254,8 @@ export default function HeroSection() {
           <motion.div
             className="mt-12 flex items-center justify-center gap-8 sm:gap-12"
             initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
           >
             <div className="text-center">
               <p className="text-lg sm:text-xl font-semibold text-foreground tabular-nums">
