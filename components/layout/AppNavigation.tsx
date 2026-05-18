@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { useAuth } from '@/components/providers/AuthContext'
 import {
   PenSquare,
@@ -12,30 +12,22 @@ import {
   BookOpen,
   HelpCircle,
   Menu,
-  X,
 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
-import { motion, AnimatePresence } from 'motion/react'
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 
 export default function AppNavigation() {
   const { user, isAuthenticated, signOut } = useAuth()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
-  const navRef = useRef<HTMLDivElement>(null)
 
   const isActive = (path: string) => pathname === path
-
-  useEffect(() => {
-    if (!menuOpen) return
-    const handleMouseDown = (event: MouseEvent) => {
-      if (navRef.current && !navRef.current.contains(event.target as Node)) {
-        setMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleMouseDown)
-    return () => document.removeEventListener('mousedown', handleMouseDown)
-  }, [menuOpen])
 
   const closeMenu = () => setMenuOpen(false)
 
@@ -48,14 +40,12 @@ export default function AppNavigation() {
 
   const mobileLinkClass = (active: boolean) =>
     `focus-ring flex items-center gap-2 px-3 py-2 rounded-lg transition text-sm font-medium ${
-      active
-        ? 'bg-muted text-primary'
-        : 'text-muted-foreground hover:text-foreground'
+      active ? 'bg-muted text-primary' : 'text-foreground hover:bg-muted'
     }`
 
   return (
     <nav className="fixed top-0 w-full bg-background/95 backdrop-blur-md z-50 border-b border-border">
-      <div ref={navRef} className="container mx-auto px-4">
+      <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <Link
             href="/"
@@ -141,31 +131,23 @@ export default function AppNavigation() {
             )}
           </div>
 
-          <button
-            type="button"
-            className="focus-ring md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-expanded={menuOpen}
-            aria-label="Toggle menu"
-          >
-            {menuOpen ? (
-              <X size={22} className="text-foreground" />
-            ) : (
-              <Menu size={22} className="text-foreground" />
-            )}
-          </button>
-        </div>
-
-        <AnimatePresence>
-          {menuOpen && (
-            <motion.div
-              className="md:hidden overflow-hidden border-t border-border"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.25 }}
+          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                className="focus-ring md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
+                aria-expanded={menuOpen}
+                aria-label="Toggle menu"
+              >
+                <Menu size={22} className="text-foreground" />
+              </button>
+            </SheetTrigger>
+            <SheetContent
+              side="right"
+              className="w-full sm:max-w-sm p-0 flex flex-col"
             >
-              <div className="py-4 flex flex-col gap-1">
+              <SheetTitle className="sr-only">Navigation menu</SheetTitle>
+              <div className="flex flex-col gap-1 px-4 pt-14 pb-6 overflow-y-auto">
                 <Link
                   href="/"
                   className={mobileLinkClass(isActive('/'))}
@@ -225,7 +207,7 @@ export default function AppNavigation() {
                         closeMenu()
                         signOut()
                       }}
-                      className="focus-ring flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-destructive transition text-left"
+                      className="focus-ring flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-foreground hover:bg-muted hover:text-destructive transition text-left"
                     >
                       <LogOut className="w-4 h-4 shrink-0" />
                       <span>Sign Out</span>
@@ -235,14 +217,14 @@ export default function AppNavigation() {
                   <div className="flex flex-col gap-2 pt-2 border-t border-border mt-2">
                     <Link
                       href="/login"
-                      className="focus-ring rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition"
+                      className="focus-ring rounded-lg px-3 py-2 text-sm font-medium text-foreground hover:bg-muted transition"
                       onClick={closeMenu}
                     >
                       Sign In
                     </Link>
                     <Link
                       href="/register"
-                      className="focus-ring mx-3 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg hover:bg-primary/90 transition text-center text-sm font-medium"
+                      className="focus-ring bg-primary text-primary-foreground px-4 py-2.5 rounded-lg hover:bg-primary/90 transition text-center text-sm font-medium"
                       onClick={closeMenu}
                     >
                       Get Started
@@ -250,9 +232,9 @@ export default function AppNavigation() {
                   </div>
                 )}
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </nav>
   )
