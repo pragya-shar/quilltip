@@ -58,9 +58,7 @@ export function Reveal({
       className={className}
       initial={isVisible ? false : { opacity: 0, y: 24 }}
       animate={isVisible ? { opacity: 1, y: 0 } : undefined}
-      whileInView={
-        isVisible ? undefined : { opacity: 1, y: 0 }
-      }
+      whileInView={isVisible ? undefined : { opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.05 }}
       transition={{
         duration: 0.6,

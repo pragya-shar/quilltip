@@ -32,7 +32,9 @@ test.describe('home landing visual regression', () => {
 
   test('full page screenshot', async ({ page }) => {
     await scrollSectionIntoView(page, '#features')
-    await expect(page.getByRole('heading', { name: 'Core Features' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Core Features' })
+    ).toBeVisible()
 
     await scrollSectionIntoView(page, '#how-it-works')
     await expect(

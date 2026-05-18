@@ -64,10 +64,7 @@ export default function TrustSection() {
                       key={bullet}
                       className="text-[13px] text-muted-foreground leading-relaxed flex gap-2"
                     >
-                      <span
-                        className="text-brand mt-1.5 shrink-0"
-                        aria-hidden
-                      >
+                      <span className="text-brand mt-1.5 shrink-0" aria-hidden>
                         •
                       </span>
                       <span>{bullet}</span>
