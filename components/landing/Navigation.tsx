@@ -5,7 +5,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   ArrowRight,
   Menu,
-  X,
   PenTool,
   Zap,
   Highlighter,
@@ -21,6 +20,12 @@ import {
 import { motion, AnimatePresence } from 'motion/react'
 import { LucideIcon } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
 
 interface NavDropdownItem {
   icon: LucideIcon
@@ -230,11 +235,13 @@ export default function Navigation() {
     }
   }
 
+  const headerSolid = scrolled || isOpen
+
   return (
     <motion.nav
       className={`fixed top-0 w-full z-50 transition-all duration-500 ${
-        scrolled
-          ? 'bg-background/70 backdrop-blur-xl border-b border-border/60 shadow-sm'
+        headerSolid
+          ? 'bg-background border-b border-border shadow-sm'
           : 'bg-transparent'
       }`}
       initial={{ y: -100 }}
@@ -406,104 +413,81 @@ export default function Navigation() {
             </Link>
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            type="button"
-            className="focus-ring md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
-            onClick={() => setIsOpen(!isOpen)}
-            aria-expanded={isOpen}
-            aria-label="Toggle menu"
-          >
-            {isOpen ? (
-              <X size={22} className="text-foreground" />
-            ) : (
-              <Menu size={22} className="text-foreground" />
-            )}
-          </button>
-        </div>
-
-        {/* Mobile Navigation */}
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              className="md:hidden border-t border-border/60"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.25 }}
+          <Sheet open={isOpen} onOpenChange={setIsOpen}>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                className="focus-ring md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
+                aria-expanded={isOpen}
+                aria-label="Toggle menu"
+              >
+                <Menu size={22} className="text-foreground" />
+              </button>
+            </SheetTrigger>
+            <SheetContent
+              side="right"
+              className="w-full sm:max-w-sm p-0 flex flex-col"
             >
-              <div className="py-4 space-y-4">
-                <Link
-                  href="/articles"
-                  className="focus-ring flex items-center gap-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Articles
-                </Link>
-                {navDropdowns.map((dropdown, dropdownIndex) => (
-                  <motion.div
-                    key={dropdown.label}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: dropdownIndex * 0.1 }}
-                  >
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                      {dropdown.label}
-                    </p>
-                    <div className="space-y-0.5">
-                      {dropdown.columns.map((column) =>
-                        column.items.map((item) => (
-                          <Link
-                            key={item.title}
-                            href={item.href}
-                            className="focus-ring flex items-center gap-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors"
-                            onClick={(e) => {
-                              handleSmoothScroll(e, item.href)
-                              setIsOpen(false)
-                            }}
-                          >
-                            <div className="w-7 h-7 bg-muted rounded-lg flex items-center justify-center">
-                              <item.icon className="w-3.5 h-3.5 text-muted-foreground" />
-                            </div>
-                            <span className="text-sm font-medium">
-                              {item.title}
-                            </span>
-                          </Link>
-                        ))
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
-
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{
-                    duration: 0.3,
-                    delay: navDropdowns.length * 0.1,
-                  }}
-                  className="pt-3 space-y-2 border-t border-border/60"
-                >
-                  <Link
-                    href="/login"
-                    className="focus-ring block rounded-md text-muted-foreground hover:text-foreground text-sm font-medium transition-colors py-1.5"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    Sign In
-                  </Link>
-                  <Link
-                    href="/register"
-                    className="focus-ring inline-flex w-full items-center justify-center gap-1.5 bg-brand text-brand-foreground px-5 py-2.5 rounded-lg hover:bg-brand-hover transition-colors text-sm font-medium"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    Try on Testnet
-                    <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
-                  </Link>
-                </motion.div>
+              <SheetTitle className="sr-only">Navigation menu</SheetTitle>
+          <div className="px-4 pt-14 pb-6 space-y-4 overflow-y-auto">
+            <Link
+              href="/articles"
+              className="focus-ring flex items-center gap-3 py-2 rounded-lg text-foreground hover:bg-muted text-sm font-medium transition-colors"
+              onClick={() => setIsOpen(false)}
+            >
+              Articles
+            </Link>
+            {navDropdowns.map((dropdown) => (
+              <div key={dropdown.label}>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+                  {dropdown.label}
+                </p>
+                <div className="space-y-0.5">
+                  {dropdown.columns.map((column) =>
+                    column.items.map((item) => (
+                      <Link
+                        key={item.title}
+                        href={item.href}
+                        className="focus-ring flex items-center gap-2.5 py-2 px-1 rounded-lg text-foreground hover:bg-muted transition-colors"
+                        onClick={(e) => {
+                          handleSmoothScroll(e, item.href)
+                          setIsOpen(false)
+                        }}
+                      >
+                        <div className="w-7 h-7 bg-muted rounded-lg flex items-center justify-center shrink-0">
+                          <item.icon className="w-3.5 h-3.5 text-foreground" />
+                        </div>
+                        <span className="text-sm font-medium">
+                          {item.title}
+                        </span>
+                      </Link>
+                    ))
+                  )}
+                </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            ))}
+
+            <div className="pt-3 space-y-2 border-t border-border">
+              <Link
+                href="/login"
+                className="focus-ring block rounded-lg text-foreground hover:bg-muted text-sm font-medium transition-colors py-2 px-1"
+                onClick={() => setIsOpen(false)}
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/register"
+                className="focus-ring inline-flex w-full items-center justify-center gap-1.5 bg-brand text-brand-foreground px-5 py-2.5 rounded-lg hover:bg-brand-hover transition-colors text-sm font-medium"
+                onClick={() => setIsOpen(false)}
+              >
+                Try on Testnet
+                <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
+              </Link>
+            </div>
+          </div>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </motion.nav>
   )
