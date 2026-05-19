@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { LegalLinks } from '@/components/legal/LegalLinks'
 
 /**
  * Auth Layout
@@ -55,13 +56,10 @@ export default function AuthLayout({
           <div className="mt-8 text-center text-sm text-muted-foreground">
             <p>
               By continuing, you agree to Quilltip&apos;s{' '}
-              <Link href="/terms" className="text-primary hover:underline">
-                Terms of Service
-              </Link>{' '}
-              and{' '}
-              <Link href="/privacy" className="text-primary hover:underline">
-                Privacy Policy
-              </Link>
+              <LegalLinks
+                conjunction="and"
+                linkClassName="text-primary hover:underline"
+              />
             </p>
           </div>
         </div>

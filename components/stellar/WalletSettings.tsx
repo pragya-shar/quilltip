@@ -30,6 +30,7 @@ import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import { toast } from 'sonner'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { LegalLinks } from '@/components/legal/LegalLinks'
 import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
@@ -361,6 +362,12 @@ export function WalletSettings({
                   platform fees.
                 </AlertDescription>
               </Alert>
+            </div>
+          )}
+
+          {isOwnProfile && (
+            <div className="pt-4 mt-2 border-t border-border">
+              <LegalLinks linkClassName="text-muted-foreground hover:text-foreground text-xs" />
             </div>
           )}
         </CardContent>
