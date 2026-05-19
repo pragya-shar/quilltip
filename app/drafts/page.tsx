@@ -49,9 +49,7 @@ export default function DraftsPage() {
     if (!deleteTarget || isDeleting) return
     setIsDeleting(true)
     try {
-      await mutationWithTimeout(
-        deleteArticleMutation({ id: deleteTarget })
-      )
+      await mutationWithTimeout(deleteArticleMutation({ id: deleteTarget }))
       toast.success('Draft deleted')
       setDeleteTarget(null)
       setIsDeleting(false)
