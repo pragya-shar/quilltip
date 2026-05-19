@@ -34,9 +34,7 @@ export default function Footer() {
 
         <Reveal className="py-8 border-t border-spotlight-border space-y-4">
           <div className="flex justify-center">
-            <LegalLinks
-              linkClassName="text-spotlight-muted hover:text-spotlight-foreground text-[13px]"
-            />
+            <LegalLinks linkClassName="text-spotlight-muted hover:text-spotlight-foreground text-[13px]" />
           </div>
           <div className="flex items-center justify-center gap-2 text-spotlight-muted text-[13px]">
             <span>© {currentYear} Quilltip. Built with</span>
