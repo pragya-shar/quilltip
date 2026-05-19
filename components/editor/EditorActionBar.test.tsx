@@ -62,11 +62,7 @@ describe('EditorActionBar autosave status', () => {
 
   it('shows Could not save with destructive Draft pill when error and dirty', () => {
     const { container } = render(
-      <EditorActionBar
-        {...baseProps}
-        error="Network error"
-        hasUnsavedChanges
-      />
+      <EditorActionBar {...baseProps} error="Network error" hasUnsavedChanges />
     )
     const statuses = screen.getAllByRole('status')
     for (const status of statuses) {
