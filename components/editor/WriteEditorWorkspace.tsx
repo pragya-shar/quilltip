@@ -25,13 +25,14 @@ import type { Id } from '@/types/convex'
 import { toast } from 'sonner'
 import Image from 'next/image'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { mutationWithTimeout } from '@/lib/convexMutationWithTimeout'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Textarea } from '@/components/ui/textarea'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -125,6 +126,8 @@ export function WriteEditorWorkspace() {
     publishedAt: null,
   })
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [backupPrompt, setBackupPrompt] = useState<DraftBackup | null>(null)
   const [backupRecoveryStatus, setBackupRecoveryStatus] = useState<
     'pending' | 'resolved'
@@ -536,20 +539,27 @@ export function WriteEditorWorkspace() {
     editor,
   ])
 
-  const handleDelete = useCallback(async () => {
-    if (!window.confirm('Are you sure you want to delete this draft?')) return
+  const handleRequestDelete = useCallback(() => {
+    if (!articleId || isDeleting) return
+    setDeleteDialogOpen(true)
+  }, [articleId, isDeleting])
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!articleId || isDeleting) return
+    setIsDeleting(true)
     try {
-      if (articleId) {
-        await deleteArticleMutation({ id: articleId as Id<'articles'> })
-        router.push('/')
-      }
+      await mutationWithTimeout(
+        deleteArticleMutation({ id: articleId as Id<'articles'> })
+      )
+      toast.success('Draft deleted')
+      setDeleteDialogOpen(false)
+      router.push('/')
     } catch (error) {
       console.error('Delete error:', error)
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to delete draft'
-      )
+      toast.error('Failed to delete draft. Please try again.')
+      setIsDeleting(false)
     }
-  }, [articleId, deleteArticleMutation, router])
+  }, [articleId, deleteArticleMutation, isDeleting, router])
 
   const handleBack = useCallback(() => {
     if (hasUnsavedChanges) {
@@ -771,7 +781,8 @@ export function WriteEditorWorkspace() {
         isPublishing={isPublishing}
         canPublish={!!editor}
         lastSavedAt={lastSavedAt ?? undefined}
-        onDelete={handleDelete}
+        onDelete={handleRequestDelete}
+        isDeleting={isDeleting}
         hasUnsavedChanges={hasUnsavedChanges}
       />
       <div className="flex min-w-0 flex-1 flex-col pb-8">
@@ -1159,6 +1170,44 @@ export function WriteEditorWorkspace() {
             </AlertDialogAction>
             <AlertDialogAction type="button" onClick={handleRestoreBackup}>
               Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (isDeleting) return
+          if (!open) setDeleteDialogOpen(false)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The draft will be permanently
+              deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={(e) => {
+                e.preventDefault()
+                void handleConfirmDelete()
+              }}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
