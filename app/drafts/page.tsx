@@ -128,7 +128,10 @@ export default function DraftsPage() {
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[10rem]">
+                        <DropdownMenuContent
+                          align="end"
+                          className="min-w-[10rem]"
+                        >
                           <DropdownMenuItem asChild>
                             <Link
                               href={`/write?id=${draft._id}`}
