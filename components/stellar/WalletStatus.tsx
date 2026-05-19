@@ -36,7 +36,7 @@ export function WalletStatus({ className }: WalletStatusProps) {
     connect,
     disconnect,
     refreshConnection,
-  } = useWallet()
+  } = useWallet({ activateOnMount: true })
   const [isConnecting, setIsConnecting] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
+import { useWalletActivation } from '@/components/providers/WalletActivationContext'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AlertCircle, Coins, Heart, Loader2, Wallet } from 'lucide-react'
@@ -65,6 +66,7 @@ export function TipButton({
 }: TipButtonProps) {
   const { isAuthenticated } = useAuth()
   const { isConnected, publicKey, signTransaction, connect } = useWallet()
+  const { activateWallet } = useWalletActivation()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
@@ -89,6 +91,9 @@ export function TipButton({
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
+    if (open) {
+      activateWallet()
+    }
     setIsOpen(open)
     setTipFailure(null)
   }
