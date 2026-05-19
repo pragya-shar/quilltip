@@ -367,9 +367,7 @@ export function WalletSettings({
 
           {isOwnProfile && (
             <div className="pt-4 mt-2 border-t border-border">
-              <LegalLinks
-                linkClassName="text-muted-foreground hover:text-foreground text-xs"
-              />
+              <LegalLinks linkClassName="text-muted-foreground hover:text-foreground text-xs" />
             </div>
           )}
         </CardContent>

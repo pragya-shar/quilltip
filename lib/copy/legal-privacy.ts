@@ -79,7 +79,7 @@ export const privacySections: LegalSection[] = [
   },
   {
     id: 'children',
-    title: '9. Children\'s privacy',
+    title: "9. Children's privacy",
     paragraphs: [
       'The Service is not directed to children under 13. We do not knowingly collect personal information from children under 13. If you believe we have done so, contact us and we will take appropriate steps to delete it.',
     ],

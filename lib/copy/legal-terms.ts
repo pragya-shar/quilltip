@@ -42,7 +42,7 @@ export const termsSections: LegalSection[] = [
     title: '4. Your content',
     paragraphs: [
       'You retain ownership of content you publish on Quilltip, subject to the licenses you grant us to operate the Service (for example, to display, store, and distribute your articles to readers).',
-      'You represent that you have the rights to publish your content and that it does not infringe others\' intellectual property, privacy, or other rights.',
+      "You represent that you have the rights to publish your content and that it does not infringe others' intellectual property, privacy, or other rights.",
       'You grant Quilltip a non-exclusive, worldwide license to host, reproduce, display, and promote your content solely to provide and improve the Service.',
     ],
   },
@@ -61,7 +61,7 @@ export const termsSections: LegalSection[] = [
     title: '6. Permanent storage and NFTs',
     paragraphs: [
       'Quilltip may store or reference article content on decentralized networks such as Arweave so that published work can persist independently of our servers. Once content is stored on a decentralized network, copies may remain accessible even if we remove content from the Quilltip interface.',
-      'Article NFTs on Stellar may serve as proof of ownership or authorship. Minting, transfer, and on-chain metadata are subject to network rules and your wallet provider\'s terms.',
+      "Article NFTs on Stellar may serve as proof of ownership or authorship. Minting, transfer, and on-chain metadata are subject to network rules and your wallet provider's terms.",
     ],
   },
   {
