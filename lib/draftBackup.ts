@@ -15,6 +15,7 @@ export const draftBackupSchema = z.object({
   excerpt: z.string().optional(),
   tags: z.array(z.string()).optional(),
   coverImage: z.string().optional(),
+  writerNotes: z.string().optional(),
   articleId: z.string().optional(),
   savedAt: z.number(),
 })
@@ -27,6 +28,7 @@ export type ServerDraftSnapshot = {
   excerpt?: string
   tags?: string[]
   coverImage?: string
+  writerNotes?: string
   updatedAt: number
 }
 
@@ -41,6 +43,7 @@ type DraftSnapshotFields = {
   excerpt?: string
   tags?: string[]
   coverImage?: string
+  writerNotes?: string
 }
 
 function normalizeSnapshot(fields: DraftSnapshotFields): string {
@@ -50,6 +53,7 @@ function normalizeSnapshot(fields: DraftSnapshotFields): string {
     excerpt: (fields.excerpt ?? '').trim(),
     tags: [...(fields.tags ?? [])].sort(),
     coverImage: (fields.coverImage ?? '').trim(),
+    writerNotes: (fields.writerNotes ?? '').trim(),
   })
 }
 
@@ -85,7 +89,9 @@ export function hasMeaningfulBackupContent(backup: DraftBackup): boolean {
   const hasCover = !!backup.coverImage?.trim()
   const hasExcerpt = !!backup.excerpt?.trim()
   const hasTags = (backup.tags?.length ?? 0) > 0
-  if (hasCustomTitle || hasCover || hasExcerpt || hasTags) return true
+  const hasWriterNotes = !!backup.writerNotes?.trim()
+  if (hasCustomTitle || hasCover || hasExcerpt || hasTags || hasWriterNotes)
+    return true
   return !isEmptyDoc(backup.content)
 }
 
@@ -113,6 +119,7 @@ function snapshotsEqual(
       excerpt: backup.excerpt,
       tags: backup.tags,
       coverImage: backup.coverImage,
+      writerNotes: backup.writerNotes,
     }) ===
     normalizeSnapshot({
       title: server.title,
@@ -120,6 +127,7 @@ function snapshotsEqual(
       excerpt: server.excerpt,
       tags: server.tags,
       coverImage: server.coverImage,
+      writerNotes: server.writerNotes,
     })
   )
 }

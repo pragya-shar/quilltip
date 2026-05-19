@@ -177,6 +177,38 @@ describe('useAutoSave', () => {
     expect(localStorage.getItem(DRAFT_BACKUP_STORAGE_KEY)).not.toBeNull()
   })
 
+  it('debounces save when only writerNotes changes', async () => {
+    vi.useFakeTimers()
+    mockSaveDraft.mockResolvedValue('article-123')
+
+    const { rerender } = renderHook(
+      ({ writerNotes }: { writerNotes: string }) =>
+        useAutoSave({
+          content: null,
+          title: '',
+          writerNotes,
+          enabled: true,
+        }),
+      { initialProps: { writerNotes: '' } }
+    )
+
+    rerender({ writerNotes: 'Planning note' })
+
+    expect(mockSaveDraft).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1)
+    expect(mockSaveDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        writerNotes: 'Planning note',
+        title: 'Untitled',
+      })
+    )
+  })
+
   it('calls onSaveError when save fails', async () => {
     const onSaveError = vi.fn()
     mockSaveDraft.mockRejectedValue(new Error('Offline'))
