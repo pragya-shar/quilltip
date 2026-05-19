@@ -222,8 +222,7 @@ export function WriteEditorWorkspace() {
     coverImage: coverImage || undefined,
     writerNotes,
     enabled:
-      isAuthenticated &&
-      (hasUnsavedChanges || !!title || !!writerNotes.trim()),
+      isAuthenticated && (hasUnsavedChanges || !!title || !!writerNotes.trim()),
     onSaveSuccess: (response) => {
       if (!articleId && response.id) {
         setArticleId(response.id)

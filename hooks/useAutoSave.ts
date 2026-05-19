@@ -199,7 +199,16 @@ export function useAutoSave({
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [content, title, coverImage, excerpt, tags, writerNotes, enabled, debouncedSave])
+  }, [
+    content,
+    title,
+    coverImage,
+    excerpt,
+    tags,
+    writerNotes,
+    enabled,
+    debouncedSave,
+  ])
 
   // Save immediately function for manual triggers
   const saveNow = useCallback(async () => {
