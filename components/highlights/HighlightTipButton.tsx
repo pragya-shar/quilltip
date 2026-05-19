@@ -39,6 +39,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
@@ -453,8 +454,9 @@ export function HighlightTipButton({
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            Powered by Stellar • Instant settlement • Low fees
+          <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1 flex-wrap">
+            Powered by Stellar testnet <WalletTooltip concept="testnet" /> •
+            Fast testnet settlement • Low fees
           </p>
         </DialogContent>
       </Dialog>

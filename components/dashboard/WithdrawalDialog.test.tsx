@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { createRef } from 'react'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { WithdrawalDialog } from '@/components/dashboard/WithdrawalDialog'
@@ -15,9 +15,15 @@ function corruptAccountId(address: string): string {
   return chars.join('')
 }
 
+function setStellarAddress(value: string) {
+  fireEvent.change(screen.getByLabelText(/Stellar Address/i), {
+    target: { value },
+  })
+}
+
 describe('WithdrawalDialog', () => {
   it('calls onWithdraw with entered amount and address', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
     const onOpenChange = vi.fn()
     const triggerRef = createRef<HTMLButtonElement>()
@@ -34,10 +40,7 @@ describe('WithdrawalDialog', () => {
     )
 
     await user.type(screen.getByLabelText(/Amount \(USD\)/i), '10')
-    await user.type(
-      screen.getByLabelText(/Stellar Address/i),
-      VALID_TEST_PUBLIC_KEY
-    )
+    setStellarAddress(VALID_TEST_PUBLIC_KEY)
     await user.click(screen.getByRole('button', { name: /Withdraw$/i }))
 
     await waitFor(() => {
@@ -50,7 +53,7 @@ describe('WithdrawalDialog', () => {
   }, 10_000)
 
   it('uses saved Stellar address without manual entry', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
     const triggerRef = createRef<HTMLButtonElement>()
     render(
@@ -75,7 +78,7 @@ describe('WithdrawalDialog', () => {
   })
 
   it('shows inline error and disables withdraw for an invalid address', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
     const triggerRef = createRef<HTMLButtonElement>()
     const invalidAddress = corruptAccountId(VALID_TEST_PUBLIC_KEY)
@@ -93,7 +96,7 @@ describe('WithdrawalDialog', () => {
     )
 
     await user.type(screen.getByLabelText(/Amount \(USD\)/i), '10')
-    await user.type(screen.getByLabelText(/Stellar Address/i), invalidAddress)
+    setStellarAddress(invalidAddress)
 
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Invalid Stellar address'
@@ -105,7 +108,7 @@ describe('WithdrawalDialog', () => {
   })
 
   it('does not call onWithdraw when amount is below minimum', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onWithdraw = vi.fn().mockResolvedValue(undefined)
     const triggerRef = createRef<HTMLButtonElement>()
     render(

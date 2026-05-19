@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="358" height="220" viewBox="0 0 358 220" fill="none">
+  <rect width="358" height="220" fill="#fafaf9"/>
+  <rect x="1" y="1" width="356" height="218" rx="12" stroke="#e7e5e4" stroke-width="1"/>
+  <rect x="16" y="16" width="326" height="28" rx="6" fill="#f5f5f4"/>
+  <circle cx="30" cy="30" r="4" fill="#d6d3d1"/>
+  <circle cx="44" cy="30" r="4" fill="#d6d3d1"/>
+  <circle cx="58" cy="30" r="4" fill="#d6d3d1"/>
+  <rect x="72" y="22" width="220" height="16" rx="4" fill="#ffffff" stroke="#e7e5e4"/>
+  <text x="182" y="33" text-anchor="middle" font-family="system-ui,sans-serif" font-size="8" fill="#78716c">quilltip.app/article/on-open-knowledge</text>
+  <text x="24" y="72" font-family="Georgia,serif" font-size="14" font-weight="600" fill="#1c1917">On open knowledge</text>
+  <text x="24" y="94" font-family="system-ui,sans-serif" font-size="9" fill="#78716c">@openwriter - 4 min read</text>
+  <text x="24" y="118" font-family="system-ui,sans-serif" font-size="11" fill="#57534e">Writers pour their hearts into stories that shape</text>
+  <text x="24" y="134" font-family="system-ui,sans-serif" font-size="11" fill="#57534e">how we think - yet most see nothing in return.</text>
+  <rect x="24" y="144" width="198" height="18" rx="3" fill="#fef3c7" fill-opacity="0.85"/>
+  <text x="28" y="157" font-family="system-ui,sans-serif" font-size="11" fill="#1c1917">the quiet revolution of open knowledge</text>
+  <rect x="168" y="126" width="72" height="26" rx="13" fill="#ffffff" stroke="#e7e5e4"/>
+  <text x="204" y="143" text-anchor="middle" font-family="system-ui,sans-serif" font-size="10" font-weight="600" fill="#1c1917">+0.75 XLM</text>
+  <rect x="24" y="178" width="120" height="28" rx="8" fill="#1c1917"/>
+  <text x="84" y="196" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="500" fill="#fafaf9">Tip highlight</text>
+</svg>
