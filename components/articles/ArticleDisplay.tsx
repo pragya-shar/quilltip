@@ -1,12 +1,22 @@
 'use client'
 
-import { type JSONContent } from '@tiptap/react'
+import dynamic from 'next/dynamic'
+import { type JSONContent } from '@tiptap/core'
 import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import Image from 'next/image'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import ShareButtons from './ShareButtons'
-import { HighlightableArticle } from '@/components/articles/HighlightableArticle'
+import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
+import { ArticleBodySkeleton } from '@/components/articles/ArticleBodySkeleton'
+
+const HighlightableArticle = dynamic(
+  () =>
+    import('@/components/articles/HighlightableArticle').then((mod) => ({
+      default: mod.HighlightableArticle,
+    })),
+  { ssr: false, loading: () => <ArticleBodySkeleton /> }
+)
 import { useAuth } from '@/components/providers/AuthContext'
 import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
@@ -112,13 +122,20 @@ export default function ArticleDisplay({
       </header>
 
       <div className="article-content">
-        <HighlightableArticle
-          articleId={article.id as Id<'articles'>}
-          content={article.content ?? EMPTY_DOC}
-          editable={false}
-          showHighlights={effectiveShowHighlights}
-          tocHeadings={tocHeadings}
-        />
+        {effectiveShowHighlights ? (
+          <HighlightableArticle
+            articleId={article.id as Id<'articles'>}
+            content={article.content ?? EMPTY_DOC}
+            editable={false}
+            showHighlights={effectiveShowHighlights}
+            tocHeadings={tocHeadings}
+          />
+        ) : (
+          <ArticleReadOnlyBody
+            content={article.content ?? EMPTY_DOC}
+            tocHeadings={tocHeadings}
+          />
+        )}
       </div>
 
       {currentUrl && (

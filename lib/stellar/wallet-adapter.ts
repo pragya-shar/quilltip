@@ -12,20 +12,25 @@
  * - Better error messages for all wallet types
  */
 
-import {
-  StellarWalletsKit,
-  WalletNetwork,
-  allowAllModules,
+import type {
   ISupportedWallet,
+  WalletNetwork as WalletNetworkValue,
+} from '@creit.tech/stellar-wallets-kit'
+import { toast } from 'sonner'
+import { hasInstalledWalletForKitModal as supportedWalletsAllowKitModal } from '@/lib/stellar/wallet-availability'
+import { loadWalletKit } from '@/lib/stellar/wallet-kit-loader'
+import {
   FREIGHTER_ID,
   XBULL_ID,
   ALBEDO_ID,
   RABET_ID,
   HANA_ID,
   HOTWALLET_ID,
-} from '@creit.tech/stellar-wallets-kit'
-import { toast } from 'sonner'
-import { hasInstalledWalletForKitModal as supportedWalletsAllowKitModal } from '@/lib/stellar/wallet-availability'
+} from '@/lib/stellar/wallet-ids'
+
+type StellarWalletsKit = InstanceType<
+  Awaited<ReturnType<typeof loadWalletKit>>['StellarWalletsKit']
+>
 
 // Wallet type definitions
 export type WalletType =
@@ -200,8 +205,12 @@ class StellarWalletAdapter {
   /**
    * Create or recreate the wallet kit instance
    */
-  private createKit(network?: WalletNetwork): StellarWalletsKit {
-    const targetNetwork = network || this.getNetworkFromEnv()
+  private async createKit(
+    network?: WalletNetworkValue
+  ): Promise<StellarWalletsKit> {
+    const { StellarWalletsKit, allowAllModules, WalletNetwork } =
+      await loadWalletKit()
+    const targetNetwork = network ?? this.getNetworkFromEnv(WalletNetwork)
     const savedWalletId = this.getStoredWalletId()
 
     return new StellarWalletsKit({
@@ -214,7 +223,9 @@ class StellarWalletAdapter {
   /**
    * Get network from environment variable
    */
-  private getNetworkFromEnv(): WalletNetwork {
+  private getNetworkFromEnv(
+    WalletNetwork: Awaited<ReturnType<typeof loadWalletKit>>['WalletNetwork']
+  ): WalletNetworkValue {
     const envNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK
     return envNetwork === 'PUBLIC'
       ? WalletNetwork.PUBLIC
@@ -250,13 +261,13 @@ class StellarWalletAdapter {
   /**
    * Ensure kit is initialized (client-side only)
    */
-  private ensureKit(): StellarWalletsKit {
+  private async ensureKit(): Promise<StellarWalletsKit> {
     if (typeof window === 'undefined') {
       throw new Error('Wallet adapter can only be used in the browser')
     }
 
     if (!this.kit) {
-      this.kit = this.createKit()
+      this.kit = await this.createKit()
     }
 
     return this.kit
@@ -264,7 +275,7 @@ class StellarWalletAdapter {
 
   private async hasInstalledWalletForKitModal(): Promise<boolean> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
     const supported = (await kit.getSupportedWallets()) as ISupportedWallet[]
     return supportedWalletsAllowKitModal(supported)
   }
@@ -277,7 +288,7 @@ class StellarWalletAdapter {
     if (this.isInitialized) return
 
     // Ensure kit exists
-    this.ensureKit()
+    await this.ensureKit()
 
     // Only restore the wallet ID from storage, don't trigger connection
     const storedWalletId = this.getStoredWalletId()
@@ -301,7 +312,7 @@ class StellarWalletAdapter {
    */
   async connect(): Promise<ConnectionResult> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     const hasWallet = await this.hasInstalledWalletForKitModal()
     if (!hasWallet) {
@@ -408,7 +419,7 @@ class StellarWalletAdapter {
     walletId: string,
     maxRetries = 3
   ): Promise<void> {
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
     const walletInfo = this.getWalletInfo(walletId)
 
     // For wallets requiring eager connection (xBull, Hot, Hana), reduce retries to avoid multiple popups
@@ -478,7 +489,7 @@ class StellarWalletAdapter {
    */
   async connectToWallet(walletId: string): Promise<ConnectionResult> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     // Check cache first
     const cached = this.connectionCache.get(walletId)
@@ -596,7 +607,7 @@ class StellarWalletAdapter {
    */
   async getPublicKey(): Promise<string> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     // Check cache first
     if (this.selectedWalletId) {
@@ -628,7 +639,7 @@ class StellarWalletAdapter {
    */
   async getNetwork(): Promise<{ network: string; networkPassphrase: string }> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     // Check cache first
     if (this.selectedWalletId) {
@@ -687,7 +698,7 @@ class StellarWalletAdapter {
     networkPassphrase: string
   ): Promise<string> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     if (!this.selectedWalletId) {
       throw new Error('No wallet connected')
@@ -751,12 +762,12 @@ class StellarWalletAdapter {
 
     let lastAddress: string | null = null
     let isActive = true
-    const kit = this.ensureKit()
 
     const poll = async () => {
       if (!isActive) return
 
       try {
+        const kit = await this.ensureKit()
         const { address } = await kit.getAddress()
         if (address !== lastAddress) {
           lastAddress = address
@@ -796,12 +807,12 @@ class StellarWalletAdapter {
 
     let lastNetwork: string | null = null
     let isActive = true
-    const kit = this.ensureKit()
 
     const poll = async () => {
       if (!isActive) return
 
       try {
+        const kit = await this.ensureKit()
         const network = await kit.getNetwork()
         if (network.network !== lastNetwork) {
           lastNetwork = network.network
@@ -830,7 +841,7 @@ class StellarWalletAdapter {
    */
   async refresh(): Promise<void> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     if (this.selectedWalletId) {
       try {
@@ -847,7 +858,7 @@ class StellarWalletAdapter {
 // Export singleton instance
 export const walletAdapter = new StellarWalletAdapter()
 
-// Export wallet IDs for direct reference
+// Re-export wallet IDs for direct reference
 export {
   FREIGHTER_ID,
   XBULL_ID,
@@ -855,5 +866,4 @@ export {
   RABET_ID,
   HANA_ID,
   HOTWALLET_ID,
-  WalletNetwork,
-}
+} from '@/lib/stellar/wallet-ids'

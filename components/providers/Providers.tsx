@@ -1,19 +1,21 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import { ConvexReactClient } from 'convex/react'
-import { WalletProvider } from './WalletProvider'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
+import {
+  WalletActivationProvider,
+  useWalletActivation,
+} from './WalletActivationContext'
 
-/**
- * Global Providers
- *
- * Wraps the application with ConvexAuthProvider for authentication,
- * Convex database access, and Stellar wallet connection.
- * Provides real-time subscriptions and type-safe queries throughout the app.
- */
+const LazyWalletProvider = dynamic(
+  () =>
+    import('./WalletProvider').then((mod) => ({ default: mod.WalletProvider })),
+  { ssr: false }
+)
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
@@ -30,16 +32,28 @@ const WalletErrorFallback = (
   </div>
 )
 
+function WalletBoundary({ children }: { children: React.ReactNode }) {
+  const { isWalletActive } = useWalletActivation()
+
+  if (!isWalletActive) {
+    return <>{children}</>
+  }
+
+  return <LazyWalletProvider>{children}</LazyWalletProvider>
+}
+
 export default function Providers({ children }: ProvidersProps) {
   return (
     <ConvexAuthProvider client={convex}>
       <ThemeProvider>
-        <ErrorBoundary fallback={WalletErrorFallback}>
-          <WalletProvider>
-            {children}
-            <Toaster />
-          </WalletProvider>
-        </ErrorBoundary>
+        <WalletActivationProvider>
+          <ErrorBoundary fallback={WalletErrorFallback}>
+            <WalletBoundary>
+              {children}
+              <Toaster />
+            </WalletBoundary>
+          </ErrorBoundary>
+        </WalletActivationProvider>
       </ThemeProvider>
     </ConvexAuthProvider>
   )

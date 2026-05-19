@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useWallet } from '@/components/providers/WalletProvider'
+import { useWalletActivation } from '@/components/providers/WalletActivationContext'
 import { Wallet, Loader2, AlertCircle, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -32,7 +33,8 @@ export function WalletConnectButton({
     selectedWallet,
     connect,
     disconnect,
-  } = useWallet()
+  } = useWallet({ activateOnMount: true })
+  const { activateWallet } = useWalletActivation()
   const [isConnecting, setIsConnecting] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
 
@@ -42,6 +44,7 @@ export function WalletConnectButton({
       return
     }
 
+    activateWallet()
     setIsConnecting(true)
     try {
       await connect()
