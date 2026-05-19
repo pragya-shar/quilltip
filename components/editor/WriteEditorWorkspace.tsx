@@ -49,6 +49,15 @@ import {
   validateImageUploadFile,
   isAbortError,
 } from '@/lib/upload'
+import {
+  type DraftBackup,
+  clearDraftBackup,
+  formatBackupSavedAt,
+  readDraftBackup,
+  shouldOfferDraftRecovery,
+  shouldPersistDraftBackup,
+  writeDraftBackup,
+} from '@/lib/draftBackup'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const EXCERPT_MAX_CHARS = 500
@@ -102,6 +111,8 @@ export function WriteEditorWorkspace() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [navConfirm, setNavConfirm] = useState<NavConfirmState>(null)
   const hasUnsavedRef = useRef(hasUnsavedChanges)
+  /** When true, user dismissed recovery (Not now / Esc); keep local backup until Restore/Discard. */
+  const recoveryDeferredRef = useRef(false)
   const [excerptOpen, setExcerptOpen] = useState(false)
   const excerptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const tagsInputRef = useRef<HTMLInputElement>(null)
@@ -113,6 +124,10 @@ export function WriteEditorWorkspace() {
     publishedAt: null,
   })
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false)
+  const [backupPrompt, setBackupPrompt] = useState<DraftBackup | null>(null)
+  const [backupRecoveryStatus, setBackupRecoveryStatus] = useState<
+    'pending' | 'resolved'
+  >('pending')
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -210,6 +225,9 @@ export function WriteEditorWorkspace() {
         setArticleId(response.id)
       }
       setHasUnsavedChanges(false)
+      if (!recoveryDeferredRef.current) {
+        clearDraftBackup()
+      }
     },
     onSaveError: (error) => {
       console.error('Auto-save error:', error)
@@ -227,54 +245,176 @@ export function WriteEditorWorkspace() {
     articleId ? (articleId as Id<'articles'>) : undefined
   )
 
-  useEffect(() => {
-    if (draft && editor) {
-      setArticleId(draft._id)
-      setTitle(draft.title)
-      setExcerpt(draft.excerpt || '')
-      setTags(draft.tags?.join(', ') ?? '')
-      setCoverImage(draft.coverImage || '')
-      setPublishStatus({
-        published: draft.published,
-        publishedAt: draft.publishedAt ? new Date(draft.publishedAt) : null,
-      })
-      if (draft.content) {
-        queueMicrotask(() => {
-          editor.commands.setContent(draft.content)
-        })
-        setEditorContent(draft.content)
-      }
-      setHasUnsavedChanges(false)
+  const buildDraftBackup = useCallback((): DraftBackup => {
+    const tagsArr = tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+    return {
+      title: title || 'Untitled',
+      content: editorContent ?? EMPTY_DOC,
+      excerpt: excerpt || undefined,
+      tags: tagsArr.length ? tagsArr : undefined,
+      coverImage: coverImage || undefined,
+      articleId,
+      savedAt: Date.now(),
     }
-  }, [draft, editor])
+  }, [editorContent, title, excerpt, tags, coverImage, articleId])
+
+  const persistDraftBackup = useCallback(() => {
+    const hasContent = !!editorContent
+    const hasMetadata = !!(title?.trim() || coverImage)
+    if (
+      !shouldPersistDraftBackup(
+        isAuthenticated,
+        hasUnsavedChanges,
+        hasContent,
+        hasMetadata
+      )
+    ) {
+      return
+    }
+    writeDraftBackup(buildDraftBackup())
+  }, [
+    buildDraftBackup,
+    editorContent,
+    title,
+    coverImage,
+    hasUnsavedChanges,
+    isAuthenticated,
+  ])
+
+  useEffect(() => {
+    if (!editor || !isAuthenticated) return
+
+    const draftLoadSettled = !draftIdParam || draft !== undefined
+    if (!draftLoadSettled) return
+    if (backupRecoveryStatus !== 'pending') return
+
+    const backup = readDraftBackup()
+    if (!backup) {
+      setBackupRecoveryStatus('resolved')
+      return
+    }
+
+    const serverDraft =
+      draft && draft !== null
+        ? {
+            title: draft.title,
+            content: draft.content,
+            excerpt: draft.excerpt,
+            tags: draft.tags,
+            coverImage: draft.coverImage,
+            updatedAt: draft.updatedAt,
+          }
+        : undefined
+
+    if (
+      shouldOfferDraftRecovery(backup, serverDraft, {
+        urlArticleId: draftIdParam ?? undefined,
+        stateArticleId: articleId,
+      })
+    ) {
+      setBackupPrompt(backup)
+    } else {
+      clearDraftBackup()
+    }
+    setBackupRecoveryStatus('resolved')
+  }, [
+    editor,
+    isAuthenticated,
+    draft,
+    draftIdParam,
+    articleId,
+    backupRecoveryStatus,
+  ])
+
+  useEffect(() => {
+    if (backupRecoveryStatus !== 'resolved' || backupPrompt !== null) return
+    if (!draft || !editor) return
+
+    setArticleId(draft._id)
+    setTitle(draft.title)
+    setExcerpt(draft.excerpt || '')
+    setTags(draft.tags?.join(', ') ?? '')
+    setCoverImage(draft.coverImage || '')
+    setPublishStatus({
+      published: draft.published,
+      publishedAt: draft.publishedAt ? new Date(draft.publishedAt) : null,
+    })
+    if (draft.content) {
+      queueMicrotask(() => {
+        editor.commands.setContent(draft.content)
+      })
+      setEditorContent(draft.content)
+    }
+    setHasUnsavedChanges(false)
+  }, [draft, editor, backupRecoveryStatus, backupPrompt])
+
+  const applyDraftBackup = useCallback(
+    (backup: DraftBackup) => {
+      if (!editor) return
+      setArticleId(backup.articleId)
+      setTitle(backup.title)
+      setExcerpt(backup.excerpt || '')
+      setTags(backup.tags?.join(', ') ?? '')
+      setCoverImage(backup.coverImage || '')
+      queueMicrotask(() => {
+        editor.commands.setContent(backup.content)
+      })
+      setEditorContent(backup.content)
+      setHasUnsavedChanges(true)
+    },
+    [editor]
+  )
+
+  const handleRestoreBackup = useCallback(() => {
+    if (!backupPrompt) return
+    recoveryDeferredRef.current = false
+    applyDraftBackup(backupPrompt)
+    clearDraftBackup()
+    setBackupPrompt(null)
+    setBackupRecoveryStatus('resolved')
+  }, [backupPrompt, applyDraftBackup])
+
+  const handleDiscardBackup = useCallback(() => {
+    recoveryDeferredRef.current = false
+    clearDraftBackup()
+    setBackupPrompt(null)
+    setBackupRecoveryStatus('resolved')
+  }, [])
+
+  useEffect(() => {
+    const onPageHide = () => {
+      persistDraftBackup()
+    }
+    window.addEventListener('pagehide', onPageHide)
+    return () => window.removeEventListener('pagehide', onPageHide)
+  }, [persistDraftBackup])
+
+  useEffect(() => {
+    if (!isAuthenticated || !hasUnsavedChanges) return
+    const hasContent = !!editorContent
+    const hasMetadata = !!(title?.trim() || coverImage)
+    if (!hasContent && !hasMetadata) return
+
+    const timeoutId = setTimeout(() => {
+      persistDraftBackup()
+    }, 2000)
+
+    return () => clearTimeout(timeoutId)
+  }, [
+    persistDraftBackup,
+    isAuthenticated,
+    hasUnsavedChanges,
+    editorContent,
+    title,
+    coverImage,
+  ])
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      const hasContent = !!editorContent
-      const hasMetadata = !!(title?.trim() || coverImage)
-      const autoSaveEnabled = isAuthenticated && (hasUnsavedChanges || !!title)
-      if (autoSaveEnabled && (hasContent || hasMetadata)) {
-        try {
-          const tagsArr = tags
-            .split(',')
-            .map((t) => t.trim())
-            .filter(Boolean)
-          localStorage.setItem(
-            'quilltip_draft_backup',
-            JSON.stringify({
-              title: title || 'Untitled',
-              content: editorContent ?? EMPTY_DOC,
-              excerpt,
-              tags: tagsArr.length ? tagsArr : undefined,
-              coverImage: coverImage || undefined,
-              articleId,
-              savedAt: Date.now(),
-            })
-          )
-        } catch {
-          // localStorage unavailable or full
-        }
-      }
+      persistDraftBackup()
       if (hasUnsavedChanges) {
         e.preventDefault()
         e.returnValue = ''
@@ -282,16 +422,7 @@ export function WriteEditorWorkspace() {
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [
-    hasUnsavedChanges,
-    isAuthenticated,
-    editorContent,
-    title,
-    coverImage,
-    excerpt,
-    tags,
-    articleId,
-  ])
+  }, [hasUnsavedChanges, persistDraftBackup])
 
   useEffect(() => {
     const onDocumentClick = (e: MouseEvent) => {
@@ -978,6 +1109,43 @@ export function WriteEditorWorkspace() {
               }}
             >
               Publish
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={backupPrompt !== null}
+        onOpenChange={(open) => {
+          if (!open && backupPrompt !== null) {
+            if (readDraftBackup()) {
+              recoveryDeferredRef.current = true
+            }
+            setBackupPrompt(null)
+            setBackupRecoveryStatus('resolved')
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Recover unsaved draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {backupPrompt
+                ? `${formatBackupSavedAt(backupPrompt.savedAt)}. Restore this version or discard the local backup.`
+                : 'A local backup of your draft was found.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Not now</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDiscardBackup}
+            >
+              Discard backup
+            </AlertDialogAction>
+            <AlertDialogAction type="button" onClick={handleRestoreBackup}>
+              Restore
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

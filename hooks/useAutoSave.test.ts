@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { JSONContent } from '@tiptap/react'
 import { useAutoSave } from './useAutoSave'
+import { DRAFT_BACKUP_STORAGE_KEY } from '@/lib/draftBackup'
 
 const mockSaveDraft = vi.hoisted(() => vi.fn())
 
@@ -19,6 +20,11 @@ describe('useAutoSave', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockSaveDraft.mockResolvedValue('article-123')
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
   })
 
   afterEach(() => {
@@ -148,6 +154,27 @@ describe('useAutoSave', () => {
         title: 'My draft',
       })
     )
+  })
+
+  it('does not remove local draft backup on mount', () => {
+    localStorage.setItem(
+      DRAFT_BACKUP_STORAGE_KEY,
+      JSON.stringify({
+        title: 'Kept',
+        content: sampleContent,
+        savedAt: Date.now(),
+      })
+    )
+
+    renderHook(() =>
+      useAutoSave({
+        content: sampleContent,
+        title: 'My draft',
+        enabled: false,
+      })
+    )
+
+    expect(localStorage.getItem(DRAFT_BACKUP_STORAGE_KEY)).not.toBeNull()
   })
 
   it('calls onSaveError when save fails', async () => {
