@@ -176,7 +176,7 @@ export function EditorActionBar({
       className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded transition-colors shrink-0"
       title={isSaving ? 'Saving draft...' : 'Save draft'}
     >
-      Save
+      {isSaving ? 'Saving...' : 'Save'}
     </button>
   )
 
