@@ -14,7 +14,25 @@ import {
   Loader2,
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
 import { estimateReadingMinutes } from '@/lib/reading-time'
+
+function draftStatusTitle(
+  lastSavedAt: Date | null | undefined,
+  isSaving: boolean,
+  error: string | null
+): string {
+  if (error) {
+    return `${error} · ${AUTO_SAVE_GUIDANCE}`
+  }
+  if (isSaving) {
+    return AUTO_SAVE_GUIDANCE
+  }
+  if (lastSavedAt) {
+    return `Saved at ${lastSavedAt.toLocaleString()} · ${AUTO_SAVE_GUIDANCE}`
+  }
+  return AUTO_SAVE_GUIDANCE
+}
 
 function useUndoRedoShortcuts() {
   const [isApple, setIsApple] = useState(false)
@@ -228,11 +246,7 @@ export function EditorActionBar({
         Draft
       </span>
       <span
-        title={
-          lastSavedAt && !isSaving && !error
-            ? lastSavedAt.toLocaleString()
-            : error || undefined
-        }
+        title={draftStatusTitle(lastSavedAt, isSaving, error)}
         className={`flex items-center text-xs sm:text-sm truncate ${statusClassName} ${isSaving ? 'gap-2' : 'gap-1.5'}`}
       >
         {statusText}
@@ -269,11 +283,7 @@ export function EditorActionBar({
         role="status"
         aria-live="polite"
         data-relative-tick={relativeTick}
-        title={
-          lastSavedAt && !isSaving && !error
-            ? lastSavedAt.toLocaleString()
-            : error || undefined
-        }
+        title={draftStatusTitle(lastSavedAt, isSaving, error)}
         className="sr-only"
       >
         {statusText}

@@ -101,7 +101,7 @@ describe('useAutoSave', () => {
     expect(result.current.error).toBeNull()
   })
 
-  it('rejects with timeout message when save exceeds SAVE_DRAFT_TIMEOUT_MS', async () => {
+  it('rejects with timeout message when save exceeds CONVEX_MUTATION_TIMEOUT_MS', async () => {
     vi.useFakeTimers()
     mockSaveDraft.mockImplementation(() => new Promise<string>(() => {}))
 

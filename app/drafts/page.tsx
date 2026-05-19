@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { DraftsListSkeleton } from '@/components/drafts/DraftsListSkeleton'
+import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -228,7 +229,7 @@ export default function DraftsPage() {
               • All your unpublished articles are saved here automatically
             </li>
             <li>• Click &quot;Edit&quot; to continue working on any draft</li>
-            <li>• Drafts are auto-saved every 30 seconds while you write</li>
+            <li>• {AUTO_SAVE_GUIDANCE}</li>
             <li>
               • Delete drafts you no longer need to keep your workspace clean
             </li>

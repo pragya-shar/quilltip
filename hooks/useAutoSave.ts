@@ -3,11 +3,10 @@ import { JSONContent } from '@tiptap/react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
+import { AUTO_SAVE_DEBOUNCE_MS } from '@/lib/autosave'
+import { CONVEX_MUTATION_TIMEOUT_MS } from '@/lib/convexMutationWithTimeout'
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
-
-/** Convex may retry for a long time when offline; cap wait so the UI can show an error. */
-const SAVE_DRAFT_TIMEOUT_MS = 30_000
 
 interface DraftResponse {
   id: string
@@ -93,7 +92,7 @@ export function useAutoSave({
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutId = setTimeout(() => {
         reject(new Error('Save timed out. Check your connection.'))
-      }, SAVE_DRAFT_TIMEOUT_MS)
+      }, CONVEX_MUTATION_TIMEOUT_MS)
     })
 
     try {
@@ -153,7 +152,7 @@ export function useAutoSave({
 
     timeoutRef.current = setTimeout(() => {
       saveDraft()
-    }, 10000) // 10 seconds
+    }, AUTO_SAVE_DEBOUNCE_MS)
   }, [saveDraft])
 
   // Effect to handle content, title, coverImage, and excerpt changes
