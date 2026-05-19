@@ -3,6 +3,7 @@ import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import type { Editor } from '@tiptap/react'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
+import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
 
 function makeStubEditor(): Editor {
   return {
@@ -117,7 +118,10 @@ describe('EditorActionBar autosave status', () => {
     const statuses = screen.getAllByRole('status')
     for (const status of statuses) {
       expect(status).toHaveTextContent("Couldn't save")
-      expect(status).toHaveAttribute('title', 'Network error')
+      expect(status).toHaveAttribute(
+        'title',
+        `Network error · ${AUTO_SAVE_GUIDANCE}`
+      )
     }
   })
 
