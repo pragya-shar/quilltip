@@ -2,6 +2,7 @@
 
 import { Heart, PenTool } from 'lucide-react'
 import { Reveal } from '@/components/landing/Reveal'
+import { LegalLinks } from '@/components/legal/LegalLinks'
 
 export default function Footer() {
   const currentYear = new Date().getFullYear()
@@ -31,7 +32,12 @@ export default function Footer() {
           </Reveal>
         </div>
 
-        <Reveal className="py-8 border-t border-spotlight-border">
+        <Reveal className="py-8 border-t border-spotlight-border space-y-4">
+          <div className="flex justify-center">
+            <LegalLinks
+              linkClassName="text-spotlight-muted hover:text-spotlight-foreground text-[13px]"
+            />
+          </div>
           <div className="flex items-center justify-center gap-2 text-spotlight-muted text-[13px]">
             <span>© {currentYear} Quilltip. Built with</span>
             <Heart className="w-4 h-4 text-destructive fill-current animate-pulse" />
