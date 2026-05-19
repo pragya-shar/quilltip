@@ -50,7 +50,9 @@ export function WalletSettings({
   className = '',
 }: WalletSettingsProps) {
   const updateProfile = useMutation(api.users.updateProfile)
-  const { isLoading, connect, disconnect } = useWallet({ activateOnMount: true })
+  const { isLoading, connect, disconnect } = useWallet({
+    activateOnMount: true,
+  })
   const [isCopied, setIsCopied] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)

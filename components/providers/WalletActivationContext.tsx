@@ -13,10 +13,15 @@ type WalletActivationContextValue = {
   activateWallet: () => void
 }
 
-const WalletActivationContext =
-  createContext<WalletActivationContextValue | undefined>(undefined)
+const WalletActivationContext = createContext<
+  WalletActivationContextValue | undefined
+>(undefined)
 
-export function WalletActivationProvider({ children }: { children: ReactNode }) {
+export function WalletActivationProvider({
+  children,
+}: {
+  children: ReactNode
+}) {
   const [isWalletActive, setIsWalletActive] = useState(false)
   const activateWallet = useCallback(() => setIsWalletActive(true), [])
 
