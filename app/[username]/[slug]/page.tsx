@@ -1,5 +1,6 @@
 'use client'
 
+import nextDynamic from 'next/dynamic'
 import { notFound } from 'next/navigation'
 import { use, useState, useMemo } from 'react'
 import {
@@ -11,8 +12,26 @@ import ArticleDisplay from '@/components/articles/ArticleDisplay'
 import { ArticlePageLoadingSkeleton } from '@/components/articles/ArticlePageLoadingSkeleton'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { TipStats } from '@/components/tipping/TipStats'
-import { TipButton } from '@/components/tipping/TipButton'
-import { NFTIntegration } from '@/components/nft/NFTIntegration'
+import {
+  TipButtonSkeleton,
+  NftSidebarSkeleton,
+} from '@/components/articles/ArticleEngagementSkeleton'
+
+const TipButton = nextDynamic(
+  () =>
+    import('@/components/tipping/TipButton').then((mod) => ({
+      default: mod.TipButton,
+    })),
+  { ssr: false, loading: () => <TipButtonSkeleton /> }
+)
+
+const NFTIntegration = nextDynamic(
+  () =>
+    import('@/components/nft/NFTIntegration').then((mod) => ({
+      default: mod.NFTIntegration,
+    })),
+  { ssr: false, loading: () => <NftSidebarSkeleton /> }
+)
 import {
   DollarSign,
   Trophy,

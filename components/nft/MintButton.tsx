@@ -15,7 +15,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { useStellarWallet } from '@/hooks/useStellarWallet'
+import { useWallet } from '@/components/providers/WalletProvider'
+import { useWalletActivation } from '@/components/providers/WalletActivationContext'
 import { nftClient } from '@/lib/stellar/nft-client'
 import { stellarClient } from '@/lib/stellar/client'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
@@ -93,7 +94,8 @@ export function MintButton({
   const uploadNftMetadataForMint = useAction(
     api.nftMetadataUpload.uploadNftMetadataForMint
   )
-  const wallet = useStellarWallet()
+  const wallet = useWallet()
+  const { activateWallet } = useWalletActivation()
   const [xlmPrice, setXlmPrice] = useState<number | null>(null)
 
   useEffect(() => {
@@ -250,7 +252,13 @@ export function MintButton({
 
   return (
     <>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (open) activateWallet()
+          setDialogOpen(open)
+        }}
+      >
         <DialogTrigger asChild>
           <Button
             disabled={!canMint}

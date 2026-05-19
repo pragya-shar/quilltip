@@ -1,14 +1,15 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useAuth } from '@/components/providers/AuthContext'
 import Navigation from '@/components/landing/Navigation'
 import AppNavigation from '@/components/layout/AppNavigation'
 import HeroSection from '@/components/landing/HeroSection'
-import FeaturesSection from '@/components/landing/FeaturesSection'
-import HowItWorksSection from '@/components/landing/HowItWorksSection'
-import FAQSection from '@/components/landing/FAQSection'
-import TrustSection from '@/components/landing/TrustSection'
-import Footer from '@/components/landing/Footer'
+
+const LandingBelowFold = dynamic(
+  () => import('@/components/landing/LandingBelowFold'),
+  { ssr: false }
+)
 import { useLandingHashScroll } from '@/components/landing/useLandingHashScroll'
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
 import { HomeRecentArticlesSection } from '@/components/articles/HomeRecentArticlesSection'
@@ -24,11 +25,7 @@ function PublicLandingPage() {
     <div className="min-h-screen bg-gradient-to-b from-background via-muted/30 to-background">
       <Navigation />
       <HeroSection />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <TrustSection />
-      <FAQSection />
-      <Footer />
+      <LandingBelowFold />
     </div>
   )
 }
