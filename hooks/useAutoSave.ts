@@ -26,6 +26,7 @@ interface UseAutoSaveOptions {
   excerpt?: string
   tags?: string[]
   coverImage?: string
+  writerNotes?: string
   enabled?: boolean
   onSaveSuccess?: (response: DraftResponse) => void
   onSaveError?: (error: Error) => void
@@ -44,6 +45,7 @@ export function useAutoSave({
   excerpt,
   tags,
   coverImage,
+  writerNotes,
   enabled = true,
   onSaveSuccess,
   onSaveError,
@@ -60,6 +62,7 @@ export function useAutoSave({
   const previousCoverImageRef = useRef<string | undefined>(undefined)
   const previousExcerptRef = useRef<string | undefined>(undefined)
   const previousTagsRef = useRef<string | undefined>(undefined)
+  const previousNotesRef = useRef<string | undefined>(undefined)
 
   // Convex mutation for saving drafts
   const saveDraftMutation = useMutation(api.articles.saveDraft)
@@ -67,7 +70,7 @@ export function useAutoSave({
   const saveDraft = useCallback(async () => {
     // Allow save when we have content OR (title or coverImage) for metadata-only drafts
     const hasContent = !!content
-    const hasMetadata = !!(title?.trim() || coverImage)
+    const hasMetadata = !!(title?.trim() || coverImage || writerNotes?.trim())
     if (!hasContent && !hasMetadata) return
 
     setState((prev) => {
@@ -83,6 +86,7 @@ export function useAutoSave({
       excerpt,
       tags: tags?.length ? tags : undefined,
       coverImage: coverImage || undefined,
+      writerNotes: writerNotes?.trim() ? writerNotes : undefined,
     })
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined
@@ -136,6 +140,7 @@ export function useAutoSave({
     excerpt,
     tags,
     coverImage,
+    writerNotes,
     onSaveSuccess,
     onSaveError,
     saveDraftMutation,
@@ -154,7 +159,7 @@ export function useAutoSave({
   // Effect to handle content, title, coverImage, and excerpt changes
   useEffect(() => {
     const hasContent = !!content
-    const hasMetadata = !!(title?.trim() || coverImage)
+    const hasMetadata = !!(title?.trim() || coverImage || writerNotes?.trim())
     if (!enabled || (!hasContent && !hasMetadata)) return
 
     const contentString = content ? JSON.stringify(content) : ''
@@ -162,25 +167,29 @@ export function useAutoSave({
     const coverImageVal = coverImage ?? ''
     const excerptVal = excerpt ?? ''
     const tagsVal = tags?.join(',') ?? ''
+    const notesVal = writerNotes ?? ''
 
     const contentChanged = previousContentRef.current !== contentString
     const titleChanged = previousTitleRef.current !== titleVal
     const coverImageChanged = previousCoverImageRef.current !== coverImageVal
     const excerptChanged = previousExcerptRef.current !== excerptVal
     const tagsChanged = previousTagsRef.current !== tagsVal
+    const notesChanged = previousNotesRef.current !== notesVal
 
     if (
       contentChanged ||
       titleChanged ||
       coverImageChanged ||
       excerptChanged ||
-      tagsChanged
+      tagsChanged ||
+      notesChanged
     ) {
       previousContentRef.current = contentString
       previousTitleRef.current = titleVal
       previousCoverImageRef.current = coverImageVal
       previousExcerptRef.current = excerptVal
       previousTagsRef.current = tagsVal
+      previousNotesRef.current = notesVal
       debouncedSave()
     }
 
@@ -190,7 +199,16 @@ export function useAutoSave({
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [content, title, coverImage, excerpt, tags, enabled, debouncedSave])
+  }, [
+    content,
+    title,
+    coverImage,
+    excerpt,
+    tags,
+    writerNotes,
+    enabled,
+    debouncedSave,
+  ])
 
   // Save immediately function for manual triggers
   const saveNow = useCallback(async () => {

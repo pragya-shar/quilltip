@@ -108,6 +108,7 @@ export function WriteEditorWorkspace() {
   const [isPublishing, setIsPublishing] = useState(false)
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
+  const [writerNotes, setWriterNotes] = useState('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [navConfirm, setNavConfirm] = useState<NavConfirmState>(null)
   const hasUnsavedRef = useRef(hasUnsavedChanges)
@@ -219,7 +220,9 @@ export function WriteEditorWorkspace() {
       .map((t) => t.trim())
       .filter(Boolean),
     coverImage: coverImage || undefined,
-    enabled: isAuthenticated && (hasUnsavedChanges || !!title),
+    writerNotes,
+    enabled:
+      isAuthenticated && (hasUnsavedChanges || !!title || !!writerNotes.trim()),
     onSaveSuccess: (response) => {
       if (!articleId && response.id) {
         setArticleId(response.id)
@@ -256,14 +259,15 @@ export function WriteEditorWorkspace() {
       excerpt: excerpt || undefined,
       tags: tagsArr.length ? tagsArr : undefined,
       coverImage: coverImage || undefined,
+      writerNotes: writerNotes.trim() ? writerNotes : undefined,
       articleId,
       savedAt: Date.now(),
     }
-  }, [editorContent, title, excerpt, tags, coverImage, articleId])
+  }, [editorContent, title, excerpt, tags, coverImage, writerNotes, articleId])
 
   const persistDraftBackup = useCallback(() => {
     const hasContent = !!editorContent
-    const hasMetadata = !!(title?.trim() || coverImage)
+    const hasMetadata = !!(title?.trim() || coverImage || writerNotes.trim())
     if (
       !shouldPersistDraftBackup(
         isAuthenticated,
@@ -280,6 +284,7 @@ export function WriteEditorWorkspace() {
     editorContent,
     title,
     coverImage,
+    writerNotes,
     hasUnsavedChanges,
     isAuthenticated,
   ])
@@ -305,6 +310,7 @@ export function WriteEditorWorkspace() {
             excerpt: draft.excerpt,
             tags: draft.tags,
             coverImage: draft.coverImage,
+            writerNotes: draft.writerNotes,
             updatedAt: draft.updatedAt,
           }
         : undefined
@@ -338,6 +344,7 @@ export function WriteEditorWorkspace() {
     setExcerpt(draft.excerpt || '')
     setTags(draft.tags?.join(', ') ?? '')
     setCoverImage(draft.coverImage || '')
+    setWriterNotes(draft.writerNotes ?? '')
     setPublishStatus({
       published: draft.published,
       publishedAt: draft.publishedAt ? new Date(draft.publishedAt) : null,
@@ -359,6 +366,7 @@ export function WriteEditorWorkspace() {
       setExcerpt(backup.excerpt || '')
       setTags(backup.tags?.join(', ') ?? '')
       setCoverImage(backup.coverImage || '')
+      setWriterNotes(backup.writerNotes ?? '')
       queueMicrotask(() => {
         editor.commands.setContent(backup.content)
       })
@@ -771,6 +779,11 @@ export function WriteEditorWorkspace() {
           <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
             <EditorToolbar
               editor={editor}
+              notes={writerNotes}
+              onNotesChange={(value) => {
+                setWriterNotes(value)
+                setHasUnsavedChanges(true)
+              }}
               onFocusCoverImage={() => {
                 document
                   .getElementById('field-cover-image')
@@ -1162,7 +1175,7 @@ export function WriteEditorWorkspace() {
             <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
             <AlertDialogDescription>
               Your draft is not saved to the server yet. If you leave now,
-              recent edits may be lost.
+              recent edits and notes may be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

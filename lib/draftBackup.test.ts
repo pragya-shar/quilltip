@@ -95,6 +95,18 @@ describe('draftBackup', () => {
         )
       ).toBe(true)
     })
+
+    it('returns true when only writer notes are set', () => {
+      expect(
+        hasMeaningfulBackupContent(
+          makeBackup({
+            title: 'Untitled',
+            content: EMPTY_DOC,
+            writerNotes: 'Private planning',
+          })
+        )
+      ).toBe(true)
+    })
   })
 
   describe('backupMatchesSession', () => {
@@ -168,6 +180,25 @@ describe('draftBackup', () => {
           urlArticleId: 'art-1',
         })
       ).toBe(false)
+    })
+
+    it('offers recovery when writer notes differ from server', () => {
+      const backup = makeBackup({
+        articleId: 'art-1',
+        savedAt: 1_000,
+        writerNotes: 'Local note',
+      })
+      const server = {
+        title: 'My draft',
+        content: sampleContent,
+        writerNotes: 'Server note',
+        updatedAt: 9_000,
+      }
+      expect(
+        shouldOfferDraftRecovery(backup, server, {
+          urlArticleId: 'art-1',
+        })
+      ).toBe(true)
     })
 
     it('offers recovery when content differs from server', () => {
