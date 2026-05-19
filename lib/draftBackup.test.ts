@@ -63,15 +63,11 @@ describe('draftBackup', () => {
 
   describe('shouldPersistDraftBackup', () => {
     it('returns false when there are no unsaved changes (synced draft)', () => {
-      expect(
-        shouldPersistDraftBackup(true, false, true, true)
-      ).toBe(false)
+      expect(shouldPersistDraftBackup(true, false, true, true)).toBe(false)
     })
 
     it('returns true when there are unsaved changes and content', () => {
-      expect(
-        shouldPersistDraftBackup(true, true, true, false)
-      ).toBe(true)
+      expect(shouldPersistDraftBackup(true, true, true, false)).toBe(true)
     })
   })
 

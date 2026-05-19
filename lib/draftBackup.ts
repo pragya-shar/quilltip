@@ -76,9 +76,7 @@ export function shouldPersistDraftBackup(
   hasContent: boolean,
   hasMetadata: boolean
 ): boolean {
-  return (
-    isAuthenticated && hasUnsavedChanges && (hasContent || hasMetadata)
-  )
+  return isAuthenticated && hasUnsavedChanges && (hasContent || hasMetadata)
 }
 
 export function hasMeaningfulBackupContent(backup: DraftBackup): boolean {
