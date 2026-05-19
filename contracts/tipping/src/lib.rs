@@ -1,8 +1,6 @@
 #![no_std]
 use soroban_sdk::{contract, contractimpl, contracttype, token, vec, Address, Env, String, Symbol, Vec};
-use stellar_contract_utils::pausable::{self, Pausable, PausableError};
-use stellar_access::ownable::{self, Ownable, OwnableError};
-use stellar_macros::{only_owner, when_not_paused};
+use stellar_contract_utils::pausable;
 
 #[derive(Clone)]
 #[contracttype]
@@ -82,6 +80,7 @@ impl TippingContract {
         author: Address,
         amount: i128,
     ) -> TipReceipt {
+        pausable::when_not_paused(&env);
         tipper.require_auth();
         
         // Validate minimum amount
@@ -153,17 +152,6 @@ impl TippingContract {
         env.storage()
             .persistent()
             .set(&DataKey::ArticleTips(article_id.clone()), &article_tips);
-
-        // Update article total tips (for NFT threshold checking)
-        // TODO: Remove this duplicate update in next contract deployment
-        let current_article_total: i128 = env.storage()
-            .persistent()
-            .get(&DataKey::ArticleTotalTips(article_id.clone()))
-            .unwrap_or(0);
-
-        env.storage()
-            .persistent()
-            .set(&DataKey::ArticleTotalTips(article_id.clone()), &(current_article_total + amount));
 
         // Update total volume
         let total_volume: i128 = env.storage()
@@ -262,6 +250,7 @@ impl TippingContract {
         author: Address,
         amount: i128,
     ) -> TipReceipt {
+        pausable::when_not_paused(&env);
         tipper.require_auth();
 
         // Validate minimum amount
@@ -445,7 +434,45 @@ impl TippingContract {
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, symbol_short, Env};
+    use soroban_sdk::{contract, contractimpl, contracttype, testutils::Address as _, symbol_short, Env};
+
+    #[derive(Clone)]
+    #[contracttype]
+    enum MockTokenKey {
+        Balance(Address),
+    }
+
+    #[contract]
+    struct MockToken;
+
+    #[contractimpl]
+    impl MockToken {
+        pub fn transfer(env: Env, from: Address, to: Address, amount: i128) {
+            from.require_auth();
+
+            let from_balance = Self::balance(env.clone(), from.clone());
+            env.storage()
+                .persistent()
+                .set(&MockTokenKey::Balance(from), &(from_balance - amount));
+
+            let to_balance = Self::balance(env.clone(), to.clone());
+            env.storage()
+                .persistent()
+                .set(&MockTokenKey::Balance(to), &(to_balance + amount));
+        }
+
+        pub fn balance(env: Env, id: Address) -> i128 {
+            env.storage()
+                .persistent()
+                .get(&MockTokenKey::Balance(id))
+                .unwrap_or(0)
+        }
+    }
+
+    fn register_xlm_token(env: &Env) {
+        let xlm_address = Address::from_string(&String::from_str(env, XLM_TOKEN_ADDRESS));
+        env.register_at(&xlm_address, MockToken, ());
+    }
 
     #[test]
     fn test_initialize() {
@@ -469,6 +496,7 @@ mod test {
     fn test_tip_article() {
         let env = Env::default();
         env.mock_all_auths();
+        register_xlm_token(&env);
         
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -502,6 +530,81 @@ mod test {
         let tips = client.get_article_tips(&symbol_short!("article1"));
         assert_eq!(tips.len(), 1);
     }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1000)")]
+    fn test_paused_tip_article_fails() {
+        let env = Env::default();
+        env.mock_all_auths();
+        register_xlm_token(&env);
+
+        let contract_id = env.register(TippingContract, ());
+        let client = TippingContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let platform = Address::generate(&env);
+        let tipper = Address::generate(&env);
+        let author = Address::generate(&env);
+
+        client.initialize(&admin, &platform, &Some(250));
+        client.pause(&admin);
+
+        client.tip_article(
+            &tipper,
+            &symbol_short!("article1"),
+            &author,
+            &1_000_000,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1000)")]
+    fn test_paused_tip_highlight_direct_fails() {
+        let env = Env::default();
+        env.mock_all_auths();
+        register_xlm_token(&env);
+
+        let contract_id = env.register(TippingContract, ());
+        let client = TippingContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let platform = Address::generate(&env);
+        let tipper = Address::generate(&env);
+        let author = Address::generate(&env);
+        let highlight_id = String::from_str(&env, "highlight_1");
+
+        client.initialize(&admin, &platform, &Some(250));
+        client.pause(&admin);
+
+        client.tip_highlight_direct(
+            &tipper,
+            &highlight_id,
+            &symbol_short!("article1"),
+            &author,
+            &1_000_000,
+        );
+    }
+
+    #[test]
+    fn test_article_total_tips_increments_once_per_tip() {
+        let env = Env::default();
+        env.mock_all_auths();
+        register_xlm_token(&env);
+
+        let contract_id = env.register(TippingContract, ());
+        let client = TippingContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let platform = Address::generate(&env);
+        let tipper = Address::generate(&env);
+        let author = Address::generate(&env);
+        let article_id = symbol_short!("article1");
+
+        client.initialize(&admin, &platform, &Some(250));
+        client.tip_article(&tipper, &article_id, &author, &1_000_000);
+
+        assert_eq!(client.get_article_total_tips(&article_id), 1_000_000);
+    }
     
     #[test]
     #[should_panic(expected = "Amount below minimum tip")]
@@ -532,6 +635,7 @@ mod test {
     fn test_tip_with_immediate_transfers() {
         let env = Env::default();
         env.mock_all_auths();
+        register_xlm_token(&env);
         
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
