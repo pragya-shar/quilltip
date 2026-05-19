@@ -213,6 +213,7 @@ export function WriteEditorWorkspace() {
     },
     onSaveError: (error) => {
       console.error('Auto-save error:', error)
+      setHasUnsavedChanges(true)
     },
   })
 
@@ -313,8 +314,7 @@ export function WriteEditorWorkspace() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        saveNow()
-        setHasUnsavedChanges(false)
+        void saveNow()
       }
     }
     window.addEventListener('keydown', handler)
@@ -623,8 +623,7 @@ export function WriteEditorWorkspace() {
         editor={editor}
         onBack={handleBack}
         onSave={() => {
-          saveNow()
-          setHasUnsavedChanges(false)
+          void saveNow()
         }}
         onPublish={requestPublish}
         isSaving={isSaving}

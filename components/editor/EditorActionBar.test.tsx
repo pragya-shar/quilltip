@@ -47,6 +47,35 @@ describe('EditorActionBar autosave status', () => {
     }
   })
 
+  it('shows Saving... in status and on Save button while isSaving with unsaved edits', () => {
+    render(<EditorActionBar {...baseProps} isSaving hasUnsavedChanges />)
+    const statuses = screen.getAllByRole('status')
+    for (const status of statuses) {
+      expect(status).toHaveTextContent('Saving...')
+    }
+    const saveButtons = screen.getAllByRole('button', { name: 'Saving...' })
+    expect(saveButtons.length).toBeGreaterThanOrEqual(1)
+    for (const button of saveButtons) {
+      expect(button).toBeDisabled()
+    }
+  })
+
+  it('shows Could not save with destructive Draft pill when error and dirty', () => {
+    const { container } = render(
+      <EditorActionBar
+        {...baseProps}
+        error="Network error"
+        hasUnsavedChanges
+      />
+    )
+    const statuses = screen.getAllByRole('status')
+    for (const status of statuses) {
+      expect(status).toHaveTextContent("Couldn't save")
+    }
+    expect(container.querySelector('.bg-destructive\\/15')).not.toBeNull()
+    expect(screen.getByText('Save failed')).toBeInTheDocument()
+  })
+
   it('shows relative saved label when lastSavedAt is set and not dirty', () => {
     const t = new Date('2020-01-01T12:00:00.000Z')
     render(
