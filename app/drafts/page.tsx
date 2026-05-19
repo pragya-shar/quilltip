@@ -29,7 +29,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
-import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Loader2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { mutationWithTimeout } from '@/lib/convexMutationWithTimeout'
 
 export default function DraftsPage() {
   const router = useRouter()
@@ -42,6 +43,22 @@ export default function DraftsPage() {
   // Convex mutation for deleting articles
   const deleteArticleMutation = useMutation(api.articles.deleteArticle)
   const [deleteTarget, setDeleteTarget] = useState<Id<'articles'> | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget || isDeleting) return
+    setIsDeleting(true)
+    try {
+      await mutationWithTimeout(deleteArticleMutation({ id: deleteTarget }))
+      toast.success('Draft deleted')
+      setDeleteTarget(null)
+      setIsDeleting(false)
+    } catch (error) {
+      console.error('Failed to delete draft:', error)
+      toast.error('Failed to delete draft. Please try again.')
+      setIsDeleting(false)
+    }
+  }
 
   useEffect(() => {
     if (isLoading || isAuthenticated) return
@@ -142,8 +159,12 @@ export default function DraftsPage() {
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            className="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                            onSelect={() => setDeleteTarget(draft._id)}
+                            className="cursor-pointer gap-2 text-destructive focus:text-destructive disabled:opacity-50 disabled:pointer-events-none"
+                            disabled={isDeleting}
+                            onSelect={() => {
+                              if (isDeleting) return
+                              setDeleteTarget(draft._id)
+                            }}
                           >
                             <Trash2 className="h-4 w-4" />
                             Delete
@@ -186,8 +207,10 @@ export default function DraftsPage() {
                       Edit
                     </Link>
                     <button
+                      type="button"
+                      disabled={isDeleting}
                       onClick={() => setDeleteTarget(draft._id)}
-                      className="px-4 py-2 rounded-lg border border-destructive text-destructive bg-destructive/5 hover:bg-destructive/10 transition-colors"
+                      className="px-4 py-2 rounded-lg border border-destructive text-destructive bg-destructive/5 hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Delete
                     </button>
@@ -216,6 +239,7 @@ export default function DraftsPage() {
       <AlertDialog
         open={!!deleteTarget}
         onOpenChange={(open) => {
+          if (isDeleting) return
           if (!open) setDeleteTarget(null)
         }}
       >
@@ -228,23 +252,23 @@ export default function DraftsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={async () => {
-                if (!deleteTarget) return
-                try {
-                  await deleteArticleMutation({ id: deleteTarget })
-                  toast.success('Draft deleted')
-                } catch (error) {
-                  console.error('Failed to delete draft:', error)
-                  toast.error('Failed to delete draft. Please try again.')
-                } finally {
-                  setDeleteTarget(null)
-                }
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={(e) => {
+                e.preventDefault()
+                void handleConfirmDelete()
               }}
             >
-              Delete
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

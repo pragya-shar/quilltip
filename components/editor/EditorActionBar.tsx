@@ -48,6 +48,7 @@ interface EditorActionBarProps {
   canPublish: boolean
   lastSavedAt?: Date | null
   onDelete?: () => void
+  isDeleting?: boolean
   hasUnsavedChanges?: boolean
 }
 
@@ -56,9 +57,11 @@ const RELATIVE_TIME_INTERVAL_MS = 30_000
 function MoreMenu({
   editor,
   onDelete,
+  isDeleting = false,
 }: {
   editor: Editor | null
   onDelete?: () => void
+  isDeleting?: boolean
 }) {
   return (
     <DropdownMenu.Root>
@@ -95,11 +98,27 @@ function MoreMenu({
             <>
               <DropdownMenu.Separator className="h-px bg-border my-1" />
               <DropdownMenu.Item
-                onSelect={onDelete}
-                className="px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer outline-none flex items-center gap-2"
+                disabled={isDeleting}
+                onSelect={(e) => {
+                  if (isDeleting) {
+                    e.preventDefault()
+                    return
+                  }
+                  onDelete?.()
+                }}
+                className="px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer outline-none flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
               >
-                <Trash2 className="w-4 h-4 shrink-0" />
-                Delete draft
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 shrink-0" />
+                    Delete draft
+                  </>
+                )}
               </DropdownMenu.Item>
             </>
           )}
@@ -122,6 +141,7 @@ export function EditorActionBar({
   canPublish,
   lastSavedAt,
   onDelete,
+  isDeleting = false,
   hasUnsavedChanges = false,
 }: EditorActionBarProps) {
   const [relativeTick, setRelativeTick] = useState(0)
@@ -272,7 +292,11 @@ export function EditorActionBar({
           <div className="flex min-w-0 items-center justify-end gap-1.5">
             {saveButton}
             {publishControl}
-            <MoreMenu editor={editor} onDelete={onDelete} />
+            <MoreMenu
+              editor={editor}
+              onDelete={onDelete}
+              isDeleting={isDeleting}
+            />
           </div>
         </div>
         <div className="flex min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain [-webkit-overflow-scrolling:touch] pb-0.5 [scrollbar-width:thin]">
@@ -335,7 +359,11 @@ export function EditorActionBar({
 
           {publishControl}
 
-          <MoreMenu editor={editor} onDelete={onDelete} />
+          <MoreMenu
+            editor={editor}
+            onDelete={onDelete}
+            isDeleting={isDeleting}
+          />
         </div>
       </div>
 
