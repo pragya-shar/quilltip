@@ -200,20 +200,6 @@ export function useAutoSave({
     await saveDraft()
   }, [saveDraft])
 
-  // On mount, check for localStorage backup and restore if present
-  useEffect(() => {
-    try {
-      const backup = localStorage.getItem('quilltip_draft_backup')
-      if (backup) {
-        // Backup exists but we only use it if there's no current content
-        // The parent component can read this key if needed
-        localStorage.removeItem('quilltip_draft_backup')
-      }
-    } catch {
-      // localStorage unavailable — ignore
-    }
-  }, [])
-
   return {
     ...state,
     saveNow,
