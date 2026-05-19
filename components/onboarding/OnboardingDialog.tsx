@@ -24,27 +24,27 @@ import {
   X,
 } from 'lucide-react'
 import Link from 'next/link'
+import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 
 const steps = [
   {
     icon: Sparkles,
     title: 'Welcome to Quilltip',
-    description:
-      'A platform where readers reward writers directly. Read articles, highlight your favorite passages, and tip the authors you love — all powered by the Stellar blockchain.',
+    description: `A platform where readers reward writers directly on Stellar testnet. ${TESTNET_PRACTICE_NOTE}`,
     color: 'bg-blue-100 text-blue-700',
   },
   {
     icon: Wallet,
     title: 'Set Up Your Wallet',
     description:
-      'To tip writers, you need a Stellar wallet (like Freighter). It takes about 2 minutes to set up. Reading articles is always free — no wallet needed.',
+      'To tip writers on testnet, you need a Stellar wallet (like Freighter) set to Testnet with free test XLM. It takes about 2 minutes. Reading articles is always free — no wallet needed.',
     color: 'bg-amber-100 text-amber-700',
   },
   {
     icon: BookOpen,
     title: 'Start Exploring',
     description:
-      'Browse articles from writers, highlight passages you love, and send tips starting at just $0.01. 97.5% goes directly to the author.',
+      'Browse articles from writers, highlight passages you love, and send practice tips starting at $0.01 in testnet XLM. 97.5% goes directly to the author.',
     color: 'bg-green-100 text-green-700',
   },
 ]

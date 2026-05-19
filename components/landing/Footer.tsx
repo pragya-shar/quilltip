@@ -1,7 +1,7 @@
 'use client'
 
 import { Heart, PenTool } from 'lucide-react'
-import { motion } from 'motion/react'
+import { Reveal } from '@/components/landing/Reveal'
 
 export default function Footer() {
   const currentYear = new Date().getFullYear()
@@ -15,13 +15,7 @@ export default function Footer() {
         {/* Main Footer Content */}
         <div className="py-16">
           {/* Brand Section */}
-          <motion.div
-            className="text-center"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-          >
+          <Reveal className="text-center">
             <div className="flex items-center gap-3 mb-4 justify-center">
               <div className="w-9 h-9 bg-card rounded-lg border border-border flex items-center justify-center shadow-sm">
                 <PenTool className="w-5 h-5 text-foreground" />
@@ -31,26 +25,19 @@ export default function Footer() {
               </h3>
             </div>
             <p className="text-spotlight-muted text-[15px] leading-relaxed max-w-2xl mx-auto">
-              Empowering writers with blockchain-powered micro-tipping and
-              content monetization.
+              Empowering writers with blockchain-powered micro-tipping on
+              Stellar testnet. Practice with free test XLM today.
             </p>
-          </motion.div>
+          </Reveal>
         </div>
 
-        {/* Bottom Bar */}
-        <motion.div
-          className="py-8 border-t border-spotlight-border"
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-        >
+        <Reveal className="py-8 border-t border-spotlight-border">
           <div className="flex items-center justify-center gap-2 text-spotlight-muted text-[13px]">
             <span>© {currentYear} Quilltip. Built with</span>
             <Heart className="w-4 h-4 text-destructive fill-current animate-pulse" />
             <span>for writers everywhere</span>
           </div>
-        </motion.div>
+        </Reveal>
       </div>
     </footer>
   )

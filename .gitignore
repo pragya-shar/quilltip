@@ -46,6 +46,8 @@ next-env.d.ts
 
 # playwright
 .playwright-mcp
+/test-results/
+/playwright-report/
 
 # contracts
 contracts/tipping/target

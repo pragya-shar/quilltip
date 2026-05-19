@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { ArrowRight, Zap } from 'lucide-react'
+import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
+import { LandingProductProof } from '@/components/landing/LandingProductProof'
 import { motion, AnimatePresence } from 'motion/react'
 import { useEffect, useState, useCallback, useRef } from 'react'
 
@@ -151,10 +153,10 @@ export default function HeroSection() {
   )
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
+    <section className="relative min-h-screen flex items-start md:items-center justify-center overflow-hidden pt-16">
       <div className="absolute inset-0 bg-gradient-to-b from-background via-background to-muted/30" />
 
-      <div className="container mx-auto max-w-4xl px-6 relative z-10 py-20">
+      <div className="container mx-auto max-w-4xl px-6 relative z-10 py-10 sm:py-20">
         <motion.div
           className="flex flex-col items-center text-center"
           initial={{ opacity: 0 }}
@@ -164,8 +166,7 @@ export default function HeroSection() {
           {/* Label chip */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
           >
             <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-muted/60 border border-border/60 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -178,8 +179,7 @@ export default function HeroSection() {
           <motion.h1
             className="mt-6 font-display text-4xl sm:text-[2.75rem] lg:text-5xl font-medium tracking-[-0.01em] text-foreground leading-[1.2]"
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.05, ease: 'easeOut' }}
           >
             Reward the words that move you
@@ -189,44 +189,61 @@ export default function HeroSection() {
           <motion.p
             className="mt-4 text-[15px] sm:text-base text-muted-foreground max-w-md leading-relaxed"
             initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
           >
-            Highlight what resonates. Tip writers instantly. Powered by Stellar.
+            Browse published articles and practice tipping writers on Stellar
+            testnet with free test XLM.
           </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.12, ease: 'easeOut' }}
+            className="w-full flex justify-center"
+          >
+            <LandingProductProof />
+          </motion.div>
 
           {/* CTAs */}
           <motion.div
-            className="mt-8 flex flex-col sm:flex-row items-center gap-2.5"
+            className="mt-6 flex w-full max-w-md flex-col items-center justify-center gap-3 sm:flex-row sm:gap-2.5"
             initial={{ opacity: 0, y: 14 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.15, ease: 'easeOut' }}
           >
             <Link
               href="/articles"
-              className="group inline-flex items-center gap-2 bg-brand text-brand-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-brand-hover hover:shadow-lg transition-all duration-200"
+              className="group inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-6 py-2.5 text-[13px] font-medium text-brand-foreground transition-all duration-200 hover:bg-brand-hover hover:shadow-lg sm:w-auto"
             >
               Start Reading
-              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200" />
+              <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Link>
-            <Link
-              href="/register"
-              className="inline-flex items-center gap-2 text-muted-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:text-foreground hover:bg-muted/60 transition-all duration-200"
-            >
-              Start Writing
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px] sm:text-[13px]">
+              <Link
+                href="/register"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Start Writing
+              </Link>
+              <span className="text-border" aria-hidden>
+                ·
+              </span>
+              <Link
+                href="/guide"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Testnet wallet setup
+              </Link>
+            </div>
           </motion.div>
 
-          {/* Animation Panel */}
+          {/* Animation Panel — desktop only */}
           <motion.div
-            className="mt-14 w-full max-w-2xl"
+            className="mt-14 hidden w-full max-w-2xl md:block"
             initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.3 }}
-            transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
           >
             <div className="relative bg-card rounded-xl border border-border shadow-[var(--card-shadow)] overflow-hidden">
               {/* Browser chrome */}
@@ -259,9 +276,8 @@ export default function HeroSection() {
           <motion.div
             className="mt-12 flex items-center justify-center gap-8 sm:gap-12"
             initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
           >
             <div className="text-center">
               <p className="text-lg sm:text-xl font-semibold text-foreground tabular-nums">
@@ -290,6 +306,15 @@ export default function HeroSection() {
               </p>
             </div>
           </motion.div>
+
+          <motion.p
+            className="mt-6 text-[12px] text-muted-foreground max-w-md leading-relaxed"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.35 }}
+          >
+            {TESTNET_PRACTICE_NOTE}
+          </motion.p>
         </motion.div>
       </div>
     </section>
