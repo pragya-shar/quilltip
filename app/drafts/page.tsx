@@ -21,7 +21,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { DraftsListSkeleton } from '@/components/drafts/DraftsListSkeleton'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 
 export default function DraftsPage() {
   const router = useRouter()
@@ -45,7 +53,7 @@ export default function DraftsPage() {
       <div className="min-h-screen bg-muted/30">
         <AppNavigation />
         <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-8">
             <Skeleton className="h-9 w-48" />
             <Skeleton className="h-10 w-32" />
           </div>
@@ -74,11 +82,11 @@ export default function DraftsPage() {
     <div className="min-h-screen bg-muted/30">
       <AppNavigation />
       <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-8">
           <h1 className="text-3xl font-bold text-foreground">Your Drafts</h1>
           <Link
             href="/write"
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shrink-0 self-start sm:self-auto"
           >
             New Article
           </Link>
@@ -103,17 +111,49 @@ export default function DraftsPage() {
                 key={draft._id}
                 className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border ring-1 ring-border/60 p-[var(--card-padding)] hover:shadow-md transition-shadow"
               >
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h2 className="text-xl font-semibold text-foreground mb-2">
-                      {draft.title || 'Untitled'}
-                    </h2>
+                <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
+                  <div className="min-w-0 flex-1 w-full">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h2 className="text-xl font-semibold text-foreground break-words min-w-0 flex-1">
+                        {draft.title || 'Untitled'}
+                      </h2>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="sm:hidden shrink-0"
+                            aria-label="Draft actions"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-[10rem]">
+                          <DropdownMenuItem asChild>
+                            <Link
+                              href={`/write?id=${draft._id}`}
+                              className="cursor-pointer gap-2"
+                            >
+                              <Pencil className="h-4 w-4" />
+                              Edit
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                            onSelect={() => setDeleteTarget(draft._id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                     {draft.excerpt && (
                       <p className="text-muted-foreground mb-3 line-clamp-2">
                         {draft.excerpt}
                       </p>
                     )}
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                       <span>
                         Created:{' '}
                         {formatDate(
@@ -135,7 +175,7 @@ export default function DraftsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2 ml-4">
+                  <div className="hidden sm:flex gap-2 shrink-0">
                     <Link
                       href={`/write?id=${draft._id}`}
                       className="px-4 py-2 rounded-lg border border-primary text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
