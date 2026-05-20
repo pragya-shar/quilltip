@@ -21,9 +21,7 @@ export function countRangesOverlapping(
 ): number {
   let count = 0
   for (const range of ranges) {
-    if (
-      rangesOverlap(range.startOffset, range.endOffset, start, end)
-    ) {
+    if (rangesOverlap(range.startOffset, range.endOffset, start, end)) {
       count++
     }
   }

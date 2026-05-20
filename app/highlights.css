@@ -78,8 +78,10 @@ mark[data-highlight-id]:hover {
   --highlight-mix: calc(var(--highlight-mix) + 4%);
   transform: scale(1.01) translateZ(0);
   box-shadow:
-    0 2px 8px color-mix(in srgb, rgb(var(--highlight-color-rgb)) 12%, transparent),
-    0 0 0 1px color-mix(in srgb, rgb(var(--highlight-color-rgb)) 20%, transparent);
+    0 2px 8px
+      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 12%, transparent),
+    0 0 0 1px
+      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 20%, transparent);
   z-index: 10;
 }
 
@@ -156,8 +158,10 @@ mark[data-highlight-id]:hover::after {
 
 mark[data-highlight-id]:has(+ .highlight-attribution-control:focus-visible) {
   box-shadow:
-    0 0 0 2px color-mix(in srgb, rgb(var(--highlight-color-rgb)) 28%, transparent),
-    0 3px 10px color-mix(in srgb, rgb(var(--highlight-color-rgb)) 18%, transparent);
+    0 0 0 2px
+      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 28%, transparent),
+    0 3px 10px
+      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 18%, transparent);
 }
 
 /* Entrance Animations */
@@ -182,7 +186,8 @@ mark[data-highlight-id]:has(+ .highlight-attribution-control:focus-visible) {
   animation: highlight-paint 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   background-color: color-mix(
     in srgb,
-    rgb(var(--highlight-color-rgb)) var(--highlight-mix, var(--highlight-read-mix-default)),
+    rgb(var(--highlight-color-rgb))
+      var(--highlight-mix, var(--highlight-read-mix-default)),
     var(--background)
   );
   background-size: 100% 100%;
@@ -429,8 +434,10 @@ mark[data-note]:hover::before {
 .dark mark[data-highlight-id]:hover {
   --highlight-mix: calc(var(--highlight-mix) + 3%);
   box-shadow:
-    0 2px 8px color-mix(in srgb, rgb(var(--highlight-color-rgb)) 10%, transparent),
-    0 0 0 1px color-mix(in srgb, rgb(var(--highlight-color-rgb)) 16%, transparent);
+    0 2px 8px
+      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 10%, transparent),
+    0 0 0 1px
+      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 16%, transparent);
 }
 
 /* Dark mode: align popover surfaces with theme tokens */

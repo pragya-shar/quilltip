@@ -137,17 +137,15 @@ export class HighlightConverter {
           continue
         }
 
-        chain = chain
-          .setTextSelection({ from, to })
-          .setHighlight({
-            id: highlight._id,
-            color: highlight.color || '#FFEB3B',
-            userId: highlight.userId,
-            userName: highlight.userName,
-            note: highlight.note,
-            createdAt: highlight.createdAt,
-            overlapCount: segment.overlapCount,
-          })
+        chain = chain.setTextSelection({ from, to }).setHighlight({
+          id: highlight._id,
+          color: highlight.color || '#FFEB3B',
+          userId: highlight.userId,
+          userName: highlight.userName,
+          note: highlight.note,
+          createdAt: highlight.createdAt,
+          overlapCount: segment.overlapCount,
+        })
       }
 
       chain.run()
