@@ -7,6 +7,11 @@ const withBundleAnalyzer = bundleAnalyzer({
 })
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    resolveAlias: {
+      '@ngneat/elf-devtools': './lib/stubs/elf-devtools.ts',
+    },
+  },
   images: {
     ...(process.env.NODE_ENV === 'development' && {
       dangerouslyAllowLocalIP: true,
