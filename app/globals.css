@@ -87,8 +87,8 @@ mark[data-color='#E8BAFF'] {
   --highlight-color: #e8baff;
 } /* Purple */
 
-/* Highlight with note indicator */
-mark[data-note]::after {
+/* Highlight with note indicator (uses ::before so ::after is free for name tooltip) */
+mark[data-note]::before {
   content: '💬';
   position: absolute;
   top: -8px;
@@ -106,7 +106,7 @@ mark[data-note]::after {
   transition: opacity 0.2s ease;
 }
 
-mark[data-note]:hover::after {
+mark[data-note]:hover::before {
   opacity: 1;
 }
 
