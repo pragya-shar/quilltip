@@ -18,9 +18,7 @@ describe('footer-links', () => {
 
     for (const category of FOOTER_LINK_CATEGORIES) {
       expect(FOOTER_LINK_GROUP_LABELS[category]).toBeTruthy()
-      expect(FOOTER_LINKS.some((link) => link.category === category)).toBe(
-        true
-      )
+      expect(FOOTER_LINKS.some((link) => link.category === category)).toBe(true)
     }
   })
 

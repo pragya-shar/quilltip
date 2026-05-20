@@ -20,7 +20,8 @@ export const statusServices: StatusService[] = [
     id: 'website',
     name: 'Quilltip website',
     status: 'Operational',
-    detail: 'Beta on Vercel. Reading, publishing, and account features are available.',
+    detail:
+      'Beta on Vercel. Reading, publishing, and account features are available.',
   },
   {
     id: 'backend',
