@@ -30,7 +30,9 @@ export function FailurePageShell({
         {illustration}
         <div className="space-y-2">{heading}</div>
         {description ? (
-          <div className="mt-3 text-sm text-muted-foreground">{description}</div>
+          <div className="mt-3 text-sm text-muted-foreground">
+            {description}
+          </div>
         ) : null}
         <div
           className={cn(
