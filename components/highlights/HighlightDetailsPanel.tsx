@@ -298,7 +298,7 @@ export function HighlightDetailsPanel({
                 <>
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors text-sm font-medium"
                   >
                     <Edit className="w-4 h-4" />
                     <span>Edit Note</span>
@@ -310,7 +310,7 @@ export function HighlightDetailsPanel({
                       'w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium',
                       isDeleting
                         ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                        : 'bg-red-50 text-red-700 hover:bg-red-100'
+                        : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50'
                     )}
                   >
                     {isDeleting ? (

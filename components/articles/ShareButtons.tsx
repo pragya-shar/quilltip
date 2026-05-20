@@ -128,7 +128,7 @@ export default function ShareButtons({
     <div className={`${className}`}>
       {/* Error message */}
       {error && (
-        <div className="mb-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-1">
+        <div className="mb-2 text-sm text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded px-3 py-1">
           {error}
         </div>
       )}

@@ -45,11 +45,11 @@ export class ErrorBoundary extends Component<Props, State> {
       }
       return (
         fallback || (
-          <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
-            <p className="text-red-800">Something went wrong.</p>
+          <div className="p-4 border border-destructive/30 bg-destructive/10 rounded-lg">
+            <p className="text-destructive">Something went wrong.</p>
             <button
               onClick={this.reset}
-              className="mt-2 text-sm text-red-600 underline"
+              className="mt-2 text-sm text-destructive underline"
             >
               Try again
             </button>

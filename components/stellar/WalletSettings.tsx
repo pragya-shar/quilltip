@@ -184,9 +184,9 @@ export function WalletSettings({
         </CardHeader>
         <CardContent className="space-y-4">
           {isOwnProfile && (
-            <Alert className="bg-blue-50 border-blue-200">
-              <AlertCircle className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-blue-900">
+            <Alert className="border-info/50 bg-info">
+              <AlertCircle className="h-4 w-4 text-info-foreground" />
+              <AlertDescription className="text-info-foreground">
                 <strong>This wallet is for receiving tips.</strong> When readers
                 tip your articles, payments come here. To send tips to other
                 authors, you&apos;ll connect your wallet extension directly on
@@ -230,7 +230,7 @@ export function WalletSettings({
                     Need a wallet?{' '}
                     <Link
                       href="/guide"
-                      className="text-blue-600 hover:underline"
+                      className="text-info-foreground hover:underline"
                     >
                       Follow our setup guide
                     </Link>
@@ -239,11 +239,11 @@ export function WalletSettings({
               ) : (
                 <div className="space-y-4">
                   {/* Connected State */}
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
+                  <div className="p-4 bg-success border border-success/50 rounded-lg space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                        <span className="text-sm font-medium">
+                        <span className="text-sm font-medium text-success-foreground">
                           Wallet Connected
                         </span>
                       </div>

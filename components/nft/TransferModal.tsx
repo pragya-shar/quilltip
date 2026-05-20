@@ -156,11 +156,11 @@ export function TransferModal({
 
   const messageBannerClass =
     transferMessage.kind === 'success'
-      ? 'bg-green-50 text-green-700'
+      ? 'bg-green-50 text-green-700 dark:bg-green-950/50 dark:text-green-200'
       : transferMessage.kind === 'error'
-        ? 'bg-red-50 text-red-700'
+        ? 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-200'
         : transferMessage.kind === 'progress'
-          ? 'bg-blue-50 text-blue-700'
+          ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200'
           : ''
 
   const messageIcon =
