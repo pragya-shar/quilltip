@@ -31,8 +31,7 @@ const steps = [
     icon: Sparkles,
     title: 'Welcome to Quilltip',
     description: `A platform where readers reward writers directly on Stellar testnet. ${TESTNET_PRACTICE_NOTE}`,
-    color:
-      'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300',
+    color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300',
   },
   {
     icon: Wallet,
