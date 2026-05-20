@@ -33,11 +33,7 @@ export default function Error({
       description="This page ran into a problem. Try again, or go back to the home page."
       actions={
         <>
-          <Button
-            type="button"
-            onClick={reset}
-            className="w-full sm:w-auto"
-          >
+          <Button type="button" onClick={reset} className="w-full sm:w-auto">
             Try again
           </Button>
           <Button variant="outline" asChild className="w-full sm:w-auto">
