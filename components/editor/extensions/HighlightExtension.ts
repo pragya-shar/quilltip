@@ -469,8 +469,7 @@ const HighlightExtension = Mark.create<HighlightOptions>({
                     const to = pos + node.nodeSize
 
                     const hasConfiguredOffsets = configuredHighlights.some(
-                      (h) =>
-                        h.startOffset != null && h.endOffset != null
+                      (h) => h.startOffset != null && h.endOffset != null
                     )
                     if (!hasConfiguredOffsets) {
                       overlapManager.addHighlight(id, from, to)
