@@ -20,9 +20,7 @@ describe('NFTClient.buildMintTransaction', () => {
     vi.restoreAllMocks()
   })
 
-  it(
-    'produces a Soroban transaction with no memo',
-    async () => {
+  it('produces a Soroban transaction with no memo', async () => {
     const StellarSdk = await import('@stellar/stellar-sdk')
     const { NFTClient } = await import('@/lib/stellar/nft-client')
 
@@ -54,9 +52,7 @@ describe('NFTClient.buildMintTransaction', () => {
     ) as InstanceType<typeof StellarSdk.Transaction>
 
     expect(decoded.memo.type).toBe('none')
-  },
-    15_000
-  )
+  }, 15_000)
 })
 
 describe('NFTClient.submitMintTransaction', () => {

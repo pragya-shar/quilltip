@@ -52,9 +52,7 @@ describe('TransferModal', () => {
     vi.mocked(toast.error).mockClear()
   })
 
-  it(
-    'shows a single success message in the message slot after transfer',
-    async () => {
+  it('shows a single success message in the message slot after transfer', async () => {
     const user = userEvent.setup({ delay: null })
     mockTransfer.mockResolvedValue('transfer_id')
 
@@ -86,9 +84,7 @@ describe('TransferModal', () => {
     expect(
       screen.getAllByText('Transfer completed successfully!')
     ).toHaveLength(1)
-  },
-    10_000
-  )
+  }, 10_000)
 
   it('shows a single error message in the message slot on mutation failure', async () => {
     const user = userEvent.setup({ delay: null })
