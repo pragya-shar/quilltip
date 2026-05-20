@@ -25,13 +25,14 @@ import type { Id } from '@/types/convex'
 import { toast } from 'sonner'
 import Image from 'next/image'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { mutationWithTimeout } from '@/lib/convexMutationWithTimeout'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Textarea } from '@/components/ui/textarea'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +50,15 @@ import {
   validateImageUploadFile,
   isAbortError,
 } from '@/lib/upload'
+import {
+  type DraftBackup,
+  clearDraftBackup,
+  formatBackupSavedAt,
+  readDraftBackup,
+  shouldOfferDraftRecovery,
+  shouldPersistDraftBackup,
+  writeDraftBackup,
+} from '@/lib/draftBackup'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const EXCERPT_MAX_CHARS = 500
@@ -99,9 +109,12 @@ export function WriteEditorWorkspace() {
   const [isPublishing, setIsPublishing] = useState(false)
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
+  const [writerNotes, setWriterNotes] = useState('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [navConfirm, setNavConfirm] = useState<NavConfirmState>(null)
   const hasUnsavedRef = useRef(hasUnsavedChanges)
+  /** When true, user dismissed recovery (Not now / Esc); keep local backup until Restore/Discard. */
+  const recoveryDeferredRef = useRef(false)
   const [excerptOpen, setExcerptOpen] = useState(false)
   const excerptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const tagsInputRef = useRef<HTMLInputElement>(null)
@@ -113,6 +126,12 @@ export function WriteEditorWorkspace() {
     publishedAt: null,
   })
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [backupPrompt, setBackupPrompt] = useState<DraftBackup | null>(null)
+  const [backupRecoveryStatus, setBackupRecoveryStatus] = useState<
+    'pending' | 'resolved'
+  >('pending')
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -204,15 +223,21 @@ export function WriteEditorWorkspace() {
       .map((t) => t.trim())
       .filter(Boolean),
     coverImage: coverImage || undefined,
-    enabled: isAuthenticated && (hasUnsavedChanges || !!title),
+    writerNotes,
+    enabled:
+      isAuthenticated && (hasUnsavedChanges || !!title || !!writerNotes.trim()),
     onSaveSuccess: (response) => {
       if (!articleId && response.id) {
         setArticleId(response.id)
       }
       setHasUnsavedChanges(false)
+      if (!recoveryDeferredRef.current) {
+        clearDraftBackup()
+      }
     },
     onSaveError: (error) => {
       console.error('Auto-save error:', error)
+      setHasUnsavedChanges(true)
     },
   })
 
@@ -226,54 +251,181 @@ export function WriteEditorWorkspace() {
     articleId ? (articleId as Id<'articles'>) : undefined
   )
 
-  useEffect(() => {
-    if (draft && editor) {
-      setArticleId(draft._id)
-      setTitle(draft.title)
-      setExcerpt(draft.excerpt || '')
-      setTags(draft.tags?.join(', ') ?? '')
-      setCoverImage(draft.coverImage || '')
-      setPublishStatus({
-        published: draft.published,
-        publishedAt: draft.publishedAt ? new Date(draft.publishedAt) : null,
-      })
-      if (draft.content) {
-        queueMicrotask(() => {
-          editor.commands.setContent(draft.content)
-        })
-        setEditorContent(draft.content)
-      }
-      setHasUnsavedChanges(false)
+  const buildDraftBackup = useCallback((): DraftBackup => {
+    const tagsArr = tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+    return {
+      title: title || 'Untitled',
+      content: editorContent ?? EMPTY_DOC,
+      excerpt: excerpt || undefined,
+      tags: tagsArr.length ? tagsArr : undefined,
+      coverImage: coverImage || undefined,
+      writerNotes: writerNotes.trim() ? writerNotes : undefined,
+      articleId,
+      savedAt: Date.now(),
     }
-  }, [draft, editor])
+  }, [editorContent, title, excerpt, tags, coverImage, writerNotes, articleId])
+
+  const persistDraftBackup = useCallback(() => {
+    const hasContent = !!editorContent
+    const hasMetadata = !!(title?.trim() || coverImage || writerNotes.trim())
+    if (
+      !shouldPersistDraftBackup(
+        isAuthenticated,
+        hasUnsavedChanges,
+        hasContent,
+        hasMetadata
+      )
+    ) {
+      return
+    }
+    writeDraftBackup(buildDraftBackup())
+  }, [
+    buildDraftBackup,
+    editorContent,
+    title,
+    coverImage,
+    writerNotes,
+    hasUnsavedChanges,
+    isAuthenticated,
+  ])
+
+  useEffect(() => {
+    if (!editor || !isAuthenticated) return
+
+    const draftLoadSettled = !draftIdParam || draft !== undefined
+    if (!draftLoadSettled) return
+    if (backupRecoveryStatus !== 'pending') return
+
+    const backup = readDraftBackup()
+    if (!backup) {
+      setBackupRecoveryStatus('resolved')
+      return
+    }
+
+    const serverDraft =
+      draft && draft !== null
+        ? {
+            title: draft.title,
+            content: draft.content,
+            excerpt: draft.excerpt,
+            tags: draft.tags,
+            coverImage: draft.coverImage,
+            writerNotes: draft.writerNotes,
+            updatedAt: draft.updatedAt,
+          }
+        : undefined
+
+    if (
+      shouldOfferDraftRecovery(backup, serverDraft, {
+        urlArticleId: draftIdParam ?? undefined,
+        stateArticleId: articleId,
+      })
+    ) {
+      setBackupPrompt(backup)
+    } else {
+      clearDraftBackup()
+    }
+    setBackupRecoveryStatus('resolved')
+  }, [
+    editor,
+    isAuthenticated,
+    draft,
+    draftIdParam,
+    articleId,
+    backupRecoveryStatus,
+  ])
+
+  useEffect(() => {
+    if (backupRecoveryStatus !== 'resolved' || backupPrompt !== null) return
+    if (!draft || !editor) return
+
+    setArticleId(draft._id)
+    setTitle(draft.title)
+    setExcerpt(draft.excerpt || '')
+    setTags(draft.tags?.join(', ') ?? '')
+    setCoverImage(draft.coverImage || '')
+    setWriterNotes(draft.writerNotes ?? '')
+    setPublishStatus({
+      published: draft.published,
+      publishedAt: draft.publishedAt ? new Date(draft.publishedAt) : null,
+    })
+    if (draft.content) {
+      queueMicrotask(() => {
+        editor.commands.setContent(draft.content)
+      })
+      setEditorContent(draft.content)
+    }
+    setHasUnsavedChanges(false)
+  }, [draft, editor, backupRecoveryStatus, backupPrompt])
+
+  const applyDraftBackup = useCallback(
+    (backup: DraftBackup) => {
+      if (!editor) return
+      setArticleId(backup.articleId)
+      setTitle(backup.title)
+      setExcerpt(backup.excerpt || '')
+      setTags(backup.tags?.join(', ') ?? '')
+      setCoverImage(backup.coverImage || '')
+      setWriterNotes(backup.writerNotes ?? '')
+      queueMicrotask(() => {
+        editor.commands.setContent(backup.content)
+      })
+      setEditorContent(backup.content)
+      setHasUnsavedChanges(true)
+    },
+    [editor]
+  )
+
+  const handleRestoreBackup = useCallback(() => {
+    if (!backupPrompt) return
+    recoveryDeferredRef.current = false
+    applyDraftBackup(backupPrompt)
+    clearDraftBackup()
+    setBackupPrompt(null)
+    setBackupRecoveryStatus('resolved')
+  }, [backupPrompt, applyDraftBackup])
+
+  const handleDiscardBackup = useCallback(() => {
+    recoveryDeferredRef.current = false
+    clearDraftBackup()
+    setBackupPrompt(null)
+    setBackupRecoveryStatus('resolved')
+  }, [])
+
+  useEffect(() => {
+    const onPageHide = () => {
+      persistDraftBackup()
+    }
+    window.addEventListener('pagehide', onPageHide)
+    return () => window.removeEventListener('pagehide', onPageHide)
+  }, [persistDraftBackup])
+
+  useEffect(() => {
+    if (!isAuthenticated || !hasUnsavedChanges) return
+    const hasContent = !!editorContent
+    const hasMetadata = !!(title?.trim() || coverImage)
+    if (!hasContent && !hasMetadata) return
+
+    const timeoutId = setTimeout(() => {
+      persistDraftBackup()
+    }, 2000)
+
+    return () => clearTimeout(timeoutId)
+  }, [
+    persistDraftBackup,
+    isAuthenticated,
+    hasUnsavedChanges,
+    editorContent,
+    title,
+    coverImage,
+  ])
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      const hasContent = !!editorContent
-      const hasMetadata = !!(title?.trim() || coverImage)
-      const autoSaveEnabled = isAuthenticated && (hasUnsavedChanges || !!title)
-      if (autoSaveEnabled && (hasContent || hasMetadata)) {
-        try {
-          const tagsArr = tags
-            .split(',')
-            .map((t) => t.trim())
-            .filter(Boolean)
-          localStorage.setItem(
-            'quilltip_draft_backup',
-            JSON.stringify({
-              title: title || 'Untitled',
-              content: editorContent ?? EMPTY_DOC,
-              excerpt,
-              tags: tagsArr.length ? tagsArr : undefined,
-              coverImage: coverImage || undefined,
-              articleId,
-              savedAt: Date.now(),
-            })
-          )
-        } catch {
-          // localStorage unavailable or full
-        }
-      }
+      persistDraftBackup()
       if (hasUnsavedChanges) {
         e.preventDefault()
         e.returnValue = ''
@@ -281,16 +433,7 @@ export function WriteEditorWorkspace() {
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [
-    hasUnsavedChanges,
-    isAuthenticated,
-    editorContent,
-    title,
-    coverImage,
-    excerpt,
-    tags,
-    articleId,
-  ])
+  }, [hasUnsavedChanges, persistDraftBackup])
 
   useEffect(() => {
     const onDocumentClick = (e: MouseEvent) => {
@@ -313,8 +456,7 @@ export function WriteEditorWorkspace() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        saveNow()
-        setHasUnsavedChanges(false)
+        void saveNow()
       }
     }
     window.addEventListener('keydown', handler)
@@ -397,20 +539,27 @@ export function WriteEditorWorkspace() {
     editor,
   ])
 
-  const handleDelete = useCallback(async () => {
-    if (!window.confirm('Are you sure you want to delete this draft?')) return
+  const handleRequestDelete = useCallback(() => {
+    if (!articleId || isDeleting) return
+    setDeleteDialogOpen(true)
+  }, [articleId, isDeleting])
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!articleId || isDeleting) return
+    setIsDeleting(true)
     try {
-      if (articleId) {
-        await deleteArticleMutation({ id: articleId as Id<'articles'> })
-        router.push('/')
-      }
+      await mutationWithTimeout(
+        deleteArticleMutation({ id: articleId as Id<'articles'> })
+      )
+      toast.success('Draft deleted')
+      setDeleteDialogOpen(false)
+      router.push('/')
     } catch (error) {
       console.error('Delete error:', error)
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to delete draft'
-      )
+      toast.error('Failed to delete draft. Please try again.')
+      setIsDeleting(false)
     }
-  }, [articleId, deleteArticleMutation, router])
+  }, [articleId, deleteArticleMutation, isDeleting, router])
 
   const handleBack = useCallback(() => {
     if (hasUnsavedChanges) {
@@ -623,8 +772,7 @@ export function WriteEditorWorkspace() {
         editor={editor}
         onBack={handleBack}
         onSave={() => {
-          saveNow()
-          setHasUnsavedChanges(false)
+          void saveNow()
         }}
         onPublish={requestPublish}
         isSaving={isSaving}
@@ -633,7 +781,8 @@ export function WriteEditorWorkspace() {
         isPublishing={isPublishing}
         canPublish={!!editor}
         lastSavedAt={lastSavedAt ?? undefined}
-        onDelete={handleDelete}
+        onDelete={handleRequestDelete}
+        isDeleting={isDeleting}
         hasUnsavedChanges={hasUnsavedChanges}
       />
       <div className="flex min-w-0 flex-1 flex-col pb-8">
@@ -641,6 +790,11 @@ export function WriteEditorWorkspace() {
           <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
             <EditorToolbar
               editor={editor}
+              notes={writerNotes}
+              onNotesChange={(value) => {
+                setWriterNotes(value)
+                setHasUnsavedChanges(true)
+              }}
               onFocusCoverImage={() => {
                 document
                   .getElementById('field-cover-image')
@@ -985,6 +1139,81 @@ export function WriteEditorWorkspace() {
       </AlertDialog>
 
       <AlertDialog
+        open={backupPrompt !== null}
+        onOpenChange={(open) => {
+          if (!open && backupPrompt !== null) {
+            if (readDraftBackup()) {
+              recoveryDeferredRef.current = true
+            }
+            setBackupPrompt(null)
+            setBackupRecoveryStatus('resolved')
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Recover unsaved draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {backupPrompt
+                ? `${formatBackupSavedAt(backupPrompt.savedAt)}. Restore this version or discard the local backup.`
+                : 'A local backup of your draft was found.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Not now</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDiscardBackup}
+            >
+              Discard backup
+            </AlertDialogAction>
+            <AlertDialogAction type="button" onClick={handleRestoreBackup}>
+              Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (isDeleting) return
+          if (!open) setDeleteDialogOpen(false)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The draft will be permanently
+              deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={(e) => {
+                e.preventDefault()
+                void handleConfirmDelete()
+              }}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
         open={navConfirm !== null}
         onOpenChange={(open) => {
           if (!open) setNavConfirm(null)
@@ -995,7 +1224,7 @@ export function WriteEditorWorkspace() {
             <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
             <AlertDialogDescription>
               Your draft is not saved to the server yet. If you leave now,
-              recent edits may be lost.
+              recent edits and notes may be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

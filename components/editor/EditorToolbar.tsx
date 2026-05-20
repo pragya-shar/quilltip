@@ -795,8 +795,14 @@ export function EditorToolbar({
           </button>
           {showNotes && (
             <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 w-72">
-              <div className="px-3 py-2 border-b border-border text-xs font-medium text-muted-foreground">
-                Personal Notes
+              <div className="px-3 py-2 border-b border-border">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Personal Notes
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground/80 leading-snug">
+                  Private planning notes for you only. They are saved with this
+                  draft and are not published with your article.
+                </p>
               </div>
               <textarea
                 value={notes}

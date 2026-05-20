@@ -18,11 +18,21 @@ import {
   tiptapJsonHasNonEmptyText,
 } from './lib/tiptapContent'
 
+const WRITER_NOTES_MAX_LENGTH = 5000
+
+function stripWriterNotes<T extends { writerNotes?: string }>(
+  article: T
+): Omit<T, 'writerNotes'> {
+  const { writerNotes: _writerNotes, ...rest } = article
+  return rest
+}
+
 // Validation helper for article input
 function validateArticleInput(args: {
   title: string
   excerpt?: string
   tags?: string[]
+  writerNotes?: string
 }) {
   if (!args.title || args.title.trim().length === 0) {
     throw new Error('Title is required')
@@ -42,6 +52,11 @@ function validateArticleInput(args: {
         throw new Error('Each tag must be 50 characters or less')
       }
     }
+  }
+  if (args.writerNotes && args.writerNotes.length > WRITER_NOTES_MAX_LENGTH) {
+    throw new Error(
+      `Writer notes must be ${WRITER_NOTES_MAX_LENGTH} characters or less`
+    )
   }
 }
 
@@ -107,7 +122,7 @@ export const listArticles = query({
       const slice = rows.slice(offset, offset + limit)
       const enrichedArticles = await Promise.all(
         slice.map(async (article) => ({
-          ...article,
+          ...stripWriterNotes(article),
           author: await enrichWithUser(ctx, article.authorId),
         }))
       )
@@ -144,7 +159,7 @@ export const listArticles = query({
       )
       const enrichedArticles = await Promise.all(
         articles.map(async (article) => ({
-          ...article,
+          ...stripWriterNotes(article),
           author: await enrichWithUser(ctx, article.authorId),
         }))
       )
@@ -171,7 +186,7 @@ export const listArticles = query({
     const slice = rows.slice(offset, offset + limit)
     const enrichedArticles = await Promise.all(
       slice.map(async (article) => ({
-        ...article,
+        ...stripWriterNotes(article),
         author: await enrichWithUser(ctx, article.authorId),
       }))
     )
@@ -230,7 +245,7 @@ export const getArticleBySlug = query({
     }
 
     return {
-      ...article,
+      ...stripWriterNotes(article),
       author: {
         id: author._id,
         name: author.name,
@@ -250,15 +265,16 @@ export const getArticleById = query({
     const article = await ctx.db.get(args.id)
     if (!article) return null
 
+    const userId = await getAuthUserId(ctx)
+    const isAuthor = userId === article.authorId
+
     // If unpublished, only the author can view it
-    if (!article.published) {
-      const userId = await getAuthUserId(ctx)
-      if (userId !== article.authorId) return null
-    }
+    if (!article.published && !isAuthor) return null
 
     const author = await ctx.db.get(article.authorId)
     return {
-      ...article,
+      ...stripWriterNotes(article),
+      ...(isAuthor ? { writerNotes: article.writerNotes } : {}),
       author: author
         ? {
             id: author._id,
@@ -588,6 +604,7 @@ export const saveDraft = mutation({
     excerpt: v.optional(v.string()),
     coverImage: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
+    writerNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
@@ -608,6 +625,7 @@ export const saveDraft = mutation({
         excerpt?: string
         coverImage?: string
         tags?: string[]
+        writerNotes?: string
         updatedAt: number
         slug?: string
         searchContent: string
@@ -617,6 +635,7 @@ export const saveDraft = mutation({
         excerpt: args.excerpt,
         coverImage: args.coverImage,
         tags: args.tags,
+        writerNotes: args.writerNotes,
         updatedAt: Date.now(),
         searchContent: buildSearchContent(args.title, args.excerpt, {
           tags: args.tags,
@@ -660,6 +679,7 @@ export const saveDraft = mutation({
         content: args.content,
         excerpt: args.excerpt,
         coverImage: args.coverImage,
+        writerNotes: args.writerNotes,
         published: false,
         authorId: userId,
         authorUsername: user.username,
