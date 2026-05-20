@@ -54,7 +54,11 @@ async function main() {
   const href = await articleLink.getAttribute('href').catch(() => null)
   await articlesProbe.close()
 
-  if (href && href.startsWith('/') && href.split('/').filter(Boolean).length >= 2) {
+  if (
+    href &&
+    href.startsWith('/') &&
+    href.split('/').filter(Boolean).length >= 2
+  ) {
     articlePath = href
   }
 
@@ -101,7 +105,10 @@ async function main() {
 
   const anyDev = summary.some((s) => s.devMatches.length > 0)
   md += anyDev
-    ? `**Development-related console messages found** on ${summary.filter((s) => s.devMatches.length > 0).map((s) => s.name).join(', ')}.\n\n`
+    ? `**Development-related console messages found** on ${summary
+        .filter((s) => s.devMatches.length > 0)
+        .map((s) => s.name)
+        .join(', ')}.\n\n`
     : `**No messages matching "development" / "dev mode" / "development build"** in automated capture. Check manually in DevTools — filter Console by \`development\`.\n\n`
 
   for (const s of summary) {
@@ -151,11 +158,20 @@ async function main() {
   )
   writeFileSync(desktopPath, md, 'utf8')
   console.log(`Wrote ${desktopPath}`)
-  console.log(JSON.stringify({ anyDev, pages: summary.map((s) => ({
-    name: s.name,
-    devMatches: s.devMatches.length,
-    warnings: s.warnings.length,
-  })) }, null, 2))
+  console.log(
+    JSON.stringify(
+      {
+        anyDev,
+        pages: summary.map((s) => ({
+          name: s.name,
+          devMatches: s.devMatches.length,
+          warnings: s.warnings.length,
+        })),
+      },
+      null,
+      2
+    )
+  )
 }
 
 main().catch((err) => {
