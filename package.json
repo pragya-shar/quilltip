@@ -16,6 +16,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:once": "vitest run",
+    "test:e2e:eng-224": "playwright test e2e/eng-224-console.spec.ts",
+    "eng-224:console-baseline": "node scripts/eng-224-console-baseline.mjs",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:coverage": "vitest run --coverage --coverage.reporter=text"
   },
