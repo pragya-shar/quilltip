@@ -20,6 +20,9 @@ describe('HighlightExtension helpers', () => {
       userName: 'Jane Doe',
     })
     expect(style).toContain('--highlight-color: #F59E0B')
+    expect(style).toContain('--highlight-color-rgb: 204, 148, 52')
+    expect(style).toContain('--highlight-mix: 18%')
+    expect(style).not.toContain('--highlight-opacity')
     expect(style).toContain('--highlight-user-name: "Jane Doe"')
     expect(style).not.toContain('data-user-name')
   })

@@ -1,6 +1,7 @@
 import { Mark, mergeAttributes } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { HighlightConverter } from '@/lib/highlights/HighlightConverter'
 
 export interface HighlightAttributes {
   id: string
@@ -10,6 +11,9 @@ export interface HighlightAttributes {
   userAvatar?: string
   note?: string
   createdAt: number
+  overlapCount?: number
+  startOffset?: number
+  endOffset?: number
 }
 
 export interface HighlightOptions {
@@ -53,6 +57,30 @@ export function parseHighlightUserNameFromElement(
   return null
 }
 
+/** Default tint strength for a single highlight mark (matches highlights.css). */
+export const HIGHLIGHT_READ_MIX_DEFAULT = '18%'
+
+/** Muted RGB for in-article marks (~35% toward neutral); picker hex unchanged in DB. */
+export const HIGHLIGHT_READ_RGB_MAP: Record<string, string> = {
+  '#F59E0B': '204, 148, 52',
+  '#10B981': '89, 162, 118',
+  '#3B82F6': '104, 133, 210',
+  '#F43F5E': '189, 89, 96',
+  '#8B5CF6': '134, 108, 210',
+  '#FB7185': '201, 114, 128',
+  '#FFEB3B': '210, 198, 88',
+  '#FFB3BA': '210, 178, 181',
+  '#BAE1FF': '178, 198, 210',
+  '#BAFFC9': '178, 210, 188',
+  '#FFD9BA': '210, 198, 178',
+  '#E8BAFF': '198, 178, 210',
+  '#B2FF59': '178, 210, 128',
+  '#40C4FF': '128, 178, 210',
+  '#FF4081': '210, 128, 158',
+  '#E040FB': '198, 128, 210',
+  '#FFAB40': '210, 178, 128',
+}
+
 /** Build inline style for highlight marks (visual only, not screen-reader metadata). */
 export function buildHighlightMarkStyle(attributes: {
   color?: string | null
@@ -62,7 +90,7 @@ export function buildHighlightMarkStyle(attributes: {
   if (attributes.color) {
     parts.push(`--highlight-color: ${attributes.color}`)
     parts.push(`--highlight-color-rgb: ${getColorRgb(attributes.color)}`)
-    parts.push('--highlight-opacity: 0.4')
+    parts.push(`--highlight-mix: ${HIGHLIGHT_READ_MIX_DEFAULT}`)
   }
   if (attributes.userName) {
     parts.push(`--highlight-user-name: ${cssStringValue(attributes.userName)}`)
@@ -112,25 +140,10 @@ export function createHighlightControlButton(
   return button
 }
 
-// Helper function to convert hex color to RGB values
-const getColorRgb = (hexColor: string): string => {
-  const colorMap: Record<string, string> = {
-    '#F59E0B': '245, 158, 11', // Amber
-    '#10B981': '16, 185, 129', // Emerald
-    '#3B82F6': '59, 130, 246', // Azure
-    '#F43F5E': '244, 63, 94', // Rose
-    '#8B5CF6': '139, 92, 246', // Violet
-    '#FB7185': '251, 113, 133', // Coral
-    // Fallback for old colors
-    '#FFEB3B': '255, 235, 59', // Yellow
-    '#B2FF59': '178, 255, 89', // Green
-    '#40C4FF': '64, 196, 255', // Blue
-    '#FF4081': '255, 64, 129', // Pink
-    '#E040FB': '224, 64, 251', // Purple
-    '#FFAB40': '255, 171, 64', // Orange
-  }
-
-  return colorMap[hexColor] || '255, 235, 59' // Default to yellow if not found
+/** Muted RGB for mark backgrounds; normalizes hex case for lookup. */
+export function getColorRgb(hexColor: string): string {
+  const normalized = hexColor.toUpperCase()
+  return HIGHLIGHT_READ_RGB_MAP[normalized] ?? '210, 198, 88'
 }
 
 // Overlap detection helper
@@ -291,7 +304,7 @@ const HighlightExtension = Mark.create<HighlightOptions>({
   },
 
   addProseMirrorPlugins() {
-    const { onHighlightClick } = this.options
+    const { onHighlightClick, highlights: configuredHighlights } = this.options
     const tapState: { startX: number; startY: number } = {
       startX: 0,
       startY: 0,
@@ -425,7 +438,28 @@ const HighlightExtension = Mark.create<HighlightOptions>({
               { to: number; attrs: HighlightAttributes }
             >()
 
-            // First pass: collect all highlights and merge ranges per id
+            // Register all saved highlight ranges (offsets survive mark coalescing)
+            for (const configured of configuredHighlights) {
+              if (
+                configured.startOffset == null ||
+                configured.endOffset == null
+              ) {
+                continue
+              }
+              const from = HighlightConverter.getDocumentPosition(
+                doc,
+                configured.startOffset
+              )
+              const to = HighlightConverter.getDocumentPosition(
+                doc,
+                configured.endOffset
+              )
+              if (to > from) {
+                overlapManager.addHighlight(configured.id, from, to)
+              }
+            }
+
+            // First pass: collect mark ranges for attribution controls
             doc.descendants((node, pos) => {
               if (node.isText && node.marks.length) {
                 node.marks.forEach((mark) => {
@@ -433,7 +467,14 @@ const HighlightExtension = Mark.create<HighlightOptions>({
                     const id = mark.attrs.id as string
                     const from = pos
                     const to = pos + node.nodeSize
-                    overlapManager.addHighlight(id, from, to)
+
+                    const hasConfiguredOffsets = configuredHighlights.some(
+                      (h) =>
+                        h.startOffset != null && h.endOffset != null
+                    )
+                    if (!hasConfiguredOffsets) {
+                      overlapManager.addHighlight(id, from, to)
+                    }
 
                     const existing = highlightRanges.get(id)
                     if (existing) {
@@ -456,10 +497,12 @@ const HighlightExtension = Mark.create<HighlightOptions>({
                   if (mark.type === schema.marks.highlight) {
                     const from = pos
                     const to = pos + node.nodeSize
-                    const overlapCount = overlapManager.getOverlapCount(
-                      from,
-                      to
-                    )
+                    const markOverlap = mark.attrs.overlapCount as
+                      | number
+                      | undefined
+                    const overlapCount = markOverlap
+                      ? Math.min(5, Math.max(1, markOverlap))
+                      : overlapManager.getOverlapCount(from, to)
                     const colorRgb = getColorRgb(mark.attrs.color || '#F59E0B')
 
                     decorations.push(

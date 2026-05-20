@@ -2,6 +2,7 @@ import { Editor } from '@tiptap/react'
 import { TextSelection } from '@tiptap/pm/state'
 import { Node } from '@tiptap/pm/model'
 import { Id } from '@/convex/_generated/dataModel'
+import { buildHighlightSegments } from '@/lib/highlights/highlight-overlap'
 
 export interface HighlightData {
   _id: Id<'highlights'>
@@ -24,7 +25,7 @@ export class HighlightConverter {
    * Convert a TipTap document position to a text-only offset
    * This accounts for the fact that TipTap positions include structural nodes
    */
-  private static getTextOffset(doc: Node, position: number): number {
+  static getTextOffset(doc: Node, position: number): number {
     let textOffset = 0
     let found = false
 
@@ -53,7 +54,7 @@ export class HighlightConverter {
   /**
    * Convert a text offset to a TipTap document position
    */
-  private static getDocumentPosition(doc: Node, textOffset: number): number {
+  static getDocumentPosition(doc: Node, textOffset: number): number {
     let currentTextOffset = 0
     let documentPosition = 0
     let found = false
@@ -90,70 +91,66 @@ export class HighlightConverter {
       // Early return if no highlights to apply
       if (!highlights.length) return
 
-      // Sort highlights by position to apply them in order
-      const sortedHighlights = [...highlights].sort(
-        (a, b) => a.startOffset - b.startOffset
-      )
+      const highlightById = new Map(highlights.map((h) => [h._id, h]))
+      const rangeInputs = highlights.map((h) => ({
+        id: h._id,
+        startOffset: h.startOffset,
+        endOffset: h.endOffset,
+        createdAt: h.createdAt,
+      }))
 
-      // Apply each highlight as a mark (without focusing for performance)
-      sortedHighlights.forEach((highlight) => {
-        try {
-          // Convert text offsets to document positions
-          const from = this.getDocumentPosition(
-            editor.state.doc,
-            highlight.startOffset
-          )
-          const to = this.getDocumentPosition(
-            editor.state.doc,
-            highlight.endOffset
-          )
+      const segments = buildHighlightSegments(rangeInputs)
+      const doc = editor.state.doc
+      let chain = editor.chain()
 
-          // Verify the positions are valid
-          if (from >= 0 && to > from && to <= editor.state.doc.content.size) {
-            // Verify the text matches what we expect
-            const actualText = editor.state.doc.textBetween(from, to, ' ')
+      for (const segment of segments) {
+        const highlight = highlightById.get(segment.primary.id)
+        if (!highlight) continue
+        const from = this.getDocumentPosition(doc, segment.startOffset)
+        const to = this.getDocumentPosition(doc, segment.endOffset)
 
-            // Allow some flexibility for whitespace differences
-            const normalizedActual = actualText.trim()
-            const normalizedExpected = highlight.text.trim()
-
-            if (
-              normalizedActual === normalizedExpected ||
-              normalizedActual.includes(normalizedExpected) ||
-              normalizedExpected.includes(normalizedActual)
-            ) {
-              // Apply the highlight mark with all attributes (no focus for performance)
-              editor
-                .chain()
-                .setTextSelection({ from, to })
-                .setHighlight({
-                  id: highlight._id,
-                  color: highlight.color || '#FFEB3B',
-                  userId: highlight.userId,
-                  userName: highlight.userName,
-                  note: highlight.note,
-                  createdAt: highlight.createdAt,
-                })
-                .run()
-            } else {
-              console.warn('Text mismatch for highlight:', {
-                expected: highlight.text,
-                actual: actualText,
-                from,
-                to,
-              })
-            }
-          } else {
-            console.warn('Invalid positions for highlight:', {
-              from,
-              to,
-              docSize: editor.state.doc.content.size,
-            })
-          }
-        } catch (error) {
-          console.error('Failed to apply highlight:', error, highlight)
+        if (from < 0 || to <= from || to > doc.content.size) {
+          console.warn('Invalid positions for highlight segment:', {
+            from,
+            to,
+            docSize: doc.content.size,
+          })
+          continue
         }
-      })
+
+        const actualText = doc.textBetween(from, to, ' ')
+        const normalizedActual = actualText.trim()
+        const normalizedExpected = highlight.text.trim()
+
+        if (
+          normalizedActual.length > 0 &&
+          normalizedActual !== normalizedExpected &&
+          !normalizedActual.includes(normalizedExpected) &&
+          !normalizedExpected.includes(normalizedActual)
+        ) {
+          console.warn('Text mismatch for highlight segment:', {
+            expected: highlight.text,
+            actual: actualText,
+            from,
+            to,
+          })
+          continue
+        }
+
+        chain = chain
+          .setTextSelection({ from, to })
+          .setHighlight({
+            id: highlight._id,
+            color: highlight.color || '#FFEB3B',
+            userId: highlight.userId,
+            userName: highlight.userName,
+            note: highlight.note,
+            createdAt: highlight.createdAt,
+            overlapCount: segment.overlapCount,
+          })
+      }
+
+      chain.run()
     } catch (error) {
       console.error('Error applying highlights to editor:', error)
     }
