@@ -97,7 +97,10 @@ export function WalletConnectButton({
         onClick={handleConnect}
         size={size}
         variant="outline"
-        className={cn('text-red-600 border-red-300', className)}
+        className={cn(
+          'text-destructive border-destructive/50 dark:text-red-300 dark:border-red-800',
+          className
+        )}
       >
         <AlertCircle className="w-4 h-4 mr-2" />
         Wallet Error

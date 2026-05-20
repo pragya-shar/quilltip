@@ -93,14 +93,14 @@ export function WalletStatus({ className }: WalletStatusProps) {
       <Card className={className}>
         <CardContent className="pt-6">
           <div className="flex flex-col items-center space-y-4 text-center">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-              <Wallet className="w-6 h-6 text-red-600" />
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-950/50 rounded-full flex items-center justify-center">
+              <Wallet className="w-6 h-6 text-red-600 dark:text-red-300" />
             </div>
             <div>
-              <h3 className="font-semibold text-red-900">
+              <h3 className="font-semibold text-red-900 dark:text-red-200">
                 Wallet Connection Error
               </h3>
-              <p className="text-sm text-red-600">{error}</p>
+              <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
             </div>
             <Button variant="outline" onClick={refreshConnection}>
               <RefreshCw className="w-4 h-4 mr-2" />
