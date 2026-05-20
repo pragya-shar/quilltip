@@ -35,7 +35,9 @@ export function cssStringValue(value: string): string {
 }
 
 /** Parse --highlight-user-name from inline style (or legacy data attribute). */
-export function parseHighlightUserNameFromElement(element: HTMLElement): string | null {
+export function parseHighlightUserNameFromElement(
+  element: HTMLElement
+): string | null {
   const legacy = element.getAttribute('data-user-name')
   if (legacy) return legacy
 
@@ -83,10 +85,7 @@ export function buildHighlightAriaLabel(attrs: {
 
 export function createHighlightControlButton(
   attrs: HighlightAttributes,
-  onHighlightClick?: (
-    highlight: HighlightAttributes,
-    event: MouseEvent
-  ) => void
+  onHighlightClick?: (highlight: HighlightAttributes, event: MouseEvent) => void
 ): HTMLButtonElement {
   const button = document.createElement('button')
   button.type = 'button'
@@ -484,8 +483,7 @@ const HighlightExtension = Mark.create<HighlightOptions>({
               decorations.push(
                 Decoration.widget(
                   to,
-                  () =>
-                    createHighlightControlButton(attrs, onHighlightClick),
+                  () => createHighlightControlButton(attrs, onHighlightClick),
                   {
                     side: 1,
                     key: `highlight-control-${attrs.id}`,
