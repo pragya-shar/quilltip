@@ -133,6 +133,8 @@ export function HighlightableArticle({
                 highlights:
                   highlights?.map((h) => ({
                     id: h._id,
+                    startOffset: h.startOffset,
+                    endOffset: h.endOffset,
                     color: h.color || '#FFEB3B',
                     userId: h.userId,
                     userName: h.userName,
