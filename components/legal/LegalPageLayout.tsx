@@ -5,6 +5,7 @@ import { useAuth } from '@/components/providers/AuthContext'
 import Navigation from '@/components/landing/Navigation'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { Button } from '@/components/ui/button'
+import { SiteFooter } from '@/components/layout/SiteFooter'
 import type { LegalSection } from '@/lib/copy/legal-shared'
 
 type LegalPageLayoutProps = {
@@ -26,9 +27,9 @@ export function LegalPageLayout({
   const { isAuthenticated } = useAuth()
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       {isAuthenticated ? <AppNavigation /> : <Navigation />}
-      <div className="pt-24 pb-16 px-4">
+      <div className="flex-1 pt-24 pb-16 px-4">
         <article className="mx-auto max-w-3xl">
           <header className="mb-10 border-b border-border pb-8">
             <p className="text-sm text-muted-foreground mb-2">
@@ -76,6 +77,7 @@ export function LegalPageLayout({
           </footer>
         </article>
       </div>
+      <SiteFooter variant="default" />
     </div>
   )
 }
