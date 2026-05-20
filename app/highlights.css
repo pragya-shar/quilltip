@@ -93,9 +93,9 @@ mark[data-highlight-id]:active {
   transition: all 0.05s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Tooltip on Hover */
+/* Tooltip on Hover (visual only via CSS custom property) */
 mark[data-highlight-id]::after {
-  content: attr(data-user-name);
+  content: var(--highlight-user-name, none);
   position: absolute;
   bottom: calc(100% + 8px);
   left: 50%;
@@ -120,6 +120,48 @@ mark[data-highlight-id]:hover::after {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
   transition-delay: 0s;
+}
+
+/* Focusable highlight control (metadata announced on focus only) */
+.highlight-attribution-control {
+  display: inline-block;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  vertical-align: baseline;
+  background: transparent;
+  cursor: pointer;
+}
+
+.highlight-attribution-control:focus {
+  outline: none;
+}
+
+.highlight-attribution-control:focus-visible {
+  width: auto;
+  height: auto;
+  clip: auto;
+  overflow: visible;
+  padding: 2px 6px;
+  margin-left: 2px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: white;
+  background: rgba(17, 24, 39, 0.95);
+  box-shadow: 0 0 0 2px var(--ring, #3b82f6);
+}
+
+mark[data-highlight-id]:has(+ .highlight-attribution-control:focus-visible) {
+  box-shadow:
+    0 0 0 2px rgba(var(--highlight-color-rgb), 0.35),
+    0 3px 10px rgba(var(--highlight-color-rgb), 0.25);
 }
 
 /* Entrance Animations */
