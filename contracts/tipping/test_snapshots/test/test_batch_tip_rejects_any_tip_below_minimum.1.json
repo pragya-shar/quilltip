@@ -23,6 +23,9 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
                 },
                 {
+                  "address": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
+                },
+                {
                   "u32": 250
                 }
               ]
@@ -179,6 +182,18 @@
                         },
                         "val": {
                           "u32": 250
+                        }
+                      },
+                      {
+                        "key": {
+                          "vec": [
+                            {
+                              "symbol": "TokenAddress"
+                            }
+                          ]
+                        },
+                        "val": {
+                          "address": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC"
                         }
                       }
                     ]

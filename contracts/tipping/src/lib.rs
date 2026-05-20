@@ -88,6 +88,7 @@ pub struct HighlightTip {
 pub enum DataKey {
     Admin,
     PlatformAddress,
+    TokenAddress,
     PlatformFeeBps,
     ArticleTips(Symbol),
     ArticleTotalTips(Symbol), // Track total tips per article for NFT threshold
@@ -99,9 +100,6 @@ pub enum DataKey {
 
 const MINIMUM_TIP_STROOPS: i128 = 100_000; // 0.01 XLM (approximately 1 cent)
 const DEFAULT_PLATFORM_FEE_BPS: u32 = 250; // 2.5%
-
-// Native XLM token contract on testnet
-const XLM_TOKEN_ADDRESS: &str = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 
 fn validate_minimum_tip(amount: i128) {
     if amount < MINIMUM_TIP_STROOPS {
@@ -115,13 +113,26 @@ fn calculate_tip_split(amount: i128, platform_fee_bps: u32) -> (i128, i128) {
     (author_share, platform_fee)
 }
 
+fn get_token_address(env: &Env) -> Address {
+    env.storage()
+        .instance()
+        .get(&DataKey::TokenAddress)
+        .expect("Token address not set")
+}
+
 #[contract]
 pub struct TippingContract;
 
 #[contractimpl]
 impl TippingContract {
     /// Initialize the contract with platform settings
-    pub fn initialize(env: Env, admin: Address, platform_address: Address, fee_bps: Option<u32>) {
+    pub fn initialize(
+        env: Env,
+        admin: Address,
+        platform_address: Address,
+        token_address: Address,
+        fee_bps: Option<u32>,
+    ) {
         if env.storage().instance().has(&DataKey::Admin) {
             panic!("Contract already initialized");
         }
@@ -134,6 +145,9 @@ impl TippingContract {
         env.storage()
             .instance()
             .set(&DataKey::PlatformAddress, &platform_address);
+        env.storage()
+            .instance()
+            .set(&DataKey::TokenAddress, &token_address);
         env.storage()
             .instance()
             .set(&DataKey::PlatformFeeBps, &platform_fee);
@@ -176,16 +190,16 @@ impl TippingContract {
         let platform_fee = (amount * platform_fee_bps as i128) / 10_000;
         let author_share = amount - platform_fee;
 
-        // Get XLM token client
-        let xlm_address = Address::from_string(&String::from_str(&env, XLM_TOKEN_ADDRESS));
-        let xlm_client = token::TokenClient::new(&env, &xlm_address);
+        // Get configured token client
+        let token_address = get_token_address(&env);
+        let token_client = token::TokenClient::new(&env, &token_address);
 
         // Transfer author's share
-        xlm_client.transfer(&tipper, &author, &author_share);
+        token_client.transfer(&tipper, &author, &author_share);
 
         // Transfer platform fee
         if platform_fee > 0 {
-            xlm_client.transfer(&tipper, &platform_address, &platform_fee);
+            token_client.transfer(&tipper, &platform_address, &platform_fee);
         }
 
         // Track cumulative tips for statistics (not balances)
@@ -277,8 +291,8 @@ impl TippingContract {
             .get(&DataKey::PlatformFeeBps)
             .unwrap_or(DEFAULT_PLATFORM_FEE_BPS);
 
-        let xlm_address = Address::from_string(&String::from_str(&env, XLM_TOKEN_ADDRESS));
-        let xlm_client = token::TokenClient::new(&env, &xlm_address);
+        let token_address = get_token_address(&env);
+        let token_client = token::TokenClient::new(&env, &token_address);
 
         let mut receipts: Vec<TipReceipt> = vec![&env];
         let mut total_amount = 0i128;
@@ -290,10 +304,10 @@ impl TippingContract {
             let tip = tips.get(index).unwrap();
             let (author_share, platform_fee) = calculate_tip_split(tip.amount, platform_fee_bps);
 
-            xlm_client.transfer(&tipper, &tip.author, &author_share);
+            token_client.transfer(&tipper, &tip.author, &author_share);
 
             if platform_fee > 0 {
-                xlm_client.transfer(&tipper, &platform_address, &platform_fee);
+                token_client.transfer(&tipper, &platform_address, &platform_fee);
             }
 
             let current_total: i128 = env
@@ -392,11 +406,11 @@ impl TippingContract {
             .unwrap_or(vec![&env])
     }
 
-    /// Get author's XLM balance from the native token
+    /// Get author's balance from the configured token
     pub fn get_balance(env: Env, author: Address) -> i128 {
-        let xlm_address = Address::from_string(&String::from_str(&env, XLM_TOKEN_ADDRESS));
-        let xlm_client = token::TokenClient::new(&env, &xlm_address);
-        xlm_client.balance(&author)
+        let token_address = get_token_address(&env);
+        let token_client = token::TokenClient::new(&env, &token_address);
+        token_client.balance(&author)
     }
 
     /// Get total tips for an article (for NFT threshold checking)
@@ -488,16 +502,16 @@ impl TippingContract {
         let platform_fee = (amount * platform_fee_bps as i128) / 10_000;
         let author_share = amount - platform_fee;
 
-        // Get XLM token client (same as tip_article)
-        let xlm_address = Address::from_string(&String::from_str(&env, XLM_TOKEN_ADDRESS));
-        let xlm_client = token::TokenClient::new(&env, &xlm_address);
+        // Get configured token client (same as tip_article)
+        let token_address = get_token_address(&env);
+        let token_client = token::TokenClient::new(&env, &token_address);
 
         // Transfer author's share
-        xlm_client.transfer(&tipper, &author, &author_share);
+        token_client.transfer(&tipper, &author, &author_share);
 
         // Transfer platform fee
         if platform_fee > 0 {
-            xlm_client.transfer(&tipper, &platform_address, &platform_fee);
+            token_client.transfer(&tipper, &platform_address, &platform_fee);
         }
 
         // Get and increment tip counter (same as tip_article)
@@ -572,8 +586,8 @@ impl TippingContract {
             .get(&DataKey::PlatformFeeBps)
             .unwrap_or(DEFAULT_PLATFORM_FEE_BPS);
 
-        let xlm_address = Address::from_string(&String::from_str(&env, XLM_TOKEN_ADDRESS));
-        let xlm_client = token::TokenClient::new(&env, &xlm_address);
+        let token_address = get_token_address(&env);
+        let token_client = token::TokenClient::new(&env, &token_address);
 
         let mut receipts: Vec<TipReceipt> = vec![&env];
         let mut total_amount = 0i128;
@@ -585,10 +599,10 @@ impl TippingContract {
             let tip = tips.get(index).unwrap();
             let (author_share, platform_fee) = calculate_tip_split(tip.amount, platform_fee_bps);
 
-            xlm_client.transfer(&tipper, &tip.author, &author_share);
+            token_client.transfer(&tipper, &tip.author, &author_share);
 
             if platform_fee > 0 {
-                xlm_client.transfer(&tipper, &platform_address, &platform_fee);
+                token_client.transfer(&tipper, &platform_address, &platform_fee);
             }
 
             let tip_counter: u64 = env
@@ -787,6 +801,10 @@ mod test {
         Env, IntoVal,
     };
 
+    // Testnet native XLM token contract used only by SDK unit tests.
+    const TESTNET_XLM_TOKEN_ADDRESS: &str =
+        "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+
     #[derive(Clone)]
     #[contracttype]
     enum MockTokenKey {
@@ -820,15 +838,23 @@ mod test {
         }
     }
 
-    fn register_xlm_token(env: &Env) {
-        let xlm_address = Address::from_string(&String::from_str(env, XLM_TOKEN_ADDRESS));
+    fn register_xlm_token(env: &Env) -> Address {
+        let xlm_address = Address::from_string(&String::from_str(env, TESTNET_XLM_TOKEN_ADDRESS));
         env.register_at(&xlm_address, MockToken, ());
+        xlm_address
+    }
+
+    fn register_mock_token(env: &Env) -> Address {
+        let token_address = Address::generate(env);
+        env.register_at(&token_address, MockToken, ());
+        token_address
     }
 
     #[test]
     fn test_initialize() {
         let env = Env::default();
         env.mock_all_auths();
+        let token_address = Address::generate(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -836,7 +862,7 @@ mod test {
         let admin = Address::generate(&env);
         let platform = Address::generate(&env);
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
 
         // Verify initialization
         let volume = client.get_total_volume();
@@ -847,7 +873,7 @@ mod test {
     fn test_tip_article() {
         let env = Env::default();
         env.mock_all_auths();
-        register_xlm_token(&env);
+        let token_address = register_xlm_token(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -858,7 +884,7 @@ mod test {
         let author = Address::generate(&env);
 
         // Initialize contract
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
 
         // Send a tip
         let receipt = client.tip_article(
@@ -883,10 +909,31 @@ mod test {
     }
 
     #[test]
+    fn test_tip_article_uses_configured_token_address() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let token_address = register_mock_token(&env);
+
+        let contract_id = env.register(TippingContract, ());
+        let client = TippingContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let platform = Address::generate(&env);
+        let tipper = Address::generate(&env);
+        let author = Address::generate(&env);
+
+        client.initialize(&admin, &platform, &token_address, &Some(250));
+        client.tip_article(&tipper, &symbol_short!("article1"), &author, &1_000_000);
+
+        assert_eq!(client.get_balance(&author), 975_000);
+        assert_eq!(client.get_balance(&platform), 25_000);
+    }
+
+    #[test]
     fn test_tip_article_with_arweave_emits_event() {
         let env = Env::default();
         env.mock_all_auths();
-        register_xlm_token(&env);
+        let token_address = register_xlm_token(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -899,7 +946,7 @@ mod test {
         let amount = 1_000_000;
         let arweave_tx_id = String::from_str(&env, "arweave_article_tx");
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
         client.tip_article_with_arweave(&tipper, &article_id, &author, &amount, &arweave_tx_id);
 
         let events = env.events().all();
@@ -921,7 +968,7 @@ mod test {
     fn test_paused_tip_article_fails() {
         let env = Env::default();
         env.mock_all_auths();
-        register_xlm_token(&env);
+        let token_address = register_xlm_token(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -931,7 +978,7 @@ mod test {
         let tipper = Address::generate(&env);
         let author = Address::generate(&env);
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
         client.pause(&admin);
 
         client.tip_article(&tipper, &symbol_short!("article1"), &author, &1_000_000);
@@ -942,7 +989,7 @@ mod test {
     fn test_paused_tip_highlight_direct_fails() {
         let env = Env::default();
         env.mock_all_auths();
-        register_xlm_token(&env);
+        let token_address = register_xlm_token(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -953,7 +1000,7 @@ mod test {
         let author = Address::generate(&env);
         let highlight_id = String::from_str(&env, "highlight_1");
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
         client.pause(&admin);
 
         client.tip_highlight_direct(
@@ -969,7 +1016,7 @@ mod test {
     fn test_tip_highlight_with_arweave_emits_event() {
         let env = Env::default();
         env.mock_all_auths();
-        register_xlm_token(&env);
+        let token_address = register_xlm_token(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -983,7 +1030,7 @@ mod test {
         let amount = 1_000_000;
         let arweave_tx_id = String::from_str(&env, "arweave_highlight_tx");
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
         client.tip_highlight_with_arweave(
             &tipper,
             &highlight_id,
@@ -1015,7 +1062,7 @@ mod test {
     fn test_article_total_tips_increments_once_per_tip() {
         let env = Env::default();
         env.mock_all_auths();
-        register_xlm_token(&env);
+        let token_address = register_xlm_token(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -1026,7 +1073,7 @@ mod test {
         let author = Address::generate(&env);
         let article_id = symbol_short!("article1");
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
         client.tip_article(&tipper, &article_id, &author, &1_000_000);
 
         assert_eq!(client.get_article_total_tips(&article_id), 1_000_000);
@@ -1037,6 +1084,7 @@ mod test {
     fn test_minimum_tip_enforcement() {
         let env = Env::default();
         env.mock_all_auths();
+        let token_address = Address::generate(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -1046,7 +1094,7 @@ mod test {
         let tipper = Address::generate(&env);
         let author = Address::generate(&env);
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
 
         // Try to send tip below minimum
         client.tip_article(
@@ -1061,7 +1109,7 @@ mod test {
     fn test_batch_tip_articles_settles_and_stores_each_tip() {
         let env = Env::default();
         env.mock_all_auths();
-        register_xlm_token(&env);
+        let token_address = register_xlm_token(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -1074,7 +1122,7 @@ mod test {
         let article_one = symbol_short!("art1");
         let article_two = symbol_short!("art2");
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
 
         let receipt = client.batch_tip(
             &tipper,
@@ -1174,7 +1222,7 @@ mod test {
     fn test_batch_tip_highlights_settles_and_stores_each_tip() {
         let env = Env::default();
         env.mock_all_auths();
-        register_xlm_token(&env);
+        let token_address = register_xlm_token(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -1188,7 +1236,7 @@ mod test {
         let highlight_two = String::from_str(&env, "highlight_2");
         let article_id = symbol_short!("article1");
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
 
         let receipt = client.batch_tip_highlights(
             &tipper,
@@ -1297,7 +1345,7 @@ mod test {
     fn test_batch_tip_rejects_any_tip_below_minimum() {
         let env = Env::default();
         env.mock_all_auths();
-        register_xlm_token(&env);
+        let token_address = register_xlm_token(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -1307,7 +1355,7 @@ mod test {
         let tipper = Address::generate(&env);
         let author = Address::generate(&env);
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
 
         client.batch_tip(
             &tipper,
@@ -1332,7 +1380,7 @@ mod test {
     fn test_paused_batch_tip_highlights_fails() {
         let env = Env::default();
         env.mock_all_auths();
-        register_xlm_token(&env);
+        let token_address = register_xlm_token(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -1342,7 +1390,7 @@ mod test {
         let tipper = Address::generate(&env);
         let author = Address::generate(&env);
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
         client.pause(&admin);
 
         client.batch_tip_highlights(
@@ -1363,7 +1411,7 @@ mod test {
     fn test_tip_with_immediate_transfers() {
         let env = Env::default();
         env.mock_all_auths();
-        register_xlm_token(&env);
+        let token_address = register_xlm_token(&env);
 
         let contract_id = env.register(TippingContract, ());
         let client = TippingContractClient::new(&env, &contract_id);
@@ -1373,7 +1421,7 @@ mod test {
         let tipper = Address::generate(&env);
         let author = Address::generate(&env);
 
-        client.initialize(&admin, &platform, &Some(250));
+        client.initialize(&admin, &platform, &token_address, &Some(250));
 
         // Send tips
         client.tip_article(&tipper, &symbol_short!("art1"), &author, &1_000_000);
