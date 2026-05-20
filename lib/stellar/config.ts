@@ -36,10 +36,7 @@ function validateStellarEnv() {
   }
 
   // Warn about missing optional vars in development only (avoid production console noise)
-  if (
-    typeof window !== 'undefined' &&
-    process.env.NODE_ENV !== 'production'
-  ) {
+  if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
     if (!env.NEXT_PUBLIC_TIPPING_CONTRACT_ID) {
       console.warn(
         '[Stellar Config] NEXT_PUBLIC_TIPPING_CONTRACT_ID is not set. Tipping will not work.'
