@@ -590,6 +590,8 @@ function stubMalformedHorizonResponse() {
 async function drainScheduler(t: ReturnType<typeof convexTest>) {
   await new Promise((resolve) => setTimeout(resolve, 50))
   await t.finishAllScheduledFunctions(() => {})
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  await t.finishAllScheduledFunctions(() => {})
 }
 
 describe('recoverStuckPendingHighlightTips', () => {

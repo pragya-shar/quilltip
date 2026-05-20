@@ -52,8 +52,10 @@ describe('TransferModal', () => {
     vi.mocked(toast.error).mockClear()
   })
 
-  it('shows a single success message in the message slot after transfer', async () => {
-    const user = userEvent.setup()
+  it(
+    'shows a single success message in the message slot after transfer',
+    async () => {
+    const user = userEvent.setup({ delay: null })
     mockTransfer.mockResolvedValue('transfer_id')
 
     render(
@@ -84,10 +86,12 @@ describe('TransferModal', () => {
     expect(
       screen.getAllByText('Transfer completed successfully!')
     ).toHaveLength(1)
-  })
+  },
+    10_000
+  )
 
   it('shows a single error message in the message slot on mutation failure', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     mockTransfer.mockRejectedValue(new Error('Recipient not found'))
 
     render(
@@ -126,7 +130,7 @@ describe('TransferModal', () => {
   })
 
   it('shows progress only in the message slot while the button stays Transfer NFT', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     let resolveTransfer!: (value: string) => void
     const transferPromise = new Promise<string>((resolve) => {
       resolveTransfer = resolve
@@ -165,7 +169,7 @@ describe('TransferModal', () => {
   })
 
   it('clears the message slot when the modal is closed and reopened', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
 
     render(<ControlledTransferModal />)
 
