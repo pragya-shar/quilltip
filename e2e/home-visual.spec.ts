@@ -113,3 +113,28 @@ test.describe('landing nav hash navigation', () => {
     await assertRevealContentVisible(page, '#arweave-storage')
   })
 })
+
+test.describe('home landing footer links', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/')
+    await expect(
+      page.getByRole('heading', { name: 'Reward the words that move you' })
+    ).toBeVisible()
+  })
+
+  test('footer includes trust and support destinations', async ({ page }) => {
+    const footer = page.getByRole('navigation', { name: 'Footer' })
+    await footer.scrollIntoViewIfNeeded()
+
+    for (const label of [
+      'Terms of Service',
+      'Privacy Policy',
+      'Help & Support',
+      'Wallet Guide',
+      'Contact',
+      'Platform Status',
+    ]) {
+      await expect(footer.getByRole('link', { name: label })).toBeVisible()
+    }
+  })
+})

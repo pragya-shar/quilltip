@@ -6,6 +6,7 @@ import { use, useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
+import { SiteFooter } from '@/components/layout/SiteFooter'
 import ProfileHeader from '@/components/profile/ProfileHeader'
 import { ProfileArticlesTabContent } from '@/components/profile/ProfileArticlesTabContent'
 import { ProfileNftsTabContent } from '@/components/profile/ProfileNftsTabContent'
@@ -122,10 +123,10 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   ]
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <AppNavigation />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 w-full">
         {/* Profile Header */}
         <div className="mb-8">
           <ProfileHeader user={userWithStats} isOwnProfile={isOwnProfile} />
@@ -267,6 +268,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
           )}
         </div>
       </main>
+      <SiteFooter variant="default" />
     </div>
   )
 }

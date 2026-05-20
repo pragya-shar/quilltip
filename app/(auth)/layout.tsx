@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { LegalLinks } from '@/components/legal/LegalLinks'
+import { AUTH_FOOTER_LINKS } from '@/lib/copy/footer-links'
 
 /**
  * Auth Layout
@@ -53,13 +54,30 @@ export default function AuthLayout({
           </div>
 
           {/* Footer Links */}
-          <div className="mt-8 text-center text-sm text-muted-foreground">
+          <div className="mt-8 space-y-3 text-center text-sm text-muted-foreground">
             <p>
               By continuing, you agree to Quilltip&apos;s{' '}
               <LegalLinks
                 conjunction="and"
                 linkClassName="text-primary hover:underline"
               />
+            </p>
+            <p>
+              {AUTH_FOOTER_LINKS.map((link, index) => (
+                <span key={link.href}>
+                  {index > 0 ? (
+                    <span className="mx-1.5 text-muted-foreground" aria-hidden>
+                      |
+                    </span>
+                  ) : null}
+                  <Link
+                    href={link.href}
+                    className="text-primary hover:underline underline-offset-4"
+                  >
+                    {link.label}
+                  </Link>
+                </span>
+              ))}
             </p>
           </div>
         </div>
