@@ -787,7 +787,7 @@ export function EditorToolbar({
 
       {showImageDialog && (
         <ImageUploadDialog
-          isOpen
+          isOpen={showImageDialog}
           onClose={() => setShowImageDialog(false)}
           onImageSelect={handleImageSelect}
           triggerRef={imageDialogTriggerRef}
