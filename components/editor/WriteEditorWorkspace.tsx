@@ -59,6 +59,7 @@ import {
   shouldPersistDraftBackup,
   writeDraftBackup,
 } from '@/lib/draftBackup'
+import { getWriteUrlWithDraftId } from '@/lib/writeDraftUrl'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const EXCERPT_MAX_CHARS = 500
@@ -139,6 +140,25 @@ export function WriteEditorWorkspace() {
 
   const coverUploadAbortRef = useRef<AbortController | null>(null)
   const bodyUploadAbortRef = useRef<AbortController | null>(null)
+  const hydratedDraftIdRef = useRef<string | null>(null)
+
+  const draftIdParam = searchParams.get('id')
+
+  const syncDraftIdInUrl = useCallback(
+    (id: string) => {
+      const next = getWriteUrlWithDraftId(searchParams.toString(), id)
+      if (next) {
+        router.replace(next, { scroll: false })
+      }
+    },
+    [router, searchParams]
+  )
+
+  useEffect(() => {
+    if (draftIdParam) {
+      setArticleId(draftIdParam)
+    }
+  }, [draftIdParam])
 
   useEffect(() => {
     return () => {
@@ -227,9 +247,8 @@ export function WriteEditorWorkspace() {
     enabled:
       isAuthenticated && (hasUnsavedChanges || !!title || !!writerNotes.trim()),
     onSaveSuccess: (response) => {
-      if (!articleId && response.id) {
-        setArticleId(response.id)
-      }
+      setArticleId(response.id)
+      syncDraftIdInUrl(response.id)
       setHasUnsavedChanges(false)
       if (!recoveryDeferredRef.current) {
         clearDraftBackup()
@@ -240,8 +259,6 @@ export function WriteEditorWorkspace() {
       setHasUnsavedChanges(true)
     },
   })
-
-  const draftIdParam = searchParams.get('id')
 
   const draft = useArticleById(
     draftIdParam ? (draftIdParam as Id<'articles'>) : undefined
@@ -305,6 +322,14 @@ export function WriteEditorWorkspace() {
       return
     }
 
+    if (backup.articleId && !draftIdParam) {
+      const url = getWriteUrlWithDraftId('', backup.articleId)
+      if (url) {
+        router.replace(url, { scroll: false })
+        return
+      }
+    }
+
     const serverDraft =
       draft && draft !== null
         ? {
@@ -336,13 +361,21 @@ export function WriteEditorWorkspace() {
     draftIdParam,
     articleId,
     backupRecoveryStatus,
+    router,
   ])
+
+  useEffect(() => {
+    hydratedDraftIdRef.current = null
+  }, [draftIdParam])
 
   useEffect(() => {
     if (backupRecoveryStatus !== 'resolved' || backupPrompt !== null) return
     if (!draft || !editor) return
+    if (hydratedDraftIdRef.current === draft._id) return
 
+    hydratedDraftIdRef.current = draft._id
     setArticleId(draft._id)
+    syncDraftIdInUrl(draft._id)
     setTitle(draft.title)
     setExcerpt(draft.excerpt || '')
     setTags(draft.tags?.join(', ') ?? '')
@@ -359,12 +392,21 @@ export function WriteEditorWorkspace() {
       setEditorContent(draft.content)
     }
     setHasUnsavedChanges(false)
-  }, [draft, editor, backupRecoveryStatus, backupPrompt])
+  }, [
+    draft,
+    editor,
+    backupRecoveryStatus,
+    backupPrompt,
+    syncDraftIdInUrl,
+  ])
 
   const applyDraftBackup = useCallback(
     (backup: DraftBackup) => {
       if (!editor) return
-      setArticleId(backup.articleId)
+      if (backup.articleId) {
+        setArticleId(backup.articleId)
+        syncDraftIdInUrl(backup.articleId)
+      }
       setTitle(backup.title)
       setExcerpt(backup.excerpt || '')
       setTags(backup.tags?.join(', ') ?? '')
@@ -376,7 +418,7 @@ export function WriteEditorWorkspace() {
       setEditorContent(backup.content)
       setHasUnsavedChanges(true)
     },
-    [editor]
+    [editor, syncDraftIdInUrl]
   )
 
   const handleRestoreBackup = useCallback(() => {
@@ -510,6 +552,7 @@ export function WriteEditorWorkspace() {
 
       if (!articleId) {
         setArticleId(resultId)
+        syncDraftIdInUrl(resultId)
       }
 
       setPublishStatus({
@@ -537,6 +580,7 @@ export function WriteEditorWorkspace() {
     publishArticleMutation,
     createArticleMutation,
     editor,
+    syncDraftIdInUrl,
   ])
 
   const handleRequestDelete = useCallback(() => {
@@ -1072,16 +1116,18 @@ export function WriteEditorWorkspace() {
         </div>
       </div>
 
-      <ImageUploadDialog
-        isOpen={showCoverImageDialog}
-        title="Add Cover Image"
-        onImageSelect={(url) => {
-          setCoverImage(url)
-          setHasUnsavedChanges(true)
-          setShowCoverImageDialog(false)
-        }}
-        onClose={() => setShowCoverImageDialog(false)}
-      />
+      {showCoverImageDialog && (
+        <ImageUploadDialog
+          isOpen
+          title="Add Cover Image"
+          onImageSelect={(url) => {
+            setCoverImage(url)
+            setHasUnsavedChanges(true)
+            setShowCoverImageDialog(false)
+          }}
+          onClose={() => setShowCoverImageDialog(false)}
+        />
+      )}
 
       <AlertDialog
         open={publishConfirmOpen}

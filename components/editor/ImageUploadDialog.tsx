@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, type RefObject } from 'react'
+import { useState, useRef, useEffect, type RefObject } from 'react'
 import { Upload, Link2, Image as ImageIcon } from 'lucide-react'
 import {
   uploadFile,
@@ -42,6 +42,16 @@ export function ImageUploadDialog({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const convex = useConvex()
+  const urlInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!isOpen || uploadMethod !== 'url') return
+    urlInputRef.current?.focus()
+  }, [isOpen, uploadMethod])
+
+  if (!isOpen) {
+    return null
+  }
 
   const handleFileSelect = async (file: File) => {
     setError('')
@@ -340,6 +350,7 @@ export function ImageUploadDialog({
               ) : (
                 <>
                   <input
+                    ref={urlInputRef}
                     type="url"
                     placeholder="https://example.com/image.jpg"
                     value={imageUrl}
@@ -350,8 +361,6 @@ export function ImageUploadDialog({
                       }
                     }}
                     className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                    // eslint-disable-next-line jsx-a11y/no-autofocus -- focus first field when URL tab is chosen
-                    autoFocus
                   />
                   <button
                     type="button"
