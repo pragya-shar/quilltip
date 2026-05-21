@@ -28,10 +28,10 @@ describe('handleArticleHighlightOverlayPointerDown', () => {
     const closeCreatePopover = vi.fn()
     const closeDetailsPanel = vi.fn()
 
-    handleArticleHighlightOverlayPointerDown(
-      document.getElementById('close'),
-      { closeCreatePopover, closeDetailsPanel }
-    )
+    handleArticleHighlightOverlayPointerDown(document.getElementById('close'), {
+      closeCreatePopover,
+      closeDetailsPanel,
+    })
 
     expect(closeCreatePopover).not.toHaveBeenCalled()
     expect(closeDetailsPanel).not.toHaveBeenCalled()
