@@ -20,6 +20,22 @@ describe('handleArticleHighlightOverlayPointerDown', () => {
     expect(closeDetailsPanel).toHaveBeenCalledTimes(1)
   })
 
+  it('calls closeSignInPrompt when provided', () => {
+    document.body.innerHTML = `<p id="article-text">plain article text</p>`
+    const closeSignInPrompt = vi.fn()
+
+    handleArticleHighlightOverlayPointerDown(
+      document.getElementById('article-text'),
+      {
+        closeCreatePopover: vi.fn(),
+        closeDetailsPanel: vi.fn(),
+        closeSignInPrompt,
+      }
+    )
+
+    expect(closeSignInPrompt).toHaveBeenCalledTimes(1)
+  })
+
   it('does not dismiss when pressing inside an open dialog', () => {
     document.body.innerHTML = `
       <p id="article-text">plain article text</p>
