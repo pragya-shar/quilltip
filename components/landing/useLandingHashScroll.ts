@@ -5,7 +5,10 @@ import { scrollToLandingSection } from '@/lib/landing/scroll-to-section'
 
 const SECTION_WAIT_TIMEOUT_MS = 3000
 
-function scrollWhenAvailable(hash: string, timeoutMs = SECTION_WAIT_TIMEOUT_MS) {
+function scrollWhenAvailable(
+  hash: string,
+  timeoutMs = SECTION_WAIT_TIMEOUT_MS
+) {
   const normalized = hash.startsWith('#') ? hash : `#${hash}`
 
   if (document.querySelector(normalized)) {
