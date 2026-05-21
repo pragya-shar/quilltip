@@ -9,6 +9,7 @@ import {
   isValidImageSourceUrl,
   IMAGE_UPLOAD_FORMAT_HINT,
 } from '@/lib/upload'
+import { UPLOAD_CONTROL_FOCUS_RING } from '@/lib/constants'
 import { useConvex } from 'convex/react'
 import {
   Dialog,
@@ -22,10 +23,13 @@ import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
+const IMAGE_FILE_INPUT_ID = 'image-file-input'
 const IMAGE_URL_INPUT_ID = 'image-url-input'
 const IMAGE_URL_REQUIREMENTS_ID = 'image-url-requirements'
 const IMAGE_URL_ERROR_ID = 'image-url-error'
 const FILE_UPLOAD_ERROR_ID = 'file-upload-error'
+const FILE_UPLOAD_STATUS_ID = 'file-upload-status'
+const URL_UPLOAD_STATUS_ID = 'url-upload-status'
 
 interface ImageUploadDialogProps {
   onImageSelect: (url: string) => void
@@ -164,6 +168,7 @@ export function ImageUploadDialog({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (file) {
       void handleFileSelect(file)
     }
@@ -267,6 +272,22 @@ export function ImageUploadDialog({
     ? `${IMAGE_URL_REQUIREMENTS_ID} ${IMAGE_URL_ERROR_ID}`
     : IMAGE_URL_REQUIREMENTS_ID
 
+  const fileDropDescribedBy = [
+    fileError ? FILE_UPLOAD_ERROR_ID : null,
+    isUploading && uploadMethod === 'file' ? FILE_UPLOAD_STATUS_ID : null,
+  ]
+    .filter(Boolean)
+    .join(' ') || undefined
+
+  const fileProgressStatusText =
+    isUploading && uploadMethod === 'file'
+      ? `Uploading image, ${uploadProgress}% complete`
+      : ''
+
+  const urlProgressStatusText = isUploading
+    ? `Processing image from URL, ${uploadProgress}% complete`
+    : ''
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
@@ -323,10 +344,16 @@ export function ImageUploadDialog({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                aria-describedby={fileError ? FILE_UPLOAD_ERROR_ID : undefined}
+                aria-describedby={fileDropDescribedBy}
               >
                 {isUploading && uploadMethod === 'file' ? (
-                  <div className="space-y-3" role="status" aria-live="polite">
+                  <div
+                    className="space-y-3"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                    id={FILE_UPLOAD_STATUS_ID}
+                  >
                     <div className="w-12 h-12 bg-primary/15 rounded-full flex items-center justify-center mx-auto">
                       <Upload className="w-6 h-6 text-primary animate-pulse" />
                     </div>
@@ -335,7 +362,14 @@ export function ImageUploadDialog({
                         Optimizing and uploading...
                       </p>
                       <div className="mt-2">
-                        <div className="bg-muted rounded-full h-2">
+                        <div
+                          className="bg-muted rounded-full h-2"
+                          role="progressbar"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={uploadProgress}
+                          aria-label="Upload progress"
+                        >
                           <div
                             className="bg-primary h-2 rounded-full transition-all duration-300"
                             style={{ width: `${uploadProgress}%` }}
@@ -345,6 +379,7 @@ export function ImageUploadDialog({
                           {uploadProgress}%
                         </p>
                       </div>
+                      <p className="sr-only">{fileProgressStatusText}</p>
                     </div>
                   </div>
                 ) : (
@@ -354,18 +389,27 @@ export function ImageUploadDialog({
                     </div>
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        Drag and drop an image, or{' '}
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="text-primary hover:text-primary/80"
-                        >
-                          browse
-                        </button>
+                        Drag and drop an image here, or choose a file to upload.
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         {IMAGE_UPLOAD_FORMAT_HINT}
                       </p>
+                      <Label
+                        className={cn(
+                          'mt-3 inline-flex cursor-pointer rounded-md text-sm font-medium text-primary underline-offset-4 hover:text-primary/80 hover:underline',
+                          UPLOAD_CONTROL_FOCUS_RING
+                        )}
+                      >
+                        <input
+                          ref={fileInputRef}
+                          id={IMAGE_FILE_INPUT_ID}
+                          type="file"
+                          accept={IMAGE_ACCEPT}
+                          onChange={handleFileChange}
+                          className="sr-only"
+                        />
+                        Choose file
+                      </Label>
                     </div>
                   </div>
                 )}
@@ -380,19 +424,17 @@ export function ImageUploadDialog({
                   {fileError}
                 </p>
               ) : null}
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={IMAGE_ACCEPT}
-                onChange={handleFileChange}
-                className="hidden"
-              />
             </TabsContent>
 
             <TabsContent value="url" className="mt-0">
               {isUploading ? (
-                <div className="space-y-3" role="status" aria-live="polite">
+                <div
+                  className="space-y-3"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  id={URL_UPLOAD_STATUS_ID}
+                >
                   <div className="w-12 h-12 bg-primary/15 rounded-full flex items-center justify-center mx-auto">
                     <Upload className="w-6 h-6 text-primary animate-pulse" />
                   </div>
@@ -401,7 +443,14 @@ export function ImageUploadDialog({
                       Processing image from URL...
                     </p>
                     <div className="mt-2">
-                      <div className="bg-muted rounded-full h-2">
+                      <div
+                        className="bg-muted rounded-full h-2"
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={uploadProgress}
+                        aria-label="URL upload progress"
+                      >
                         <div
                           className="bg-primary h-2 rounded-full transition-all duration-300"
                           style={{ width: `${uploadProgress}%` }}
@@ -411,6 +460,7 @@ export function ImageUploadDialog({
                         {uploadProgress}%
                       </p>
                     </div>
+                    <p className="sr-only">{urlProgressStatusText}</p>
                   </div>
                 </div>
               ) : (
@@ -461,7 +511,10 @@ export function ImageUploadDialog({
                     type="button"
                     onClick={() => void handleUrlSubmit()}
                     disabled={isUploading}
-                    className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={cn(
+                      'w-full bg-primary text-primary-foreground py-2 px-4 rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed',
+                      UPLOAD_CONTROL_FOCUS_RING
+                    )}
                   >
                     Upload Image
                   </button>
