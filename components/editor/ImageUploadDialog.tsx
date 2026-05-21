@@ -272,12 +272,13 @@ export function ImageUploadDialog({
     ? `${IMAGE_URL_REQUIREMENTS_ID} ${IMAGE_URL_ERROR_ID}`
     : IMAGE_URL_REQUIREMENTS_ID
 
-  const fileDropDescribedBy = [
-    fileError ? FILE_UPLOAD_ERROR_ID : null,
-    isUploading && uploadMethod === 'file' ? FILE_UPLOAD_STATUS_ID : null,
-  ]
-    .filter(Boolean)
-    .join(' ') || undefined
+  const fileDropDescribedBy =
+    [
+      fileError ? FILE_UPLOAD_ERROR_ID : null,
+      isUploading && uploadMethod === 'file' ? FILE_UPLOAD_STATUS_ID : null,
+    ]
+      .filter(Boolean)
+      .join(' ') || undefined
 
   const fileProgressStatusText =
     isUploading && uploadMethod === 'file'

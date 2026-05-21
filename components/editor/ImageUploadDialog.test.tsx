@@ -11,11 +11,7 @@ vi.mock('convex/react', () => ({
 describe('ImageUploadDialog accessibility', () => {
   it('renders choose file control with focus ring utilities', () => {
     render(
-      <ImageUploadDialog
-        isOpen
-        onClose={vi.fn()}
-        onImageSelect={vi.fn()}
-      />
+      <ImageUploadDialog isOpen onClose={vi.fn()} onImageSelect={vi.fn()} />
     )
 
     const chooseFileLabel = screen.getByText('Choose file').closest('label')
@@ -27,11 +23,7 @@ describe('ImageUploadDialog accessibility', () => {
 
   it('mentions choosing a file in drag-and-drop instructions', () => {
     render(
-      <ImageUploadDialog
-        isOpen
-        onClose={vi.fn()}
-        onImageSelect={vi.fn()}
-      />
+      <ImageUploadDialog isOpen onClose={vi.fn()} onImageSelect={vi.fn()} />
     )
 
     expect(
@@ -43,11 +35,7 @@ describe('ImageUploadDialog accessibility', () => {
 
   it('nests sr-only file input inside the choose file label', () => {
     render(
-      <ImageUploadDialog
-        isOpen
-        onClose={vi.fn()}
-        onImageSelect={vi.fn()}
-      />
+      <ImageUploadDialog isOpen onClose={vi.fn()} onImageSelect={vi.fn()} />
     )
 
     const chooseFileLabel = screen.getByText('Choose file').closest('label')

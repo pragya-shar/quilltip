@@ -178,9 +178,7 @@ export function Editor({
           (progress) => {
             const pct = progress.percentage
             setUploadProgress(pct)
-            if (
-              shouldAnnounceProgress(lastAnnouncedProgressRef.current, pct)
-            ) {
+            if (shouldAnnounceProgress(lastAnnouncedProgressRef.current, pct)) {
               lastAnnouncedProgressRef.current = pct
               setUploadAnnouncement({
                 type: 'status',
@@ -278,7 +276,9 @@ export function Editor({
         aria-describedby={
           [
             uploadAnnouncement?.type === 'error' ? BODY_UPLOAD_ERROR_ID : null,
-            uploadAnnouncement?.type === 'status' ? BODY_UPLOAD_STATUS_ID : null,
+            uploadAnnouncement?.type === 'status'
+              ? BODY_UPLOAD_STATUS_ID
+              : null,
           ]
             .filter(Boolean)
             .join(' ') || undefined
@@ -358,13 +358,13 @@ export function Editor({
               : BODY_UPLOAD_STATUS_ID
           }
           role={uploadAnnouncement.type === 'error' ? 'alert' : 'status'}
-          aria-live={uploadAnnouncement.type === 'error' ? 'assertive' : 'polite'}
+          aria-live={
+            uploadAnnouncement.type === 'error' ? 'assertive' : 'polite'
+          }
           aria-atomic="true"
           className={cn(
             'text-xs',
-            uploadAnnouncement.type === 'error'
-              ? 'text-destructive'
-              : 'sr-only'
+            uploadAnnouncement.type === 'error' ? 'text-destructive' : 'sr-only'
           )}
         >
           {uploadAnnouncement.text}
