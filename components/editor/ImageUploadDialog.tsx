@@ -107,7 +107,9 @@ export function ImageUploadDialog({
 
     document.addEventListener('keydown', onDocumentKeyDown, { capture: true })
     return () =>
-      document.removeEventListener('keydown', onDocumentKeyDown, { capture: true })
+      document.removeEventListener('keydown', onDocumentKeyDown, {
+        capture: true,
+      })
   }, [open])
 
   const handleOpenChange = (nextOpen: boolean) => {
