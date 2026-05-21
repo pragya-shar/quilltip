@@ -207,13 +207,13 @@ export default function Navigation() {
   }, [])
 
   useEffect(() => {
-    if (!openDropdown) return
+    if (!openDropdown || isOpen) return
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpenDropdown(null)
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [openDropdown])
+  }, [openDropdown, isOpen])
 
   const handleSmoothScroll = (
     e: React.MouseEvent<HTMLAnchorElement>,

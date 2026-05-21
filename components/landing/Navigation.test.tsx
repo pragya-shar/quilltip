@@ -39,4 +39,32 @@ describe('Navigation mobile menu', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  it('closes the mobile sheet when opened with Enter and closed with Escape', async () => {
+    const user = userEvent.setup()
+    render(<Navigation />)
+
+    const trigger = screen.getByRole('button', { name: 'Toggle menu' })
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('returns focus to the menu trigger when closed with Escape', async () => {
+    const user = userEvent.setup()
+    render(<Navigation />)
+
+    const trigger = screen.getByRole('button', { name: 'Toggle menu' })
+
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
 })
