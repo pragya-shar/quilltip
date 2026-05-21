@@ -272,6 +272,10 @@ impl TippingContract {
         pausable::when_not_paused(&env);
         tipper.require_auth();
 
+        if tips.len() == 0 {
+            panic!("Batch tip input cannot be empty");
+        }
+
         let mut index = 0;
         while index < tips.len() {
             let tip = tips.get(index).unwrap();
@@ -567,6 +571,10 @@ impl TippingContract {
         pausable::when_not_paused(&env);
         tipper.require_auth();
 
+        if tips.len() == 0 {
+            panic!("Batch tip input cannot be empty");
+        }
+
         let mut index = 0;
         while index < tips.len() {
             let tip = tips.get(index).unwrap();
@@ -637,6 +645,16 @@ impl TippingContract {
                 &DataKey::HighlightTips(tip.highlight_id.clone()),
                 &highlight_tips,
             );
+
+            let total_volume: i128 = env
+                .storage()
+                .persistent()
+                .get(&DataKey::TotalVolume)
+                .unwrap_or(0);
+
+            env.storage()
+                .persistent()
+                .set(&DataKey::TotalVolume, &(total_volume + tip.amount));
 
             let receipt = TipReceipt {
                 tip_id: new_tip_id,
@@ -1266,6 +1284,7 @@ mod test {
         assert_eq!(client.get_balance(&author_one), 975_000);
         assert_eq!(client.get_balance(&author_two), 1_950_000);
         assert_eq!(client.get_balance(&platform), 75_000);
+        assert_eq!(client.get_total_volume(), 3_000_000);
 
         let highlight_one_tips = client.get_highlight_tips(&highlight_one);
         assert_eq!(highlight_one_tips.len(), 1);
@@ -1377,6 +1396,37 @@ mod test {
 
     #[test]
     #[should_panic(expected = "Error(Contract, #1000)")]
+    fn test_paused_batch_tip_articles_fails() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let token_address = register_xlm_token(&env);
+
+        let contract_id = env.register(TippingContract, ());
+        let client = TippingContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let platform = Address::generate(&env);
+        let tipper = Address::generate(&env);
+        let author = Address::generate(&env);
+
+        client.initialize(&admin, &platform, &token_address, &Some(250));
+        client.pause(&admin);
+
+        client.batch_tip(
+            &tipper,
+            &vec![
+                &env,
+                ArticleTipInput {
+                    article_id: symbol_short!("article1"),
+                    author,
+                    amount: 1_000_000,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Error(Contract, #1000)")]
     fn test_paused_batch_tip_highlights_fails() {
         let env = Env::default();
         env.mock_all_auths();
@@ -1405,6 +1455,44 @@ mod test {
                 },
             ],
         );
+    }
+
+    #[test]
+    #[should_panic(expected = "Batch tip input cannot be empty")]
+    fn test_empty_batch_tip_articles_fails_clearly() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let token_address = register_xlm_token(&env);
+
+        let contract_id = env.register(TippingContract, ());
+        let client = TippingContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let platform = Address::generate(&env);
+        let tipper = Address::generate(&env);
+
+        client.initialize(&admin, &platform, &token_address, &Some(250));
+
+        client.batch_tip(&tipper, &vec![&env]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Batch tip input cannot be empty")]
+    fn test_empty_batch_tip_highlights_fails_clearly() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let token_address = register_xlm_token(&env);
+
+        let contract_id = env.register(TippingContract, ());
+        let client = TippingContractClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let platform = Address::generate(&env);
+        let tipper = Address::generate(&env);
+
+        client.initialize(&admin, &platform, &token_address, &Some(250));
+
+        client.batch_tip_highlights(&tipper, &vec![&env]);
     }
 
     #[test]
