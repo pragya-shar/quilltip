@@ -15,8 +15,7 @@ export const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/webp',
 ])
 
-export const IMAGE_UPLOAD_FORMAT_HINT =
-  'PNG, JPG, GIF, or WEBP up to 10MB'
+export const IMAGE_UPLOAD_FORMAT_HINT = 'PNG, JPG, GIF, or WEBP up to 10MB'
 
 export function isValidImageSourceUrl(value: string): boolean {
   try {
