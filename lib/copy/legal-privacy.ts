@@ -88,7 +88,7 @@ export const privacySections: LegalSection[] = [
     id: 'international',
     title: '10. International users',
     paragraphs: [
-      'If you access the Service from outside the United States, you understand that information may be processed in the United States or other countries where our providers operate, which may have different data protection rules than your jurisdiction.',
+      'If you access the Service from outside India, you understand that information may be processed in India or other countries where our providers operate, which may have different data protection rules than your jurisdiction.',
     ],
   },
   {
