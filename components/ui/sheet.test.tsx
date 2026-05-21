@@ -13,11 +13,7 @@ function TestSheet() {
     <>
       <button type="button">Behind</button>
       <Sheet open={open} onOpenChange={setOpen}>
-        <button
-          ref={triggerRef}
-          type="button"
-          onClick={() => setOpen(true)}
-        >
+        <button ref={triggerRef} type="button" onClick={() => setOpen(true)}>
           Open menu
         </button>
         <SheetContent
