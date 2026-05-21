@@ -679,10 +679,7 @@ export function WriteEditorWorkspace() {
           (progress) => {
             const pct = progress.percentage
             if (
-              shouldAnnounceProgress(
-                coverLastAnnouncedProgressRef.current,
-                pct
-              )
+              shouldAnnounceProgress(coverLastAnnouncedProgressRef.current, pct)
             ) {
               coverLastAnnouncedProgressRef.current = pct
               setCoverUploadAnnouncement({
@@ -810,10 +807,7 @@ export function WriteEditorWorkspace() {
             const pct = progress.percentage
             setBodyImageUploadProgress(pct)
             if (
-              shouldAnnounceProgress(
-                bodyLastAnnouncedProgressRef.current,
-                pct
-              )
+              shouldAnnounceProgress(bodyLastAnnouncedProgressRef.current, pct)
             ) {
               bodyLastAnnouncedProgressRef.current = pct
               setBodyUploadAnnouncement({
