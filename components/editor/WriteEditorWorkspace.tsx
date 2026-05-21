@@ -1144,7 +1144,7 @@ export function WriteEditorWorkspace() {
 
       {showCoverImageDialog && (
         <ImageUploadDialog
-          isOpen
+          isOpen={showCoverImageDialog}
           title="Add Cover Image"
           triggerRef={coverImage ? coverChangeButtonRef : undefined}
           onImageSelect={(url) => {
