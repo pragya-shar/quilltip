@@ -64,6 +64,9 @@ import { getWriteUrlWithDraftId } from '@/lib/writeDraftUrl'
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const EXCERPT_MAX_CHARS = 500
 
+const coverControlFocusRing =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
 type NavConfirmState = null | { kind: 'href'; href: string } | { kind: 'back' }
@@ -119,6 +122,7 @@ export function WriteEditorWorkspace() {
   const [excerptOpen, setExcerptOpen] = useState(false)
   const excerptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const tagsInputRef = useRef<HTMLInputElement>(null)
+  const coverChangeButtonRef = useRef<HTMLButtonElement>(null)
   const [publishStatus, setPublishStatus] = useState<{
     published: boolean
     publishedAt: Date | null
@@ -837,7 +841,14 @@ export function WriteEditorWorkspace() {
                 document
                   .getElementById('field-cover-image')
                   ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                if (!coverImage) setShowCoverImageDialog(true)
+                if (coverImage) {
+                  window.setTimeout(
+                    () => coverChangeButtonRef.current?.focus(),
+                    0
+                  )
+                } else {
+                  setShowCoverImageDialog(true)
+                }
               }}
               onFocusTitle={() => {
                 const el = document.getElementById(
@@ -871,7 +882,11 @@ export function WriteEditorWorkspace() {
         <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
           <div id="field-cover-image" className="mb-4">
             {coverImage ? (
-              <div className="group relative h-56 w-full overflow-hidden rounded-xl sm:h-72">
+              <div
+                className="group relative h-56 w-full overflow-hidden rounded-xl sm:h-72"
+                role="group"
+                aria-label="Cover image"
+              >
                 <Image
                   src={coverImage}
                   alt="Article cover"
@@ -879,11 +894,23 @@ export function WriteEditorWorkspace() {
                   sizes="(max-width: 768px) 100vw, 896px"
                   className="object-cover"
                 />
-                <div className="absolute inset-0 flex items-center justify-center gap-3 bg-black/0 opacity-0 transition-colors group-hover:bg-black/30 group-hover:opacity-100">
+                <div
+                  className={cn(
+                    'absolute inset-0 flex items-center justify-center gap-3 bg-black/30 opacity-100 transition-colors',
+                    '[@media(hover:hover)_and_(pointer:fine)]:bg-black/0 [@media(hover:hover)_and_(pointer:fine)]:opacity-0',
+                    'group-hover:bg-black/30 group-hover:opacity-100',
+                    'group-focus-within:bg-black/30 group-focus-within:opacity-100'
+                  )}
+                >
                   <button
+                    ref={coverChangeButtonRef}
                     type="button"
                     onClick={() => setShowCoverImageDialog(true)}
-                    className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow hover:bg-muted"
+                    aria-label="Change cover image"
+                    className={cn(
+                      'rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow hover:bg-muted',
+                      coverControlFocusRing
+                    )}
                   >
                     Change
                   </button>
@@ -893,7 +920,11 @@ export function WriteEditorWorkspace() {
                       setCoverImage('')
                       setHasUnsavedChanges(true)
                     }}
-                    className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-destructive shadow hover:bg-destructive/10"
+                    aria-label="Remove cover image"
+                    className={cn(
+                      'rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-destructive shadow hover:bg-destructive/10',
+                      coverControlFocusRing
+                    )}
                   >
                     Remove
                   </button>
@@ -903,6 +934,7 @@ export function WriteEditorWorkspace() {
               <div
                 role="button"
                 tabIndex={0}
+                aria-label="Add cover image"
                 onClick={() => setShowCoverImageDialog(true)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -1114,6 +1146,7 @@ export function WriteEditorWorkspace() {
         <ImageUploadDialog
           isOpen
           title="Add Cover Image"
+          triggerRef={coverImage ? coverChangeButtonRef : undefined}
           onImageSelect={(url) => {
             setCoverImage(url)
             setHasUnsavedChanges(true)
