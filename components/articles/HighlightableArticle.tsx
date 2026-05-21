@@ -240,13 +240,7 @@ export function HighlightableArticle({
         }
       },
     },
-    [
-      showHighlights,
-      highlightsActive,
-      signInPromptActive,
-      editable,
-      articleId,
-    ]
+    [showHighlights, highlightsActive, signInPromptActive, editable, articleId]
   )
 
   useEffect(() => {
@@ -421,10 +415,7 @@ export function HighlightableArticle({
       <EditorContent editor={editor} />
 
       <AnimatePresence>
-        {highlightsActive &&
-          popoverPosition &&
-          selectedText &&
-          article && (
+        {highlightsActive && popoverPosition && selectedText && article && (
           <HighlightPopover
             position={popoverPosition}
             onCreateHighlight={handleCreateHighlight}
