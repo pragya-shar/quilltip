@@ -24,7 +24,7 @@ import { useArticleById } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
 import { toast } from 'sonner'
 import Image from 'next/image'
-import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { EDITOR_PROSE_CLASS, UPLOAD_CONTROL_FOCUS_RING } from '@/lib/constants'
 import { mutationWithTimeout } from '@/lib/convexMutationWithTimeout'
 import {
   Collapsible,
@@ -64,8 +64,18 @@ import { getWriteUrlWithDraftId } from '@/lib/writeDraftUrl'
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const EXCERPT_MAX_CHARS = 500
 
-const coverControlFocusRing =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+const COVER_FILE_INPUT_ID = 'cover-image-file-input'
+const BODY_FILE_INPUT_ID = 'body-image-file-input'
+const COVER_UPLOAD_ERROR_ID = 'cover-upload-error'
+const COVER_UPLOAD_STATUS_ID = 'cover-upload-status'
+const BODY_UPLOAD_ERROR_ID = 'body-upload-error'
+const BODY_UPLOAD_STATUS_ID = 'body-upload-status'
+
+type UploadAnnouncement = { type: 'status' | 'error'; text: string }
+
+function shouldAnnounceProgress(last: number, next: number): boolean {
+  return next === 0 || next >= 100 || next - last >= 25
+}
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
@@ -110,6 +120,10 @@ export function WriteEditorWorkspace() {
   const [bodyImageDragging, setBodyImageDragging] = useState(false)
   const [bodyImageUploading, setBodyImageUploading] = useState(false)
   const [bodyImageUploadProgress, setBodyImageUploadProgress] = useState(0)
+  const [coverUploadAnnouncement, setCoverUploadAnnouncement] =
+    useState<UploadAnnouncement | null>(null)
+  const [bodyUploadAnnouncement, setBodyUploadAnnouncement] =
+    useState<UploadAnnouncement | null>(null)
   const [isPublishing, setIsPublishing] = useState(false)
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
@@ -123,6 +137,10 @@ export function WriteEditorWorkspace() {
   const excerptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const tagsInputRef = useRef<HTMLInputElement>(null)
   const coverChangeButtonRef = useRef<HTMLButtonElement>(null)
+  const coverFileInputRef = useRef<HTMLInputElement>(null)
+  const bodyFileInputRef = useRef<HTMLInputElement>(null)
+  const coverLastAnnouncedProgressRef = useRef(-1)
+  const bodyLastAnnouncedProgressRef = useRef(-1)
   const [publishStatus, setPublishStatus] = useState<{
     published: boolean
     publishedAt: Date | null
@@ -624,17 +642,14 @@ export function WriteEditorWorkspace() {
     }
   }, [])
 
-  const handleCoverPlaceholderDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setCoverDropActive(false)
-
-      const file = e.dataTransfer.files?.[0]
-      if (!file) return
+  const uploadCoverFromFile = useCallback(
+    async (file: File) => {
+      setCoverUploadAnnouncement(null)
+      coverLastAnnouncedProgressRef.current = -1
 
       const validation = validateImageUploadFile(file)
       if (!validation.ok) {
+        setCoverUploadAnnouncement({ type: 'error', text: validation.error })
         toast.error(validation.error)
         return
       }
@@ -644,6 +659,11 @@ export function WriteEditorWorkspace() {
       coverUploadAbortRef.current = controller
 
       setCoverDropUploading(true)
+      setCoverUploadAnnouncement({
+        type: 'status',
+        text: 'Uploading cover image',
+      })
+
       try {
         const compressedFile = await compressImage(
           file,
@@ -656,25 +676,46 @@ export function WriteEditorWorkspace() {
           convex,
           'article_image',
           undefined,
-          undefined,
+          (progress) => {
+            const pct = progress.percentage
+            if (
+              shouldAnnounceProgress(
+                coverLastAnnouncedProgressRef.current,
+                pct
+              )
+            ) {
+              coverLastAnnouncedProgressRef.current = pct
+              setCoverUploadAnnouncement({
+                type: 'status',
+                text: `Uploading cover image, ${pct}% complete`,
+              })
+            }
+          },
           controller.signal
         )
         if (result.success && result.url) {
           setCoverImage(result.url)
           setHasUnsavedChanges(true)
+          setCoverUploadAnnouncement({
+            type: 'status',
+            text: 'Cover image uploaded',
+          })
         } else {
-          toast.error(result.error || 'Upload failed')
+          const message = result.error || 'Upload failed'
+          setCoverUploadAnnouncement({ type: 'error', text: message })
+          toast.error(message)
         }
       } catch (err) {
         if (isAbortError(err)) {
           return
         }
-        console.error('Cover drop upload error:', err)
-        toast.error(
+        console.error('Cover upload error:', err)
+        const message =
           err instanceof Error
             ? err.message
             : 'Upload failed. Please try again.'
-        )
+        setCoverUploadAnnouncement({ type: 'error', text: message })
+        toast.error(message)
       } finally {
         if (coverUploadAbortRef.current === controller) {
           coverUploadAbortRef.current = null
@@ -684,6 +725,35 @@ export function WriteEditorWorkspace() {
     },
     [convex]
   )
+
+  const handleCoverPlaceholderDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setCoverDropActive(false)
+
+      const file = e.dataTransfer.files?.[0]
+      if (!file) return
+
+      await uploadCoverFromFile(file)
+    },
+    [uploadCoverFromFile]
+  )
+
+  const handleCoverFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = ''
+      if (file) {
+        void uploadCoverFromFile(file)
+      }
+    },
+    [uploadCoverFromFile]
+  )
+
+  const openCoverFilePicker = useCallback(() => {
+    coverFileInputRef.current?.click()
+  }, [])
 
   const handleBodyEditorDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -698,6 +768,94 @@ export function WriteEditorWorkspace() {
       setBodyImageDragging(false)
     }
   }, [])
+
+  const uploadBodyImageFromFile = useCallback(
+    async (file: File) => {
+      if (!editor) return
+
+      setBodyUploadAnnouncement(null)
+      bodyLastAnnouncedProgressRef.current = -1
+
+      const validation = validateImageUploadFile(file)
+      if (!validation.ok) {
+        setBodyUploadAnnouncement({ type: 'error', text: validation.error })
+        toast.error(validation.error)
+        return
+      }
+
+      bodyUploadAbortRef.current?.abort()
+      const controller = new AbortController()
+      bodyUploadAbortRef.current = controller
+
+      setBodyImageUploading(true)
+      setBodyImageUploadProgress(0)
+      setBodyUploadAnnouncement({
+        type: 'status',
+        text: 'Uploading image',
+      })
+
+      try {
+        const compressedFile = await compressImage(
+          file,
+          1200,
+          0.8,
+          controller.signal
+        )
+        const result = await uploadFile(
+          compressedFile,
+          convex,
+          'article_image',
+          undefined,
+          (progress) => {
+            const pct = progress.percentage
+            setBodyImageUploadProgress(pct)
+            if (
+              shouldAnnounceProgress(
+                bodyLastAnnouncedProgressRef.current,
+                pct
+              )
+            ) {
+              bodyLastAnnouncedProgressRef.current = pct
+              setBodyUploadAnnouncement({
+                type: 'status',
+                text: `Uploading image, ${pct}% complete`,
+              })
+            }
+          },
+          controller.signal
+        )
+
+        if (result.success && result.url) {
+          editor.chain().focus().setResizableImage({ src: result.url }).run()
+          setBodyUploadAnnouncement({
+            type: 'status',
+            text: 'Image added to article',
+          })
+        } else {
+          const message = result.error || 'Upload failed'
+          setBodyUploadAnnouncement({ type: 'error', text: message })
+          toast.error(message)
+        }
+      } catch (err) {
+        if (isAbortError(err)) {
+          return
+        }
+        console.error('Error uploading image:', err)
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Upload failed. Please try again.'
+        setBodyUploadAnnouncement({ type: 'error', text: message })
+        toast.error(message)
+      } finally {
+        if (bodyUploadAbortRef.current === controller) {
+          bodyUploadAbortRef.current = null
+        }
+        setBodyImageUploading(false)
+      }
+    },
+    [convex, editor]
+  )
 
   const handleBodyEditorDrop = useCallback(
     async (e: React.DragEvent) => {
@@ -714,60 +872,20 @@ export function WriteEditorWorkspace() {
       const file = imageFiles[0]
       if (!file) return
 
-      const validation = validateImageUploadFile(file)
-      if (!validation.ok) {
-        toast.error(validation.error)
-        return
-      }
+      await uploadBodyImageFromFile(file)
+    },
+    [editor, uploadBodyImageFromFile]
+  )
 
-      bodyUploadAbortRef.current?.abort()
-      const controller = new AbortController()
-      bodyUploadAbortRef.current = controller
-
-      setBodyImageUploading(true)
-      setBodyImageUploadProgress(0)
-
-      try {
-        const compressedFile = await compressImage(
-          file,
-          1200,
-          0.8,
-          controller.signal
-        )
-        const result = await uploadFile(
-          compressedFile,
-          convex,
-          'article_image',
-          undefined,
-          (progress) => {
-            setBodyImageUploadProgress(progress.percentage)
-          },
-          controller.signal
-        )
-
-        if (result.success && result.url) {
-          editor.chain().focus().setResizableImage({ src: result.url }).run()
-        } else {
-          toast.error(result.error || 'Upload failed')
-        }
-      } catch (err) {
-        if (isAbortError(err)) {
-          return
-        }
-        console.error('Error uploading dropped image:', err)
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Upload failed. Please try again.'
-        )
-      } finally {
-        if (bodyUploadAbortRef.current === controller) {
-          bodyUploadAbortRef.current = null
-        }
-        setBodyImageUploading(false)
+  const handleBodyFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = ''
+      if (file) {
+        void uploadBodyImageFromFile(file)
       }
     },
-    [convex, editor]
+    [uploadBodyImageFromFile]
   )
 
   const confirmLeaveNavigation = useCallback(() => {
@@ -909,7 +1027,7 @@ export function WriteEditorWorkspace() {
                     aria-label="Change cover image"
                     className={cn(
                       'rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow hover:bg-muted',
-                      coverControlFocusRing
+                      UPLOAD_CONTROL_FOCUS_RING
                     )}
                   >
                     Change
@@ -923,7 +1041,7 @@ export function WriteEditorWorkspace() {
                     aria-label="Remove cover image"
                     className={cn(
                       'rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-destructive shadow hover:bg-destructive/10',
-                      coverControlFocusRing
+                      UPLOAD_CONTROL_FOCUS_RING
                     )}
                   >
                     Remove
@@ -931,48 +1049,119 @@ export function WriteEditorWorkspace() {
                 </div>
               </div>
             ) : (
-              <div
-                role="button"
-                tabIndex={0}
-                aria-label="Add cover image"
-                onClick={() => setShowCoverImageDialog(true)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    setShowCoverImageDialog(true)
+              <div className="space-y-2">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Add cover image. Drag an image here, or choose a file."
+                  aria-describedby={
+                    [
+                      coverUploadAnnouncement?.type === 'error'
+                        ? COVER_UPLOAD_ERROR_ID
+                        : null,
+                      coverUploadAnnouncement?.type === 'status'
+                        ? COVER_UPLOAD_STATUS_ID
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' ') || undefined
                   }
-                }}
-                onDragOver={handleCoverPlaceholderDragOver}
-                onDragLeave={handleCoverPlaceholderDragLeave}
-                onDrop={handleCoverPlaceholderDrop}
-                className={cn(
-                  'group flex h-28 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary',
-                  coverDropActive &&
-                    'border-primary bg-primary/15 text-primary',
-                  coverDropUploading && 'pointer-events-none opacity-70'
-                )}
-              >
-                <svg
-                  className="h-5 w-5 shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden
+                  onClick={openCoverFilePicker}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      openCoverFilePicker()
+                    }
+                  }}
+                  onDragOver={handleCoverPlaceholderDragOver}
+                  onDragLeave={handleCoverPlaceholderDragLeave}
+                  onDrop={handleCoverPlaceholderDrop}
+                  className={cn(
+                    'group flex h-28 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary',
+                    UPLOAD_CONTROL_FOCUS_RING,
+                    coverDropActive &&
+                      'border-primary bg-primary/15 text-primary',
+                    coverDropUploading && 'pointer-events-none opacity-70'
+                  )}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-                <span className="text-sm font-medium">
-                  {coverDropUploading
-                    ? 'Uploading…'
-                    : coverDropActive
-                      ? 'Drop image to set cover'
-                      : 'Add cover image'}
-                </span>
+                  <svg
+                    className="h-5 w-5 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <span className="text-sm font-medium">
+                    {coverDropUploading
+                      ? 'Uploading…'
+                      : coverDropActive
+                        ? 'Drop image to set cover'
+                        : 'Drag an image here, or choose a file'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label
+                    className={cn(
+                      'inline-flex cursor-pointer text-sm font-medium text-primary underline-offset-4 hover:text-primary/80 hover:underline',
+                      UPLOAD_CONTROL_FOCUS_RING
+                    )}
+                  >
+                    <input
+                      ref={coverFileInputRef}
+                      id={COVER_FILE_INPUT_ID}
+                      type="file"
+                      accept="image/png,image/jpeg,image/gif,image/webp"
+                      className="sr-only"
+                      onChange={handleCoverFileChange}
+                    />
+                    Choose file
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCoverImageDialog(true)}
+                    className={cn(
+                      'text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline',
+                      UPLOAD_CONTROL_FOCUS_RING
+                    )}
+                  >
+                    Paste image URL
+                  </button>
+                </div>
+                {coverUploadAnnouncement ? (
+                  <p
+                    id={
+                      coverUploadAnnouncement.type === 'error'
+                        ? COVER_UPLOAD_ERROR_ID
+                        : COVER_UPLOAD_STATUS_ID
+                    }
+                    role={
+                      coverUploadAnnouncement.type === 'error'
+                        ? 'alert'
+                        : 'status'
+                    }
+                    aria-live={
+                      coverUploadAnnouncement.type === 'error'
+                        ? 'assertive'
+                        : 'polite'
+                    }
+                    aria-atomic="true"
+                    className={cn(
+                      'text-xs',
+                      coverUploadAnnouncement.type === 'error'
+                        ? 'text-destructive'
+                        : 'sr-only'
+                    )}
+                  >
+                    {coverUploadAnnouncement.text}
+                  </p>
+                ) : null}
               </div>
             )}
           </div>
@@ -1069,53 +1258,128 @@ export function WriteEditorWorkspace() {
           </div>
 
           {editor && (
-            <div
-              className={cn(
-                'relative min-h-[400px] rounded-[var(--card-radius)] border border-transparent transition-colors',
-                bodyImageDragging && 'border-primary bg-primary/10',
-                bodyImageUploading && 'pointer-events-none'
-              )}
-              onDragOver={handleBodyEditorDragOver}
-              onDragLeave={handleBodyEditorDragLeave}
-              onDrop={handleBodyEditorDrop}
-            >
-              <EditorContent
-                editor={editor}
-                className="editor-content min-h-[400px]"
-              />
+            <div className="space-y-2">
+              <div
+                className={cn(
+                  'relative min-h-[400px] rounded-[var(--card-radius)] border border-transparent transition-colors',
+                  bodyImageDragging && 'border-primary bg-primary/10',
+                  bodyImageUploading && 'pointer-events-none'
+                )}
+                onDragOver={handleBodyEditorDragOver}
+                onDragLeave={handleBodyEditorDragLeave}
+                onDrop={handleBodyEditorDrop}
+                aria-describedby={
+                  [
+                    bodyUploadAnnouncement?.type === 'error'
+                      ? BODY_UPLOAD_ERROR_ID
+                      : null,
+                    bodyUploadAnnouncement?.type === 'status'
+                      ? BODY_UPLOAD_STATUS_ID
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' ') || undefined
+                }
+              >
+                <EditorContent
+                  editor={editor}
+                  className="editor-content min-h-[400px]"
+                />
 
-              {bodyImageDragging && (
-                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--card-radius)] border-2 border-dashed border-primary bg-primary/15">
-                  <div className="text-center">
-                    <div className="mb-2 text-lg font-medium text-primary">
-                      Drop image here
-                    </div>
-                    <div className="text-sm text-primary/80">
-                      Release to add to article
+                {bodyImageDragging && (
+                  <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--card-radius)] border-2 border-dashed border-primary bg-primary/15">
+                    <div className="text-center">
+                      <div className="mb-2 text-lg font-medium text-primary">
+                        Drop image here to add it
+                      </div>
+                      <div className="text-sm text-primary/80">
+                        or choose a file below
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {bodyImageUploading && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[var(--card-radius)] bg-card/90">
-                  <div className="text-center">
-                    <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
-                    <div className="text-sm text-muted-foreground">
-                      Optimizing and uploading image...
-                    </div>
-                    <div className="mx-auto mt-2 h-2 w-48 rounded-full bg-muted">
+                {bodyImageUploading && (
+                  <div
+                    className="absolute inset-0 z-20 flex items-center justify-center rounded-[var(--card-radius)] bg-card/90"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
+                    <div className="text-center">
+                      <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+                      <div className="text-sm text-muted-foreground">
+                        Optimizing and uploading image...
+                      </div>
                       <div
-                        className="h-2 rounded-full bg-primary transition-all duration-300"
-                        style={{ width: `${bodyImageUploadProgress}%` }}
-                      />
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {bodyImageUploadProgress}%
+                        className="mx-auto mt-2 h-2 w-48 rounded-full bg-muted"
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={bodyImageUploadProgress}
+                        aria-label="Image upload progress"
+                      >
+                        <div
+                          className="h-2 rounded-full bg-primary transition-all duration-300"
+                          style={{ width: `${bodyImageUploadProgress}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {bodyImageUploadProgress}%
+                      </div>
+                      {bodyUploadAnnouncement?.type === 'status' ? (
+                        <p className="sr-only">{bodyUploadAnnouncement.text}</p>
+                      ) : null}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label
+                  className={cn(
+                    'inline-flex cursor-pointer text-sm font-medium text-primary underline-offset-4 hover:text-primary/80 hover:underline',
+                    UPLOAD_CONTROL_FOCUS_RING
+                  )}
+                >
+                  <input
+                    ref={bodyFileInputRef}
+                    id={BODY_FILE_INPUT_ID}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    className="sr-only"
+                    onChange={handleBodyFileChange}
+                  />
+                  Choose image file
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  You can also insert an image from the toolbar.
+                </p>
+              </div>
+              {bodyUploadAnnouncement &&
+              !bodyImageUploading &&
+              bodyUploadAnnouncement.type === 'error' ? (
+                <p
+                  id={BODY_UPLOAD_ERROR_ID}
+                  role="alert"
+                  aria-live="assertive"
+                  aria-atomic="true"
+                  className="text-xs text-destructive"
+                >
+                  {bodyUploadAnnouncement.text}
+                </p>
+              ) : bodyUploadAnnouncement &&
+                !bodyImageUploading &&
+                bodyUploadAnnouncement.type === 'status' ? (
+                <p
+                  id={BODY_UPLOAD_STATUS_ID}
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  className="sr-only"
+                >
+                  {bodyUploadAnnouncement.text}
+                </p>
+              ) : null}
             </div>
           )}
 
