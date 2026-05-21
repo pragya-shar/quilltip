@@ -227,8 +227,18 @@ export default function ResizableImageComponent({
     <NodeViewWrapper className="resizable-image-wrapper">
       <div
         ref={wrapperRef}
-        role="group"
-        tabIndex={selected ? 0 : -1}
+        role={selected ? 'slider' : 'group'}
+        aria-orientation={selected ? 'horizontal' : undefined}
+        aria-valuemin={selected ? MIN_WIDTH : undefined}
+        aria-valuemax={selected ? MAX_WIDTH : undefined}
+        aria-valuenow={
+          selected
+            ? Math.round(
+                typeof currentSize.width === 'number' ? currentSize.width : 400
+              )
+            : undefined
+        }
+        {...(selected ? { tabIndex: 0 } : {})}
         aria-label={
           selected
             ? 'Selected image. Use arrow keys to resize, or Tab to size presets and description.'
