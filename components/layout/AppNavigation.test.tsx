@@ -57,4 +57,53 @@ describe('AppNavigation mobile menu', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  it('closes the dialog when opened with Enter and closed with Escape', async () => {
+    const user = userEvent.setup()
+    render(<AppNavigation />)
+
+    const trigger = screen.getByRole('button', { name: 'Toggle menu' })
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('keeps focus inside the dialog when tabbing', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <button type="button">Behind</button>
+        <AppNavigation />
+      </>
+    )
+
+    const behind = screen.getByRole('button', { name: 'Behind' })
+
+    await user.click(screen.getByRole('button', { name: 'Toggle menu' }))
+    const dialog = screen.getByRole('dialog')
+
+    for (let i = 0; i < 12; i++) {
+      await user.tab()
+      expect(behind).not.toHaveFocus()
+      expect(dialog.contains(document.activeElement)).toBe(true)
+    }
+  })
+
+  it('returns focus to the menu trigger when closed with Escape', async () => {
+    const user = userEvent.setup()
+    render(<AppNavigation />)
+
+    const trigger = screen.getByRole('button', { name: 'Toggle menu' })
+
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
 })
