@@ -22,6 +22,7 @@ import { AnimatePresence } from 'motion/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { toast } from 'sonner'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { handleArticleHighlightOverlayPointerDown } from '@/lib/highlights/articleOverlayPointerDismiss'
 import { getRangeBoundingBox } from '@/lib/highlights/utils'
 import type { TocHeading } from '@/lib/tiptap/headings'
 import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
@@ -242,12 +243,14 @@ export function HighlightableArticle({
     if (!container || editable || !showHighlights) return
 
     const handlePointerDown = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as HTMLElement | null
-      // Ignore events from an open popover/dialog so their buttons still click.
-      if (target?.closest('[role="dialog"]')) return
-      isDraggingRef.current = true
-      setSelectedText(null)
-      setPopoverPosition(null)
+      handleArticleHighlightOverlayPointerDown(e.target, {
+        closeCreatePopover: () => {
+          isDraggingRef.current = true
+          setSelectedText(null)
+          setPopoverPosition(null)
+        },
+        closeDetailsPanel: () => setHighlightTooltip(null),
+      })
     }
 
     const handlePointerUp = () => {
@@ -344,20 +347,6 @@ export function HighlightableArticle({
     setHighlightTooltip(null)
     editor?.commands.focus()
   }, [editor])
-
-  useEffect(() => {
-    if (highlightTooltip === null) return
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      e.preventDefault()
-      e.stopPropagation()
-      handleTooltipClose()
-    }
-
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [highlightTooltip, handleTooltipClose])
 
   return (
     <div
