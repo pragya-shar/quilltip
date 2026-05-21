@@ -119,8 +119,7 @@ export default function ResizableImageComponent({
       setIsResizing(true)
       setPointerStart({
         x: e.clientX,
-        width:
-          typeof currentSize.width === 'number' ? currentSize.width : 400,
+        width: typeof currentSize.width === 'number' ? currentSize.width : 400,
       })
     },
     [currentSize.width]
@@ -150,7 +149,8 @@ export default function ResizableImageComponent({
 
   const handleKeyboardResize = useCallback(
     (direction: 'decrease' | 'increase') => {
-      const delta = direction === 'increase' ? KEYBOARD_RESIZE_STEP : -KEYBOARD_RESIZE_STEP
+      const delta =
+        direction === 'increase' ? KEYBOARD_RESIZE_STEP : -KEYBOARD_RESIZE_STEP
       const next = applyWidthDelta(delta)
       commitSize(next)
     },

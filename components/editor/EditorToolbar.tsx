@@ -154,10 +154,7 @@ export function EditorToolbar({
   const isMobile = useIsMobile()
   const isLinkActive = editor?.isActive('link') ?? false
   const visibleKeys = getVisibleToolbarKeys(isMobile, isLinkActive)
-  const effectiveActiveKey = resolveActiveToolbarKey(
-    activeItemKey,
-    visibleKeys
-  )
+  const effectiveActiveKey = resolveActiveToolbarKey(activeItemKey, visibleKeys)
 
   const tabIndexFor = (key: string) => (key === effectiveActiveKey ? 0 : -1)
 
@@ -337,9 +334,7 @@ export function EditorToolbar({
 
   const focusEdge = (which: 'start' | 'end') => {
     const nextKey =
-      which === 'start'
-        ? visibleKeys[0]
-        : visibleKeys[visibleKeys.length - 1]
+      which === 'start' ? visibleKeys[0] : visibleKeys[visibleKeys.length - 1]
     if (!nextKey) return
     setActiveItemKey(nextKey)
     focusToolbarKey(nextKey)
@@ -398,269 +393,188 @@ export function EditorToolbar({
       >
         <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:thin]">
           <div className="inline-flex min-h-[44px] flex-nowrap items-center gap-0.5 justify-start">
-          {/* Paragraph / style dropdown */}
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-              <button
-                onMouseDown={(e) => e.preventDefault()}
-                data-toolbar-item="true"
-                data-toolbar-key="heading"
-                tabIndex={tabIndexFor('heading')}
-                className={`flex items-center gap-1.5 px-2.5 py-2 rounded hover:bg-muted text-foreground text-sm shrink-0 ${focusRing}`}
-              >
-                <Type className="w-4 h-4 shrink-0" />
-                <span>{getCurrentHeading()}</span>
-                <ChevronDown className="w-3.5 h-3.5 opacity-70 shrink-0" />
-              </button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50">
-                {headingOptions.map((option) => (
-                  <DropdownMenu.Item
-                    key={option.level}
-                    onSelect={option.command}
-                    className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none"
-                  >
-                    {option.label}
-                  </DropdownMenu.Item>
-                ))}
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
+            {/* Paragraph / style dropdown */}
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  data-toolbar-item="true"
+                  data-toolbar-key="heading"
+                  tabIndex={tabIndexFor('heading')}
+                  className={`flex items-center gap-1.5 px-2.5 py-2 rounded hover:bg-muted text-foreground text-sm shrink-0 ${focusRing}`}
+                >
+                  <Type className="w-4 h-4 shrink-0" />
+                  <span>{getCurrentHeading()}</span>
+                  <ChevronDown className="w-3.5 h-3.5 opacity-70 shrink-0" />
+                </button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50">
+                  {headingOptions.map((option) => (
+                    <DropdownMenu.Item
+                      key={option.level}
+                      onSelect={option.command}
+                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none"
+                    >
+                      {option.label}
+                    </DropdownMenu.Item>
+                  ))}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
 
-          <ToolbarDivider />
+            <ToolbarDivider />
 
-          {/* B I U */}
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBold().run()}
-            isActive={editor.isActive('bold')}
-            title={`Bold (${shortcut('B')})`}
-            tabIndex={tabIndexFor('bold')}
-            onFocus={() => setActiveItemKey('bold')}
-            toolbarKey="bold"
-          >
-            <Bold className="w-4 h-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleItalic().run()}
-            isActive={editor.isActive('italic')}
-            title={`Italic (${shortcut('I')})`}
-            tabIndex={tabIndexFor('italic')}
-            onFocus={() => setActiveItemKey('italic')}
-            toolbarKey="italic"
-          >
-            <Italic className="w-4 h-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleUnderline().run()}
-            isActive={editor.isActive('underline')}
-            title="Underline"
-            tabIndex={tabIndexFor('underline')}
-            onFocus={() => setActiveItemKey('underline')}
-            toolbarKey="underline"
-          >
-            <Underline className="w-4 h-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleStrike().run()}
-            isActive={editor.isActive('strike')}
-            title="Strikethrough"
-            tabIndex={tabIndexFor('strike')}
-            onFocus={() => setActiveItemKey('strike')}
-            toolbarKey="strike"
-          >
-            <Strikethrough className="w-4 h-4" />
-          </ToolbarButton>
-
-          {/* Quote */}
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            isActive={editor.isActive('blockquote')}
-            title="Blockquote"
-            tabIndex={tabIndexFor('blockquote')}
-            onFocus={() => setActiveItemKey('blockquote')}
-            toolbarKey="blockquote"
-          >
-            <Quote className="w-4 h-4" />
-          </ToolbarButton>
-
-          <ToolbarDivider />
-
-          {/* Code block, lists */}
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-            isActive={editor.isActive('codeBlock')}
-            title="Code block"
-            tabIndex={tabIndexFor('codeBlock')}
-            onFocus={() => setActiveItemKey('codeBlock')}
-            toolbarKey="codeBlock"
-          >
-            <Code className="w-4 h-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            isActive={editor.isActive('orderedList')}
-            title="Numbered list"
-            tabIndex={tabIndexFor('orderedList')}
-            onFocus={() => setActiveItemKey('orderedList')}
-            toolbarKey="orderedList"
-          >
-            <ListOrdered className="w-4 h-4" />
-          </ToolbarButton>
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBulletList().run()}
-            isActive={editor.isActive('bulletList')}
-            title="Bullet list"
-            tabIndex={tabIndexFor('bulletList')}
-            onFocus={() => setActiveItemKey('bulletList')}
-            toolbarKey="bulletList"
-          >
-            <List className="w-4 h-4" />
-          </ToolbarButton>
-
-          <ToolbarDivider className="hidden md:block" />
-
-          {/* Alignment — md+ only */}
-          <div className="hidden md:contents">
+            {/* B I U */}
             <ToolbarButton
-              onClick={() => setTextAlign('left')}
-              isActive={editor.isActive({ textAlign: 'left' })}
-              title="Align left"
-              tabIndex={tabIndexFor('alignLeft')}
-              onFocus={() => setActiveItemKey('alignLeft')}
-              toolbarKey="alignLeft"
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              isActive={editor.isActive('bold')}
+              title={`Bold (${shortcut('B')})`}
+              tabIndex={tabIndexFor('bold')}
+              onFocus={() => setActiveItemKey('bold')}
+              toolbarKey="bold"
             >
-              <AlignLeft className="w-4 h-4" />
+              <Bold className="w-4 h-4" />
             </ToolbarButton>
             <ToolbarButton
-              onClick={() => setTextAlign('center')}
-              isActive={editor.isActive({ textAlign: 'center' })}
-              title="Align center"
-              tabIndex={tabIndexFor('alignCenter')}
-              onFocus={() => setActiveItemKey('alignCenter')}
-              toolbarKey="alignCenter"
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              isActive={editor.isActive('italic')}
+              title={`Italic (${shortcut('I')})`}
+              tabIndex={tabIndexFor('italic')}
+              onFocus={() => setActiveItemKey('italic')}
+              toolbarKey="italic"
             >
-              <AlignCenter className="w-4 h-4" />
+              <Italic className="w-4 h-4" />
             </ToolbarButton>
             <ToolbarButton
-              onClick={() => setTextAlign('right')}
-              isActive={editor.isActive({ textAlign: 'right' })}
-              title="Align right"
-              tabIndex={tabIndexFor('alignRight')}
-              onFocus={() => setActiveItemKey('alignRight')}
-              toolbarKey="alignRight"
+              onClick={() => editor.chain().focus().toggleUnderline().run()}
+              isActive={editor.isActive('underline')}
+              title="Underline"
+              tabIndex={tabIndexFor('underline')}
+              onFocus={() => setActiveItemKey('underline')}
+              toolbarKey="underline"
             >
-              <AlignRight className="w-4 h-4" />
+              <Underline className="w-4 h-4" />
             </ToolbarButton>
             <ToolbarButton
-              onClick={() => setTextAlign('justify')}
-              isActive={editor.isActive({ textAlign: 'justify' })}
-              title="Justify"
-              tabIndex={tabIndexFor('alignJustify')}
-              onFocus={() => setActiveItemKey('alignJustify')}
-              toolbarKey="alignJustify"
+              onClick={() => editor.chain().focus().toggleStrike().run()}
+              isActive={editor.isActive('strike')}
+              title="Strikethrough"
+              tabIndex={tabIndexFor('strike')}
+              onFocus={() => setActiveItemKey('strike')}
+              toolbarKey="strike"
             >
-              <AlignJustify className="w-4 h-4" />
+              <Strikethrough className="w-4 h-4" />
+            </ToolbarButton>
+
+            {/* Quote */}
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleBlockquote().run()}
+              isActive={editor.isActive('blockquote')}
+              title="Blockquote"
+              tabIndex={tabIndexFor('blockquote')}
+              onFocus={() => setActiveItemKey('blockquote')}
+              toolbarKey="blockquote"
+            >
+              <Quote className="w-4 h-4" />
             </ToolbarButton>
 
             <ToolbarDivider />
-          </div>
 
-          {/* Add - dropdown: Article Title, Cover Image URL, Excerpt, Tags */}
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger asChild>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                data-toolbar-item="true"
-                data-toolbar-key="add"
-                tabIndex={tabIndexFor('add')}
-                className={`p-2 rounded hover:bg-muted text-foreground transition-colors cursor-pointer shrink-0 ${focusRing}`}
-                title="Add"
-                aria-label="Add"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Portal>
-              <DropdownMenu.Content
-                className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50 min-w-[200px]"
-                sideOffset={4}
-                align="start"
-              >
-                <DropdownMenu.Item
-                  onSelect={() => onFocusCoverImage?.()}
-                  className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                >
-                  <Image className="w-4 h-4 shrink-0" />
-                  Cover Image
-                </DropdownMenu.Item>
-                <DropdownMenu.Item
-                  onSelect={() => onFocusTitle?.()}
-                  className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                >
-                  <Type className="w-4 h-4 shrink-0" />
-                  Article Title
-                </DropdownMenu.Item>
-                <DropdownMenu.Item
-                  onSelect={() => onFocusExcerpt?.()}
-                  className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                >
-                  <FileText className="w-4 h-4 shrink-0" />
-                  Article Excerpt
-                </DropdownMenu.Item>
-                <DropdownMenu.Item
-                  onSelect={() => onFocusTags?.()}
-                  className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                >
-                  <Tag className="w-4 h-4 shrink-0" />
-                  Tags
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Portal>
-          </DropdownMenu.Root>
+            {/* Code block, lists */}
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+              isActive={editor.isActive('codeBlock')}
+              title="Code block"
+              tabIndex={tabIndexFor('codeBlock')}
+              onFocus={() => setActiveItemKey('codeBlock')}
+              toolbarKey="codeBlock"
+            >
+              <Code className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              isActive={editor.isActive('orderedList')}
+              title="Numbered list"
+              tabIndex={tabIndexFor('orderedList')}
+              onFocus={() => setActiveItemKey('orderedList')}
+              toolbarKey="orderedList"
+            >
+              <ListOrdered className="w-4 h-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              isActive={editor.isActive('bulletList')}
+              title="Bullet list"
+              tabIndex={tabIndexFor('bulletList')}
+              onFocus={() => setActiveItemKey('bulletList')}
+              toolbarKey="bulletList"
+            >
+              <List className="w-4 h-4" />
+            </ToolbarButton>
 
-          {/* Link */}
-          <div ref={linkAnchorRef} className="relative shrink-0">
-            {editor.isActive('link') ? (
+            <ToolbarDivider className="hidden md:block" />
+
+            {/* Alignment — md+ only */}
+            <div className="hidden md:contents">
               <ToolbarButton
-                onClick={removeLink}
-                isActive
-                title={`Remove link (${shortcut('K')})`}
-                tabIndex={tabIndexFor('linkRemove')}
-                onFocus={() => setActiveItemKey('linkRemove')}
-                toolbarKey="linkRemove"
+                onClick={() => setTextAlign('left')}
+                isActive={editor.isActive({ textAlign: 'left' })}
+                title="Align left"
+                tabIndex={tabIndexFor('alignLeft')}
+                onFocus={() => setActiveItemKey('alignLeft')}
+                toolbarKey="alignLeft"
               >
-                <Link2 className="w-4 h-4" />
+                <AlignLeft className="w-4 h-4" />
               </ToolbarButton>
-            ) : (
               <ToolbarButton
-                onClick={() => setShowLinkInput(!showLinkInput)}
-                title={`Insert link (${shortcut('K')})`}
-                tabIndex={tabIndexFor('linkInsert')}
-                onFocus={() => setActiveItemKey('linkInsert')}
-                toolbarKey="linkInsert"
+                onClick={() => setTextAlign('center')}
+                isActive={editor.isActive({ textAlign: 'center' })}
+                title="Align center"
+                tabIndex={tabIndexFor('alignCenter')}
+                onFocus={() => setActiveItemKey('alignCenter')}
+                toolbarKey="alignCenter"
               >
-                <Link2 className="w-4 h-4" />
+                <AlignCenter className="w-4 h-4" />
               </ToolbarButton>
-            )}
-          </div>
+              <ToolbarButton
+                onClick={() => setTextAlign('right')}
+                isActive={editor.isActive({ textAlign: 'right' })}
+                title="Align right"
+                tabIndex={tabIndexFor('alignRight')}
+                onFocus={() => setActiveItemKey('alignRight')}
+                toolbarKey="alignRight"
+              >
+                <AlignRight className="w-4 h-4" />
+              </ToolbarButton>
+              <ToolbarButton
+                onClick={() => setTextAlign('justify')}
+                isActive={editor.isActive({ textAlign: 'justify' })}
+                title="Justify"
+                tabIndex={tabIndexFor('alignJustify')}
+                onFocus={() => setActiveItemKey('alignJustify')}
+                toolbarKey="alignJustify"
+              >
+                <AlignJustify className="w-4 h-4" />
+              </ToolbarButton>
 
-          {/* More: alignment, image, YouTube on small screens */}
-          <div className="md:hidden shrink-0">
+              <ToolbarDivider />
+            </div>
+
+            {/* Add - dropdown: Article Title, Cover Image URL, Excerpt, Tags */}
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   data-toolbar-item="true"
-                  data-toolbar-key="more"
-                  tabIndex={tabIndexFor('more')}
+                  data-toolbar-key="add"
+                  tabIndex={tabIndexFor('add')}
                   className={`p-2 rounded hover:bg-muted text-foreground transition-colors cursor-pointer shrink-0 ${focusRing}`}
-                  title="More formatting"
-                  aria-label="More formatting"
+                  title="Add"
+                  aria-label="Add"
                 >
-                  <MoreHorizontal className="w-4 h-4" />
+                  <Plus className="w-4 h-4" />
                 </button>
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
@@ -669,82 +583,163 @@ export function EditorToolbar({
                   sideOffset={4}
                   align="start"
                 >
-                  <DropdownMenu.Label className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                    Alignment
-                  </DropdownMenu.Label>
                   <DropdownMenu.Item
-                    onSelect={() => setTextAlign('left')}
-                    className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                  >
-                    <AlignLeft className="w-4 h-4 shrink-0" />
-                    Align left
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item
-                    onSelect={() => setTextAlign('center')}
-                    className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                  >
-                    <AlignCenter className="w-4 h-4 shrink-0" />
-                    Align center
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item
-                    onSelect={() => setTextAlign('right')}
-                    className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                  >
-                    <AlignRight className="w-4 h-4 shrink-0" />
-                    Align right
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item
-                    onSelect={() => setTextAlign('justify')}
-                    className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                  >
-                    <AlignJustify className="w-4 h-4 shrink-0" />
-                    Justify
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Separator className="h-px bg-border my-1" />
-                  <DropdownMenu.Item
-                    onSelect={() => setShowImageDialog(true)}
-                    className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                    onSelect={() => onFocusCoverImage?.()}
+                    className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
                   >
                     <Image className="w-4 h-4 shrink-0" />
-                    Insert image
+                    Cover Image
                   </DropdownMenu.Item>
                   <DropdownMenu.Item
-                    onSelect={() => setShowYouTubeDialog(true)}
-                    className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                    onSelect={() => onFocusTitle?.()}
+                    className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
                   >
-                    <Youtube className="w-4 h-4 shrink-0" />
-                    Embed YouTube
+                    <Type className="w-4 h-4 shrink-0" />
+                    Article Title
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    onSelect={() => onFocusExcerpt?.()}
+                    className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                  >
+                    <FileText className="w-4 h-4 shrink-0" />
+                    Article Excerpt
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    onSelect={() => onFocusTags?.()}
+                    className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                  >
+                    <Tag className="w-4 h-4 shrink-0" />
+                    Tags
                   </DropdownMenu.Item>
                 </DropdownMenu.Content>
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
-          </div>
 
-          {/* Image */}
-          <ToolbarButton
-            ref={imageDialogTriggerRef}
-            onClick={() => setShowImageDialog(true)}
-            title="Insert image"
-            className="hidden md:inline-flex"
-            tabIndex={tabIndexFor('image')}
-            onFocus={() => setActiveItemKey('image')}
-            toolbarKey="image"
-          >
-            <Image className="w-4 h-4" />
-          </ToolbarButton>
+            {/* Link */}
+            <div ref={linkAnchorRef} className="relative shrink-0">
+              {editor.isActive('link') ? (
+                <ToolbarButton
+                  onClick={removeLink}
+                  isActive
+                  title={`Remove link (${shortcut('K')})`}
+                  tabIndex={tabIndexFor('linkRemove')}
+                  onFocus={() => setActiveItemKey('linkRemove')}
+                  toolbarKey="linkRemove"
+                >
+                  <Link2 className="w-4 h-4" />
+                </ToolbarButton>
+              ) : (
+                <ToolbarButton
+                  onClick={() => setShowLinkInput(!showLinkInput)}
+                  title={`Insert link (${shortcut('K')})`}
+                  tabIndex={tabIndexFor('linkInsert')}
+                  onFocus={() => setActiveItemKey('linkInsert')}
+                  toolbarKey="linkInsert"
+                >
+                  <Link2 className="w-4 h-4" />
+                </ToolbarButton>
+              )}
+            </div>
 
-          {/* YouTube embed */}
-          <ToolbarButton
-            ref={youtubeDialogTriggerRef}
-            onClick={() => setShowYouTubeDialog(true)}
-            title="Embed YouTube video"
-            className="hidden md:inline-flex"
-            tabIndex={tabIndexFor('youtube')}
-            onFocus={() => setActiveItemKey('youtube')}
-            toolbarKey="youtube"
-          >
-            <Youtube className="w-4 h-4" />
-          </ToolbarButton>
+            {/* More: alignment, image, YouTube on small screens */}
+            <div className="md:hidden shrink-0">
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    data-toolbar-item="true"
+                    data-toolbar-key="more"
+                    tabIndex={tabIndexFor('more')}
+                    className={`p-2 rounded hover:bg-muted text-foreground transition-colors cursor-pointer shrink-0 ${focusRing}`}
+                    title="More formatting"
+                    aria-label="More formatting"
+                  >
+                    <MoreHorizontal className="w-4 h-4" />
+                  </button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50 min-w-[200px]"
+                    sideOffset={4}
+                    align="start"
+                  >
+                    <DropdownMenu.Label className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                      Alignment
+                    </DropdownMenu.Label>
+                    <DropdownMenu.Item
+                      onSelect={() => setTextAlign('left')}
+                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                    >
+                      <AlignLeft className="w-4 h-4 shrink-0" />
+                      Align left
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onSelect={() => setTextAlign('center')}
+                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                    >
+                      <AlignCenter className="w-4 h-4 shrink-0" />
+                      Align center
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onSelect={() => setTextAlign('right')}
+                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                    >
+                      <AlignRight className="w-4 h-4 shrink-0" />
+                      Align right
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onSelect={() => setTextAlign('justify')}
+                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                    >
+                      <AlignJustify className="w-4 h-4 shrink-0" />
+                      Justify
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Separator className="h-px bg-border my-1" />
+                    <DropdownMenu.Item
+                      onSelect={() => setShowImageDialog(true)}
+                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                    >
+                      <Image className="w-4 h-4 shrink-0" />
+                      Insert image
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item
+                      onSelect={() => setShowYouTubeDialog(true)}
+                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+                    >
+                      <Youtube className="w-4 h-4 shrink-0" />
+                      Embed YouTube
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+            </div>
+
+            {/* Image */}
+            <ToolbarButton
+              ref={imageDialogTriggerRef}
+              onClick={() => setShowImageDialog(true)}
+              title="Insert image"
+              className="hidden md:inline-flex"
+              tabIndex={tabIndexFor('image')}
+              onFocus={() => setActiveItemKey('image')}
+              toolbarKey="image"
+            >
+              <Image className="w-4 h-4" />
+            </ToolbarButton>
+
+            {/* YouTube embed */}
+            <ToolbarButton
+              ref={youtubeDialogTriggerRef}
+              onClick={() => setShowYouTubeDialog(true)}
+              title="Embed YouTube video"
+              className="hidden md:inline-flex"
+              tabIndex={tabIndexFor('youtube')}
+              onFocus={() => setActiveItemKey('youtube')}
+              toolbarKey="youtube"
+            >
+              <Youtube className="w-4 h-4" />
+            </ToolbarButton>
           </div>
         </div>
 
@@ -761,29 +756,29 @@ export function EditorToolbar({
               onClick={() => setShowNotes(!showNotes)}
               onFocus={() => setActiveItemKey('notes')}
             >
-            <FileText className="w-4 h-4" />
-            Notes
-          </button>
-          {showNotes && (
-            <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 w-72">
-              <div className="px-3 py-2 border-b border-border">
-                <p className="text-xs font-medium text-muted-foreground">
-                  Personal Notes
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground/80 leading-snug">
-                  Private planning notes for you only. They are saved with this
-                  draft and are not published with your article.
-                </p>
+              <FileText className="w-4 h-4" />
+              Notes
+            </button>
+            {showNotes && (
+              <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 w-72">
+                <div className="px-3 py-2 border-b border-border">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Personal Notes
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground/80 leading-snug">
+                    Private planning notes for you only. They are saved with
+                    this draft and are not published with your article.
+                  </p>
+                </div>
+                <textarea
+                  value={notes}
+                  onChange={(e) => onNotesChange?.(e.target.value)}
+                  placeholder="Jot down ideas, reminders, or notes..."
+                  className="w-full p-3 text-sm text-foreground bg-popover placeholder:text-muted-foreground resize-none focus:outline-none rounded-b-lg"
+                  rows={6}
+                />
               </div>
-              <textarea
-                value={notes}
-                onChange={(e) => onNotesChange?.(e.target.value)}
-                placeholder="Jot down ideas, reminders, or notes..."
-                className="w-full p-3 text-sm text-foreground bg-popover placeholder:text-muted-foreground resize-none focus:outline-none rounded-b-lg"
-                rows={6}
-              />
-            </div>
-          )}
+            )}
           </div>
         </div>
       </div>

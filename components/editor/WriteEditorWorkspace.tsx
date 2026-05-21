@@ -392,13 +392,7 @@ export function WriteEditorWorkspace() {
       setEditorContent(draft.content)
     }
     setHasUnsavedChanges(false)
-  }, [
-    draft,
-    editor,
-    backupRecoveryStatus,
-    backupPrompt,
-    syncDraftIdInUrl,
-  ])
+  }, [draft, editor, backupRecoveryStatus, backupPrompt, syncDraftIdInUrl])
 
   const applyDraftBackup = useCallback(
     (backup: DraftBackup) => {

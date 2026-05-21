@@ -14,7 +14,8 @@ export function parseNumericAttr(
   value: string | number | null | undefined
 ): number | null {
   if (value == null || value === '') return null
-  const n = typeof value === 'number' ? value : Number.parseInt(String(value), 10)
+  const n =
+    typeof value === 'number' ? value : Number.parseInt(String(value), 10)
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
@@ -107,8 +108,7 @@ export const ResizableImage = Node.create<ImageOptions>({
       },
       width: {
         default: null,
-        parseHTML: (element) =>
-          parseNumericAttr(element.getAttribute('width')),
+        parseHTML: (element) => parseNumericAttr(element.getAttribute('width')),
         renderHTML: (attributes) => {
           const width = parseNumericAttr(attributes.width)
           if (width == null) return {}
