@@ -6,6 +6,7 @@ import { Highlighter, MessageSquare, Lock, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { HighlightTipButton } from './HighlightTipButton'
 import { Id } from '@/convex/_generated/dataModel'
+import { useAuth } from '@/components/providers/AuthContext'
 
 interface HighlightPopoverProps {
   position: { top: number; left: number }
@@ -73,6 +74,7 @@ export function HighlightPopover({
   startOffset,
   endOffset,
 }: HighlightPopoverProps) {
+  const { isAuthenticated } = useAuth()
   const [selectedColor, setSelectedColor] = useState(
     PREMIUM_HIGHLIGHT_COLORS[0]?.value || '#F59E0B'
   )
@@ -145,105 +147,113 @@ export function HighlightPopover({
           {selectedText.length > 150 ? '...' : ''}&rdquo;
         </div>
 
-        {/* Color Picker */}
-        <div className="mb-4">
-          <div className="text-xs font-medium text-muted-foreground mb-2">
-            Choose Highlight Color
-          </div>
-          <div className="color-picker-container">
-            {PREMIUM_HIGHLIGHT_COLORS.map((color) => (
+        {isAuthenticated && (
+          <>
+            <div className="mb-4">
+              <div className="text-xs font-medium text-muted-foreground mb-2">
+                Choose Highlight Color
+              </div>
+              <div className="color-picker-container">
+                {PREMIUM_HIGHLIGHT_COLORS.map((color) => (
+                  <button
+                    key={color.value}
+                    onClick={() => handleColorSelect(color.value)}
+                    className={cn(
+                      'color-picker-button',
+                      selectedColor === color.value && 'selected'
+                    )}
+                    style={{
+                      background: `linear-gradient(135deg, ${color.value}, ${color.value}dd)`,
+                    }}
+                    aria-label={`Select ${color.name} highlight`}
+                  >
+                    <div className="color-tooltip">
+                      <div className="font-medium">{color.name}</div>
+                      <div className="text-xs opacity-80">
+                        {color.description}
+                      </div>
+                      <div className="color-tooltip-arrow" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 mb-3">
               <button
-                key={color.value}
-                onClick={() => handleColorSelect(color.value)}
+                onClick={() => setShowNoteInput(!showNoteInput)}
                 className={cn(
-                  'color-picker-button',
-                  selectedColor === color.value && 'selected'
+                  'highlight-action-button flex items-center gap-2',
+                  'bg-muted hover:bg-muted/80 text-foreground',
+                  showNoteInput && 'bg-muted/90'
                 )}
-                style={{
-                  background: `linear-gradient(135deg, ${color.value}, ${color.value}dd)`,
-                }}
-                aria-label={`Select ${color.name} highlight`}
               >
-                <div className="color-tooltip">
-                  <div className="font-medium">{color.name}</div>
-                  <div className="text-xs opacity-80">{color.description}</div>
-                  <div className="color-tooltip-arrow" />
-                </div>
+                <MessageSquare className="w-4 h-4" />
+                <span>Add Note</span>
               </button>
-            ))}
-          </div>
-        </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 mb-3">
-          <button
-            onClick={() => setShowNoteInput(!showNoteInput)}
-            className={cn(
-              'highlight-action-button flex items-center gap-2',
-              'bg-muted hover:bg-muted/80 text-foreground',
-              showNoteInput && 'bg-muted/90'
+              <button
+                onClick={() => setIsPublic(!isPublic)}
+                className="privacy-toggle"
+              >
+                {isPublic ? (
+                  <>
+                    <Globe className="w-4 h-4 text-green-800 dark:text-green-300" />
+                    <span className="text-sm text-foreground">Public</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm text-foreground">Private</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Note Input */}
+            {showNoteInput && (
+              <div className="mb-3">
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Add a note to your highlight..."
+                  className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent resize-none"
+                  rows={3}
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                />
+              </div>
             )}
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>Add Note</span>
-          </button>
-
-          <button
-            onClick={() => setIsPublic(!isPublic)}
-            className="privacy-toggle"
-          >
-            {isPublic ? (
-              <>
-                <Globe className="w-4 h-4 text-green-800 dark:text-green-300" />
-                <span className="text-sm text-foreground">Public</span>
-              </>
-            ) : (
-              <>
-                <Lock className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-foreground">Private</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Note Input */}
-        {showNoteInput && (
-          <div className="mb-3">
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Add a note to your highlight..."
-              className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent resize-none"
-              rows={3}
-              // eslint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus
-            />
-          </div>
+          </>
         )}
 
-        {/* Action Buttons Section */}
         <div className="pt-3 border-t border-border">
           <div className="text-xs font-medium text-muted-foreground mb-3 text-center">
-            Save highlight{' '}
-            {articleId &&
-              articleSlug &&
-              authorStellarAddress &&
-              startOffset !== undefined &&
-              endOffset !== undefined &&
-              'or tip the author'}
+            {isAuthenticated
+              ? `Save highlight${
+                  articleId &&
+                  articleSlug &&
+                  authorStellarAddress &&
+                  startOffset !== undefined &&
+                  endOffset !== undefined
+                    ? ' or tip the author'
+                    : ''
+                }`
+              : 'Tip the author for this selection'}
           </div>
 
           <div className="flex gap-2 mb-3">
-            {/* Save Highlight Button */}
-            <button
-              onClick={handleSaveHighlight}
-              className="highlight-action-button flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 flex items-center justify-center"
-            >
-              <Highlighter className="w-4 h-4 mr-2" />
-              <span>Save</span>
-            </button>
+            {isAuthenticated && (
+              <button
+                onClick={handleSaveHighlight}
+                className="highlight-action-button flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 flex items-center justify-center"
+              >
+                <Highlighter className="w-4 h-4 mr-2" />
+                <span>Save</span>
+              </button>
+            )}
 
-            {/* Tip Highlight Button - Show if article data is available */}
             {articleId &&
               articleSlug &&
               authorStellarAddress &&
@@ -258,15 +268,18 @@ export function HighlightPopover({
                   startOffset={startOffset}
                   endOffset={endOffset}
                   className="flex-1"
-                  onSuccess={() => {
-                    // Create highlight with selected settings, then close
-                    onCreateHighlight(
-                      selectedColor,
-                      note || undefined,
-                      isPublic
-                    )
-                    onClose()
-                  }}
+                  onSuccess={
+                    isAuthenticated
+                      ? () => {
+                          onCreateHighlight(
+                            selectedColor,
+                            note || undefined,
+                            isPublic
+                          )
+                          onClose()
+                        }
+                      : undefined
+                  }
                 />
               )}
           </div>

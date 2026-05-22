@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { useWalletActivation } from '@/components/providers/WalletActivationContext'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AlertCircle, Coins, Heart, Loader2, Wallet } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
@@ -50,6 +50,9 @@ import {
   type TipFailureMessage,
 } from '@/lib/stellar/tip-error-messages'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { redirectToLoginForTip } from '@/lib/tip/redirectToLoginForTip'
+import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
+import { clearPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 
 interface HighlightTipButtonProps {
   articleId: Id<'articles'>
@@ -63,6 +66,9 @@ interface HighlightTipButtonProps {
   endContainerPath?: string
   className?: string
   onSuccess?: () => void
+  resumeOpen?: boolean
+  resumeAmountCents?: number
+  resumeCustomAmount?: string
 }
 
 export function HighlightTipButton({
@@ -77,12 +83,17 @@ export function HighlightTipButton({
   endContainerPath,
   className = '',
   onSuccess,
+  resumeOpen = false,
+  resumeAmountCents,
+  resumeCustomAmount,
 }: HighlightTipButtonProps) {
   const { isAuthenticated } = useAuth()
   const { isConnected, publicKey, signTransaction, connect } = useWallet()
   const { activateWallet } = useWalletActivation()
   const router = useRouter()
-  const [isOpen, setIsOpen] = useState(false)
+  const pathname = usePathname()
+  const [isOpen, setIsOpen] = useState(resumeOpen)
+  const resumedRef = useRef(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
@@ -102,6 +113,21 @@ export function HighlightTipButton({
     })
   }, [])
 
+  useEffect(() => {
+    if (!resumeOpen || resumedRef.current) return
+    resumedRef.current = true
+    applyPendingAmountFields(
+      {
+        amountCents: resumeAmountCents,
+        customAmount: resumeCustomAmount,
+      },
+      setSelectedAmount,
+      setCustomAmount
+    )
+    activateWallet()
+    setIsOpen(true)
+  }, [resumeOpen, resumeAmountCents, resumeCustomAmount, activateWallet])
+
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
     if (open) {
@@ -116,9 +142,32 @@ export function HighlightTipButton({
   }
 
   const handleTip = async () => {
+    const amountCents = selectedAmount || parseFloat(customAmount) * 100
+
+    if (!amountCents || amountCents < TIP_MIN_CENTS) {
+      toast.error('Please select or enter a valid amount')
+      return
+    }
+
+    if (amountCents > TIP_MAX_CENTS) {
+      toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(2)}`)
+      return
+    }
+
     if (!isAuthenticated) {
       toast.error('Please sign in to send tips')
-      router.push('/login')
+      redirectToLoginForTip(router, pathname, {
+        kind: 'highlight',
+        articleId: articleId,
+        articleSlug,
+        highlightText,
+        startOffset,
+        endOffset,
+        ...(startContainerPath ? { startContainerPath } : {}),
+        ...(endContainerPath ? { endContainerPath } : {}),
+        ...(selectedAmount != null ? { amountCents: selectedAmount } : {}),
+        ...(customAmount ? { customAmount } : {}),
+      })
       return
     }
 
@@ -129,18 +178,6 @@ export function HighlightTipButton({
 
     if (!authorStellarAddress) {
       toast.error('Author has not set up their Stellar wallet yet')
-      return
-    }
-
-    const amountCents = selectedAmount || parseFloat(customAmount) * 100
-
-    if (!amountCents || amountCents < TIP_MIN_CENTS) {
-      toast.error('Please select or enter a valid amount')
-      return
-    }
-
-    if (amountCents > TIP_MAX_CENTS) {
-      toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(2)}`)
       return
     }
 
@@ -212,6 +249,7 @@ export function HighlightTipButton({
         authorShare: transactionData.authorReceived,
       })
 
+      clearPendingTipIntent()
       setTipFailure(null)
       setIsOpen(false)
       setSelectedAmount(null)

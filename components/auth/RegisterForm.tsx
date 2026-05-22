@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { mapRegisterSignInError } from '@/lib/auth/map-register-error'
@@ -29,6 +30,7 @@ export default function RegisterForm() {
   const [success, setSuccess] = useState(false)
 
   const router = useRouter()
+  const returnPath = useAuthReturnPath()
   const { signIn } = useAuth()
 
   const {
@@ -54,7 +56,7 @@ export default function RegisterForm() {
 
       setSuccess(true)
       // Use replace to prevent back button returning to register
-      router.replace('/')
+      router.replace(returnPath)
     } catch (error) {
       setError(mapRegisterSignInError(error))
       setIsLoading(false)
