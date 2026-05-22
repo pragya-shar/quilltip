@@ -16,8 +16,7 @@ vi.mock('motion/react', () => ({
 }))
 
 describe('FAQSection accordion accessibility', () => {
-  const firstQuestion =
-    'What is Quilltip and what problem does it solve?'
+  const firstQuestion = 'What is Quilltip and what problem does it solve?'
   const secondQuestion = 'Do I need cryptocurrency to read articles?'
 
   function getTrigger(name: string) {

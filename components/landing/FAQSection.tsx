@@ -47,8 +47,7 @@ const faqs = [
       "Reading articles: completely free, no wallet needed. Tipping writers: pay only the Stellar network fee (0.05 XLM, less than $0.01) plus your chosen tip amount. Publishing articles: free, no hosting fees or subscriptions. Minting article NFTs: requires reaching a tip threshold (currently 10 XLM in total tips received), then pay minimal Stellar network fee for minting (approximately 0.05 XLM). Editing published articles: free, unlimited edits. When you update an article that's been minted as an NFT, the blockchain preserves the original version while displaying your latest edits to readers.",
   },
   {
-    question:
-      'What barriers prevent mainstream users from adopting Quilltip?',
+    question: 'What barriers prevent mainstream users from adopting Quilltip?',
     answer:
       "Currently requires a Stellar wallet to tip or publish, which can intimidate non-crypto users. We're addressing this by: (1) Supporting four popular wallets through Stellar Wallet Kit for maximum compatibility, (2) Providing wallet setup guides and testnet XLM for new users, (3) Making all articles readable without any wallet, (4) Planning USDC support so users can tip with stablecoins instead of volatile XLM. Future roadmap includes social login options and custodial wallet integration.",
   },
