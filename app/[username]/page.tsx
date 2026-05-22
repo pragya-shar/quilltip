@@ -23,6 +23,18 @@ interface ProfilePageProps {
 
 type TabType = 'articles' | 'nfts' | 'earnings' | 'stats' | 'wallet'
 
+const PROFILE_TAB_IDS: TabType[] = [
+  'articles',
+  'nfts',
+  'wallet',
+  'earnings',
+  'stats',
+]
+
+function isProfileTab(value: string | null): value is TabType {
+  return value !== null && PROFILE_TAB_IDS.includes(value as TabType)
+}
+
 export default function ProfilePage({ params }: ProfilePageProps) {
   const { username } = use(params)
   const searchParams = useSearchParams()
@@ -42,6 +54,13 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   const nftMintedPage = parsePositivePage(
     searchParams?.get('nftMintedPage') ?? null
   )
+
+  useEffect(() => {
+    const tab = searchParams?.get('tab') ?? null
+    if (isProfileTab(tab)) {
+      setActiveTab(tab)
+    }
+  }, [searchParams])
 
   // Fetch user profile
   const user = useUserByUsername(username)

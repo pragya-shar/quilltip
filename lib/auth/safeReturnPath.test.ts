@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildLoginHref,
   buildRegisterHref,
+  getCurrentReturnPath,
   getSafeReturnPath,
 } from './safeReturnPath'
 
@@ -42,6 +43,30 @@ describe('getSafeReturnPath', () => {
 
   it('uses custom fallback', () => {
     expect(getSafeReturnPath(null, '/articles')).toBe('/articles')
+  })
+})
+
+describe('getCurrentReturnPath', () => {
+  it('returns pathname only when search is empty', () => {
+    expect(getCurrentReturnPath('/write', new URLSearchParams())).toBe('/write')
+  })
+
+  it('combines pathname and query string', () => {
+    expect(
+      getCurrentReturnPath(
+        '/write',
+        new URLSearchParams('id=abc123')
+      )
+    ).toBe('/write?id=abc123')
+  })
+
+  it('preserves multiple query params', () => {
+    expect(
+      getCurrentReturnPath(
+        '/profile',
+        new URLSearchParams('tab=wallet')
+      )
+    ).toBe('/profile?tab=wallet')
   })
 })
 
