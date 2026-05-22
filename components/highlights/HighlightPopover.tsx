@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { HighlightTipButton } from './HighlightTipButton'
 import { Id } from '@/convex/_generated/dataModel'
 import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
+import { useAuth } from '@/components/providers/AuthContext'
 
 interface HighlightPopoverProps {
   position: { top: number; left: number }
@@ -74,6 +75,7 @@ export function HighlightPopover({
   startOffset,
   endOffset,
 }: HighlightPopoverProps) {
+  const { isAuthenticated } = useAuth()
   const [selectedColor, setSelectedColor] = useState(
     PREMIUM_HIGHLIGHT_COLORS[0]?.value || '#F59E0B'
   )
@@ -124,7 +126,8 @@ export function HighlightPopover({
           {selectedText.length > 150 ? '...' : ''}&rdquo;
         </div>
 
-        {/* Color Picker */}
+        {isAuthenticated && (
+          <>
         <div className="mb-4">
           <div className="text-xs font-medium text-muted-foreground mb-2">
             Choose Highlight Color
@@ -199,30 +202,35 @@ export function HighlightPopover({
             />
           </div>
         )}
+          </>
+        )}
 
-        {/* Action Buttons Section */}
         <div className="pt-3 border-t border-border">
           <div className="text-xs font-medium text-muted-foreground mb-3 text-center">
-            Save highlight{' '}
-            {articleId &&
-              articleSlug &&
-              authorStellarAddress &&
-              startOffset !== undefined &&
-              endOffset !== undefined &&
-              'or tip the author'}
+            {isAuthenticated
+              ? `Save highlight${
+                  articleId &&
+                  articleSlug &&
+                  authorStellarAddress &&
+                  startOffset !== undefined &&
+                  endOffset !== undefined
+                    ? ' or tip the author'
+                    : ''
+                }`
+              : 'Tip the author for this selection'}
           </div>
 
           <div className="flex gap-2 mb-3">
-            {/* Save Highlight Button */}
-            <button
-              onClick={handleSaveHighlight}
-              className="highlight-action-button flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 flex items-center justify-center"
-            >
-              <Highlighter className="w-4 h-4 mr-2" />
-              <span>Save</span>
-            </button>
+            {isAuthenticated && (
+              <button
+                onClick={handleSaveHighlight}
+                className="highlight-action-button flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 flex items-center justify-center"
+              >
+                <Highlighter className="w-4 h-4 mr-2" />
+                <span>Save</span>
+              </button>
+            )}
 
-            {/* Tip Highlight Button - Show if article data is available */}
             {articleId &&
               articleSlug &&
               authorStellarAddress &&
@@ -237,15 +245,18 @@ export function HighlightPopover({
                   startOffset={startOffset}
                   endOffset={endOffset}
                   className="flex-1"
-                  onSuccess={() => {
-                    // Create highlight with selected settings, then close
-                    onCreateHighlight(
-                      selectedColor,
-                      note || undefined,
-                      isPublic
-                    )
-                    onClose()
-                  }}
+                  onSuccess={
+                    isAuthenticated
+                      ? () => {
+                          onCreateHighlight(
+                            selectedColor,
+                            note || undefined,
+                            isPublic
+                          )
+                          onClose()
+                        }
+                      : undefined
+                  }
                 />
               )}
           </div>

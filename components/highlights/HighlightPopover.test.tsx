@@ -6,6 +6,10 @@ vi.mock('@/components/highlights/HighlightTipButton', () => ({
   HighlightTipButton: () => null,
 }))
 
+vi.mock('@/components/providers/AuthContext', () => ({
+  useAuth: () => ({ isAuthenticated: true, isLoading: false, user: null }),
+}))
+
 import { HighlightPopover } from '@/components/highlights/HighlightPopover'
 
 describe('HighlightPopover', () => {

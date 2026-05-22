@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { useWalletActivation } from '@/components/providers/WalletActivationContext'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AlertCircle, Coins, Heart, Loader2, Wallet } from 'lucide-react'
 import { WalletTooltip } from '@/components/guide/WalletTooltip'
@@ -50,6 +50,13 @@ import {
   type TipFailureMessage,
 } from '@/lib/stellar/tip-error-messages'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { redirectToLoginForTip } from '@/lib/tip/redirectToLoginForTip'
+import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
+import {
+  clearPendingTipIntent,
+  matchesArticlePendingIntent,
+  readPendingTipIntent,
+} from '@/lib/tip/pendingTipIntent'
 
 interface TipButtonProps {
   articleId: Id<'articles'>
@@ -68,6 +75,7 @@ export function TipButton({
   const { isConnected, publicKey, signTransaction, connect } = useWallet()
   const { activateWallet } = useWalletActivation()
   const router = useRouter()
+  const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
@@ -76,6 +84,7 @@ export function TipButton({
   const [tipFlowStep, setTipFlowStep] = useState<TipFlowStep | null>(null)
   const [tipFailure, setTipFailure] = useState<TipFailureMessage | null>(null)
   const [tipMessage, setTipMessage] = useState('')
+  const resumedRef = useRef(false)
 
   const convex = useConvex()
   const sendTip = useMutation(api.tips.sendTip)
@@ -89,6 +98,18 @@ export function TipButton({
     })
   }, [])
 
+  useEffect(() => {
+    if (!isAuthenticated || resumedRef.current) return
+    const pending = readPendingTipIntent()
+    if (!matchesArticlePendingIntent(pending, articleId)) return
+    resumedRef.current = true
+    applyPendingAmountFields(pending, setSelectedAmount, setCustomAmount)
+    if (pending.message) setTipMessage(pending.message)
+    clearPendingTipIntent()
+    activateWallet()
+    setIsOpen(true)
+  }, [isAuthenticated, articleId, activateWallet])
+
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
     if (open) {
@@ -99,17 +120,6 @@ export function TipButton({
   }
 
   const handleTip = async () => {
-    if (!isAuthenticated) {
-      toast.error('Please sign in to send tips')
-      router.push('/login')
-      return
-    }
-
-    if (!isConnected || !publicKey) {
-      toast.error('Please connect your Stellar wallet to send tips')
-      return
-    }
-
     const amountCents = selectedAmount || parseFloat(customAmount) * 100
 
     if (!amountCents || amountCents < TIP_MIN_CENTS) {
@@ -122,15 +132,32 @@ export function TipButton({
       return
     }
 
+    if (tipMessage.length > 500) {
+      toast.error('Message must be 500 characters or less')
+      return
+    }
+
+    if (!isAuthenticated) {
+      toast.error('Please sign in to send tips')
+      redirectToLoginForTip(router, pathname, {
+        kind: 'article',
+        articleId: articleId,
+        ...(selectedAmount != null ? { amountCents: selectedAmount } : {}),
+        ...(customAmount ? { customAmount } : {}),
+        ...(tipMessage.trim() ? { message: tipMessage.trim() } : {}),
+      })
+      return
+    }
+
+    if (!isConnected || !publicKey) {
+      toast.error('Please connect your Stellar wallet to send tips')
+      return
+    }
+
     if (!authorStellarAddress) {
       toast.error(
         'Author has not set up their Stellar wallet for receiving tips'
       )
-      return
-    }
-
-    if (tipMessage.length > 500) {
-      toast.error('Message must be 500 characters or less')
       return
     }
 
@@ -188,6 +215,7 @@ export function TipButton({
         authorShare: transactionData.authorReceived,
       })
 
+      clearPendingTipIntent()
       setTipFailure(null)
       setIsOpen(false)
       setSelectedAmount(null)
