@@ -41,6 +41,14 @@ export function getSafeReturnPath(
   return trimmed
 }
 
+export function getCurrentReturnPath(
+  pathname: string,
+  searchParams: URLSearchParams | { toString(): string }
+): string {
+  const qs = searchParams.toString()
+  return qs ? `${pathname}?${qs}` : pathname
+}
+
 export function buildLoginHref(returnPath: string): string {
   const safe = getSafeReturnPath(returnPath)
   return `/login?returnTo=${encodeURIComponent(safe)}`

@@ -11,5 +11,5 @@ export function redirectToLoginForTip(
   intent: PendingTipIntent
 ): void {
   writePendingTipIntent(intent)
-  router.push(buildLoginHref(returnPath))
+  router.replace(buildLoginHref(returnPath))
 }
