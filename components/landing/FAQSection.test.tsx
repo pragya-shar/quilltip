@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import type { HTMLAttributes, ReactNode } from 'react'
+import type { HTMLAttributes } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -7,7 +7,9 @@ import FAQSection from '@/components/landing/FAQSection'
 
 vi.mock('motion/react', () => ({
   motion: {
-    h2: (props: HTMLAttributes<HTMLHeadingElement>) => <h2 {...props} />,
+    h2: ({ children, ...props }: HTMLAttributes<HTMLHeadingElement>) => (
+      <h2 {...props}>{children}</h2>
+    ),
     div: (props: HTMLAttributes<HTMLDivElement>) => <div {...props} />,
   },
   useInView: () => true,
