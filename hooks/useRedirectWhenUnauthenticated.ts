@@ -2,10 +2,7 @@
 
 import { useEffect } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import {
-  buildLoginHref,
-  getCurrentReturnPath,
-} from '@/lib/auth/safeReturnPath'
+import { buildLoginHref, getCurrentReturnPath } from '@/lib/auth/safeReturnPath'
 
 export function useRedirectWhenUnauthenticated(
   isLoading: boolean,

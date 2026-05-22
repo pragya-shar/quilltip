@@ -53,19 +53,13 @@ describe('getCurrentReturnPath', () => {
 
   it('combines pathname and query string', () => {
     expect(
-      getCurrentReturnPath(
-        '/write',
-        new URLSearchParams('id=abc123')
-      )
+      getCurrentReturnPath('/write', new URLSearchParams('id=abc123'))
     ).toBe('/write?id=abc123')
   })
 
   it('preserves multiple query params', () => {
     expect(
-      getCurrentReturnPath(
-        '/profile',
-        new URLSearchParams('tab=wallet')
-      )
+      getCurrentReturnPath('/profile', new URLSearchParams('tab=wallet'))
     ).toBe('/profile?tab=wallet')
   })
 })
