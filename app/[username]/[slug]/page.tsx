@@ -13,6 +13,7 @@ import { ArticlePageLoadingSkeleton } from '@/components/articles/ArticlePageLoa
 import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import { TipStats } from '@/components/tipping/TipStats'
+import { PendingTipResume } from '@/components/tipping/PendingTipResume'
 import {
   TipButtonSkeleton,
   NftSidebarSkeleton,
@@ -163,6 +164,14 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                     </h3>
                     <TipButton
                       articleId={article._id}
+                      authorName={
+                        article.author.name || article.author.username
+                      }
+                      authorStellarAddress={article.author.stellarAddress}
+                    />
+                    <PendingTipResume
+                      articleId={article._id}
+                      articleSlug={article.slug}
                       authorName={
                         article.author.name || article.author.username
                       }

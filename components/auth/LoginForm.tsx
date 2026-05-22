@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useRouter } from 'next/navigation'
+import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loginSchema, type LoginFormData } from '@/lib/validations/auth'
@@ -26,6 +27,7 @@ export default function LoginForm() {
   const [error, setError] = useState<string | null>(null)
 
   const router = useRouter()
+  const returnPath = useAuthReturnPath()
   const { signIn } = useAuthActions()
 
   const {
@@ -49,7 +51,7 @@ export default function LoginForm() {
 
       // If we reach here, sign-in was successful
       // Use replace to prevent back button returning to login
-      router.replace('/')
+      router.replace(returnPath)
     } catch (error) {
       console.error('Login error:', error)
       setError('Invalid email or password. Please try again.')
