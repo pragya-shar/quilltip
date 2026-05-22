@@ -131,8 +131,7 @@ export default function HowItWorksSection() {
       return
     }
     e.preventDefault()
-    const delta =
-      e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1
+    const delta = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1
     const next = (index + delta + steps.length) % steps.length
     setActiveStep(next)
     document.getElementById(stepTabId(activeTab, next))?.focus()
