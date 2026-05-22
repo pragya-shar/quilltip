@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useRef, type KeyboardEvent } from 'react'
 import {
   UserPlus,
   Edit3,
@@ -15,8 +15,8 @@ import {
   Heart,
 } from 'lucide-react'
 import { motion, AnimatePresence, useInView } from 'motion/react'
-import { useRef } from 'react'
 import { LucideIcon } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface Step {
   icon: LucideIcon
@@ -24,6 +24,20 @@ interface Step {
   description: string
   detail: string
 }
+
+function stepTabId(tab: 'writers' | 'readers', index: number) {
+  return `how-it-works-${tab}-tab-${index}`
+}
+
+function stepPanelId(tab: 'writers' | 'readers', index: number) {
+  return `how-it-works-${tab}-panel-${index}`
+}
+
+const stepTabFocusClass =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-spotlight'
+
+const stepCardBaseClass =
+  'relative rounded-2xl border overflow-hidden transition-colors duration-300 text-left w-full p-0 bg-transparent'
 
 export default function HowItWorksSection() {
   const ref = useRef(null)
@@ -96,10 +110,31 @@ export default function HowItWorksSection() {
   ]
 
   const steps = activeTab === 'writers' ? writerSteps : readerSteps
+  const stepsTablistLabel =
+    activeTab === 'writers' ? 'Writer steps' : 'Reader steps'
 
   const handleTabChange = (tab: 'writers' | 'readers') => {
     setActiveTab(tab)
     setActiveStep(0)
+  }
+
+  const handleStepTabKeyDown = (
+    e: KeyboardEvent<HTMLButtonElement>,
+    index: number
+  ) => {
+    if (
+      e.key !== 'ArrowRight' &&
+      e.key !== 'ArrowDown' &&
+      e.key !== 'ArrowLeft' &&
+      e.key !== 'ArrowUp'
+    ) {
+      return
+    }
+    e.preventDefault()
+    const delta = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1
+    const next = (index + delta + steps.length) % steps.length
+    setActiveStep(next)
+    document.getElementById(stepTabId(activeTab, next))?.focus()
   }
 
   return (
@@ -151,24 +186,38 @@ export default function HowItWorksSection() {
             </div>
 
             {/* Writer / Reader Toggle */}
-            <div className="inline-flex items-center bg-foreground/5 rounded-lg p-1 border border-foreground/10 shrink-0">
+            <div
+              role="tablist"
+              aria-label="Audience"
+              className="inline-flex items-center bg-foreground/5 rounded-lg p-1 border border-foreground/10 shrink-0"
+            >
               <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'writers'}
                 onClick={() => handleTabChange('writers')}
-                className={`px-5 py-2 rounded-md text-[13px] font-medium transition-all duration-200 ${
+                className={cn(
+                  'px-5 py-2 rounded-md text-[13px] font-medium transition-all duration-200',
+                  stepTabFocusClass,
                   activeTab === 'writers'
                     ? 'bg-card text-card-foreground shadow-sm'
                     : 'text-spotlight-muted hover:text-spotlight-foreground'
-                }`}
+                )}
               >
                 For Writers
               </button>
               <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'readers'}
                 onClick={() => handleTabChange('readers')}
-                className={`px-5 py-2 rounded-md text-[13px] font-medium transition-all duration-200 ${
+                className={cn(
+                  'px-5 py-2 rounded-md text-[13px] font-medium transition-all duration-200',
+                  stepTabFocusClass,
                   activeTab === 'readers'
                     ? 'bg-card text-card-foreground shadow-sm'
                     : 'text-spotlight-muted hover:text-spotlight-foreground'
-                }`}
+                )}
               >
                 For Readers
               </button>
@@ -178,6 +227,9 @@ export default function HowItWorksSection() {
 
         {/* Expandable Steps — Desktop */}
         <motion.div
+          role="tablist"
+          aria-label={stepsTablistLabel}
+          aria-orientation="horizontal"
           className="hidden md:flex gap-2 h-[340px]"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -185,47 +237,64 @@ export default function HowItWorksSection() {
         >
           {steps.map((step, index) => {
             const isActive = activeStep === index
+            const tabId = stepTabId(activeTab, index)
+            const panelId = stepPanelId(activeTab, index)
             return (
               <motion.div
-                key={step.title}
-                className={`relative rounded-2xl border cursor-pointer overflow-hidden transition-colors duration-300 ${
+                key={`${activeTab}-${step.title}`}
+                className={cn(
+                  stepCardBaseClass,
+                  'flex flex-col min-h-0',
                   isActive
                     ? 'border-foreground/15 bg-foreground/[0.04]'
-                    : 'border-foreground/[0.06] bg-foreground/[0.02] hover:bg-foreground/[0.03] hover:border-foreground/10'
-                }`}
+                    : 'border-foreground/[0.06] bg-foreground/[0.02]'
+                )}
                 animate={{ flex: isActive ? 3 : 1 }}
                 transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-                onMouseEnter={() => setActiveStep(index)}
               >
-                {/* Collapsed state */}
-                <AnimatePresence mode="wait">
-                  {!isActive ? (
-                    <motion.div
-                      key="collapsed"
-                      className="h-full flex flex-col items-center justify-center gap-4 px-4"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <div className="w-12 h-12 rounded-full border border-foreground/10 flex items-center justify-center">
-                        <step.icon className="w-5 h-5 text-spotlight-muted" />
-                      </div>
-                      <span className="text-[15px] font-medium text-spotlight-muted [writing-mode:vertical-lr] tracking-wide">
-                        {step.title}
-                      </span>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="expanded"
-                      className="h-full flex flex-col justify-between p-8"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.3, delay: 0.15 }}
-                    >
-                      <div>
-                        {/* Icon + Title */}
+                <motion.button
+                  type="button"
+                  role="tab"
+                  id={tabId}
+                  aria-selected={isActive}
+                  aria-controls={panelId}
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={() => setActiveStep(index)}
+                  onMouseEnter={() => setActiveStep(index)}
+                  onKeyDown={(e) => handleStepTabKeyDown(e, index)}
+                  className={cn(
+                    'block h-full w-full cursor-pointer',
+                    stepTabFocusClass,
+                    !isActive &&
+                      'hover:bg-foreground/[0.03] hover:border-foreground/10'
+                  )}
+                >
+                  <AnimatePresence mode="wait">
+                    {!isActive ? (
+                      <motion.div
+                        key="collapsed"
+                        className="h-full flex flex-col items-center justify-center gap-4 px-4"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <div className="w-12 h-12 rounded-full border border-foreground/10 flex items-center justify-center">
+                          <step.icon className="w-5 h-5 text-spotlight-muted" />
+                        </div>
+                        <span className="text-[15px] font-medium text-spotlight-muted [writing-mode:vertical-lr] tracking-wide">
+                          {step.title}
+                        </span>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="expanded-header"
+                        className="p-8 pb-0"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3, delay: 0.15 }}
+                      >
                         <div className="flex items-center gap-4 mb-6">
                           <div className="w-14 h-14 rounded-2xl bg-foreground/10 border border-foreground/10 flex items-center justify-center">
                             <step.icon className="w-6 h-6 text-spotlight-foreground" />
@@ -234,32 +303,60 @@ export default function HowItWorksSection() {
                             {step.title}
                           </h3>
                         </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
 
-                        {/* Description */}
-                        <p className="text-[15px] text-spotlight-foreground/85 leading-relaxed mb-3 max-w-md">
-                          {step.description}
-                        </p>
-                        <p className="text-[13px] text-spotlight-muted leading-relaxed max-w-md">
-                          {step.detail}
-                        </p>
-                      </div>
-
-                      {/* Step indicator dots */}
-                      <div className="flex items-center gap-2">
-                        {steps.map((_, i) => (
-                          <div
-                            key={i}
-                            className={`h-1 rounded-full transition-all duration-300 ${
-                              i === index
-                                ? 'w-8 bg-spotlight-foreground'
-                                : 'w-2 bg-spotlight-foreground/20'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </motion.div>
+                <div
+                  role="tabpanel"
+                  id={panelId}
+                  aria-labelledby={tabId}
+                  hidden={!isActive}
+                  className={cn(
+                    'flex flex-col justify-between flex-1',
+                    isActive ? 'flex' : 'hidden'
                   )}
-                </AnimatePresence>
+                >
+                  <AnimatePresence mode="wait">
+                    {isActive && (
+                      <motion.div
+                        key="expanded-panel"
+                        className="flex flex-col justify-between flex-1 px-8 pb-8"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3, delay: 0.15 }}
+                      >
+                        <div>
+                          <p className="text-[15px] text-spotlight-foreground/85 leading-relaxed mb-3 max-w-md">
+                            {step.description}
+                          </p>
+                          <p className="text-[13px] text-spotlight-muted leading-relaxed max-w-md">
+                            {step.detail}
+                          </p>
+                        </div>
+
+                        <div
+                          className="flex items-center gap-2"
+                          aria-hidden="true"
+                        >
+                          {steps.map((_, i) => (
+                            <div
+                              key={i}
+                              className={cn(
+                                'h-1 rounded-full transition-all duration-300',
+                                i === index
+                                  ? 'w-8 bg-spotlight-foreground'
+                                  : 'w-2 bg-spotlight-foreground/20'
+                              )}
+                            />
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </motion.div>
             )
           })}
@@ -267,6 +364,9 @@ export default function HowItWorksSection() {
 
         {/* Steps — Mobile (vertical accordion) */}
         <motion.div
+          role="tablist"
+          aria-label={stepsTablistLabel}
+          aria-orientation="vertical"
           className="md:hidden space-y-2"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -274,56 +374,89 @@ export default function HowItWorksSection() {
         >
           {steps.map((step, index) => {
             const isActive = activeStep === index
+            const tabId = stepTabId(activeTab, index)
+            const panelId = stepPanelId(activeTab, index)
             return (
               <motion.div
-                key={step.title}
-                className={`rounded-2xl border overflow-hidden cursor-pointer transition-colors duration-300 ${
+                key={`${activeTab}-${step.title}`}
+                className={cn(
+                  stepCardBaseClass,
                   isActive
                     ? 'border-foreground/15 bg-foreground/[0.04]'
                     : 'border-foreground/[0.06] bg-foreground/[0.02]'
-                }`}
-                onClick={() => setActiveStep(index)}
+                )}
               >
-                {/* Header row */}
-                <div className="flex items-center gap-4 p-5">
-                  <div
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-300 ${
-                      isActive
-                        ? 'bg-foreground/10 border border-foreground/10'
-                        : 'bg-foreground/5 border border-foreground/[0.06]'
-                    }`}
-                  >
-                    <step.icon
-                      className={`w-5 h-5 transition-colors duration-300 ${isActive ? 'text-spotlight-foreground' : 'text-spotlight-muted'}`}
-                    />
-                  </div>
-                  <span
-                    className={`text-[15px] font-medium transition-colors duration-300 ${isActive ? 'text-spotlight-foreground' : 'text-spotlight-muted'}`}
-                  >
-                    {step.title}
-                  </span>
-                </div>
-
-                {/* Expandable content */}
-                <AnimatePresence>
-                  {isActive && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3, ease: 'easeOut' }}
-                    >
-                      <div className="px-5 pb-5 pl-20">
-                        <p className="text-[14px] text-spotlight-foreground/85 leading-relaxed mb-2">
-                          {step.description}
-                        </p>
-                        <p className="text-[12px] text-spotlight-muted leading-relaxed">
-                          {step.detail}
-                        </p>
-                      </div>
-                    </motion.div>
+                <motion.button
+                  type="button"
+                  role="tab"
+                  id={tabId}
+                  aria-selected={isActive}
+                  aria-controls={panelId}
+                  tabIndex={isActive ? 0 : -1}
+                  onClick={() => setActiveStep(index)}
+                  onKeyDown={(e) => handleStepTabKeyDown(e, index)}
+                  className={cn(
+                    'block w-full cursor-pointer',
+                    stepTabFocusClass
                   )}
-                </AnimatePresence>
+                >
+                  <div className="flex items-center gap-4 p-5">
+                    <div
+                      className={cn(
+                        'w-11 h-11 rounded-xl flex items-center justify-center transition-colors duration-300',
+                        isActive
+                          ? 'bg-foreground/10 border border-foreground/10'
+                          : 'bg-foreground/5 border border-foreground/[0.06]'
+                      )}
+                    >
+                      <step.icon
+                        className={cn(
+                          'w-5 h-5 transition-colors duration-300',
+                          isActive
+                            ? 'text-spotlight-foreground'
+                            : 'text-spotlight-muted'
+                        )}
+                      />
+                    </div>
+                    <span
+                      className={cn(
+                        'text-[15px] font-medium transition-colors duration-300',
+                        isActive
+                          ? 'text-spotlight-foreground'
+                          : 'text-spotlight-muted'
+                      )}
+                    >
+                      {step.title}
+                    </span>
+                  </div>
+                </motion.button>
+
+                <div
+                  role="tabpanel"
+                  id={panelId}
+                  aria-labelledby={tabId}
+                  hidden={!isActive}
+                >
+                  <AnimatePresence>
+                    {isActive && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, ease: 'easeOut' }}
+                      >
+                        <div className="px-5 pb-5 pl-20">
+                          <p className="text-[14px] text-spotlight-foreground/85 leading-relaxed mb-2">
+                            {step.description}
+                          </p>
+                          <p className="text-[12px] text-spotlight-muted leading-relaxed">
+                            {step.detail}
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </motion.div>
             )
           })}
