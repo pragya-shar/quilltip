@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
+import { useWalletActivation } from '@/components/providers/WalletActivationContext'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AlertCircle, Coins, Heart, Loader2, Wallet } from 'lucide-react'
@@ -79,6 +80,7 @@ export function HighlightTipButton({
 }: HighlightTipButtonProps) {
   const { isAuthenticated } = useAuth()
   const { isConnected, publicKey, signTransaction, connect } = useWallet()
+  const { activateWallet } = useWalletActivation()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
@@ -102,6 +104,9 @@ export function HighlightTipButton({
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
+    if (open) {
+      activateWallet()
+    }
     setIsOpen(open)
     setTipFailure(null)
     if (!open) {
@@ -446,7 +451,7 @@ export function HighlightTipButton({
           </div>
 
           {isConnected && publicKey && (
-            <div className="text-xs text-green-600 text-center mt-4">
+            <div className="text-xs text-green-600 dark:text-green-300 text-center mt-4">
               <p className="flex items-center justify-center gap-1">
                 <Wallet className="w-3 h-3" />
                 Connected: {publicKey.slice(0, 6)}...{publicKey.slice(-6)}

@@ -31,21 +31,23 @@ const steps = [
     icon: Sparkles,
     title: 'Welcome to Quilltip',
     description: `A platform where readers reward writers directly on Stellar testnet. ${TESTNET_PRACTICE_NOTE}`,
-    color: 'bg-blue-100 text-blue-700',
+    color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300',
   },
   {
     icon: Wallet,
     title: 'Set Up Your Wallet',
     description:
       'To tip writers on testnet, you need a Stellar wallet (like Freighter) set to Testnet with free test XLM. It takes about 2 minutes. Reading articles is always free — no wallet needed.',
-    color: 'bg-amber-100 text-amber-700',
+    color:
+      'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300',
   },
   {
     icon: BookOpen,
     title: 'Start Exploring',
     description:
       'Browse articles from writers, highlight passages you love, and send practice tips starting at $0.01 in testnet XLM. 97.5% goes directly to the author.',
-    color: 'bg-green-100 text-green-700',
+    color:
+      'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300',
   },
 ]
 
@@ -127,7 +129,7 @@ export function OnboardingDialog() {
             <div
               key={i}
               className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === currentStep ? 'w-8 bg-neutral-900' : 'w-4 bg-neutral-200'
+                i === currentStep ? 'w-8 bg-foreground' : 'w-4 bg-muted'
               }`}
             />
           ))}
@@ -145,10 +147,10 @@ export function OnboardingDialog() {
             <div className={`inline-flex p-4 rounded-2xl ${step.color} mb-4`}>
               <StepIcon className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-neutral-900 mb-2">
+            <h3 className="text-xl font-bold text-foreground mb-2">
               {step.title}
             </h3>
-            <p className="text-sm text-neutral-600 leading-relaxed max-w-sm mx-auto">
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
               {step.description}
             </p>
           </motion.div>

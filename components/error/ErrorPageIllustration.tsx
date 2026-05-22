@@ -21,18 +21,18 @@ export function ErrorPageIllustration({
         width="88"
         height="112"
         rx="6"
-        className="fill-white stroke-quill-200"
+        className="fill-card stroke-border"
         strokeWidth="2"
       />
       <path
         d="M44 48h56M44 64h48M44 80h52M44 96h40"
-        className="stroke-quill-300"
+        className="stroke-muted-foreground/60"
         strokeWidth="2"
         strokeLinecap="round"
       />
       <path
         d="M44 112h28"
-        className="stroke-quill-200"
+        className="stroke-muted-foreground/40"
         strokeWidth="2"
         strokeLinecap="round"
       />
@@ -44,13 +44,13 @@ export function ErrorPageIllustration({
       />
       <path
         d="M88 102l-6 14 8-4 6-14-8 4Z"
-        className="fill-brand-blue stroke-brand-blue"
+        className="fill-primary/15 stroke-primary"
         strokeWidth="1.5"
         strokeLinejoin="round"
       />
       <path
         d="M96 94c-2 4-6 10-10 14"
-        className="stroke-brand-blue"
+        className="stroke-primary"
         strokeWidth="2"
         strokeLinecap="round"
       />

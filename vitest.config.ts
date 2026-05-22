@@ -12,6 +12,8 @@ export default defineConfig({
           include: ['convex/**/*.test.ts'],
           exclude: ['node_modules', 'convex/_generated'],
           environment: 'edge-runtime',
+          // Scheduled-function tests share fake DB state; run files one at a time.
+          fileParallelism: false,
         },
       },
       {

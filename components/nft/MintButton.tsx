@@ -15,7 +15,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { useStellarWallet } from '@/hooks/useStellarWallet'
+import { useWallet } from '@/components/providers/WalletProvider'
+import { useWalletActivation } from '@/components/providers/WalletActivationContext'
 import { nftClient } from '@/lib/stellar/nft-client'
 import { stellarClient } from '@/lib/stellar/client'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
@@ -93,7 +94,8 @@ export function MintButton({
   const uploadNftMetadataForMint = useAction(
     api.nftMetadataUpload.uploadNftMetadataForMint
   )
-  const wallet = useStellarWallet()
+  const wallet = useWallet()
+  const { activateWallet } = useWalletActivation()
   const [xlmPrice, setXlmPrice] = useState<number | null>(null)
 
   useEffect(() => {
@@ -250,7 +252,13 @@ export function MintButton({
 
   return (
     <>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (open) activateWallet()
+          setDialogOpen(open)
+        }}
+      >
         <DialogTrigger asChild>
           <Button
             disabled={!canMint}
@@ -279,8 +287,8 @@ export function MintButton({
 
           <div className="space-y-4">
             {!wallet.isConnected && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <p className="text-sm text-amber-900">
+              <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <p className="text-sm text-amber-900 dark:text-amber-100">
                   Connect your wallet to mint this article as an NFT.
                 </p>
               </div>
@@ -299,19 +307,19 @@ export function MintButton({
                   </span>
                 </div>
                 {wallet.isConnected && wallet.publicKey ? (
-                  <div className="bg-green-50 border border-green-200 rounded p-2">
+                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-green-900 font-medium">
+                      <span className="text-green-900 dark:text-green-200 font-medium">
                         ✓ Wallet Connected
                       </span>
-                      <span className="font-mono text-green-700">
+                      <span className="font-mono text-green-700 dark:text-green-300">
                         {`${wallet.publicKey.slice(0, 4)}...${wallet.publicKey.slice(-4)}`}
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-amber-50 border border-amber-200 rounded p-2">
-                    <span className="text-xs text-amber-900">
+                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded p-2">
+                    <span className="text-xs text-amber-900 dark:text-amber-100">
                       Wallet not connected
                     </span>
                   </div>

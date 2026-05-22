@@ -1,5 +1,6 @@
 'use client'
 
+import nextDynamic from 'next/dynamic'
 import { notFound } from 'next/navigation'
 import { use, useState, useMemo } from 'react'
 import {
@@ -10,9 +11,28 @@ import {
 import ArticleDisplay from '@/components/articles/ArticleDisplay'
 import { ArticlePageLoadingSkeleton } from '@/components/articles/ArticlePageLoadingSkeleton'
 import AppNavigation from '@/components/layout/AppNavigation'
+import { SiteFooter } from '@/components/layout/SiteFooter'
 import { TipStats } from '@/components/tipping/TipStats'
-import { TipButton } from '@/components/tipping/TipButton'
-import { NFTIntegration } from '@/components/nft/NFTIntegration'
+import {
+  TipButtonSkeleton,
+  NftSidebarSkeleton,
+} from '@/components/articles/ArticleEngagementSkeleton'
+
+const TipButton = nextDynamic(
+  () =>
+    import('@/components/tipping/TipButton').then((mod) => ({
+      default: mod.TipButton,
+    })),
+  { ssr: false, loading: () => <TipButtonSkeleton /> }
+)
+
+const NFTIntegration = nextDynamic(
+  () =>
+    import('@/components/nft/NFTIntegration').then((mod) => ({
+      default: mod.NFTIntegration,
+    })),
+  { ssr: false, loading: () => <NftSidebarSkeleton /> }
+)
 import {
   DollarSign,
   Trophy,
@@ -110,10 +130,10 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <AppNavigation />
       <ReadingProgressBar />
-      <main className="pt-20">
+      <main className="flex-1 pt-20 w-full">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Main Article Content */}
@@ -272,6 +292,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
           </div>
         </div>
       </main>
+      <SiteFooter variant="default" />
     </div>
   )
 }

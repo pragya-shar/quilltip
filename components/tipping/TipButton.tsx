@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
+import { useWalletActivation } from '@/components/providers/WalletActivationContext'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AlertCircle, Coins, Heart, Loader2, Wallet } from 'lucide-react'
@@ -65,6 +66,7 @@ export function TipButton({
 }: TipButtonProps) {
   const { isAuthenticated } = useAuth()
   const { isConnected, publicKey, signTransaction, connect } = useWallet()
+  const { activateWallet } = useWalletActivation()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
@@ -89,6 +91,9 @@ export function TipButton({
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
+    if (open) {
+      activateWallet()
+    }
     setIsOpen(open)
     setTipFailure(null)
   }
@@ -285,13 +290,13 @@ export function TipButton({
           )}
 
           {!isConnected && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-900 dark:text-amber-100">
               <p>Connect your Stellar wallet to send tips to {authorName}.</p>
               <p className="mt-1">
                 New to crypto?{' '}
                 <Link
                   href="/guide"
-                  className="focus-ring rounded text-amber-700 underline font-medium hover:text-amber-900"
+                  className="focus-ring rounded text-amber-700 dark:text-amber-300 underline font-medium hover:text-amber-900 dark:hover:text-amber-100"
                 >
                   Follow our setup guide
                 </Link>
@@ -311,7 +316,7 @@ export function TipButton({
                 disabled={isLoading}
                 className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border-2 transition-all disabled:opacity-50 ${
                   selectedAmount === amount.cents
-                    ? 'border-orange-500 bg-orange-50'
+                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/30'
                     : 'border-border hover:border-orange-300'
                 }`}
               >

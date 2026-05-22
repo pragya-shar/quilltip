@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import AppNavigation from '@/components/layout/AppNavigation'
+import { SiteFooter } from '@/components/layout/SiteFooter'
 import SearchInput from '@/components/articles/SearchInput'
 import { ArticlesBrowseContent } from '@/components/articles/ArticlesBrowseContent'
 import {
@@ -75,10 +76,10 @@ export default function ArticlesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <AppNavigation />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 w-full">
         {/* Page Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-foreground mb-2">
@@ -178,6 +179,7 @@ export default function ArticlesPage() {
           onArticleNavigate={saveBrowseScrollPosition}
         />
       </main>
+      <SiteFooter variant="default" />
     </div>
   )
 }
