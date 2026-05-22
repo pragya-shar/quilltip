@@ -34,7 +34,9 @@ describe('OnboardingDialog', () => {
     render(<OnboardingDialog />)
 
     expect(screen.getByText('Step 1 of 3')).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Step 1 of 3' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('group', { name: 'Step 1 of 3' })
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^Next/i })).toBeInTheDocument()
   })
 
@@ -77,7 +79,9 @@ describe('OnboardingDialog', () => {
     render(<OnboardingDialog />)
 
     await user.click(screen.getByRole('button', { name: /^Next/i }))
-    await user.click(screen.getByRole('button', { name: /I'll do this later/i }))
+    await user.click(
+      screen.getByRole('button', { name: /I'll do this later/i })
+    )
     expect(screen.getByText('Step 3 of 3')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Get Started/i }))
@@ -92,7 +96,9 @@ describe('OnboardingDialog', () => {
     render(<OnboardingDialog />)
 
     await user.click(screen.getByRole('button', { name: /^Next/i }))
-    await user.click(screen.getByRole('button', { name: /I'll do this later/i }))
+    await user.click(
+      screen.getByRole('button', { name: /I'll do this later/i })
+    )
     await user.click(screen.getByRole('button', { name: /^Read$/i }))
 
     await waitFor(() => {
@@ -113,7 +119,9 @@ describe('OnboardingDialog', () => {
         'Could not save your progress. Please try again.'
       )
     })
-    expect(screen.getByRole('button', { name: /Skip onboarding/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /Skip onboarding/i })
+    ).toBeInTheDocument()
   })
 
   it('renders a modal dialog', () => {
