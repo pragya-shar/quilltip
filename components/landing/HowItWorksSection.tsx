@@ -17,6 +17,9 @@ import {
 import { motion, AnimatePresence, useInView } from 'motion/react'
 import { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useIsMobile } from '@/hooks/use-mobile'
+
+type StepVariant = 'desktop' | 'mobile'
 
 interface Step {
   icon: LucideIcon
@@ -25,12 +28,20 @@ interface Step {
   detail: string
 }
 
-function stepTabId(tab: 'writers' | 'readers', index: number) {
-  return `how-it-works-${tab}-tab-${index}`
+function stepTabId(
+  tab: 'writers' | 'readers',
+  index: number,
+  variant: StepVariant
+) {
+  return `how-it-works-${tab}-${variant}-tab-${index}`
 }
 
-function stepPanelId(tab: 'writers' | 'readers', index: number) {
-  return `how-it-works-${tab}-panel-${index}`
+function stepPanelId(
+  tab: 'writers' | 'readers',
+  index: number,
+  variant: StepVariant
+) {
+  return `how-it-works-${tab}-${variant}-panel-${index}`
 }
 
 const stepTabFocusClass =
@@ -42,6 +53,7 @@ const stepCardBaseClass =
 export default function HowItWorksSection() {
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, margin: '-100px' })
+  const isMobile = useIsMobile()
   const [activeTab, setActiveTab] = useState<'writers' | 'readers'>('writers')
   const [activeStep, setActiveStep] = useState(0)
 
@@ -134,7 +146,8 @@ export default function HowItWorksSection() {
     const delta = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : -1
     const next = (index + delta + steps.length) % steps.length
     setActiveStep(next)
-    document.getElementById(stepTabId(activeTab, next))?.focus()
+    const variant: StepVariant = isMobile ? 'mobile' : 'desktop'
+    document.getElementById(stepTabId(activeTab, next, variant))?.focus()
   }
 
   return (
@@ -230,6 +243,7 @@ export default function HowItWorksSection() {
           role="tablist"
           aria-label={stepsTablistLabel}
           aria-orientation="horizontal"
+          aria-hidden={isMobile}
           className="hidden md:flex gap-2 h-[340px]"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -237,8 +251,8 @@ export default function HowItWorksSection() {
         >
           {steps.map((step, index) => {
             const isActive = activeStep === index
-            const tabId = stepTabId(activeTab, index)
-            const panelId = stepPanelId(activeTab, index)
+            const tabId = stepTabId(activeTab, index, 'desktop')
+            const panelId = stepPanelId(activeTab, index, 'desktop')
             return (
               <motion.div
                 key={`${activeTab}-${step.title}`}
@@ -367,6 +381,7 @@ export default function HowItWorksSection() {
           role="tablist"
           aria-label={stepsTablistLabel}
           aria-orientation="vertical"
+          aria-hidden={!isMobile}
           className="md:hidden space-y-2"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -374,8 +389,8 @@ export default function HowItWorksSection() {
         >
           {steps.map((step, index) => {
             const isActive = activeStep === index
-            const tabId = stepTabId(activeTab, index)
-            const panelId = stepPanelId(activeTab, index)
+            const tabId = stepTabId(activeTab, index, 'mobile')
+            const panelId = stepPanelId(activeTab, index, 'mobile')
             return (
               <motion.div
                 key={`${activeTab}-${step.title}`}
