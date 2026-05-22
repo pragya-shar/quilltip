@@ -10,11 +10,7 @@ import {
 } from '@/lib/auth/safeReturnPath'
 import { clearPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 
-function AuthReturnLinksInner({
-  variant,
-}: {
-  variant: 'login' | 'register'
-}) {
+function AuthReturnLinksInner({ variant }: { variant: 'login' | 'register' }) {
   const searchParams = useSearchParams()
   const returnTo = getSafeReturnPath(searchParams.get('returnTo'))
 

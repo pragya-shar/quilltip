@@ -47,9 +47,7 @@ describe('getSafeReturnPath', () => {
 
 describe('buildLoginHref / buildRegisterHref', () => {
   it('encodes safe return path in login URL', () => {
-    expect(buildLoginHref('/user/slug')).toBe(
-      '/login?returnTo=%2Fuser%2Fslug'
-    )
+    expect(buildLoginHref('/user/slug')).toBe('/login?returnTo=%2Fuser%2Fslug')
   })
 
   it('falls back for unsafe paths', () => {

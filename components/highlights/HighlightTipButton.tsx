@@ -126,12 +126,7 @@ export function HighlightTipButton({
     )
     activateWallet()
     setIsOpen(true)
-  }, [
-    resumeOpen,
-    resumeAmountCents,
-    resumeCustomAmount,
-    activateWallet,
-  ])
+  }, [resumeOpen, resumeAmountCents, resumeCustomAmount, activateWallet])
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
