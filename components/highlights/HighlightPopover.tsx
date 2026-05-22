@@ -128,80 +128,82 @@ export function HighlightPopover({
 
         {isAuthenticated && (
           <>
-        <div className="mb-4">
-          <div className="text-xs font-medium text-muted-foreground mb-2">
-            Choose Highlight Color
-          </div>
-          <div className="color-picker-container">
-            {PREMIUM_HIGHLIGHT_COLORS.map((color) => (
+            <div className="mb-4">
+              <div className="text-xs font-medium text-muted-foreground mb-2">
+                Choose Highlight Color
+              </div>
+              <div className="color-picker-container">
+                {PREMIUM_HIGHLIGHT_COLORS.map((color) => (
+                  <button
+                    key={color.value}
+                    onClick={() => handleColorSelect(color.value)}
+                    className={cn(
+                      'color-picker-button',
+                      selectedColor === color.value && 'selected'
+                    )}
+                    style={{
+                      background: `linear-gradient(135deg, ${color.value}, ${color.value}dd)`,
+                    }}
+                    aria-label={`Select ${color.name} highlight`}
+                  >
+                    <div className="color-tooltip">
+                      <div className="font-medium">{color.name}</div>
+                      <div className="text-xs opacity-80">
+                        {color.description}
+                      </div>
+                      <div className="color-tooltip-arrow" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 mb-3">
               <button
-                key={color.value}
-                onClick={() => handleColorSelect(color.value)}
+                onClick={() => setShowNoteInput(!showNoteInput)}
                 className={cn(
-                  'color-picker-button',
-                  selectedColor === color.value && 'selected'
+                  'highlight-action-button flex items-center gap-2',
+                  'bg-muted hover:bg-muted/80 text-foreground',
+                  showNoteInput && 'bg-muted/90'
                 )}
-                style={{
-                  background: `linear-gradient(135deg, ${color.value}, ${color.value}dd)`,
-                }}
-                aria-label={`Select ${color.name} highlight`}
               >
-                <div className="color-tooltip">
-                  <div className="font-medium">{color.name}</div>
-                  <div className="text-xs opacity-80">{color.description}</div>
-                  <div className="color-tooltip-arrow" />
-                </div>
+                <MessageSquare className="w-4 h-4" />
+                <span>Add Note</span>
               </button>
-            ))}
-          </div>
-        </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 mb-3">
-          <button
-            onClick={() => setShowNoteInput(!showNoteInput)}
-            className={cn(
-              'highlight-action-button flex items-center gap-2',
-              'bg-muted hover:bg-muted/80 text-foreground',
-              showNoteInput && 'bg-muted/90'
+              <button
+                onClick={() => setIsPublic(!isPublic)}
+                className="privacy-toggle"
+              >
+                {isPublic ? (
+                  <>
+                    <Globe className="w-4 h-4 text-green-800 dark:text-green-300" />
+                    <span className="text-sm text-foreground">Public</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm text-foreground">Private</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Note Input */}
+            {showNoteInput && (
+              <div className="mb-3">
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="Add a note to your highlight..."
+                  className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent resize-none"
+                  rows={3}
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                />
+              </div>
             )}
-          >
-            <MessageSquare className="w-4 h-4" />
-            <span>Add Note</span>
-          </button>
-
-          <button
-            onClick={() => setIsPublic(!isPublic)}
-            className="privacy-toggle"
-          >
-            {isPublic ? (
-              <>
-                <Globe className="w-4 h-4 text-green-800 dark:text-green-300" />
-                <span className="text-sm text-foreground">Public</span>
-              </>
-            ) : (
-              <>
-                <Lock className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-foreground">Private</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Note Input */}
-        {showNoteInput && (
-          <div className="mb-3">
-            <textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Add a note to your highlight..."
-              className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent resize-none"
-              rows={3}
-              // eslint-disable-next-line jsx-a11y/no-autofocus
-              autoFocus
-            />
-          </div>
-        )}
           </>
         )}
 
