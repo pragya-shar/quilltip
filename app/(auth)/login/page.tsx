@@ -1,5 +1,5 @@
-import Link from 'next/link'
 import LoginForm from '@/components/auth/LoginForm'
+import { AuthAlternateLink } from '@/components/auth/AuthAlternateLink'
 
 /**
  * Login Page
@@ -26,15 +26,11 @@ export default function LoginPage() {
 
       {/* Registration Link */}
       <div className="text-center">
-        <p className="text-sm text-muted-foreground">
-          Don&apos;t have an account?{' '}
-          <Link
-            href="/register"
-            className="font-medium text-brand-blue hover:text-brand-accent transition-colors"
-          >
-            Sign up for free
-          </Link>
-        </p>
+        <AuthAlternateLink
+          authPath="/register"
+          prompt="Don't have an account?"
+          linkLabel="Sign up for free"
+        />
       </div>
     </div>
   )
