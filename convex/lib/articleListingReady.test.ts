@@ -50,9 +50,7 @@ describe('isArticleListingReady', () => {
   })
 
   it('rejects Untitled', () => {
-    expect(
-      isArticleListingReady({ ...ready, title: 'Untitled' })
-    ).toBe(false)
+    expect(isArticleListingReady({ ...ready, title: 'Untitled' })).toBe(false)
   })
 
   it('rejects whitespace-only title', () => {
@@ -70,11 +68,11 @@ describe('isArticleListingReady', () => {
   })
 
   it('rejects missing author username', () => {
-    expect(
-      isArticleListingReady({ ...ready, authorUsername: undefined })
-    ).toBe(false)
-    expect(
-      isArticleListingReady({ ...ready, authorUsername: '  ' })
-    ).toBe(false)
+    expect(isArticleListingReady({ ...ready, authorUsername: undefined })).toBe(
+      false
+    )
+    expect(isArticleListingReady({ ...ready, authorUsername: '  ' })).toBe(
+      false
+    )
   })
 })

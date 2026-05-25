@@ -126,7 +126,9 @@ describe('publish listing readiness', () => {
     await new Promise((r) => setTimeout(r, 0))
     await t.finishAllScheduledFunctions(() => {})
 
-    const row = await t.run(async (ctx) => ctx.db.get(articleId as Id<'articles'>))
+    const row = await t.run(async (ctx) =>
+      ctx.db.get(articleId as Id<'articles'>)
+    )
     expect(row?.published).toBe(true)
   })
 
