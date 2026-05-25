@@ -1,6 +1,5 @@
 'use client'
 
-import { notFound } from 'next/navigation'
 import { useUserByUsername, useUserStats } from '@/hooks/convex'
 import { use, useState, useEffect } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -17,6 +16,7 @@ import ProfileHeader from '@/components/profile/ProfileHeader'
 import { ProfileTabBar } from '@/components/profile/ProfileTabBar'
 import { ProfileArticlesTabContent } from '@/components/profile/ProfileArticlesTabContent'
 import { ProfileNftsTabContent } from '@/components/profile/ProfileNftsTabContent'
+import { AuthorNotFoundPage } from '@/components/profile/AuthorNotFoundPage'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
 import { EarningsDashboard } from '@/components/dashboard/EarningsDashboard'
 import { WalletSettings } from '@/components/stellar'
@@ -79,9 +79,8 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     )
   }, [authLoading, isOwnProfile, pathname, rawTab, router, searchParams])
 
-  // Check if user exists
   if (user === null) {
-    notFound()
+    return <AuthorNotFoundPage username={username} />
   }
 
   // Show loading while data is being fetched
