@@ -468,7 +468,8 @@ export const updateArticle = mutation({
     if (article.published) {
       const merged = {
         title: updates.title ?? article.title,
-        excerpt: updates.excerpt !== undefined ? updates.excerpt : article.excerpt,
+        excerpt:
+          updates.excerpt !== undefined ? updates.excerpt : article.excerpt,
         authorUsername: article.authorUsername,
       }
       if (!isArticleListingReady(merged)) {
