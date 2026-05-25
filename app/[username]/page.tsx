@@ -62,7 +62,10 @@ export default function ProfilePage({ params }: ProfilePageProps) {
 
   // Check if this is the current user's profile
   const isOwnProfile = currentUser?.username === username
-  const activeTab = parseProfileTab(searchParams?.get('tab') ?? null, isOwnProfile)
+  const activeTab = parseProfileTab(
+    searchParams?.get('tab') ?? null,
+    isOwnProfile
+  )
 
   // Check if user exists
   if (user === null) {
@@ -108,7 +111,12 @@ export default function ProfilePage({ params }: ProfilePageProps) {
       icon: Image,
       count: userWithStats.nftsOwned,
     },
-    { id: 'wallet' as ProfileTabId, label: 'Wallet', icon: Wallet, count: null },
+    {
+      id: 'wallet' as ProfileTabId,
+      label: 'Wallet',
+      icon: Wallet,
+      count: null,
+    },
     ...(isOwnProfile
       ? [
           {
