@@ -1,17 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loginSchema, type LoginFormData } from '@/lib/validations/auth'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 const authInputClassName =
   'rounded-lg bg-background text-foreground focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:border-transparent'
+
+const REDIRECT_TIMEOUT_MS = 15_000
 
 /**
  * Login Form Component
@@ -24,6 +26,7 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   const router = useRouter()
   const { signIn } = useAuthActions()
@@ -36,6 +39,18 @@ export default function LoginForm() {
     resolver: zodResolver(loginSchema),
   })
 
+  useEffect(() => {
+    if (!success) return
+
+    const timeout = setTimeout(() => {
+      setSuccess(false)
+      setIsLoading(false)
+      setError('Redirect is taking longer than expected. Try again.')
+    }, REDIRECT_TIMEOUT_MS)
+
+    return () => clearTimeout(timeout)
+  }, [success])
+
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)
     setError(null)
@@ -47,14 +62,29 @@ export default function LoginForm() {
         flow: 'signIn',
       })
 
-      // If we reach here, sign-in was successful
-      // Use replace to prevent back button returning to login
+      setSuccess(true)
       router.replace('/')
     } catch (error) {
       console.error('Login error:', error)
       setError('Invalid email or password. Please try again.')
       setIsLoading(false)
     }
+  }
+
+  if (success) {
+    return (
+      <div className="text-center space-y-4">
+        <div className="p-4 bg-muted border border-border rounded-lg">
+          <p className="inline-flex items-center justify-center gap-2 text-sm text-foreground">
+            <CheckCircle
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 text-success-foreground"
+            />
+            <span>Signed in successfully! Redirecting to dashboard...</span>
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
