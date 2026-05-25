@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId } from 'react'
 import { Search, X } from 'lucide-react'
 
 interface SearchInputProps {
@@ -18,8 +18,10 @@ export default function SearchInput({
   placeholder = 'Search articles...',
   className = '',
   debounceMs = 300,
-  id,
+  id: idProp,
 }: SearchInputProps) {
+  const generatedId = useId()
+  const inputId = idProp ?? generatedId
   const [localValue, setLocalValue] = useState(value)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onChangeRef = useRef(onChange)
@@ -64,22 +66,26 @@ export default function SearchInput({
   return (
     <div className={`relative ${className}`}>
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-quill-500" />
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-quill-500"
+          aria-hidden
+        />
         <input
-          id={id}
+          id={inputId}
           type="text"
           value={localValue}
           onChange={handleInputChange}
           placeholder={placeholder}
-          className="w-full pl-10 pr-10 py-2 border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent text-foreground placeholder:text-muted-foreground"
+          className="w-full pl-10 pr-10 py-2 border border-input rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:border-transparent text-foreground placeholder:text-muted-foreground"
         />
         {localValue && (
           <button
+            type="button"
             onClick={clearSearch}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-quill-500 hover:text-quill-700 transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-quill-500 transition-colors hover:text-quill-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
             aria-label="Clear search"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         )}
       </div>

@@ -91,12 +91,18 @@ export default function ArticlesPage() {
         </div>
 
         {/* Search Input */}
-        <div className="mb-6">
+        <div className="mb-6 max-w-md">
+          <label
+            htmlFor="articles-browse-search"
+            className="mb-2 block text-sm font-medium text-foreground"
+          >
+            Search articles
+          </label>
           <SearchInput
+            id="articles-browse-search"
             value={searchTerm}
             onChange={handleSearchChange}
             placeholder="Search articles by title or excerpt..."
-            className="max-w-md"
           />
         </div>
 
