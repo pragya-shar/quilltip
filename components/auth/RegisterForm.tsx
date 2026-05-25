@@ -217,6 +217,7 @@ export default function RegisterForm() {
               size="icon"
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-pressed={showPassword}
               className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               {showPassword ? (
@@ -252,8 +253,11 @@ export default function RegisterForm() {
               size="icon"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
               aria-label={
-                showConfirmPassword ? 'Hide password' : 'Show password'
+                showConfirmPassword
+                  ? 'Hide confirm password'
+                  : 'Show confirm password'
               }
+              aria-pressed={showConfirmPassword}
               className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               {showConfirmPassword ? (
