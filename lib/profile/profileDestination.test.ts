@@ -29,10 +29,7 @@ describe('resolveSignedInProfilePath', () => {
 
   it('maps wallet tab to profile URL', () => {
     expect(
-      resolveSignedInProfilePath(
-        'alice',
-        new URLSearchParams('tab=wallet')
-      )
+      resolveSignedInProfilePath('alice', new URLSearchParams('tab=wallet'))
     ).toBe('/alice?tab=wallet')
   })
 
@@ -48,10 +45,7 @@ describe('resolveSignedInProfilePath', () => {
 
   it('ignores invalid tab values', () => {
     expect(
-      resolveSignedInProfilePath(
-        'alice',
-        new URLSearchParams('tab=invalid')
-      )
+      resolveSignedInProfilePath('alice', new URLSearchParams('tab=invalid'))
     ).toBe('/alice')
   })
 })

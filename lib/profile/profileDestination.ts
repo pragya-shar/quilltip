@@ -28,7 +28,9 @@ export function buildLoginRedirectPath(intendedPath: string): string {
   return `/login?${params.toString()}`
 }
 
-export function parseSafeNextParam(next: string | null | undefined): string | null {
+export function parseSafeNextParam(
+  next: string | null | undefined
+): string | null {
   if (!next) return null
   if (!next.startsWith('/') || next.startsWith('//')) return null
   if (next.includes('://')) return null
