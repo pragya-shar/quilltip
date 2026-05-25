@@ -9,6 +9,7 @@ interface SearchInputProps {
   placeholder?: string
   className?: string
   debounceMs?: number
+  id?: string
 }
 
 export default function SearchInput({
@@ -17,6 +18,7 @@ export default function SearchInput({
   placeholder = 'Search articles...',
   className = '',
   debounceMs = 300,
+  id,
 }: SearchInputProps) {
   const [localValue, setLocalValue] = useState(value)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -64,6 +66,7 @@ export default function SearchInput({
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-quill-500" />
         <input
+          id={id}
           type="text"
           value={localValue}
           onChange={handleInputChange}
