@@ -175,8 +175,7 @@ export default function RegisterForm() {
         id="name"
         label={
           <>
-            Full Name{' '}
-            <span className="text-muted-foreground">(optional)</span>
+            Full Name <span className="text-muted-foreground">(optional)</span>
           </>
         }
         error={errors.name?.message}

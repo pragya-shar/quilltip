@@ -46,13 +46,13 @@ describe('mapRegisterSignInError', () => {
 
 describe('parseRegisterSignInError', () => {
   it('associates duplicate account errors with the email field', () => {
-    expect(parseRegisterSignInError(new Error('Account already exists'))).toEqual(
-      {
-        message:
-          'An account with this email already exists. Try signing in, or use a different email.',
-        field: 'email',
-      }
-    )
+    expect(
+      parseRegisterSignInError(new Error('Account already exists'))
+    ).toEqual({
+      message:
+        'An account with this email already exists. Try signing in, or use a different email.',
+      field: 'email',
+    })
   })
 
   it('associates username conflicts with the username field', () => {

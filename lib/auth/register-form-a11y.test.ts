@@ -6,7 +6,10 @@ describe('getFirstRegisterFieldError', () => {
     const result = getFirstRegisterFieldError({
       confirmPassword: { type: 'custom', message: "Passwords don't match" },
       email: { type: 'required', message: 'Email is required' },
-      password: { type: 'min', message: 'Password must be at least 8 characters' },
+      password: {
+        type: 'min',
+        message: 'Password must be at least 8 characters',
+      },
     })
 
     expect(result).toEqual({
@@ -18,7 +21,10 @@ describe('getFirstRegisterFieldError', () => {
   it('skips fields without messages', () => {
     const result = getFirstRegisterFieldError({
       email: { type: 'required', message: '' },
-      username: { type: 'min', message: 'Username must be at least 3 characters' },
+      username: {
+        type: 'min',
+        message: 'Username must be at least 3 characters',
+      },
     })
 
     expect(result).toEqual({
