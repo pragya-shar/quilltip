@@ -174,7 +174,7 @@ export function WalletGuide() {
             isLast
           >
             <Link
-              href="/profile"
+              href="/profile?tab=wallet"
               className="inline-flex items-center gap-2 px-4 py-2 bg-muted text-foreground text-sm rounded-lg border border-border hover:bg-muted/80 transition-colors"
             >
               Go to Profile Settings
