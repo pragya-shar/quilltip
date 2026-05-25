@@ -2,6 +2,10 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { EarningsStats } from '@/components/dashboard/EarningsStats'
+
+vi.mock('@/hooks/useProfileTabNavigation', () => ({
+  useProfileTabNavigation: () => vi.fn(),
+}))
 import type { Doc } from '@/types/convex'
 import type { Id } from '@/types/convex'
 

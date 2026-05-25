@@ -3,7 +3,12 @@
 import { notFound } from 'next/navigation'
 import { useUserByUsername, useUserStats } from '@/hooks/convex'
 import { use, useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import {
+  buildProfileTabHref,
+  parseProfileTab,
+  type ProfileTabId,
+} from '@/lib/profile/profileTab'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
@@ -21,13 +26,12 @@ interface ProfilePageProps {
   }>
 }
 
-type TabType = 'articles' | 'nfts' | 'earnings' | 'stats' | 'wallet'
-
 export default function ProfilePage({ params }: ProfilePageProps) {
   const { username } = use(params)
+  const pathname = usePathname()
+  const router = useRouter()
   const searchParams = useSearchParams()
   const { user: currentUser } = useAuth()
-  const [activeTab, setActiveTab] = useState<TabType>('articles')
   const [localWalletAddress, setLocalWalletAddress] = useState<
     string | null | undefined
   >()
@@ -58,6 +62,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
 
   // Check if this is the current user's profile
   const isOwnProfile = currentUser?.username === username
+  const activeTab = parseProfileTab(searchParams?.get('tab') ?? null, isOwnProfile)
 
   // Check if user exists
   if (user === null) {
@@ -92,28 +97,28 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   // Tab configuration
   const tabs = [
     {
-      id: 'articles' as TabType,
+      id: 'articles' as ProfileTabId,
       label: 'Articles',
       icon: BookOpen,
       count: userWithStats.articleCount,
     },
     {
-      id: 'nfts' as TabType,
+      id: 'nfts' as ProfileTabId,
       label: 'NFTs',
       icon: Image,
       count: userWithStats.nftsOwned,
     },
-    { id: 'wallet' as TabType, label: 'Wallet', icon: Wallet, count: null },
+    { id: 'wallet' as ProfileTabId, label: 'Wallet', icon: Wallet, count: null },
     ...(isOwnProfile
       ? [
           {
-            id: 'earnings' as TabType,
+            id: 'earnings' as ProfileTabId,
             label: 'Earnings',
             icon: DollarSign,
             count: null,
           },
           {
-            id: 'stats' as TabType,
+            id: 'stats' as ProfileTabId,
             label: 'Stats',
             icon: ChartBar,
             count: null,
@@ -139,7 +144,15 @@ export default function ProfilePage({ params }: ProfilePageProps) {
               <button
                 key={tab.id}
                 data-tab={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() =>
+                  router.push(
+                    buildProfileTabHref(
+                      pathname,
+                      new URLSearchParams(searchParams?.toString() ?? ''),
+                      tab.id
+                    )
+                  )
+                }
                 className={`
                   flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
