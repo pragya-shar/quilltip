@@ -89,9 +89,8 @@ describe('LoginForm', () => {
 
     await user.click(toggle)
 
-    expect(screen.getByRole('button', { name: /hide password/i })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(
+      screen.getByRole('button', { name: /hide password/i })
+    ).toHaveAttribute('aria-pressed', 'true')
   })
 })

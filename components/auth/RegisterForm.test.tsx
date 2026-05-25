@@ -109,17 +109,18 @@ describe('RegisterForm accessibility', () => {
 
     await user.click(toggle)
 
-    expect(screen.getByRole('button', { name: /hide password/i })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    expect(
+      screen.getByRole('button', { name: /hide password/i })
+    ).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('confirm password visibility toggle has accessible name and pressed state', async () => {
     const user = userEvent.setup({ delay: null })
     render(<RegisterForm />)
 
-    const toggle = screen.getByRole('button', { name: /show confirm password/i })
+    const toggle = screen.getByRole('button', {
+      name: /show confirm password/i,
+    })
     expect(toggle).toHaveAttribute('aria-pressed', 'false')
 
     await user.click(toggle)
