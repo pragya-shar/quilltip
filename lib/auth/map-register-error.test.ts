@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { mapRegisterSignInError } from './map-register-error'
+import {
+  mapRegisterSignInError,
+  parseRegisterSignInError,
+} from './map-register-error'
 
 describe('mapRegisterSignInError', () => {
   it('maps duplicate account messages from Convex-style errors', () => {
@@ -38,5 +41,36 @@ describe('mapRegisterSignInError', () => {
     expect(
       mapRegisterSignInError(new Error('Username "foo" is already taken'))
     ).toBe('This username is not available. Try another one.')
+  })
+})
+
+describe('parseRegisterSignInError', () => {
+  it('associates duplicate account errors with the email field', () => {
+    expect(
+      parseRegisterSignInError(new Error('Account already exists'))
+    ).toEqual({
+      message:
+        'An account with this email already exists. Try signing in, or use a different email.',
+      field: 'email',
+    })
+  })
+
+  it('associates username conflicts with the username field', () => {
+    expect(
+      parseRegisterSignInError(new Error('Username "foo" is already taken'))
+    ).toEqual({
+      message: 'This username is not available. Try another one.',
+      field: 'username',
+    })
+  })
+
+  it('returns a form-level generic error without a field', () => {
+    expect(
+      parseRegisterSignInError(
+        new Error('[CONVEX A(auth:signIn)] Server Error Something went wrong')
+      )
+    ).toEqual({
+      message: 'Registration failed. Please try again.',
+    })
   })
 })

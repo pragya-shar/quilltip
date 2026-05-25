@@ -2,17 +2,16 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, type FieldErrors } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { mapRegisterSignInError } from '@/lib/auth/map-register-error'
+import { parseRegisterSignInError } from '@/lib/auth/map-register-error'
+import { getFirstRegisterFieldError } from '@/lib/auth/register-form-a11y'
 import { registerSchema, type RegisterFormData } from '@/lib/validations/auth'
 import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-
-const authInputClassName =
-  'rounded-lg bg-background text-foreground focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:border-transparent'
+import { RegisterFormField } from '@/components/auth/RegisterFormField'
 
 /**
  * Register Form Component
@@ -25,7 +24,10 @@ export default function RegisterForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [submitAnnouncement, setSubmitAnnouncement] = useState<string | null>(
+    null
+  )
   const [success, setSuccess] = useState(false)
 
   const router = useRouter()
@@ -34,14 +36,36 @@ export default function RegisterForm() {
   const {
     register,
     handleSubmit,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
+    reValidateMode: 'onChange',
   })
+
+  const clearFieldFeedback = (name: keyof RegisterFormData) => {
+    clearErrors(name)
+    setFormError(null)
+    setSubmitAnnouncement(null)
+  }
+
+  const registerField = (name: keyof RegisterFormData) =>
+    register(name, {
+      onChange: () => clearFieldFeedback(name),
+    })
+
+  const announceFirstError = (formErrors: FieldErrors<RegisterFormData>) => {
+    const first = getFirstRegisterFieldError(formErrors)
+    if (!first) return
+    setSubmitAnnouncement(first.message)
+    document.getElementById(first.field)?.focus()
+  }
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true)
-    setError(null)
+    setFormError(null)
+    setSubmitAnnouncement(null)
 
     try {
       await signIn('password', {
@@ -53,12 +77,25 @@ export default function RegisterForm() {
       })
 
       setSuccess(true)
-      // Use replace to prevent back button returning to register
       router.replace('/')
     } catch (error) {
-      setError(mapRegisterSignInError(error))
+      const result = parseRegisterSignInError(error)
+      setSubmitAnnouncement(result.message)
+
+      if (result.field) {
+        setError(result.field, { type: 'server', message: result.message })
+        setFormError(null)
+        document.getElementById(result.field)?.focus()
+      } else {
+        setFormError(result.message)
+      }
+
       setIsLoading(false)
     }
+  }
+
+  const onInvalid = (formErrors: FieldErrors<RegisterFormData>) => {
+    announceFirstError(formErrors)
   }
 
   if (success) {
@@ -80,152 +117,155 @@ export default function RegisterForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {/* Error Message */}
-      {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-sm text-red-700">{error}</p>
+    <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
+      {submitAnnouncement ? (
+        <p role="alert" className="sr-only">
+          {submitAnnouncement}
+        </p>
+      ) : null}
+
+      {formError ? (
+        <div
+          role="alert"
+          className="p-4 bg-red-50 border border-red-200 rounded-lg"
+        >
+          <p className="text-sm text-red-700">{formError}</p>
         </div>
-      )}
+      ) : null}
 
-      {/* Email Field */}
-      <div>
-        <label
-          htmlFor="email"
-          className="block text-sm font-medium text-foreground mb-2"
-        >
-          Email address
-        </label>
-        <Input
-          {...register('email')}
-          type="email"
-          id="email"
-          autoComplete="email"
-          className={authInputClassName}
-          placeholder="you@example.com"
-        />
-        {errors.email && (
-          <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
-        )}
-      </div>
-
-      {/* Username Field */}
-      <div>
-        <label
-          htmlFor="username"
-          className="block text-sm font-medium text-foreground mb-2"
-        >
-          Username
-        </label>
-        <Input
-          {...register('username')}
-          type="text"
-          id="username"
-          autoComplete="username"
-          className={authInputClassName}
-          placeholder="Choose a unique username"
-        />
-        {errors.username && (
-          <p className="mt-1 text-sm text-red-600">{errors.username.message}</p>
-        )}
-      </div>
-
-      {/* Name Field (Optional) */}
-      <div>
-        <label
-          htmlFor="name"
-          className="block text-sm font-medium text-foreground mb-2"
-        >
-          Full Name <span className="text-muted-foreground">(optional)</span>
-        </label>
-        <Input
-          {...register('name')}
-          type="text"
-          id="name"
-          autoComplete="name"
-          className={authInputClassName}
-          placeholder="Your full name"
-        />
-        {errors.name && (
-          <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>
-        )}
-      </div>
-
-      {/* Password Field */}
-      <div>
-        <label
-          htmlFor="password"
-          className="block text-sm font-medium text-foreground mb-2"
-        >
-          Password
-        </label>
-        <div className="relative">
+      <RegisterFormField
+        id="email"
+        label="Email address"
+        error={errors.email?.message}
+      >
+        {(control) => (
           <Input
-            {...register('password')}
-            type={showPassword ? 'text' : 'password'}
-            id="password"
-            autoComplete="new-password"
-            className={`pr-10 ${authInputClassName}`}
-            placeholder="Create a secure password"
+            {...registerField('email')}
+            type="email"
+            id="email"
+            autoComplete="email"
+            placeholder="you@example.com"
+            aria-invalid={control['aria-invalid']}
+            aria-describedby={control['aria-describedby']}
+            className={control.inputClassName}
           />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            {showPassword ? (
-              <EyeOff className="h-4 w-4" />
-            ) : (
-              <Eye className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-        {errors.password && (
-          <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
         )}
-      </div>
+      </RegisterFormField>
 
-      {/* Confirm Password Field */}
-      <div>
-        <label
-          htmlFor="confirmPassword"
-          className="block text-sm font-medium text-foreground mb-2"
-        >
-          Confirm Password
-        </label>
-        <div className="relative">
+      <RegisterFormField
+        id="username"
+        label="Username"
+        error={errors.username?.message}
+      >
+        {(control) => (
           <Input
-            {...register('confirmPassword')}
-            type={showConfirmPassword ? 'text' : 'password'}
-            id="confirmPassword"
-            autoComplete="new-password"
-            className={`pr-10 ${authInputClassName}`}
-            placeholder="Confirm your password"
+            {...registerField('username')}
+            type="text"
+            id="username"
+            autoComplete="username"
+            placeholder="Choose a unique username"
+            aria-invalid={control['aria-invalid']}
+            aria-describedby={control['aria-describedby']}
+            className={control.inputClassName}
           />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            {showConfirmPassword ? (
-              <EyeOff className="h-4 w-4" />
-            ) : (
-              <Eye className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-        {errors.confirmPassword && (
-          <p className="mt-1 text-sm text-red-600">
-            {errors.confirmPassword.message}
-          </p>
         )}
-      </div>
+      </RegisterFormField>
 
-      {/* Submit Button */}
+      <RegisterFormField
+        id="name"
+        label={
+          <>
+            Full Name <span className="text-muted-foreground">(optional)</span>
+          </>
+        }
+        error={errors.name?.message}
+      >
+        {(control) => (
+          <Input
+            {...registerField('name')}
+            type="text"
+            id="name"
+            autoComplete="name"
+            placeholder="Your full name"
+            aria-invalid={control['aria-invalid']}
+            aria-describedby={control['aria-describedby']}
+            className={control.inputClassName}
+          />
+        )}
+      </RegisterFormField>
+
+      <RegisterFormField
+        id="password"
+        label="Password"
+        error={errors.password?.message}
+      >
+        {(control) => (
+          <div className="relative">
+            <Input
+              {...registerField('password')}
+              type={showPassword ? 'text' : 'password'}
+              id="password"
+              autoComplete="new-password"
+              placeholder="Create a secure password"
+              aria-invalid={control['aria-invalid']}
+              aria-describedby={control['aria-describedby']}
+              className={`pr-10 ${control.inputClassName}`}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Eye className="h-4 w-4" aria-hidden="true" />
+              )}
+            </Button>
+          </div>
+        )}
+      </RegisterFormField>
+
+      <RegisterFormField
+        id="confirmPassword"
+        label="Confirm Password"
+        error={errors.confirmPassword?.message}
+      >
+        {(control) => (
+          <div className="relative">
+            <Input
+              {...registerField('confirmPassword')}
+              type={showConfirmPassword ? 'text' : 'password'}
+              id="confirmPassword"
+              autoComplete="new-password"
+              placeholder="Confirm your password"
+              aria-invalid={control['aria-invalid']}
+              aria-describedby={control['aria-describedby']}
+              className={`pr-10 ${control.inputClassName}`}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              aria-label={
+                showConfirmPassword ? 'Hide password' : 'Show password'
+              }
+              className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              {showConfirmPassword ? (
+                <EyeOff className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Eye className="h-4 w-4" aria-hidden="true" />
+              )}
+            </Button>
+          </div>
+        )}
+      </RegisterFormField>
+
       <Button
         type="submit"
         disabled={isLoading}
@@ -233,7 +273,7 @@ export default function RegisterForm() {
       >
         {isLoading ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             Creating account...
           </>
         ) : (
