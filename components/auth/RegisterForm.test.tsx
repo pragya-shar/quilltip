@@ -85,7 +85,7 @@ describe('RegisterForm accessibility', () => {
     await user.type(screen.getByLabelText(/email address/i), 'user@example.com')
     await user.type(screen.getByLabelText(/^username$/i), 'myuser')
     await user.type(screen.getByLabelText(/^password$/i), 'Password1')
-    await user.type(screen.getByLabelText(/confirm password/i), 'Password1')
+    await user.type(screen.getByLabelText(/^confirm password$/i), 'Password1')
     await user.click(screen.getByRole('button', { name: /create account/i }))
 
     await waitFor(() => {
@@ -98,5 +98,34 @@ describe('RegisterForm accessibility', () => {
     expect(emailInput).toHaveAttribute('aria-invalid', 'true')
     expect(emailInput).toHaveAttribute('aria-describedby', 'email-error')
     expect(screen.queryByText(/registration failed/i)).not.toBeInTheDocument()
+  })
+
+  it('password visibility toggle has accessible name and pressed state', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<RegisterForm />)
+
+    const toggle = screen.getByRole('button', { name: /show password/i })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(toggle)
+
+    expect(screen.getByRole('button', { name: /hide password/i })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
+
+  it('confirm password visibility toggle has accessible name and pressed state', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<RegisterForm />)
+
+    const toggle = screen.getByRole('button', { name: /show confirm password/i })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(toggle)
+
+    expect(
+      screen.getByRole('button', { name: /hide confirm password/i })
+    ).toHaveAttribute('aria-pressed', 'true')
   })
 })

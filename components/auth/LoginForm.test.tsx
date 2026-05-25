@@ -79,4 +79,19 @@ describe('LoginForm', () => {
     await user.type(passwordInput, 'new-attempt')
     expect(passwordInput).toHaveValue('new-attempt')
   })
+
+  it('password visibility toggle has accessible name and pressed state', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<LoginForm />)
+
+    const toggle = screen.getByRole('button', { name: /show password/i })
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(toggle)
+
+    expect(screen.getByRole('button', { name: /hide password/i })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+  })
 })
