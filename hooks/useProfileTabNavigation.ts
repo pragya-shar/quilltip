@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
+  buildCurrentProfilePath,
   buildProfileTabHref,
   type ProfileTabId,
 } from '@/lib/profile/profileTab'
@@ -12,12 +13,10 @@ export function useProfileTabNavigation() {
   const searchParams = useSearchParams()
 
   return (tab: ProfileTabId) => {
-    router.push(
-      buildProfileTabHref(
-        pathname,
-        new URLSearchParams(searchParams?.toString() ?? ''),
-        tab
-      )
-    )
+    const params = new URLSearchParams(searchParams?.toString() ?? '')
+    const href = buildProfileTabHref(pathname, params, tab)
+    const current = buildCurrentProfilePath(pathname, params)
+    if (href === current) return
+    router.push(href)
   }
 }

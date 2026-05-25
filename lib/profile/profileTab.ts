@@ -34,3 +34,21 @@ export function buildProfileTabHref(
   const qs = next.toString()
   return qs ? `${pathname}?${qs}` : pathname
 }
+
+export function profileTabUrlIsCanonical(
+  raw: string | null,
+  isOwnProfile: boolean
+): boolean {
+  if (!raw) return true
+  const tab = parseProfileTab(raw, isOwnProfile)
+  if (tab === 'articles') return false
+  return tab === raw
+}
+
+export function buildCurrentProfilePath(
+  pathname: string,
+  searchParams: URLSearchParams
+): string {
+  const qs = searchParams.toString()
+  return qs ? `${pathname}?${qs}` : pathname
+}

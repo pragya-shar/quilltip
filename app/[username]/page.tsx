@@ -3,10 +3,12 @@
 import { notFound } from 'next/navigation'
 import { useUserByUsername, useUserStats } from '@/hooks/convex'
 import { use, useState, useEffect } from 'react'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   buildProfileTabHref,
   parseProfileTab,
+  profileTabUrlIsCanonical,
   type ProfileTabId,
 } from '@/lib/profile/profileTab'
 import { useAuth } from '@/components/providers/AuthContext'
@@ -31,7 +33,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user: currentUser } = useAuth()
+  const { user: currentUser, isLoading: authLoading } = useAuth()
   const [localWalletAddress, setLocalWalletAddress] = useState<
     string | null | undefined
   >()
@@ -62,10 +64,20 @@ export default function ProfilePage({ params }: ProfilePageProps) {
 
   // Check if this is the current user's profile
   const isOwnProfile = currentUser?.username === username
-  const activeTab = parseProfileTab(
-    searchParams?.get('tab') ?? null,
-    isOwnProfile
-  )
+  const rawTab = searchParams?.get('tab') ?? null
+  const activeTab = parseProfileTab(rawTab, authLoading ? false : isOwnProfile)
+
+  useEffect(() => {
+    if (authLoading) return
+    if (profileTabUrlIsCanonical(rawTab, isOwnProfile)) return
+    router.replace(
+      buildProfileTabHref(
+        pathname,
+        new URLSearchParams(searchParams?.toString() ?? ''),
+        parseProfileTab(rawTab, isOwnProfile)
+      )
+    )
+  }, [authLoading, isOwnProfile, pathname, rawTab, router, searchParams])
 
   // Check if user exists
   if (user === null) {
@@ -147,21 +159,21 @@ export default function ProfilePage({ params }: ProfilePageProps) {
 
         {/* Tabs */}
         <div className="border-b border-border mb-8">
-          <nav className="-mb-px flex space-x-8">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                data-tab={tab.id}
-                onClick={() =>
-                  router.push(
-                    buildProfileTabHref(
-                      pathname,
-                      new URLSearchParams(searchParams?.toString() ?? ''),
-                      tab.id
-                    )
-                  )
-                }
-                className={`
+          <nav className="-mb-px flex space-x-8" aria-label="Profile sections">
+            {tabs.map((tab) => {
+              const tabHref = buildProfileTabHref(
+                pathname,
+                new URLSearchParams(searchParams?.toString() ?? ''),
+                tab.id
+              )
+              return (
+                <Link
+                  key={tab.id}
+                  href={tabHref}
+                  scroll={false}
+                  data-tab={tab.id}
+                  aria-current={activeTab === tab.id ? 'page' : undefined}
+                  className={`
                   flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
                     activeTab === tab.id
@@ -169,16 +181,17 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                       : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                   }
                 `}
-              >
-                <tab.icon className="w-4 h-4" />
-                <span>{tab.label}</span>
-                {tab.count !== null && tab.count > 0 && (
-                  <span className="ml-1 bg-muted text-muted-foreground px-2 py-0.5 rounded-full text-xs">
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                  {tab.count !== null && tab.count > 0 && (
+                    <span className="ml-1 bg-muted text-muted-foreground px-2 py-0.5 rounded-full text-xs">
+                      {tab.count}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
           </nav>
         </div>
 
