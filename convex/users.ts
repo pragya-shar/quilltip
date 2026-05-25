@@ -1,6 +1,7 @@
 import { v } from 'convex/values'
 import { query, mutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
+import { isArticleListingReady } from './lib/articleListingReady'
 
 /**
  * Validate Stellar address format
@@ -156,6 +157,7 @@ export const getUserStats = query({
       .withIndex('by_author', (q) => q.eq('authorId', userId))
       .filter((q) => q.eq(q.field('published'), true))
       .collect()
+    const listingReadyCount = articles.filter(isArticleListingReady).length
 
     // Get total tips received
     const tipsReceived = await ctx.db
@@ -170,7 +172,7 @@ export const getUserStats = query({
     )
 
     return {
-      articleCount: articles.length,
+      articleCount: listingReadyCount,
       totalEarnings,
       tipsReceivedCount: tipsReceived.length,
     }

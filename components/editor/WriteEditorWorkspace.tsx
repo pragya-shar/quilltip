@@ -59,6 +59,7 @@ import {
   shouldPersistDraftBackup,
   writeDraftBackup,
 } from '@/lib/draftBackup'
+import { getListingReadyPublishError } from '@/convex/lib/articleListingReady'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const EXCERPT_MAX_CHARS = 500
@@ -463,13 +464,23 @@ export function WriteEditorWorkspace() {
     return () => window.removeEventListener('keydown', handler)
   }, [saveNow])
 
+  const publishListingError = getListingReadyPublishError({
+    title,
+    excerpt,
+  })
+
   const requestPublish = useCallback(() => {
     if (!editor || editor.isEmpty) {
       toast.warning('Please add content before publishing')
       return
     }
+    const listingError = getListingReadyPublishError({ title, excerpt })
+    if (listingError) {
+      toast.warning(listingError)
+      return
+    }
     setPublishConfirmOpen(true)
-  }, [editor])
+  }, [editor, title, excerpt])
 
   const handlePublish = useCallback(async () => {
     if (!editor || editor.isEmpty) {
@@ -480,6 +491,12 @@ export function WriteEditorWorkspace() {
     if (!editorContent) {
       setPublishConfirmOpen(false)
       toast.warning('Please add content before publishing')
+      return
+    }
+    const listingError = getListingReadyPublishError({ title, excerpt })
+    if (listingError) {
+      setPublishConfirmOpen(false)
+      toast.warning(listingError)
       return
     }
 
@@ -496,9 +513,9 @@ export function WriteEditorWorkspace() {
         resultId = published.id
       } else {
         resultId = await createArticleMutation({
-          title: title || 'Untitled',
+          title: title.trim(),
           content: editorContent,
-          excerpt: excerpt || undefined,
+          excerpt: excerpt.trim(),
           coverImage: coverImage || undefined,
           tags: tags
             .split(',')
@@ -779,7 +796,7 @@ export function WriteEditorWorkspace() {
         error={error?.message ?? null}
         isPublished={publishStatus.published}
         isPublishing={isPublishing}
-        canPublish={!!editor}
+        canPublish={!!editor && !editor.isEmpty && publishListingError === null}
         lastSavedAt={lastSavedAt ?? undefined}
         onDelete={handleRequestDelete}
         isDeleting={isDeleting}
@@ -949,7 +966,8 @@ export function WriteEditorWorkspace() {
                     </span>
                   </div>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Optional. Shown on article cards and in the publish preview.
+                    Required for publishing. Shown on article cards and in the
+                    publish preview (at least 10 characters).
                   </p>
                   {!excerptOpen && excerpt.trim().length > 0 && (
                     <p className="mt-2 line-clamp-2 whitespace-pre-wrap break-words text-sm text-foreground/80">
