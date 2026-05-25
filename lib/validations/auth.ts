@@ -54,9 +54,10 @@ export const registerSchema = z
       ),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
     name: z
-      .string()
-      .min(1, 'Name is required')
-      .max(50, 'Name must be at most 50 characters')
+      .union([
+        z.literal(''),
+        z.string().max(50, 'Name must be at most 50 characters'),
+      ])
       .optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
