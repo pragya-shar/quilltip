@@ -9,8 +9,7 @@ import { getFirstRegisterFieldError } from '@/lib/auth/register-form-a11y'
 import { registerSchema, type RegisterFormData } from '@/lib/validations/auth'
 import { allPasswordRulesMet } from '@/lib/validations/password-rules'
 
-const PASSWORD_VALIDATION_MESSAGE =
-  'Password does not meet all requirements'
+const PASSWORD_VALIDATION_MESSAGE = 'Password does not meet all requirements'
 import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { Button } from '@/components/ui/button'

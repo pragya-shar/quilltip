@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  allPasswordRulesMet,
-  getPasswordRuleStatuses,
-} from '../password-rules'
+import { allPasswordRulesMet, getPasswordRuleStatuses } from '../password-rules'
 
 describe('password-rules', () => {
   describe('getPasswordRuleStatuses', () => {
