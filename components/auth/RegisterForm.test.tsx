@@ -114,6 +114,78 @@ describe('RegisterForm accessibility', () => {
     ).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('shows password requirements before submit', () => {
+    render(<RegisterForm />)
+
+    expect(screen.getByText(/at least 8 characters/i)).toBeInTheDocument()
+    expect(screen.getByText(/one uppercase letter/i)).toBeInTheDocument()
+    expect(screen.getByText(/one lowercase letter/i)).toBeInTheDocument()
+    expect(screen.getByText(/one number/i)).toBeInTheDocument()
+  })
+
+  it('updates password requirements as the user types', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<RegisterForm />)
+
+    const passwordInput = screen.getByLabelText(/^password$/i)
+    await user.type(passwordInput, 'Password1')
+
+    const requirements = document.getElementById('password-requirements')
+    expect(requirements).toBeInTheDocument()
+    const items = requirements?.querySelectorAll('li') ?? []
+    expect(items).toHaveLength(4)
+    items.forEach((item) => {
+      expect(item).toHaveClass('text-success-foreground')
+    })
+  })
+
+  it('highlights unmet password rules on failed submit', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<RegisterForm />)
+
+    await user.type(screen.getByLabelText(/email address/i), 'user@example.com')
+    await user.type(screen.getByLabelText(/^username$/i), 'myuser')
+    await user.type(screen.getByLabelText(/^password$/i), 'weak')
+    await user.type(screen.getByLabelText(/^confirm password$/i), 'weak')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() => {
+      expect(document.getElementById('password-error')).toHaveTextContent(
+        'Password does not meet all requirements'
+      )
+    })
+
+    const requirements = document.getElementById('password-requirements')
+    const unmetItems = requirements?.querySelectorAll('.text-destructive') ?? []
+    expect(unmetItems.length).toBeGreaterThan(0)
+  })
+
+  it('clears password failure highlight when all rules are met', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<RegisterForm />)
+
+    await user.type(screen.getByLabelText(/email address/i), 'user@example.com')
+    await user.type(screen.getByLabelText(/^username$/i), 'myuser')
+    await user.type(screen.getByLabelText(/^password$/i), 'weak')
+    await user.type(screen.getByLabelText(/^confirm password$/i), 'weak')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() => {
+      expect(document.getElementById('password-error')).toBeInTheDocument()
+    })
+
+    const passwordInput = screen.getByLabelText(/^password$/i)
+    await user.clear(passwordInput)
+    await user.type(passwordInput, 'Password1')
+
+    await waitFor(() => {
+      const requirements = document.getElementById('password-requirements')
+      const unmetItems =
+        requirements?.querySelectorAll('.text-destructive') ?? []
+      expect(unmetItems).toHaveLength(0)
+    })
+  })
+
   it('confirm password visibility toggle has accessible name and pressed state', async () => {
     const user = userEvent.setup({ delay: null })
     render(<RegisterForm />)
