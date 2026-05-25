@@ -72,9 +72,7 @@ export function AuthorNotFoundPage({ username }: AuthorNotFoundPageProps) {
     (search: string) => {
       const trimmed = search.trim()
       if (!trimmed) return
-      router.push(
-        `/articles?search=${encodeURIComponent(trimmed)}&page=1`
-      )
+      router.push(`/articles?search=${encodeURIComponent(trimmed)}&page=1`)
     },
     [router]
   )
