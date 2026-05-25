@@ -5,7 +5,7 @@ import { type JSONContent } from '@tiptap/core'
 import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import Image from 'next/image'
-import { UserAvatar } from '@/components/ui/user-avatar'
+import { ArticleAuthorByline } from '@/components/articles/ArticleAuthorByline'
 import ShareButtons from './ShareButtons'
 import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
 import { ArticleBodySkeleton } from '@/components/articles/ArticleBodySkeleton'
@@ -63,31 +63,19 @@ export default function ArticleDisplay({
         </h1>
 
         <div className="flex items-center gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <UserAvatar
-              src={article.author.avatar}
-              alt={article.author.name || article.author.username}
-              name={article.author.name || article.author.username}
-              className="h-12 w-12"
-              fallbackClassName="text-base"
-            />
-            <div>
-              <p className="font-medium text-foreground">
-                {article.author.name || article.author.username}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                @{article.author.username}
-                <span className="mx-1">•</span>
-                {publishedDate && (
-                  <>
-                    {publishedDate}
-                    <span className="mx-1">•</span>
-                  </>
-                )}
-                {readingMinutes} min read
-              </p>
-            </div>
-          </div>
+          <ArticleAuthorByline author={article.author} size="md">
+            <p className="text-sm text-muted-foreground">
+              @{article.author.username}
+              <span className="mx-1">•</span>
+              {publishedDate && (
+                <>
+                  {publishedDate}
+                  <span className="mx-1">•</span>
+                </>
+              )}
+              {readingMinutes} min read
+            </p>
+          </ArticleAuthorByline>
         </div>
 
         {article.coverImage && (
