@@ -65,10 +65,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   // Check if this is the current user's profile
   const isOwnProfile = currentUser?.username === username
   const rawTab = searchParams?.get('tab') ?? null
-  const activeTab = parseProfileTab(
-    rawTab,
-    authLoading ? false : isOwnProfile
-  )
+  const activeTab = parseProfileTab(rawTab, authLoading ? false : isOwnProfile)
 
   useEffect(() => {
     if (authLoading) return
@@ -80,14 +77,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
         parseProfileTab(rawTab, isOwnProfile)
       )
     )
-  }, [
-    authLoading,
-    isOwnProfile,
-    pathname,
-    rawTab,
-    router,
-    searchParams,
-  ])
+  }, [authLoading, isOwnProfile, pathname, rawTab, router, searchParams])
 
   // Check if user exists
   if (user === null) {
