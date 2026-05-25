@@ -1,16 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, type FieldErrors } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { parseRegisterSignInError } from '@/lib/auth/map-register-error'
 import { getFirstRegisterFieldError } from '@/lib/auth/register-form-a11y'
 import { registerSchema, type RegisterFormData } from '@/lib/validations/auth'
+import { allPasswordRulesMet } from '@/lib/validations/password-rules'
+
+const PASSWORD_VALIDATION_MESSAGE =
+  'Password does not meet all requirements'
 import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  PasswordRequirements,
+  PASSWORD_REQUIREMENTS_ID,
+} from '@/components/auth/PasswordRequirements'
 import { RegisterFormField } from '@/components/auth/RegisterFormField'
 
 /**
@@ -29,6 +37,8 @@ export default function RegisterForm() {
     null
   )
   const [success, setSuccess] = useState(false)
+  const [highlightPasswordFailures, setHighlightPasswordFailures] =
+    useState(false)
 
   const router = useRouter()
   const { signIn } = useAuth()
@@ -38,11 +48,20 @@ export default function RegisterForm() {
     handleSubmit,
     setError,
     clearErrors,
+    watch,
     formState: { errors },
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     reValidateMode: 'onChange',
   })
+
+  const password = watch('password') ?? ''
+
+  useEffect(() => {
+    if (highlightPasswordFailures && allPasswordRulesMet(password)) {
+      setHighlightPasswordFailures(false)
+    }
+  }, [password, highlightPasswordFailures])
 
   const clearFieldFeedback = (name: keyof RegisterFormData) => {
     clearErrors(name)
@@ -53,6 +72,13 @@ export default function RegisterForm() {
   const registerField = (name: keyof RegisterFormData) =>
     register(name, {
       onChange: () => clearFieldFeedback(name),
+    })
+
+  const registerPasswordField = () =>
+    register('password', {
+      onChange: () => {
+        clearFieldFeedback('password')
+      },
     })
 
   const announceFirstError = (formErrors: FieldErrors<RegisterFormData>) => {
@@ -95,6 +121,19 @@ export default function RegisterForm() {
   }
 
   const onInvalid = (formErrors: FieldErrors<RegisterFormData>) => {
+    const first = getFirstRegisterFieldError(formErrors)
+
+    if (first?.field === 'password') {
+      setHighlightPasswordFailures(true)
+      setError('password', {
+        type: 'manual',
+        message: PASSWORD_VALIDATION_MESSAGE,
+      })
+      setSubmitAnnouncement(PASSWORD_VALIDATION_MESSAGE)
+      document.getElementById('password')?.focus()
+      return
+    }
+
     announceFirstError(formErrors)
   }
 
@@ -198,35 +237,42 @@ export default function RegisterForm() {
         id="password"
         label="Password"
         error={errors.password?.message}
+        extraDescribedBy={PASSWORD_REQUIREMENTS_ID}
       >
         {(control) => (
-          <div className="relative">
-            <Input
-              {...registerField('password')}
-              type={showPassword ? 'text' : 'password'}
-              id="password"
-              autoComplete="new-password"
-              placeholder="Create a secure password"
-              aria-invalid={control['aria-invalid']}
-              aria-describedby={control['aria-describedby']}
-              className={`pr-10 ${control.inputClassName}`}
+          <>
+            <div className="relative">
+              <Input
+                {...registerPasswordField()}
+                type={showPassword ? 'text' : 'password'}
+                id="password"
+                autoComplete="new-password"
+                placeholder="Create a secure password"
+                aria-invalid={control['aria-invalid']}
+                aria-describedby={control['aria-describedby']}
+                className={`pr-10 ${control.inputClassName}`}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-4 w-4" aria-hidden="true" />
+                )}
+              </Button>
+            </div>
+            <PasswordRequirements
+              password={password}
+              highlightFailures={highlightPasswordFailures}
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowPassword(!showPassword)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-              aria-pressed={showPassword}
-              className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showPassword ? (
-                <EyeOff className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <Eye className="h-4 w-4" aria-hidden="true" />
-              )}
-            </Button>
-          </div>
+          </>
         )}
       </RegisterFormField>
 

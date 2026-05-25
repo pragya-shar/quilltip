@@ -15,6 +15,7 @@ type RegisterFormFieldProps = {
   id: string
   label: ReactNode
   error?: string
+  extraDescribedBy?: string
   children: (control: RegisterFieldControlProps) => ReactNode
 }
 
@@ -22,13 +23,17 @@ export function RegisterFormField({
   id,
   label,
   error,
+  extraDescribedBy,
   children,
 }: RegisterFormFieldProps) {
   const errorId = `${id}-error`
   const invalid = !!error
+  const describedBy = [extraDescribedBy, invalid ? errorId : undefined]
+    .filter(Boolean)
+    .join(' ')
   const control: RegisterFieldControlProps = {
     'aria-invalid': invalid,
-    ...(invalid ? { 'aria-describedby': errorId } : {}),
+    ...(describedBy ? { 'aria-describedby': describedBy } : {}),
     inputClassName: cn(
       authInputClassName,
       invalid &&
