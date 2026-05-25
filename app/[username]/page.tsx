@@ -3,7 +3,6 @@
 import { notFound } from 'next/navigation'
 import { useUserByUsername, useUserStats } from '@/hooks/convex'
 import { use, useState, useEffect } from 'react'
-import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   buildProfileTabHref,
@@ -15,6 +14,7 @@ import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import ProfileHeader from '@/components/profile/ProfileHeader'
+import { ProfileTabBar } from '@/components/profile/ProfileTabBar'
 import { ProfileArticlesTabContent } from '@/components/profile/ProfileArticlesTabContent'
 import { ProfileNftsTabContent } from '@/components/profile/ProfileNftsTabContent'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
@@ -151,49 +151,23 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     <div className="flex min-h-screen flex-col bg-background">
       <AppNavigation />
 
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 w-full">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 w-full min-w-0">
         {/* Profile Header */}
         <div className="mb-8">
           <ProfileHeader user={userWithStats} isOwnProfile={isOwnProfile} />
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-border mb-8">
-          <nav className="-mb-px flex space-x-8" aria-label="Profile sections">
-            {tabs.map((tab) => {
-              const tabHref = buildProfileTabHref(
-                pathname,
-                new URLSearchParams(searchParams?.toString() ?? ''),
-                tab.id
-              )
-              return (
-                <Link
-                  key={tab.id}
-                  href={tabHref}
-                  scroll={false}
-                  data-tab={tab.id}
-                  aria-current={activeTab === tab.id ? 'page' : undefined}
-                  className={`
-                  flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors
-                  ${
-                    activeTab === tab.id
-                      ? 'border-brand-blue text-foreground dark:border-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-                  }
-                `}
-                >
-                  <tab.icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                  {tab.count !== null && tab.count > 0 && (
-                    <span className="ml-1 bg-muted text-muted-foreground px-2 py-0.5 rounded-full text-xs">
-                      {tab.count}
-                    </span>
-                  )}
-                </Link>
-              )
-            })}
-          </nav>
-        </div>
+        <ProfileTabBar
+          tabs={tabs}
+          activeTab={activeTab}
+          getHref={(tabId) =>
+            buildProfileTabHref(
+              pathname,
+              new URLSearchParams(searchParams?.toString() ?? ''),
+              tabId
+            )
+          }
+        />
 
         {/* Tab Content */}
         <div>
