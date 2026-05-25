@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { buildProfileTabHref, parseProfileTab } from './profileTab'
+import {
+  buildCurrentProfilePath,
+  buildProfileTabHref,
+  parseProfileTab,
+  profileTabUrlIsCanonical,
+} from './profileTab'
 
 describe('parseProfileTab', () => {
   it('defaults to articles when tab is missing', () => {
@@ -47,6 +52,32 @@ describe('buildProfileTabHref', () => {
     const sp = new URLSearchParams('nftOwnedPage=2&nftMintedPage=3')
     expect(buildProfileTabHref('/bob', sp, 'wallet')).toBe(
       '/bob?nftOwnedPage=2&nftMintedPage=3&tab=wallet'
+    )
+  })
+})
+
+describe('profileTabUrlIsCanonical', () => {
+  it('returns true when tab param is absent or valid', () => {
+    expect(profileTabUrlIsCanonical(null, false)).toBe(true)
+    expect(profileTabUrlIsCanonical('wallet', false)).toBe(true)
+    expect(profileTabUrlIsCanonical('earnings', true)).toBe(true)
+  })
+
+  it('returns false for invalid or disallowed tab params', () => {
+    expect(profileTabUrlIsCanonical('invalid', true)).toBe(false)
+    expect(profileTabUrlIsCanonical('earnings', false)).toBe(false)
+    expect(profileTabUrlIsCanonical('stats', false)).toBe(false)
+    expect(profileTabUrlIsCanonical('articles', true)).toBe(false)
+  })
+})
+
+describe('buildCurrentProfilePath', () => {
+  it('builds pathname with search string', () => {
+    expect(
+      buildCurrentProfilePath('/alice', new URLSearchParams('tab=wallet'))
+    ).toBe('/alice?tab=wallet')
+    expect(buildCurrentProfilePath('/alice', new URLSearchParams())).toBe(
+      '/alice'
     )
   })
 })
