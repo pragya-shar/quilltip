@@ -80,9 +80,7 @@ export default function LoginForm() {
               aria-hidden="true"
               className="h-4 w-4 shrink-0 text-success-foreground"
             />
-            <span>
-              Signed in successfully! Redirecting to dashboard...
-            </span>
+            <span>Signed in successfully! Redirecting to dashboard...</span>
           </p>
         </div>
       </div>

@@ -63,9 +63,7 @@ describe('LoginForm', () => {
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/invalid email or password/i)
-      ).toBeInTheDocument()
+      expect(screen.getByText(/invalid email or password/i)).toBeInTheDocument()
     })
 
     const submitButton = screen.getByRole('button', { name: /sign in/i })
