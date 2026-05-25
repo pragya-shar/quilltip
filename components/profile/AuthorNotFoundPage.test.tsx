@@ -55,10 +55,9 @@ describe('AuthorNotFoundPage', () => {
   it('links Browse articles to /articles and Go home to /', () => {
     render(<AuthorNotFoundPage username="badhandle" />)
 
-    expect(screen.getByRole('link', { name: 'Browse articles' })).toHaveAttribute(
-      'href',
-      '/articles'
-    )
+    expect(
+      screen.getByRole('link', { name: 'Browse articles' })
+    ).toHaveAttribute('href', '/articles')
     expect(screen.getByRole('link', { name: 'Go home' })).toHaveAttribute(
       'href',
       '/'
