@@ -2,11 +2,7 @@ export const PASSWORD_MIN_LENGTH = 8
 
 export const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/
 
-export type PasswordRuleId =
-  | 'minLength'
-  | 'uppercase'
-  | 'lowercase'
-  | 'digit'
+export type PasswordRuleId = 'minLength' | 'uppercase' | 'lowercase' | 'digit'
 
 export type PasswordRuleStatus = {
   id: PasswordRuleId
@@ -41,7 +37,9 @@ const PASSWORD_RULES: {
   },
 ]
 
-export function getPasswordRuleStatuses(password: string): PasswordRuleStatus[] {
+export function getPasswordRuleStatuses(
+  password: string
+): PasswordRuleStatus[] {
   return PASSWORD_RULES.map(({ id, label, test }) => ({
     id,
     label,
