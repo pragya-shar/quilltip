@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type RefObject } from 'react'
+import { useState, useRef, useEffect, type RefObject } from 'react'
 import { Youtube, Link2, Play } from 'lucide-react'
 import Image from 'next/image'
 import {
@@ -55,6 +55,16 @@ export function YouTubeEmbedDialog({
   const [height, setHeight] = useState(480)
   const [error, setError] = useState('')
   const [imageError, setImageError] = useState(false)
+  const urlInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    urlInputRef.current?.focus()
+  }, [isOpen])
+
+  if (!isOpen) {
+    return null
+  }
 
   const handleSubmit = () => {
     setError('')
@@ -130,6 +140,7 @@ export function YouTubeEmbedDialog({
             <div className="relative">
               <Link2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
+                ref={urlInputRef}
                 id="youtube-url"
                 type="url"
                 placeholder="https://www.youtube.com/watch?v=..."
@@ -141,8 +152,6 @@ export function YouTubeEmbedDialog({
                   }
                 }}
                 className="w-full pl-10 pr-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- primary field when dialog opens
-                autoFocus
               />
             </div>
             <p className="text-xs text-muted-foreground">

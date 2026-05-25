@@ -23,3 +23,7 @@ export const TIP_PRESETS_HIGHLIGHT = [
 // Editor content styling (prose class for Tiptap)
 export const EDITOR_PROSE_CLASS =
   'prose prose-lg max-w-none focus:outline-none dark:prose-invert'
+
+/** Visible focus ring for upload controls (file pickers, drop zones, file labels). */
+export const UPLOAD_CONTROL_FOCUS_RING =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background'
