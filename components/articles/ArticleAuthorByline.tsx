@@ -41,7 +41,9 @@ export function ArticleAuthorByline({
       ? 'text-sm font-medium text-foreground'
       : 'font-medium text-foreground'
   const handleClassName =
-    size === 'sm' ? 'text-xs text-muted-foreground' : 'text-sm text-muted-foreground'
+    size === 'sm'
+      ? 'text-xs text-muted-foreground'
+      : 'text-sm text-muted-foreground'
 
   const identityBlock = (
     <>
@@ -54,11 +56,11 @@ export function ArticleAuthorByline({
       />
       <div>
         <p className={nameClassName}>{displayName}</p>
-        {showHandle && (
-          <p className={handleClassName}>@{author.username}</p>
-        )}
+        {showHandle && <p className={handleClassName}>@{author.username}</p>}
         {!linkable && (
-          <p className="text-xs text-muted-foreground">Author profile unavailable</p>
+          <p className="text-xs text-muted-foreground">
+            Author profile unavailable
+          </p>
         )}
       </div>
     </>

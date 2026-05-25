@@ -83,11 +83,7 @@ export default function ArticleCard({
 
         {/* Author Info */}
         <div className="flex items-center justify-between pt-4 border-t border-border">
-          <ArticleAuthorByline
-            author={article.author}
-            size="sm"
-            showHandle
-          />
+          <ArticleAuthorByline author={article.author} size="sm" showHandle />
 
           {/* Published Date */}
           {publishedDate && (
