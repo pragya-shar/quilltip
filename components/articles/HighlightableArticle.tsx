@@ -16,12 +16,14 @@ import { api } from '@/convex/_generated/api'
 import { useArticleById, useArticleHighlightsQuery } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
 import { HighlightPopover } from '@/components/highlights/HighlightPopover'
+import { HighlightSignInPrompt } from '@/components/highlights/HighlightSignInPrompt'
 import { HighlightDetailsPanel } from '@/components/highlights/HighlightDetailsPanel'
 import { cn } from '@/lib/utils'
 import { AnimatePresence } from 'motion/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { toast } from 'sonner'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { handleArticleHighlightOverlayPointerDown } from '@/lib/highlights/articleOverlayPointerDismiss'
 import { getRangeBoundingBox } from '@/lib/highlights/utils'
 import type { TocHeading } from '@/lib/tiptap/headings'
 import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
@@ -86,6 +88,13 @@ export function HighlightableArticle({
     highlight: HighlightData
     position: { top: number; left: number }
   } | null>(null)
+  const [signInPromptPosition, setSignInPromptPosition] = useState<{
+    top: number
+    left: number
+  } | null>(null)
+  const [signInPreviewText, setSignInPreviewText] = useState<string | null>(
+    null
+  )
   const editorRef = useRef<HTMLDivElement>(null)
   const isApplyingHighlightsRef = useRef(false)
   // During a drag, onSelectionUpdate fires on every move; if we mount the
@@ -93,12 +102,14 @@ export function HighlightableArticle({
   // the article body and the native selection collapses. Defer popover to pointerup.
   const isDraggingRef = useRef(false)
 
-  const { user } = useAuth()
+  const { user, isAuthenticated } = useAuth()
+  const highlightsActive = showHighlights && isAuthenticated
+  const signInPromptActive = showHighlights && !isAuthenticated
 
   useEnsureHeadingIds(tocHeadings, { rootSelector: '.highlightable-article' })
   const article = useArticleById(articleId)
 
-  const highlights = useArticleHighlightsQuery(articleId, showHighlights)
+  const highlights = useArticleHighlightsQuery(articleId, highlightsActive)
 
   const highlightsRef = useRef(highlights)
   useEffect(() => {
@@ -126,13 +137,15 @@ export function HighlightableArticle({
         }),
         ResizableImage,
         ...(editable ? [EditorKeymap] : []),
-        ...(showHighlights
+        ...(highlightsActive
           ? [
               HighlightExtension.configure({
                 multicolor: true,
                 highlights:
                   highlights?.map((h) => ({
                     id: h._id,
+                    startOffset: h.startOffset,
+                    endOffset: h.endOffset,
                     color: h.color || '#FFEB3B',
                     userId: h.userId,
                     userName: h.userName,
@@ -195,24 +208,39 @@ export function HighlightableArticle({
           const domSelection = window.getSelection()
           if (domSelection && domSelection.rangeCount > 0) {
             const range = domSelection.getRangeAt(0)
-            const rect = range.getBoundingClientRect()
-            const containerRect = editorRef.current?.getBoundingClientRect()
 
-            setSelectedText({ text, from, to })
-            if (containerRect) {
-              setPopoverPosition({
-                top: rect.top - containerRect.top - 60,
-                left: rect.left - containerRect.left + rect.width / 2,
-              })
+            if (signInPromptActive) {
+              const anchor = getRangeTopCenterAnchor(range)
+              if (anchor) {
+                setSignInPreviewText(text)
+                setSignInPromptPosition(anchor)
+              }
+              setSelectedText(null)
+              setPopoverPosition(null)
+            } else if (highlightsActive) {
+              const rect = range.getBoundingClientRect()
+              const containerRect = editorRef.current?.getBoundingClientRect()
+
+              setSelectedText({ text, from, to })
+              if (containerRect) {
+                setPopoverPosition({
+                  top: rect.top - containerRect.top - 60,
+                  left: rect.left - containerRect.left + rect.width / 2,
+                })
+              }
+              setSignInPreviewText(null)
+              setSignInPromptPosition(null)
             }
           }
         } else {
           setSelectedText(null)
           setPopoverPosition(null)
+          setSignInPreviewText(null)
+          setSignInPromptPosition(null)
         }
       },
     },
-    [showHighlights, editable, articleId]
+    [showHighlights, highlightsActive, signInPromptActive, editable, articleId]
   )
 
   useEffect(() => {
@@ -220,10 +248,20 @@ export function HighlightableArticle({
       setSelectedText(null)
       setPopoverPosition(null)
       setHighlightTooltip(null)
+      setSignInPreviewText(null)
+      setSignInPromptPosition(null)
     }
   }, [showHighlights])
+
   useEffect(() => {
-    if (!editor || !highlights || !showHighlights) return
+    if (isAuthenticated) {
+      setSignInPreviewText(null)
+      setSignInPromptPosition(null)
+    }
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    if (!editor || !highlights || !highlightsActive) return
 
     // Suppress popover during programmatic highlight application
     isApplyingHighlightsRef.current = true
@@ -232,20 +270,28 @@ export function HighlightableArticle({
     requestAnimationFrame(() => {
       isApplyingHighlightsRef.current = false
     })
-  }, [editor, highlights, showHighlights])
+  }, [editor, highlights, highlightsActive])
 
-  // Show the highlight popover only after the user releases a drag-select.
+  // Show overlay only after the user releases a drag-select.
   useEffect(() => {
     const container = editorRef.current
     if (!container || editable || !showHighlights) return
 
     const handlePointerDown = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as HTMLElement | null
-      // Ignore events from an open popover/dialog so their buttons still click.
-      if (target?.closest('[role="dialog"]')) return
-      isDraggingRef.current = true
-      setSelectedText(null)
-      setPopoverPosition(null)
+      handleArticleHighlightOverlayPointerDown(e.target, {
+        closeCreatePopover: () => {
+          isDraggingRef.current = true
+          setSelectedText(null)
+          setPopoverPosition(null)
+          setSignInPreviewText(null)
+          setSignInPromptPosition(null)
+        },
+        closeDetailsPanel: () => setHighlightTooltip(null),
+        closeSignInPrompt: () => {
+          setSignInPreviewText(null)
+          setSignInPromptPosition(null)
+        },
+      })
     }
 
     const handlePointerUp = () => {
@@ -262,13 +308,18 @@ export function HighlightableArticle({
         const range = domSelection.getRangeAt(0)
         const anchor = getRangeTopCenterAnchor(range)
         if (!anchor) return
-        setSelectedText({ text, from, to })
-        setPopoverPosition({
-          // Viewport coordinates (HighlightPopover is `position: fixed`).
-          // Anchor at top-center of the selection bounding box.
-          top: anchor.top,
-          left: anchor.left,
-        })
+
+        if (signInPromptActive) {
+          setSignInPreviewText(text)
+          setSignInPromptPosition(anchor)
+          setSelectedText(null)
+          setPopoverPosition(null)
+        } else if (highlightsActive) {
+          setSelectedText({ text, from, to })
+          setPopoverPosition(anchor)
+          setSignInPreviewText(null)
+          setSignInPromptPosition(null)
+        }
       })
     }
 
@@ -285,7 +336,7 @@ export function HighlightableArticle({
       document.removeEventListener('mouseup', handlePointerUp)
       document.removeEventListener('touchend', handlePointerUp)
     }
-  }, [editor, editable, showHighlights])
+  }, [editor, editable, showHighlights, highlightsActive, signInPromptActive])
 
   const handleCreateHighlight = useCallback(
     async (color: string, note?: string, isPublic: boolean = true) => {
@@ -343,19 +394,18 @@ export function HighlightableArticle({
     editor?.commands.focus()
   }, [editor])
 
-  useEffect(() => {
-    if (highlightTooltip === null) return
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      e.preventDefault()
-      e.stopPropagation()
-      handleTooltipClose()
+  const handleSignInPromptClose = useCallback(() => {
+    if (editor) {
+      const { from, to } = editor.state.selection
+      if (from !== to) {
+        editor.chain().setTextSelection(from).run()
+      }
     }
-
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [highlightTooltip, handleTooltipClose])
+    setSignInPreviewText(null)
+    setSignInPromptPosition(null)
+    window.getSelection()?.removeAllRanges()
+    editor?.commands.focus()
+  }, [editor])
 
   return (
     <div
@@ -365,7 +415,7 @@ export function HighlightableArticle({
       <EditorContent editor={editor} />
 
       <AnimatePresence>
-        {popoverPosition && selectedText && article && (
+        {highlightsActive && popoverPosition && selectedText && article && (
           <HighlightPopover
             position={popoverPosition}
             onCreateHighlight={handleCreateHighlight}
@@ -377,6 +427,16 @@ export function HighlightableArticle({
             authorStellarAddress={article.author?.stellarAddress}
             startOffset={selectedText.from}
             endOffset={selectedText.to}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {signInPromptActive && signInPromptPosition && signInPreviewText && (
+          <HighlightSignInPrompt
+            position={signInPromptPosition}
+            selectedText={signInPreviewText}
+            onClose={handleSignInPromptClose}
           />
         )}
       </AnimatePresence>

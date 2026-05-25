@@ -17,7 +17,6 @@ const HighlightableArticle = dynamic(
     })),
   { ssr: false, loading: () => <ArticleBodySkeleton /> }
 )
-import { useAuth } from '@/components/providers/AuthContext'
 import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
 import { TagFilterLink } from '@/components/articles/TagFilterLink'
@@ -40,13 +39,10 @@ export default function ArticleDisplay({
   tocHeadings = [],
 }: ArticleDisplayProps) {
   const [currentUrl, setCurrentUrl] = useState('')
-  const { isAuthenticated } = useAuth()
 
   useEffect(() => {
     setCurrentUrl(window.location.href)
   }, [])
-
-  const effectiveShowHighlights = showHighlights && isAuthenticated
 
   const publishedDate = article.publishedAt
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
@@ -122,12 +118,12 @@ export default function ArticleDisplay({
       </header>
 
       <div className="article-content">
-        {effectiveShowHighlights ? (
+        {showHighlights ? (
           <HighlightableArticle
             articleId={article.id as Id<'articles'>}
             content={article.content ?? EMPTY_DOC}
             editable={false}
-            showHighlights={effectiveShowHighlights}
+            showHighlights={showHighlights}
             tocHeadings={tocHeadings}
           />
         ) : (

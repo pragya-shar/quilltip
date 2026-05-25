@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo, useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter, MessageSquare, Lock, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { HighlightTipButton } from './HighlightTipButton'
 import { Id } from '@/convex/_generated/dataModel'
+import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
 
 interface HighlightPopoverProps {
   position: { top: number; left: number }
@@ -80,29 +81,7 @@ export function HighlightPopover({
   const [isPublic, setIsPublic] = useState(true)
   const [showNoteInput, setShowNoteInput] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
-
-  const clampedPosition = useMemo(() => {
-    const clamp = (v: number, min: number, max: number) =>
-      Math.min(max, Math.max(min, v))
-
-    const margin = 12
-    const rect = popoverRef.current?.getBoundingClientRect()
-    const width = rect?.width ?? 320
-    const height = rect?.height ?? 260
-
-    // `position` is the anchor point for the popover's top-center.
-    const desiredLeft = position.left - width / 2
-    const minLeft = margin
-    const maxLeft = window.innerWidth - margin - width
-    const left = clamp(desiredLeft, minLeft, Math.max(minLeft, maxLeft))
-
-    const desiredTop = position.top
-    const minTop = margin
-    const maxTop = window.innerHeight - margin - height
-    const top = clamp(desiredTop, minTop, Math.max(minTop, maxTop))
-
-    return { top, left }
-  }, [position.left, position.top])
+  const clampedPosition = useClampedFixedPosition(position, popoverRef)
 
   const handleSaveHighlight = () => {
     onCreateHighlight(selectedColor, note || undefined, isPublic)
