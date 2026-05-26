@@ -14,6 +14,10 @@ import {
   replaceTagLinksForArticle,
 } from './lib/articleListing'
 import {
+  assertPublishableArticleTitle,
+  isPlaceholderArticleTitle,
+} from './lib/articleTitle'
+import {
   extractTextFromTiptapJson,
   tiptapJsonHasNonEmptyText,
 } from './lib/tiptapContent'
@@ -323,8 +327,11 @@ export const createArticle = mutation({
     // Validate input
     validateArticleInput(args)
 
-    if (args.published && !tiptapJsonHasNonEmptyText(args.content)) {
-      throw new Error('Cannot publish: article body is empty')
+    if (args.published) {
+      assertPublishableArticleTitle(args.title)
+      if (!tiptapJsonHasNonEmptyText(args.content)) {
+        throw new Error('Cannot publish: article body is empty')
+      }
     }
 
     const user = await ctx.db.get(userId)
@@ -476,9 +483,7 @@ export const publishArticle = mutation({
     if (article.published) throw new Error('Already published')
 
     // Validate article has required content before publishing
-    if (!article.title || article.title.trim().length === 0) {
-      throw new Error('Cannot publish: title is required')
-    }
+    assertPublishableArticleTitle(article.title)
     if (!article.content) {
       throw new Error('Cannot publish: content is required')
     }
@@ -718,6 +723,48 @@ export const backfillArticleTagsAndSearchContent = internalMutation({
       if (fresh?.published) await replaceTagLinksForArticle(ctx, fresh)
       updated += 1
     }
+    return { updated }
+  },
+})
+
+// One-off after deploy: bunx convex run internal/articles:unpublishArticlesWithPlaceholderTitles
+export const unpublishArticlesWithPlaceholderTitles = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const articles = await ctx.db.query('articles').collect()
+    const now = Date.now()
+    let updated = 0
+    const articleCountDeltaByAuthor = new Map<Id<'users'>, number>()
+
+    for (const article of articles) {
+      if (!article.published || !isPlaceholderArticleTitle(article.title)) {
+        continue
+      }
+
+      await removeTagLinksForArticle(ctx, article._id)
+      await ctx.db.patch(article._id, {
+        published: false,
+        publishedAt: undefined,
+        updatedAt: now,
+      })
+
+      articleCountDeltaByAuthor.set(
+        article.authorId,
+        (articleCountDeltaByAuthor.get(article.authorId) ?? 0) + 1
+      )
+      updated += 1
+    }
+
+    for (const [authorId, delta] of articleCountDeltaByAuthor) {
+      const user = await ctx.db.get(authorId)
+      if (user) {
+        await ctx.db.patch(authorId, {
+          articleCount: Math.max(0, (user.articleCount || 0) - delta),
+          updatedAt: now,
+        })
+      }
+    }
+
     return { updated }
   },
 })

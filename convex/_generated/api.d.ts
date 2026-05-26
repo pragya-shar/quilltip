@@ -18,6 +18,7 @@ import type * as highlights from "../highlights.js";
 import type * as http from "../http.js";
 import type * as lib_articleListing from "../lib/articleListing.js";
 import type * as lib_articleSlug from "../lib/articleSlug.js";
+import type * as lib_articleTitle from "../lib/articleTitle.js";
 import type * as lib_constants from "../lib/constants.js";
 import type * as lib_enrich from "../lib/enrich.js";
 import type * as lib_highlightHash from "../lib/highlightHash.js";
@@ -54,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   "lib/articleListing": typeof lib_articleListing;
   "lib/articleSlug": typeof lib_articleSlug;
+  "lib/articleTitle": typeof lib_articleTitle;
   "lib/constants": typeof lib_constants;
   "lib/enrich": typeof lib_enrich;
   "lib/highlightHash": typeof lib_highlightHash;
