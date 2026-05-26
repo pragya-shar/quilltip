@@ -9,8 +9,7 @@ const mockConnect = vi.fn()
 const mockDisconnect = vi.fn()
 const mockActivateWallet = vi.fn()
 
-const TEST_PUBLIC_KEY =
-  'GBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGB'
+const TEST_PUBLIC_KEY = 'GBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGBGB'
 
 vi.mock('@/components/providers/WalletProvider', () => ({
   useWallet: vi.fn(),
