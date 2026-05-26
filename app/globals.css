@@ -47,6 +47,27 @@
   word-break: break-word;
 }
 
+/* YouTube embeds: responsive iframe inside editor and article body */
+.editor-content [data-youtube-video],
+.article-content [data-youtube-video] {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  margin: 1rem 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg, 0.5rem);
+}
+
+.editor-content [data-youtube-video] iframe,
+.article-content [data-youtube-video] iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border: 0;
+}
+
 /* Highlight creation feedback */
 .highlight-creating {
   animation: highlight-fade-in 0.4s ease-out;

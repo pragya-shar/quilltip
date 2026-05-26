@@ -6,7 +6,7 @@ import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
-import Youtube from '@tiptap/extension-youtube'
+import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { lowlight } from '@/lib/lowlight'
 import { useEffect } from 'react'
 import { EditorToolbar } from './EditorToolbar'
@@ -54,17 +54,7 @@ export function EditorWithToolbar({
       }),
       // Add Underline extension
       Underline,
-      // YouTube extension
-      Youtube.configure({
-        width: 640,
-        height: 480,
-        controls: true,
-        nocookie: true,
-        allowFullscreen: true,
-        HTMLAttributes: {
-          class: 'youtube-embed rounded-lg my-4',
-        },
-      }),
+      createYoutubeExtension(),
       ResizableImage.configure({
         HTMLAttributes: {
           class: 'max-w-full h-auto rounded-lg my-4',
