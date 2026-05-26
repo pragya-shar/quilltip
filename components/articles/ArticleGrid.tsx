@@ -7,12 +7,14 @@ interface ArticleGridProps {
   articles: ArticleForDisplay[]
   variant?: 'home' | 'articles'
   onArticleNavigate?: () => void
+  tagLinkAuthor?: string
 }
 
 export default function ArticleGrid({
   articles,
   variant = 'articles',
   onArticleNavigate,
+  tagLinkAuthor,
 }: ArticleGridProps) {
   if (articles.length === 0) {
     if (variant === 'home') {
@@ -81,6 +83,7 @@ export default function ArticleGrid({
           article={article}
           priority={index === 0}
           onArticleNavigate={onArticleNavigate}
+          tagLinkAuthor={tagLinkAuthor}
         />
       ))}
     </div>

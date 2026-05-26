@@ -2,23 +2,27 @@
 
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
 
 export function TagFilterLink({
   tag,
+  author,
   className = '',
   children,
 }: {
   tag: string
+  author?: string
   className?: string
   children?: React.ReactNode
 }) {
   const searchParams = useSearchParams()
 
-  const params = new URLSearchParams(searchParams?.toString() || '')
-  params.set('tag', tag)
-  params.set('page', '1')
-
-  const href = `/articles?${params.toString()}`
+  const href = buildArticlesBrowseHref({
+    tag,
+    page: 1,
+    author,
+    sourceParams: searchParams,
+  })
 
   return (
     <Link
