@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { useUserByUsername, useUserStats } from '@/hooks/convex'
 import { use, useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
@@ -26,6 +27,7 @@ type TabType = 'articles' | 'nfts' | 'earnings' | 'stats' | 'wallet'
 export default function ProfilePage({ params }: ProfilePageProps) {
   const { username } = use(params)
   const searchParams = useSearchParams()
+  const router = useRouter()
   const { user: currentUser } = useAuth()
   const [activeTab, setActiveTab] = useState<TabType>('articles')
   const [localWalletAddress, setLocalWalletAddress] = useState<
@@ -43,8 +45,29 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     searchParams?.get('nftMintedPage') ?? null
   )
 
+  const tabParamRaw = searchParams?.get('tab')
+  const tabParam: TabType | null =
+    tabParamRaw === 'articles' ||
+    tabParamRaw === 'nfts' ||
+    tabParamRaw === 'earnings' ||
+    tabParamRaw === 'stats' ||
+    tabParamRaw === 'wallet'
+      ? tabParamRaw
+      : null
+
   // Fetch user profile
   const user = useUserByUsername(username)
+
+  const updateTabInUrl = (tab: TabType) => {
+    const next = new URLSearchParams(searchParams?.toString())
+    next.set('tab', tab)
+    router.replace(`/${username}?${next.toString()}`, { scroll: false })
+  }
+
+  const handleTabClick = (tab: TabType) => {
+    setActiveTab(tab)
+    updateTabInUrl(tab)
+  }
 
   // Sync local wallet address with user data
   useEffect(() => {
@@ -52,6 +75,13 @@ export default function ProfilePage({ params }: ProfilePageProps) {
       setLocalWalletAddress(user?.stellarAddress)
     }
   }, [user?.stellarAddress, localWalletAddress])
+
+  // Sync active tab from URL param
+  useEffect(() => {
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam)
+    }
+  }, [tabParam, activeTab])
 
   // Fetch user stats
   const userStats = useUserStats(user?._id)
@@ -139,7 +169,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
               <button
                 key={tab.id}
                 data-tab={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabClick(tab.id)}
                 className={`
                   flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors
                   ${
@@ -249,14 +279,26 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                 <p className="text-muted-foreground">
                   {isOwnProfile
                     ? 'Manage your Stellar testnet wallet for sending and receiving practice tips.'
-                    : 'View wallet address for sending tips to this user.'}
+                    : 'View and copy the wallet address, or tip this author from their articles.'}
                 </p>
               </div>
 
               {/* Wallet Settings */}
               <div className="max-w-2xl">
+                {!isOwnProfile ? (
+                  <div className="mb-4">
+                    <button
+                      type="button"
+                      className="focus-ring inline-flex w-full items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
+                      onClick={() => handleTabClick('articles')}
+                    >
+                      Tip this author from their articles
+                    </button>
+                  </div>
+                ) : null}
                 <WalletSettings
                   walletAddress={localWalletAddress ?? user?.stellarAddress}
+                  profileUsername={username}
                   isOwnProfile={isOwnProfile}
                   onAddressChange={(address) => {
                     // Immediately update local state for instant UI feedback
