@@ -71,11 +71,7 @@ export default function ArticleCard({
         {article.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {article.tags.slice(0, 3).map((tag) => (
-              <TagFilterLink
-                key={tag.id}
-                tag={tag.name}
-                author={tagLinkAuthor}
-              >
+              <TagFilterLink key={tag.id} tag={tag.name} author={tagLinkAuthor}>
                 {tag.name}
               </TagFilterLink>
             ))}

@@ -24,9 +24,9 @@ describe('TagFilterLink', () => {
       new URLSearchParams('page=2&nftOwnedPage=3&nftMintedPage=1')
     )
     render(<TagFilterLink tag="rust">rust</TagFilterLink>)
-    const href = screen.getByRole('link', { name: 'Filter by tag rust' }).getAttribute(
-      'href'
-    )
+    const href = screen
+      .getByRole('link', { name: 'Filter by tag rust' })
+      .getAttribute('href')
     expect(href).toBeTruthy()
     const params = hrefParams(href!)
     expect(params.get('tag')).toBe('rust')
@@ -36,14 +36,18 @@ describe('TagFilterLink', () => {
   })
 
   it('includes author when the prop is provided', () => {
-    useSearchParams.mockReturnValue(new URLSearchParams('page=2&nftOwnedPage=3'))
+    useSearchParams.mockReturnValue(
+      new URLSearchParams('page=2&nftOwnedPage=3')
+    )
     render(
       <TagFilterLink tag="rust" author="alice">
         rust
       </TagFilterLink>
     )
     const params = hrefParams(
-      screen.getByRole('link', { name: 'Filter by tag rust' }).getAttribute('href')!
+      screen
+        .getByRole('link', { name: 'Filter by tag rust' })
+        .getAttribute('href')!
     )
     expect(params.get('author')).toBe('alice')
     expect(params.get('tag')).toBe('rust')
@@ -55,7 +59,9 @@ describe('TagFilterLink', () => {
     )
     render(<TagFilterLink tag="rust">rust</TagFilterLink>)
     const params = hrefParams(
-      screen.getByRole('link', { name: 'Filter by tag rust' }).getAttribute('href')!
+      screen
+        .getByRole('link', { name: 'Filter by tag rust' })
+        .getAttribute('href')!
     )
     expect(params.get('search')).toBe('stellar')
     expect(params.get('tag')).toBe('rust')
