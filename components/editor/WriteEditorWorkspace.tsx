@@ -62,6 +62,7 @@ import {
 } from '@/lib/draftBackup'
 import { getWriteUrlWithDraftId } from '@/lib/writeDraftUrl'
 import { isPlaceholderArticleTitle } from '@/convex/lib/articleTitle'
+import { PublishSuccessPanel } from '@/components/editor/PublishSuccessPanel'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const ARTICLE_TITLE_ERROR_ID = 'article-title-error'
@@ -153,6 +154,11 @@ export function WriteEditorWorkspace() {
     published: false,
     publishedAt: null,
   })
+  const [publishSuccessVisible, setPublishSuccessVisible] = useState(false)
+  const [publishedSlugOverride, setPublishedSlugOverride] = useState<
+    string | null
+  >(null)
+  const [pageOrigin, setPageOrigin] = useState<string | null>(null)
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -170,6 +176,10 @@ export function WriteEditorWorkspace() {
   const hydratedDraftIdRef = useRef<string | null>(null)
 
   const draftIdParam = searchParams.get('id')
+
+  useEffect(() => {
+    setPageOrigin(window.location.origin)
+  }, [])
 
   const syncDraftIdInUrl = useCallback(
     (id: string) => {
@@ -576,12 +586,14 @@ export function WriteEditorWorkspace() {
       await saveNow()
 
       let resultId: string
+      let publishedSlug: string | undefined
 
       if (articleId) {
         const published = await publishArticleMutation({
           id: articleId as Id<'articles'>,
         })
         resultId = published.id
+        publishedSlug = published.slug
       } else {
         resultId = await createArticleMutation({
           title: title.trim(),
@@ -606,7 +618,8 @@ export function WriteEditorWorkspace() {
         publishedAt: new Date(),
       })
 
-      toast.success('Article published successfully!')
+      if (publishedSlug) setPublishedSlugOverride(publishedSlug)
+      setPublishSuccessVisible(true)
     } catch (error) {
       console.error('Publish error:', error)
       const message = error instanceof Error ? error.message : 'Unknown error'
@@ -956,6 +969,12 @@ export function WriteEditorWorkspace() {
         ? excerptTrimmed
         : `${excerptTrimmed.slice(0, PUBLISH_EXCERPT_PREVIEW_MAX).trimEnd()}...`
 
+  const publishUsername =
+    savedArticleForLink?.authorUsername ??
+    savedArticleForLink?.author?.username ??
+    null
+  const publishSlug = publishedSlugOverride ?? savedArticleForLink?.slug ?? null
+
   return (
     <div className="flex flex-col pt-16">
       <EditorActionBar
@@ -975,6 +994,28 @@ export function WriteEditorWorkspace() {
         isDeleting={isDeleting}
         hasUnsavedChanges={hasUnsavedChanges}
       />
+      {publishSuccessVisible ? (
+        <div className="mx-auto w-full max-w-4xl px-4 pt-4 sm:px-6">
+          <PublishSuccessPanel
+            title={title.trim() || 'Untitled'}
+            excerpt={excerptTrimmed.length ? excerptTrimmed : null}
+            username={publishUsername}
+            slug={publishSlug}
+            origin={pageOrigin}
+            onDismiss={() => {
+              setPublishSuccessVisible(false)
+              queueMicrotask(() => {
+                const titleEl = document.getElementById(
+                  'article-title'
+                ) as HTMLTextAreaElement | null
+                if (titleEl) titleEl.focus()
+                else editor?.commands.focus()
+              })
+            }}
+            onLeave={handleBack}
+          />
+        </div>
+      ) : null}
       <div className="flex min-w-0 flex-1 flex-col pb-8">
         <div className="sticky top-16 z-40 mb-6 w-full bg-background">
           <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
