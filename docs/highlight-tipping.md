@@ -21,12 +21,14 @@ Same formula is used in:
 | ---------------------------- | ------------- | -------------------------------------------------- | ---------- |
 | Original article tipping     | `CBSV...HWAM` | Article tips only                                  | Retired    |
 | Standalone highlight tipping | `CDON...64AB` | Highlight tips only (two-contract safety approach) | Retired    |
-| **Unified tipping**          | `CASU...CVWG` | Article + highlight tips, Pausable, Arweave-aware  | **Active** |
+| Initial unified tipping      | `CASU...CVWG` | Article + highlight tips, Pausable, Arweave-aware  | Retired    |
+| **Unified tipping**          | `CC7Q...ZMZY` | Article + highlight tips, batch settlement         | **Active** |
 
-The unified contract (`CASU4I45DVK3ZMXA3T34A3XF3BM4NBTFDW3QVCB3XA7PIWJSTN4HCVWG`) has both:
+The unified contract (`CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY`) has:
 
 - `tip_article()` / `tip_article_with_arweave()`
 - `tip_highlight_direct()` / `tip_highlight_with_arweave()`
+- `batch_tip()` / `batch_tip_highlights()`
 - `get_highlight_tips(highlight_id)` — query all tips for a highlight
 - `pause()` / `unpause()` / `is_paused()` (OpenZeppelin Pausable)
 
