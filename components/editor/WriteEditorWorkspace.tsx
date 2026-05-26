@@ -11,6 +11,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
+import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
 import { EditorToolbar } from '@/components/editor/EditorToolbar'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
@@ -229,6 +230,7 @@ export function WriteEditorWorkspace() {
           class: 'max-w-full h-auto rounded-lg my-4',
         },
       }),
+      createYoutubeExtension(),
       Placeholder.configure({
         placeholder: 'Start writing your story...',
       }),
