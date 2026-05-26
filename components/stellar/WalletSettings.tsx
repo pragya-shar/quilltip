@@ -38,6 +38,7 @@ import {
 
 interface WalletSettingsProps {
   walletAddress?: string | null
+  profileUsername?: string
   onAddressChange?: (address: string) => void
   isOwnProfile: boolean
   className?: string
@@ -45,6 +46,7 @@ interface WalletSettingsProps {
 
 export function WalletSettings({
   walletAddress,
+  profileUsername,
   onAddressChange,
   isOwnProfile,
   className = '',
@@ -157,12 +159,42 @@ export function WalletSettings({
 
   if (!isOwnProfile && !walletAddress) {
     return (
-      <Alert className={className}>
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          This user hasn&apos;t set up their Stellar wallet yet.
-        </AlertDescription>
-      </Alert>
+      <Card className={className}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" />
+            Stellar Wallet
+            <WalletTooltip concept="stellar" />
+            <WalletTooltip concept="testnet" />
+          </CardTitle>
+          <CardDescription>
+            This author hasn&apos;t connected a wallet yet, so in-app tipping
+            isn&apos;t available.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              You can still read their work. Once they connect a wallet, you can
+              tip from any article using &quot;Tip Author&quot;.
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {profileUsername ? (
+              <Button asChild className="flex-1">
+                <Link href={`/${profileUsername}?tab=articles`}>
+                  Browse articles
+                </Link>
+              </Button>
+            ) : null}
+            <Button asChild variant="outline" className="flex-1">
+              <Link href="/guide">Learn how tipping works</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
@@ -179,7 +211,7 @@ export function WalletSettings({
           <CardDescription>
             {isOwnProfile
               ? 'Manage your Stellar testnet wallet for sending and receiving practice tips'
-              : 'Send testnet tips directly to this user&apos;s Stellar wallet'}
+              : 'Copy the wallet address, or tip this author from their articles.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -360,8 +392,8 @@ export function WalletSettings({
               <Alert>
                 <DollarSign className="h-4 w-4" />
                 <AlertDescription>
-                  Tips sent to this wallet go directly to the user with minimal
-                  platform fees.
+                  Want to tip in-app? Open any of their articles and click
+                  &quot;Tip Author&quot;.
                 </AlertDescription>
               </Alert>
             </div>
