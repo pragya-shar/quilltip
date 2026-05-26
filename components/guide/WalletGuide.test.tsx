@@ -51,4 +51,3 @@ describe('WalletGuide tabs', () => {
     expect(trigger.className).toContain('whitespace-normal')
   })
 })
-
