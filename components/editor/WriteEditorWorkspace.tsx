@@ -60,8 +60,11 @@ import {
   writeDraftBackup,
 } from '@/lib/draftBackup'
 import { getWriteUrlWithDraftId } from '@/lib/writeDraftUrl'
+import { isPlaceholderArticleTitle } from '@/convex/lib/articleTitle'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
+const ARTICLE_TITLE_ERROR_ID = 'article-title-error'
+const TITLE_PUBLISH_ERROR = 'Add a title before publishing'
 const EXCERPT_MAX_CHARS = 500
 
 const COVER_FILE_INPUT_ID = 'cover-image-file-input'
@@ -111,6 +114,7 @@ function getInternalNavHref(
 export function WriteEditorWorkspace() {
   const convex = useConvex()
   const [title, setTitle] = useState('')
+  const [titleError, setTitleError] = useState<string | null>(null)
   const [excerpt, setExcerpt] = useState('')
   const [tags, setTags] = useState('')
   const [coverImage, setCoverImage] = useState('')
@@ -521,13 +525,33 @@ export function WriteEditorWorkspace() {
     return () => window.removeEventListener('keydown', handler)
   }, [saveNow])
 
+  const focusTitleField = useCallback(() => {
+    document
+      .getElementById('field-article-title')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    requestAnimationFrame(() => {
+      document.getElementById('article-title')?.focus()
+    })
+  }, [])
+
+  const blockPublishForPlaceholderTitle = useCallback((): boolean => {
+    if (isPlaceholderArticleTitle(title)) {
+      setTitleError(TITLE_PUBLISH_ERROR)
+      focusTitleField()
+      return true
+    }
+    setTitleError(null)
+    return false
+  }, [title, focusTitleField])
+
   const requestPublish = useCallback(() => {
     if (!editor || editor.isEmpty) {
       toast.warning('Please add content before publishing')
       return
     }
+    if (blockPublishForPlaceholderTitle()) return
     setPublishConfirmOpen(true)
-  }, [editor])
+  }, [editor, blockPublishForPlaceholderTitle])
 
   const handlePublish = useCallback(async () => {
     if (!editor || editor.isEmpty) {
@@ -538,6 +562,10 @@ export function WriteEditorWorkspace() {
     if (!editorContent) {
       setPublishConfirmOpen(false)
       toast.warning('Please add content before publishing')
+      return
+    }
+    if (blockPublishForPlaceholderTitle()) {
+      setPublishConfirmOpen(false)
       return
     }
 
@@ -554,7 +582,7 @@ export function WriteEditorWorkspace() {
         resultId = published.id
       } else {
         resultId = await createArticleMutation({
-          title: title || 'Untitled',
+          title: title.trim(),
           content: editorContent,
           excerpt: excerpt || undefined,
           coverImage: coverImage || undefined,
@@ -579,9 +607,14 @@ export function WriteEditorWorkspace() {
       toast.success('Article published successfully!')
     } catch (error) {
       console.error('Publish error:', error)
-      toast.error(
-        `Failed to publish: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+      const message =
+        error instanceof Error ? error.message : 'Unknown error'
+      if (message.toLowerCase().includes('title')) {
+        setTitleError(TITLE_PUBLISH_ERROR)
+        focusTitleField()
+      } else {
+        toast.error(`Failed to publish: ${message}`)
+      }
     } finally {
       setIsPublishing(false)
     }
@@ -597,6 +630,8 @@ export function WriteEditorWorkspace() {
     createArticleMutation,
     editor,
     syncDraftIdInUrl,
+    blockPublishForPlaceholderTitle,
+    focusTitleField,
   ])
 
   const handleRequestDelete = useCallback(() => {
@@ -1167,6 +1202,7 @@ export function WriteEditorWorkspace() {
               onChange={(e) => {
                 setTitle(e.target.value)
                 setHasUnsavedChanges(true)
+                if (titleError) setTitleError(null)
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -1176,8 +1212,26 @@ export function WriteEditorWorkspace() {
               }}
               placeholder="Untitled"
               rows={1}
-              className="w-full resize-none overflow-hidden bg-transparent py-2 text-3xl font-semibold leading-snug text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+              aria-invalid={!!titleError}
+              aria-describedby={
+                titleError ? ARTICLE_TITLE_ERROR_ID : undefined
+              }
+              className={cn(
+                'w-full resize-none overflow-hidden bg-transparent py-2 text-3xl font-semibold leading-snug text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                titleError
+                  ? 'rounded-md border border-destructive px-2 focus-visible:ring-destructive'
+                  : 'border border-transparent'
+              )}
             />
+            {titleError ? (
+              <p
+                id={ARTICLE_TITLE_ERROR_ID}
+                role="alert"
+                className="mt-1 text-sm text-destructive"
+              >
+                {titleError}
+              </p>
+            ) : null}
             {savedArticleForLink?.authorUsername &&
               savedArticleForLink.slug && (
                 <p className="mt-1 font-mono text-xs text-muted-foreground">
