@@ -5,8 +5,7 @@ export const ARTICLES_BROWSE_QUERY_KEYS = [
   'author',
 ] as const
 
-export type ArticlesBrowseQueryKey =
-  (typeof ARTICLES_BROWSE_QUERY_KEYS)[number]
+export type ArticlesBrowseQueryKey = (typeof ARTICLES_BROWSE_QUERY_KEYS)[number]
 
 export function pickArticlesBrowseParams(
   searchParams: URLSearchParams

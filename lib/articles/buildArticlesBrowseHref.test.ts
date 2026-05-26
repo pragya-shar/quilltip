@@ -26,9 +26,7 @@ describe('pickArticlesBrowseParams', () => {
 
 describe('buildArticlesBrowseHref', () => {
   it('strips profile params and sets tag with page 1', () => {
-    const source = new URLSearchParams(
-      'page=2&nftOwnedPage=3&nftMintedPage=1'
-    )
+    const source = new URLSearchParams('page=2&nftOwnedPage=3&nftMintedPage=1')
     expect(
       buildArticlesBrowseHref({
         tag: 'rust',
