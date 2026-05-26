@@ -607,8 +607,7 @@ export function WriteEditorWorkspace() {
       toast.success('Article published successfully!')
     } catch (error) {
       console.error('Publish error:', error)
-      const message =
-        error instanceof Error ? error.message : 'Unknown error'
+      const message = error instanceof Error ? error.message : 'Unknown error'
       if (message.toLowerCase().includes('title')) {
         setTitleError(TITLE_PUBLISH_ERROR)
         focusTitleField()
@@ -1213,9 +1212,7 @@ export function WriteEditorWorkspace() {
               placeholder="Untitled"
               rows={1}
               aria-invalid={!!titleError}
-              aria-describedby={
-                titleError ? ARTICLE_TITLE_ERROR_ID : undefined
-              }
+              aria-describedby={titleError ? ARTICLE_TITLE_ERROR_ID : undefined}
               className={cn(
                 'w-full resize-none overflow-hidden bg-transparent py-2 text-3xl font-semibold leading-snug text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                 titleError
