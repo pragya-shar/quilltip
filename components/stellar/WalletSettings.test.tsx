@@ -1,0 +1,75 @@
+/** @vitest-environment jsdom */
+import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { WalletSettings } from '@/components/stellar/WalletSettings'
+
+vi.mock('convex/react', () => ({
+  useMutation: () => vi.fn(),
+}))
+
+vi.mock('@/components/providers/WalletProvider', () => ({
+  useWallet: () => ({
+    isLoading: false,
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  }),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+}))
+
+vi.mock('@/components/guide/WalletTooltip', () => ({
+  WalletTooltip: () => null,
+}))
+
+vi.mock('@/components/stellar/InstallWalletDialog', () => ({
+  InstallWalletDialog: () => null,
+}))
+
+vi.mock('@/components/legal/LegalLinks', () => ({
+  LegalLinks: () => null,
+}))
+
+describe('WalletSettings', () => {
+  it('shows visitor empty alert with profile display name', () => {
+    render(
+      <WalletSettings
+        isOwnProfile={false}
+        walletAddress={null}
+        profileDisplayName="alice"
+      />
+    )
+
+    expect(
+      screen.getByText("alice hasn't set up their Stellar wallet yet.")
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument()
+  })
+
+  it('falls back to generic visitor empty alert without profile display name', () => {
+    render(<WalletSettings isOwnProfile={false} walletAddress={null} />)
+
+    expect(
+      screen.getByText("This user hasn't set up their Stellar wallet yet.")
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument()
+  })
+
+  it('shows owner connect CTA when wallet address is missing', () => {
+    render(<WalletSettings isOwnProfile walletAddress={null} />)
+
+    expect(
+      screen.getByRole('button', { name: /Connect Stellar Wallet/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /Connect your Stellar testnet wallet to send and receive practice tips/i
+      )
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument()
+  })
+})

@@ -93,6 +93,8 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     )
   }
 
+  const profileDisplayName = user.name || user.username
+
   // Prepare user data with stats
   const userWithStats = {
     id: user._id,
@@ -178,7 +180,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                 page={page}
                 basePath={`/${username}`}
                 isOwnProfile={isOwnProfile}
-                displayName={user.name || user.username}
+                displayName={profileDisplayName}
               />
             </div>
           )}
@@ -191,7 +193,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
               nftOwnedPage={nftOwnedPage}
               nftMintedPage={nftMintedPage}
               isOwnProfile={isOwnProfile}
-              displayName={user.name || user.username}
+              displayName={profileDisplayName}
             />
           )}
 
@@ -251,7 +253,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                 <h2 className="text-2xl font-bold text-foreground mb-2">
                   {isOwnProfile
                     ? 'Wallet Management'
-                    : `${user?.name}'s Wallet`}
+                    : `${profileDisplayName}'s Wallet`}
                 </h2>
                 <p className="text-muted-foreground">
                   {isOwnProfile
@@ -263,8 +265,9 @@ export default function ProfilePage({ params }: ProfilePageProps) {
               {/* Wallet Settings */}
               <div className="max-w-2xl">
                 <WalletSettings
-                  walletAddress={localWalletAddress ?? user?.stellarAddress}
+                  walletAddress={localWalletAddress ?? user.stellarAddress}
                   isOwnProfile={isOwnProfile}
+                  profileDisplayName={profileDisplayName}
                   onAddressChange={(address) => {
                     // Immediately update local state for instant UI feedback
                     setLocalWalletAddress(address || undefined)
