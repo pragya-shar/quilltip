@@ -11,10 +11,11 @@ describe('buildArticlePublicPath', () => {
 
 describe('buildArticlePublicUrl', () => {
   it('builds an absolute URL and trims trailing slashes', () => {
-    expect(buildArticlePublicUrl('https://example.com', 'alice', 'hello-world'))
-      .toBe('https://example.com/alice/hello-world')
-    expect(buildArticlePublicUrl('https://example.com/', 'alice', 'hello-world'))
-      .toBe('https://example.com/alice/hello-world')
+    expect(
+      buildArticlePublicUrl('https://example.com', 'alice', 'hello-world')
+    ).toBe('https://example.com/alice/hello-world')
+    expect(
+      buildArticlePublicUrl('https://example.com/', 'alice', 'hello-world')
+    ).toBe('https://example.com/alice/hello-world')
   })
 })
-

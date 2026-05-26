@@ -4,7 +4,10 @@ import Link from 'next/link'
 import { ExternalLink, CheckCircle2, Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import ShareButtons from '@/components/articles/ShareButtons'
-import { buildArticlePublicPath, buildArticlePublicUrl } from '@/lib/articles/public-url'
+import {
+  buildArticlePublicPath,
+  buildArticlePublicUrl,
+} from '@/lib/articles/public-url'
 
 type PublishSuccessPanelProps = {
   title: string
@@ -26,9 +29,13 @@ export function PublishSuccessPanel({
   onLeave,
 }: PublishSuccessPanelProps) {
   const hasLinkParts = Boolean(username && slug)
-  const publicPath = hasLinkParts ? buildArticlePublicPath(username!, slug!) : null
+  const publicPath = hasLinkParts
+    ? buildArticlePublicPath(username!, slug!)
+    : null
   const publicUrl =
-    hasLinkParts && origin ? buildArticlePublicUrl(origin, username!, slug!) : null
+    hasLinkParts && origin
+      ? buildArticlePublicUrl(origin, username!, slug!)
+      : null
 
   return (
     <Alert className="border-success/30 bg-success/10">
@@ -107,4 +114,3 @@ export function PublishSuccessPanel({
     </Alert>
   )
 }
-

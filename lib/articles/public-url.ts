@@ -10,4 +10,3 @@ export function buildArticlePublicUrl(
   const base = origin.replace(/\/$/, '')
   return `${base}${buildArticlePublicPath(username, slug)}`
 }
-
