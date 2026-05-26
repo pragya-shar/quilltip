@@ -4,6 +4,7 @@ import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { lowlight } from '@/lib/lowlight'
+import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 
 /** Read-only image node matching editor `resizableImage` output (no React node view). */
 const ReadOnlyResizableImage = Node.create({
@@ -43,5 +44,6 @@ export function getReadOnlyExtensions() {
       lowlight,
     }),
     ReadOnlyResizableImage,
+    createYoutubeExtension(),
   ]
 }
