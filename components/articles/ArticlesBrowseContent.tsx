@@ -7,6 +7,7 @@ import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay
 import ArticleGrid from '@/components/articles/ArticleGrid'
 import Pagination from '@/components/articles/Pagination'
 import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
+import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
 import { readBrowseScrollY } from '@/lib/articles/browseListScrollStorage'
 
 function buildPagination(result: {
@@ -69,9 +70,12 @@ export function ArticlesBrowseContent({
   const pagination = buildPagination(result)
 
   const handlePageChange = (page: number) => {
-    const params = new URLSearchParams(searchParams?.toString() || '')
-    params.set('page', page.toString())
-    router.push(`/articles?${params.toString()}`)
+    router.push(
+      buildArticlesBrowseHref({
+        page,
+        sourceParams: searchParams,
+      })
+    )
   }
 
   return (

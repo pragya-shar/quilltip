@@ -9,12 +9,14 @@ interface ArticleCardProps {
   article: ArticleForDisplay
   priority?: boolean
   onArticleNavigate?: () => void
+  tagLinkAuthor?: string
 }
 
 export default function ArticleCard({
   article,
   priority,
   onArticleNavigate,
+  tagLinkAuthor,
 }: ArticleCardProps) {
   const publishedDate = article.publishedAt
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
@@ -69,7 +71,11 @@ export default function ArticleCard({
         {article.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {article.tags.slice(0, 3).map((tag) => (
-              <TagFilterLink key={tag.id} tag={tag.name}>
+              <TagFilterLink
+                key={tag.id}
+                tag={tag.name}
+                author={tagLinkAuthor}
+              >
                 {tag.name}
               </TagFilterLink>
             ))}

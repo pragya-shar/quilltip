@@ -6,6 +6,7 @@ import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import SearchInput from '@/components/articles/SearchInput'
 import { ArticlesBrowseContent } from '@/components/articles/ArticlesBrowseContent'
+import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
 import {
   buildArticlesBrowseScrollStorageKey,
   writeBrowseScrollY,
@@ -61,14 +62,13 @@ export default function ArticlesPage() {
   }, [urlSearch])
 
   const handleSearchChange = (search: string) => {
-    const params = new URLSearchParams(searchParams?.toString() || '')
-    if (search.trim()) {
-      params.set('search', search.trim())
-    } else {
-      params.delete('search')
-    }
-    params.set('page', '1') // Reset to first page when searching
-    router.push(`/articles?${params.toString()}`)
+    router.push(
+      buildArticlesBrowseHref({
+        search,
+        page: 1,
+        sourceParams: searchParams,
+      })
+    )
   }
 
   const clearFilters = () => {
@@ -115,12 +115,13 @@ export default function ArticlesPage() {
                 Tag: {tag}
                 <button
                   onClick={() => {
-                    const params = new URLSearchParams(
-                      searchParams?.toString() || ''
+                    router.push(
+                      buildArticlesBrowseHref({
+                        tag: '',
+                        page: 1,
+                        sourceParams: searchParams,
+                      })
                     )
-                    params.delete('tag')
-                    params.set('page', '1')
-                    router.push(`/articles?${params.toString()}`)
                   }}
                   className="ml-2 hover:text-primary-foreground/80"
                   aria-label="Remove tag filter"
@@ -134,12 +135,13 @@ export default function ArticlesPage() {
                 Author: @{author}
                 <button
                   onClick={() => {
-                    const params = new URLSearchParams(
-                      searchParams?.toString() || ''
+                    router.push(
+                      buildArticlesBrowseHref({
+                        author: '',
+                        page: 1,
+                        sourceParams: searchParams,
+                      })
                     )
-                    params.delete('author')
-                    params.set('page', '1')
-                    router.push(`/articles?${params.toString()}`)
                   }}
                   className="ml-2 hover:text-primary-foreground/80"
                   aria-label="Remove author filter"
@@ -153,12 +155,13 @@ export default function ArticlesPage() {
                 Search: &ldquo;{urlSearch}&rdquo;
                 <button
                   onClick={() => {
-                    const params = new URLSearchParams(
-                      searchParams?.toString() || ''
+                    router.push(
+                      buildArticlesBrowseHref({
+                        search: '',
+                        page: 1,
+                        sourceParams: searchParams,
+                      })
                     )
-                    params.delete('search')
-                    params.set('page', '1')
-                    router.push(`/articles?${params.toString()}`)
                   }}
                   className="ml-2 hover:text-primary-foreground/80"
                   aria-label="Remove search filter"
