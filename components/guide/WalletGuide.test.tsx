@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { WalletGuide } from '@/components/guide/WalletGuide'
 
@@ -49,5 +50,14 @@ describe('WalletGuide tabs', () => {
     render(<WalletGuide />)
     const trigger = screen.getByRole('tab', { name: 'What is a Wallet?' })
     expect(trigger.className).toContain('whitespace-normal')
+  })
+
+  it('links profile settings CTA to the wallet profile hub', async () => {
+    const user = userEvent.setup()
+    render(<WalletGuide />)
+    await user.click(screen.getByRole('tab', { name: 'Connect' }))
+    expect(
+      screen.getByRole('link', { name: 'Go to Profile Settings' })
+    ).toHaveAttribute('href', '/profile?tab=wallet')
   })
 })
