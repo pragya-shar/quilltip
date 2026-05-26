@@ -15,6 +15,7 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import Link from 'next/link'
+import { GuideWalletSettingsLink } from '@/components/guide/GuideWalletSettingsLink'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 
@@ -180,12 +181,7 @@ export function WalletGuide() {
             description="After connecting, visit your profile to save your wallet address for receiving tips. This is your 'receiving wallet' — when readers tip your articles, payments arrive here."
             isLast
           >
-            <Link
-              href="/profile?tab=wallet"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-muted text-foreground text-sm rounded-lg border border-border hover:bg-muted/80 transition-colors"
-            >
-              Go to Profile Settings
-            </Link>
+            <GuideWalletSettingsLink />
           </WalletStepCard>
         </TabsContent>
 

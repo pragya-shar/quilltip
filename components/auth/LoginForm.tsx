@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
 import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
+import { getSafeRedirectPath } from '@/lib/navigation/walletProfileDestination'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loginSchema, type LoginFormData } from '@/lib/validations/auth'
@@ -31,7 +32,13 @@ export default function LoginForm() {
   const [success, setSuccess] = useState(false)
 
   const router = useRouter()
-  const returnPath = useAuthReturnPath()
+  const searchParams = useSearchParams()
+  const returnToPath = useAuthReturnPath()
+  const redirectParam = searchParams.get('redirect')
+  const postLoginPath =
+    redirectParam != null && redirectParam !== ''
+      ? getSafeRedirectPath(redirectParam, returnToPath)
+      : returnToPath
   const { signIn } = useAuthActions()
 
   const {
@@ -70,14 +77,14 @@ export default function LoginForm() {
       // before the article page mounts (avoids inconsistent client-side resume).
       const pendingTipIntent = readPendingTipIntent()
       if (
-        returnPath.includes('resumeArticleTip=1') ||
+        postLoginPath.includes('resumeArticleTip=1') ||
         pendingTipIntent?.kind === 'highlight'
       ) {
-        window.location.assign(returnPath)
+        window.location.assign(postLoginPath)
         return
       }
 
-      router.replace(returnPath)
+      router.replace(postLoginPath)
     } catch (error) {
       console.error('Login error:', error)
       setError('Invalid email or password. Please try again.')
