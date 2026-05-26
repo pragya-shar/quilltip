@@ -65,7 +65,13 @@ export function TipButton({
   className = '',
 }: TipButtonProps) {
   const { isAuthenticated } = useAuth()
-  const { isConnected, publicKey, signTransaction, connect } = useWallet()
+  const {
+    isConnected,
+    isLoading: isWalletLoading,
+    publicKey,
+    signTransaction,
+    connect,
+  } = useWallet()
   const { activateWallet } = useWalletActivation()
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
@@ -229,8 +235,10 @@ export function TipButton({
 
   const handleConnectWallet = async () => {
     try {
-      await connect()
-      toast.success('Wallet connected successfully!')
+      const connected = await connect()
+      if (connected) {
+        toast.success('Wallet connected successfully!')
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to connect wallet'
@@ -408,11 +416,20 @@ export function TipButton({
               <button
                 type="button"
                 onClick={handleConnectWallet}
-                disabled={isLoading}
+                disabled={isLoading || isWalletLoading}
                 className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <Wallet className="w-4 h-4" />
-                <span>Connect Wallet</span>
+                {isWalletLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Connecting</span>
+                  </>
+                ) : (
+                  <>
+                    <Wallet className="w-4 h-4" />
+                    <span>Connect Wallet</span>
+                  </>
+                )}
               </button>
             ) : (
               <button

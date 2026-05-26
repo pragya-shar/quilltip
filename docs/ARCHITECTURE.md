@@ -98,10 +98,10 @@ Two Soroban contracts deployed on Stellar Testnet.
 
 | Contract        | ID                                                         | Env var                           |
 | --------------- | ---------------------------------------------------------- | --------------------------------- |
-| Unified Tipping | `CASU4I45DVK3ZMXA3T34A3XF3BM4NBTFDW3QVCB3XA7PIWJSTN4HCVWG` | `NEXT_PUBLIC_TIPPING_CONTRACT_ID` |
+| Unified Tipping | `CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY` | `NEXT_PUBLIC_TIPPING_CONTRACT_ID` |
 | Article NFT     | `CAS44OQK7A6W5FDRAH3K3ZN7TTQTJ5ESRVG6MB2HBVFWZ5TVH26UUB4S` | `NEXT_PUBLIC_NFT_CONTRACT_ID`     |
 
-**Historical note:** An earlier separate highlight-tipping contract (`CDON...64AB`) was used during initial development. It was retired when highlight tipping was merged into the unified tipping contract. The env var `NEXT_PUBLIC_HIGHLIGHT_CONTRACT_ID` is no longer needed.
+**Historical note:** An earlier separate highlight-tipping contract (`CDON...64AB`) was used during initial development. It was retired when highlight tipping was merged into the unified tipping contract. The previous unified testnet contract (`CASU...CVWG`) was replaced by the upgraded unified tipping contract above. The env var `NEXT_PUBLIC_HIGHLIGHT_CONTRACT_ID` is no longer needed.
 
 ## Project Deliverables
 

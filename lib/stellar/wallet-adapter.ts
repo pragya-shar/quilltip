@@ -139,6 +139,10 @@ function extractErrorMessage(error: unknown, walletId?: string): string {
       return `${walletName} connection timed out. Please ensure the wallet extension is unlocked and try again.`
     }
 
+    if (error.message.includes('modal is already open')) {
+      return 'Wallet selection is already open. Please finish or close the wallet modal before trying again.'
+    }
+
     // Network errors
     if (error.message.includes('network') || error.message.includes('fetch')) {
       return `Network error connecting to ${walletName}. Please check your internet connection.`
@@ -197,6 +201,7 @@ class StellarWalletAdapter {
   private selectedWalletId: string | null = null
   private isInitialized = false
   private connectionCache: Map<string, ConnectionResult> = new Map() // Cache wallet details
+  private connectPromise: Promise<ConnectionResult> | null = null
 
   constructor() {
     // Kit will be created lazily on first use to avoid SSR issues
@@ -311,6 +316,18 @@ class StellarWalletAdapter {
    * Opens wallet selection modal and connects to user's choice
    */
   async connect(): Promise<ConnectionResult> {
+    if (this.connectPromise) {
+      return this.connectPromise
+    }
+
+    this.connectPromise = this.openWalletModalConnection().finally(() => {
+      this.connectPromise = null
+    })
+
+    return this.connectPromise
+  }
+
+  private async openWalletModalConnection(): Promise<ConnectionResult> {
     await this.initialize()
     const kit = await this.ensureKit()
 
@@ -322,93 +339,104 @@ class StellarWalletAdapter {
     }
 
     return new Promise((resolve, reject) => {
-      kit.openModal({
-        onWalletSelected: async (option: ISupportedWallet) => {
-          try {
-            if (option.id === ALBEDO_ID && isInsecureLocalhost()) {
-              notifyAlbedoInsecureLocalhost()
-              reject(albedoInsecureLocalhostError())
-              return
-            }
-
-            // Set the selected wallet with retry logic for xBull and other wallets
-            await this.setWalletWithRetry(option.id)
-            this.storeWalletId(option.id)
-
-            const walletInfo = this.getWalletInfo(option.id)
-
-            // Add delay for wallets requiring eager connection (xBull, Hana)
-            if (
-              walletInfo?.requiresEagerConnection &&
-              option.id !== ALBEDO_ID
-            ) {
-              await new Promise((resolve) => setTimeout(resolve, 500))
-            }
-
-            // Get address and network with retry logic for xBull
-            let address: string | undefined
-            let network:
-              | { network: string; networkPassphrase: string }
-              | undefined
-
-            if (option.id === XBULL_ID) {
-              // Special handling for xBull with retries
-              let retries = 0
-              while (retries < 3) {
-                try {
-                  const addressResult = await kit.getAddress()
-                  address = addressResult.address
-                  network = await kit.getNetwork()
-                  break
-                } catch (getAddressError) {
-                  retries++
-                  if (retries === 3) {
-                    throw getAddressError
-                  }
-                  console.warn(
-                    `[Wallet Adapter] xBull getAddress attempt ${retries} failed, retrying...`
-                  )
-                  await new Promise((resolve) => setTimeout(resolve, 500))
-                }
+      try {
+        kit.openModal({
+          onWalletSelected: async (option: ISupportedWallet) => {
+            try {
+              if (option.id === ALBEDO_ID && isInsecureLocalhost()) {
+                notifyAlbedoInsecureLocalhost()
+                reject(albedoInsecureLocalhostError())
+                return
               }
+
+              // Set the selected wallet with retry logic for xBull and other wallets
+              await this.setWalletWithRetry(option.id)
+              this.storeWalletId(option.id)
+
+              const walletInfo = this.getWalletInfo(option.id)
+
+              // Add delay for wallets requiring eager connection (xBull, Hana)
+              if (
+                walletInfo?.requiresEagerConnection &&
+                option.id !== ALBEDO_ID
+              ) {
+                await new Promise((resolve) => setTimeout(resolve, 500))
+              }
+
+              // Get address and network with retry logic for xBull
+              let address: string | undefined
+              let network:
+                | { network: string; networkPassphrase: string }
+                | undefined
+
+              if (option.id === XBULL_ID) {
+                // Special handling for xBull with retries
+                let retries = 0
+                while (retries < 3) {
+                  try {
+                    const addressResult = await kit.getAddress()
+                    address = addressResult.address
+                    network = await kit.getNetwork()
+                    break
+                  } catch (getAddressError) {
+                    retries++
+                    if (retries === 3) {
+                      throw getAddressError
+                    }
+                    console.warn(
+                      `[Wallet Adapter] xBull getAddress attempt ${retries} failed, retrying...`
+                    )
+                    await new Promise((resolve) => setTimeout(resolve, 500))
+                  }
+                }
+              } else {
+                // Standard flow for other wallets
+                const addressResult = await kit.getAddress()
+                address = addressResult.address
+                network = await kit.getNetwork()
+              }
+
+              if (!address || !network) {
+                throw new Error(
+                  `Failed to get wallet details from ${option.id}`
+                )
+              }
+
+              const result = {
+                publicKey: address,
+                network: network.network,
+                networkPassphrase: network.networkPassphrase,
+              }
+
+              // Cache the connection result
+              this.connectionCache.set(option.id, result)
+
+              resolve(result)
+            } catch (error) {
+              const errorMsg = extractErrorMessage(error, option.id)
+              console.error(
+                '[Wallet Adapter] Connection error:',
+                errorMsg,
+                error
+              )
+              reject(new Error(errorMsg))
+            }
+          },
+          onClosed: (error) => {
+            if (error) {
+              const errorMsg = extractErrorMessage(error)
+              reject(
+                new Error(errorMsg || 'Wallet selection cancelled or failed')
+              )
             } else {
-              // Standard flow for other wallets
-              const addressResult = await kit.getAddress()
-              address = addressResult.address
-              network = await kit.getNetwork()
+              reject(new Error('Wallet selection cancelled'))
             }
-
-            if (!address || !network) {
-              throw new Error(`Failed to get wallet details from ${option.id}`)
-            }
-
-            const result = {
-              publicKey: address,
-              network: network.network,
-              networkPassphrase: network.networkPassphrase,
-            }
-
-            // Cache the connection result
-            this.connectionCache.set(option.id, result)
-
-            resolve(result)
-          } catch (error) {
-            const errorMsg = extractErrorMessage(error, option.id)
-            console.error('[Wallet Adapter] Connection error:', errorMsg, error)
-            reject(new Error(errorMsg))
-          }
-        },
-        onClosed: (error) => {
-          if (error) {
-            const errorMsg = extractErrorMessage(error)
-            reject(
-              new Error(errorMsg || 'Wallet selection cancelled or failed')
-            )
-          } else {
-            reject(new Error('Wallet selection cancelled'))
-          }
-        },
-      })
+          },
+        })
+      } catch (error) {
+        const errorMsg = extractErrorMessage(error)
+        reject(new Error(errorMsg || 'Wallet selection failed'))
+      }
     })
   }
 
