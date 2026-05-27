@@ -35,6 +35,7 @@ import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
 } from '@/lib/stellar/wallet-adapter'
+import { networkLabelLowercase, practiceFundsNote } from '@/lib/copy/network-status'
 
 interface WalletSettingsProps {
   walletAddress?: string | null
@@ -209,11 +210,13 @@ export function WalletSettings({
             <Wallet className="h-5 w-5" />
             Stellar Wallet
             <WalletTooltip concept="stellar" />
-            <WalletTooltip concept="testnet" />
+            {networkLabelLowercase() === 'testnet' ? (
+              <WalletTooltip concept="testnet" />
+            ) : null}
           </CardTitle>
           <CardDescription>
             {isOwnProfile
-              ? 'Manage your Stellar testnet wallet for sending and receiving practice tips'
+              ? `Manage your Stellar ${networkLabelLowercase()} wallet for sending and receiving tips`
               : 'Copy the wallet address, or tip this author from their articles.'}
           </CardDescription>
         </CardHeader>
@@ -231,14 +234,21 @@ export function WalletSettings({
           )}
 
           {isOwnProfile ? (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{practiceFundsNote()}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {isOwnProfile ? (
             <>
               {!walletAddress ? (
                 <div className="space-y-4">
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      Connect your Stellar testnet wallet to send and receive
-                      practice tips
+                      Connect your Stellar {networkLabelLowercase()} wallet to
+                      send and receive tips
                     </AlertDescription>
                   </Alert>
 
@@ -325,7 +335,11 @@ export function WalletSettings({
                       onClick={() =>
                         walletAddress &&
                         window.open(
-                          `https://stellar.expert/explorer/testnet/account/${walletAddress}`,
+                          `https://stellar.expert/explorer/${
+                            networkLabelLowercase() === 'testnet'
+                              ? 'testnet'
+                              : 'public'
+                          }/account/${walletAddress}`,
                           '_blank'
                         )
                       }
@@ -382,7 +396,9 @@ export function WalletSettings({
                 onClick={() =>
                   walletAddress &&
                   window.open(
-                    `https://stellar.expert/explorer/testnet/account/${walletAddress}`,
+                    `https://stellar.expert/explorer/${
+                      networkLabelLowercase() === 'testnet' ? 'testnet' : 'public'
+                    }/account/${walletAddress}`,
                     '_blank'
                   )
                 }
