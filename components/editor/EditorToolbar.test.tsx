@@ -48,8 +48,12 @@ describe('EditorToolbar notes', () => {
 
     await user.click(screen.getByRole('button', { name: 'Notes' }))
 
-    expect(screen.getByRole('dialog', { name: 'Personal notes' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Done' })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('dialog', { name: 'Personal notes' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Done' })
+    ).not.toBeInTheDocument()
   })
 
   it('opens mobile notes drawer with Done control', async () => {
@@ -68,7 +72,9 @@ describe('EditorToolbar notes', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument()
     expect(
-      screen.queryByLabelText('Personal notes', { selector: 'div[role="dialog"]' })
+      screen.queryByLabelText('Personal notes', {
+        selector: 'div[role="dialog"]',
+      })
     ).not.toBeInTheDocument()
   })
 

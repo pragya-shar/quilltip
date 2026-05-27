@@ -46,10 +46,7 @@ import {
 } from '@/components/ui/drawer'
 import { ImageUploadDialog } from './ImageUploadDialog'
 import { YouTubeEmbedDialog } from './YouTubeEmbedDialog'
-import {
-  WRITER_NOTES_HELPER_TEXT,
-  WriterNotesPanel,
-} from './WriterNotesPanel'
+import { WRITER_NOTES_HELPER_TEXT, WriterNotesPanel } from './WriterNotesPanel'
 import {
   getVisibleToolbarKeys,
   resolveActiveToolbarKey,
