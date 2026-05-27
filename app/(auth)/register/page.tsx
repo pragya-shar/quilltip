@@ -1,5 +1,6 @@
+import { Suspense } from 'react'
 import RegisterForm from '@/components/auth/RegisterForm'
-import { AuthAlternateLink } from '@/components/auth/AuthAlternateLink'
+import { AuthReturnLinks } from '@/components/auth/AuthReturnLinks'
 
 /**
  * Registration Page
@@ -11,7 +12,6 @@ import { AuthAlternateLink } from '@/components/auth/AuthAlternateLink'
 export default function RegisterPage() {
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div className="text-center">
         <h2 className="text-2xl font-bold text-foreground">
           Create your account
@@ -21,17 +21,11 @@ export default function RegisterPage() {
         </p>
       </div>
 
-      {/* Registration Form */}
-      <RegisterForm />
+      <Suspense fallback={null}>
+        <RegisterForm />
+      </Suspense>
 
-      {/* Login Link */}
-      <div className="text-center">
-        <AuthAlternateLink
-          authPath="/login"
-          prompt="Already have an account?"
-          linkLabel="Sign in here"
-        />
-      </div>
+      <AuthReturnLinks variant="register" />
     </div>
   )
 }

@@ -1,18 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { parseSafeNextParam } from '@/lib/profile/profileDestination'
+import { useRouter } from 'next/navigation'
+import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
+import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loginSchema, type LoginFormData } from '@/lib/validations/auth'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 const authInputClassName =
   'rounded-lg bg-background text-foreground focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:border-transparent'
+
+const REDIRECT_TIMEOUT_MS = 15_000
 
 /**
  * Login Form Component
@@ -25,9 +28,10 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const returnPath = useAuthReturnPath()
   const { signIn } = useAuthActions()
 
   const {
@@ -37,6 +41,18 @@ export default function LoginForm() {
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
   })
+
+  useEffect(() => {
+    if (!success) return
+
+    const timeout = setTimeout(() => {
+      setSuccess(false)
+      setIsLoading(false)
+      setError('Redirect is taking longer than expected. Try again.')
+    }, REDIRECT_TIMEOUT_MS)
+
+    return () => clearTimeout(timeout)
+  }, [success])
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)
@@ -49,13 +65,40 @@ export default function LoginForm() {
         flow: 'signIn',
       })
 
-      const next = parseSafeNextParam(searchParams.get('next'))
-      router.replace(next ?? '/')
+      setSuccess(true)
+      // Full navigation for tip-resume flows so auth + URL params are stable
+      // before the article page mounts (avoids inconsistent client-side resume).
+      const pendingTipIntent = readPendingTipIntent()
+      if (
+        returnPath.includes('resumeArticleTip=1') ||
+        pendingTipIntent?.kind === 'highlight'
+      ) {
+        window.location.assign(returnPath)
+        return
+      }
+
+      router.replace(returnPath)
     } catch (error) {
       console.error('Login error:', error)
       setError('Invalid email or password. Please try again.')
       setIsLoading(false)
     }
+  }
+
+  if (success) {
+    return (
+      <div className="text-center space-y-4">
+        <div className="p-4 bg-muted border border-border rounded-lg">
+          <p className="inline-flex items-center justify-center gap-2 text-sm text-foreground">
+            <CheckCircle
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 text-success-foreground"
+            />
+            <span>Signed in successfully! Redirecting to dashboard...</span>
+          </p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -110,12 +153,14 @@ export default function LoginForm() {
             variant="ghost"
             size="icon"
             onClick={() => setShowPassword(!showPassword)}
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-pressed={showPassword}
             className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
           >
             {showPassword ? (
-              <EyeOff className="h-4 w-4" />
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
             ) : (
-              <Eye className="h-4 w-4" />
+              <Eye className="h-4 w-4" aria-hidden="true" />
             )}
           </Button>
         </div>

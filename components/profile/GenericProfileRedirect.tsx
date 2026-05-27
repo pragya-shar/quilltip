@@ -5,8 +5,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
+import { buildLoginHref } from '@/lib/auth/safeReturnPath'
 import {
-  buildLoginRedirectPath,
   buildPathWithSearch,
   resolveSignedInProfilePath,
 } from '@/lib/profile/profileDestination'
@@ -26,7 +26,7 @@ export function GenericProfileRedirect() {
     )
 
     if (!isAuthenticated) {
-      router.replace(buildLoginRedirectPath(intendedPath))
+      router.replace(buildLoginHref(intendedPath))
       return
     }
 

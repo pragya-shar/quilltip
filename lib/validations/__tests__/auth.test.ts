@@ -73,6 +73,97 @@ describe('Auth Validation Schemas', () => {
       })
       expect(result.success).toBe(false)
     })
+
+    it('accepts registration with empty name', () => {
+      const result = registerSchema.safeParse({
+        email: 'user@example.com',
+        username: 'validuser',
+        password: 'Password1',
+        confirmPassword: 'Password1',
+        name: '',
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('accepts registration with name omitted', () => {
+      const result = registerSchema.safeParse({
+        email: 'user@example.com',
+        username: 'validuser',
+        password: 'Password1',
+        confirmPassword: 'Password1',
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('accepts registration with a provided name', () => {
+      const result = registerSchema.safeParse({
+        email: 'user@example.com',
+        username: 'validuser',
+        password: 'Password1',
+        confirmPassword: 'Password1',
+        name: 'Jane Doe',
+      })
+      expect(result.success).toBe(true)
+    })
+
+    it('rejects name longer than 50 characters', () => {
+      const result = registerSchema.safeParse({
+        email: 'user@example.com',
+        username: 'validuser',
+        password: 'Password1',
+        confirmPassword: 'Password1',
+        name: 'a'.repeat(51),
+      })
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe(
+          'Name must be at most 50 characters'
+        )
+      }
+    })
+
+    it('rejects empty email with a clear message', () => {
+      const result = registerSchema.safeParse({
+        email: '',
+        username: 'validuser',
+        password: 'Password1',
+        confirmPassword: 'Password1',
+      })
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe('Email is required')
+      }
+    })
+
+    it('rejects empty username', () => {
+      const result = registerSchema.safeParse({
+        email: 'user@example.com',
+        username: '',
+        password: 'Password1',
+        confirmPassword: 'Password1',
+      })
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe(
+          'Username must be at least 3 characters'
+        )
+      }
+    })
+
+    it('rejects empty password', () => {
+      const result = registerSchema.safeParse({
+        email: 'user@example.com',
+        username: 'validuser',
+        password: '',
+        confirmPassword: '',
+      })
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe(
+          'Password must be at least 8 characters'
+        )
+      }
+    })
   })
 
   describe('profileUpdateSchema', () => {

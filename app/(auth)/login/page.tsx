@@ -1,17 +1,17 @@
+import { Suspense } from 'react'
 import LoginForm from '@/components/auth/LoginForm'
-import { AuthAlternateLink } from '@/components/auth/AuthAlternateLink'
+import { AuthReturnLinks } from '@/components/auth/AuthReturnLinks'
 
 /**
  * Login Page
  *
  * Provides user login functionality with email and password.
- * Integrates with NextAuth for authentication.
+ * Integrates with Convex Auth for authentication.
  */
 
 export default function LoginPage() {
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div className="text-center">
         <h2 className="text-2xl font-bold text-foreground">
           Sign in to your account
@@ -21,17 +21,11 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* Login Form */}
-      <LoginForm />
+      <Suspense fallback={null}>
+        <LoginForm />
+      </Suspense>
 
-      {/* Registration Link */}
-      <div className="text-center">
-        <AuthAlternateLink
-          authPath="/register"
-          prompt="Don't have an account?"
-          linkLabel="Sign up for free"
-        />
-      </div>
+      <AuthReturnLinks variant="login" />
     </div>
   )
 }
