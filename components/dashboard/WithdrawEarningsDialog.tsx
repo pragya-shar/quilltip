@@ -14,7 +14,11 @@ import {
 } from '@/components/ui/dialog'
 import { api } from '@/convex/_generated/api'
 import { MIN_WITHDRAWAL_USD } from '@/lib/constants'
-import { TESTNET_WITHDRAWAL_NOTE } from '@/lib/copy/network-status'
+import {
+  TESTNET_WITHDRAWAL_NOTE,
+  withdrawalAcknowledgementLabel,
+  withdrawalFlowNote,
+} from '@/lib/copy/network-status'
 
 interface WithdrawEarningsDialogProps {
   open: boolean
@@ -35,6 +39,7 @@ export function WithdrawEarningsDialog({
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [stellarAddress, setStellarAddress] = useState('')
   const [isWithdrawing, setIsWithdrawing] = useState(false)
+  const [acknowledged, setAcknowledged] = useState(false)
 
   const withdrawEarnings = useMutation(api.tips.withdrawEarnings)
 
@@ -42,6 +47,7 @@ export function WithdrawEarningsDialog({
     if (open) {
       setWithdrawAmount('')
       setStellarAddress(savedStellarAddress ?? '')
+      setAcknowledged(false)
     }
   }, [open, savedStellarAddress])
 
@@ -80,7 +86,7 @@ export function WithdrawEarningsDialog({
       })
 
       toast.success(
-        `Withdrawal initiated! $${amount.toFixed(2)} in testnet XLM will be sent to your Stellar wallet, typically within seconds on testnet.`
+        `Withdrawal requested for $${amount.toFixed(2)}. ${withdrawalFlowNote()}`
       )
       onOpenChange(false)
     } catch (error) {
@@ -178,7 +184,21 @@ export function WithdrawEarningsDialog({
               {TESTNET_WITHDRAWAL_NOTE} Transaction fees are covered by
               Quilltip.
             </p>
+            <p className="mt-2 text-sm text-info-foreground">
+              {withdrawalFlowNote()}
+            </p>
           </div>
+
+          <label className="flex items-start gap-2 rounded-lg border border-border bg-card p-3 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={acknowledged}
+              onChange={(e) => setAcknowledged(e.target.checked)}
+              disabled={isWithdrawing}
+              className="mt-0.5 h-4 w-4 accent-foreground"
+            />
+            <span>{withdrawalAcknowledgementLabel()}</span>
+          </label>
         </div>
 
         <DialogFooter className="gap-3 sm:gap-0">
@@ -196,7 +216,8 @@ export function WithdrawEarningsDialog({
             disabled={
               isWithdrawing ||
               !withdrawAmount ||
-              !effectiveAddress.startsWith('G')
+              !effectiveAddress.startsWith('G') ||
+              !acknowledged
             }
             className="flex-1 px-4 py-2 bg-brand text-brand-foreground rounded-lg hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 sm:flex-none"
           >

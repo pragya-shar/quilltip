@@ -8,7 +8,10 @@ import { TopEarningArticles } from '@/components/dashboard/top-earning-articles'
 import { WalletSetupNotice } from '@/components/dashboard/wallet-setup-notice'
 import { useProfileTabNavigation } from '@/hooks/useProfileTabNavigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
+import {
+  networkLabelLowercase,
+  practiceFundsNote,
+} from '@/lib/copy/network-status'
 
 export type EarningsStatsProps = {
   earnings: Doc<'authorEarnings'>
@@ -35,7 +38,7 @@ export function EarningsStats({
     <>
       <Alert className="border-border bg-muted/60">
         <AlertDescription className="text-sm text-muted-foreground">
-          {TESTNET_PRACTICE_NOTE}
+          {practiceFundsNote()}
         </AlertDescription>
       </Alert>
 
@@ -51,7 +54,7 @@ export function EarningsStats({
             ${earnings.totalEarnedUsd.toFixed(2)}
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            {earnings.tipCount} testnet tips received
+            {earnings.tipCount} {networkLabelLowercase()} tips received
           </p>
         </div>
 
@@ -81,8 +84,8 @@ export function EarningsStats({
           </button>
           {showMinimumWithdrawalHelper && (
             <p className="mt-2 text-sm text-muted-foreground">
-              Testnet withdrawals require a minimum available balance of $
-              {minWithdrawalUsd.toFixed(2)}. Add testnet tips until your balance
+              Withdrawals require a minimum available balance of $
+              {minWithdrawalUsd.toFixed(2)}. Add more tips until your balance
               reaches this amount.
             </p>
           )}

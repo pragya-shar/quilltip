@@ -12,7 +12,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { isValidStellarAccountId } from '@/lib/stellar/is-valid-stellar-account-id'
-import { TESTNET_WITHDRAWAL_NOTE } from '@/lib/copy/network-status'
+import {
+  TESTNET_WITHDRAWAL_NOTE,
+  withdrawalAcknowledgementLabel,
+  withdrawalFlowNote,
+} from '@/lib/copy/network-status'
 
 export type WithdrawalDialogProps = {
   open: boolean
@@ -39,11 +43,13 @@ export function WithdrawalDialog({
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [stellarAddress, setStellarAddress] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [acknowledged, setAcknowledged] = useState(false)
 
   useEffect(() => {
     if (open) {
       setWithdrawAmount('')
       setStellarAddress(savedStellarAddress ?? '')
+      setAcknowledged(false)
     }
   }, [open, savedStellarAddress])
 
@@ -187,7 +193,21 @@ export function WithdrawalDialog({
               {TESTNET_WITHDRAWAL_NOTE} Transaction fees are covered by
               Quilltip.
             </p>
+            <p className="mt-2 text-sm text-info-foreground">
+              {withdrawalFlowNote()}
+            </p>
           </div>
+
+          <label className="flex items-start gap-2 rounded-lg border border-border bg-card p-3 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={acknowledged}
+              onChange={(e) => setAcknowledged(e.target.checked)}
+              disabled={isSubmitting}
+              className="mt-0.5 h-4 w-4 accent-foreground"
+            />
+            <span>{withdrawalAcknowledgementLabel()}</span>
+          </label>
         </div>
 
         <DialogFooter className="gap-3 sm:gap-0">
@@ -206,7 +226,8 @@ export function WithdrawalDialog({
               isSubmitting ||
               !withdrawAmount ||
               !trimmedAddress ||
-              !isValidStellarAccountId(trimmedAddress)
+              !isValidStellarAccountId(trimmedAddress) ||
+              !acknowledged
             }
             className="flex-1 px-4 py-2 bg-brand text-brand-foreground rounded-lg hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 sm:flex-none"
           >

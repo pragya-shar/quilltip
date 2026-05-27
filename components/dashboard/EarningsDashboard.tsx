@@ -16,6 +16,7 @@ import { TipHistory } from '@/components/dashboard/TipHistory'
 import { WithdrawalDialog } from '@/components/dashboard/WithdrawalDialog'
 import { EarningsStats } from '@/components/dashboard/EarningsStats'
 import { EarningsDashboardSkeleton } from '@/components/dashboard/EarningsDashboardSkeleton'
+import { withdrawalFlowNote } from '@/lib/copy/network-status'
 
 export function EarningsDashboard() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
@@ -39,7 +40,7 @@ export function EarningsDashboard() {
         stellarAddress: args.stellarAddress,
       })
       toast.success(
-        `Withdrawal initiated! $${args.amountUsd.toFixed(2)} in testnet XLM will be sent to your Stellar wallet, typically within seconds on testnet.`
+        `Withdrawal requested for $${args.amountUsd.toFixed(2)}. ${withdrawalFlowNote()}`
       )
     } catch (error) {
       console.error('Withdrawal error:', error)

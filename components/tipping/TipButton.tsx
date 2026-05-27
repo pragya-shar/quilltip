@@ -49,6 +49,10 @@ import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
 import { clearPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import type { ArticlePendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import { useArticleTipResume } from '@/hooks/useArticleTipResume'
+import {
+  networkLabelLowercase,
+  tipFlowShortNote,
+} from '@/lib/copy/network-status'
 
 interface TipButtonProps {
   articleId: Id<'articles'>
@@ -506,9 +510,12 @@ export function TipButton({
           )}
 
           <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1 flex-wrap">
-            Powered by Stellar testnet <WalletTooltip concept="stellar" />{' '}
-            <WalletTooltip concept="testnet" /> • Fast testnet settlement • Low
-            fees
+            Powered by Stellar {networkLabelLowercase()}{' '}
+            <WalletTooltip concept="stellar" />{' '}
+            {networkLabelLowercase() === 'testnet' ? (
+              <WalletTooltip concept="testnet" />
+            ) : null}{' '}
+            • {tipFlowShortNote()}
           </p>
         </DialogContent>
       </Dialog>
