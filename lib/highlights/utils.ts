@@ -147,3 +147,15 @@ export function getRangeBoundingBox(range: Range): RangeBoundingBox | null {
     height: r.height,
   }
 }
+
+/** Viewport anchor above the horizontal center of a DOM range (for popovers). */
+export function getRangeTopCenterAnchor(
+  range: Range
+): { top: number; left: number } | null {
+  const box = getRangeBoundingBox(range)
+  if (!box) return null
+  return {
+    top: box.top,
+    left: box.left + box.width / 2,
+  }
+}

@@ -3,6 +3,7 @@
 import nextDynamic from 'next/dynamic'
 import { notFound } from 'next/navigation'
 import { use, useState, useMemo } from 'react'
+import { ArticleTipActions } from '@/components/tipping/ArticleTipActions'
 import {
   useArticleBySlug,
   useArticleHighlightTipStatsOptional,
@@ -13,18 +14,7 @@ import { ArticlePageLoadingSkeleton } from '@/components/articles/ArticlePageLoa
 import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import { TipStats } from '@/components/tipping/TipStats'
-import {
-  TipButtonSkeleton,
-  NftSidebarSkeleton,
-} from '@/components/articles/ArticleEngagementSkeleton'
-
-const TipButton = nextDynamic(
-  () =>
-    import('@/components/tipping/TipButton').then((mod) => ({
-      default: mod.TipButton,
-    })),
-  { ssr: false, loading: () => <TipButtonSkeleton /> }
-)
+import { NftSidebarSkeleton } from '@/components/articles/ArticleEngagementSkeleton'
 
 const NFTIntegration = nextDynamic(
   () =>
@@ -142,6 +132,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                 <ArticleDisplay
                   article={articleForDisplay}
                   tocHeadings={tocHeadings}
+                  authorStellarAddress={article.author.stellarAddress}
                 />
               </ErrorBoundary>
             </div>
@@ -161,8 +152,9 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                       <Heart className="w-5 h-5 text-red-500" />
                       Support the Author
                     </h3>
-                    <TipButton
+                    <ArticleTipActions
                       articleId={article._id}
+                      articleSlug={article.slug}
                       authorName={
                         article.author.name || article.author.username
                       }
