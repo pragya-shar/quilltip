@@ -8,7 +8,10 @@ import { TopEarningArticles } from '@/components/dashboard/top-earning-articles'
 import { WalletSetupNotice } from '@/components/dashboard/wallet-setup-notice'
 import { useProfileTabNavigation } from '@/hooks/useProfileTabNavigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { networkLabelLowercase, practiceFundsNote } from '@/lib/copy/network-status'
+import {
+  networkLabelLowercase,
+  practiceFundsNote,
+} from '@/lib/copy/network-status'
 
 export type EarningsStatsProps = {
   earnings: Doc<'authorEarnings'>
