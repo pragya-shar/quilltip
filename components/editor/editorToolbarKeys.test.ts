@@ -19,6 +19,12 @@ describe('getVisibleToolbarKeys', () => {
     expect(keys).not.toContain('youtube')
   })
 
+  it('ends with more then notes on mobile', () => {
+    const keys = getVisibleToolbarKeys(true, false)
+    expect(keys.at(-2)).toBe('more')
+    expect(keys.at(-1)).toBe('notes')
+  })
+
   it('swaps link insert for link remove when a link is active', () => {
     const keys = getVisibleToolbarKeys(false, true)
     expect(keys).toContain('linkRemove')
