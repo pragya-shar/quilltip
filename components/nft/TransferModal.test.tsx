@@ -37,6 +37,7 @@ function ControlledTransferModal() {
         articleId={articleId}
         articleTitle="Test Article"
         currentOwner="seller"
+        currentOwnerUsername="seller"
         nftId={nftId}
       />
       <button type="button" onClick={() => setOpen(true)}>
@@ -46,10 +47,176 @@ function ControlledTransferModal() {
   )
 }
 
+async function reviewAndConfirmTransfer(
+  user: ReturnType<typeof userEvent.setup>
+) {
+  await user.type(
+    screen.getByLabelText(/Transfer To \(Username\)/i),
+    'buyername'
+  )
+  await user.click(screen.getByRole('button', { name: /^Review transfer$/i }))
+  await screen.findByTestId('transfer-confirm-recipient')
+  await user.click(screen.getByRole('button', { name: /^Confirm transfer$/i }))
+}
+
 describe('TransferModal', () => {
   beforeEach(() => {
     mockTransfer.mockReset()
     vi.mocked(toast.error).mockClear()
+  })
+
+  it('blocks transfer to the current owner on review', async () => {
+    const user = userEvent.setup({ delay: null })
+
+    render(
+      <TransferModal
+        isOpen
+        onClose={() => {}}
+        articleId={articleId}
+        articleTitle="Test Article"
+        currentOwner="GAEV4UC0WEUWGLAQW7NYYPULUA65XMVYYA670GTHL0M705E2ZINYFXPM"
+        currentOwnerUsername="seller"
+        nftId={nftId}
+      />
+    )
+
+    await user.type(
+      screen.getByLabelText(/Transfer To \(Username\)/i),
+      'seller'
+    )
+    await user.click(screen.getByRole('button', { name: /^Review transfer$/i }))
+
+    expect(screen.getByTestId('transfer-modal-message')).toHaveTextContent(
+      'Cannot transfer to the current owner'
+    )
+    expect(
+      screen.queryByRole('button', { name: /^Confirm transfer$/i })
+    ).not.toBeInTheDocument()
+    expect(mockTransfer).not.toHaveBeenCalled()
+  })
+
+  it('does not call transferNFT when only reviewing', async () => {
+    const user = userEvent.setup({ delay: null })
+
+    render(
+      <TransferModal
+        isOpen
+        onClose={() => {}}
+        articleId={articleId}
+        articleTitle="Test Article"
+        currentOwner="seller"
+        currentOwnerUsername="seller"
+        nftId={nftId}
+      />
+    )
+
+    await user.type(
+      screen.getByLabelText(/Transfer To \(Username\)/i),
+      'buyername'
+    )
+    await user.click(screen.getByRole('button', { name: /^Review transfer$/i }))
+
+    expect(screen.getByTestId('transfer-confirm-recipient')).toHaveTextContent(
+      '@buyername'
+    )
+    expect(mockTransfer).not.toHaveBeenCalled()
+  })
+
+  it('shows recipient and asset details on the confirmation step', async () => {
+    const user = userEvent.setup({ delay: null })
+
+    render(
+      <TransferModal
+        isOpen
+        onClose={() => {}}
+        articleId={articleId}
+        articleTitle="Test Article"
+        currentOwner="seller"
+        currentOwnerUsername="seller"
+        nftId={nftId}
+      />
+    )
+
+    await user.type(
+      screen.getByLabelText(/Transfer To \(Username\)/i),
+      'buyername'
+    )
+    await user.click(screen.getByRole('button', { name: /^Review transfer$/i }))
+
+    expect(screen.getByTestId('transfer-confirm-recipient')).toHaveTextContent(
+      '@buyername'
+    )
+    expect(screen.getByTestId('transfer-confirm-asset')).toHaveTextContent(
+      'Test Article'
+    )
+    expect(
+      screen.getByTestId('transfer-confirm-current-owner')
+    ).toHaveTextContent('@seller')
+    expect(screen.getByTestId('transfer-confirm-nft-id')).toHaveTextContent(
+      nftId
+    )
+    expect(screen.getByTestId('transfer-confirm-warning')).toHaveTextContent(
+      'Test Article'
+    )
+    expect(screen.getByTestId('transfer-confirm-warning')).toHaveTextContent(
+      '@buyername'
+    )
+    expect(screen.getByTestId('transfer-confirm-warning')).toHaveTextContent(
+      'cannot be undone'
+    )
+  })
+
+  it('does not transfer when cancel is clicked on the confirmation step', async () => {
+    const user = userEvent.setup({ delay: null })
+
+    render(
+      <TransferModal
+        isOpen
+        onClose={() => {}}
+        articleId={articleId}
+        articleTitle="Test Article"
+        currentOwner="seller"
+        currentOwnerUsername="seller"
+        nftId={nftId}
+      />
+    )
+
+    await user.type(
+      screen.getByLabelText(/Transfer To \(Username\)/i),
+      'buyername'
+    )
+    await user.click(screen.getByRole('button', { name: /^Review transfer$/i }))
+    await user.click(screen.getByRole('button', { name: /^Cancel$/i }))
+
+    expect(mockTransfer).not.toHaveBeenCalled()
+  })
+
+  it('does not transfer when back is clicked on the confirmation step', async () => {
+    const user = userEvent.setup({ delay: null })
+
+    render(
+      <TransferModal
+        isOpen
+        onClose={() => {}}
+        articleId={articleId}
+        articleTitle="Test Article"
+        currentOwner="seller"
+        currentOwnerUsername="seller"
+        nftId={nftId}
+      />
+    )
+
+    await user.type(
+      screen.getByLabelText(/Transfer To \(Username\)/i),
+      'buyername'
+    )
+    await user.click(screen.getByRole('button', { name: /^Review transfer$/i }))
+    await user.click(screen.getByRole('button', { name: /^Back$/i }))
+
+    expect(mockTransfer).not.toHaveBeenCalled()
+    expect(
+      screen.getByLabelText(/Transfer To \(Username\)/i)
+    ).toBeInTheDocument()
   })
 
   it('shows a single success message in the message slot after transfer', async () => {
@@ -63,15 +230,12 @@ describe('TransferModal', () => {
         articleId={articleId}
         articleTitle="Test Article"
         currentOwner="seller"
+        currentOwnerUsername="seller"
         nftId={nftId}
       />
     )
 
-    await user.type(
-      screen.getByLabelText(/Transfer To \(Username\)/i),
-      'buyername'
-    )
-    await user.click(screen.getByRole('button', { name: /^Transfer NFT$/i }))
+    await reviewAndConfirmTransfer(user)
 
     await waitFor(() => {
       expect(screen.getByTestId('transfer-modal-message')).toHaveTextContent(
@@ -97,15 +261,12 @@ describe('TransferModal', () => {
         articleId={articleId}
         articleTitle="Test Article"
         currentOwner="seller"
+        currentOwnerUsername="seller"
         nftId={nftId}
       />
     )
 
-    await user.type(
-      screen.getByLabelText(/Transfer To \(Username\)/i),
-      'buyername'
-    )
-    await user.click(screen.getByRole('button', { name: /^Transfer NFT$/i }))
+    await reviewAndConfirmTransfer(user)
 
     await waitFor(() => {
       expect(screen.getByTestId('transfer-modal-message')).toHaveTextContent(
@@ -125,7 +286,7 @@ describe('TransferModal', () => {
     )
   })
 
-  it('shows progress only in the message slot while the button stays Transfer NFT', async () => {
+  it('shows progress only in the message slot while the button stays Confirm transfer', async () => {
     const user = userEvent.setup({ delay: null })
     let resolveTransfer!: (value: string) => void
     const transferPromise = new Promise<string>((resolve) => {
@@ -140,22 +301,19 @@ describe('TransferModal', () => {
         articleId={articleId}
         articleTitle="Test Article"
         currentOwner="seller"
+        currentOwnerUsername="seller"
         nftId={nftId}
       />
     )
 
-    await user.type(
-      screen.getByLabelText(/Transfer To \(Username\)/i),
-      'buyername'
-    )
-    await user.click(screen.getByRole('button', { name: /^Transfer NFT$/i }))
+    await reviewAndConfirmTransfer(user)
 
     const slot = screen.getByTestId('transfer-modal-message')
     await waitFor(() => {
       expect(slot).toHaveTextContent('Processing transfer...')
     })
 
-    const submit = screen.getByRole('button', { name: /^Transfer NFT$/i })
+    const submit = screen.getByRole('button', { name: /^Confirm transfer$/i })
     expect(submit.textContent).not.toMatch(/Processing transfer/i)
 
     resolveTransfer!('transfer_id')
@@ -170,7 +328,7 @@ describe('TransferModal', () => {
     render(<ControlledTransferModal />)
 
     await user.type(screen.getByLabelText(/Transfer To \(Username\)/i), 'ab')
-    await user.click(screen.getByRole('button', { name: /^Transfer NFT$/i }))
+    await user.click(screen.getByRole('button', { name: /^Review transfer$/i }))
     await waitFor(() => {
       expect(screen.getByTestId('transfer-modal-message')).toHaveTextContent(
         'Invalid username format'
