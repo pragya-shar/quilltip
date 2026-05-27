@@ -11,8 +11,10 @@ import type { Id } from '@/convex/_generated/dataModel'
 
 describe('pendingTipIntent storage', () => {
   const store: Record<string, string> = {}
+  const local: Record<string, string> = {}
 
   beforeEach(() => {
+    clearPendingTipIntent()
     vi.stubGlobal('window', {
       sessionStorage: {
         getItem: (k: string) => (k in store ? store[k] : null),
@@ -26,12 +28,25 @@ describe('pendingTipIntent storage', () => {
           for (const key of Object.keys(store)) delete store[key]
         },
       },
+      localStorage: {
+        getItem: (k: string) => (k in local ? local[k] : null),
+        setItem: (k: string, v: string) => {
+          local[k] = v
+        },
+        removeItem: (k: string) => {
+          delete local[k]
+        },
+        clear: () => {
+          for (const key of Object.keys(local)) delete local[key]
+        },
+      },
     })
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
     for (const key of Object.keys(store)) delete store[key]
+    for (const key of Object.keys(local)) delete local[key]
   })
 
   it('writes and reads article intent', () => {
@@ -48,6 +63,7 @@ describe('pendingTipIntent storage', () => {
       message: 'Great read',
     })
     expect(store[PENDING_TIP_INTENT_STORAGE_KEY]).toBeDefined()
+    expect(local[PENDING_TIP_INTENT_STORAGE_KEY]).toBeDefined()
   })
 
   it('writes and reads highlight intent', () => {
@@ -87,6 +103,7 @@ describe('pendingTipIntent storage', () => {
     clearPendingTipIntent()
     expect(readPendingTipIntent()).toBeNull()
     expect(store[PENDING_TIP_INTENT_STORAGE_KEY]).toBeUndefined()
+    expect(local[PENDING_TIP_INTENT_STORAGE_KEY]).toBeUndefined()
   })
 })
 

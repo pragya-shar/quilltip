@@ -26,6 +26,18 @@ describe('applyPendingAmountFields', () => {
     expect(setSelectedAmount).toHaveBeenCalledWith(null)
   })
 
+  it('prefers custom amount when both fields are present', () => {
+    const setSelectedAmount = vi.fn()
+    const setCustomAmount = vi.fn()
+    applyPendingAmountFields(
+      { amountCents: 5000, customAmount: '50' },
+      setSelectedAmount,
+      setCustomAmount
+    )
+    expect(setCustomAmount).toHaveBeenCalledWith('50')
+    expect(setSelectedAmount).toHaveBeenCalledWith(null)
+  })
+
   it('does nothing when no amount fields', () => {
     const setSelectedAmount = vi.fn()
     const setCustomAmount = vi.fn()

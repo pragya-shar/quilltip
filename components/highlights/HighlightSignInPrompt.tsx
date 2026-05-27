@@ -6,17 +6,25 @@ import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
+import {
+  buildLoginHref,
+  buildRegisterHref,
+} from '@/lib/auth/safeReturnPath'
 
 interface HighlightSignInPromptProps {
   position: { top: number; left: number }
   selectedText: string
+  returnPath: string
   onClose: () => void
+  onBeforeAuthNavigate?: () => void
 }
 
 export function HighlightSignInPrompt({
   position,
   selectedText,
+  returnPath,
   onClose,
+  onBeforeAuthNavigate,
 }: HighlightSignInPromptProps) {
   const titleId = useId()
   const descriptionId = useId()
@@ -45,6 +53,13 @@ export function HighlightSignInPrompt({
     selectedText.length > 150
       ? `${selectedText.slice(0, 150)}...`
       : selectedText
+
+  const loginHref = buildLoginHref(returnPath)
+  const registerHref = buildRegisterHref(returnPath)
+
+  const handleAuthNavigate = () => {
+    onBeforeAuthNavigate?.()
+  }
 
   return (
     <FocusScope trapped loop>
@@ -86,12 +101,15 @@ export function HighlightSignInPrompt({
 
         <div className="flex flex-col gap-2">
           <Button asChild className="w-full">
-            <Link href="/login">Sign in</Link>
+            <Link href={loginHref} onClick={handleAuthNavigate}>
+              Sign in
+            </Link>
           </Button>
           <p className="text-center text-xs text-muted-foreground">
             New here?{' '}
             <Link
-              href="/register"
+              href={registerHref}
+              onClick={handleAuthNavigate}
               className="font-medium text-brand-blue hover:text-brand-accent transition-colors"
             >
               Create a free account

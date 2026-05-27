@@ -11,6 +11,7 @@ describe('HighlightSignInPrompt', () => {
       <HighlightSignInPrompt
         position={{ top: 0, left: 0 }}
         selectedText="Enough text for the preview area"
+        returnPath="/author/my-article"
         onClose={onClose}
       />
     )
@@ -32,6 +33,7 @@ describe('HighlightSignInPrompt', () => {
       <HighlightSignInPrompt
         position={{ top: 0, left: 0 }}
         selectedText="Enough text for the preview area"
+        returnPath="/author/my-article"
         onClose={onClose}
       />
     )
@@ -55,6 +57,7 @@ describe('HighlightSignInPrompt', () => {
       <HighlightSignInPrompt
         position={{ top: 0, left: 0 }}
         selectedText="Enough text for the preview area"
+        returnPath="/author/my-article"
         onClose={onClose}
       />
     )
@@ -64,22 +67,40 @@ describe('HighlightSignInPrompt', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('links Sign in to /login and register to /register', () => {
+  it('links Sign in and register with returnTo', () => {
     render(
       <HighlightSignInPrompt
         position={{ top: 0, left: 0 }}
         selectedText="Enough text for the preview area"
+        returnPath="/author/my-article"
         onClose={vi.fn()}
       />
     )
 
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
       'href',
-      '/login'
+      '/login?returnTo=%2Fauthor%2Fmy-article'
     )
     expect(
       screen.getByRole('link', { name: 'Create a free account' })
-    ).toHaveAttribute('href', '/register')
+    ).toHaveAttribute('href', '/register?returnTo=%2Fauthor%2Fmy-article')
+  })
+
+  it('calls onBeforeAuthNavigate when Sign in is clicked', () => {
+    const onBeforeAuthNavigate = vi.fn()
+    render(
+      <HighlightSignInPrompt
+        position={{ top: 0, left: 0 }}
+        selectedText="Enough text for the preview area"
+        returnPath="/author/my-article"
+        onClose={vi.fn()}
+        onBeforeAuthNavigate={onBeforeAuthNavigate}
+      />
+    )
+
+    screen.getByRole('link', { name: 'Sign in' }).click()
+
+    expect(onBeforeAuthNavigate).toHaveBeenCalledTimes(1)
   })
 
   it('exposes dialog semantics for assistive tech', () => {
@@ -87,6 +108,7 @@ describe('HighlightSignInPrompt', () => {
       <HighlightSignInPrompt
         position={{ top: 0, left: 0 }}
         selectedText="Enough text for the preview area"
+        returnPath="/author/my-article"
         onClose={vi.fn()}
       />
     )

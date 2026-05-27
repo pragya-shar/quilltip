@@ -1,14 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useAuth } from '@/components/providers/AuthContext'
+import { useState } from 'react'
 import { HighlightTipButton } from '@/components/highlights/HighlightTipButton'
-import {
-  clearPendingTipIntent,
-  matchesHighlightPendingIntent,
-  readPendingTipIntent,
-  type HighlightPendingTipIntent,
-} from '@/lib/tip/pendingTipIntent'
+import { useHighlightTipResume } from '@/hooks/useHighlightTipResume'
+import type { HighlightPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import type { Id } from '@/convex/_generated/dataModel'
 
 interface PendingTipResumeProps {
@@ -24,23 +19,22 @@ export function PendingTipResume({
   authorName,
   authorStellarAddress,
 }: PendingTipResumeProps) {
-  const { isAuthenticated } = useAuth()
-  const resumedRef = useRef(false)
   const [intent, setIntent] = useState<HighlightPendingTipIntent | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
 
-  useEffect(() => {
-    if (!isAuthenticated || resumedRef.current) return
-    const pending = readPendingTipIntent()
-    if (!matchesHighlightPendingIntent(pending, articleId)) return
-    resumedRef.current = true
-    clearPendingTipIntent()
-    setIntent(pending)
-  }, [isAuthenticated, articleId])
+  useHighlightTipResume({
+    articleId,
+    isOpen,
+    onResume: (pending) => {
+      setIntent(pending)
+      setIsOpen(true)
+    },
+  })
 
   if (!intent) return null
 
   return (
-    <div className="sr-only" aria-hidden>
+    <div className="sr-only">
       <HighlightTipButton
         articleId={articleId}
         articleSlug={articleSlug}
@@ -54,6 +48,7 @@ export function PendingTipResume({
         resumeOpen
         resumeAmountCents={intent.amountCents}
         resumeCustomAmount={intent.customAmount}
+        onResumeOpenChange={setIsOpen}
       />
     </div>
   )

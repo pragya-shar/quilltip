@@ -22,6 +22,11 @@ interface HighlightPopoverProps {
   authorStellarAddress?: string | null
   startOffset?: number
   endOffset?: number
+  resumeHighlightTip?: {
+    amountCents?: number
+    customAmount?: string
+  } | null
+  onHighlightTipResumeOpened?: () => void
 }
 
 const PREMIUM_HIGHLIGHT_COLORS = [
@@ -74,6 +79,8 @@ export function HighlightPopover({
   authorStellarAddress,
   startOffset,
   endOffset,
+  resumeHighlightTip,
+  onHighlightTipResumeOpened,
 }: HighlightPopoverProps) {
   const { isAuthenticated } = useAuth()
   const [selectedColor, setSelectedColor] = useState(
@@ -110,6 +117,7 @@ export function HighlightPopover({
     <FocusScope trapped loop>
       <div
         ref={popoverRef}
+        data-testid="highlight-popover"
         className="highlight-popover fixed z-50 w-[360px] max-w-[calc(100vw-24px)] rounded-2xl p-4 outline-none"
         style={{
           top: clampedPosition.top,
@@ -247,6 +255,14 @@ export function HighlightPopover({
                   startOffset={startOffset}
                   endOffset={endOffset}
                   className="flex-1"
+                  resumeOpen={Boolean(resumeHighlightTip)}
+                  resumeAmountCents={resumeHighlightTip?.amountCents}
+                  resumeCustomAmount={resumeHighlightTip?.customAmount}
+                  onResumeDialogVisible={() => {
+                    if (resumeHighlightTip) {
+                      onHighlightTipResumeOpened?.()
+                    }
+                  }}
                   onSuccess={
                     isAuthenticated
                       ? () => {

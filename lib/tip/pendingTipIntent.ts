@@ -38,23 +38,39 @@ export type HighlightPendingTipIntent = z.infer<
   typeof highlightPendingTipIntentSchema
 >
 
-export function writePendingTipIntent(intent: PendingTipIntent): void {
-  if (typeof window === 'undefined') return
+/** Survives React remounts within the same tab (e.g. Suspense / client navigation). */
+let memoryPendingTipIntent: PendingTipIntent | null = null
+
+function normalizeArticleId(articleId: Id<'articles'> | string): string {
+  return String(articleId)
+}
+
+function persistPendingTipJson(json: string): void {
   try {
-    window.sessionStorage.setItem(
-      PENDING_TIP_INTENT_STORAGE_KEY,
-      JSON.stringify(intent)
-    )
+    window.sessionStorage.setItem(PENDING_TIP_INTENT_STORAGE_KEY, json)
+  } catch {
+    // Quota or private mode
+  }
+  try {
+    window.localStorage.setItem(PENDING_TIP_INTENT_STORAGE_KEY, json)
   } catch {
     // Quota or private mode
   }
 }
 
-export function readPendingTipIntent(): PendingTipIntent | null {
-  if (typeof window === 'undefined') return null
+function readPendingTipJson(): string | null {
   try {
-    const raw = window.sessionStorage.getItem(PENDING_TIP_INTENT_STORAGE_KEY)
-    if (raw === null) return null
+    return (
+      window.sessionStorage.getItem(PENDING_TIP_INTENT_STORAGE_KEY) ??
+      window.localStorage.getItem(PENDING_TIP_INTENT_STORAGE_KEY)
+    )
+  } catch {
+    return null
+  }
+}
+
+function parsePendingTipJson(raw: string): PendingTipIntent | null {
+  try {
     const parsed: unknown = JSON.parse(raw)
     const result = pendingTipIntentSchema.safeParse(parsed)
     return result.success ? result.data : null
@@ -63,10 +79,43 @@ export function readPendingTipIntent(): PendingTipIntent | null {
   }
 }
 
+export function writePendingTipIntent(intent: PendingTipIntent): void {
+  if (typeof window === 'undefined') return
+  const normalized: PendingTipIntent = {
+    ...intent,
+    articleId: normalizeArticleId(intent.articleId),
+  }
+  memoryPendingTipIntent = normalized
+  persistPendingTipJson(JSON.stringify(normalized))
+}
+
+export function readPendingTipIntent(): PendingTipIntent | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = readPendingTipJson()
+    if (raw !== null) {
+      const parsed = parsePendingTipJson(raw)
+      if (parsed) {
+        memoryPendingTipIntent = parsed
+        return parsed
+      }
+    }
+  } catch {
+    // Fall through to memory
+  }
+  return memoryPendingTipIntent
+}
+
 export function clearPendingTipIntent(): void {
+  memoryPendingTipIntent = null
   if (typeof window === 'undefined') return
   try {
     window.sessionStorage.removeItem(PENDING_TIP_INTENT_STORAGE_KEY)
+  } catch {
+    // Ignore
+  }
+  try {
+    window.localStorage.removeItem(PENDING_TIP_INTENT_STORAGE_KEY)
   } catch {
     // Ignore
   }
@@ -76,12 +125,18 @@ export function matchesArticlePendingIntent(
   intent: PendingTipIntent | null,
   articleId: Id<'articles'>
 ): intent is ArticlePendingTipIntent {
-  return intent?.kind === 'article' && intent.articleId === articleId
+  return (
+    intent?.kind === 'article' &&
+    intent.articleId === normalizeArticleId(articleId)
+  )
 }
 
 export function matchesHighlightPendingIntent(
   intent: PendingTipIntent | null,
   articleId: Id<'articles'>
 ): intent is HighlightPendingTipIntent {
-  return intent?.kind === 'highlight' && intent.articleId === articleId
+  return (
+    intent?.kind === 'highlight' &&
+    intent.articleId === normalizeArticleId(articleId)
+  )
 }

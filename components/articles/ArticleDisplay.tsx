@@ -9,7 +9,6 @@ import { UserAvatar } from '@/components/ui/user-avatar'
 import ShareButtons from './ShareButtons'
 import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
 import { ArticleBodySkeleton } from '@/components/articles/ArticleBodySkeleton'
-
 const HighlightableArticle = dynamic(
   () =>
     import('@/components/articles/HighlightableArticle').then((mod) => ({
@@ -29,12 +28,14 @@ const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
 interface ArticleDisplayProps {
   article: ArticleForDisplay
+  authorStellarAddress?: string | null
   showHighlights?: boolean
   tocHeadings?: TocHeading[]
 }
 
 export default function ArticleDisplay({
   article,
+  authorStellarAddress,
   showHighlights = true,
   tocHeadings = [],
 }: ArticleDisplayProps) {
@@ -119,13 +120,15 @@ export default function ArticleDisplay({
 
       <div className="article-content">
         {showHighlights ? (
-          <HighlightableArticle
-            articleId={article.id as Id<'articles'>}
-            content={article.content ?? EMPTY_DOC}
-            editable={false}
-            showHighlights={showHighlights}
-            tocHeadings={tocHeadings}
-          />
+          <>
+            <HighlightableArticle
+              articleId={article.id as Id<'articles'>}
+              content={article.content ?? EMPTY_DOC}
+              editable={false}
+              showHighlights={showHighlights}
+              tocHeadings={tocHeadings}
+            />
+          </>
         ) : (
           <ArticleReadOnlyBody
             content={article.content ?? EMPTY_DOC}

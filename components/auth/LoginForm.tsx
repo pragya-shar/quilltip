@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useRouter } from 'next/navigation'
 import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
+import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loginSchema, type LoginFormData } from '@/lib/validations/auth'
@@ -49,8 +50,17 @@ export default function LoginForm() {
         flow: 'signIn',
       })
 
-      // If we reach here, sign-in was successful
-      // Use replace to prevent back button returning to login
+      // Full navigation for tip-resume flows so auth + URL params are stable
+      // before the article page mounts (avoids inconsistent client-side resume).
+      const pendingTipIntent = readPendingTipIntent()
+      if (
+        returnPath.includes('resumeArticleTip=1') ||
+        pendingTipIntent?.kind === 'highlight'
+      ) {
+        window.location.assign(returnPath)
+        return
+      }
+
       router.replace(returnPath)
     } catch (error) {
       console.error('Login error:', error)

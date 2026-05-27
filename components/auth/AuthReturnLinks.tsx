@@ -8,6 +8,7 @@ import {
   buildRegisterHref,
   getSafeReturnPath,
 } from '@/lib/auth/safeReturnPath'
+import { clearPendingHighlightSelection } from '@/lib/highlight/pendingHighlightSelection'
 import { clearPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 
 function AuthReturnLinksInner({ variant }: { variant: 'login' | 'register' }) {
@@ -16,6 +17,7 @@ function AuthReturnLinksInner({ variant }: { variant: 'login' | 'register' }) {
 
   const handleCancel = () => {
     clearPendingTipIntent()
+    clearPendingHighlightSelection()
   }
 
   if (variant === 'login') {
