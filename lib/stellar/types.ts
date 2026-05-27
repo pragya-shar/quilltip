@@ -30,6 +30,37 @@ export interface TipParams {
   signerFn?: (txXDR: string) => Promise<string>
 }
 
+export interface ArticleBatchTipParams {
+  articleId: string
+  authorAddress: string
+  amountCents: number
+}
+
+export interface HighlightBatchTipParams extends ArticleBatchTipParams {
+  highlightId: string
+}
+
+export interface BatchTipQuote {
+  amountCents: number
+  stroops: number
+  authorReceived: number
+  platformFee: number
+}
+
+export interface ArticleBatchTipQuote
+  extends ArticleBatchTipParams, BatchTipQuote {}
+
+export interface HighlightBatchTipQuote
+  extends HighlightBatchTipParams, BatchTipQuote {}
+
+export interface BatchTipTransactionResult<TItem extends BatchTipQuote> {
+  xdr: string
+  stroops: number
+  authorReceived: number
+  platformFee: number
+  items: TItem[]
+}
+
 export interface WithdrawParams {
   authorAddress: string
   signerFn?: (txXDR: string) => Promise<string>
