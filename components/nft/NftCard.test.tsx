@@ -10,7 +10,7 @@ vi.mock('next/image', () => ({
   }: {
     src: string
     alt: string
-  // eslint-disable-next-line @next/next/no-img-element -- mock for next/image
+    // eslint-disable-next-line @next/next/no-img-element -- mock for next/image
   }) => <img src={src} alt={alt} />,
 }))
 
@@ -36,10 +36,7 @@ const baseProps = {
 describe('NftCard', () => {
   it('renders cover image when coverImage is set', () => {
     render(
-      <NftCard
-        {...baseProps}
-        coverImage="https://example.com/cover.jpg"
-      />
+      <NftCard {...baseProps} coverImage="https://example.com/cover.jpg" />
     )
 
     const img = screen.getByRole('img', { name: 'Test Article' })
@@ -62,12 +59,7 @@ describe('NftCard', () => {
   })
 
   it('shows excerpt and footer when provided', () => {
-    render(
-      <NftCard
-        {...baseProps}
-        excerpt="A short summary of the article."
-      />
-    )
+    render(<NftCard {...baseProps} excerpt="A short summary of the article." />)
 
     expect(
       screen.getByText('A short summary of the article.')
