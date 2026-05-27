@@ -17,6 +17,39 @@ type PageSize = 10 | 25 | 50 | 'all'
 type SortKey = 'tipper' | 'articleTitle' | 'amountUsd' | 'createdAt'
 type SortDir = 'asc' | 'desc'
 
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'tipper', label: 'Tipper' },
+  { value: 'articleTitle', label: 'Article' },
+  { value: 'amountUsd', label: 'Amount' },
+  { value: 'createdAt', label: 'Date' },
+]
+
+function getTipperName(tip: ReceivedTipRow) {
+  return tip.tipper?.name || tip.tipper?.username || 'Anonymous'
+}
+
+function formatTipDate(createdAt: number) {
+  const tipDate = new Date(createdAt)
+  const relative = formatDistanceToNow(tipDate, { addSuffix: true })
+  const absolute = tipDate.toLocaleDateString('en-US', { dateStyle: 'long' })
+  const a11yLabel = `${relative}. ${absolute}.`
+  return { tipDate, relative, absolute, a11yLabel }
+}
+
+function TipDateTime({ createdAt }: { createdAt: number }) {
+  const { tipDate, relative, absolute, a11yLabel } = formatTipDate(createdAt)
+  return (
+    <time
+      dateTime={tipDate.toISOString()}
+      title={absolute}
+      aria-label={a11yLabel}
+      className="text-xs text-muted-foreground"
+    >
+      {relative}
+    </time>
+  )
+}
+
 function csvEscape(value: string) {
   const mustQuote = /[",\n\r]/.test(value)
   if (!mustQuote) return value
@@ -43,9 +76,6 @@ export function TipHistory({ tips }: TipHistoryProps) {
 
   const sortedTips = useMemo(() => {
     if (!list) return null
-
-    const getTipperName = (tip: ReceivedTipRow) =>
-      tip.tipper?.name || tip.tipper?.username || 'Anonymous'
 
     const dir = sortDir === 'asc' ? 1 : -1
 
@@ -105,10 +135,9 @@ export function TipHistory({ tips }: TipHistoryProps) {
 
     const header = ['Tipper', 'Article', 'AmountUsd', 'CreatedAt']
     const rows = visibleTips.map((tip) => {
-      const tipperName = tip.tipper?.name || tip.tipper?.username || 'Anonymous'
       const createdAtIso = new Date(tip.createdAt).toISOString()
       return [
-        tipperName,
+        getTipperName(tip),
         tip.articleTitle,
         tip.amountUsd.toFixed(2),
         createdAtIso,
@@ -127,10 +156,35 @@ export function TipHistory({ tips }: TipHistoryProps) {
   return (
     <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border">
       <div className="p-6 border-b border-border">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-semibold">Recent Tips</h3>
           {list ? (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 md:hidden">
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Sort by</span>
+                  <select
+                    className="h-8 rounded-md border border-border bg-background px-2 text-foreground"
+                    value={sortKey}
+                    onChange={(e) => setSort(e.target.value as SortKey)}
+                    aria-label="Sort tips by"
+                  >
+                    {SORT_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setSort(sortKey)}
+                  className="h-8 rounded-md border border-border bg-background px-3 text-sm text-foreground hover:bg-muted"
+                  aria-label={`Sort direction: ${sortDir === 'asc' ? 'ascending' : 'descending'}`}
+                >
+                  {sortDir === 'asc' ? 'Ascending' : 'Descending'}
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={onDownloadCsv}
@@ -162,81 +216,95 @@ export function TipHistory({ tips }: TipHistoryProps) {
         </div>
       </div>
       {visibleTips ? (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/30">
-              <tr>
-                <th
-                  scope="col"
-                  aria-sort={ariaSort('tipper')}
-                  className="px-4 py-3 text-left font-medium text-foreground"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSort('tipper')}
-                    className="inline-flex items-center hover:underline"
+        <>
+          <div
+            data-testid="tip-history-mobile-list"
+            className="md:hidden divide-y divide-border"
+          >
+            {visibleTips.map((tip) => (
+              <div key={tip._id} className="p-4 hover:bg-muted/40">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-foreground line-clamp-2">
+                      {tip.articleTitle}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground truncate">
+                      {getTipperName(tip)}
+                    </p>
+                  </div>
+                  <p className="shrink-0 font-semibold text-success-foreground">
+                    +${tip.amountUsd.toFixed(2)}
+                  </p>
+                </div>
+                <div className="mt-2">
+                  <TipDateTime createdAt={tip.createdAt} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border bg-muted/30">
+                <tr>
+                  <th
+                    scope="col"
+                    aria-sort={ariaSort('tipper')}
+                    className="px-4 py-3 text-left font-medium text-foreground"
                   >
-                    Tipper{sortIndicator('tipper')}
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  aria-sort={ariaSort('articleTitle')}
-                  className="px-4 py-3 text-left font-medium text-foreground"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSort('articleTitle')}
-                    className="inline-flex items-center hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => setSort('tipper')}
+                      className="inline-flex items-center hover:underline"
+                    >
+                      Tipper{sortIndicator('tipper')}
+                    </button>
+                  </th>
+                  <th
+                    scope="col"
+                    aria-sort={ariaSort('articleTitle')}
+                    className="px-4 py-3 text-left font-medium text-foreground"
                   >
-                    Article{sortIndicator('articleTitle')}
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  aria-sort={ariaSort('amountUsd')}
-                  className="px-4 py-3 text-right font-medium text-foreground"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSort('amountUsd')}
-                    className="inline-flex items-center hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => setSort('articleTitle')}
+                      className="inline-flex items-center hover:underline"
+                    >
+                      Article{sortIndicator('articleTitle')}
+                    </button>
+                  </th>
+                  <th
+                    scope="col"
+                    aria-sort={ariaSort('amountUsd')}
+                    className="px-4 py-3 text-right font-medium text-foreground"
                   >
-                    Amount{sortIndicator('amountUsd')}
-                  </button>
-                </th>
-                <th
-                  scope="col"
-                  aria-sort={ariaSort('createdAt')}
-                  className="px-4 py-3 text-right font-medium text-foreground"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSort('createdAt')}
-                    className="inline-flex items-center hover:underline"
+                    <button
+                      type="button"
+                      onClick={() => setSort('amountUsd')}
+                      className="inline-flex items-center hover:underline"
+                    >
+                      Amount{sortIndicator('amountUsd')}
+                    </button>
+                  </th>
+                  <th
+                    scope="col"
+                    aria-sort={ariaSort('createdAt')}
+                    className="px-4 py-3 text-right font-medium text-foreground"
                   >
-                    Date{sortIndicator('createdAt')}
-                  </button>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {visibleTips.map((tip) => {
-                const tipDate = new Date(tip.createdAt)
-                const relative = formatDistanceToNow(tipDate, {
-                  addSuffix: true,
-                })
-                const absolute = tipDate.toLocaleDateString('en-US', {
-                  dateStyle: 'long',
-                })
-                const a11yLabel = `${relative}. ${absolute}.`
-                const tipperName =
-                  tip.tipper?.name || tip.tipper?.username || 'Anonymous'
-
-                return (
+                    <button
+                      type="button"
+                      onClick={() => setSort('createdAt')}
+                      className="inline-flex items-center hover:underline"
+                    >
+                      Date{sortIndicator('createdAt')}
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {visibleTips.map((tip) => (
                   <tr key={tip._id} className="hover:bg-muted/40">
                     <td className="px-4 py-3 font-medium text-foreground">
-                      {tipperName}
+                      {getTipperName(tip)}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {tip.articleTitle}
@@ -245,21 +313,14 @@ export function TipHistory({ tips }: TipHistoryProps) {
                       +${tip.amountUsd.toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <time
-                        dateTime={tipDate.toISOString()}
-                        title={absolute}
-                        aria-label={a11yLabel}
-                        className="text-xs text-muted-foreground"
-                      >
-                        {relative}
-                      </time>
+                      <TipDateTime createdAt={tip.createdAt} />
                     </td>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : (
         <div className="flex min-h-[12rem] flex-col items-center justify-center gap-2 px-6 py-10 text-center">
           <p className="font-medium text-foreground">No tips yet</p>
