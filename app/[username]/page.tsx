@@ -3,11 +3,18 @@
 import { notFound } from 'next/navigation'
 import { useUserByUsername, useUserStats } from '@/hooks/convex'
 import { use, useState, useEffect } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import {
+  buildProfileTabHref,
+  parseProfileTab,
+  profileTabUrlIsCanonical,
+  type ProfileTabId,
+} from '@/lib/profile/profileTab'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import ProfileHeader from '@/components/profile/ProfileHeader'
+import { ProfileTabBar } from '@/components/profile/ProfileTabBar'
 import { ProfileArticlesTabContent } from '@/components/profile/ProfileArticlesTabContent'
 import { ProfileNftsTabContent } from '@/components/profile/ProfileNftsTabContent'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
@@ -21,13 +28,12 @@ interface ProfilePageProps {
   }>
 }
 
-type TabType = 'articles' | 'nfts' | 'earnings' | 'stats' | 'wallet'
-
 export default function ProfilePage({ params }: ProfilePageProps) {
   const { username } = use(params)
+  const pathname = usePathname()
+  const router = useRouter()
   const searchParams = useSearchParams()
-  const { user: currentUser } = useAuth()
-  const [activeTab, setActiveTab] = useState<TabType>('articles')
+  const { user: currentUser, isLoading: authLoading } = useAuth()
   const [localWalletAddress, setLocalWalletAddress] = useState<
     string | null | undefined
   >()
@@ -58,6 +64,20 @@ export default function ProfilePage({ params }: ProfilePageProps) {
 
   // Check if this is the current user's profile
   const isOwnProfile = currentUser?.username === username
+  const rawTab = searchParams?.get('tab') ?? null
+  const activeTab = parseProfileTab(rawTab, authLoading ? false : isOwnProfile)
+
+  useEffect(() => {
+    if (authLoading) return
+    if (profileTabUrlIsCanonical(rawTab, isOwnProfile)) return
+    router.replace(
+      buildProfileTabHref(
+        pathname,
+        new URLSearchParams(searchParams?.toString() ?? ''),
+        parseProfileTab(rawTab, isOwnProfile)
+      )
+    )
+  }, [authLoading, isOwnProfile, pathname, rawTab, router, searchParams])
 
   // Check if user exists
   if (user === null) {
@@ -92,28 +112,33 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   // Tab configuration
   const tabs = [
     {
-      id: 'articles' as TabType,
+      id: 'articles' as ProfileTabId,
       label: 'Articles',
       icon: BookOpen,
       count: userWithStats.articleCount,
     },
     {
-      id: 'nfts' as TabType,
+      id: 'nfts' as ProfileTabId,
       label: 'NFTs',
       icon: Image,
       count: userWithStats.nftsOwned,
     },
-    { id: 'wallet' as TabType, label: 'Wallet', icon: Wallet, count: null },
+    {
+      id: 'wallet' as ProfileTabId,
+      label: 'Wallet',
+      icon: Wallet,
+      count: null,
+    },
     ...(isOwnProfile
       ? [
           {
-            id: 'earnings' as TabType,
+            id: 'earnings' as ProfileTabId,
             label: 'Earnings',
             icon: DollarSign,
             count: null,
           },
           {
-            id: 'stats' as TabType,
+            id: 'stats' as ProfileTabId,
             label: 'Stats',
             icon: ChartBar,
             count: null,
@@ -126,40 +151,23 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     <div className="flex min-h-screen flex-col bg-background">
       <AppNavigation />
 
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 w-full">
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 w-full min-w-0">
         {/* Profile Header */}
         <div className="mb-8">
           <ProfileHeader user={userWithStats} isOwnProfile={isOwnProfile} />
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-border mb-8">
-          <nav className="-mb-px flex space-x-8">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                data-tab={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`
-                  flex items-center gap-2 py-3 px-1 border-b-2 font-medium text-sm transition-colors
-                  ${
-                    activeTab === tab.id
-                      ? 'border-brand-blue text-foreground dark:border-primary'
-                      : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
-                  }
-                `}
-              >
-                <tab.icon className="w-4 h-4" />
-                <span>{tab.label}</span>
-                {tab.count !== null && tab.count > 0 && (
-                  <span className="ml-1 bg-muted text-muted-foreground px-2 py-0.5 rounded-full text-xs">
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
-          </nav>
-        </div>
+        <ProfileTabBar
+          tabs={tabs}
+          activeTab={activeTab}
+          getHref={(tabId) =>
+            buildProfileTabHref(
+              pathname,
+              new URLSearchParams(searchParams?.toString() ?? ''),
+              tabId
+            )
+          }
+        />
 
         {/* Tab Content */}
         <div>

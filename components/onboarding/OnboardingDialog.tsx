@@ -22,6 +22,7 @@ import {
   ArrowRight,
   HelpCircle,
   X,
+  Loader2,
 } from 'lucide-react'
 import Link from 'next/link'
 import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
@@ -76,6 +77,12 @@ export function OnboardingDialog() {
     }
   }
 
+  const handleOpenChange = (next: boolean) => {
+    if (!next && open && !isCompleting) {
+      void handleComplete()
+    }
+  }
+
   const navigateAfterComplete = async (href: string) => {
     const ok = await handleComplete()
     if (ok) {
@@ -94,17 +101,21 @@ export function OnboardingDialog() {
   const step = steps[currentStep]
   if (!step) return null
   const StepIcon = step.icon
+  const stepLabel = `Step ${currentStep + 1} of ${steps.length}`
 
   return (
-    <Dialog modal={false} open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-md pointer-events-auto"
-        overlayClassName="pointer-events-none bg-black/40"
+        className="sm:max-w-md"
+        overlayClassName="bg-black/40"
         hideCloseButton
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => {
           e.preventDefault()
-          void handleComplete()
+          if (!isCompleting) void handleComplete()
         }}
+        aria-busy={isCompleting}
       >
         <Button
           type="button"
@@ -124,15 +135,25 @@ export function OnboardingDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex justify-center gap-2 mb-2">
-          {steps.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === currentStep ? 'w-8 bg-foreground' : 'w-4 bg-muted'
-              }`}
-            />
-          ))}
+        <div
+          role="group"
+          aria-label={stepLabel}
+          className="flex flex-col items-center gap-2 mb-2"
+        >
+          <p className="text-xs text-muted-foreground font-medium">
+            {stepLabel}
+          </p>
+          <div className="flex justify-center gap-2">
+            {steps.map((_, i) => (
+              <div
+                key={i}
+                aria-current={i === currentStep ? 'step' : undefined}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  i === currentStep ? 'w-8 bg-foreground' : 'w-4 bg-muted'
+                }`}
+              />
+            ))}
+          </div>
         </div>
 
         <AnimatePresence mode="wait">
@@ -172,7 +193,11 @@ export function OnboardingDialog() {
                   variant="default"
                   disabled={isCompleting}
                 >
-                  <HelpCircle className="w-4 h-4 mr-2" />
+                  {isCompleting ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <HelpCircle className="w-4 h-4 mr-2" />
+                  )}
                   Set Up Now
                 </Button>
               </Link>
@@ -249,8 +274,17 @@ export function OnboardingDialog() {
               className="w-full min-h-11"
               disabled={isCompleting}
             >
-              Next
-              <ArrowRight className="w-4 h-4 ml-2" />
+              {isCompleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  Next
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </>
+              )}
             </Button>
           )}
 
@@ -260,7 +294,14 @@ export function OnboardingDialog() {
               className="w-full min-h-11"
               disabled={isCompleting}
             >
-              Get Started
+              {isCompleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Get Started'
+              )}
             </Button>
           )}
 
@@ -273,7 +314,14 @@ export function OnboardingDialog() {
             disabled={isCompleting}
             aria-label="Skip onboarding"
           >
-            Skip onboarding
+            {isCompleting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Skip onboarding'
+            )}
           </Button>
         </div>
       </DialogContent>

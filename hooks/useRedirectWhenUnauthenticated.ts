@@ -1,18 +1,20 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { buildLoginHref, getCurrentReturnPath } from '@/lib/auth/safeReturnPath'
 
 export function useRedirectWhenUnauthenticated(
   isLoading: boolean,
-  isAuthenticated: boolean,
-  loginPath = '/login'
+  isAuthenticated: boolean
 ): void {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
   useEffect(() => {
-    if (isLoading) return
-    if (!isAuthenticated) {
-      router.push(loginPath)
-    }
-  }, [isAuthenticated, isLoading, loginPath, router])
+    if (isLoading || isAuthenticated) return
+    const returnPath = getCurrentReturnPath(pathname, searchParams)
+    router.replace(buildLoginHref(returnPath))
+  }, [isAuthenticated, isLoading, pathname, router, searchParams])
 }

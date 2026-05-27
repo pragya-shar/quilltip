@@ -1,5 +1,6 @@
-import Link from 'next/link'
+import { Suspense } from 'react'
 import RegisterForm from '@/components/auth/RegisterForm'
+import { AuthReturnLinks } from '@/components/auth/AuthReturnLinks'
 
 /**
  * Registration Page
@@ -11,7 +12,6 @@ import RegisterForm from '@/components/auth/RegisterForm'
 export default function RegisterPage() {
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div className="text-center">
         <h2 className="text-2xl font-bold text-foreground">
           Create your account
@@ -21,21 +21,11 @@ export default function RegisterPage() {
         </p>
       </div>
 
-      {/* Registration Form */}
-      <RegisterForm />
+      <Suspense fallback={null}>
+        <RegisterForm />
+      </Suspense>
 
-      {/* Login Link */}
-      <div className="text-center">
-        <p className="text-sm text-muted-foreground">
-          Already have an account?{' '}
-          <Link
-            href="/login"
-            className="font-medium text-brand-blue hover:text-brand-accent transition-colors"
-          >
-            Sign in here
-          </Link>
-        </p>
-      </div>
+      <AuthReturnLinks variant="register" />
     </div>
   )
 }
