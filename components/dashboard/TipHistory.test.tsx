@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   TipHistory,
@@ -59,15 +59,68 @@ describe('TipHistory', () => {
     ]
     render(<TipHistory tips={tips} />)
 
-    expect(screen.getByText('bob')).toBeInTheDocument()
-    expect(screen.getByText('My Article')).toBeInTheDocument()
-    expect(screen.getByText('+$12.50')).toBeInTheDocument()
+    expect(screen.getAllByText('bob').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('My Article').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('+$12.50').length).toBeGreaterThan(0)
   })
 
   it('uses Anonymous when no tipper name', () => {
     const tips = [makeTip({ tipper: null })]
     render(<TipHistory tips={tips} />)
-    expect(screen.getByText('Anonymous')).toBeInTheDocument()
+    expect(screen.getAllByText('Anonymous').length).toBeGreaterThan(0)
+  })
+
+  it('renders a mobile card list alongside the desktop table', () => {
+    const tips = [
+      makeTip({
+        _id: 'a1' as Id<'tips'>,
+        articleTitle: 'Mobile Article',
+        amountUsd: 7,
+        tipper: { username: 'carol' },
+      }),
+    ]
+    render(<TipHistory tips={tips} />)
+
+    const mobileList = screen.getByTestId('tip-history-mobile-list')
+    expect(mobileList).toHaveClass('md:hidden')
+    expect(mobileList).toHaveTextContent('Mobile Article')
+    expect(mobileList).toHaveTextContent('carol')
+    expect(mobileList).toHaveTextContent('+$7.00')
+    expect(screen.getByRole('table')).toBeInTheDocument()
+  })
+
+  it('sorts tips via mobile sort controls', () => {
+    const tips = [
+      makeTip({
+        _id: 'a1' as Id<'tips'>,
+        amountUsd: 3,
+        createdAt: new Date('2024-03-01T00:00:00Z').getTime(),
+        tipper: { username: 'bob' },
+      }),
+      makeTip({
+        _id: 'a2' as Id<'tips'>,
+        amountUsd: 10,
+        createdAt: new Date('2024-03-02T00:00:00Z').getTime(),
+        tipper: { username: 'alice' },
+      }),
+    ]
+
+    render(<TipHistory tips={tips} />)
+
+    const sortSelect = screen.getByLabelText('Sort tips by')
+    fireEvent.change(sortSelect, { target: { value: 'amountUsd' } })
+
+    const mobileList = screen.getByTestId('tip-history-mobile-list')
+    expect(mobileList.textContent?.indexOf('+$3.00')).toBeLessThan(
+      mobileList.textContent?.indexOf('+$10.00') ?? -1
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /sort direction: ascending/i })
+    )
+    expect(mobileList.textContent?.indexOf('+$10.00')).toBeLessThan(
+      mobileList.textContent?.indexOf('+$3.00') ?? -1
+    )
   })
 
   it('shows relative time with absolute date on title and aria-label', () => {
@@ -79,7 +132,9 @@ describe('TipHistory', () => {
 
     render(<TipHistory tips={[makeTip({ createdAt })]} />)
 
-    const timeEl = screen.getByText('2 days ago')
+    const timeEl = within(
+      screen.getByTestId('tip-history-mobile-list')
+    ).getByText('2 days ago')
     expect(timeEl.tagName).toBe('TIME')
     expect(timeEl).toHaveAttribute('dateTime', tipDate.toISOString())
     expect(timeEl).toHaveAttribute('title', absolute)
