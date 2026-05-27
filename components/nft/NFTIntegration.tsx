@@ -25,7 +25,6 @@ interface NFTIntegrationProps {
   articleSlug: string
   authorId: Id<'users'>
   currentUserId?: Id<'users'>
-  currentUserAddress?: string | null
 }
 
 export function NFTIntegration({
@@ -34,7 +33,6 @@ export function NFTIntegration({
   articleSlug,
   authorId,
   currentUserId,
-  currentUserAddress,
 }: NFTIntegrationProps) {
   const [showTransferModal, setShowTransferModal] = useState(false)
   const transferTriggerRef = useRef<HTMLButtonElement>(null)

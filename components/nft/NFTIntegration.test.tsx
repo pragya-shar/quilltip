@@ -74,7 +74,6 @@ describe('NFTIntegration transfer actions', () => {
         articleSlug="test-article"
         authorId={authorId}
         currentUserId={newOwnerId}
-        currentUserAddress={sharedStellarAddress}
       />
     )
 
@@ -96,7 +95,6 @@ describe('NFTIntegration transfer actions', () => {
         articleSlug="test-article"
         authorId={authorId}
         currentUserId={oldOwnerId}
-        currentUserAddress={sharedStellarAddress}
       />
     )
 

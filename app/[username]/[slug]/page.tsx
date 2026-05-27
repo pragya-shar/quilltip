@@ -177,7 +177,6 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                       articleSlug={article.slug}
                       authorId={article.author.id}
                       currentUserId={user?._id as Id<'users'> | undefined}
-                      currentUserAddress={user?.stellarAddress}
                     />
                   </div>
 
