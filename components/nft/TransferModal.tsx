@@ -76,9 +76,7 @@ export function TransferModal({
     nftId || (nftData && nftData.isMinted ? nftData._id : null)
 
   const nftTokenId =
-    nftData && nftData.isMinted && 'tokenId' in nftData
-      ? nftData.tokenId
-      : null
+    nftData && nftData.isMinted && 'tokenId' in nftData ? nftData.tokenId : null
 
   const nftIdentifier = nftTokenId ?? actualNftId ?? 'Unknown'
 
@@ -240,9 +238,7 @@ export function TransferModal({
       >
         <DialogHeader>
           <DialogTitle>
-            {step === 'details'
-              ? 'Transfer NFT Ownership'
-              : 'Confirm transfer'}
+            {step === 'details' ? 'Transfer NFT Ownership' : 'Confirm transfer'}
           </DialogTitle>
           <DialogDescription>
             {step === 'details'
@@ -356,7 +352,11 @@ export function TransferModal({
           </div>
         </div>
 
-        <DialogFooter className={step === 'confirm' ? 'sm:flex-row sm:justify-between' : undefined}>
+        <DialogFooter
+          className={
+            step === 'confirm' ? 'sm:flex-row sm:justify-between' : undefined
+          }
+        >
           {step === 'confirm' ? (
             <Button
               type="button"
@@ -396,7 +396,10 @@ export function TransferModal({
               >
                 {isBusy ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                    <Loader2
+                      className="mr-2 h-4 w-4 animate-spin"
+                      aria-hidden
+                    />
                     Confirm transfer
                   </>
                 ) : (

@@ -103,8 +103,6 @@ describe('NFTIntegration transfer actions', () => {
     expect(
       screen.queryByRole('button', { name: /Transfer NFT/i })
     ).not.toBeInTheDocument()
-    expect(
-      screen.getByText(/don.t own this NFT/i)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/don.t own this NFT/i)).toBeInTheDocument()
   })
 })
