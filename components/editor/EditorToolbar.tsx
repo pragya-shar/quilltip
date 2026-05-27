@@ -611,8 +611,8 @@ export function EditorToolbar({
               Personal Notes
             </p>
             <p className="mt-1 text-xs leading-snug text-muted-foreground/80">
-              Private planning notes for you only. They are saved with this draft
-              and are not published with your article.
+              Private planning notes for you only. They are saved with this
+              draft and are not published with your article.
             </p>
           </div>
           <textarea
