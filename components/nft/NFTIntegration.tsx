@@ -55,9 +55,10 @@ export function NFTIntegration({
   const isOwner =
     nftStatus != null &&
     nftStatus.isMinted === true &&
-    currentUserAddress === nftStatus.owner
+    currentUserId != null &&
+    nftStatus.ownerInfo?.id === currentUserId
   const canMint = isAuthor && !nftStatus?.isMinted && nftStatus?.isEligible
-  const canTransfer = isOwner && nftStatus?.isMinted === true
+  const canTransfer = isOwner
 
   const progressPercentage = nftStatus
     ? (nftStatus.totalTips / nftStatus.tipThreshold) * 100
@@ -277,6 +278,7 @@ export function NFTIntegration({
           articleId={articleId}
           articleTitle={articleTitle}
           currentOwner={nftStatus.owner}
+          currentOwnerUsername={nftStatus.ownerInfo?.username}
           nftId={nftStatus._id}
           onTransferComplete={handleTransferComplete}
           triggerRef={transferTriggerRef}
