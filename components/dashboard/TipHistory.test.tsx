@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   TipHistory,
@@ -132,7 +132,9 @@ describe('TipHistory', () => {
 
     render(<TipHistory tips={[makeTip({ createdAt })]} />)
 
-    const timeEl = screen.getAllByText('2 days ago')[0]
+    const timeEl = within(
+      screen.getByTestId('tip-history-mobile-list')
+    ).getByText('2 days ago')
     expect(timeEl.tagName).toBe('TIME')
     expect(timeEl).toHaveAttribute('dateTime', tipDate.toISOString())
     expect(timeEl).toHaveAttribute('title', absolute)
