@@ -107,9 +107,7 @@ export function EarningsStats({
         </div>
       </div>
 
-      <MonthlyEarningsChart
-        monthlyEarnings={earnings.monthlyEarnings ?? {}}
-      />
+      <MonthlyEarningsChart monthlyEarnings={earnings.monthlyEarnings ?? {}} />
 
       {earnings.topArticles && earnings.topArticles.length > 0 && (
         <TopEarningArticles articles={earnings.topArticles} />
