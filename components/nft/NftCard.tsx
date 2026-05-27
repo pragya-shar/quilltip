@@ -96,7 +96,9 @@ export function NftCard({
         )}
 
         {excerpt && (
-          <p className="text-sm text-muted-foreground line-clamp-2">{excerpt}</p>
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {excerpt}
+          </p>
         )}
 
         <p className="text-sm text-muted-foreground pt-1">
