@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import {
   useNFTsByOwnerPaginated,
@@ -12,7 +13,8 @@ import { ProfileNftsTabSkeleton } from '@/components/profile/ProfileNftsTabSkele
 import { PaginationTransition } from '@/components/profile/PaginationTransition'
 import Pagination from '@/components/articles/Pagination'
 import { buildProfileNftPaginationHref } from '@/lib/profile/buildProfileNftPaginationHref'
-import { Image, Trophy } from 'lucide-react'
+import { NftCard } from '@/components/nft/NftCard'
+import { ImageIcon, Trophy } from 'lucide-react'
 
 const NFT_PAGE_LIMIT = 9
 
@@ -102,23 +104,17 @@ export function ProfileNftsTabContent({
           <PaginationTransition isPaginating={owned.isPaginating}>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {ownedNfts.map((nft) => (
-                <div
+                <NftCard
                   key={nft._id}
-                  className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-4"
-                >
-                  <div className="aspect-video bg-gradient-to-br from-purple-400 to-pink-400 rounded-lg mb-4 flex items-center justify-center">
-                    <Image className="w-12 h-12 text-white" aria-label="NFT" />
-                  </div>
-                  <h4 className="font-semibold text-foreground truncate">
-                    {nft.article?.title || 'Untitled'}
-                  </h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Token ID: {nft.tokenId.slice(0, 8)}...
-                  </p>
-                  <p className="text-xs text-muted-foreground/80 mt-2">
-                    Minted by @{nft.minter?.username || 'unknown'}
-                  </p>
-                </div>
+                  title={nft.article?.title || 'Untitled'}
+                  slug={nft.article?.slug}
+                  authorUsername={nft.article?.authorUsername}
+                  coverImage={nft.article?.coverImage}
+                  excerpt={nft.article?.excerpt}
+                  tokenId={nft.tokenId}
+                  footerLabel="Minted by"
+                  footerUsername={nft.minter?.username}
+                />
               ))}
             </div>
           </PaginationTransition>
@@ -149,23 +145,17 @@ export function ProfileNftsTabContent({
           <PaginationTransition isPaginating={minted.isPaginating}>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {mintedNfts.map((nft) => (
-                <div
+                <NftCard
                   key={nft._id}
-                  className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-4"
-                >
-                  <div className="aspect-video bg-gradient-to-br from-blue-400 to-green-400 rounded-lg mb-4 flex items-center justify-center">
-                    <Image className="w-12 h-12 text-white" aria-label="NFT" />
-                  </div>
-                  <h4 className="font-semibold text-foreground truncate">
-                    {nft.article?.title || 'Untitled'}
-                  </h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Token ID: {nft.tokenId.slice(0, 8)}...
-                  </p>
-                  <p className="text-xs text-muted-foreground/80 mt-2">
-                    Owner: @{nft.currentOwnerInfo?.username || 'unknown'}
-                  </p>
-                </div>
+                  title={nft.article?.title || 'Untitled'}
+                  slug={nft.article?.slug}
+                  authorUsername={nft.article?.authorUsername}
+                  coverImage={nft.article?.coverImage}
+                  excerpt={nft.article?.excerpt}
+                  tokenId={nft.tokenId}
+                  footerLabel="Owner"
+                  footerUsername={nft.currentOwnerInfo?.username}
+                />
               ))}
             </div>
           </PaginationTransition>
@@ -191,15 +181,27 @@ export function ProfileNftsTabContent({
       )}
 
       {bothEmpty && (
-        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-12 text-center">
-          <Image
+        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-8 sm:p-12 text-center">
+          <ImageIcon
             className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4"
-            aria-label="No NFTs"
+            aria-hidden
           />
-          <p className="text-muted-foreground text-lg">
-            {isOwnProfile ? "You don't" : `${displayName} doesn't`} have any
-            NFTs yet.
+          <h3 className="text-lg font-semibold text-foreground mb-2">
+            No NFTs yet
+          </h3>
+          <p className="text-muted-foreground max-w-md mx-auto">
+            {isOwnProfile
+              ? 'Articles earn NFTs when they reach the tip threshold. Mint or collect one to see it here.'
+              : `${displayName} doesn't have any NFTs yet.`}
           </p>
+          {isOwnProfile && (
+            <Link
+              href="/articles"
+              className="focus-ring inline-block mt-6 text-sm font-medium text-brand-blue hover:underline"
+            >
+              Browse articles
+            </Link>
+          )}
         </div>
       )}
     </div>
