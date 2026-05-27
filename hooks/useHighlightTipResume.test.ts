@@ -73,8 +73,7 @@ describe('useHighlightTipResume', () => {
     const onResume = vi.fn()
 
     const { rerender } = renderHook(
-      ({ isOpen }) =>
-        useHighlightTipResume({ articleId, isOpen, onResume }),
+      ({ isOpen }) => useHighlightTipResume({ articleId, isOpen, onResume }),
       { initialProps: { isOpen: false } }
     )
 
@@ -105,5 +104,4 @@ describe('useHighlightTipResume', () => {
 
     expect(store[PENDING_TIP_INTENT_STORAGE_KEY]).toBeUndefined()
   })
-
 })

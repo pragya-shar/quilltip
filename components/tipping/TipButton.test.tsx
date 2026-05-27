@@ -40,7 +40,8 @@ vi.mock('@/hooks/useTipDialogXlmUsdRate', () => ({
 }))
 
 vi.mock('@/lib/tip/redirectToLoginForTip', () => ({
-  redirectToLoginForTip: (...args: unknown[]) => mockRedirectToLoginForTip(...args),
+  redirectToLoginForTip: (...args: unknown[]) =>
+    mockRedirectToLoginForTip(...args),
 }))
 
 vi.mock('@/lib/tip/pendingTipIntent', () => ({
@@ -140,5 +141,4 @@ describe('TipButton auth-first CTA', () => {
     await user.click(screen.getByRole('button', { name: /Tip Author/i }))
     expect(screen.getByRole('button', { name: 'Send Tip' })).toBeInTheDocument()
   })
-
 })

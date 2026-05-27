@@ -21,10 +21,15 @@ describe('signInToTip', () => {
       customAmount: '',
     })
     expect(result.ok).toBe(false)
-    signInToTip(router, '/article', { selectedAmount: null, customAmount: '' }, {
-      kind: 'article',
-      articleId: 'articles:1',
-    })
+    signInToTip(
+      router,
+      '/article',
+      { selectedAmount: null, customAmount: '' },
+      {
+        kind: 'article',
+        articleId: 'articles:1',
+      }
+    )
     expect(mockRedirect).not.toHaveBeenCalled()
     expect(toast.error).toHaveBeenCalled()
   })

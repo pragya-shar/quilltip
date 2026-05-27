@@ -25,11 +25,7 @@ import {
 import { TipBreakdownSummaryLine } from '@/components/tipping/TipBreakdownSummaryLine'
 import { TipUsdXlmRateLine } from '@/components/tipping/TipUsdXlmRateLine'
 import { useTipDialogXlmUsdRate } from '@/hooks/useTipDialogXlmUsdRate'
-import {
-  TIP_PRESETS_ARTICLE,
-  TIP_MIN_USD,
-  TIP_MAX_USD,
-} from '@/lib/constants'
+import { TIP_PRESETS_ARTICLE, TIP_MIN_USD, TIP_MAX_USD } from '@/lib/constants'
 import {
   Dialog,
   DialogContent,

@@ -35,7 +35,7 @@ interface ArticleDisplayProps {
 
 export default function ArticleDisplay({
   article,
-  authorStellarAddress,
+  authorStellarAddress: _authorStellarAddress,
   showHighlights = true,
   tocHeadings = [],
 }: ArticleDisplayProps) {

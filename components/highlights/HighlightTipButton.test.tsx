@@ -65,9 +65,9 @@ vi.mock('@/lib/stellar/stellar-flow-emitter', () => ({
 const clearPendingTipIntent = vi.fn()
 const readPendingTipIntent = vi.fn()
 vi.mock('@/lib/tip/pendingTipIntent', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/tip/pendingTipIntent')>(
-    '@/lib/tip/pendingTipIntent'
-  )
+  const actual = await vi.importActual<
+    typeof import('@/lib/tip/pendingTipIntent')
+  >('@/lib/tip/pendingTipIntent')
   return {
     ...actual,
     clearPendingTipIntent: () => clearPendingTipIntent(),
@@ -156,4 +156,3 @@ describe('HighlightTipButton', () => {
     raf.mockRestore()
   })
 })
-

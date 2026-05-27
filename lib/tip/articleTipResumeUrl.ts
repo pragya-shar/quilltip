@@ -27,10 +27,7 @@ export function appendArticleTipResumeToReturnPath(
     params.set(TIP_CUSTOM_PARAM, intent.customAmount)
   }
   if (intent.message) {
-    params.set(
-      TIP_MSG_PARAM,
-      intent.message.slice(0, MAX_URL_MESSAGE_LENGTH)
-    )
+    params.set(TIP_MSG_PARAM, intent.message.slice(0, MAX_URL_MESSAGE_LENGTH))
   }
 
   const qs = params.toString()

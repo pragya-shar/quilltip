@@ -88,8 +88,7 @@ describe('useArticleTipResume', () => {
     mockSearchParams.set('resumeArticleTip', '1')
 
     const { rerender } = renderHook(
-      ({ isOpen }) =>
-        useArticleTipResume({ articleId, isOpen, onResume }),
+      ({ isOpen }) => useArticleTipResume({ articleId, isOpen, onResume }),
       { initialProps: { isOpen: false } }
     )
 

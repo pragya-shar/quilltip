@@ -69,10 +69,16 @@ describe('pendingHighlightSelection storage', () => {
     })
     const pending = readPendingHighlightSelection()
     expect(
-      matchesPendingHighlightSelection(pending, 'articles:abc' as Id<'articles'>)
+      matchesPendingHighlightSelection(
+        pending,
+        'articles:abc' as Id<'articles'>
+      )
     ).toBe(true)
     expect(
-      matchesPendingHighlightSelection(pending, 'articles:other' as Id<'articles'>)
+      matchesPendingHighlightSelection(
+        pending,
+        'articles:other' as Id<'articles'>
+      )
     ).toBe(false)
   })
 })

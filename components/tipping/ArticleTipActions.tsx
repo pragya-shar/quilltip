@@ -14,7 +14,7 @@ interface ArticleTipActionsProps {
 
 function ArticleTipActionsInner({
   articleId,
-  articleSlug,
+  articleSlug: _articleSlug,
   authorName,
   authorStellarAddress,
 }: ArticleTipActionsProps) {

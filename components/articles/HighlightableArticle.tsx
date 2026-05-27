@@ -45,7 +45,6 @@ import {
   writePendingHighlightSelection,
 } from '@/lib/highlight/pendingHighlightSelection'
 import {
-  clearPendingTipIntent,
   matchesHighlightPendingIntent,
   readPendingTipIntent,
 } from '@/lib/tip/pendingTipIntent'
@@ -142,12 +141,7 @@ export function HighlightableArticle({
   const createHighlight = useMutation(api.highlights.createHighlight)
 
   const applySignedOutTextSelection = useCallback(
-    (
-      text: string,
-      from: number,
-      to: number,
-      range: Range
-    ) => {
+    (text: string, from: number, to: number, range: Range) => {
       const anchor = getRangeTopCenterAnchor(range)
       if (!anchor) return
 
@@ -375,7 +369,9 @@ export function HighlightableArticle({
     // Clear storage only after we can observe the popover in the DOM.
     const raf1 = requestAnimationFrame(() => {
       const raf2 = requestAnimationFrame(() => {
-        const popover = document.querySelector('[data-testid="highlight-popover"]')
+        const popover = document.querySelector(
+          '[data-testid="highlight-popover"]'
+        )
         if (popover) {
           clearPendingHighlightSelection()
           pendingSelectionNeedsClearRef.current = false
@@ -558,25 +554,26 @@ export function HighlightableArticle({
         {popoverPosition &&
           selectedText &&
           article &&
-          (highlightsActive ||
-            (signInPromptActive && canTipHighlight)) && (
-          <HighlightPopover
-            position={popoverPosition}
-            onCreateHighlight={handleCreateHighlight}
-            onClose={handlePopoverClose}
-            selectedText={selectedText.text}
-            articleId={articleId}
-            articleSlug={article.slug}
-            authorName={article.author?.name || article.authorName || 'Author'}
-            authorStellarAddress={article.author?.stellarAddress}
-            startOffset={selectedText.from}
-            endOffset={selectedText.to}
-            resumeHighlightTip={resumeHighlightTip}
-            onHighlightTipResumeOpened={() => {
-              setResumeHighlightTip(null)
-            }}
-          />
-        )}
+          (highlightsActive || (signInPromptActive && canTipHighlight)) && (
+            <HighlightPopover
+              position={popoverPosition}
+              onCreateHighlight={handleCreateHighlight}
+              onClose={handlePopoverClose}
+              selectedText={selectedText.text}
+              articleId={articleId}
+              articleSlug={article.slug}
+              authorName={
+                article.author?.name || article.authorName || 'Author'
+              }
+              authorStellarAddress={article.author?.stellarAddress}
+              startOffset={selectedText.from}
+              endOffset={selectedText.to}
+              resumeHighlightTip={resumeHighlightTip}
+              onHighlightTipResumeOpened={() => {
+                setResumeHighlightTip(null)
+              }}
+            />
+          )}
       </AnimatePresence>
 
       <AnimatePresence>
@@ -584,14 +581,14 @@ export function HighlightableArticle({
           signInPromptPosition &&
           signInSelection &&
           !canTipHighlight && (
-          <HighlightSignInPrompt
-            position={signInPromptPosition}
-            selectedText={signInSelection.text}
-            returnPath={returnPath}
-            onBeforeAuthNavigate={saveHighlightSelectionBeforeAuth}
-            onClose={handleSignInPromptClose}
-          />
-        )}
+            <HighlightSignInPrompt
+              position={signInPromptPosition}
+              selectedText={signInSelection.text}
+              returnPath={returnPath}
+              onBeforeAuthNavigate={saveHighlightSelectionBeforeAuth}
+              onClose={handleSignInPromptClose}
+            />
+          )}
       </AnimatePresence>
 
       <AnimatePresence>

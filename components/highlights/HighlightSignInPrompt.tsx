@@ -6,10 +6,7 @@ import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
-import {
-  buildLoginHref,
-  buildRegisterHref,
-} from '@/lib/auth/safeReturnPath'
+import { buildLoginHref, buildRegisterHref } from '@/lib/auth/safeReturnPath'
 
 interface HighlightSignInPromptProps {
   position: { top: number; left: number }
