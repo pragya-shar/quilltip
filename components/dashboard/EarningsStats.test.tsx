@@ -54,12 +54,12 @@ describe('EarningsStats', () => {
     expect(screen.getByText('5 testnet tips received')).toBeInTheDocument()
   })
 
-  it('renders monthly chart labels in display order', () => {
+  it('renders monthly chart with readable labels for recent months', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2024, 5, 15))
     const earnings = makeEarnings({
       monthlyEarnings: {
-        '2024-01': 10,
-        '2024-02': 20,
-        '2024-03': 30,
+        '2024-06': 30,
       },
     })
     render(
@@ -71,9 +71,12 @@ describe('EarningsStats', () => {
       />
     )
 
-    expect(screen.getByText('2024-01')).toBeInTheDocument()
-    expect(screen.getByText('2024-02')).toBeInTheDocument()
-    expect(screen.getByText('2024-03')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /monthly earnings/i })
+    ).toBeInTheDocument()
+    expect(screen.getByText('$30')).toBeInTheDocument()
+    expect(screen.queryByText('2024-06')).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 
   it('shows wallet setup notice when profile has no Stellar address', () => {
