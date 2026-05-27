@@ -438,7 +438,9 @@ export function HighlightDetailsPanel({
                     <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                       Highlight
                     </div>
-                    <p className="mt-1 italic">&ldquo;{confirmSnippet}&rdquo;</p>
+                    <p className="mt-1 italic">
+                      &ldquo;{confirmSnippet}&rdquo;
+                    </p>
                   </div>
                 ) : null}
               </div>
