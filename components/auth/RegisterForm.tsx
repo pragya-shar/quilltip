@@ -3,13 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, type FieldErrors } from 'react-hook-form'
+import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { parseRegisterSignInError } from '@/lib/auth/map-register-error'
 import { getFirstRegisterFieldError } from '@/lib/auth/register-form-a11y'
 import { registerSchema, type RegisterFormData } from '@/lib/validations/auth'
 import { allPasswordRulesMet } from '@/lib/validations/password-rules'
-
-const PASSWORD_VALIDATION_MESSAGE = 'Password does not meet all requirements'
 import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { Button } from '@/components/ui/button'
@@ -19,6 +18,8 @@ import {
   PASSWORD_REQUIREMENTS_ID,
 } from '@/components/auth/PasswordRequirements'
 import { RegisterFormField } from '@/components/auth/RegisterFormField'
+
+const PASSWORD_VALIDATION_MESSAGE = 'Password does not meet all requirements'
 
 /**
  * Register Form Component
@@ -40,6 +41,7 @@ export default function RegisterForm() {
     useState(false)
 
   const router = useRouter()
+  const returnPath = useAuthReturnPath()
   const { signIn } = useAuth()
 
   const {
@@ -102,7 +104,8 @@ export default function RegisterForm() {
       })
 
       setSuccess(true)
-      router.replace('/')
+      // Use replace to prevent back button returning to register
+      router.replace(returnPath)
     } catch (error) {
       const result = parseRegisterSignInError(error)
       setSubmitAnnouncement(result.message)

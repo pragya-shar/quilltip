@@ -6,6 +6,7 @@ import RegisterForm from '@/components/auth/RegisterForm'
 
 const mockSignIn = vi.hoisted(() => vi.fn())
 const mockReplace = vi.hoisted(() => vi.fn())
+const mockUseAuthReturnPath = vi.hoisted(() => vi.fn())
 
 vi.mock('@/components/providers/AuthContext', () => ({
   useAuth: () => ({
@@ -15,6 +16,10 @@ vi.mock('@/components/providers/AuthContext', () => ({
     isLoading: false,
     isAuthenticated: false,
   }),
+}))
+
+vi.mock('@/components/auth/useAuthReturnPath', () => ({
+  useAuthReturnPath: () => mockUseAuthReturnPath(),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -27,6 +32,8 @@ describe('RegisterForm accessibility', () => {
   beforeEach(() => {
     mockSignIn.mockReset()
     mockReplace.mockReset()
+    mockUseAuthReturnPath.mockReset()
+    mockUseAuthReturnPath.mockReturnValue('/profile?tab=wallet')
   })
 
   it('marks the first invalid field and associates its error on empty submit', async () => {
@@ -98,6 +105,23 @@ describe('RegisterForm accessibility', () => {
     expect(emailInput).toHaveAttribute('aria-invalid', 'true')
     expect(emailInput).toHaveAttribute('aria-describedby', 'email-error')
     expect(screen.queryByText(/registration failed/i)).not.toBeInTheDocument()
+  })
+
+  it('redirects to the return path after successful registration', async () => {
+    const user = userEvent.setup({ delay: null })
+    mockSignIn.mockResolvedValue(undefined)
+
+    render(<RegisterForm />)
+
+    await user.type(screen.getByLabelText(/email address/i), 'user@example.com')
+    await user.type(screen.getByLabelText(/^username$/i), 'myuser')
+    await user.type(screen.getByLabelText(/^password$/i), 'Password1')
+    await user.type(screen.getByLabelText(/^confirm password$/i), 'Password1')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/profile?tab=wallet')
+    })
   })
 
   it('password visibility toggle has accessible name and pressed state', async () => {

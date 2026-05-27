@@ -23,19 +23,20 @@ export function parseRegisterSignInError(
   const lower = raw.toLowerCase()
 
   if (
+    /\busername\b.+?\b(already|taken|in use|unavailable|exists)\b/i.test(raw) ||
+    lower.includes('username is not available') ||
+    lower.includes('username not available') ||
+    lower.includes('username already exists')
+  ) {
+    return { message: USERNAME_UNAVAILABLE, field: 'username' }
+  }
+
+  if (
     lower.includes('already exists') ||
     lower.includes('already registered') ||
     /email.+?\b(in use|taken)\b/i.test(raw)
   ) {
     return { message: DUPLICATE_ACCOUNT, field: 'email' }
-  }
-
-  if (
-    /\busername\b.+?\b(already|taken|in use|unavailable)\b/i.test(raw) ||
-    lower.includes('username is not available') ||
-    lower.includes('username not available')
-  ) {
-    return { message: USERNAME_UNAVAILABLE, field: 'username' }
   }
 
   if (

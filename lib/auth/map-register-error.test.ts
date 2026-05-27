@@ -42,6 +42,12 @@ describe('mapRegisterSignInError', () => {
       mapRegisterSignInError(new Error('Username "foo" is already taken'))
     ).toBe('This username is not available. Try another one.')
   })
+
+  it('maps username already exists before generic duplicate account wording', () => {
+    expect(mapRegisterSignInError(new Error('Username already exists'))).toBe(
+      'This username is not available. Try another one.'
+    )
+  })
 })
 
 describe('parseRegisterSignInError', () => {

@@ -6,6 +6,7 @@ import LoginForm from '@/components/auth/LoginForm'
 
 const mockSignIn = vi.hoisted(() => vi.fn())
 const mockReplace = vi.hoisted(() => vi.fn())
+const mockUseAuthReturnPath = vi.hoisted(() => vi.fn())
 
 vi.mock('@convex-dev/auth/react', () => ({
   useAuthActions: () => ({
@@ -19,13 +20,23 @@ vi.mock('next/navigation', () => ({
   }),
 }))
 
+vi.mock('@/components/auth/useAuthReturnPath', () => ({
+  useAuthReturnPath: () => mockUseAuthReturnPath(),
+}))
+
+vi.mock('@/lib/tip/pendingTipIntent', () => ({
+  readPendingTipIntent: () => null,
+}))
+
 describe('LoginForm', () => {
   beforeEach(() => {
     mockSignIn.mockReset()
     mockReplace.mockReset()
+    mockUseAuthReturnPath.mockReset()
+    mockUseAuthReturnPath.mockReturnValue('/articles?tag=writing')
   })
 
-  it('shows redirecting message and navigates home on successful sign in', async () => {
+  it('shows redirecting message and navigates to the return path on successful sign in', async () => {
     const user = userEvent.setup({ delay: null })
     mockSignIn.mockResolvedValue(undefined)
 
@@ -46,7 +57,7 @@ describe('LoginForm', () => {
       password: 'password123',
       flow: 'signIn',
     })
-    expect(mockReplace).toHaveBeenCalledWith('/')
+    expect(mockReplace).toHaveBeenCalledWith('/articles?tag=writing')
     expect(
       screen.queryByRole('button', { name: /signing in/i })
     ).not.toBeInTheDocument()

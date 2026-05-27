@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { useAuth } from '@/components/providers/AuthContext'
+import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 import Link from 'next/link'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { useMutation } from 'convex/react'
@@ -34,8 +34,9 @@ import { Loader2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { mutationWithTimeout } from '@/lib/convexMutationWithTimeout'
 
 export default function DraftsPage() {
-  const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
+
+  useRedirectWhenUnauthenticated(isLoading, isAuthenticated)
 
   const draftsQuery = useUserDrafts()
   const loading = draftsQuery === undefined
@@ -60,11 +61,6 @@ export default function DraftsPage() {
       setIsDeleting(false)
     }
   }
-
-  useEffect(() => {
-    if (isLoading || isAuthenticated) return
-    router.replace('/login')
-  }, [isLoading, isAuthenticated, router])
 
   if (isLoading) {
     return (
