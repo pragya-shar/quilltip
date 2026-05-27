@@ -19,6 +19,7 @@ import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
 } from '@/lib/stellar/wallet-adapter'
+import { networkLabelLowercase } from '@/lib/copy/network-status'
 
 interface WalletStatusProps {
   className?: string
@@ -122,8 +123,8 @@ export function WalletStatus({ className }: WalletStatusProps) {
               <div>
                 <h3 className="font-semibold">Wallet Not Connected</h3>
                 <p className="text-sm text-muted-foreground">
-                  Connect your Stellar testnet wallet to start practice tipping
-                  authors
+                  Connect your Stellar {networkLabelLowercase()} wallet to start
+                  tipping authors
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
                   Supports Freighter, xBull, Albedo, Rabet, and more
