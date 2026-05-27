@@ -1,4 +1,7 @@
-/** Ordered toolbar control keys matching DOM order in EditorToolbar. */
+/**
+ * Ordered toolbar control keys matching DOM order in EditorToolbar.
+ * Mobile: wrap cluster (heading..link), then pinned column (more, notes).
+ */
 export function getVisibleToolbarKeys(
   isMobile: boolean,
   isLinkActive: boolean

@@ -28,6 +28,7 @@ import { useEffect, useState, useRef, useLayoutEffect, forwardRef } from 'react'
 import { createPortal } from 'react-dom'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { cn } from '@/lib/utils'
 import { ImageUploadDialog } from './ImageUploadDialog'
 import { YouTubeEmbedDialog } from './YouTubeEmbedDialog'
 import {
@@ -122,6 +123,13 @@ function ToolbarDivider({ className = '' }: { className?: string }) {
       className={`w-px h-5 bg-border mx-0.5 shrink-0 ${className}`}
       aria-hidden
     />
+  )
+}
+
+function moreMenuItemClass(isActive: boolean) {
+  return cn(
+    'px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2',
+    isActive && 'bg-muted font-medium text-primary'
   )
 }
 
@@ -372,7 +380,6 @@ export function EditorToolbar({
     const isActivation = e.key === 'Enter' || e.key === ' '
     if (!isActivation) return
 
-    // Native <button> handles Enter/Space. For non-button elements we click defensively.
     if (target instanceof HTMLButtonElement) return
     e.preventDefault()
     target.click()
@@ -381,8 +388,409 @@ export function EditorToolbar({
   const focusRing =
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
 
+  const currentHeading = getCurrentHeading()
+
+  const headingDropdown = (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          data-toolbar-item="true"
+          data-toolbar-key="heading"
+          tabIndex={tabIndexFor('heading')}
+          aria-label={currentHeading}
+          title={currentHeading}
+          className={`flex items-center gap-1.5 px-2.5 py-2 rounded hover:bg-muted text-foreground text-sm shrink-0 ${focusRing}`}
+        >
+          <Type className="w-4 h-4 shrink-0" />
+          <span className="hidden md:inline">{currentHeading}</span>
+          <ChevronDown className="w-3.5 h-3.5 opacity-70 shrink-0" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50">
+          {headingOptions.map((option) => (
+            <DropdownMenu.Item
+              key={option.level}
+              onSelect={option.command}
+              className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none"
+            >
+              {option.label}
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+
+  const addMenu = (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          data-toolbar-item="true"
+          data-toolbar-key="add"
+          tabIndex={tabIndexFor('add')}
+          className={`p-2 rounded hover:bg-muted text-foreground transition-colors cursor-pointer shrink-0 ${focusRing}`}
+          title="Add"
+          aria-label="Add"
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50 min-w-[200px]"
+          sideOffset={4}
+          align="start"
+        >
+          <DropdownMenu.Item
+            onSelect={() => onFocusCoverImage?.()}
+            className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+          >
+            <Image className="w-4 h-4 shrink-0" />
+            Cover Image
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onSelect={() => onFocusTitle?.()}
+            className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+          >
+            <Type className="w-4 h-4 shrink-0" />
+            Article Title
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onSelect={() => onFocusExcerpt?.()}
+            className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+          >
+            <FileText className="w-4 h-4 shrink-0" />
+            Article Excerpt
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onSelect={() => onFocusTags?.()}
+            className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+          >
+            <Tag className="w-4 h-4 shrink-0" />
+            Tags
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+
+  const linkControl = (
+    <div ref={linkAnchorRef} className="relative shrink-0">
+      {editor.isActive('link') ? (
+        <ToolbarButton
+          onClick={removeLink}
+          isActive
+          title={`Remove link (${shortcut('K')})`}
+          tabIndex={tabIndexFor('linkRemove')}
+          onFocus={() => setActiveItemKey('linkRemove')}
+          toolbarKey="linkRemove"
+        >
+          <Link2 className="w-4 h-4" />
+        </ToolbarButton>
+      ) : (
+        <ToolbarButton
+          onClick={() => setShowLinkInput(!showLinkInput)}
+          title={`Insert link (${shortcut('K')})`}
+          tabIndex={tabIndexFor('linkInsert')}
+          onFocus={() => setActiveItemKey('linkInsert')}
+          toolbarKey="linkInsert"
+        >
+          <Link2 className="w-4 h-4" />
+        </ToolbarButton>
+      )}
+    </div>
+  )
+
+  const moreMenu = (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          data-toolbar-item="true"
+          data-toolbar-key="more"
+          tabIndex={tabIndexFor('more')}
+          className={`p-2 rounded hover:bg-muted text-foreground transition-colors cursor-pointer shrink-0 ${focusRing}`}
+          title="More formatting"
+          aria-label="More formatting"
+        >
+          <MoreHorizontal className="w-4 h-4" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50 min-w-[200px]"
+          sideOffset={4}
+          align="end"
+        >
+          <DropdownMenu.Label className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            Alignment
+          </DropdownMenu.Label>
+          <DropdownMenu.Item
+            onSelect={() => setTextAlign('left')}
+            className={moreMenuItemClass(
+              editor.isActive({ textAlign: 'left' })
+            )}
+          >
+            <AlignLeft className="w-4 h-4 shrink-0" />
+            Align left
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onSelect={() => setTextAlign('center')}
+            className={moreMenuItemClass(
+              editor.isActive({ textAlign: 'center' })
+            )}
+          >
+            <AlignCenter className="w-4 h-4 shrink-0" />
+            Align center
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onSelect={() => setTextAlign('right')}
+            className={moreMenuItemClass(
+              editor.isActive({ textAlign: 'right' })
+            )}
+          >
+            <AlignRight className="w-4 h-4 shrink-0" />
+            Align right
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onSelect={() => setTextAlign('justify')}
+            className={moreMenuItemClass(
+              editor.isActive({ textAlign: 'justify' })
+            )}
+          >
+            <AlignJustify className="w-4 h-4 shrink-0" />
+            Justify
+          </DropdownMenu.Item>
+          <DropdownMenu.Separator className="h-px bg-border my-1" />
+          <DropdownMenu.Item
+            onSelect={() => setShowImageDialog(true)}
+            className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+          >
+            <Image className="w-4 h-4 shrink-0" />
+            Insert image
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onSelect={() => setShowYouTubeDialog(true)}
+            className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
+          >
+            <Youtube className="w-4 h-4 shrink-0" />
+            Embed YouTube
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  )
+
+  const notesControl = (
+    <div className="relative">
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        data-toolbar-item="true"
+        data-toolbar-key="notes"
+        tabIndex={tabIndexFor('notes')}
+        className={`flex items-center gap-1.5 rounded px-2 py-2 text-sm font-medium hover:bg-muted md:gap-2 md:pl-3 md:pr-2 ${focusRing} ${showNotes ? 'bg-muted text-primary' : 'text-foreground'}`}
+        title="Notes"
+        aria-label="Notes"
+        onClick={() => setShowNotes(!showNotes)}
+        onFocus={() => setActiveItemKey('notes')}
+      >
+        <FileText className="h-4 w-4 shrink-0" />
+        <span className="hidden min-[360px]:inline md:inline">Notes</span>
+      </button>
+      {showNotes && (
+        <div className="absolute top-full right-0 z-50 mt-1 w-72 max-w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-border bg-popover shadow-lg">
+          <div className="border-b border-border px-3 py-2">
+            <p className="text-xs font-medium text-muted-foreground">
+              Personal Notes
+            </p>
+            <p className="mt-1 text-xs leading-snug text-muted-foreground/80">
+              Private planning notes for you only. They are saved with this draft
+              and are not published with your article.
+            </p>
+          </div>
+          <textarea
+            value={notes}
+            onChange={(e) => onNotesChange?.(e.target.value)}
+            placeholder="Jot down ideas, reminders, or notes..."
+            className="w-full resize-none rounded-b-lg bg-popover p-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+            rows={6}
+          />
+        </div>
+      )}
+    </div>
+  )
+
+  const formattingControls = (
+    <>
+      {headingDropdown}
+      <ToolbarDivider />
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleBold().run()}
+        isActive={editor.isActive('bold')}
+        title={`Bold (${shortcut('B')})`}
+        tabIndex={tabIndexFor('bold')}
+        onFocus={() => setActiveItemKey('bold')}
+        toolbarKey="bold"
+      >
+        <Bold className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+        isActive={editor.isActive('italic')}
+        title={`Italic (${shortcut('I')})`}
+        tabIndex={tabIndexFor('italic')}
+        onFocus={() => setActiveItemKey('italic')}
+        toolbarKey="italic"
+      >
+        <Italic className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
+        isActive={editor.isActive('underline')}
+        title="Underline"
+        tabIndex={tabIndexFor('underline')}
+        onFocus={() => setActiveItemKey('underline')}
+        toolbarKey="underline"
+      >
+        <Underline className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+        isActive={editor.isActive('strike')}
+        title="Strikethrough"
+        tabIndex={tabIndexFor('strike')}
+        onFocus={() => setActiveItemKey('strike')}
+        toolbarKey="strike"
+      >
+        <Strikethrough className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        isActive={editor.isActive('blockquote')}
+        title="Blockquote"
+        tabIndex={tabIndexFor('blockquote')}
+        onFocus={() => setActiveItemKey('blockquote')}
+        toolbarKey="blockquote"
+      >
+        <Quote className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarDivider />
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+        isActive={editor.isActive('codeBlock')}
+        title="Code block"
+        tabIndex={tabIndexFor('codeBlock')}
+        onFocus={() => setActiveItemKey('codeBlock')}
+        toolbarKey="codeBlock"
+      >
+        <Code className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        isActive={editor.isActive('orderedList')}
+        title="Numbered list"
+        tabIndex={tabIndexFor('orderedList')}
+        onFocus={() => setActiveItemKey('orderedList')}
+        toolbarKey="orderedList"
+      >
+        <ListOrdered className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+        isActive={editor.isActive('bulletList')}
+        title="Bullet list"
+        tabIndex={tabIndexFor('bulletList')}
+        onFocus={() => setActiveItemKey('bulletList')}
+        toolbarKey="bulletList"
+      >
+        <List className="w-4 h-4" />
+      </ToolbarButton>
+    </>
+  )
+
+  const desktopAlignmentControls = (
+    <div className="hidden md:contents">
+      <ToolbarDivider />
+      <ToolbarButton
+        onClick={() => setTextAlign('left')}
+        isActive={editor.isActive({ textAlign: 'left' })}
+        title="Align left"
+        tabIndex={tabIndexFor('alignLeft')}
+        onFocus={() => setActiveItemKey('alignLeft')}
+        toolbarKey="alignLeft"
+      >
+        <AlignLeft className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => setTextAlign('center')}
+        isActive={editor.isActive({ textAlign: 'center' })}
+        title="Align center"
+        tabIndex={tabIndexFor('alignCenter')}
+        onFocus={() => setActiveItemKey('alignCenter')}
+        toolbarKey="alignCenter"
+      >
+        <AlignCenter className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => setTextAlign('right')}
+        isActive={editor.isActive({ textAlign: 'right' })}
+        title="Align right"
+        tabIndex={tabIndexFor('alignRight')}
+        onFocus={() => setActiveItemKey('alignRight')}
+        toolbarKey="alignRight"
+      >
+        <AlignRight className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        onClick={() => setTextAlign('justify')}
+        isActive={editor.isActive({ textAlign: 'justify' })}
+        title="Justify"
+        tabIndex={tabIndexFor('alignJustify')}
+        onFocus={() => setActiveItemKey('alignJustify')}
+        toolbarKey="alignJustify"
+      >
+        <AlignJustify className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarDivider />
+    </div>
+  )
+
+  const desktopMediaControls = (
+    <>
+      <ToolbarButton
+        ref={imageDialogTriggerRef}
+        onClick={() => setShowImageDialog(true)}
+        title="Insert image"
+        className="hidden md:inline-flex"
+        tabIndex={tabIndexFor('image')}
+        onFocus={() => setActiveItemKey('image')}
+        toolbarKey="image"
+      >
+        <Image className="w-4 h-4" />
+      </ToolbarButton>
+      <ToolbarButton
+        ref={youtubeDialogTriggerRef}
+        onClick={() => setShowYouTubeDialog(true)}
+        title="Embed YouTube video"
+        className="hidden md:inline-flex"
+        tabIndex={tabIndexFor('youtube')}
+        onFocus={() => setActiveItemKey('youtube')}
+        toolbarKey="youtube"
+      >
+        <Youtube className="w-4 h-4" />
+      </ToolbarButton>
+    </>
+  )
+
   return (
-    <div className="bg-background w-full min-w-0 flex items-stretch min-h-[44px] py-2 gap-2">
+    <div className="flex min-h-[44px] w-full min-w-0 items-stretch gap-2 overflow-x-hidden bg-background py-2 md:overflow-x-visible">
       <div
         ref={toolbarRef}
         role="toolbar"
@@ -391,395 +799,19 @@ export function EditorToolbar({
         onFocusCapture={handleToolbarFocusCapture}
         className="flex min-w-0 flex-1 items-stretch gap-2"
       >
-        <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain [scrollbar-width:thin]">
-          <div className="inline-flex min-h-[44px] flex-nowrap items-center gap-0.5 justify-start">
-            {/* Paragraph / style dropdown */}
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <button
-                  onMouseDown={(e) => e.preventDefault()}
-                  data-toolbar-item="true"
-                  data-toolbar-key="heading"
-                  tabIndex={tabIndexFor('heading')}
-                  className={`flex items-center gap-1.5 px-2.5 py-2 rounded hover:bg-muted text-foreground text-sm shrink-0 ${focusRing}`}
-                >
-                  <Type className="w-4 h-4 shrink-0" />
-                  <span>{getCurrentHeading()}</span>
-                  <ChevronDown className="w-3.5 h-3.5 opacity-70 shrink-0" />
-                </button>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50">
-                  {headingOptions.map((option) => (
-                    <DropdownMenu.Item
-                      key={option.level}
-                      onSelect={option.command}
-                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none"
-                    >
-                      {option.label}
-                    </DropdownMenu.Item>
-                  ))}
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
-            </DropdownMenu.Root>
-
-            <ToolbarDivider />
-
-            {/* B I U */}
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleBold().run()}
-              isActive={editor.isActive('bold')}
-              title={`Bold (${shortcut('B')})`}
-              tabIndex={tabIndexFor('bold')}
-              onFocus={() => setActiveItemKey('bold')}
-              toolbarKey="bold"
-            >
-              <Bold className="w-4 h-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleItalic().run()}
-              isActive={editor.isActive('italic')}
-              title={`Italic (${shortcut('I')})`}
-              tabIndex={tabIndexFor('italic')}
-              onFocus={() => setActiveItemKey('italic')}
-              toolbarKey="italic"
-            >
-              <Italic className="w-4 h-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleUnderline().run()}
-              isActive={editor.isActive('underline')}
-              title="Underline"
-              tabIndex={tabIndexFor('underline')}
-              onFocus={() => setActiveItemKey('underline')}
-              toolbarKey="underline"
-            >
-              <Underline className="w-4 h-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleStrike().run()}
-              isActive={editor.isActive('strike')}
-              title="Strikethrough"
-              tabIndex={tabIndexFor('strike')}
-              onFocus={() => setActiveItemKey('strike')}
-              toolbarKey="strike"
-            >
-              <Strikethrough className="w-4 h-4" />
-            </ToolbarButton>
-
-            {/* Quote */}
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleBlockquote().run()}
-              isActive={editor.isActive('blockquote')}
-              title="Blockquote"
-              tabIndex={tabIndexFor('blockquote')}
-              onFocus={() => setActiveItemKey('blockquote')}
-              toolbarKey="blockquote"
-            >
-              <Quote className="w-4 h-4" />
-            </ToolbarButton>
-
-            <ToolbarDivider />
-
-            {/* Code block, lists */}
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-              isActive={editor.isActive('codeBlock')}
-              title="Code block"
-              tabIndex={tabIndexFor('codeBlock')}
-              onFocus={() => setActiveItemKey('codeBlock')}
-              toolbarKey="codeBlock"
-            >
-              <Code className="w-4 h-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              isActive={editor.isActive('orderedList')}
-              title="Numbered list"
-              tabIndex={tabIndexFor('orderedList')}
-              onFocus={() => setActiveItemKey('orderedList')}
-              toolbarKey="orderedList"
-            >
-              <ListOrdered className="w-4 h-4" />
-            </ToolbarButton>
-            <ToolbarButton
-              onClick={() => editor.chain().focus().toggleBulletList().run()}
-              isActive={editor.isActive('bulletList')}
-              title="Bullet list"
-              tabIndex={tabIndexFor('bulletList')}
-              onFocus={() => setActiveItemKey('bulletList')}
-              toolbarKey="bulletList"
-            >
-              <List className="w-4 h-4" />
-            </ToolbarButton>
-
-            <ToolbarDivider className="hidden md:block" />
-
-            {/* Alignment — md+ only */}
-            <div className="hidden md:contents">
-              <ToolbarButton
-                onClick={() => setTextAlign('left')}
-                isActive={editor.isActive({ textAlign: 'left' })}
-                title="Align left"
-                tabIndex={tabIndexFor('alignLeft')}
-                onFocus={() => setActiveItemKey('alignLeft')}
-                toolbarKey="alignLeft"
-              >
-                <AlignLeft className="w-4 h-4" />
-              </ToolbarButton>
-              <ToolbarButton
-                onClick={() => setTextAlign('center')}
-                isActive={editor.isActive({ textAlign: 'center' })}
-                title="Align center"
-                tabIndex={tabIndexFor('alignCenter')}
-                onFocus={() => setActiveItemKey('alignCenter')}
-                toolbarKey="alignCenter"
-              >
-                <AlignCenter className="w-4 h-4" />
-              </ToolbarButton>
-              <ToolbarButton
-                onClick={() => setTextAlign('right')}
-                isActive={editor.isActive({ textAlign: 'right' })}
-                title="Align right"
-                tabIndex={tabIndexFor('alignRight')}
-                onFocus={() => setActiveItemKey('alignRight')}
-                toolbarKey="alignRight"
-              >
-                <AlignRight className="w-4 h-4" />
-              </ToolbarButton>
-              <ToolbarButton
-                onClick={() => setTextAlign('justify')}
-                isActive={editor.isActive({ textAlign: 'justify' })}
-                title="Justify"
-                tabIndex={tabIndexFor('alignJustify')}
-                onFocus={() => setActiveItemKey('alignJustify')}
-                toolbarKey="alignJustify"
-              >
-                <AlignJustify className="w-4 h-4" />
-              </ToolbarButton>
-
-              <ToolbarDivider />
-            </div>
-
-            {/* Add - dropdown: Article Title, Cover Image URL, Excerpt, Tags */}
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger asChild>
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  data-toolbar-item="true"
-                  data-toolbar-key="add"
-                  tabIndex={tabIndexFor('add')}
-                  className={`p-2 rounded hover:bg-muted text-foreground transition-colors cursor-pointer shrink-0 ${focusRing}`}
-                  title="Add"
-                  aria-label="Add"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <DropdownMenu.Content
-                  className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50 min-w-[200px]"
-                  sideOffset={4}
-                  align="start"
-                >
-                  <DropdownMenu.Item
-                    onSelect={() => onFocusCoverImage?.()}
-                    className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                  >
-                    <Image className="w-4 h-4 shrink-0" />
-                    Cover Image
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item
-                    onSelect={() => onFocusTitle?.()}
-                    className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                  >
-                    <Type className="w-4 h-4 shrink-0" />
-                    Article Title
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item
-                    onSelect={() => onFocusExcerpt?.()}
-                    className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                  >
-                    <FileText className="w-4 h-4 shrink-0" />
-                    Article Excerpt
-                  </DropdownMenu.Item>
-                  <DropdownMenu.Item
-                    onSelect={() => onFocusTags?.()}
-                    className="px-4 py-2.5 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                  >
-                    <Tag className="w-4 h-4 shrink-0" />
-                    Tags
-                  </DropdownMenu.Item>
-                </DropdownMenu.Content>
-              </DropdownMenu.Portal>
-            </DropdownMenu.Root>
-
-            {/* Link */}
-            <div ref={linkAnchorRef} className="relative shrink-0">
-              {editor.isActive('link') ? (
-                <ToolbarButton
-                  onClick={removeLink}
-                  isActive
-                  title={`Remove link (${shortcut('K')})`}
-                  tabIndex={tabIndexFor('linkRemove')}
-                  onFocus={() => setActiveItemKey('linkRemove')}
-                  toolbarKey="linkRemove"
-                >
-                  <Link2 className="w-4 h-4" />
-                </ToolbarButton>
-              ) : (
-                <ToolbarButton
-                  onClick={() => setShowLinkInput(!showLinkInput)}
-                  title={`Insert link (${shortcut('K')})`}
-                  tabIndex={tabIndexFor('linkInsert')}
-                  onFocus={() => setActiveItemKey('linkInsert')}
-                  toolbarKey="linkInsert"
-                >
-                  <Link2 className="w-4 h-4" />
-                </ToolbarButton>
-              )}
-            </div>
-
-            {/* More: alignment, image, YouTube on small screens */}
-            <div className="md:hidden shrink-0">
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger asChild>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    data-toolbar-item="true"
-                    data-toolbar-key="more"
-                    tabIndex={tabIndexFor('more')}
-                    className={`p-2 rounded hover:bg-muted text-foreground transition-colors cursor-pointer shrink-0 ${focusRing}`}
-                    title="More formatting"
-                    aria-label="More formatting"
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </button>
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content
-                    className="bg-popover text-popover-foreground rounded-lg shadow-lg border border-border py-1 z-50 min-w-[200px]"
-                    sideOffset={4}
-                    align="start"
-                  >
-                    <DropdownMenu.Label className="px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                      Alignment
-                    </DropdownMenu.Label>
-                    <DropdownMenu.Item
-                      onSelect={() => setTextAlign('left')}
-                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                    >
-                      <AlignLeft className="w-4 h-4 shrink-0" />
-                      Align left
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Item
-                      onSelect={() => setTextAlign('center')}
-                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                    >
-                      <AlignCenter className="w-4 h-4 shrink-0" />
-                      Align center
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Item
-                      onSelect={() => setTextAlign('right')}
-                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                    >
-                      <AlignRight className="w-4 h-4 shrink-0" />
-                      Align right
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Item
-                      onSelect={() => setTextAlign('justify')}
-                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                    >
-                      <AlignJustify className="w-4 h-4 shrink-0" />
-                      Justify
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Separator className="h-px bg-border my-1" />
-                    <DropdownMenu.Item
-                      onSelect={() => setShowImageDialog(true)}
-                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                    >
-                      <Image className="w-4 h-4 shrink-0" />
-                      Insert image
-                    </DropdownMenu.Item>
-                    <DropdownMenu.Item
-                      onSelect={() => setShowYouTubeDialog(true)}
-                      className="px-4 py-2 text-sm hover:bg-muted cursor-pointer outline-none flex items-center gap-2"
-                    >
-                      <Youtube className="w-4 h-4 shrink-0" />
-                      Embed YouTube
-                    </DropdownMenu.Item>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu.Root>
-            </div>
-
-            {/* Image */}
-            <ToolbarButton
-              ref={imageDialogTriggerRef}
-              onClick={() => setShowImageDialog(true)}
-              title="Insert image"
-              className="hidden md:inline-flex"
-              tabIndex={tabIndexFor('image')}
-              onFocus={() => setActiveItemKey('image')}
-              toolbarKey="image"
-            >
-              <Image className="w-4 h-4" />
-            </ToolbarButton>
-
-            {/* YouTube embed */}
-            <ToolbarButton
-              ref={youtubeDialogTriggerRef}
-              onClick={() => setShowYouTubeDialog(true)}
-              title="Embed YouTube video"
-              className="hidden md:inline-flex"
-              tabIndex={tabIndexFor('youtube')}
-              onFocus={() => setActiveItemKey('youtube')}
-              toolbarKey="youtube"
-            >
-              <Youtube className="w-4 h-4" />
-            </ToolbarButton>
+        <div className="min-w-0 flex-1 md:overflow-x-auto md:overflow-y-hidden md:overscroll-x-contain md:[scrollbar-width:thin]">
+          <div className="flex min-h-[44px] flex-wrap items-center gap-0.5 md:inline-flex md:flex-nowrap">
+            {formattingControls}
+            {desktopAlignmentControls}
+            {addMenu}
+            {linkControl}
+            {desktopMediaControls}
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center border-l border-border pl-2">
-          <div className="relative">
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              data-toolbar-item="true"
-              data-toolbar-key="notes"
-              tabIndex={tabIndexFor('notes')}
-              className={`flex items-center gap-2 pl-3 pr-2 py-2 rounded hover:bg-muted text-sm font-medium ${focusRing} ${showNotes ? 'bg-muted text-primary' : 'text-foreground'}`}
-              title="Notes"
-              onClick={() => setShowNotes(!showNotes)}
-              onFocus={() => setActiveItemKey('notes')}
-            >
-              <FileText className="w-4 h-4" />
-              Notes
-            </button>
-            {showNotes && (
-              <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 w-72">
-                <div className="px-3 py-2 border-b border-border">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    Personal Notes
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground/80 leading-snug">
-                    Private planning notes for you only. They are saved with
-                    this draft and are not published with your article.
-                  </p>
-                </div>
-                <textarea
-                  value={notes}
-                  onChange={(e) => onNotesChange?.(e.target.value)}
-                  placeholder="Jot down ideas, reminders, or notes..."
-                  className="w-full p-3 text-sm text-foreground bg-popover placeholder:text-muted-foreground resize-none focus:outline-none rounded-b-lg"
-                  rows={6}
-                />
-              </div>
-            )}
-          </div>
+        <div className="flex shrink-0 items-start gap-0 border-l border-border pl-2">
+          <div className="md:hidden">{moreMenu}</div>
+          {notesControl}
         </div>
       </div>
 
