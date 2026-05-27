@@ -81,12 +81,16 @@ function MoreMenu({
   onDelete?: () => void
   isDeleting?: boolean
 }) {
+  const focusRing =
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          className="p-2 rounded-full border border-border text-muted-foreground hover:bg-muted hover:border-border transition-colors shrink-0"
+          aria-label="More options"
+          className={`p-2 rounded-full border border-border text-muted-foreground hover:bg-muted hover:border-border transition-colors shrink-0 ${focusRing}`}
           title="More options"
         >
           <MoreHorizontal className="h-4 w-4" />
@@ -205,6 +209,9 @@ export function EditorActionBar({
     statusClassName = 'text-muted-foreground opacity-70'
   }
 
+  const focusRing =
+    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+
   const saveButton = (
     <button
       type="button"
@@ -260,7 +267,8 @@ export function EditorActionBar({
         type="button"
         onClick={() => editor?.chain().focus().undo().run()}
         disabled={!canUndo}
-        className="p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors shrink-0"
+        aria-label={`Undo (${shortcuts.undo})`}
+        className={`p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors shrink-0 ${focusRing}`}
         title={`Undo (${shortcuts.undo})`}
       >
         <Undo2 className="h-4 w-4" />
@@ -269,7 +277,8 @@ export function EditorActionBar({
         type="button"
         onClick={() => editor?.chain().focus().redo().run()}
         disabled={!canRedo}
-        className="p-2 rounded-md text-muted-foreground opacity-70 hover:bg-muted hover:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors shrink-0"
+        aria-label={`Redo (${shortcuts.redo})`}
+        className={`p-2 rounded-md text-muted-foreground opacity-70 hover:bg-muted hover:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors shrink-0 ${focusRing}`}
         title={`Redo (${shortcuts.redo})`}
       >
         <Redo2 className="h-4 w-4" />
