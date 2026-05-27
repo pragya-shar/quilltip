@@ -18,13 +18,7 @@ export const WriterNotesPanel = forwardRef<
   HTMLTextAreaElement,
   WriterNotesPanelProps
 >(function WriterNotesPanel(
-  {
-    notes,
-    onNotesChange,
-    className,
-    textareaClassName,
-    showHeader = true,
-  },
+  { notes, onNotesChange, className, textareaClassName, showHeader = true },
   ref
 ) {
   return (
