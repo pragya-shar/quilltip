@@ -24,13 +24,29 @@ import {
   Youtube,
   MoreHorizontal,
 } from 'lucide-react'
-import { useEffect, useState, useRef, useLayoutEffect, forwardRef } from 'react'
+import {
+  useEffect,
+  useState,
+  useRef,
+  useLayoutEffect,
+  useCallback,
+  forwardRef,
+} from 'react'
 import { createPortal } from 'react-dom'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer'
 import { ImageUploadDialog } from './ImageUploadDialog'
 import { YouTubeEmbedDialog } from './YouTubeEmbedDialog'
+import { WRITER_NOTES_HELPER_TEXT, WriterNotesPanel } from './WriterNotesPanel'
 import {
   getVisibleToolbarKeys,
   resolveActiveToolbarKey,
@@ -154,6 +170,8 @@ export function EditorToolbar({
   const linkAnchorRef = useRef<HTMLDivElement>(null)
   const imageDialogTriggerRef = useRef<HTMLButtonElement>(null)
   const youtubeDialogTriggerRef = useRef<HTMLButtonElement>(null)
+  const notesTriggerRef = useRef<HTMLButtonElement>(null)
+  const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [linkPopoverPos, setLinkPopoverPos] = useState<{
     top: number
     left: number
@@ -180,6 +198,23 @@ export function EditorToolbar({
       setActiveItemKey(resolveActiveToolbarKey(activeItemKey, keys))
     }
   }, [isMobile, isLinkActive, activeItemKey])
+
+  const handleNotesOpenChange = useCallback((open: boolean) => {
+    setShowNotes(open)
+    if (!open) {
+      requestAnimationFrame(() => {
+        notesTriggerRef.current?.focus()
+      })
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!showNotes || !isMobile) return
+    const frame = requestAnimationFrame(() => {
+      notesTextareaRef.current?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [showNotes, isMobile])
 
   useLayoutEffect(() => {
     if (!showLinkInput) {
@@ -588,43 +623,93 @@ export function EditorToolbar({
     </DropdownMenu.Root>
   )
 
-  const notesControl = (
-    <div className="relative">
-      <button
-        type="button"
-        onMouseDown={(e) => e.preventDefault()}
-        data-toolbar-item="true"
-        data-toolbar-key="notes"
-        tabIndex={tabIndexFor('notes')}
-        className={`flex items-center gap-1.5 rounded px-2 py-2 text-sm font-medium hover:bg-muted md:gap-2 md:pl-3 md:pr-2 ${focusRing} ${showNotes ? 'bg-muted text-primary' : 'text-foreground'}`}
-        title="Notes"
-        aria-label="Notes"
-        onClick={() => setShowNotes(!showNotes)}
-        onFocus={() => setActiveItemKey('notes')}
+  const notesTriggerButton = (
+    <button
+      ref={notesTriggerRef}
+      type="button"
+      onMouseDown={(e) => e.preventDefault()}
+      data-toolbar-item="true"
+      data-toolbar-key="notes"
+      tabIndex={tabIndexFor('notes')}
+      className={`flex items-center gap-1.5 rounded px-2 py-2 text-sm font-medium hover:bg-muted md:gap-2 md:pl-3 md:pr-2 ${focusRing} ${showNotes ? 'bg-muted text-primary' : 'text-foreground'}`}
+      title="Notes"
+      aria-label="Notes"
+      aria-expanded={showNotes}
+      onClick={() => {
+        if (isMobile) {
+          setShowNotes(true)
+        } else {
+          setShowNotes((open) => !open)
+        }
+      }}
+      onFocus={() => setActiveItemKey('notes')}
+    >
+      <FileText className="h-4 w-4 shrink-0" />
+      <span className="hidden min-[360px]:inline md:inline">Notes</span>
+    </button>
+  )
+
+  const notesControl = isMobile ? (
+    <Drawer open={showNotes} onOpenChange={handleNotesOpenChange}>
+      {notesTriggerButton}
+      <DrawerContent
+        className="max-h-[min(70dvh,32rem)] gap-0 overflow-y-auto px-0 pb-6"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault()
+          notesTextareaRef.current?.focus()
+        }}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault()
+          notesTriggerRef.current?.focus()
+        }}
       >
-        <FileText className="h-4 w-4 shrink-0" />
-        <span className="hidden min-[360px]:inline md:inline">Notes</span>
-      </button>
-      {showNotes && (
-        <div className="absolute top-full right-0 z-50 mt-1 w-72 max-w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-border bg-popover shadow-lg">
-          <div className="border-b border-border px-3 py-2">
-            <p className="text-xs font-medium text-muted-foreground">
-              Personal Notes
-            </p>
-            <p className="mt-1 text-xs leading-snug text-muted-foreground/80">
-              Private planning notes for you only. They are saved with this
-              draft and are not published with your article.
-            </p>
+        <DrawerHeader className="space-y-0 px-4 pb-2 text-left">
+          <div className="flex items-start justify-between gap-3 pr-8">
+            <div className="min-w-0 space-y-1">
+              <DrawerTitle className="text-base">Personal Notes</DrawerTitle>
+              <DrawerDescription className="text-left text-xs leading-snug">
+                {WRITER_NOTES_HELPER_TEXT}
+              </DrawerDescription>
+            </div>
+            <DrawerClose asChild>
+              <button
+                type="button"
+                className={cn(
+                  'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-primary hover:bg-muted',
+                  focusRing
+                )}
+              >
+                Done
+              </button>
+            </DrawerClose>
           </div>
-          <textarea
-            value={notes}
-            onChange={(e) => onNotesChange?.(e.target.value)}
-            placeholder="Jot down ideas, reminders, or notes..."
-            className="w-full resize-none rounded-b-lg bg-popover p-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-            rows={6}
+        </DrawerHeader>
+        <WriterNotesPanel
+          ref={notesTextareaRef}
+          notes={notes}
+          onNotesChange={onNotesChange}
+          showHeader={false}
+          textareaClassName="min-h-[8rem] rounded-none border-0 bg-background"
+        />
+      </DrawerContent>
+    </Drawer>
+  ) : (
+    <div className="relative">
+      {notesTriggerButton}
+      {showNotes ? (
+        <div
+          className="absolute top-full right-0 z-50 mt-1 w-72 max-w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-popover shadow-lg"
+          role="dialog"
+          aria-label="Personal notes"
+        >
+          <WriterNotesPanel
+            ref={notesTextareaRef}
+            notes={notes}
+            onNotesChange={onNotesChange}
+            textareaClassName="rounded-b-lg"
           />
         </div>
-      )}
+      ) : null}
     </div>
   )
 
