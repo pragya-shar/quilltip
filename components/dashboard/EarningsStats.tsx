@@ -5,10 +5,8 @@ import { Coins, Clock, DollarSign, Wallet } from 'lucide-react'
 import type { Doc } from '@/types/convex'
 import { MonthlyEarningsChart } from '@/components/dashboard/monthly-earnings-chart'
 import { TopEarningArticles } from '@/components/dashboard/top-earning-articles'
-import {
-  WalletSetupNotice,
-  navigateToWalletTab,
-} from '@/components/dashboard/wallet-setup-notice'
+import { WalletSetupNotice } from '@/components/dashboard/wallet-setup-notice'
+import { useProfileTabNavigation } from '@/hooks/useProfileTabNavigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 
@@ -27,6 +25,7 @@ export function EarningsStats({
   onOpenWithdrawModal,
   withdrawTriggerRef,
 }: EarningsStatsProps) {
+  const navigateToTab = useProfileTabNavigation()
   const lastWithdrawal = earnings.lastWithdrawalAt
   const belowWithdrawalMinimum = earnings.availableBalanceUsd < minWithdrawalUsd
   const showMinimumWithdrawalHelper =
@@ -69,7 +68,7 @@ export function EarningsStats({
             type="button"
             onClick={() => {
               if (!userProfile?.stellarAddress) {
-                navigateToWalletTab()
+                navigateToTab('wallet')
               } else {
                 onOpenWithdrawModal()
               }

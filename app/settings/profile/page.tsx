@@ -1,5 +1,5 @@
 import { GenericProfileRedirect } from '@/components/profile/GenericProfileRedirect'
 
-export default function ProfileRedirectPage() {
+export default function SettingsProfileRedirectPage() {
   return <GenericProfileRedirect />
 }

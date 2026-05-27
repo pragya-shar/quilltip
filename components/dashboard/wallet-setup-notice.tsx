@@ -1,15 +1,11 @@
 'use client'
 
 import { AlertCircle } from 'lucide-react'
-
-export function navigateToWalletTab() {
-  const walletTab = document.querySelector(
-    '[data-tab="wallet"]'
-  ) as HTMLButtonElement | null
-  if (walletTab) walletTab.click()
-}
+import { useProfileTabNavigation } from '@/hooks/useProfileTabNavigation'
 
 export function WalletSetupNotice() {
+  const navigateToTab = useProfileTabNavigation()
+
   return (
     <div className="bg-warning border border-warning/50 rounded-lg p-6">
       <div className="flex items-start gap-3">
@@ -24,7 +20,7 @@ export function WalletSetupNotice() {
           </p>
           <button
             type="button"
-            onClick={navigateToWalletTab}
+            onClick={() => navigateToTab('wallet')}
             className="text-sm font-medium text-warning-foreground hover:text-warning-foreground/80 underline"
           >
             Go to Wallet Settings →

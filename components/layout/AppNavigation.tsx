@@ -106,9 +106,9 @@ export default function AppNavigation() {
                   <span>Drafts</span>
                 </Link>
                 <Link
-                  href={`/${user?.username || 'profile'}`}
+                  href="/profile"
                   className={desktopLinkClass(
-                    pathname === `/${user?.username}`
+                    pathname === `/${user?.username}` || pathname === '/profile'
                   )}
                 >
                   <User className="w-4 h-4" />
@@ -210,9 +210,10 @@ export default function AppNavigation() {
                       <span>Drafts</span>
                     </Link>
                     <Link
-                      href={`/${user?.username || 'profile'}`}
+                      href="/profile"
                       className={mobileLinkClass(
-                        pathname === `/${user?.username}`
+                        pathname === `/${user?.username}` ||
+                          pathname === '/profile'
                       )}
                       onClick={closeMenu}
                     >
