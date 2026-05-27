@@ -99,6 +99,7 @@ const ToolbarButton = forwardRef<HTMLButtonElement, ToolbarButtonProps>(
         disabled={disabled}
         title={title}
         aria-label={title}
+        aria-pressed={isActive}
         tabIndex={tabIndex}
         onFocus={onFocus}
         data-toolbar-item="true"
