@@ -35,7 +35,10 @@ import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
 } from '@/lib/stellar/wallet-adapter'
-import { networkLabelLowercase, practiceFundsNote } from '@/lib/copy/network-status'
+import {
+  networkLabelLowercase,
+  practiceFundsNote,
+} from '@/lib/copy/network-status'
 
 interface WalletSettingsProps {
   walletAddress?: string | null
@@ -362,7 +365,9 @@ export function WalletSettings({
                   walletAddress &&
                   window.open(
                     `https://stellar.expert/explorer/${
-                      networkLabelLowercase() === 'testnet' ? 'testnet' : 'public'
+                      networkLabelLowercase() === 'testnet'
+                        ? 'testnet'
+                        : 'public'
                     }/account/${walletAddress}`,
                     '_blank'
                   )
