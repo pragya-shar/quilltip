@@ -43,4 +43,3 @@ export function useStaleLoading(
 
   return { isStale, reset }
 }
-
