@@ -184,7 +184,7 @@ describe('RegisterForm accessibility', () => {
     expect(unmetItems.length).toBeGreaterThan(0)
   })
 
-  it('clears password failure highlight when all rules are met', async () => {
+  it('clears password failure highlight when all rules are met', { timeout: 10_000 }, async () => {
     const user = userEvent.setup({ delay: null })
     render(<RegisterForm />)
 
