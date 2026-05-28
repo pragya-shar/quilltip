@@ -83,29 +83,36 @@ describe('RegisterForm accessibility', () => {
     expect(document.getElementById('email-error')).toBeNull()
   })
 
-  it('shows a server email conflict on the email field', { timeout: 10_000 }, async () => {
-    const user = userEvent.setup({ delay: null })
-    mockSignIn.mockRejectedValue(new Error('Account already exists'))
+  it(
+    'shows a server email conflict on the email field',
+    { timeout: 10_000 },
+    async () => {
+      const user = userEvent.setup({ delay: null })
+      mockSignIn.mockRejectedValue(new Error('Account already exists'))
 
-    render(<RegisterForm />)
+      render(<RegisterForm />)
 
-    await user.type(screen.getByLabelText(/email address/i), 'user@example.com')
-    await user.type(screen.getByLabelText(/^username$/i), 'myuser')
-    await user.type(screen.getByLabelText(/^password$/i), 'Password1')
-    await user.type(screen.getByLabelText(/^confirm password$/i), 'Password1')
-    await user.click(screen.getByRole('button', { name: /create account/i }))
-
-    await waitFor(() => {
-      expect(document.getElementById('email-error')).toHaveTextContent(
-        /an account with this email already exists/i
+      await user.type(
+        screen.getByLabelText(/email address/i),
+        'user@example.com'
       )
-    })
+      await user.type(screen.getByLabelText(/^username$/i), 'myuser')
+      await user.type(screen.getByLabelText(/^password$/i), 'Password1')
+      await user.type(screen.getByLabelText(/^confirm password$/i), 'Password1')
+      await user.click(screen.getByRole('button', { name: /create account/i }))
 
-    const emailInput = screen.getByLabelText(/email address/i)
-    expect(emailInput).toHaveAttribute('aria-invalid', 'true')
-    expect(emailInput).toHaveAttribute('aria-describedby', 'email-error')
-    expect(screen.queryByText(/registration failed/i)).not.toBeInTheDocument()
-  })
+      await waitFor(() => {
+        expect(document.getElementById('email-error')).toHaveTextContent(
+          /an account with this email already exists/i
+        )
+      })
+
+      const emailInput = screen.getByLabelText(/email address/i)
+      expect(emailInput).toHaveAttribute('aria-invalid', 'true')
+      expect(emailInput).toHaveAttribute('aria-describedby', 'email-error')
+      expect(screen.queryByText(/registration failed/i)).not.toBeInTheDocument()
+    }
+  )
 
   it('redirects to the return path after successful registration', async () => {
     const user = userEvent.setup({ delay: null })
