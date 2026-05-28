@@ -30,6 +30,7 @@ import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import { toast } from 'sonner'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { LegalLinks } from '@/components/legal/LegalLinks'
 import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
@@ -49,7 +50,9 @@ export function WalletSettings({
   className = '',
 }: WalletSettingsProps) {
   const updateProfile = useMutation(api.users.updateProfile)
-  const { isLoading, connect, disconnect } = useWallet()
+  const { isLoading, connect, disconnect } = useWallet({
+    activateOnMount: true,
+  })
   const [isCopied, setIsCopied] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
@@ -171,18 +174,19 @@ export function WalletSettings({
             <Wallet className="h-5 w-5" />
             Stellar Wallet
             <WalletTooltip concept="stellar" />
+            <WalletTooltip concept="testnet" />
           </CardTitle>
           <CardDescription>
             {isOwnProfile
-              ? 'Manage your Stellar wallet for sending and receiving tips'
-              : 'Send tips directly to this user&apos;s Stellar wallet'}
+              ? 'Manage your Stellar testnet wallet for sending and receiving practice tips'
+              : 'Send testnet tips directly to this user&apos;s Stellar wallet'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {isOwnProfile && (
-            <Alert className="bg-blue-50 border-blue-200">
-              <AlertCircle className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-blue-900">
+            <Alert className="border-info/50 bg-info">
+              <AlertCircle className="h-4 w-4 text-info-foreground" />
+              <AlertDescription className="text-info-foreground">
                 <strong>This wallet is for receiving tips.</strong> When readers
                 tip your articles, payments come here. To send tips to other
                 authors, you&apos;ll connect your wallet extension directly on
@@ -198,7 +202,8 @@ export function WalletSettings({
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      Connect your Stellar wallet to send and receive tips
+                      Connect your Stellar testnet wallet to send and receive
+                      practice tips
                     </AlertDescription>
                   </Alert>
 
@@ -225,7 +230,7 @@ export function WalletSettings({
                     Need a wallet?{' '}
                     <Link
                       href="/guide"
-                      className="text-blue-600 hover:underline"
+                      className="text-info-foreground hover:underline"
                     >
                       Follow our setup guide
                     </Link>
@@ -234,11 +239,11 @@ export function WalletSettings({
               ) : (
                 <div className="space-y-4">
                   {/* Connected State */}
-                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg space-y-3">
+                  <div className="p-4 bg-success border border-success/50 rounded-lg space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                        <span className="text-sm font-medium">
+                        <span className="text-sm font-medium text-success-foreground">
                           Wallet Connected
                         </span>
                       </div>
@@ -359,6 +364,12 @@ export function WalletSettings({
                   platform fees.
                 </AlertDescription>
               </Alert>
+            </div>
+          )}
+
+          {isOwnProfile && (
+            <div className="pt-4 mt-2 border-t border-border">
+              <LegalLinks linkClassName="text-muted-foreground hover:text-foreground text-xs" />
             </div>
           )}
         </CardContent>

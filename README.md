@@ -4,7 +4,7 @@
 
 [![quilltip.me](https://img.shields.io/badge/quilltip.me-blue?style=flat)](https://quilltip.me)
 [![CI](https://img.shields.io/github/actions/workflow/status/pragya-shar/quilltip/ci.yml?branch=development&style=flat&label=CI)](https://github.com/pragya-shar/quilltip/actions/workflows/ci.yml)
-[![Tipping Contract](https://img.shields.io/badge/Tipping_Contract-yellow?style=flat&logo=stellar)](https://stellar.expert/explorer/testnet/contract/CASU4I45DVK3ZMXA3T34A3XF3BM4NBTFDW3QVCB3XA7PIWJSTN4HCVWG) [![NFT Contract](https://img.shields.io/badge/NFT_Contract-yellow?style=flat&logo=stellar)](https://stellar.expert/explorer/testnet/contract/CAS44OQK7A6W5FDRAH3K3ZN7TTQTJ5ESRVG6MB2HBVFWZ5TVH26UUB4S)
+[![Tipping Contract](https://img.shields.io/badge/Tipping_Contract-yellow?style=flat&logo=stellar)](https://stellar.expert/explorer/testnet/contract/CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY) [![NFT Contract](https://img.shields.io/badge/NFT_Contract-yellow?style=flat&logo=stellar)](https://stellar.expert/explorer/testnet/contract/CAS44OQK7A6W5FDRAH3K3ZN7TTQTJ5ESRVG6MB2HBVFWZ5TVH26UUB4S)
 
 ![Next.js](https://img.shields.io/badge/Next.js-000?style=flat&logo=nextdotjs&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178c6?style=flat&logo=typescript&logoColor=white)
@@ -81,13 +81,14 @@ Open [http://localhost:3000](http://localhost:3000). See [docs/SETUP.md](docs/SE
 
 ## Documentation
 
-| Document                                     | Description                                            |
-| -------------------------------------------- | ------------------------------------------------------ |
-| [docs/SETUP.md](docs/SETUP.md)               | Full setup guide, environment variables, prerequisites |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Tech stack, project structure, database schema         |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)     | Production builds, Vercel, Convex deploy               |
-| [CONTRIBUTING.md](CONTRIBUTING.md)           | How to contribute — workflow, code style, PR process   |
-| [SECURITY.md](SECURITY.md)                   | Security policy and vulnerability reporting            |
+| Document                                                                           | Description                                            |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| [docs/SETUP.md](docs/SETUP.md)                                                     | Full setup guide, environment variables, prerequisites |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                       | Tech stack, project structure, database schema         |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)                                           | Production builds, Vercel, Convex deploy               |
+| [docs/tipping-contract-testnet-deploy.md](docs/tipping-contract-testnet-deploy.md) | Public testnet tipping contract deployment note        |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                                 | How to contribute — workflow, code style, PR process   |
+| [SECURITY.md](SECURITY.md)                                                         | Security policy and vulnerability reporting            |
 
 ## Status
 

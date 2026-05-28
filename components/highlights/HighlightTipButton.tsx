@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
-import { useRouter } from 'next/navigation'
+import { useWalletActivation } from '@/components/providers/WalletActivationContext'
+import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AlertCircle, Coins, Heart, Loader2, Wallet } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
@@ -25,8 +26,6 @@ import { TipUsdXlmRateLine } from '@/components/tipping/TipUsdXlmRateLine'
 import { useTipDialogXlmUsdRate } from '@/hooks/useTipDialogXlmUsdRate'
 import {
   TIP_PRESETS_HIGHLIGHT,
-  TIP_MIN_CENTS,
-  TIP_MAX_CENTS,
   TIP_MIN_USD,
   TIP_MAX_USD,
 } from '@/lib/constants'
@@ -39,6 +38,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
@@ -48,6 +48,14 @@ import {
   type TipFailureMessage,
 } from '@/lib/stellar/tip-error-messages'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { signInToTip, validateTipAmountForm } from '@/lib/tip/signInToTip'
+import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
+import {
+  clearPendingTipIntent,
+  matchesHighlightPendingIntent,
+  readPendingTipIntent,
+} from '@/lib/tip/pendingTipIntent'
+import { writePendingHighlightSelection } from '@/lib/highlight/pendingHighlightSelection'
 
 interface HighlightTipButtonProps {
   articleId: Id<'articles'>
@@ -61,6 +69,11 @@ interface HighlightTipButtonProps {
   endContainerPath?: string
   className?: string
   onSuccess?: () => void
+  resumeOpen?: boolean
+  resumeAmountCents?: number
+  resumeCustomAmount?: string
+  onResumeOpenChange?: (open: boolean) => void
+  onResumeDialogVisible?: () => void
 }
 
 export function HighlightTipButton({
@@ -75,14 +88,29 @@ export function HighlightTipButton({
   endContainerPath,
   className = '',
   onSuccess,
+  resumeOpen = false,
+  resumeAmountCents,
+  resumeCustomAmount,
+  onResumeOpenChange,
+  onResumeDialogVisible,
 }: HighlightTipButtonProps) {
   const { isAuthenticated } = useAuth()
-  const { isConnected, publicKey, signTransaction, connect } = useWallet()
+  const {
+    isConnected,
+    isLoading: isWalletLoading,
+    publicKey,
+    signTransaction,
+    connect,
+  } = useWallet()
+  const { activateWallet } = useWalletActivation()
   const router = useRouter()
-  const [isOpen, setIsOpen] = useState(false)
+  const pathname = usePathname()
+  const [isOpen, setIsOpen] = useState(resumeOpen)
+  const resumedRef = useRef(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
+  const restoredFromPendingIntentRef = useRef(false)
   const [isLoading, setIsLoading] = useState(false)
   const [tipFlowStep, setTipFlowStep] = useState<TipFlowStep | null>(null)
   const [tipFailure, setTipFailure] = useState<TipFailureMessage | null>(null)
@@ -99,9 +127,83 @@ export function HighlightTipButton({
     })
   }, [])
 
+  useEffect(() => {
+    if (!resumeOpen || resumedRef.current) return
+    resumedRef.current = true
+    applyPendingAmountFields(
+      {
+        amountCents: resumeAmountCents,
+        customAmount: resumeCustomAmount,
+      },
+      setSelectedAmount,
+      setCustomAmount
+    )
+    activateWallet()
+    setIsOpen(true)
+    onResumeOpenChange?.(true)
+  }, [
+    resumeOpen,
+    resumeAmountCents,
+    resumeCustomAmount,
+    activateWallet,
+    onResumeOpenChange,
+  ])
+
+  useEffect(() => {
+    // Only signal "visible" once the dialog is actually open (mounted).
+    if (!isOpen || !resumedRef.current) return
+    onResumeDialogVisible?.()
+  }, [isOpen, onResumeDialogVisible])
+
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated) return
+    if (resumedRef.current) return
+    if (restoredFromPendingIntentRef.current) return
+    if (selectedAmount != null || customAmount) return
+
+    const pending = readPendingTipIntent()
+    if (
+      !matchesHighlightPendingIntent(pending, articleId) ||
+      pending.startOffset !== startOffset ||
+      pending.endOffset !== endOffset ||
+      pending.highlightText !== highlightText
+    ) {
+      return
+    }
+
+    restoredFromPendingIntentRef.current = true
+    applyPendingAmountFields(
+      {
+        amountCents: pending.amountCents,
+        customAmount: pending.customAmount,
+      },
+      setSelectedAmount,
+      setCustomAmount
+    )
+
+    // Clear only after we know the dialog is open (it is, we're in this effect),
+    // and after the amount fields have been applied.
+    requestAnimationFrame(() => {
+      clearPendingTipIntent()
+    })
+  }, [
+    isOpen,
+    isAuthenticated,
+    articleId,
+    startOffset,
+    endOffset,
+    highlightText,
+    selectedAmount,
+    customAmount,
+  ])
+
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
+    if (open && isAuthenticated) {
+      activateWallet()
+    }
     setIsOpen(open)
+    onResumeOpenChange?.(open)
     setTipFailure(null)
     if (!open) {
       setSelectedAmount(null)
@@ -109,12 +211,39 @@ export function HighlightTipButton({
     }
   }
 
+  const handleSignInToTip = () => {
+    writePendingHighlightSelection({
+      articleId: String(articleId),
+      highlightText,
+      startOffset,
+      endOffset,
+    })
+    signInToTip(
+      router,
+      pathname,
+      { selectedAmount, customAmount },
+      {
+        kind: 'highlight',
+        articleId: articleId,
+        articleSlug,
+        highlightText,
+        startOffset,
+        endOffset,
+        ...(startContainerPath ? { startContainerPath } : {}),
+        ...(endContainerPath ? { endContainerPath } : {}),
+        ...(selectedAmount != null ? { amountCents: selectedAmount } : {}),
+        ...(customAmount ? { customAmount } : {}),
+      }
+    )
+  }
+
   const handleTip = async () => {
-    if (!isAuthenticated) {
-      toast.error('Please sign in to send tips')
-      router.push('/login')
-      return
-    }
+    const validation = validateTipAmountForm({
+      selectedAmount,
+      customAmount,
+    })
+    if (!validation.ok) return
+    const amountCents = validation.amountCents
 
     if (!isConnected || !publicKey) {
       toast.error('Please connect your Stellar wallet to send tips')
@@ -123,18 +252,6 @@ export function HighlightTipButton({
 
     if (!authorStellarAddress) {
       toast.error('Author has not set up their Stellar wallet yet')
-      return
-    }
-
-    const amountCents = selectedAmount || parseFloat(customAmount) * 100
-
-    if (!amountCents || amountCents < TIP_MIN_CENTS) {
-      toast.error('Please select or enter a valid amount')
-      return
-    }
-
-    if (amountCents > TIP_MAX_CENTS) {
-      toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(2)}`)
       return
     }
 
@@ -206,6 +323,7 @@ export function HighlightTipButton({
         authorShare: transactionData.authorReceived,
       })
 
+      clearPendingTipIntent()
       setTipFailure(null)
       setIsOpen(false)
       setSelectedAmount(null)
@@ -244,8 +362,10 @@ export function HighlightTipButton({
 
   const handleConnectWallet = async () => {
     try {
-      await connect()
-      toast.success('Wallet connected successfully!')
+      const connected = await connect()
+      if (connected) {
+        toast.success('Wallet connected successfully!')
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to connect wallet'
@@ -288,6 +408,7 @@ export function HighlightTipButton({
           </button>
         </DialogTrigger>
         <DialogContent
+          data-testid="highlight-tip-dialog"
           className="max-w-md max-h-[min(90dvh,calc(100%-2rem))] overflow-y-auto"
           onEscapeKeyDown={(e) => {
             if (isLoading) e.preventDefault()
@@ -324,11 +445,18 @@ export function HighlightTipButton({
             the author!
           </p>
 
-          {!isConnected && (
+          {!isAuthenticated ? (
+            <div className="mb-4 p-3 bg-muted border border-border rounded-lg text-sm text-muted-foreground">
+              <p>Sign in to tip this highlight.</p>
+              <p className="mt-1">
+                You can connect your Stellar wallet after signing in.
+              </p>
+            </div>
+          ) : !isConnected ? (
             <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-900 dark:text-amber-100">
               <p>Connect your Stellar wallet to tip this highlight.</p>
             </div>
-          )}
+          ) : null}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
             {TIP_PRESETS_HIGHLIGHT.map((amount) => (
@@ -408,15 +536,34 @@ export function HighlightTipButton({
               Cancel
             </button>
 
-            {!isConnected ? (
+            {!isAuthenticated ? (
+              <button
+                type="button"
+                onClick={handleSignInToTip}
+                disabled={isLoading || (!selectedAmount && !customAmount)}
+                className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Heart className="w-4 h-4" />
+                <span>Sign in to tip</span>
+              </button>
+            ) : !isConnected ? (
               <button
                 type="button"
                 onClick={handleConnectWallet}
-                disabled={isLoading}
+                disabled={isLoading || isWalletLoading}
                 className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <Wallet className="w-4 h-4" />
-                <span>Connect Wallet</span>
+                {isWalletLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Connecting</span>
+                  </>
+                ) : (
+                  <>
+                    <Wallet className="w-4 h-4" />
+                    <span>Connect Wallet</span>
+                  </>
+                )}
               </button>
             ) : (
               <button
@@ -445,7 +592,7 @@ export function HighlightTipButton({
           </div>
 
           {isConnected && publicKey && (
-            <div className="text-xs text-green-600 text-center mt-4">
+            <div className="text-xs text-green-600 dark:text-green-300 text-center mt-4">
               <p className="flex items-center justify-center gap-1">
                 <Wallet className="w-3 h-3" />
                 Connected: {publicKey.slice(0, 6)}...{publicKey.slice(-6)}
@@ -453,8 +600,9 @@ export function HighlightTipButton({
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            Powered by Stellar • Instant settlement • Low fees
+          <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1 flex-wrap">
+            Powered by Stellar testnet <WalletTooltip concept="testnet" /> •
+            Fast testnet settlement • Low fees
           </p>
         </DialogContent>
       </Dialog>

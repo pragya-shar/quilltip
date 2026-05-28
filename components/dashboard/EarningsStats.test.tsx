@@ -2,6 +2,10 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { EarningsStats } from '@/components/dashboard/EarningsStats'
+
+vi.mock('@/hooks/useProfileTabNavigation', () => ({
+  useProfileTabNavigation: () => vi.fn(),
+}))
 import type { Doc } from '@/types/convex'
 import type { Id } from '@/types/convex'
 
@@ -47,7 +51,7 @@ describe('EarningsStats', () => {
     expect(screen.getByText('$123.45')).toBeInTheDocument()
     expect(screen.getByText('$67.89')).toBeInTheDocument()
     expect(screen.getByText('$12.00')).toBeInTheDocument()
-    expect(screen.getByText('5 tips received')).toBeInTheDocument()
+    expect(screen.getByText('5 testnet tips received')).toBeInTheDocument()
   })
 
   it('renders monthly chart labels in display order', () => {

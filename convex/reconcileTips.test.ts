@@ -26,7 +26,7 @@ const AUTHOR_STELLAR = AUTHOR_KP.publicKey()
 const ATTACKER_STELLAR = ATTACKER_KP.publicKey()
 
 const TIPPING_CONTRACT_ID =
-  'CASU4I45DVK3ZMXA3T34A3XF3BM4NBTFDW3QVCB3XA7PIWJSTN4HCVWG'
+  'CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY'
 const WRONG_CONTRACT_ID =
   'CAS44OQK7A6W5FDRAH3K3ZN7TTQTJ5ESRVG6MB2HBVFWZ5TVH26UUB4S'
 
@@ -588,6 +588,8 @@ function stubMalformedHorizonResponse() {
 // without it, a `runAfter(0, ...)` job stays 'pending' past test teardown
 // and re-fires onto a closed transaction.
 async function drainScheduler(t: ReturnType<typeof convexTest>) {
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  await t.finishAllScheduledFunctions(() => {})
   await new Promise((resolve) => setTimeout(resolve, 50))
   await t.finishAllScheduledFunctions(() => {})
 }

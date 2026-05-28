@@ -3,11 +3,10 @@ import { JSONContent } from '@tiptap/react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
+import { AUTO_SAVE_DEBOUNCE_MS } from '@/lib/autosave'
+import { CONVEX_MUTATION_TIMEOUT_MS } from '@/lib/convexMutationWithTimeout'
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
-
-/** Convex may retry for a long time when offline; cap wait so the UI can show an error. */
-const SAVE_DRAFT_TIMEOUT_MS = 30_000
 
 interface DraftResponse {
   id: string
@@ -26,6 +25,7 @@ interface UseAutoSaveOptions {
   excerpt?: string
   tags?: string[]
   coverImage?: string
+  writerNotes?: string
   enabled?: boolean
   onSaveSuccess?: (response: DraftResponse) => void
   onSaveError?: (error: Error) => void
@@ -44,6 +44,7 @@ export function useAutoSave({
   excerpt,
   tags,
   coverImage,
+  writerNotes,
   enabled = true,
   onSaveSuccess,
   onSaveError,
@@ -60,6 +61,7 @@ export function useAutoSave({
   const previousCoverImageRef = useRef<string | undefined>(undefined)
   const previousExcerptRef = useRef<string | undefined>(undefined)
   const previousTagsRef = useRef<string | undefined>(undefined)
+  const previousNotesRef = useRef<string | undefined>(undefined)
 
   // Convex mutation for saving drafts
   const saveDraftMutation = useMutation(api.articles.saveDraft)
@@ -67,7 +69,7 @@ export function useAutoSave({
   const saveDraft = useCallback(async () => {
     // Allow save when we have content OR (title or coverImage) for metadata-only drafts
     const hasContent = !!content
-    const hasMetadata = !!(title?.trim() || coverImage)
+    const hasMetadata = !!(title?.trim() || coverImage || writerNotes?.trim())
     if (!hasContent && !hasMetadata) return
 
     setState((prev) => {
@@ -83,13 +85,14 @@ export function useAutoSave({
       excerpt,
       tags: tags?.length ? tags : undefined,
       coverImage: coverImage || undefined,
+      writerNotes: writerNotes?.trim() ? writerNotes : undefined,
     })
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutId = setTimeout(() => {
         reject(new Error('Save timed out. Check your connection.'))
-      }, SAVE_DRAFT_TIMEOUT_MS)
+      }, CONVEX_MUTATION_TIMEOUT_MS)
     })
 
     try {
@@ -136,6 +139,7 @@ export function useAutoSave({
     excerpt,
     tags,
     coverImage,
+    writerNotes,
     onSaveSuccess,
     onSaveError,
     saveDraftMutation,
@@ -148,13 +152,13 @@ export function useAutoSave({
 
     timeoutRef.current = setTimeout(() => {
       saveDraft()
-    }, 10000) // 10 seconds
+    }, AUTO_SAVE_DEBOUNCE_MS)
   }, [saveDraft])
 
   // Effect to handle content, title, coverImage, and excerpt changes
   useEffect(() => {
     const hasContent = !!content
-    const hasMetadata = !!(title?.trim() || coverImage)
+    const hasMetadata = !!(title?.trim() || coverImage || writerNotes?.trim())
     if (!enabled || (!hasContent && !hasMetadata)) return
 
     const contentString = content ? JSON.stringify(content) : ''
@@ -162,25 +166,29 @@ export function useAutoSave({
     const coverImageVal = coverImage ?? ''
     const excerptVal = excerpt ?? ''
     const tagsVal = tags?.join(',') ?? ''
+    const notesVal = writerNotes ?? ''
 
     const contentChanged = previousContentRef.current !== contentString
     const titleChanged = previousTitleRef.current !== titleVal
     const coverImageChanged = previousCoverImageRef.current !== coverImageVal
     const excerptChanged = previousExcerptRef.current !== excerptVal
     const tagsChanged = previousTagsRef.current !== tagsVal
+    const notesChanged = previousNotesRef.current !== notesVal
 
     if (
       contentChanged ||
       titleChanged ||
       coverImageChanged ||
       excerptChanged ||
-      tagsChanged
+      tagsChanged ||
+      notesChanged
     ) {
       previousContentRef.current = contentString
       previousTitleRef.current = titleVal
       previousCoverImageRef.current = coverImageVal
       previousExcerptRef.current = excerptVal
       previousTagsRef.current = tagsVal
+      previousNotesRef.current = notesVal
       debouncedSave()
     }
 
@@ -190,7 +198,16 @@ export function useAutoSave({
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [content, title, coverImage, excerpt, tags, enabled, debouncedSave])
+  }, [
+    content,
+    title,
+    coverImage,
+    excerpt,
+    tags,
+    writerNotes,
+    enabled,
+    debouncedSave,
+  ])
 
   // Save immediately function for manual triggers
   const saveNow = useCallback(async () => {
@@ -199,20 +216,6 @@ export function useAutoSave({
     }
     await saveDraft()
   }, [saveDraft])
-
-  // On mount, check for localStorage backup and restore if present
-  useEffect(() => {
-    try {
-      const backup = localStorage.getItem('quilltip_draft_backup')
-      if (backup) {
-        // Backup exists but we only use it if there's no current content
-        // The parent component can read this key if needed
-        localStorage.removeItem('quilltip_draft_backup')
-      }
-    } catch {
-      // localStorage unavailable — ignore
-    }
-  }, [])
 
   return {
     ...state,

@@ -26,6 +26,12 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import {
+  handleLandingHashClick,
+  scrollToLandingSection,
+} from '@/lib/landing/scroll-to-section'
+
+const MOBILE_MENU_CLOSE_MS = 280
 
 interface NavDropdownItem {
   icon: LucideIcon
@@ -60,7 +66,7 @@ const navDropdowns: NavDropdown[] = [
     featured: {
       title: 'Quilltip Platform',
       description:
-        'Write, publish, and earn — all in one decentralized platform built on Stellar.',
+        'Write, publish, and receive testnet tips — all on Stellar testnet.',
       href: '#features',
       bgClass: 'bg-gradient-to-br from-muted/70 to-muted',
       icon: PenTool,
@@ -94,8 +100,8 @@ const navDropdowns: NavDropdown[] = [
         items: [
           {
             icon: Zap,
-            title: 'Instant Tips',
-            description: 'Get paid via Stellar network',
+            title: 'Testnet Tips',
+            description: 'Receive tips via Stellar testnet',
             href: '#how-it-works',
           },
           {
@@ -119,7 +125,7 @@ const navDropdowns: NavDropdown[] = [
     featured: {
       title: 'Getting Started',
       description:
-        'Set up your wallet and start earning tips in under 5 minutes.',
+        'Set up a testnet wallet and practice tipping in under 5 minutes.',
       href: '/guide',
       bgClass: 'bg-gradient-to-br from-muted/60 to-muted',
       icon: BookOpen,
@@ -149,13 +155,13 @@ const navDropdowns: NavDropdown[] = [
             icon: Shield,
             title: 'Security',
             description: 'Blockchain security overview',
-            href: '#faq',
+            href: '#security',
           },
           {
             icon: Globe,
             title: 'Arweave Storage',
             description: 'How permanent storage works',
-            href: '#faq',
+            href: '#arweave-storage',
           },
         ],
       },
@@ -215,24 +221,25 @@ export default function Navigation() {
     return () => document.removeEventListener('keydown', handleEscape)
   }, [openDropdown, isOpen])
 
-  const handleSmoothScroll = (
+  const onHashNavClick = (
     e: React.MouseEvent<HTMLAnchorElement>,
     href: string
   ) => {
-    if (href.startsWith('#')) {
-      e.preventDefault()
-      const element = document.querySelector(href)
-      if (element) {
-        const offsetTop =
-          element.getBoundingClientRect().top + window.pageYOffset - 80
-        window.scrollTo({
-          top: offsetTop,
-          behavior: 'smooth',
-        })
-      }
+    if (handleLandingHashClick(e, href)) {
       setIsOpen(false)
       setOpenDropdown(null)
     }
+  }
+
+  const onMobileHashNavClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => {
+    if (!href.startsWith('#')) return
+
+    e.preventDefault()
+    setIsOpen(false)
+    window.setTimeout(() => scrollToLandingSection(href), MOBILE_MENU_CLOSE_MS)
   }
 
   const headerSolid = scrolled || isOpen
@@ -324,7 +331,7 @@ export default function Navigation() {
                           <Link
                             href={dropdown.featured.href}
                             onClick={(e) =>
-                              handleSmoothScroll(e, dropdown.featured.href)
+                              onHashNavClick(e, dropdown.featured.href)
                             }
                             className={`focus-ring w-[200px] shrink-0 p-5 ${dropdown.featured.bgClass} flex flex-col justify-between group/featured rounded-l-2xl`}
                           >
@@ -358,7 +365,7 @@ export default function Navigation() {
                                       key={item.title}
                                       href={item.href}
                                       onClick={(e) => {
-                                        handleSmoothScroll(e, item.href)
+                                        onHashNavClick(e, item.href)
                                         setOpenDropdown(null)
                                       }}
                                       className="focus-ring flex items-start gap-2.5 px-2.5 py-2 rounded-xl hover:bg-muted/50 transition-colors duration-150 group/item"
@@ -450,7 +457,10 @@ export default function Navigation() {
                             href={item.href}
                             className="focus-ring flex items-center gap-2.5 py-2 px-1 rounded-lg text-foreground hover:bg-muted transition-colors"
                             onClick={(e) => {
-                              handleSmoothScroll(e, item.href)
+                              if (item.href.startsWith('#')) {
+                                onMobileHashNavClick(e, item.href)
+                                return
+                              }
                               setIsOpen(false)
                             }}
                           >

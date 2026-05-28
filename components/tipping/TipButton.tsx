@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
-import { useRouter } from 'next/navigation'
+import { useWalletActivation } from '@/components/providers/WalletActivationContext'
+import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AlertCircle, Coins, Heart, Loader2, Wallet } from 'lucide-react'
 import { WalletTooltip } from '@/components/guide/WalletTooltip'
@@ -24,13 +25,7 @@ import {
 import { TipBreakdownSummaryLine } from '@/components/tipping/TipBreakdownSummaryLine'
 import { TipUsdXlmRateLine } from '@/components/tipping/TipUsdXlmRateLine'
 import { useTipDialogXlmUsdRate } from '@/hooks/useTipDialogXlmUsdRate'
-import {
-  TIP_PRESETS_ARTICLE,
-  TIP_MIN_CENTS,
-  TIP_MIN_USD,
-  TIP_MAX_CENTS,
-  TIP_MAX_USD,
-} from '@/lib/constants'
+import { TIP_PRESETS_ARTICLE, TIP_MIN_USD, TIP_MAX_USD } from '@/lib/constants'
 import {
   Dialog,
   DialogContent,
@@ -49,6 +44,11 @@ import {
   type TipFailureMessage,
 } from '@/lib/stellar/tip-error-messages'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { signInToTip, validateTipAmountForm } from '@/lib/tip/signInToTip'
+import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
+import { clearPendingTipIntent } from '@/lib/tip/pendingTipIntent'
+import type { ArticlePendingTipIntent } from '@/lib/tip/pendingTipIntent'
+import { useArticleTipResume } from '@/hooks/useArticleTipResume'
 
 interface TipButtonProps {
   articleId: Id<'articles'>
@@ -64,8 +64,16 @@ export function TipButton({
   className = '',
 }: TipButtonProps) {
   const { isAuthenticated } = useAuth()
-  const { isConnected, publicKey, signTransaction, connect } = useWallet()
+  const {
+    isConnected,
+    isLoading: isWalletLoading,
+    publicKey,
+    signTransaction,
+    connect,
+  } = useWallet()
+  const { activateWallet } = useWalletActivation()
   const router = useRouter()
+  const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
@@ -87,33 +95,62 @@ export function TipButton({
     })
   }, [])
 
+  const applyResumeIntent = useCallback(
+    (intent: ArticlePendingTipIntent) => {
+      applyPendingAmountFields(intent, setSelectedAmount, setCustomAmount)
+      if (intent.message) setTipMessage(intent.message)
+      activateWallet()
+      setIsOpen(true)
+      requestAnimationFrame(() => setIsOpen(true))
+    },
+    [activateWallet]
+  )
+
+  useArticleTipResume({
+    articleId,
+    isOpen,
+    onResume: applyResumeIntent,
+  })
+
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
+    if (open && isAuthenticated) {
+      activateWallet()
+    }
     setIsOpen(open)
     setTipFailure(null)
   }
 
+  const handleSignInToTip = () => {
+    signInToTip(
+      router,
+      pathname,
+      {
+        selectedAmount,
+        customAmount,
+        message: tipMessage,
+      },
+      {
+        kind: 'article',
+        articleId: articleId,
+        ...(selectedAmount != null ? { amountCents: selectedAmount } : {}),
+        ...(customAmount ? { customAmount } : {}),
+        ...(tipMessage.trim() ? { message: tipMessage.trim() } : {}),
+      }
+    )
+  }
+
   const handleTip = async () => {
-    if (!isAuthenticated) {
-      toast.error('Please sign in to send tips')
-      router.push('/login')
-      return
-    }
+    const validation = validateTipAmountForm({
+      selectedAmount,
+      customAmount,
+      message: tipMessage,
+    })
+    if (!validation.ok) return
+    const amountCents = validation.amountCents
 
     if (!isConnected || !publicKey) {
       toast.error('Please connect your Stellar wallet to send tips')
-      return
-    }
-
-    const amountCents = selectedAmount || parseFloat(customAmount) * 100
-
-    if (!amountCents || amountCents < TIP_MIN_CENTS) {
-      toast.error('Please select or enter a valid amount')
-      return
-    }
-
-    if (amountCents > TIP_MAX_CENTS) {
-      toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(2)}`)
       return
     }
 
@@ -121,11 +158,6 @@ export function TipButton({
       toast.error(
         'Author has not set up their Stellar wallet for receiving tips'
       )
-      return
-    }
-
-    if (tipMessage.length > 500) {
-      toast.error('Message must be 500 characters or less')
       return
     }
 
@@ -183,6 +215,7 @@ export function TipButton({
         authorShare: transactionData.authorReceived,
       })
 
+      clearPendingTipIntent()
       setTipFailure(null)
       setIsOpen(false)
       setSelectedAmount(null)
@@ -224,8 +257,10 @@ export function TipButton({
 
   const handleConnectWallet = async () => {
     try {
-      await connect()
-      toast.success('Wallet connected successfully!')
+      const connected = await connect()
+      if (connected) {
+        toast.success('Wallet connected successfully!')
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Failed to connect wallet'
@@ -284,20 +319,27 @@ export function TipButton({
             </Alert>
           )}
 
-          {!isConnected && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-900">
+          {!isAuthenticated ? (
+            <div className="p-3 bg-muted border border-border rounded-lg text-sm text-muted-foreground">
+              <p>Sign in to send a tip to {authorName}.</p>
+              <p className="mt-1">
+                You can connect your Stellar wallet after signing in.
+              </p>
+            </div>
+          ) : !isConnected ? (
+            <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-900 dark:text-amber-100">
               <p>Connect your Stellar wallet to send tips to {authorName}.</p>
               <p className="mt-1">
                 New to crypto?{' '}
                 <Link
                   href="/guide"
-                  className="focus-ring rounded text-amber-700 underline font-medium hover:text-amber-900"
+                  className="focus-ring rounded text-amber-700 dark:text-amber-300 underline font-medium hover:text-amber-900 dark:hover:text-amber-100"
                 >
                   Follow our setup guide
                 </Link>
               </p>
             </div>
-          )}
+          ) : null}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {TIP_PRESETS_ARTICLE.map((amount) => (
@@ -311,7 +353,7 @@ export function TipButton({
                 disabled={isLoading}
                 className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border-2 transition-all disabled:opacity-50 ${
                   selectedAmount === amount.cents
-                    ? 'border-orange-500 bg-orange-50'
+                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/30'
                     : 'border-border hover:border-orange-300'
                 }`}
               >
@@ -399,15 +441,34 @@ export function TipButton({
               Cancel
             </button>
 
-            {!isConnected ? (
+            {!isAuthenticated ? (
+              <button
+                type="button"
+                onClick={handleSignInToTip}
+                disabled={isLoading || (!selectedAmount && !customAmount)}
+                className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <Heart className="w-4 h-4" />
+                <span>Sign in to tip</span>
+              </button>
+            ) : !isConnected ? (
               <button
                 type="button"
                 onClick={handleConnectWallet}
-                disabled={isLoading}
+                disabled={isLoading || isWalletLoading}
                 className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <Wallet className="w-4 h-4" />
-                <span>Connect Wallet</span>
+                {isWalletLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Connecting</span>
+                  </>
+                ) : (
+                  <>
+                    <Wallet className="w-4 h-4" />
+                    <span>Connect Wallet</span>
+                  </>
+                )}
               </button>
             ) : (
               <button
@@ -444,9 +505,10 @@ export function TipButton({
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1">
-            Powered by Stellar <WalletTooltip concept="stellar" /> • Instant
-            settlement • Low fees
+          <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1 flex-wrap">
+            Powered by Stellar testnet <WalletTooltip concept="stellar" />{' '}
+            <WalletTooltip concept="testnet" /> • Fast testnet settlement • Low
+            fees
           </p>
         </DialogContent>
       </Dialog>

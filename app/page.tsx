@@ -1,19 +1,34 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useAuth } from '@/components/providers/AuthContext'
 import Navigation from '@/components/landing/Navigation'
 import AppNavigation from '@/components/layout/AppNavigation'
 import HeroSection from '@/components/landing/HeroSection'
-import FeaturesSection from '@/components/landing/FeaturesSection'
-import HowItWorksSection from '@/components/landing/HowItWorksSection'
-import FAQSection from '@/components/landing/FAQSection'
-import Footer from '@/components/landing/Footer'
+
+const LandingBelowFold = dynamic(
+  () => import('@/components/landing/LandingBelowFold'),
+  { ssr: false }
+)
+import { useLandingHashScroll } from '@/components/landing/useLandingHashScroll'
 import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
 import { HomeRecentArticlesSection } from '@/components/articles/HomeRecentArticlesSection'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { DashboardRecentArticlesFallback } from '@/components/error/SectionErrorFallback'
 import Link from 'next/link'
 import { PenSquare, BookOpen, Wallet, TrendingUp } from 'lucide-react'
+
+function PublicLandingPage() {
+  useLandingHashScroll()
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background via-muted/30 to-background">
+      <Navigation />
+      <HeroSection />
+      <LandingBelowFold />
+    </div>
+  )
+}
 
 export default function HomePage() {
   const { user, isAuthenticated } = useAuth()
@@ -84,7 +99,7 @@ export default function HomePage() {
                     </h3>
                   </div>
                   <p className="text-muted-foreground">
-                    Track tips received and article performance
+                    Track testnet tip activity and article performance
                   </p>
                 </Link>
               ) : (
@@ -97,11 +112,12 @@ export default function HomePage() {
                       <Wallet className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                     </div>
                     <h3 className="text-lg font-semibold ml-3">
-                      Set Up Wallet
+                      Set Up Testnet Wallet
                     </h3>
                   </div>
                   <p className="text-muted-foreground">
-                    Connect a Stellar wallet to send and receive tips
+                    Connect a Stellar testnet wallet to send and receive
+                    practice tips
                   </p>
                 </Link>
               )}
@@ -130,14 +146,5 @@ export default function HomePage() {
     )
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-muted/30 to-background">
-      <Navigation />
-      <HeroSection />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <FAQSection />
-      <Footer />
-    </div>
-  )
+  return <PublicLandingPage />
 }

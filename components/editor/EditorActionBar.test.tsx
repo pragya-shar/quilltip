@@ -3,6 +3,7 @@ import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import type { Editor } from '@tiptap/react'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
+import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
 
 function makeStubEditor(): Editor {
   return {
@@ -45,6 +46,31 @@ describe('EditorActionBar autosave status', () => {
     for (const status of statuses) {
       expect(status).toHaveTextContent('Saving...')
     }
+  })
+
+  it('shows Saving... in status and on Save button while isSaving with unsaved edits', () => {
+    render(<EditorActionBar {...baseProps} isSaving hasUnsavedChanges />)
+    const statuses = screen.getAllByRole('status')
+    for (const status of statuses) {
+      expect(status).toHaveTextContent('Saving...')
+    }
+    const saveButtons = screen.getAllByRole('button', { name: 'Saving...' })
+    expect(saveButtons.length).toBeGreaterThanOrEqual(1)
+    for (const button of saveButtons) {
+      expect(button).toBeDisabled()
+    }
+  })
+
+  it('shows Could not save with destructive Draft pill when error and dirty', () => {
+    const { container } = render(
+      <EditorActionBar {...baseProps} error="Network error" hasUnsavedChanges />
+    )
+    const statuses = screen.getAllByRole('status')
+    for (const status of statuses) {
+      expect(status).toHaveTextContent("Couldn't save")
+    }
+    expect(container.querySelector('.bg-destructive\\/15')).not.toBeNull()
+    expect(screen.getByText('Save failed')).toBeInTheDocument()
   })
 
   it('shows relative saved label when lastSavedAt is set and not dirty', () => {
@@ -92,7 +118,10 @@ describe('EditorActionBar autosave status', () => {
     const statuses = screen.getAllByRole('status')
     for (const status of statuses) {
       expect(status).toHaveTextContent("Couldn't save")
-      expect(status).toHaveAttribute('title', 'Network error')
+      expect(status).toHaveAttribute(
+        'title',
+        `Network error · ${AUTO_SAVE_GUIDANCE}`
+      )
     }
   })
 

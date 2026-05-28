@@ -1,13 +1,21 @@
 'use client'
 
-import { type JSONContent } from '@tiptap/react'
+import dynamic from 'next/dynamic'
+import { type JSONContent } from '@tiptap/core'
 import { useEffect, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import Image from 'next/image'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import ShareButtons from './ShareButtons'
-import { HighlightableArticle } from '@/components/articles/HighlightableArticle'
-import { useAuth } from '@/components/providers/AuthContext'
+import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
+import { ArticleBodySkeleton } from '@/components/articles/ArticleBodySkeleton'
+const HighlightableArticle = dynamic(
+  () =>
+    import('@/components/articles/HighlightableArticle').then((mod) => ({
+      default: mod.HighlightableArticle,
+    })),
+  { ssr: false, loading: () => <ArticleBodySkeleton /> }
+)
 import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
 import { TagFilterLink } from '@/components/articles/TagFilterLink'
@@ -20,23 +28,22 @@ const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
 interface ArticleDisplayProps {
   article: ArticleForDisplay
+  authorStellarAddress?: string | null
   showHighlights?: boolean
   tocHeadings?: TocHeading[]
 }
 
 export default function ArticleDisplay({
   article,
+  authorStellarAddress: _authorStellarAddress,
   showHighlights = true,
   tocHeadings = [],
 }: ArticleDisplayProps) {
   const [currentUrl, setCurrentUrl] = useState('')
-  const { isAuthenticated } = useAuth()
 
   useEffect(() => {
     setCurrentUrl(window.location.href)
   }, [])
-
-  const effectiveShowHighlights = showHighlights && isAuthenticated
 
   const publishedDate = article.publishedAt
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
@@ -112,13 +119,22 @@ export default function ArticleDisplay({
       </header>
 
       <div className="article-content">
-        <HighlightableArticle
-          articleId={article.id as Id<'articles'>}
-          content={article.content ?? EMPTY_DOC}
-          editable={false}
-          showHighlights={effectiveShowHighlights}
-          tocHeadings={tocHeadings}
-        />
+        {showHighlights ? (
+          <>
+            <HighlightableArticle
+              articleId={article.id as Id<'articles'>}
+              content={article.content ?? EMPTY_DOC}
+              editable={false}
+              showHighlights={showHighlights}
+              tocHeadings={tocHeadings}
+            />
+          </>
+        ) : (
+          <ArticleReadOnlyBody
+            content={article.content ?? EMPTY_DOC}
+            tocHeadings={tocHeadings}
+          />
+        )}
       </div>
 
       {currentUrl && (

@@ -22,30 +22,33 @@ import {
   ArrowRight,
   HelpCircle,
   X,
+  Loader2,
 } from 'lucide-react'
 import Link from 'next/link'
+import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 
 const steps = [
   {
     icon: Sparkles,
     title: 'Welcome to Quilltip',
-    description:
-      'A platform where readers reward writers directly. Read articles, highlight your favorite passages, and tip the authors you love — all powered by the Stellar blockchain.',
-    color: 'bg-blue-100 text-blue-700',
+    description: `A platform where readers reward writers directly on Stellar testnet. ${TESTNET_PRACTICE_NOTE}`,
+    color: 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300',
   },
   {
     icon: Wallet,
     title: 'Set Up Your Wallet',
     description:
-      'To tip writers, you need a Stellar wallet (like Freighter). It takes about 2 minutes to set up. Reading articles is always free — no wallet needed.',
-    color: 'bg-amber-100 text-amber-700',
+      'To tip writers on testnet, you need a Stellar wallet (like Freighter) set to Testnet with free test XLM. It takes about 2 minutes. Reading articles is always free — no wallet needed.',
+    color:
+      'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300',
   },
   {
     icon: BookOpen,
     title: 'Start Exploring',
     description:
-      'Browse articles from writers, highlight passages you love, and send tips starting at just $0.01. 97.5% goes directly to the author.',
-    color: 'bg-green-100 text-green-700',
+      'Browse articles from writers, highlight passages you love, and send practice tips starting at $0.01 in testnet XLM. 97.5% goes directly to the author.',
+    color:
+      'bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-300',
   },
 ]
 
@@ -74,6 +77,12 @@ export function OnboardingDialog() {
     }
   }
 
+  const handleOpenChange = (next: boolean) => {
+    if (!next && open && !isCompleting) {
+      void handleComplete()
+    }
+  }
+
   const navigateAfterComplete = async (href: string) => {
     const ok = await handleComplete()
     if (ok) {
@@ -92,17 +101,21 @@ export function OnboardingDialog() {
   const step = steps[currentStep]
   if (!step) return null
   const StepIcon = step.icon
+  const stepLabel = `Step ${currentStep + 1} of ${steps.length}`
 
   return (
-    <Dialog modal={false} open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-md pointer-events-auto"
-        overlayClassName="pointer-events-none bg-black/40"
+        className="sm:max-w-md"
+        overlayClassName="bg-black/40"
         hideCloseButton
+        onInteractOutside={(e) => e.preventDefault()}
+        onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => {
           e.preventDefault()
-          void handleComplete()
+          if (!isCompleting) void handleComplete()
         }}
+        aria-busy={isCompleting}
       >
         <Button
           type="button"
@@ -122,15 +135,25 @@ export function OnboardingDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex justify-center gap-2 mb-2">
-          {steps.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                i === currentStep ? 'w-8 bg-neutral-900' : 'w-4 bg-neutral-200'
-              }`}
-            />
-          ))}
+        <div
+          role="group"
+          aria-label={stepLabel}
+          className="flex flex-col items-center gap-2 mb-2"
+        >
+          <p className="text-xs text-muted-foreground font-medium">
+            {stepLabel}
+          </p>
+          <div className="flex justify-center gap-2">
+            {steps.map((_, i) => (
+              <div
+                key={i}
+                aria-current={i === currentStep ? 'step' : undefined}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  i === currentStep ? 'w-8 bg-foreground' : 'w-4 bg-muted'
+                }`}
+              />
+            ))}
+          </div>
         </div>
 
         <AnimatePresence mode="wait">
@@ -145,10 +168,10 @@ export function OnboardingDialog() {
             <div className={`inline-flex p-4 rounded-2xl ${step.color} mb-4`}>
               <StepIcon className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-neutral-900 mb-2">
+            <h3 className="text-xl font-bold text-foreground mb-2">
               {step.title}
             </h3>
-            <p className="text-sm text-neutral-600 leading-relaxed max-w-sm mx-auto">
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
               {step.description}
             </p>
           </motion.div>
@@ -170,7 +193,11 @@ export function OnboardingDialog() {
                   variant="default"
                   disabled={isCompleting}
                 >
-                  <HelpCircle className="w-4 h-4 mr-2" />
+                  {isCompleting ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <HelpCircle className="w-4 h-4 mr-2" />
+                  )}
                   Set Up Now
                 </Button>
               </Link>
@@ -247,8 +274,17 @@ export function OnboardingDialog() {
               className="w-full min-h-11"
               disabled={isCompleting}
             >
-              Next
-              <ArrowRight className="w-4 h-4 ml-2" />
+              {isCompleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  Next
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </>
+              )}
             </Button>
           )}
 
@@ -258,7 +294,14 @@ export function OnboardingDialog() {
               className="w-full min-h-11"
               disabled={isCompleting}
             >
-              Get Started
+              {isCompleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Get Started'
+              )}
             </Button>
           )}
 
@@ -271,7 +314,14 @@ export function OnboardingDialog() {
             disabled={isCompleting}
             aria-label="Skip onboarding"
           >
-            Skip onboarding
+            {isCompleting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Skip onboarding'
+            )}
           </Button>
         </div>
       </DialogContent>

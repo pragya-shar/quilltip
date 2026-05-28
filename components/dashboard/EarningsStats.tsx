@@ -5,10 +5,10 @@ import { Coins, Clock, DollarSign, Wallet } from 'lucide-react'
 import type { Doc } from '@/types/convex'
 import { MonthlyEarningsChart } from '@/components/dashboard/monthly-earnings-chart'
 import { TopEarningArticles } from '@/components/dashboard/top-earning-articles'
-import {
-  WalletSetupNotice,
-  navigateToWalletTab,
-} from '@/components/dashboard/wallet-setup-notice'
+import { WalletSetupNotice } from '@/components/dashboard/wallet-setup-notice'
+import { useProfileTabNavigation } from '@/hooks/useProfileTabNavigation'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 
 export type EarningsStatsProps = {
   earnings: Doc<'authorEarnings'>
@@ -25,6 +25,7 @@ export function EarningsStats({
   onOpenWithdrawModal,
   withdrawTriggerRef,
 }: EarningsStatsProps) {
+  const navigateToTab = useProfileTabNavigation()
   const lastWithdrawal = earnings.lastWithdrawalAt
   const belowWithdrawalMinimum = earnings.availableBalanceUsd < minWithdrawalUsd
   const showMinimumWithdrawalHelper =
@@ -32,6 +33,12 @@ export function EarningsStats({
 
   return (
     <>
+      <Alert className="border-border bg-muted/60">
+        <AlertDescription className="text-sm text-muted-foreground">
+          {TESTNET_PRACTICE_NOTE}
+        </AlertDescription>
+      </Alert>
+
       {userProfile && !userProfile.stellarAddress && <WalletSetupNotice />}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -44,7 +51,7 @@ export function EarningsStats({
             ${earnings.totalEarnedUsd.toFixed(2)}
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            {earnings.tipCount} tips received
+            {earnings.tipCount} testnet tips received
           </p>
         </div>
 
@@ -61,7 +68,7 @@ export function EarningsStats({
             type="button"
             onClick={() => {
               if (!userProfile?.stellarAddress) {
-                navigateToWalletTab()
+                navigateToTab('wallet')
               } else {
                 onOpenWithdrawModal()
               }
@@ -74,8 +81,8 @@ export function EarningsStats({
           </button>
           {showMinimumWithdrawalHelper && (
             <p className="mt-2 text-sm text-muted-foreground">
-              Withdrawals require a minimum available balance of $
-              {minWithdrawalUsd.toFixed(2)}. Add earnings until your balance
+              Testnet withdrawals require a minimum available balance of $
+              {minWithdrawalUsd.toFixed(2)}. Add testnet tips until your balance
               reaches this amount.
             </p>
           )}

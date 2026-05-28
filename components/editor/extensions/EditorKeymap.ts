@@ -20,6 +20,8 @@ export const EditorKeymap = Extension.create({
       'Mod-b': () => focus().toggleBold().run(),
       'Mod-i': () => focus().toggleItalic().run(),
 
+      'Mod-Shift-i': () => focus().selectResizableImage().run(),
+
       'Mod-k': () => {
         if (typeof window === 'undefined') return false
 

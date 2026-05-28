@@ -46,8 +46,8 @@ next-env.d.ts
 
 # playwright
 .playwright-mcp
-test-results/
-playwright-report/
+/test-results/
+/playwright-report/
 
 # contracts
 contracts/tipping/target
@@ -61,8 +61,10 @@ contracts/article-nft/target
 CONTRACT_DEPLOYMENT_PLAN.md
 IMPROVEMENTS_MOSCOW.md
 docs/tranche-2.md
+docs/contract-evidence.md
 docs/tipping-verification-plan.md
 docs/final-gtm-plan.md
 
 .agents/*
 certificates
+.gstack/

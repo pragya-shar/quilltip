@@ -1,6 +1,7 @@
 import { Mark, mergeAttributes } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { HighlightConverter } from '@/lib/highlights/HighlightConverter'
 
 export interface HighlightAttributes {
   id: string
@@ -10,6 +11,9 @@ export interface HighlightAttributes {
   userAvatar?: string
   note?: string
   createdAt: number
+  overlapCount?: number
+  startOffset?: number
+  endOffset?: number
 }
 
 export interface HighlightOptions {
@@ -29,25 +33,117 @@ declare module '@tiptap/core' {
   }
 }
 
-// Helper function to convert hex color to RGB values
-const getColorRgb = (hexColor: string): string => {
-  const colorMap: Record<string, string> = {
-    '#F59E0B': '245, 158, 11', // Amber
-    '#10B981': '16, 185, 129', // Emerald
-    '#3B82F6': '59, 130, 246', // Azure
-    '#F43F5E': '244, 63, 94', // Rose
-    '#8B5CF6': '139, 92, 246', // Violet
-    '#FB7185': '251, 113, 133', // Coral
-    // Fallback for old colors
-    '#FFEB3B': '255, 235, 59', // Yellow
-    '#B2FF59': '178, 255, 89', // Green
-    '#40C4FF': '64, 196, 255', // Blue
-    '#FF4081': '255, 64, 129', // Pink
-    '#E040FB': '224, 64, 251', // Purple
-    '#FFAB40': '255, 171, 64', // Orange
+/** Escape a string for use as a CSS custom property value. */
+export function cssStringValue(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+/** Parse --highlight-user-name from inline style (or legacy data attribute). */
+export function parseHighlightUserNameFromElement(
+  element: HTMLElement
+): string | null {
+  const legacy = element.getAttribute('data-user-name')
+  if (legacy) return legacy
+
+  const style = element.getAttribute('style') ?? ''
+  const quoted = style.match(/--highlight-user-name:\s*"((?:[^"\\]|\\.)*)"/)
+  if (quoted?.[1]) {
+    return quoted[1].replace(/\\"/g, '"').replace(/\\\\/g, '\\')
+  }
+  const unquoted = style.match(/--highlight-user-name:\s*([^;]+)/)
+  if (unquoted?.[1]) {
+    return unquoted[1].trim()
+  }
+  return null
+}
+
+/** Default tint strength for a single highlight mark (matches highlights.css). */
+export const HIGHLIGHT_READ_MIX_DEFAULT = '18%'
+
+/** Muted RGB for in-article marks (~35% toward neutral); picker hex unchanged in DB. */
+export const HIGHLIGHT_READ_RGB_MAP: Record<string, string> = {
+  '#F59E0B': '204, 148, 52',
+  '#10B981': '89, 162, 118',
+  '#3B82F6': '104, 133, 210',
+  '#F43F5E': '189, 89, 96',
+  '#8B5CF6': '134, 108, 210',
+  '#FB7185': '201, 114, 128',
+  '#FFEB3B': '210, 198, 88',
+  '#FFB3BA': '210, 178, 181',
+  '#BAE1FF': '178, 198, 210',
+  '#BAFFC9': '178, 210, 188',
+  '#FFD9BA': '210, 198, 178',
+  '#E8BAFF': '198, 178, 210',
+  '#B2FF59': '178, 210, 128',
+  '#40C4FF': '128, 178, 210',
+  '#FF4081': '210, 128, 158',
+  '#E040FB': '198, 128, 210',
+  '#FFAB40': '210, 178, 128',
+}
+
+/** Build inline style for highlight marks (visual only, not screen-reader metadata). */
+export function buildHighlightMarkStyle(attributes: {
+  color?: string | null
+  userName?: string | null
+}): string | undefined {
+  const parts: string[] = []
+  if (attributes.color) {
+    parts.push(`--highlight-color: ${attributes.color}`)
+    parts.push(`--highlight-color-rgb: ${getColorRgb(attributes.color)}`)
+    parts.push(`--highlight-mix: ${HIGHLIGHT_READ_MIX_DEFAULT}`)
+  }
+  if (attributes.userName) {
+    parts.push(`--highlight-user-name: ${cssStringValue(attributes.userName)}`)
+  }
+  return parts.length > 0 ? `${parts.join('; ')};` : undefined
+}
+
+/** Accessible name for the focusable highlight control (not the mark). */
+export function buildHighlightAriaLabel(attrs: {
+  userName?: string | null
+  note?: string | null
+}): string {
+  const creator = attrs.userName || 'Anonymous'
+  let label = `Highlight by ${creator}`
+  if (attrs.note) {
+    label += `. Note: ${attrs.note}`
+  }
+  return label
+}
+
+export function createHighlightControlButton(
+  attrs: HighlightAttributes,
+  onHighlightClick?: (highlight: HighlightAttributes, event: MouseEvent) => void
+): HTMLButtonElement {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'highlight-attribution-control'
+  button.setAttribute('aria-label', buildHighlightAriaLabel(attrs))
+
+  if (!onHighlightClick) {
+    return button
   }
 
-  return colorMap[hexColor] || '255, 235, 59' // Default to yellow if not found
+  const activate = (event: Event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    onHighlightClick(attrs, event as MouseEvent)
+  }
+
+  button.addEventListener('click', activate)
+  button.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      activate(event)
+    }
+  })
+
+  return button
+}
+
+/** Muted RGB for mark backgrounds; normalizes hex case for lookup. */
+export function getColorRgb(hexColor: string): string {
+  const normalized = hexColor.toUpperCase()
+  return HIGHLIGHT_READ_RGB_MAP[normalized] ?? '210, 198, 88'
 }
 
 // Overlap detection helper
@@ -72,6 +168,7 @@ class HighlightOverlapManager {
     this.highlights.clear()
   }
 }
+
 const HighlightExtension = Mark.create<HighlightOptions>({
   name: 'highlight',
 
@@ -107,14 +204,19 @@ const HighlightExtension = Mark.create<HighlightOptions>({
         parseHTML: (element) =>
           element.getAttribute('data-color') || element.style.backgroundColor,
         renderHTML: (attributes) => {
-          if (!attributes.color) {
+          if (!attributes.color && !attributes.userName) {
             return {}
           }
-          return {
-            'data-color': attributes.color,
-            'data-color-rgb': getColorRgb(attributes.color),
-            style: `--highlight-color: ${attributes.color}; --highlight-color-rgb: ${getColorRgb(attributes.color)}; --highlight-opacity: 0.4;`,
+          const style = buildHighlightMarkStyle(attributes)
+          const result: Record<string, string> = {}
+          if (attributes.color) {
+            result['data-color'] = attributes.color
+            result['data-color-rgb'] = getColorRgb(attributes.color)
           }
+          if (style) {
+            result.style = style
+          }
+          return result
         },
       },
       userId: {
@@ -131,15 +233,10 @@ const HighlightExtension = Mark.create<HighlightOptions>({
       },
       userName: {
         default: null,
-        parseHTML: (element) => element.getAttribute('data-user-name'),
-        renderHTML: (attributes) => {
-          if (!attributes.userName) {
-            return {}
-          }
-          return {
-            'data-user-name': attributes.userName,
-          }
-        },
+        // Kept in ProseMirror attrs for widgets; not exposed as data-user-name on mark.
+        parseHTML: (element) =>
+          parseHighlightUserNameFromElement(element as HTMLElement),
+        renderHTML: () => ({}),
       },
       note: {
         default: null,
@@ -150,7 +247,6 @@ const HighlightExtension = Mark.create<HighlightOptions>({
           }
           return {
             'data-note': attributes.note,
-            title: attributes.note, // Show note on hover
           }
         },
       },
@@ -208,7 +304,7 @@ const HighlightExtension = Mark.create<HighlightOptions>({
   },
 
   addProseMirrorPlugins() {
-    const { onHighlightClick } = this.options
+    const { onHighlightClick, highlights: configuredHighlights } = this.options
     const tapState: { startX: number; startY: number } = {
       startX: 0,
       startY: 0,
@@ -220,6 +316,11 @@ const HighlightExtension = Mark.create<HighlightOptions>({
         props: {
           handleClick: (view, pos, event) => {
             if (!onHighlightClick) {
+              return false
+            }
+
+            const target = event.target as HTMLElement
+            if (target.closest('.highlight-attribution-control')) {
               return false
             }
 
@@ -263,6 +364,11 @@ const HighlightExtension = Mark.create<HighlightOptions>({
             // Handle touch events for mobile devices
             touchend: (view, event) => {
               if (!onHighlightClick) {
+                return false
+              }
+
+              const target = event.target as HTMLElement
+              if (target.closest('.highlight-attribution-control')) {
                 return false
               }
 
@@ -327,33 +433,75 @@ const HighlightExtension = Mark.create<HighlightOptions>({
             const { doc, schema } = state
             const decorations: Decoration[] = []
             const overlapManager = new HighlightOverlapManager()
+            const highlightRanges = new Map<
+              string,
+              { to: number; attrs: HighlightAttributes }
+            >()
 
-            // First pass: collect all highlights
+            // Register all saved highlight ranges (offsets survive mark coalescing)
+            for (const configured of configuredHighlights) {
+              if (
+                configured.startOffset == null ||
+                configured.endOffset == null
+              ) {
+                continue
+              }
+              const from = HighlightConverter.getDocumentPosition(
+                doc,
+                configured.startOffset
+              )
+              const to = HighlightConverter.getDocumentPosition(
+                doc,
+                configured.endOffset
+              )
+              if (to > from) {
+                overlapManager.addHighlight(configured.id, from, to)
+              }
+            }
+
+            // First pass: collect mark ranges for attribution controls
             doc.descendants((node, pos) => {
               if (node.isText && node.marks.length) {
                 node.marks.forEach((mark) => {
                   if (mark.type === schema.marks.highlight && mark.attrs.id) {
-                    overlapManager.addHighlight(
-                      mark.attrs.id,
-                      pos,
-                      pos + node.nodeSize
+                    const id = mark.attrs.id as string
+                    const from = pos
+                    const to = pos + node.nodeSize
+
+                    const hasConfiguredOffsets = configuredHighlights.some(
+                      (h) => h.startOffset != null && h.endOffset != null
                     )
+                    if (!hasConfiguredOffsets) {
+                      overlapManager.addHighlight(id, from, to)
+                    }
+
+                    const existing = highlightRanges.get(id)
+                    if (existing) {
+                      existing.to = Math.max(existing.to, to)
+                    } else {
+                      highlightRanges.set(id, {
+                        to,
+                        attrs: mark.attrs as HighlightAttributes,
+                      })
+                    }
                   }
                 })
               }
             })
 
-            // Second pass: create decorations with overlap counts
+            // Second pass: inline overlap styling per text node
             doc.descendants((node, pos) => {
               if (node.isText && node.marks.length) {
                 node.marks.forEach((mark) => {
                   if (mark.type === schema.marks.highlight) {
                     const from = pos
                     const to = pos + node.nodeSize
-                    const overlapCount = overlapManager.getOverlapCount(
-                      from,
-                      to
-                    )
+                    const markOverlap = mark.attrs.overlapCount as
+                      | number
+                      | undefined
+                    const overlapCount = markOverlap
+                      ? Math.min(5, Math.max(1, markOverlap))
+                      : overlapManager.getOverlapCount(from, to)
                     const colorRgb = getColorRgb(mark.attrs.color || '#F59E0B')
 
                     decorations.push(
@@ -369,6 +517,21 @@ const HighlightExtension = Mark.create<HighlightOptions>({
                   }
                 })
               }
+            })
+
+            // One focusable control per highlight at the end of its range
+            highlightRanges.forEach(({ to, attrs }) => {
+              if (!attrs.id) return
+              decorations.push(
+                Decoration.widget(
+                  to,
+                  () => createHighlightControlButton(attrs, onHighlightClick),
+                  {
+                    side: 1,
+                    key: `highlight-control-${attrs.id}`,
+                  }
+                )
+              )
             })
 
             return DecorationSet.create(doc, decorations)

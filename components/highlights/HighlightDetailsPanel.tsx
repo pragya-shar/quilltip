@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useHighlightTipsByHighlight } from '@/hooks/convex'
@@ -23,6 +23,7 @@ import { formatTipAmount } from '@/lib/stellar/highlight-utils'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
 
 interface HighlightDetailsPanelProps {
   highlight: {
@@ -64,6 +65,23 @@ export function HighlightDetailsPanel({
   const [isEditing, setIsEditing] = useState(false)
   const [editedNote, setEditedNote] = useState(highlight.note || '')
   const [isDeleting, setIsDeleting] = useState(false)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const clampedPosition = useClampedFixedPosition(position, panelRef, {
+    fallbackWidth: 448,
+    fallbackHeight: 400,
+  })
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      onClose()
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [onClose])
 
   // Check if current user owns this highlight
   const isOwner = currentUserId && currentUserId === highlight.userId
@@ -130,22 +148,29 @@ export function HighlightDetailsPanel({
 
   return (
     <motion.div
+      ref={panelRef}
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 10 }}
       transition={{ duration: 0.2 }}
-      className="fixed z-50 bg-popover text-popover-foreground rounded-xl shadow-2xl border border-border max-w-md w-full outline-none"
+      className="fixed z-50 bg-popover text-popover-foreground rounded-xl shadow-2xl border border-border w-full max-w-[min(28rem,calc(100vw-24px))] outline-none"
       style={{
-        top: position.top,
-        left: position.left,
-        transform: 'translateX(-50%)',
+        top: clampedPosition.top,
+        left: clampedPosition.left,
       }}
       role="dialog"
       aria-modal="true"
       aria-label="Highlight details"
       tabIndex={-1}
     >
-      <FocusScope trapped loop>
+      <FocusScope
+        trapped
+        loop
+        onMountAutoFocus={(e) => {
+          e.preventDefault()
+          closeButtonRef.current?.focus()
+        }}
+      >
         {/* Header */}
         <div className="flex items-start justify-between p-4 border-b border-border">
           <div className="flex-1">
@@ -163,7 +188,10 @@ export function HighlightDetailsPanel({
             </div>
           </div>
           <button
+            ref={closeButtonRef}
+            type="button"
             onClick={onClose}
+            aria-label="Close highlight details"
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="w-5 h-5" />
@@ -298,7 +326,7 @@ export function HighlightDetailsPanel({
                 <>
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors text-sm font-medium"
                   >
                     <Edit className="w-4 h-4" />
                     <span>Edit Note</span>
@@ -310,7 +338,7 @@ export function HighlightDetailsPanel({
                       'w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium',
                       isDeleting
                         ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                        : 'bg-red-50 text-red-700 hover:bg-red-100'
+                        : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50'
                     )}
                   >
                     {isDeleting ? (

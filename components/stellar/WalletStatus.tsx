@@ -36,7 +36,7 @@ export function WalletStatus({ className }: WalletStatusProps) {
     connect,
     disconnect,
     refreshConnection,
-  } = useWallet()
+  } = useWallet({ activateOnMount: true })
   const [isConnecting, setIsConnecting] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
 
@@ -93,14 +93,14 @@ export function WalletStatus({ className }: WalletStatusProps) {
       <Card className={className}>
         <CardContent className="pt-6">
           <div className="flex flex-col items-center space-y-4 text-center">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-              <Wallet className="w-6 h-6 text-red-600" />
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-950/50 rounded-full flex items-center justify-center">
+              <Wallet className="w-6 h-6 text-red-600 dark:text-red-300" />
             </div>
             <div>
-              <h3 className="font-semibold text-red-900">
+              <h3 className="font-semibold text-red-900 dark:text-red-200">
                 Wallet Connection Error
               </h3>
-              <p className="text-sm text-red-600">{error}</p>
+              <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
             </div>
             <Button variant="outline" onClick={refreshConnection}>
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -122,7 +122,8 @@ export function WalletStatus({ className }: WalletStatusProps) {
               <div>
                 <h3 className="font-semibold">Wallet Not Connected</h3>
                 <p className="text-sm text-muted-foreground">
-                  Connect your Stellar wallet to start tipping authors
+                  Connect your Stellar testnet wallet to start practice tipping
+                  authors
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
                   Supports Freighter, xBull, Albedo, Rabet, and more
@@ -207,13 +208,18 @@ export function WalletStatus({ className }: WalletStatusProps) {
                 <span className="text-sm font-medium text-muted-foreground">
                   Network
                 </span>
-                <div className="mt-1">
+                <div className="mt-1 space-y-1">
                   <Badge
                     variant={network === 'TESTNET' ? 'secondary' : 'default'}
                     className="capitalize"
                   >
                     {network.toLowerCase()}
                   </Badge>
+                  {network === 'TESTNET' && (
+                    <p className="text-xs text-muted-foreground">
+                      Practice network — not real money
+                    </p>
+                  )}
                 </div>
               </div>
             )}

@@ -1,7 +1,9 @@
 'use client'
 
+import nextDynamic from 'next/dynamic'
 import { notFound } from 'next/navigation'
 import { use, useState, useMemo } from 'react'
+import { ArticleTipActions } from '@/components/tipping/ArticleTipActions'
 import {
   useArticleBySlug,
   useArticleHighlightTipStatsOptional,
@@ -10,9 +12,17 @@ import {
 import ArticleDisplay from '@/components/articles/ArticleDisplay'
 import { ArticlePageLoadingSkeleton } from '@/components/articles/ArticlePageLoadingSkeleton'
 import AppNavigation from '@/components/layout/AppNavigation'
+import { SiteFooter } from '@/components/layout/SiteFooter'
 import { TipStats } from '@/components/tipping/TipStats'
-import { TipButton } from '@/components/tipping/TipButton'
-import { NFTIntegration } from '@/components/nft/NFTIntegration'
+import { NftSidebarSkeleton } from '@/components/articles/ArticleEngagementSkeleton'
+
+const NFTIntegration = nextDynamic(
+  () =>
+    import('@/components/nft/NFTIntegration').then((mod) => ({
+      default: mod.NFTIntegration,
+    })),
+  { ssr: false, loading: () => <NftSidebarSkeleton /> }
+)
 import {
   DollarSign,
   Trophy,
@@ -110,10 +120,10 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <AppNavigation />
       <ReadingProgressBar />
-      <main className="pt-20">
+      <main className="flex-1 pt-20 w-full">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Main Article Content */}
@@ -122,6 +132,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                 <ArticleDisplay
                   article={articleForDisplay}
                   tocHeadings={tocHeadings}
+                  authorStellarAddress={article.author.stellarAddress}
                 />
               </ErrorBoundary>
             </div>
@@ -141,8 +152,9 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                       <Heart className="w-5 h-5 text-red-500" />
                       Support the Author
                     </h3>
-                    <TipButton
+                    <ArticleTipActions
                       articleId={article._id}
+                      articleSlug={article.slug}
                       authorName={
                         article.author.name || article.author.username
                       }
@@ -272,6 +284,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
           </div>
         </div>
       </main>
+      <SiteFooter variant="default" />
     </div>
   )
 }

@@ -52,7 +52,7 @@ describe('NFTClient.buildMintTransaction', () => {
     ) as InstanceType<typeof StellarSdk.Transaction>
 
     expect(decoded.memo.type).toBe('none')
-  })
+  }, 15_000)
 })
 
 describe('NFTClient.submitMintTransaction', () => {

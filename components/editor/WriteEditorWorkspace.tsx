@@ -24,14 +24,15 @@ import { useArticleById } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
 import { toast } from 'sonner'
 import Image from 'next/image'
-import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { EDITOR_PROSE_CLASS, UPLOAD_CONTROL_FOCUS_RING } from '@/lib/constants'
+import { mutationWithTimeout } from '@/lib/convexMutationWithTimeout'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Textarea } from '@/components/ui/textarea'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,9 +50,32 @@ import {
   validateImageUploadFile,
   isAbortError,
 } from '@/lib/upload'
+import {
+  type DraftBackup,
+  clearDraftBackup,
+  formatBackupSavedAt,
+  readDraftBackup,
+  shouldOfferDraftRecovery,
+  shouldPersistDraftBackup,
+  writeDraftBackup,
+} from '@/lib/draftBackup'
+import { getWriteUrlWithDraftId } from '@/lib/writeDraftUrl'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const EXCERPT_MAX_CHARS = 500
+
+const COVER_FILE_INPUT_ID = 'cover-image-file-input'
+const BODY_FILE_INPUT_ID = 'body-image-file-input'
+const COVER_UPLOAD_ERROR_ID = 'cover-upload-error'
+const COVER_UPLOAD_STATUS_ID = 'cover-upload-status'
+const BODY_UPLOAD_ERROR_ID = 'body-upload-error'
+const BODY_UPLOAD_STATUS_ID = 'body-upload-status'
+
+type UploadAnnouncement = { type: 'status' | 'error'; text: string }
+
+function shouldAnnounceProgress(last: number, next: number): boolean {
+  return next === 0 || next >= 100 || next - last >= 25
+}
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
@@ -96,15 +120,27 @@ export function WriteEditorWorkspace() {
   const [bodyImageDragging, setBodyImageDragging] = useState(false)
   const [bodyImageUploading, setBodyImageUploading] = useState(false)
   const [bodyImageUploadProgress, setBodyImageUploadProgress] = useState(0)
+  const [coverUploadAnnouncement, setCoverUploadAnnouncement] =
+    useState<UploadAnnouncement | null>(null)
+  const [bodyUploadAnnouncement, setBodyUploadAnnouncement] =
+    useState<UploadAnnouncement | null>(null)
   const [isPublishing, setIsPublishing] = useState(false)
   const [articleId, setArticleId] = useState<string | undefined>()
   const [editorContent, setEditorContent] = useState<JSONContent | null>(null)
+  const [writerNotes, setWriterNotes] = useState('')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [navConfirm, setNavConfirm] = useState<NavConfirmState>(null)
   const hasUnsavedRef = useRef(hasUnsavedChanges)
+  /** When true, user dismissed recovery (Not now / Esc); keep local backup until Restore/Discard. */
+  const recoveryDeferredRef = useRef(false)
   const [excerptOpen, setExcerptOpen] = useState(false)
   const excerptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const tagsInputRef = useRef<HTMLInputElement>(null)
+  const coverChangeButtonRef = useRef<HTMLButtonElement>(null)
+  const coverFileInputRef = useRef<HTMLInputElement>(null)
+  const bodyFileInputRef = useRef<HTMLInputElement>(null)
+  const coverLastAnnouncedProgressRef = useRef(-1)
+  const bodyLastAnnouncedProgressRef = useRef(-1)
   const [publishStatus, setPublishStatus] = useState<{
     published: boolean
     publishedAt: Date | null
@@ -113,6 +149,12 @@ export function WriteEditorWorkspace() {
     publishedAt: null,
   })
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [backupPrompt, setBackupPrompt] = useState<DraftBackup | null>(null)
+  const [backupRecoveryStatus, setBackupRecoveryStatus] = useState<
+    'pending' | 'resolved'
+  >('pending')
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -120,6 +162,25 @@ export function WriteEditorWorkspace() {
 
   const coverUploadAbortRef = useRef<AbortController | null>(null)
   const bodyUploadAbortRef = useRef<AbortController | null>(null)
+  const hydratedDraftIdRef = useRef<string | null>(null)
+
+  const draftIdParam = searchParams.get('id')
+
+  const syncDraftIdInUrl = useCallback(
+    (id: string) => {
+      const next = getWriteUrlWithDraftId(searchParams.toString(), id)
+      if (next) {
+        router.replace(next, { scroll: false })
+      }
+    },
+    [router, searchParams]
+  )
+
+  useEffect(() => {
+    if (draftIdParam) {
+      setArticleId(draftIdParam)
+    }
+  }, [draftIdParam])
 
   useEffect(() => {
     return () => {
@@ -204,19 +265,22 @@ export function WriteEditorWorkspace() {
       .map((t) => t.trim())
       .filter(Boolean),
     coverImage: coverImage || undefined,
-    enabled: isAuthenticated && (hasUnsavedChanges || !!title),
+    writerNotes,
+    enabled:
+      isAuthenticated && (hasUnsavedChanges || !!title || !!writerNotes.trim()),
     onSaveSuccess: (response) => {
-      if (!articleId && response.id) {
-        setArticleId(response.id)
-      }
+      setArticleId(response.id)
+      syncDraftIdInUrl(response.id)
       setHasUnsavedChanges(false)
+      if (!recoveryDeferredRef.current) {
+        clearDraftBackup()
+      }
     },
     onSaveError: (error) => {
       console.error('Auto-save error:', error)
+      setHasUnsavedChanges(true)
     },
   })
-
-  const draftIdParam = searchParams.get('id')
 
   const draft = useArticleById(
     draftIdParam ? (draftIdParam as Id<'articles'>) : undefined
@@ -226,54 +290,200 @@ export function WriteEditorWorkspace() {
     articleId ? (articleId as Id<'articles'>) : undefined
   )
 
-  useEffect(() => {
-    if (draft && editor) {
-      setArticleId(draft._id)
-      setTitle(draft.title)
-      setExcerpt(draft.excerpt || '')
-      setTags(draft.tags?.join(', ') ?? '')
-      setCoverImage(draft.coverImage || '')
-      setPublishStatus({
-        published: draft.published,
-        publishedAt: draft.publishedAt ? new Date(draft.publishedAt) : null,
-      })
-      if (draft.content) {
-        queueMicrotask(() => {
-          editor.commands.setContent(draft.content)
-        })
-        setEditorContent(draft.content)
-      }
-      setHasUnsavedChanges(false)
+  const buildDraftBackup = useCallback((): DraftBackup => {
+    const tagsArr = tags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean)
+    return {
+      title: title || 'Untitled',
+      content: editorContent ?? EMPTY_DOC,
+      excerpt: excerpt || undefined,
+      tags: tagsArr.length ? tagsArr : undefined,
+      coverImage: coverImage || undefined,
+      writerNotes: writerNotes.trim() ? writerNotes : undefined,
+      articleId,
+      savedAt: Date.now(),
     }
-  }, [draft, editor])
+  }, [editorContent, title, excerpt, tags, coverImage, writerNotes, articleId])
+
+  const persistDraftBackup = useCallback(() => {
+    const hasContent = !!editorContent
+    const hasMetadata = !!(title?.trim() || coverImage || writerNotes.trim())
+    if (
+      !shouldPersistDraftBackup(
+        isAuthenticated,
+        hasUnsavedChanges,
+        hasContent,
+        hasMetadata
+      )
+    ) {
+      return
+    }
+    writeDraftBackup(buildDraftBackup())
+  }, [
+    buildDraftBackup,
+    editorContent,
+    title,
+    coverImage,
+    writerNotes,
+    hasUnsavedChanges,
+    isAuthenticated,
+  ])
+
+  useEffect(() => {
+    if (!editor || !isAuthenticated) return
+
+    const draftLoadSettled = !draftIdParam || draft !== undefined
+    if (!draftLoadSettled) return
+    if (backupRecoveryStatus !== 'pending') return
+
+    const backup = readDraftBackup()
+    if (!backup) {
+      setBackupRecoveryStatus('resolved')
+      return
+    }
+
+    if (backup.articleId && !draftIdParam) {
+      const url = getWriteUrlWithDraftId('', backup.articleId)
+      if (url) {
+        router.replace(url, { scroll: false })
+        return
+      }
+    }
+
+    const serverDraft =
+      draft && draft !== null
+        ? {
+            title: draft.title,
+            content: draft.content,
+            excerpt: draft.excerpt,
+            tags: draft.tags,
+            coverImage: draft.coverImage,
+            writerNotes: draft.writerNotes,
+            updatedAt: draft.updatedAt,
+          }
+        : undefined
+
+    if (
+      shouldOfferDraftRecovery(backup, serverDraft, {
+        urlArticleId: draftIdParam ?? undefined,
+        stateArticleId: articleId,
+      })
+    ) {
+      setBackupPrompt(backup)
+    } else {
+      clearDraftBackup()
+    }
+    setBackupRecoveryStatus('resolved')
+  }, [
+    editor,
+    isAuthenticated,
+    draft,
+    draftIdParam,
+    articleId,
+    backupRecoveryStatus,
+    router,
+  ])
+
+  useEffect(() => {
+    hydratedDraftIdRef.current = null
+  }, [draftIdParam])
+
+  useEffect(() => {
+    if (backupRecoveryStatus !== 'resolved' || backupPrompt !== null) return
+    if (!draft || !editor) return
+    if (hydratedDraftIdRef.current === draft._id) return
+
+    hydratedDraftIdRef.current = draft._id
+    setArticleId(draft._id)
+    syncDraftIdInUrl(draft._id)
+    setTitle(draft.title)
+    setExcerpt(draft.excerpt || '')
+    setTags(draft.tags?.join(', ') ?? '')
+    setCoverImage(draft.coverImage || '')
+    setWriterNotes(draft.writerNotes ?? '')
+    setPublishStatus({
+      published: draft.published,
+      publishedAt: draft.publishedAt ? new Date(draft.publishedAt) : null,
+    })
+    if (draft.content) {
+      queueMicrotask(() => {
+        editor.commands.setContent(draft.content)
+      })
+      setEditorContent(draft.content)
+    }
+    setHasUnsavedChanges(false)
+  }, [draft, editor, backupRecoveryStatus, backupPrompt, syncDraftIdInUrl])
+
+  const applyDraftBackup = useCallback(
+    (backup: DraftBackup) => {
+      if (!editor) return
+      if (backup.articleId) {
+        setArticleId(backup.articleId)
+        syncDraftIdInUrl(backup.articleId)
+      }
+      setTitle(backup.title)
+      setExcerpt(backup.excerpt || '')
+      setTags(backup.tags?.join(', ') ?? '')
+      setCoverImage(backup.coverImage || '')
+      setWriterNotes(backup.writerNotes ?? '')
+      queueMicrotask(() => {
+        editor.commands.setContent(backup.content)
+      })
+      setEditorContent(backup.content)
+      setHasUnsavedChanges(true)
+    },
+    [editor, syncDraftIdInUrl]
+  )
+
+  const handleRestoreBackup = useCallback(() => {
+    if (!backupPrompt) return
+    recoveryDeferredRef.current = false
+    applyDraftBackup(backupPrompt)
+    clearDraftBackup()
+    setBackupPrompt(null)
+    setBackupRecoveryStatus('resolved')
+  }, [backupPrompt, applyDraftBackup])
+
+  const handleDiscardBackup = useCallback(() => {
+    recoveryDeferredRef.current = false
+    clearDraftBackup()
+    setBackupPrompt(null)
+    setBackupRecoveryStatus('resolved')
+  }, [])
+
+  useEffect(() => {
+    const onPageHide = () => {
+      persistDraftBackup()
+    }
+    window.addEventListener('pagehide', onPageHide)
+    return () => window.removeEventListener('pagehide', onPageHide)
+  }, [persistDraftBackup])
+
+  useEffect(() => {
+    if (!isAuthenticated || !hasUnsavedChanges) return
+    const hasContent = !!editorContent
+    const hasMetadata = !!(title?.trim() || coverImage)
+    if (!hasContent && !hasMetadata) return
+
+    const timeoutId = setTimeout(() => {
+      persistDraftBackup()
+    }, 2000)
+
+    return () => clearTimeout(timeoutId)
+  }, [
+    persistDraftBackup,
+    isAuthenticated,
+    hasUnsavedChanges,
+    editorContent,
+    title,
+    coverImage,
+  ])
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      const hasContent = !!editorContent
-      const hasMetadata = !!(title?.trim() || coverImage)
-      const autoSaveEnabled = isAuthenticated && (hasUnsavedChanges || !!title)
-      if (autoSaveEnabled && (hasContent || hasMetadata)) {
-        try {
-          const tagsArr = tags
-            .split(',')
-            .map((t) => t.trim())
-            .filter(Boolean)
-          localStorage.setItem(
-            'quilltip_draft_backup',
-            JSON.stringify({
-              title: title || 'Untitled',
-              content: editorContent ?? EMPTY_DOC,
-              excerpt,
-              tags: tagsArr.length ? tagsArr : undefined,
-              coverImage: coverImage || undefined,
-              articleId,
-              savedAt: Date.now(),
-            })
-          )
-        } catch {
-          // localStorage unavailable or full
-        }
-      }
+      persistDraftBackup()
       if (hasUnsavedChanges) {
         e.preventDefault()
         e.returnValue = ''
@@ -281,16 +491,7 @@ export function WriteEditorWorkspace() {
     }
     window.addEventListener('beforeunload', handler)
     return () => window.removeEventListener('beforeunload', handler)
-  }, [
-    hasUnsavedChanges,
-    isAuthenticated,
-    editorContent,
-    title,
-    coverImage,
-    excerpt,
-    tags,
-    articleId,
-  ])
+  }, [hasUnsavedChanges, persistDraftBackup])
 
   useEffect(() => {
     const onDocumentClick = (e: MouseEvent) => {
@@ -313,8 +514,7 @@ export function WriteEditorWorkspace() {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
-        saveNow()
-        setHasUnsavedChanges(false)
+        void saveNow()
       }
     }
     window.addEventListener('keydown', handler)
@@ -368,6 +568,7 @@ export function WriteEditorWorkspace() {
 
       if (!articleId) {
         setArticleId(resultId)
+        syncDraftIdInUrl(resultId)
       }
 
       setPublishStatus({
@@ -395,22 +596,30 @@ export function WriteEditorWorkspace() {
     publishArticleMutation,
     createArticleMutation,
     editor,
+    syncDraftIdInUrl,
   ])
 
-  const handleDelete = useCallback(async () => {
-    if (!window.confirm('Are you sure you want to delete this draft?')) return
+  const handleRequestDelete = useCallback(() => {
+    if (!articleId || isDeleting) return
+    setDeleteDialogOpen(true)
+  }, [articleId, isDeleting])
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!articleId || isDeleting) return
+    setIsDeleting(true)
     try {
-      if (articleId) {
-        await deleteArticleMutation({ id: articleId as Id<'articles'> })
-        router.push('/')
-      }
+      await mutationWithTimeout(
+        deleteArticleMutation({ id: articleId as Id<'articles'> })
+      )
+      toast.success('Draft deleted')
+      setDeleteDialogOpen(false)
+      router.push('/')
     } catch (error) {
       console.error('Delete error:', error)
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to delete draft'
-      )
+      toast.error('Failed to delete draft. Please try again.')
+      setIsDeleting(false)
     }
-  }, [articleId, deleteArticleMutation, router])
+  }, [articleId, deleteArticleMutation, isDeleting, router])
 
   const handleBack = useCallback(() => {
     if (hasUnsavedChanges) {
@@ -433,17 +642,14 @@ export function WriteEditorWorkspace() {
     }
   }, [])
 
-  const handleCoverPlaceholderDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setCoverDropActive(false)
-
-      const file = e.dataTransfer.files?.[0]
-      if (!file) return
+  const uploadCoverFromFile = useCallback(
+    async (file: File) => {
+      setCoverUploadAnnouncement(null)
+      coverLastAnnouncedProgressRef.current = -1
 
       const validation = validateImageUploadFile(file)
       if (!validation.ok) {
+        setCoverUploadAnnouncement({ type: 'error', text: validation.error })
         toast.error(validation.error)
         return
       }
@@ -453,6 +659,11 @@ export function WriteEditorWorkspace() {
       coverUploadAbortRef.current = controller
 
       setCoverDropUploading(true)
+      setCoverUploadAnnouncement({
+        type: 'status',
+        text: 'Uploading cover image',
+      })
+
       try {
         const compressedFile = await compressImage(
           file,
@@ -465,25 +676,43 @@ export function WriteEditorWorkspace() {
           convex,
           'article_image',
           undefined,
-          undefined,
+          (progress) => {
+            const pct = progress.percentage
+            if (
+              shouldAnnounceProgress(coverLastAnnouncedProgressRef.current, pct)
+            ) {
+              coverLastAnnouncedProgressRef.current = pct
+              setCoverUploadAnnouncement({
+                type: 'status',
+                text: `Uploading cover image, ${pct}% complete`,
+              })
+            }
+          },
           controller.signal
         )
         if (result.success && result.url) {
           setCoverImage(result.url)
           setHasUnsavedChanges(true)
+          setCoverUploadAnnouncement({
+            type: 'status',
+            text: 'Cover image uploaded',
+          })
         } else {
-          toast.error(result.error || 'Upload failed')
+          const message = result.error || 'Upload failed'
+          setCoverUploadAnnouncement({ type: 'error', text: message })
+          toast.error(message)
         }
       } catch (err) {
         if (isAbortError(err)) {
           return
         }
-        console.error('Cover drop upload error:', err)
-        toast.error(
+        console.error('Cover upload error:', err)
+        const message =
           err instanceof Error
             ? err.message
             : 'Upload failed. Please try again.'
-        )
+        setCoverUploadAnnouncement({ type: 'error', text: message })
+        toast.error(message)
       } finally {
         if (coverUploadAbortRef.current === controller) {
           coverUploadAbortRef.current = null
@@ -493,6 +722,35 @@ export function WriteEditorWorkspace() {
     },
     [convex]
   )
+
+  const handleCoverPlaceholderDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setCoverDropActive(false)
+
+      const file = e.dataTransfer.files?.[0]
+      if (!file) return
+
+      await uploadCoverFromFile(file)
+    },
+    [uploadCoverFromFile]
+  )
+
+  const handleCoverFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = ''
+      if (file) {
+        void uploadCoverFromFile(file)
+      }
+    },
+    [uploadCoverFromFile]
+  )
+
+  const openCoverFilePicker = useCallback(() => {
+    coverFileInputRef.current?.click()
+  }, [])
 
   const handleBodyEditorDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -507,6 +765,91 @@ export function WriteEditorWorkspace() {
       setBodyImageDragging(false)
     }
   }, [])
+
+  const uploadBodyImageFromFile = useCallback(
+    async (file: File) => {
+      if (!editor) return
+
+      setBodyUploadAnnouncement(null)
+      bodyLastAnnouncedProgressRef.current = -1
+
+      const validation = validateImageUploadFile(file)
+      if (!validation.ok) {
+        setBodyUploadAnnouncement({ type: 'error', text: validation.error })
+        toast.error(validation.error)
+        return
+      }
+
+      bodyUploadAbortRef.current?.abort()
+      const controller = new AbortController()
+      bodyUploadAbortRef.current = controller
+
+      setBodyImageUploading(true)
+      setBodyImageUploadProgress(0)
+      setBodyUploadAnnouncement({
+        type: 'status',
+        text: 'Uploading image',
+      })
+
+      try {
+        const compressedFile = await compressImage(
+          file,
+          1200,
+          0.8,
+          controller.signal
+        )
+        const result = await uploadFile(
+          compressedFile,
+          convex,
+          'article_image',
+          undefined,
+          (progress) => {
+            const pct = progress.percentage
+            setBodyImageUploadProgress(pct)
+            if (
+              shouldAnnounceProgress(bodyLastAnnouncedProgressRef.current, pct)
+            ) {
+              bodyLastAnnouncedProgressRef.current = pct
+              setBodyUploadAnnouncement({
+                type: 'status',
+                text: `Uploading image, ${pct}% complete`,
+              })
+            }
+          },
+          controller.signal
+        )
+
+        if (result.success && result.url) {
+          editor.chain().focus().setResizableImage({ src: result.url }).run()
+          setBodyUploadAnnouncement({
+            type: 'status',
+            text: 'Image added to article',
+          })
+        } else {
+          const message = result.error || 'Upload failed'
+          setBodyUploadAnnouncement({ type: 'error', text: message })
+          toast.error(message)
+        }
+      } catch (err) {
+        if (isAbortError(err)) {
+          return
+        }
+        console.error('Error uploading image:', err)
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Upload failed. Please try again.'
+        setBodyUploadAnnouncement({ type: 'error', text: message })
+        toast.error(message)
+      } finally {
+        if (bodyUploadAbortRef.current === controller) {
+          bodyUploadAbortRef.current = null
+        }
+        setBodyImageUploading(false)
+      }
+    },
+    [convex, editor]
+  )
 
   const handleBodyEditorDrop = useCallback(
     async (e: React.DragEvent) => {
@@ -523,60 +866,20 @@ export function WriteEditorWorkspace() {
       const file = imageFiles[0]
       if (!file) return
 
-      const validation = validateImageUploadFile(file)
-      if (!validation.ok) {
-        toast.error(validation.error)
-        return
-      }
+      await uploadBodyImageFromFile(file)
+    },
+    [editor, uploadBodyImageFromFile]
+  )
 
-      bodyUploadAbortRef.current?.abort()
-      const controller = new AbortController()
-      bodyUploadAbortRef.current = controller
-
-      setBodyImageUploading(true)
-      setBodyImageUploadProgress(0)
-
-      try {
-        const compressedFile = await compressImage(
-          file,
-          1200,
-          0.8,
-          controller.signal
-        )
-        const result = await uploadFile(
-          compressedFile,
-          convex,
-          'article_image',
-          undefined,
-          (progress) => {
-            setBodyImageUploadProgress(progress.percentage)
-          },
-          controller.signal
-        )
-
-        if (result.success && result.url) {
-          editor.chain().focus().setResizableImage({ src: result.url }).run()
-        } else {
-          toast.error(result.error || 'Upload failed')
-        }
-      } catch (err) {
-        if (isAbortError(err)) {
-          return
-        }
-        console.error('Error uploading dropped image:', err)
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : 'Upload failed. Please try again.'
-        )
-      } finally {
-        if (bodyUploadAbortRef.current === controller) {
-          bodyUploadAbortRef.current = null
-        }
-        setBodyImageUploading(false)
+  const handleBodyFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = ''
+      if (file) {
+        void uploadBodyImageFromFile(file)
       }
     },
-    [convex, editor]
+    [uploadBodyImageFromFile]
   )
 
   const confirmLeaveNavigation = useCallback(() => {
@@ -623,8 +926,7 @@ export function WriteEditorWorkspace() {
         editor={editor}
         onBack={handleBack}
         onSave={() => {
-          saveNow()
-          setHasUnsavedChanges(false)
+          void saveNow()
         }}
         onPublish={requestPublish}
         isSaving={isSaving}
@@ -633,7 +935,8 @@ export function WriteEditorWorkspace() {
         isPublishing={isPublishing}
         canPublish={!!editor}
         lastSavedAt={lastSavedAt ?? undefined}
-        onDelete={handleDelete}
+        onDelete={handleRequestDelete}
+        isDeleting={isDeleting}
         hasUnsavedChanges={hasUnsavedChanges}
       />
       <div className="flex min-w-0 flex-1 flex-col pb-8">
@@ -641,11 +944,23 @@ export function WriteEditorWorkspace() {
           <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
             <EditorToolbar
               editor={editor}
+              notes={writerNotes}
+              onNotesChange={(value) => {
+                setWriterNotes(value)
+                setHasUnsavedChanges(true)
+              }}
               onFocusCoverImage={() => {
                 document
                   .getElementById('field-cover-image')
                   ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                if (!coverImage) setShowCoverImageDialog(true)
+                if (coverImage) {
+                  window.setTimeout(
+                    () => coverChangeButtonRef.current?.focus(),
+                    0
+                  )
+                } else {
+                  setShowCoverImageDialog(true)
+                }
               }}
               onFocusTitle={() => {
                 const el = document.getElementById(
@@ -679,7 +994,11 @@ export function WriteEditorWorkspace() {
         <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
           <div id="field-cover-image" className="mb-4">
             {coverImage ? (
-              <div className="group relative h-56 w-full overflow-hidden rounded-xl sm:h-72">
+              <div
+                className="group relative h-56 w-full overflow-hidden rounded-xl sm:h-72"
+                role="group"
+                aria-label="Cover image"
+              >
                 <Image
                   src={coverImage}
                   alt="Article cover"
@@ -687,11 +1006,23 @@ export function WriteEditorWorkspace() {
                   sizes="(max-width: 768px) 100vw, 896px"
                   className="object-cover"
                 />
-                <div className="absolute inset-0 flex items-center justify-center gap-3 bg-black/0 opacity-0 transition-colors group-hover:bg-black/30 group-hover:opacity-100">
+                <div
+                  className={cn(
+                    'absolute inset-0 flex items-center justify-center gap-3 bg-black/30 opacity-100 transition-colors',
+                    '[@media(hover:hover)_and_(pointer:fine)]:bg-black/0 [@media(hover:hover)_and_(pointer:fine)]:opacity-0',
+                    'group-hover:bg-black/30 group-hover:opacity-100',
+                    'group-focus-within:bg-black/30 group-focus-within:opacity-100'
+                  )}
+                >
                   <button
+                    ref={coverChangeButtonRef}
                     type="button"
                     onClick={() => setShowCoverImageDialog(true)}
-                    className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow hover:bg-muted"
+                    aria-label="Change cover image"
+                    className={cn(
+                      'rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground shadow hover:bg-muted',
+                      UPLOAD_CONTROL_FOCUS_RING
+                    )}
                   >
                     Change
                   </button>
@@ -701,54 +1032,130 @@ export function WriteEditorWorkspace() {
                       setCoverImage('')
                       setHasUnsavedChanges(true)
                     }}
-                    className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-destructive shadow hover:bg-destructive/10"
+                    aria-label="Remove cover image"
+                    className={cn(
+                      'rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-destructive shadow hover:bg-destructive/10',
+                      UPLOAD_CONTROL_FOCUS_RING
+                    )}
                   >
                     Remove
                   </button>
                 </div>
               </div>
             ) : (
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setShowCoverImageDialog(true)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    setShowCoverImageDialog(true)
+              <div className="space-y-2">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Add cover image. Drag an image here, or choose a file."
+                  aria-describedby={
+                    [
+                      coverUploadAnnouncement?.type === 'error'
+                        ? COVER_UPLOAD_ERROR_ID
+                        : null,
+                      coverUploadAnnouncement?.type === 'status'
+                        ? COVER_UPLOAD_STATUS_ID
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' ') || undefined
                   }
-                }}
-                onDragOver={handleCoverPlaceholderDragOver}
-                onDragLeave={handleCoverPlaceholderDragLeave}
-                onDrop={handleCoverPlaceholderDrop}
-                className={cn(
-                  'group flex h-28 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary',
-                  coverDropActive &&
-                    'border-primary bg-primary/15 text-primary',
-                  coverDropUploading && 'pointer-events-none opacity-70'
-                )}
-              >
-                <svg
-                  className="h-5 w-5 shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden
+                  onClick={openCoverFilePicker}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      openCoverFilePicker()
+                    }
+                  }}
+                  onDragOver={handleCoverPlaceholderDragOver}
+                  onDragLeave={handleCoverPlaceholderDragLeave}
+                  onDrop={handleCoverPlaceholderDrop}
+                  className={cn(
+                    'group flex h-28 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary',
+                    UPLOAD_CONTROL_FOCUS_RING,
+                    coverDropActive &&
+                      'border-primary bg-primary/15 text-primary',
+                    coverDropUploading && 'pointer-events-none opacity-70'
+                  )}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                  />
-                </svg>
-                <span className="text-sm font-medium">
-                  {coverDropUploading
-                    ? 'Uploading…'
-                    : coverDropActive
-                      ? 'Drop image to set cover'
-                      : 'Add cover image'}
-                </span>
+                  <svg
+                    className="h-5 w-5 shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                  <span className="text-sm font-medium">
+                    {coverDropUploading
+                      ? 'Uploading…'
+                      : coverDropActive
+                        ? 'Drop image to set cover'
+                        : 'Drag an image here, or choose a file'}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label
+                    className={cn(
+                      'inline-flex cursor-pointer text-sm font-medium text-primary underline-offset-4 hover:text-primary/80 hover:underline',
+                      UPLOAD_CONTROL_FOCUS_RING
+                    )}
+                  >
+                    <input
+                      ref={coverFileInputRef}
+                      id={COVER_FILE_INPUT_ID}
+                      type="file"
+                      accept="image/png,image/jpeg,image/gif,image/webp"
+                      className="sr-only"
+                      onChange={handleCoverFileChange}
+                    />
+                    Choose file
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCoverImageDialog(true)}
+                    className={cn(
+                      'text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline',
+                      UPLOAD_CONTROL_FOCUS_RING
+                    )}
+                  >
+                    Paste image URL
+                  </button>
+                </div>
+                {coverUploadAnnouncement ? (
+                  <p
+                    id={
+                      coverUploadAnnouncement.type === 'error'
+                        ? COVER_UPLOAD_ERROR_ID
+                        : COVER_UPLOAD_STATUS_ID
+                    }
+                    role={
+                      coverUploadAnnouncement.type === 'error'
+                        ? 'alert'
+                        : 'status'
+                    }
+                    aria-live={
+                      coverUploadAnnouncement.type === 'error'
+                        ? 'assertive'
+                        : 'polite'
+                    }
+                    aria-atomic="true"
+                    className={cn(
+                      'text-xs',
+                      coverUploadAnnouncement.type === 'error'
+                        ? 'text-destructive'
+                        : 'sr-only'
+                    )}
+                  >
+                    {coverUploadAnnouncement.text}
+                  </p>
+                ) : null}
               </div>
             )}
           </div>
@@ -845,53 +1252,128 @@ export function WriteEditorWorkspace() {
           </div>
 
           {editor && (
-            <div
-              className={cn(
-                'relative min-h-[400px] rounded-[var(--card-radius)] border border-transparent transition-colors',
-                bodyImageDragging && 'border-primary bg-primary/10',
-                bodyImageUploading && 'pointer-events-none'
-              )}
-              onDragOver={handleBodyEditorDragOver}
-              onDragLeave={handleBodyEditorDragLeave}
-              onDrop={handleBodyEditorDrop}
-            >
-              <EditorContent
-                editor={editor}
-                className="editor-content min-h-[400px]"
-              />
+            <div className="space-y-2">
+              <div
+                className={cn(
+                  'relative min-h-[400px] rounded-[var(--card-radius)] border border-transparent transition-colors',
+                  bodyImageDragging && 'border-primary bg-primary/10',
+                  bodyImageUploading && 'pointer-events-none'
+                )}
+                onDragOver={handleBodyEditorDragOver}
+                onDragLeave={handleBodyEditorDragLeave}
+                onDrop={handleBodyEditorDrop}
+                aria-describedby={
+                  [
+                    bodyUploadAnnouncement?.type === 'error'
+                      ? BODY_UPLOAD_ERROR_ID
+                      : null,
+                    bodyUploadAnnouncement?.type === 'status'
+                      ? BODY_UPLOAD_STATUS_ID
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' ') || undefined
+                }
+              >
+                <EditorContent
+                  editor={editor}
+                  className="editor-content min-h-[400px]"
+                />
 
-              {bodyImageDragging && (
-                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--card-radius)] border-2 border-dashed border-primary bg-primary/15">
-                  <div className="text-center">
-                    <div className="mb-2 text-lg font-medium text-primary">
-                      Drop image here
-                    </div>
-                    <div className="text-sm text-primary/80">
-                      Release to add to article
+                {bodyImageDragging && (
+                  <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--card-radius)] border-2 border-dashed border-primary bg-primary/15">
+                    <div className="text-center">
+                      <div className="mb-2 text-lg font-medium text-primary">
+                        Drop image here to add it
+                      </div>
+                      <div className="text-sm text-primary/80">
+                        or choose a file below
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {bodyImageUploading && (
-                <div className="absolute inset-0 z-20 flex items-center justify-center rounded-[var(--card-radius)] bg-card/90">
-                  <div className="text-center">
-                    <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
-                    <div className="text-sm text-muted-foreground">
-                      Optimizing and uploading image...
-                    </div>
-                    <div className="mx-auto mt-2 h-2 w-48 rounded-full bg-muted">
+                {bodyImageUploading && (
+                  <div
+                    className="absolute inset-0 z-20 flex items-center justify-center rounded-[var(--card-radius)] bg-card/90"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
+                    <div className="text-center">
+                      <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+                      <div className="text-sm text-muted-foreground">
+                        Optimizing and uploading image...
+                      </div>
                       <div
-                        className="h-2 rounded-full bg-primary transition-all duration-300"
-                        style={{ width: `${bodyImageUploadProgress}%` }}
-                      />
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {bodyImageUploadProgress}%
+                        className="mx-auto mt-2 h-2 w-48 rounded-full bg-muted"
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={bodyImageUploadProgress}
+                        aria-label="Image upload progress"
+                      >
+                        <div
+                          className="h-2 rounded-full bg-primary transition-all duration-300"
+                          style={{ width: `${bodyImageUploadProgress}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {bodyImageUploadProgress}%
+                      </div>
+                      {bodyUploadAnnouncement?.type === 'status' ? (
+                        <p className="sr-only">{bodyUploadAnnouncement.text}</p>
+                      ) : null}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label
+                  className={cn(
+                    'inline-flex cursor-pointer text-sm font-medium text-primary underline-offset-4 hover:text-primary/80 hover:underline',
+                    UPLOAD_CONTROL_FOCUS_RING
+                  )}
+                >
+                  <input
+                    ref={bodyFileInputRef}
+                    id={BODY_FILE_INPUT_ID}
+                    type="file"
+                    accept="image/png,image/jpeg,image/gif,image/webp"
+                    className="sr-only"
+                    onChange={handleBodyFileChange}
+                  />
+                  Choose image file
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  You can also insert an image from the toolbar.
+                </p>
+              </div>
+              {bodyUploadAnnouncement &&
+              !bodyImageUploading &&
+              bodyUploadAnnouncement.type === 'error' ? (
+                <p
+                  id={BODY_UPLOAD_ERROR_ID}
+                  role="alert"
+                  aria-live="assertive"
+                  aria-atomic="true"
+                  className="text-xs text-destructive"
+                >
+                  {bodyUploadAnnouncement.text}
+                </p>
+              ) : bodyUploadAnnouncement &&
+                !bodyImageUploading &&
+                bodyUploadAnnouncement.type === 'status' ? (
+                <p
+                  id={BODY_UPLOAD_STATUS_ID}
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  className="sr-only"
+                >
+                  {bodyUploadAnnouncement.text}
+                </p>
+              ) : null}
             </div>
           )}
 
@@ -918,16 +1400,19 @@ export function WriteEditorWorkspace() {
         </div>
       </div>
 
-      <ImageUploadDialog
-        isOpen={showCoverImageDialog}
-        title="Add Cover Image"
-        onImageSelect={(url) => {
-          setCoverImage(url)
-          setHasUnsavedChanges(true)
-          setShowCoverImageDialog(false)
-        }}
-        onClose={() => setShowCoverImageDialog(false)}
-      />
+      {showCoverImageDialog && (
+        <ImageUploadDialog
+          isOpen={showCoverImageDialog}
+          title="Add Cover Image"
+          triggerRef={coverImage ? coverChangeButtonRef : undefined}
+          onImageSelect={(url) => {
+            setCoverImage(url)
+            setHasUnsavedChanges(true)
+            setShowCoverImageDialog(false)
+          }}
+          onClose={() => setShowCoverImageDialog(false)}
+        />
+      )}
 
       <AlertDialog
         open={publishConfirmOpen}
@@ -985,6 +1470,81 @@ export function WriteEditorWorkspace() {
       </AlertDialog>
 
       <AlertDialog
+        open={backupPrompt !== null}
+        onOpenChange={(open) => {
+          if (!open && backupPrompt !== null) {
+            if (readDraftBackup()) {
+              recoveryDeferredRef.current = true
+            }
+            setBackupPrompt(null)
+            setBackupRecoveryStatus('resolved')
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Recover unsaved draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {backupPrompt
+                ? `${formatBackupSavedAt(backupPrompt.savedAt)}. Restore this version or discard the local backup.`
+                : 'A local backup of your draft was found.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Not now</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDiscardBackup}
+            >
+              Discard backup
+            </AlertDialogAction>
+            <AlertDialogAction type="button" onClick={handleRestoreBackup}>
+              Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          if (isDeleting) return
+          if (!open) setDeleteDialogOpen(false)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The draft will be permanently
+              deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={(e) => {
+                e.preventDefault()
+                void handleConfirmDelete()
+              }}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
         open={navConfirm !== null}
         onOpenChange={(open) => {
           if (!open) setNavConfirm(null)
@@ -995,7 +1555,7 @@ export function WriteEditorWorkspace() {
             <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
             <AlertDialogDescription>
               Your draft is not saved to the server yet. If you leave now,
-              recent edits may be lost.
+              recent edits and notes may be lost.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

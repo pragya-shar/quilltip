@@ -12,20 +12,25 @@
  * - Better error messages for all wallet types
  */
 
-import {
-  StellarWalletsKit,
-  WalletNetwork,
-  allowAllModules,
+import type {
   ISupportedWallet,
+  WalletNetwork as WalletNetworkValue,
+} from '@creit.tech/stellar-wallets-kit'
+import { toast } from 'sonner'
+import { hasInstalledWalletForKitModal as supportedWalletsAllowKitModal } from '@/lib/stellar/wallet-availability'
+import { loadWalletKit } from '@/lib/stellar/wallet-kit-loader'
+import {
   FREIGHTER_ID,
   XBULL_ID,
   ALBEDO_ID,
   RABET_ID,
   HANA_ID,
   HOTWALLET_ID,
-} from '@creit.tech/stellar-wallets-kit'
-import { toast } from 'sonner'
-import { hasInstalledWalletForKitModal as supportedWalletsAllowKitModal } from '@/lib/stellar/wallet-availability'
+} from '@/lib/stellar/wallet-ids'
+
+type StellarWalletsKit = InstanceType<
+  Awaited<ReturnType<typeof loadWalletKit>>['StellarWalletsKit']
+>
 
 // Wallet type definitions
 export type WalletType =
@@ -134,6 +139,10 @@ function extractErrorMessage(error: unknown, walletId?: string): string {
       return `${walletName} connection timed out. Please ensure the wallet extension is unlocked and try again.`
     }
 
+    if (error.message.includes('modal is already open')) {
+      return 'Wallet selection is already open. Please finish or close the wallet modal before trying again.'
+    }
+
     // Network errors
     if (error.message.includes('network') || error.message.includes('fetch')) {
       return `Network error connecting to ${walletName}. Please check your internet connection.`
@@ -192,6 +201,7 @@ class StellarWalletAdapter {
   private selectedWalletId: string | null = null
   private isInitialized = false
   private connectionCache: Map<string, ConnectionResult> = new Map() // Cache wallet details
+  private connectPromise: Promise<ConnectionResult> | null = null
 
   constructor() {
     // Kit will be created lazily on first use to avoid SSR issues
@@ -200,8 +210,12 @@ class StellarWalletAdapter {
   /**
    * Create or recreate the wallet kit instance
    */
-  private createKit(network?: WalletNetwork): StellarWalletsKit {
-    const targetNetwork = network || this.getNetworkFromEnv()
+  private async createKit(
+    network?: WalletNetworkValue
+  ): Promise<StellarWalletsKit> {
+    const { StellarWalletsKit, allowAllModules, WalletNetwork } =
+      await loadWalletKit()
+    const targetNetwork = network ?? this.getNetworkFromEnv(WalletNetwork)
     const savedWalletId = this.getStoredWalletId()
 
     return new StellarWalletsKit({
@@ -214,7 +228,9 @@ class StellarWalletAdapter {
   /**
    * Get network from environment variable
    */
-  private getNetworkFromEnv(): WalletNetwork {
+  private getNetworkFromEnv(
+    WalletNetwork: Awaited<ReturnType<typeof loadWalletKit>>['WalletNetwork']
+  ): WalletNetworkValue {
     const envNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK
     return envNetwork === 'PUBLIC'
       ? WalletNetwork.PUBLIC
@@ -250,13 +266,13 @@ class StellarWalletAdapter {
   /**
    * Ensure kit is initialized (client-side only)
    */
-  private ensureKit(): StellarWalletsKit {
+  private async ensureKit(): Promise<StellarWalletsKit> {
     if (typeof window === 'undefined') {
       throw new Error('Wallet adapter can only be used in the browser')
     }
 
     if (!this.kit) {
-      this.kit = this.createKit()
+      this.kit = await this.createKit()
     }
 
     return this.kit
@@ -264,7 +280,7 @@ class StellarWalletAdapter {
 
   private async hasInstalledWalletForKitModal(): Promise<boolean> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
     const supported = (await kit.getSupportedWallets()) as ISupportedWallet[]
     return supportedWalletsAllowKitModal(supported)
   }
@@ -277,7 +293,7 @@ class StellarWalletAdapter {
     if (this.isInitialized) return
 
     // Ensure kit exists
-    this.ensureKit()
+    await this.ensureKit()
 
     // Only restore the wallet ID from storage, don't trigger connection
     const storedWalletId = this.getStoredWalletId()
@@ -300,8 +316,20 @@ class StellarWalletAdapter {
    * Opens wallet selection modal and connects to user's choice
    */
   async connect(): Promise<ConnectionResult> {
+    if (this.connectPromise) {
+      return this.connectPromise
+    }
+
+    this.connectPromise = this.openWalletModalConnection().finally(() => {
+      this.connectPromise = null
+    })
+
+    return this.connectPromise
+  }
+
+  private async openWalletModalConnection(): Promise<ConnectionResult> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     const hasWallet = await this.hasInstalledWalletForKitModal()
     if (!hasWallet) {
@@ -311,93 +339,104 @@ class StellarWalletAdapter {
     }
 
     return new Promise((resolve, reject) => {
-      kit.openModal({
-        onWalletSelected: async (option: ISupportedWallet) => {
-          try {
-            if (option.id === ALBEDO_ID && isInsecureLocalhost()) {
-              notifyAlbedoInsecureLocalhost()
-              reject(albedoInsecureLocalhostError())
-              return
-            }
-
-            // Set the selected wallet with retry logic for xBull and other wallets
-            await this.setWalletWithRetry(option.id)
-            this.storeWalletId(option.id)
-
-            const walletInfo = this.getWalletInfo(option.id)
-
-            // Add delay for wallets requiring eager connection (xBull, Hana)
-            if (
-              walletInfo?.requiresEagerConnection &&
-              option.id !== ALBEDO_ID
-            ) {
-              await new Promise((resolve) => setTimeout(resolve, 500))
-            }
-
-            // Get address and network with retry logic for xBull
-            let address: string | undefined
-            let network:
-              | { network: string; networkPassphrase: string }
-              | undefined
-
-            if (option.id === XBULL_ID) {
-              // Special handling for xBull with retries
-              let retries = 0
-              while (retries < 3) {
-                try {
-                  const addressResult = await kit.getAddress()
-                  address = addressResult.address
-                  network = await kit.getNetwork()
-                  break
-                } catch (getAddressError) {
-                  retries++
-                  if (retries === 3) {
-                    throw getAddressError
-                  }
-                  console.warn(
-                    `[Wallet Adapter] xBull getAddress attempt ${retries} failed, retrying...`
-                  )
-                  await new Promise((resolve) => setTimeout(resolve, 500))
-                }
+      try {
+        kit.openModal({
+          onWalletSelected: async (option: ISupportedWallet) => {
+            try {
+              if (option.id === ALBEDO_ID && isInsecureLocalhost()) {
+                notifyAlbedoInsecureLocalhost()
+                reject(albedoInsecureLocalhostError())
+                return
               }
+
+              // Set the selected wallet with retry logic for xBull and other wallets
+              await this.setWalletWithRetry(option.id)
+              this.storeWalletId(option.id)
+
+              const walletInfo = this.getWalletInfo(option.id)
+
+              // Add delay for wallets requiring eager connection (xBull, Hana)
+              if (
+                walletInfo?.requiresEagerConnection &&
+                option.id !== ALBEDO_ID
+              ) {
+                await new Promise((resolve) => setTimeout(resolve, 500))
+              }
+
+              // Get address and network with retry logic for xBull
+              let address: string | undefined
+              let network:
+                | { network: string; networkPassphrase: string }
+                | undefined
+
+              if (option.id === XBULL_ID) {
+                // Special handling for xBull with retries
+                let retries = 0
+                while (retries < 3) {
+                  try {
+                    const addressResult = await kit.getAddress()
+                    address = addressResult.address
+                    network = await kit.getNetwork()
+                    break
+                  } catch (getAddressError) {
+                    retries++
+                    if (retries === 3) {
+                      throw getAddressError
+                    }
+                    console.warn(
+                      `[Wallet Adapter] xBull getAddress attempt ${retries} failed, retrying...`
+                    )
+                    await new Promise((resolve) => setTimeout(resolve, 500))
+                  }
+                }
+              } else {
+                // Standard flow for other wallets
+                const addressResult = await kit.getAddress()
+                address = addressResult.address
+                network = await kit.getNetwork()
+              }
+
+              if (!address || !network) {
+                throw new Error(
+                  `Failed to get wallet details from ${option.id}`
+                )
+              }
+
+              const result = {
+                publicKey: address,
+                network: network.network,
+                networkPassphrase: network.networkPassphrase,
+              }
+
+              // Cache the connection result
+              this.connectionCache.set(option.id, result)
+
+              resolve(result)
+            } catch (error) {
+              const errorMsg = extractErrorMessage(error, option.id)
+              console.error(
+                '[Wallet Adapter] Connection error:',
+                errorMsg,
+                error
+              )
+              reject(new Error(errorMsg))
+            }
+          },
+          onClosed: (error) => {
+            if (error) {
+              const errorMsg = extractErrorMessage(error)
+              reject(
+                new Error(errorMsg || 'Wallet selection cancelled or failed')
+              )
             } else {
-              // Standard flow for other wallets
-              const addressResult = await kit.getAddress()
-              address = addressResult.address
-              network = await kit.getNetwork()
+              reject(new Error('Wallet selection cancelled'))
             }
-
-            if (!address || !network) {
-              throw new Error(`Failed to get wallet details from ${option.id}`)
-            }
-
-            const result = {
-              publicKey: address,
-              network: network.network,
-              networkPassphrase: network.networkPassphrase,
-            }
-
-            // Cache the connection result
-            this.connectionCache.set(option.id, result)
-
-            resolve(result)
-          } catch (error) {
-            const errorMsg = extractErrorMessage(error, option.id)
-            console.error('[Wallet Adapter] Connection error:', errorMsg, error)
-            reject(new Error(errorMsg))
-          }
-        },
-        onClosed: (error) => {
-          if (error) {
-            const errorMsg = extractErrorMessage(error)
-            reject(
-              new Error(errorMsg || 'Wallet selection cancelled or failed')
-            )
-          } else {
-            reject(new Error('Wallet selection cancelled'))
-          }
-        },
-      })
+          },
+        })
+      } catch (error) {
+        const errorMsg = extractErrorMessage(error)
+        reject(new Error(errorMsg || 'Wallet selection failed'))
+      }
     })
   }
 
@@ -408,7 +447,7 @@ class StellarWalletAdapter {
     walletId: string,
     maxRetries = 3
   ): Promise<void> {
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
     const walletInfo = this.getWalletInfo(walletId)
 
     // For wallets requiring eager connection (xBull, Hot, Hana), reduce retries to avoid multiple popups
@@ -478,7 +517,7 @@ class StellarWalletAdapter {
    */
   async connectToWallet(walletId: string): Promise<ConnectionResult> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     // Check cache first
     const cached = this.connectionCache.get(walletId)
@@ -596,7 +635,7 @@ class StellarWalletAdapter {
    */
   async getPublicKey(): Promise<string> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     // Check cache first
     if (this.selectedWalletId) {
@@ -628,7 +667,7 @@ class StellarWalletAdapter {
    */
   async getNetwork(): Promise<{ network: string; networkPassphrase: string }> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     // Check cache first
     if (this.selectedWalletId) {
@@ -687,7 +726,7 @@ class StellarWalletAdapter {
     networkPassphrase: string
   ): Promise<string> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     if (!this.selectedWalletId) {
       throw new Error('No wallet connected')
@@ -751,12 +790,12 @@ class StellarWalletAdapter {
 
     let lastAddress: string | null = null
     let isActive = true
-    const kit = this.ensureKit()
 
     const poll = async () => {
       if (!isActive) return
 
       try {
+        const kit = await this.ensureKit()
         const { address } = await kit.getAddress()
         if (address !== lastAddress) {
           lastAddress = address
@@ -796,12 +835,12 @@ class StellarWalletAdapter {
 
     let lastNetwork: string | null = null
     let isActive = true
-    const kit = this.ensureKit()
 
     const poll = async () => {
       if (!isActive) return
 
       try {
+        const kit = await this.ensureKit()
         const network = await kit.getNetwork()
         if (network.network !== lastNetwork) {
           lastNetwork = network.network
@@ -830,7 +869,7 @@ class StellarWalletAdapter {
    */
   async refresh(): Promise<void> {
     await this.initialize()
-    const kit = this.ensureKit()
+    const kit = await this.ensureKit()
 
     if (this.selectedWalletId) {
       try {
@@ -847,7 +886,7 @@ class StellarWalletAdapter {
 // Export singleton instance
 export const walletAdapter = new StellarWalletAdapter()
 
-// Export wallet IDs for direct reference
+// Re-export wallet IDs for direct reference
 export {
   FREIGHTER_ID,
   XBULL_ID,
@@ -855,5 +894,4 @@ export {
   RABET_ID,
   HANA_ID,
   HOTWALLET_ID,
-  WalletNetwork,
-}
+} from '@/lib/stellar/wallet-ids'
