@@ -1,9 +1,6 @@
 /** @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  ACTIVE_HEADING_TOP_OFFSET_PX,
-  pickActiveId,
-} from './tocActiveSection'
+import { ACTIVE_HEADING_TOP_OFFSET_PX, pickActiveId } from './tocActiveSection'
 
 function mockHeading(id: string, top: number) {
   const el = document.createElement('h2')
