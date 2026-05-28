@@ -1,5 +1,4 @@
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime'
-import { toast } from 'sonner'
 import { TIP_MIN_CENTS, TIP_MAX_CENTS, TIP_MAX_USD } from '@/lib/constants'
 import { redirectToLoginForTip } from '@/lib/tip/redirectToLoginForTip'
 import type { PendingTipIntent } from '@/lib/tip/pendingTipIntent'
@@ -12,7 +11,7 @@ export type TipAmountFormState = {
 
 export type ValidateTipAmountResult =
   | { ok: true; amountCents: number }
-  | { ok: false }
+  | { ok: false; message: string }
 
 export function validateTipAmountForm({
   selectedAmount,
@@ -22,18 +21,24 @@ export function validateTipAmountForm({
   const amountCents = selectedAmount || parseFloat(customAmount) * 100
 
   if (!amountCents || amountCents < TIP_MIN_CENTS) {
-    toast.error('Please select or enter a valid amount')
-    return { ok: false }
+    return {
+      ok: false,
+      message: 'Please select or enter a valid amount',
+    }
   }
 
   if (amountCents > TIP_MAX_CENTS) {
-    toast.error(`Maximum tip amount is $${TIP_MAX_USD.toFixed(2)}`)
-    return { ok: false }
+    return {
+      ok: false,
+      message: `Maximum tip amount is $${TIP_MAX_USD.toFixed(2)}`,
+    }
   }
 
   if (message !== undefined && message.length > 500) {
-    toast.error('Message must be 500 characters or less')
-    return { ok: false }
+    return {
+      ok: false,
+      message: 'Message must be 500 characters or less',
+    }
   }
 
   return { ok: true, amountCents }
