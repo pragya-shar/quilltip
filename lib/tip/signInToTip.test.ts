@@ -1,11 +1,6 @@
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime'
 import { describe, expect, it, vi } from 'vitest'
-import { toast } from 'sonner'
 import { validateTipAmountForm, signInToTip } from './signInToTip'
-
-vi.mock('sonner', () => ({
-  toast: { error: vi.fn() },
-}))
 
 const mockRedirect = vi.hoisted(() => vi.fn())
 
@@ -21,6 +16,9 @@ describe('signInToTip', () => {
       customAmount: '',
     })
     expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.message).toMatch(/valid amount/i)
+    }
     signInToTip(
       router,
       '/article',
@@ -31,13 +29,11 @@ describe('signInToTip', () => {
       }
     )
     expect(mockRedirect).not.toHaveBeenCalled()
-    expect(toast.error).toHaveBeenCalled()
   })
 
   it('redirects with valid amount', () => {
     const router = { replace: vi.fn() } as unknown as AppRouterInstance
     mockRedirect.mockClear()
-    vi.mocked(toast.error).mockClear()
 
     signInToTip(
       router,
@@ -61,5 +57,8 @@ describe('signInToTip', () => {
       message: 'x'.repeat(501),
     })
     expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.message).toMatch(/500 characters/)
+    }
   })
 })

@@ -33,7 +33,8 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { Textarea } from '@/components/ui/textarea'
-import { ChevronDown, Loader2 } from 'lucide-react'
+import { AlertCircle, ChevronDown, Loader2, X } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +46,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+import type { FlowFeedback } from '@/lib/feedback/flow-feedback'
+import {
+  PUBLISH_EMPTY_CONTENT_FEEDBACK,
+  publishErrorFeedback,
+} from '@/lib/editor/publish-feedback'
 import {
   compressImage,
   uploadFile,
@@ -167,6 +173,13 @@ export function WriteEditorWorkspace() {
   const [backupRecoveryStatus, setBackupRecoveryStatus] = useState<
     'pending' | 'resolved'
   >('pending')
+  const [saveErrorDismissed, setSaveErrorDismissed] = useState(false)
+  const [publishFeedback, setPublishFeedback] = useState<FlowFeedback | null>(
+    null
+  )
+  const [deleteFeedback, setDeleteFeedback] = useState<FlowFeedback | null>(
+    null
+  )
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -269,6 +282,7 @@ export function WriteEditorWorkspace() {
       const json = editor.getJSON()
       setEditorContent(json)
       setHasUnsavedChanges(true)
+      setPublishFeedback(null)
     },
   })
 
@@ -289,6 +303,7 @@ export function WriteEditorWorkspace() {
       setArticleId(response.id)
       syncDraftIdInUrl(response.id)
       setHasUnsavedChanges(false)
+      setSaveErrorDismissed(false)
       if (!recoveryDeferredRef.current) {
         clearDraftBackup()
       }
@@ -296,6 +311,7 @@ export function WriteEditorWorkspace() {
     onSaveError: (error) => {
       console.error('Auto-save error:', error)
       setHasUnsavedChanges(true)
+      setSaveErrorDismissed(false)
     },
   })
 
@@ -564,6 +580,7 @@ export function WriteEditorWorkspace() {
 
   const requestPublish = useCallback(() => {
     if (!editor || editor.isEmpty) {
+      setPublishFeedback(PUBLISH_EMPTY_CONTENT_FEEDBACK)
       toast.warning('Please add content before publishing')
       return
     }
@@ -573,17 +590,20 @@ export function WriteEditorWorkspace() {
       toast.warning(listingError)
       return
     }
+    setPublishFeedback(null)
     setPublishConfirmOpen(true)
   }, [editor, title, excerpt, blockPublishForPlaceholderTitle])
 
   const handlePublish = useCallback(async () => {
     if (!editor || editor.isEmpty) {
       setPublishConfirmOpen(false)
+      setPublishFeedback(PUBLISH_EMPTY_CONTENT_FEEDBACK)
       toast.warning('Please add content before publishing')
       return
     }
     if (!editorContent) {
       setPublishConfirmOpen(false)
+      setPublishFeedback(PUBLISH_EMPTY_CONTENT_FEEDBACK)
       toast.warning('Please add content before publishing')
       return
     }
@@ -598,6 +618,7 @@ export function WriteEditorWorkspace() {
       return
     }
 
+    setPublishFeedback(null)
     setIsPublishing(true)
     try {
       await saveNow()
@@ -634,6 +655,7 @@ export function WriteEditorWorkspace() {
         published: true,
         publishedAt: new Date(),
       })
+      setPublishFeedback(null)
 
       if (publishedSlug) setPublishedSlugOverride(publishedSlug)
       setPublishSuccessVisible(true)
@@ -644,7 +666,13 @@ export function WriteEditorWorkspace() {
         setTitleError(TITLE_PUBLISH_ERROR)
         focusTitleField()
       } else {
-        toast.error(`Failed to publish: ${message}`)
+        const feedback = publishErrorFeedback(error)
+        setPublishFeedback(feedback)
+        toast.error(
+          feedback.detail
+            ? `${feedback.title}: ${feedback.detail}`
+            : feedback.title
+        )
       }
     } finally {
       setIsPublishing(false)
@@ -667,6 +695,7 @@ export function WriteEditorWorkspace() {
 
   const handleRequestDelete = useCallback(() => {
     if (!articleId || isDeleting) return
+    setDeleteFeedback(null)
     setDeleteDialogOpen(true)
   }, [articleId, isDeleting])
 
@@ -682,6 +711,13 @@ export function WriteEditorWorkspace() {
       router.push('/')
     } catch (error) {
       console.error('Delete error:', error)
+      const message =
+        error instanceof Error ? error.message : 'Please try again.'
+      setDeleteFeedback({
+        variant: 'destructive',
+        title: 'Failed to delete draft',
+        detail: message,
+      })
       toast.error('Failed to delete draft. Please try again.')
       setIsDeleting(false)
     }
@@ -1024,6 +1060,63 @@ export function WriteEditorWorkspace() {
           />
         </div>
       ) : null}
+      {publishFeedback && (
+        <div className="border-b border-border bg-background">
+          <div className="mx-auto flex max-w-4xl items-start gap-2 px-4 py-3 sm:px-6">
+            <Alert
+              variant={
+                publishFeedback.variant === 'destructive'
+                  ? 'destructive'
+                  : 'default'
+              }
+              className="flex-1"
+            >
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>{publishFeedback.title}</AlertTitle>
+              {publishFeedback.detail ? (
+                <AlertDescription>{publishFeedback.detail}</AlertDescription>
+              ) : null}
+            </Alert>
+            <button
+              type="button"
+              onClick={() => setPublishFeedback(null)}
+              className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Dismiss publish message"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+      {error && !saveErrorDismissed && (
+        <div className="border-b border-border bg-background">
+          <div className="mx-auto flex max-w-4xl items-start gap-2 px-4 py-3 sm:px-6">
+            <Alert variant="destructive" className="flex-1">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Couldn&apos;t save draft</AlertTitle>
+              <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <span>{error.message}</span>
+                <button
+                  type="button"
+                  onClick={() => void saveNow()}
+                  disabled={isSaving}
+                  className="shrink-0 rounded-md border border-destructive/50 px-3 py-1.5 text-sm font-medium hover:bg-destructive/10 disabled:opacity-50"
+                >
+                  {isSaving ? 'Saving...' : 'Retry save'}
+                </button>
+              </AlertDescription>
+            </Alert>
+            <button
+              type="button"
+              onClick={() => setSaveErrorDismissed(true)}
+              className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Dismiss save error"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex min-w-0 flex-1 flex-col pb-8">
         <div className="sticky top-16 z-40 mb-6 w-full bg-background">
           <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
@@ -1624,6 +1717,15 @@ export function WriteEditorWorkspace() {
               deleted.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {deleteFeedback && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>{deleteFeedback.title}</AlertTitle>
+              {deleteFeedback.detail ? (
+                <AlertDescription>{deleteFeedback.detail}</AlertDescription>
+              ) : null}
+            </Alert>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
