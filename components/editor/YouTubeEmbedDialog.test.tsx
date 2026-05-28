@@ -1,12 +1,12 @@
 /** @vitest-environment jsdom */
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { YouTubeEmbedDialog } from '@/components/editor/YouTubeEmbedDialog'
 
 describe('YouTubeEmbedDialog', () => {
   it('shows an error when submitting an empty URL', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onVideoEmbed = vi.fn(() => true)
 
     render(
@@ -19,14 +19,16 @@ describe('YouTubeEmbedDialog', () => {
 
     await user.click(screen.getByLabelText('YouTube URL'))
     await user.keyboard('{Enter}')
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Please enter a YouTube URL'
-    )
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Please enter a YouTube URL'
+      )
+    })
     expect(onVideoEmbed).not.toHaveBeenCalled()
   })
 
   it('shows an error for an invalid URL', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onVideoEmbed = vi.fn(() => true)
 
     render(
@@ -43,14 +45,16 @@ describe('YouTubeEmbedDialog', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Embed Video' }))
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Please enter a valid YouTube URL'
-    )
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Please enter a valid YouTube URL'
+      )
+    })
     expect(onVideoEmbed).not.toHaveBeenCalled()
   })
 
   it('shows an error when embed command fails and keeps dialog open', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     const onVideoEmbed = vi.fn(() => false)
     const onClose = vi.fn()
 
@@ -68,15 +72,17 @@ describe('YouTubeEmbedDialog', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Embed Video' }))
 
-    expect(onVideoEmbed).toHaveBeenCalled()
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Could not embed this video'
-    )
+    await waitFor(() => {
+      expect(onVideoEmbed).toHaveBeenCalled()
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Could not embed this video'
+      )
+    })
     expect(onClose).not.toHaveBeenCalled()
   })
 
   it('clears the error while typing', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
 
     render(
       <YouTubeEmbedDialog
@@ -89,9 +95,13 @@ describe('YouTubeEmbedDialog', () => {
     const urlInput = screen.getByLabelText('YouTube URL')
     await user.click(urlInput)
     await user.keyboard('{Enter}')
-    expect(screen.getByRole('alert')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+    })
 
     await user.type(urlInput, 'https://')
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
   })
 })

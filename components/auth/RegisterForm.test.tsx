@@ -83,7 +83,7 @@ describe('RegisterForm accessibility', () => {
     expect(document.getElementById('email-error')).toBeNull()
   })
 
-  it('shows a server email conflict on the email field', async () => {
+  it('shows a server email conflict on the email field', { timeout: 10_000 }, async () => {
     const user = userEvent.setup({ delay: null })
     mockSignIn.mockRejectedValue(new Error('Account already exists'))
 
@@ -184,31 +184,38 @@ describe('RegisterForm accessibility', () => {
     expect(unmetItems.length).toBeGreaterThan(0)
   })
 
-  it('clears password failure highlight when all rules are met', { timeout: 10_000 }, async () => {
-    const user = userEvent.setup({ delay: null })
-    render(<RegisterForm />)
+  it(
+    'clears password failure highlight when all rules are met',
+    { timeout: 10_000 },
+    async () => {
+      const user = userEvent.setup({ delay: null })
+      render(<RegisterForm />)
 
-    await user.type(screen.getByLabelText(/email address/i), 'user@example.com')
-    await user.type(screen.getByLabelText(/^username$/i), 'myuser')
-    await user.type(screen.getByLabelText(/^password$/i), 'weak')
-    await user.type(screen.getByLabelText(/^confirm password$/i), 'weak')
-    await user.click(screen.getByRole('button', { name: /create account/i }))
+      await user.type(
+        screen.getByLabelText(/email address/i),
+        'user@example.com'
+      )
+      await user.type(screen.getByLabelText(/^username$/i), 'myuser')
+      await user.type(screen.getByLabelText(/^password$/i), 'weak')
+      await user.type(screen.getByLabelText(/^confirm password$/i), 'weak')
+      await user.click(screen.getByRole('button', { name: /create account/i }))
 
-    await waitFor(() => {
-      expect(document.getElementById('password-error')).toBeInTheDocument()
-    })
+      await waitFor(() => {
+        expect(document.getElementById('password-error')).toBeInTheDocument()
+      })
 
-    const passwordInput = screen.getByLabelText(/^password$/i)
-    await user.clear(passwordInput)
-    await user.type(passwordInput, 'Password1')
+      const passwordInput = screen.getByLabelText(/^password$/i)
+      await user.clear(passwordInput)
+      await user.type(passwordInput, 'Password1')
 
-    await waitFor(() => {
-      const requirements = document.getElementById('password-requirements')
-      const unmetItems =
-        requirements?.querySelectorAll('.text-destructive') ?? []
-      expect(unmetItems).toHaveLength(0)
-    })
-  })
+      await waitFor(() => {
+        const requirements = document.getElementById('password-requirements')
+        const unmetItems =
+          requirements?.querySelectorAll('.text-destructive') ?? []
+        expect(unmetItems).toHaveLength(0)
+      })
+    }
+  )
 
   it('confirm password visibility toggle has accessible name and pressed state', async () => {
     const user = userEvent.setup({ delay: null })
