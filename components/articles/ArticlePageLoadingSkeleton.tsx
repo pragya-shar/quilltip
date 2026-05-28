@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export function ArticlePageLoadingSkeleton() {
   return (
-    <main className="pt-20">
+    <main className="pt-20" aria-hidden>
       <div className="max-w-4xl mx-auto px-4 py-8">
         <Skeleton className="h-96 w-full rounded-lg mb-8" />
         <Skeleton className="h-8 w-3/4 mb-4" />
