@@ -7,8 +7,7 @@ export const PUBLISH_EMPTY_CONTENT_FEEDBACK: FlowFeedback = {
 }
 
 export function publishErrorFeedback(error: unknown): FlowFeedback {
-  const message =
-    error instanceof Error ? error.message : 'Unknown error'
+  const message = error instanceof Error ? error.message : 'Unknown error'
   return {
     variant: 'destructive',
     title: 'Failed to publish',
