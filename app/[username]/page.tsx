@@ -3,6 +3,8 @@
 import { useUserByUsername, useUserStats } from '@/hooks/convex'
 import { use, useState, useEffect } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { LoadingRegion } from '@/components/a11y/LoadingRegion'
+import { useStaleLoading } from '@/hooks/useStaleLoading'
 import {
   buildProfileTabHref,
   parseProfileTab,
@@ -51,6 +53,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
 
   // Fetch user profile
   const user = useUserByUsername(username)
+  const { isStale, reset: resetStale } = useStaleLoading(user === undefined)
 
   // Sync local wallet address with user data
   useEffect(() => {
@@ -84,11 +87,22 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   }
 
   // Show loading while data is being fetched
-  if (!user) {
+  if (user === undefined) {
     return (
       <div className="min-h-screen bg-background">
         <AppNavigation />
-        <ProfilePageLoadingSkeleton />
+        <LoadingRegion
+          label="profile"
+          isLoading
+          isStale={isStale}
+          onRetry={() => {
+            resetStale()
+            router.refresh()
+          }}
+          fallback={<ProfilePageLoadingSkeleton />}
+        >
+          <div />
+        </LoadingRegion>
       </div>
     )
   }

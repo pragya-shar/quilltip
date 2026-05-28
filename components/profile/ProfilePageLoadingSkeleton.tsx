@@ -3,7 +3,10 @@ import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
 
 export function ProfilePageLoadingSkeleton() {
   return (
-    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
+    <main
+      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12"
+      aria-hidden
+    >
       <div className="mb-8">
         <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-8">
           <div className="flex flex-col sm:flex-row gap-6">

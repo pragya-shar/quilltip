@@ -46,6 +46,9 @@ import {
 import { ReadingProgressBar } from '@/components/articles/ReadingProgressBar'
 import { extractH2HeadingsFromTiptapJson } from '@/lib/tiptap/headings'
 import { ArticleTableOfContents } from '@/components/articles/ArticleTableOfContents'
+import { LoadingRegion } from '@/components/a11y/LoadingRegion'
+import { useStaleLoading } from '@/hooks/useStaleLoading'
+import { useRouter } from 'next/navigation'
 
 interface ArticlePageProps {
   params: Promise<{
@@ -58,8 +61,10 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   const { username, slug } = use(params)
   const [showHighlightsPanel, setShowHighlightsPanel] = useState(false)
   const { user } = useAuth()
+  const router = useRouter()
 
   const article = useArticleBySlug(username, slug)
+  const { isStale, reset: resetStale } = useStaleLoading(article === undefined)
 
   const highlights = useArticleHighlightsQuery(article?._id)
 
@@ -87,11 +92,22 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   }
 
   // Show loading while article is being fetched
-  if (!article) {
+  if (article === undefined) {
     return (
       <div className="min-h-screen bg-background">
         <AppNavigation />
-        <ArticlePageLoadingSkeleton />
+        <LoadingRegion
+          label="article"
+          isLoading
+          isStale={isStale}
+          onRetry={() => {
+            resetStale()
+            router.refresh()
+          }}
+          fallback={<ArticlePageLoadingSkeleton />}
+        >
+          <div />
+        </LoadingRegion>
       </div>
     )
   }
