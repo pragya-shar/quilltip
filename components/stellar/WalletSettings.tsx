@@ -14,7 +14,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import type { FlowFeedback } from '@/lib/feedback/flow-feedback'
 import {
   Wallet,
   Copy,
@@ -56,6 +57,9 @@ export function WalletSettings({
   const [isCopied, setIsCopied] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
+  const [walletFeedback, setWalletFeedback] = useState<FlowFeedback | null>(
+    null
+  )
 
   const handleCopy = async () => {
     if (!walletAddress) return
@@ -63,15 +67,22 @@ export function WalletSettings({
     try {
       await navigator.clipboard.writeText(walletAddress)
       setIsCopied(true)
+      setWalletFeedback(null)
       toast.success('Wallet address copied to clipboard')
       setTimeout(() => setIsCopied(false), 2000)
     } catch {
+      setWalletFeedback({
+        variant: 'destructive',
+        title: 'Failed to copy address',
+        detail: 'Copy the address manually or try again.',
+      })
       toast.error('Failed to copy address')
     }
   }
 
   const handleConnectWallet = async () => {
     setIsConnecting(true)
+    setWalletFeedback(null)
     try {
       const success = await connect()
       if (success) {
@@ -84,9 +95,15 @@ export function WalletSettings({
             stellarAddress: connectedKey,
           })
           onAddressChange?.(connectedKey)
+          setWalletFeedback(null)
           toast.success('Wallet connected and saved successfully!')
         }
       } else {
+        setWalletFeedback({
+          variant: 'destructive',
+          title: 'Failed to connect wallet',
+          detail: 'Try again or choose a different wallet extension.',
+        })
         toast.error('Failed to connect wallet')
       }
     } catch (error) {
@@ -104,6 +121,11 @@ export function WalletSettings({
         return
       }
 
+      setWalletFeedback({
+        variant: 'destructive',
+        title: 'Failed to connect wallet',
+        detail: message,
+      })
       toast.error(message)
     } finally {
       setIsConnecting(false)
@@ -115,6 +137,7 @@ export function WalletSettings({
     if (isConnecting) return
 
     setIsConnecting(true)
+    setWalletFeedback(null)
 
     try {
       // Step 1: Update database FIRST (ensures source of truth is updated)
@@ -127,6 +150,7 @@ export function WalletSettings({
 
       // Step 3: Notify parent component for immediate UI update
       onAddressChange?.('')
+      setWalletFeedback(null)
 
       toast.success('Wallet disconnected successfully')
     } catch (error) {
@@ -135,16 +159,36 @@ export function WalletSettings({
       // Provide specific error messages
       if (error instanceof Error) {
         if (error.message.includes('Not authenticated')) {
+          setWalletFeedback({
+            variant: 'destructive',
+            title: 'Session expired',
+            detail: 'Please refresh and try again.',
+          })
           toast.error('Session expired. Please refresh and try again.')
         } else if (
           error.message.includes('network') ||
           error.message.includes('fetch')
         ) {
+          setWalletFeedback({
+            variant: 'destructive',
+            title: 'Network error',
+            detail: 'Check your connection and try again.',
+          })
           toast.error('Network error. Check your connection and try again.')
         } else {
+          setWalletFeedback({
+            variant: 'destructive',
+            title: 'Disconnect failed',
+            detail: error.message,
+          })
           toast.error(`Disconnect failed: ${error.message}`)
         }
       } else {
+        setWalletFeedback({
+          variant: 'destructive',
+          title: 'Failed to disconnect wallet',
+          detail: 'Please try again.',
+        })
         toast.error('Failed to disconnect wallet. Please try again.')
       }
 
@@ -183,6 +227,21 @@ export function WalletSettings({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {walletFeedback && (
+            <Alert
+              variant={
+                walletFeedback.variant === 'destructive'
+                  ? 'destructive'
+                  : 'default'
+              }
+            >
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>{walletFeedback.title}</AlertTitle>
+              {walletFeedback.detail ? (
+                <AlertDescription>{walletFeedback.detail}</AlertDescription>
+              ) : null}
+            </Alert>
+          )}
           {isOwnProfile && (
             <Alert className="border-info/50 bg-info">
               <AlertCircle className="h-4 w-4 text-info-foreground" />

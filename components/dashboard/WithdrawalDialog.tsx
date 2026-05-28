@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState, type RefObject } from 'react'
-import { Loader2, Wallet } from 'lucide-react'
-import { toast } from 'sonner'
+import { AlertCircle, Loader2, Wallet } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,7 @@ export type WithdrawalDialogProps = {
     stellarAddress: string
   }) => Promise<void>
   triggerRef: RefObject<HTMLButtonElement | null>
+  externalError?: string | null
 }
 
 export function WithdrawalDialog({
@@ -35,15 +36,18 @@ export function WithdrawalDialog({
   savedStellarAddress,
   onWithdraw,
   triggerRef,
+  externalError = null,
 }: WithdrawalDialogProps) {
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [stellarAddress, setStellarAddress] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       setWithdrawAmount('')
       setStellarAddress(savedStellarAddress ?? '')
+      setSubmitError(null)
     }
   }, [open, savedStellarAddress])
 
@@ -60,22 +64,23 @@ export function WithdrawalDialog({
     const amount = parseFloat(withdrawAmount)
 
     if (!amount || amount < minWithdrawalUsd) {
-      toast.error(
+      setSubmitError(
         `Minimum withdrawal amount is $${minWithdrawalUsd.toFixed(2)}`
       )
       return
     }
 
     if (!isValidStellarAccountId(trimmedAddress)) {
-      toast.error('Please enter a valid Stellar address')
+      setSubmitError('Please enter a valid Stellar address')
       return
     }
 
     if (amount > availableBalanceUsd) {
-      toast.error('Insufficient balance')
+      setSubmitError('Insufficient balance')
       return
     }
 
+    setSubmitError(null)
     setIsSubmitting(true)
     try {
       await onWithdraw({
@@ -83,12 +88,16 @@ export function WithdrawalDialog({
         stellarAddress: trimmedAddress,
       })
       onOpenChange(false)
-    } catch {
-      // Parent shows toast for mutation errors
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to process withdrawal'
+      setSubmitError(message)
     } finally {
       setIsSubmitting(false)
     }
   }
+
+  const displayError = submitError ?? externalError
 
   if (!open) {
     return null
@@ -135,7 +144,10 @@ export function WithdrawalDialog({
                 max={availableBalanceUsd}
                 step="0.01"
                 value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value)}
+                onChange={(e) => {
+                  setWithdrawAmount(e.target.value)
+                  setSubmitError(null)
+                }}
                 disabled={isSubmitting}
                 className="w-full pl-8 pr-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder={`${minWithdrawalUsd.toFixed(2)}`}
@@ -158,7 +170,10 @@ export function WithdrawalDialog({
               id="stellar-address"
               type="text"
               value={stellarAddress || savedStellarAddress || ''}
-              onChange={(e) => setStellarAddress(e.target.value)}
+              onChange={(e) => {
+                setStellarAddress(e.target.value)
+                setSubmitError(null)
+              }}
               aria-invalid={showAddressError}
               className={`w-full px-3 py-2 border bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring read-only:bg-muted/50 ${
                 showAddressError
@@ -189,6 +204,14 @@ export function WithdrawalDialog({
             </p>
           </div>
         </div>
+
+        {displayError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Withdrawal failed</AlertTitle>
+            <AlertDescription>{displayError}</AlertDescription>
+          </Alert>
+        )}
 
         <DialogFooter className="gap-3 sm:gap-0">
           <button
