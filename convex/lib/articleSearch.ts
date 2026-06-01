@@ -25,10 +25,7 @@ export function articleMatchesSearchTerms(
   article: Doc<'articles'>,
   search: string
 ): boolean {
-  const terms = search
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
+  const terms = search.trim().split(/\s+/).filter(Boolean)
   if (terms.length === 0) return false
 
   const content = buildSearchContent(article.title, article.excerpt, {

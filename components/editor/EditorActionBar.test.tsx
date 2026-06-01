@@ -147,23 +147,16 @@ describe('EditorActionBar publish requirements', () => {
     const reason =
       'Please add an excerpt of at least 10 characters before publishing'
     render(
-      <EditorActionBar
-        {...baseProps}
-        canPublish
-        publishBlockReason={reason}
-      />
+      <EditorActionBar {...baseProps} canPublish publishBlockReason={reason} />
     )
     expect(screen.getByText(reason)).toBeVisible()
   })
 
   it('associates Publish with the block reason via aria-describedby', () => {
-    const reason = 'Please replace "Untitled" with a real title before publishing'
+    const reason =
+      'Please replace "Untitled" with a real title before publishing'
     render(
-      <EditorActionBar
-        {...baseProps}
-        canPublish
-        publishBlockReason={reason}
-      />
+      <EditorActionBar {...baseProps} canPublish publishBlockReason={reason} />
     )
     const publishButtons = screen.getAllByRole('button', { name: 'Publish' })
     const describedBy = publishButtons[0]!.getAttribute('aria-describedby')

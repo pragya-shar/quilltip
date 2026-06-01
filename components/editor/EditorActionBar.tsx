@@ -230,9 +230,7 @@ export function EditorActionBar({
       type="button"
       onClick={onPublish}
       disabled={isPublishing || !canPublish}
-      aria-describedby={
-        publishBlockReason ? publishBlockReasonId : undefined
-      }
+      aria-describedby={publishBlockReason ? publishBlockReasonId : undefined}
       className="px-5 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-full transition-colors shrink-0"
       title={
         publishBlockReason
