@@ -52,17 +52,11 @@ describe('HowItWorksSection step controls', () => {
     return active
   }
 
-  function stepTab(
-    label: 'Writer steps' | 'Reader steps',
-    name: string
-  ) {
+  function stepTab(label: 'Writer steps' | 'Reader steps', name: string) {
     return within(stepsTablist(label)).getByRole('tab', { name })
   }
 
-  function expectPanelShows(
-    tab: HTMLElement,
-    text: string
-  ) {
+  function expectPanelShows(tab: HTMLElement, text: string) {
     const panelId = tab.getAttribute('aria-controls')
     expect(panelId).toBeTruthy()
     const panel = document.getElementById(panelId!)
@@ -136,9 +130,9 @@ describe('HowItWorksSection step controls', () => {
       browse,
       'All articles are free to read. Explore by topic, trending, or latest. No paywalls, ever.'
     )
-    expect(within(stepsTablist('Reader steps')).getAllByRole('tab')).toHaveLength(
-      4
-    )
+    expect(
+      within(stepsTablist('Reader steps')).getAllByRole('tab')
+    ).toHaveLength(4)
   })
 
   it('operates mobile step tabs when the mobile layout is active', async () => {

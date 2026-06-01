@@ -7,10 +7,7 @@ import { LandingHashLink } from '@/components/landing/LandingHashLink'
 const scrollToLandingSection = vi.fn()
 
 vi.mock('@/lib/landing/scroll-to-section', () => ({
-  handleLandingHashClick: (
-    e: { preventDefault: () => void },
-    href: string
-  ) => {
+  handleLandingHashClick: (e: { preventDefault: () => void }, href: string) => {
     e.preventDefault()
     scrollToLandingSection(href)
     return true
@@ -34,9 +31,7 @@ describe('LandingHashLink', () => {
     const user = userEvent.setup()
     scrollToLandingSection.mockClear()
 
-    render(
-      <LandingHashLink href="#faq">FAQ</LandingHashLink>
-    )
+    render(<LandingHashLink href="#faq">FAQ</LandingHashLink>)
 
     await user.click(screen.getByRole('link', { name: 'FAQ' }))
     expect(scrollToLandingSection).toHaveBeenCalledWith('#faq')
