@@ -1,81 +1,31 @@
 'use client'
 
-import {
-  Edit3,
-  DollarSign,
-  Shield,
-  Zap,
-  MessageSquare,
-  TrendingUp,
-  Globe,
-  Sparkles,
-  type LucideIcon,
-} from 'lucide-react'
 import { motion } from 'motion/react'
 import { Reveal } from '@/components/landing/Reveal'
-import { MIN_WITHDRAWAL_USD } from '@/lib/constants'
+import { LandingHashLink } from '@/components/landing/LandingHashLink'
+import { LANDING_FEATURES, type LandingFeature } from '@/lib/landing/features'
 import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 
-interface Feature {
-  icon: LucideIcon
-  title: string
-  description: string
+function FeatureTitleLink({ feature }: { feature: LandingFeature }) {
+  return (
+    <LandingHashLink
+      href={feature.href}
+      className="focus-ring rounded-sm text-[15px] font-semibold text-foreground hover:underline underline-offset-2"
+    >
+      {feature.title}
+    </LandingHashLink>
+  )
 }
 
-const features: Feature[] = [
-  {
-    icon: Edit3,
-    title: 'Rich Editor',
-    description: 'Code blocks, media embeds, and full markdown support.',
-  },
-  {
-    icon: DollarSign,
-    title: 'Fast Testnet Tips',
-    description:
-      'Tips settle in about 3 seconds on Stellar testnet with near-zero fees.',
-  },
-  {
-    icon: MessageSquare,
-    title: 'Interactive Reading',
-    description: 'Highlight passages and tip the words that move you.',
-  },
-  {
-    icon: Shield,
-    title: '100% Ownership',
-    description: 'Your content, your rules. No platform lock-in.',
-  },
-  {
-    icon: TrendingUp,
-    title: 'Testnet Analytics',
-    description:
-      'Track testnet tip activity and audience growth as it happens.',
-  },
-  {
-    icon: Zap,
-    title: 'Withdraw Testnet Earnings',
-    description: `Move testnet earnings to your wallet once your balance reaches $${MIN_WITHDRAWAL_USD.toFixed(0)}.`,
-  },
-  {
-    icon: Globe,
-    title: 'Permanent Storage',
-    description: 'Articles stored forever on Arweave.',
-  },
-  {
-    icon: Sparkles,
-    title: 'NFT Minting',
-    description: 'Mint top articles as collectible NFTs.',
-  },
-]
-
-function FeatureRow({ feature }: { feature: Feature }) {
+function FeatureRow({ feature }: { feature: LandingFeature }) {
   return (
     <motion.div className="flex items-start gap-4">
       <div className="shrink-0 w-10 h-10 rounded-full bg-card border-2 border-border flex items-center justify-center">
         <feature.icon className="w-4 h-4 text-muted-foreground" />
       </div>
       <div className="min-w-0 flex-1">
-        <h3 className="text-[15px] font-semibold text-foreground">
-          {feature.title}
+        <h3 className="text-[15px] font-semibold leading-snug">
+          <FeatureTitleLink feature={feature} />
         </h3>
         <p className="text-[13px] text-muted-foreground leading-relaxed mt-0.5">
           {feature.description}
@@ -105,7 +55,7 @@ export default function FeaturesSection() {
         </Reveal>
 
         <div className="md:hidden space-y-6">
-          {features.map((feature, index) => (
+          {LANDING_FEATURES.map((feature, index) => (
             <Reveal key={feature.title} delay={0.05 + index * 0.05}>
               <FeatureRow feature={feature} />
             </Reveal>
@@ -127,7 +77,7 @@ export default function FeaturesSection() {
           />
 
           <div className="space-y-8">
-            {features.map((feature, index) => {
+            {LANDING_FEATURES.map((feature, index) => {
               const isLeft = index % 2 === 0
 
               return (
@@ -143,8 +93,8 @@ export default function FeaturesSection() {
                   {isLeft ? (
                     <>
                       <div className="w-[calc(50%-36px)] text-right pr-2 group-hover:translate-x-[-4px] transition-transform duration-300">
-                        <h3 className="text-[15px] font-semibold text-foreground">
-                          {feature.title}
+                        <h3 className="text-[15px] font-semibold leading-snug">
+                          <FeatureTitleLink feature={feature} />
                         </h3>
                         <p className="text-[13px] text-muted-foreground leading-relaxed mt-0.5">
                           {feature.description}
@@ -156,8 +106,8 @@ export default function FeaturesSection() {
                     <>
                       <div className="w-[calc(50%+36px)]" aria-hidden />
                       <div className="w-[calc(50%-36px)] pl-2 group-hover:translate-x-[4px] transition-transform duration-300">
-                        <h3 className="text-[15px] font-semibold text-foreground">
-                          {feature.title}
+                        <h3 className="text-[15px] font-semibold leading-snug">
+                          <FeatureTitleLink feature={feature} />
                         </h3>
                         <p className="text-[13px] text-muted-foreground leading-relaxed mt-0.5">
                           {feature.description}

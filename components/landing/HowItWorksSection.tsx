@@ -244,6 +244,7 @@ export default function HowItWorksSection() {
           aria-label={stepsTablistLabel}
           aria-orientation="horizontal"
           aria-hidden={isMobile}
+          inert={isMobile ? true : undefined}
           className="hidden md:flex gap-2 h-[340px]"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -382,6 +383,7 @@ export default function HowItWorksSection() {
           aria-label={stepsTablistLabel}
           aria-orientation="vertical"
           aria-hidden={!isMobile}
+          inert={!isMobile ? true : undefined}
           className="md:hidden space-y-2"
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -486,7 +488,7 @@ export default function HowItWorksSection() {
         >
           <Link
             href="/register"
-            className="group inline-flex items-center justify-center gap-2 bg-card text-card-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-muted transition-all duration-200"
+            className="focus-ring group inline-flex items-center justify-center gap-2 bg-card text-card-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-muted transition-all duration-200"
           >
             Start Writing & Earning Today
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200" />

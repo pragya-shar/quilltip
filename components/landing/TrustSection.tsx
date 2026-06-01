@@ -2,6 +2,7 @@
 
 import { Shield, Globe } from 'lucide-react'
 import { Reveal } from '@/components/landing/Reveal'
+import { LandingHashLink } from '@/components/landing/LandingHashLink'
 
 const trustTopics = [
   {
@@ -53,7 +54,12 @@ export default function TrustSection() {
                   <topic.icon className="w-5 h-5 text-foreground" />
                 </div>
                 <h3 className="text-xl font-semibold text-foreground mb-3">
-                  {topic.title}
+                  <LandingHashLink
+                    href={`#${topic.id}`}
+                    className="focus-ring rounded-sm hover:underline underline-offset-2"
+                  >
+                    {topic.title}
+                  </LandingHashLink>
                 </h3>
                 <p className="text-[14px] text-muted-foreground leading-relaxed mb-5">
                   {topic.description}
