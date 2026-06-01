@@ -55,6 +55,23 @@ describe('publish title validation', () => {
     ).rejects.toThrow('Cannot publish: add a title before publishing')
   })
 
+  it('rejects publishArticle when title is shorter than 3 characters', async () => {
+    const t = convexTest(schema, modules)
+    const { userId } = await seedAuthor(t)
+    const asAuthor = t.withIdentity({ subject: userId })
+
+    const draftId = await asAuthor.mutation(api.articles.saveDraft, {
+      title: 'Hi',
+      content: docWithText,
+    })
+
+    await expect(
+      asAuthor.mutation(api.articles.publishArticle, {
+        id: draftId as Id<'articles'>,
+      })
+    ).rejects.toThrow('Cannot publish: add a title before publishing')
+  })
+
   it('rejects createArticle with published true when title is Untitled', async () => {
     const t = convexTest(schema, modules)
     const { userId } = await seedAuthor(t)

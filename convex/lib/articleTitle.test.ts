@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   assertPublishableArticleTitle,
   isPlaceholderArticleTitle,
+  isPublishBlockedArticleTitle,
 } from './articleTitle'
 
 describe('isPlaceholderArticleTitle', () => {
@@ -23,9 +24,29 @@ describe('isPlaceholderArticleTitle', () => {
   })
 })
 
+describe('isPublishBlockedArticleTitle', () => {
+  it('blocks titles shorter than 3 characters after trim', () => {
+    expect(isPublishBlockedArticleTitle('')).toBe(true)
+    expect(isPublishBlockedArticleTitle('  ')).toBe(true)
+    expect(isPublishBlockedArticleTitle('A')).toBe(true)
+    expect(isPublishBlockedArticleTitle('  Ab  ')).toBe(true)
+  })
+
+  it('allows titles with at least 3 characters after trim', () => {
+    expect(isPublishBlockedArticleTitle('Abc')).toBe(false)
+    expect(isPublishBlockedArticleTitle('  Abc  ')).toBe(false)
+  })
+})
+
 describe('assertPublishableArticleTitle', () => {
   it('throws for placeholder titles', () => {
     expect(() => assertPublishableArticleTitle('Untitled')).toThrow(
+      'Cannot publish: add a title before publishing'
+    )
+  })
+
+  it('throws for titles shorter than 3 characters', () => {
+    expect(() => assertPublishableArticleTitle('Hi')).toThrow(
       'Cannot publish: add a title before publishing'
     )
   })

@@ -61,7 +61,7 @@ import {
   writeDraftBackup,
 } from '@/lib/draftBackup'
 import { getWriteUrlWithDraftId } from '@/lib/writeDraftUrl'
-import { isPlaceholderArticleTitle } from '@/convex/lib/articleTitle'
+import { isPublishBlockedArticleTitle } from '@/convex/lib/articleTitle'
 import { PublishSuccessPanel } from '@/components/editor/PublishSuccessPanel'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
@@ -547,7 +547,7 @@ export function WriteEditorWorkspace() {
   }, [])
 
   const blockPublishForPlaceholderTitle = useCallback((): boolean => {
-    if (isPlaceholderArticleTitle(title)) {
+    if (isPublishBlockedArticleTitle(title)) {
       setTitleError(TITLE_PUBLISH_ERROR)
       focusTitleField()
       return true
@@ -1002,16 +1002,6 @@ export function WriteEditorWorkspace() {
             username={publishUsername}
             slug={publishSlug}
             origin={pageOrigin}
-            onDismiss={() => {
-              setPublishSuccessVisible(false)
-              queueMicrotask(() => {
-                const titleEl = document.getElementById(
-                  'article-title'
-                ) as HTMLTextAreaElement | null
-                if (titleEl) titleEl.focus()
-                else editor?.commands.focus()
-              })
-            }}
             onLeave={handleBack}
           />
         </div>

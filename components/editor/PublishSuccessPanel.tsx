@@ -15,7 +15,6 @@ type PublishSuccessPanelProps = {
   username: string | null
   slug: string | null
   origin: string | null
-  onDismiss: () => void
   onLeave: () => void
 }
 
@@ -25,7 +24,6 @@ export function PublishSuccessPanel({
   username,
   slug,
   origin,
-  onDismiss,
   onLeave,
 }: PublishSuccessPanelProps) {
   const hasLinkParts = Boolean(username && slug)
@@ -94,14 +92,7 @@ export function PublishSuccessPanel({
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            Keep editing this article
-          </button>
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={onLeave}
