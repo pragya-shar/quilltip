@@ -1,20 +1,22 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { UserAvatar } from '@/components/ui/user-avatar'
 import { formatDistanceToNow } from 'date-fns'
 import { ArticleForDisplay } from '@/types/index'
+import { ArticleAuthorByline } from '@/components/articles/ArticleAuthorByline'
 import { TagFilterLink } from '@/components/articles/TagFilterLink'
 
 interface ArticleCardProps {
   article: ArticleForDisplay
   priority?: boolean
   onArticleNavigate?: () => void
+  tagLinkAuthor?: string
 }
 
 export default function ArticleCard({
   article,
   priority,
   onArticleNavigate,
+  tagLinkAuthor,
 }: ArticleCardProps) {
   const publishedDate = article.publishedAt
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
@@ -69,7 +71,7 @@ export default function ArticleCard({
         {article.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-4">
             {article.tags.slice(0, 3).map((tag) => (
-              <TagFilterLink key={tag.id} tag={tag.name}>
+              <TagFilterLink key={tag.id} tag={tag.name} author={tagLinkAuthor}>
                 {tag.name}
               </TagFilterLink>
             ))}
@@ -83,25 +85,7 @@ export default function ArticleCard({
 
         {/* Author Info */}
         <div className="flex items-center justify-between pt-4 border-t border-border">
-          <Link
-            href={`/${article.author.username}`}
-            className="focus-ring flex items-center gap-3 rounded-md hover:opacity-80 transition-opacity"
-          >
-            <UserAvatar
-              src={article.author.avatar}
-              alt={article.author.name || article.author.username}
-              name={article.author.name || article.author.username}
-              className="h-9 w-9"
-            />
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                {article.author.name || article.author.username}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                @{article.author.username}
-              </p>
-            </div>
-          </Link>
+          <ArticleAuthorByline author={article.author} size="sm" showHandle />
 
           {/* Published Date */}
           {publishedDate && (

@@ -18,6 +18,11 @@ import {
   isPlaceholderArticleTitle,
 } from './lib/articleTitle'
 import {
+  assertArticleListingReady,
+  isArticleListingReady,
+} from './lib/articleListingReady'
+import { searchListingArticles } from './lib/articleSearch'
+import {
   extractTextFromTiptapJson,
   tiptapJsonHasNonEmptyText,
 } from './lib/tiptapContent'
@@ -103,25 +108,12 @@ export const listArticles = query({
     }
 
     if (search) {
-      // FTS: tokenized (whitespace/punctuation, terms up to 32 chars, lowercased), not raw
-      // substring matches; prefix on the last term per Convex text search. Results are then
-      // sorted by publishedAt desc so newest-first matches the by_published_date listing.
-      const matches = await ctx.db
-        .query('articles')
-        .withSearchIndex('search_listing', (q) => {
-          let s = q.search('searchContent', search).eq('published', true)
-          if (args.author) {
-            s = s.eq('authorUsername', args.author!)
-          }
-          return s
-        })
-        .collect()
-
-      let rows = matches
-      if (tag) {
-        rows = rows.filter((a) => a.tags?.includes(tag))
-      }
-      rows.sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0))
+      const rows = await searchListingArticles(ctx, {
+        search,
+        authorUsername: args.author,
+        authorId,
+        filterTag: tag,
+      })
       const total = rows.length
       const slice = rows.slice(offset, offset + limit)
       const enrichedArticles = await Promise.all(
@@ -153,16 +145,17 @@ export const listArticles = query({
             .withIndex('by_tag_publishedAt', (q) => q.eq('tag', tag))
             .order('desc')
             .collect()
-      const total = linkRows.length
-      const pageLinks = linkRows.slice(offset, offset + limit)
       const fetched = await Promise.all(
-        pageLinks.map((row) => ctx.db.get(row.articleId))
+        linkRows.map((row) => ctx.db.get(row.articleId))
       )
       const articles = fetched.filter(
-        (a): a is NonNullable<typeof a> => a?.published === true
+        (a): a is NonNullable<typeof a> =>
+          a?.published === true && isArticleListingReady(a)
       )
+      const total = articles.length
+      const pageSlice = articles.slice(offset, offset + limit)
       const enrichedArticles = await Promise.all(
-        articles.map(async (article) => ({
+        pageSlice.map(async (article) => ({
           ...stripWriterNotes(article),
           author: await enrichWithUser(ctx, article.authorId),
         }))
@@ -185,7 +178,8 @@ export const listArticles = query({
       rowsQuery = rowsQuery.filter((q) => q.eq(q.field('authorId'), authorId!))
     }
 
-    const rows = await rowsQuery.collect()
+    let rows = await rowsQuery.collect()
+    rows = rows.filter(isArticleListingReady)
     const total = rows.length
     const slice = rows.slice(offset, offset + limit)
     const enrichedArticles = await Promise.all(
@@ -337,6 +331,14 @@ export const createArticle = mutation({
     const user = await ctx.db.get(userId)
     if (!user) throw new Error('User not found')
 
+    if (args.published) {
+      assertArticleListingReady({
+        title: args.title,
+        excerpt: args.excerpt,
+        authorUsername: user.username,
+      })
+    }
+
     const finalSlug = await generateUniqueArticleSlugForAuthor(ctx, {
       title: args.title,
       authorId: userId,
@@ -457,6 +459,20 @@ export const updateArticle = mutation({
       )
     }
 
+    if (article.published) {
+      const merged = {
+        title: updates.title ?? article.title,
+        excerpt:
+          updates.excerpt !== undefined ? updates.excerpt : article.excerpt,
+        authorUsername: article.authorUsername,
+      }
+      if (!isArticleListingReady(merged)) {
+        throw new Error(
+          'Cannot update: published articles must keep a real title and excerpt for public discovery'
+        )
+      }
+    }
+
     await ctx.db.patch(args.id, updates)
 
     const updated = await ctx.db.get(args.id)
@@ -490,6 +506,12 @@ export const publishArticle = mutation({
     if (!tiptapJsonHasNonEmptyText(article.content)) {
       throw new Error('Cannot publish: article body is empty')
     }
+
+    assertArticleListingReady({
+      title: article.title,
+      excerpt: article.excerpt,
+      authorUsername: article.authorUsername,
+    })
 
     const now = Date.now()
 
@@ -707,7 +729,7 @@ export const saveDraft = mutation({
   },
 })
 
-// One-off after deploy: bunx convex run internal/articles:backfillArticleTagsAndSearchContent
+// One-off after deploy: bunx convex run articles:backfillArticleTagsAndSearchContent
 export const backfillArticleTagsAndSearchContent = internalMutation({
   args: {},
   handler: async (ctx) => {

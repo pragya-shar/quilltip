@@ -214,7 +214,7 @@ export default function HeroSection() {
           >
             <Link
               href="/articles"
-              className="group inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-6 py-2.5 text-[13px] font-medium text-brand-foreground transition-all duration-200 hover:bg-brand-hover hover:shadow-lg sm:w-auto"
+              className="focus-ring group inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-6 py-2.5 text-[13px] font-medium text-brand-foreground transition-all duration-200 hover:bg-brand-hover hover:shadow-lg sm:w-auto"
             >
               Start Reading
               <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
@@ -222,7 +222,7 @@ export default function HeroSection() {
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px] sm:text-[13px]">
               <Link
                 href="/register"
-                className="text-muted-foreground transition-colors hover:text-foreground"
+                className="focus-ring rounded-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 Start Writing
               </Link>
@@ -231,7 +231,7 @@ export default function HeroSection() {
               </span>
               <Link
                 href="/guide"
-                className="text-muted-foreground transition-colors hover:text-foreground"
+                className="focus-ring rounded-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 Testnet wallet setup
               </Link>

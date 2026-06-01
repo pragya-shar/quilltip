@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { api, internal } from './_generated/api'
 import schema from './schema'
 import type { Id } from './_generated/dataModel'
+import { MIN_LISTING_EXCERPT_CHARS } from './lib/articleListingReady'
 
 const docWithText = {
   type: 'doc',
@@ -16,6 +17,7 @@ const docWithText = {
 }
 
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
+const listingExcerpt = 'a'.repeat(MIN_LISTING_EXCERPT_CHARS)
 
 async function drainScheduler(t: ReturnType<typeof convexTest>) {
   await new Promise((resolve) => setTimeout(resolve, 50))
@@ -93,6 +95,7 @@ describe('publish title validation', () => {
 
     const draftId = await asAuthor.mutation(api.articles.saveDraft, {
       title: 'My meaningful post',
+      excerpt: listingExcerpt,
       content: docWithText,
     })
 

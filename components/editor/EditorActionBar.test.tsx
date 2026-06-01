@@ -141,3 +141,39 @@ describe('EditorActionBar autosave status', () => {
     }
   })
 })
+
+describe('EditorActionBar publish requirements', () => {
+  it('shows a visible banner when publishBlockReason is set', () => {
+    const reason =
+      'Please add an excerpt of at least 10 characters before publishing'
+    render(
+      <EditorActionBar {...baseProps} canPublish publishBlockReason={reason} />
+    )
+    expect(screen.getByText(reason)).toBeVisible()
+  })
+
+  it('associates Publish with the block reason via aria-describedby', () => {
+    const reason =
+      'Please replace "Untitled" with a real title before publishing'
+    render(
+      <EditorActionBar {...baseProps} canPublish publishBlockReason={reason} />
+    )
+    const publishButtons = screen.getAllByRole('button', { name: 'Publish' })
+    const describedBy = publishButtons[0]!.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    const banner = document.getElementById(describedBy!)
+    expect(banner).toHaveTextContent(reason)
+  })
+
+  it('does not show publish block banner when already published', () => {
+    render(
+      <EditorActionBar
+        {...baseProps}
+        isPublished
+        publishBlockReason="Please add an excerpt of at least 10 characters before publishing"
+      />
+    )
+    expect(screen.queryByText(/excerpt of at least/)).not.toBeInTheDocument()
+    expect(screen.getAllByText('Published').length).toBeGreaterThanOrEqual(1)
+  })
+})
