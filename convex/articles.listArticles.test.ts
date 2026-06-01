@@ -353,4 +353,134 @@ describe('listArticles', () => {
       expect(res.articles[0]!.title).toBe('Complete Article')
     })
   })
+
+  it('finds articles by tag via search when searchContent is stale', async () => {
+    const t = convexTest(schema, modules)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const u = await ctx.db.insert('users', {
+        email: 'stale@x.test',
+        username: 'stalewriter',
+        createdAt: now,
+        updatedAt: now,
+      })
+      const id = await ctx.db.insert('articles', {
+        slug: 'stale-tag',
+        title: 'Stale Tag Article',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now,
+        authorId: u,
+        authorUsername: 'stalewriter',
+        tags: ['visibleTag'],
+        searchContent: 'Stale Tag Article',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const doc = await ctx.db.get(id)
+      if (doc) await replaceTagLinksForArticle(ctx, doc)
+
+      const res = await ctx.runQuery(api.articles.listArticles, {
+        search: 'visibleTag',
+        page: 1,
+        limit: 10,
+      })
+      expect(res.total).toBe(1)
+      expect(res.articles[0]!._id).toBe(id)
+    })
+  })
+
+  it('finds articles by full title when searchContent matches title only', async () => {
+    const t = convexTest(schema, modules)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const u = await ctx.db.insert('users', {
+        email: 'title@x.test',
+        username: 'titlewriter',
+        createdAt: now,
+        updatedAt: now,
+      })
+      const fullTitle = 'My Complete Guide Title'
+      await ctx.db.insert('articles', {
+        slug: 'full-title',
+        title: fullTitle,
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now,
+        authorId: u,
+        authorUsername: 'titlewriter',
+        tags: [],
+        searchContent: fullTitle,
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const res = await ctx.runQuery(api.articles.listArticles, {
+        search: fullTitle,
+        page: 1,
+        limit: 10,
+      })
+      expect(res.total).toBe(1)
+      expect(res.articles[0]!.title).toBe(fullTitle)
+    })
+  })
+
+  it('falls back to computed search content when FTS misses', async () => {
+    const t = convexTest(schema, modules)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const u = await ctx.db.insert('users', {
+        email: 'fallback@x.test',
+        username: 'fallbackwriter',
+        createdAt: now,
+        updatedAt: now,
+      })
+      const uniqueToken = 'fallbackUniqueBodyToken'
+      const title = 'Fallback Search Article'
+      await ctx.db.insert('articles', {
+        slug: 'fallback',
+        title,
+        excerpt: listingExcerpt,
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: uniqueToken }],
+            },
+          ],
+        },
+        published: true,
+        publishedAt: now,
+        authorId: u,
+        authorUsername: 'fallbackwriter',
+        tags: [],
+        searchContent: undefined,
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const res = await ctx.runQuery(api.articles.listArticles, {
+        search: uniqueToken,
+        page: 1,
+        limit: 10,
+      })
+      expect(res.total).toBe(1)
+      expect(res.articles[0]!.title).toBe(title)
+    })
+  })
 })

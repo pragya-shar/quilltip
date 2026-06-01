@@ -17,6 +17,7 @@ import {
   assertArticleListingReady,
   isArticleListingReady,
 } from './lib/articleListingReady'
+import { searchListingArticles } from './lib/articleSearch'
 import {
   extractTextFromTiptapJson,
   tiptapJsonHasNonEmptyText,
@@ -103,26 +104,12 @@ export const listArticles = query({
     }
 
     if (search) {
-      // FTS: tokenized (whitespace/punctuation, terms up to 32 chars, lowercased), not raw
-      // substring matches; prefix on the last term per Convex text search. Results are then
-      // sorted by publishedAt desc so newest-first matches the by_published_date listing.
-      const matches = await ctx.db
-        .query('articles')
-        .withSearchIndex('search_listing', (q) => {
-          let s = q.search('searchContent', search).eq('published', true)
-          if (args.author) {
-            s = s.eq('authorUsername', args.author!)
-          }
-          return s
-        })
-        .collect()
-
-      let rows = matches
-      if (tag) {
-        rows = rows.filter((a) => a.tags?.includes(tag))
-      }
-      rows = rows.filter(isArticleListingReady)
-      rows.sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0))
+      const rows = await searchListingArticles(ctx, {
+        search,
+        authorUsername: args.author,
+        authorId,
+        filterTag: tag,
+      })
       const total = rows.length
       const slice = rows.slice(offset, offset + limit)
       const enrichedArticles = await Promise.all(
@@ -737,7 +724,7 @@ export const saveDraft = mutation({
   },
 })
 
-// One-off after deploy: bunx convex run internal/articles:backfillArticleTagsAndSearchContent
+// One-off after deploy: bunx convex run articles:backfillArticleTagsAndSearchContent
 export const backfillArticleTagsAndSearchContent = internalMutation({
   args: {},
   handler: async (ctx) => {

@@ -950,7 +950,8 @@ export function WriteEditorWorkspace() {
         error={error?.message ?? null}
         isPublished={publishStatus.published}
         isPublishing={isPublishing}
-        canPublish={!!editor && !editor.isEmpty && publishListingError === null}
+        canPublish={!!editor && !editor.isEmpty && !isPublishing}
+        publishBlockReason={publishListingError}
         lastSavedAt={lastSavedAt ?? undefined}
         onDelete={handleRequestDelete}
         isDeleting={isDeleting}
