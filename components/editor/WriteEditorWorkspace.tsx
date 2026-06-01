@@ -11,6 +11,7 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
+import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
 import { EditorToolbar } from '@/components/editor/EditorToolbar'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
@@ -61,8 +62,12 @@ import {
 } from '@/lib/draftBackup'
 import { getListingReadyPublishError } from '@/convex/lib/articleListingReady'
 import { getWriteUrlWithDraftId } from '@/lib/writeDraftUrl'
+import { isPublishBlockedArticleTitle } from '@/convex/lib/articleTitle'
+import { PublishSuccessPanel } from '@/components/editor/PublishSuccessPanel'
 
 const PUBLISH_EXCERPT_PREVIEW_MAX = 280
+const ARTICLE_TITLE_ERROR_ID = 'article-title-error'
+const TITLE_PUBLISH_ERROR = 'Add a title before publishing'
 const EXCERPT_MAX_CHARS = 500
 
 const COVER_FILE_INPUT_ID = 'cover-image-file-input'
@@ -112,6 +117,7 @@ function getInternalNavHref(
 export function WriteEditorWorkspace() {
   const convex = useConvex()
   const [title, setTitle] = useState('')
+  const [titleError, setTitleError] = useState<string | null>(null)
   const [excerpt, setExcerpt] = useState('')
   const [tags, setTags] = useState('')
   const [coverImage, setCoverImage] = useState('')
@@ -149,6 +155,11 @@ export function WriteEditorWorkspace() {
     published: false,
     publishedAt: null,
   })
+  const [publishSuccessVisible, setPublishSuccessVisible] = useState(false)
+  const [publishedSlugOverride, setPublishedSlugOverride] = useState<
+    string | null
+  >(null)
+  const [pageOrigin, setPageOrigin] = useState<string | null>(null)
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -166,6 +177,10 @@ export function WriteEditorWorkspace() {
   const hydratedDraftIdRef = useRef<string | null>(null)
 
   const draftIdParam = searchParams.get('id')
+
+  useEffect(() => {
+    setPageOrigin(window.location.origin)
+  }, [])
 
   const syncDraftIdInUrl = useCallback(
     (id: string) => {
@@ -226,6 +241,7 @@ export function WriteEditorWorkspace() {
           class: 'max-w-full h-auto rounded-lg my-4',
         },
       }),
+      createYoutubeExtension(),
       Placeholder.configure({
         placeholder: 'Start writing your story...',
       }),
@@ -522,6 +538,25 @@ export function WriteEditorWorkspace() {
     return () => window.removeEventListener('keydown', handler)
   }, [saveNow])
 
+  const focusTitleField = useCallback(() => {
+    document
+      .getElementById('field-article-title')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    requestAnimationFrame(() => {
+      document.getElementById('article-title')?.focus()
+    })
+  }, [])
+
+  const blockPublishForPlaceholderTitle = useCallback((): boolean => {
+    if (isPublishBlockedArticleTitle(title)) {
+      setTitleError(TITLE_PUBLISH_ERROR)
+      focusTitleField()
+      return true
+    }
+    setTitleError(null)
+    return false
+  }, [title, focusTitleField])
+
   const publishListingError = getListingReadyPublishError({
     title,
     excerpt,
@@ -532,13 +567,14 @@ export function WriteEditorWorkspace() {
       toast.warning('Please add content before publishing')
       return
     }
+    if (blockPublishForPlaceholderTitle()) return
     const listingError = getListingReadyPublishError({ title, excerpt })
     if (listingError) {
       toast.warning(listingError)
       return
     }
     setPublishConfirmOpen(true)
-  }, [editor, title, excerpt])
+  }, [editor, title, excerpt, blockPublishForPlaceholderTitle])
 
   const handlePublish = useCallback(async () => {
     if (!editor || editor.isEmpty) {
@@ -549,6 +585,10 @@ export function WriteEditorWorkspace() {
     if (!editorContent) {
       setPublishConfirmOpen(false)
       toast.warning('Please add content before publishing')
+      return
+    }
+    if (blockPublishForPlaceholderTitle()) {
+      setPublishConfirmOpen(false)
       return
     }
     const listingError = getListingReadyPublishError({ title, excerpt })
@@ -563,12 +603,14 @@ export function WriteEditorWorkspace() {
       await saveNow()
 
       let resultId: string
+      let publishedSlug: string | undefined
 
       if (articleId) {
         const published = await publishArticleMutation({
           id: articleId as Id<'articles'>,
         })
         resultId = published.id
+        publishedSlug = published.slug
       } else {
         resultId = await createArticleMutation({
           title: title.trim(),
@@ -593,12 +635,17 @@ export function WriteEditorWorkspace() {
         publishedAt: new Date(),
       })
 
-      toast.success('Article published successfully!')
+      if (publishedSlug) setPublishedSlugOverride(publishedSlug)
+      setPublishSuccessVisible(true)
     } catch (error) {
       console.error('Publish error:', error)
-      toast.error(
-        `Failed to publish: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      if (message.toLowerCase().includes('title')) {
+        setTitleError(TITLE_PUBLISH_ERROR)
+        focusTitleField()
+      } else {
+        toast.error(`Failed to publish: ${message}`)
+      }
     } finally {
       setIsPublishing(false)
     }
@@ -614,6 +661,8 @@ export function WriteEditorWorkspace() {
     createArticleMutation,
     editor,
     syncDraftIdInUrl,
+    blockPublishForPlaceholderTitle,
+    focusTitleField,
   ])
 
   const handleRequestDelete = useCallback(() => {
@@ -937,6 +986,12 @@ export function WriteEditorWorkspace() {
         ? excerptTrimmed
         : `${excerptTrimmed.slice(0, PUBLISH_EXCERPT_PREVIEW_MAX).trimEnd()}...`
 
+  const publishUsername =
+    savedArticleForLink?.authorUsername ??
+    savedArticleForLink?.author?.username ??
+    null
+  const publishSlug = publishedSlugOverride ?? savedArticleForLink?.slug ?? null
+
   return (
     <div className="flex flex-col pt-16">
       <EditorActionBar
@@ -957,6 +1012,18 @@ export function WriteEditorWorkspace() {
         isDeleting={isDeleting}
         hasUnsavedChanges={hasUnsavedChanges}
       />
+      {publishSuccessVisible ? (
+        <div className="mx-auto w-full max-w-4xl px-4 pt-4 sm:px-6">
+          <PublishSuccessPanel
+            title={title.trim() || 'Untitled'}
+            excerpt={excerptTrimmed.length ? excerptTrimmed : null}
+            username={publishUsername}
+            slug={publishSlug}
+            origin={pageOrigin}
+            onLeave={handleBack}
+          />
+        </div>
+      ) : null}
       <div className="flex min-w-0 flex-1 flex-col pb-8">
         <div className="sticky top-16 z-40 mb-6 w-full bg-background">
           <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
@@ -1185,6 +1252,7 @@ export function WriteEditorWorkspace() {
               onChange={(e) => {
                 setTitle(e.target.value)
                 setHasUnsavedChanges(true)
+                if (titleError) setTitleError(null)
               }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
@@ -1194,8 +1262,24 @@ export function WriteEditorWorkspace() {
               }}
               placeholder="Untitled"
               rows={1}
-              className="w-full resize-none overflow-hidden bg-transparent py-2 text-3xl font-semibold leading-snug text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+              aria-invalid={!!titleError}
+              aria-describedby={titleError ? ARTICLE_TITLE_ERROR_ID : undefined}
+              className={cn(
+                'w-full resize-none overflow-hidden bg-transparent py-2 text-3xl font-semibold leading-snug text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                titleError
+                  ? 'rounded-md border border-destructive px-2 focus-visible:ring-destructive'
+                  : 'border border-transparent'
+              )}
             />
+            {titleError ? (
+              <p
+                id={ARTICLE_TITLE_ERROR_ID}
+                role="alert"
+                className="mt-1 text-sm text-destructive"
+              >
+                {titleError}
+              </p>
+            ) : null}
             {savedArticleForLink?.authorUsername &&
               savedArticleForLink.slug && (
                 <p className="mt-1 font-mono text-xs text-muted-foreground">

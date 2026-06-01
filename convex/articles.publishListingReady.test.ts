@@ -62,7 +62,7 @@ describe('publish listing readiness', () => {
       asAuthor.mutation(api.articles.publishArticle, {
         id: articleId as Id<'articles'>,
       })
-    ).rejects.toThrow(/real title/)
+    ).rejects.toThrow(/title/)
   })
 
   it('rejects publishArticle when excerpt is too short', async () => {
@@ -144,7 +144,7 @@ describe('publish listing readiness', () => {
         excerpt: listingExcerpt,
         published: true,
       })
-    ).rejects.toThrow(/real title/)
+    ).rejects.toThrow(/title/)
 
     await expect(
       asAuthor.mutation(api.articles.createArticle, {

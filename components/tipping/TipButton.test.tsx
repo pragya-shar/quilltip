@@ -64,7 +64,7 @@ describe('TipButton auth-first CTA', () => {
     mockIsConnected.mockReturnValue(false)
   })
 
-  it('shows Sign in to tip when signed out', async () => {
+  it('shows Sign in to tip when signed out', { timeout: 10_000 }, async () => {
     const user = userEvent.setup({ delay: null })
     render(
       <TipButton

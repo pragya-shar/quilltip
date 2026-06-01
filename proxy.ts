@@ -36,7 +36,7 @@ export function proxy(request: NextRequest) {
       // so there is no per-oracle host to allowlist here.
       "connect-src 'self' *.convex.cloud wss://*.convex.cloud *.convex.site wss://*.convex.site *.stellar.org arweave.net ar-io.dev",
       "font-src 'self'",
-      "frame-src 'self' www.youtube.com",
+      "frame-src 'self' www.youtube.com www.youtube-nocookie.com",
       "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",

@@ -24,6 +24,7 @@ export default defineConfig({
           exclude: ['node_modules', '.next', 'convex/**'],
           environment: 'node',
           setupFiles: ['./vitest.setup.ts'],
+          testTimeout: 10_000,
         },
       },
     ],

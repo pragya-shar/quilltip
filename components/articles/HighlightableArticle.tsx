@@ -16,6 +16,7 @@ import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import HighlightExtension from '@/components/editor/extensions/HighlightExtension'
 import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
+import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { HighlightConverter } from '@/lib/highlights/HighlightConverter'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -177,6 +178,7 @@ export function HighlightableArticle({
           lowlight,
         }),
         ResizableImage,
+        createYoutubeExtension(),
         ...(editable ? [EditorKeymap] : []),
         ...(highlightsActive
           ? [

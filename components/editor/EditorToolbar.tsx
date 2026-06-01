@@ -800,17 +800,12 @@ export function EditorToolbar({
           onClose={() => setShowYouTubeDialog(false)}
           triggerRef={youtubeDialogTriggerRef}
           onVideoEmbed={(url, width, height) => {
-            const chain = editor.chain().focus() as {
-              setYoutubeVideo: (opts: {
-                src: string
-                width?: number
-                height?: number
-              }) => { run: () => void }
-            }
-            if (typeof chain.setYoutubeVideo === 'function') {
-              chain.setYoutubeVideo({ src: url, width, height }).run()
-            }
-            setShowYouTubeDialog(false)
+            if (!editor) return false
+            return editor
+              .chain()
+              .focus()
+              .setYoutubeVideo({ src: url, width, height })
+              .run()
           }}
         />
       )}
