@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import { Editor } from '@tiptap/react'
 import { formatDistanceToNow } from 'date-fns'
 import {
@@ -64,6 +64,7 @@ interface EditorActionBarProps {
   isPublished: boolean
   isPublishing: boolean
   canPublish: boolean
+  publishBlockReason?: string | null
   lastSavedAt?: Date | null
   onDelete?: () => void
   isDeleting?: boolean
@@ -157,11 +158,13 @@ export function EditorActionBar({
   isPublished,
   isPublishing,
   canPublish,
+  publishBlockReason = null,
   lastSavedAt,
   onDelete,
   isDeleting = false,
   hasUnsavedChanges = false,
 }: EditorActionBarProps) {
+  const publishBlockReasonId = useId()
   const [relativeTick, setRelativeTick] = useState(0)
   const shortcuts = useUndoRedoShortcuts()
 
@@ -227,8 +230,15 @@ export function EditorActionBar({
       type="button"
       onClick={onPublish}
       disabled={isPublishing || !canPublish}
+      aria-describedby={publishBlockReason ? publishBlockReasonId : undefined}
       className="px-5 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-full transition-colors shrink-0"
-      title="Publish article"
+      title={
+        publishBlockReason
+          ? publishBlockReason
+          : canPublish
+            ? 'Publish article'
+            : 'Add content before publishing'
+      }
     >
       {isPublishing ? 'Publishing...' : 'Publish'}
     </button>
@@ -383,6 +393,16 @@ export function EditorActionBar({
           title={error}
         >
           Save failed
+        </div>
+      )}
+
+      {publishBlockReason && !isPublished && (
+        <div
+          id={publishBlockReasonId}
+          role="status"
+          className="border-t border-border bg-muted/50 px-4 py-2 text-xs text-muted-foreground"
+        >
+          {publishBlockReason}
         </div>
       )}
     </div>

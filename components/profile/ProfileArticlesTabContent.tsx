@@ -62,7 +62,7 @@ export function ProfileArticlesTabContent({
   return (
     <>
       <PaginationTransition isPaginating={isPaginating}>
-        <ArticleGrid articles={articles} />
+        <ArticleGrid articles={articles} tagLinkAuthor={username} />
       </PaginationTransition>
 
       {totalPages > 1 && (

@@ -40,6 +40,7 @@ interface WalletSettingsProps {
   walletAddress?: string | null
   onAddressChange?: (address: string) => void
   isOwnProfile: boolean
+  profileDisplayName?: string
   className?: string
 }
 
@@ -47,6 +48,7 @@ export function WalletSettings({
   walletAddress,
   onAddressChange,
   isOwnProfile,
+  profileDisplayName,
   className = '',
 }: WalletSettingsProps) {
   const updateProfile = useMutation(api.users.updateProfile)
@@ -160,7 +162,9 @@ export function WalletSettings({
       <Alert className={className}>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          This user hasn&apos;t set up their Stellar wallet yet.
+          {profileDisplayName
+            ? `${profileDisplayName} hasn't set up their Stellar wallet yet.`
+            : "This user hasn't set up their Stellar wallet yet."}
         </AlertDescription>
       </Alert>
     )
