@@ -85,7 +85,7 @@ describe('WalletSettings', () => {
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        /Connect your Stellar testnet wallet to send and receive practice tips/i
+        /Connect your Stellar testnet wallet to send and receive tips/i
       )
     ).toBeInTheDocument()
     expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument()
