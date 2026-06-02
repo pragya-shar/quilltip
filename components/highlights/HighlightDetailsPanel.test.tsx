@@ -1,9 +1,12 @@
 /** @vitest-environment jsdom */
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mockMutation = vi.hoisted(() => vi.fn())
 
 vi.mock('convex/react', () => ({
-  useMutation: () => vi.fn(),
+  useMutation: () => mockMutation,
 }))
 
 vi.mock('@/hooks/convex', () => ({
@@ -47,6 +50,10 @@ const baseHighlight = {
 }
 
 describe('HighlightDetailsPanel', () => {
+  beforeEach(() => {
+    mockMutation.mockReset()
+  })
+
   it('calls onClose when Escape is pressed', () => {
     const onClose = vi.fn()
     render(
@@ -103,5 +110,29 @@ describe('HighlightDetailsPanel', () => {
     expect(
       screen.getByRole('button', { name: 'Close highlight details' })
     ).toBeInTheDocument()
+  })
+
+  it('notifies the parent after a successful highlight delete', async () => {
+    mockMutation.mockResolvedValue(undefined)
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const onDeleted = vi.fn()
+
+    render(
+      <HighlightDetailsPanel
+        highlight={baseHighlight}
+        position={{ top: 100, left: 200 }}
+        onClose={onClose}
+        onDeleted={onDeleted}
+        currentUserId={baseHighlight.userId}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Delete Highlight' }))
+    await user.click(screen.getByRole('button', { name: 'Delete highlight' }))
+
+    expect(mockMutation).toHaveBeenCalledWith({ id: baseHighlight._id })
+    expect(onDeleted).toHaveBeenCalledWith(baseHighlight._id)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

@@ -8,6 +8,16 @@ import type { Id } from '@/types/convex'
 import { motion } from 'motion/react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
   X,
   Coins,
   User,
@@ -44,6 +54,7 @@ interface HighlightDetailsPanelProps {
   }
   position: { top: number; left: number }
   onClose: () => void
+  onDeleted?: (highlightId: Id<'highlights'>) => void
   currentUserId?: Id<'users'>
   // Article data for tipping
   articleId?: Id<'articles'>
@@ -56,6 +67,7 @@ export function HighlightDetailsPanel({
   highlight,
   position,
   onClose,
+  onDeleted,
   currentUserId,
   articleId,
   articleSlug,
@@ -65,6 +77,7 @@ export function HighlightDetailsPanel({
   const [isEditing, setIsEditing] = useState(false)
   const [editedNote, setEditedNote] = useState(highlight.note || '')
   const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const clampedPosition = useClampedFixedPosition(position, panelRef, {
@@ -74,6 +87,7 @@ export function HighlightDetailsPanel({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (deleteConfirmOpen) return
       if (e.key !== 'Escape') return
       e.preventDefault()
       e.stopPropagation()
@@ -81,7 +95,7 @@ export function HighlightDetailsPanel({
     }
     document.addEventListener('keydown', onKeyDown, true)
     return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [onClose])
+  }, [deleteConfirmOpen, onClose])
 
   // Check if current user owns this highlight
   const isOwner = currentUserId && currentUserId === highlight.userId
@@ -124,14 +138,14 @@ export function HighlightDetailsPanel({
     }
   }
 
-  // Handle delete
-  const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this highlight?')) return
-
+  const handleConfirmDelete = async () => {
+    if (isDeleting) return
     setIsDeleting(true)
     try {
       await deleteHighlight({ id: highlight._id })
       toast.success('Highlight deleted')
+      setDeleteConfirmOpen(false)
+      onDeleted?.(highlight._id)
       onClose()
     } catch (error) {
       console.error('Failed to delete highlight:', error)
@@ -145,6 +159,10 @@ export function HighlightDetailsPanel({
     highlight.text.length > 150
       ? highlight.text.slice(0, 150) + '...'
       : highlight.text
+  const confirmSnippet =
+    highlight.text.trim().length > 90
+      ? `${highlight.text.trim().slice(0, 90)}…`
+      : highlight.text.trim()
 
   return (
     <motion.div
@@ -164,7 +182,7 @@ export function HighlightDetailsPanel({
       tabIndex={-1}
     >
       <FocusScope
-        trapped
+        trapped={!deleteConfirmOpen}
         loop
         onMountAutoFocus={(e) => {
           e.preventDefault()
@@ -332,7 +350,7 @@ export function HighlightDetailsPanel({
                     <span>Edit Note</span>
                   </button>
                   <button
-                    onClick={handleDelete}
+                    onClick={() => setDeleteConfirmOpen(true)}
                     disabled={isDeleting}
                     className={cn(
                       'w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium',
@@ -401,6 +419,58 @@ export function HighlightDetailsPanel({
           </div>
         )}
       </FocusScope>
+
+      <AlertDialog
+        open={deleteConfirmOpen}
+        onOpenChange={(open) => {
+          if (isDeleting) return
+          setDeleteConfirmOpen(open)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this highlight?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  This will permanently delete the highlight and its note. This
+                  action cannot be undone.
+                </p>
+                {confirmSnippet.length > 0 ? (
+                  <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-foreground">
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      Highlight
+                    </div>
+                    <p className="mt-1 italic">
+                      &ldquo;{confirmSnippet}&rdquo;
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={(e) => {
+                e.preventDefault()
+                void handleConfirmDelete()
+              }}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete highlight'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   )
 }
