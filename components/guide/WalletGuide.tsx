@@ -15,8 +15,16 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import Link from 'next/link'
+import { GuideWalletSettingsLink } from '@/components/guide/GuideWalletSettingsLink'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
+
+const WALLET_GUIDE_TABS = [
+  { value: 'what-is-wallet', label: 'What is a Wallet?' },
+  { value: 'setup', label: 'Set Up Freighter' },
+  { value: 'connect', label: 'Connect' },
+  { value: 'first-tip', label: 'Your First Tip' },
+] as const
 
 export function WalletGuide() {
   return (
@@ -39,19 +47,19 @@ export function WalletGuide() {
       </Alert>
 
       <Tabs defaultValue="what-is-wallet" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-8">
-          <TabsTrigger value="what-is-wallet" className="text-xs sm:text-sm">
-            What is a Wallet?
-          </TabsTrigger>
-          <TabsTrigger value="setup" className="text-xs sm:text-sm">
-            Set Up Freighter
-          </TabsTrigger>
-          <TabsTrigger value="connect" className="text-xs sm:text-sm">
-            Connect
-          </TabsTrigger>
-          <TabsTrigger value="first-tip" className="text-xs sm:text-sm">
-            Your First Tip
-          </TabsTrigger>
+        <TabsList
+          className="grid w-full grid-cols-2 gap-2 h-auto p-1 mb-8 sm:grid-cols-4 sm:gap-1"
+          aria-label="Wallet setup steps"
+        >
+          {WALLET_GUIDE_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.value}
+              value={tab.value}
+              className="min-h-11 py-2.5 px-2 text-sm whitespace-normal text-center leading-snug sm:min-h-9 sm:py-1.5 sm:px-3 data-[state=active]:ring-2 data-[state=active]:ring-ring"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         {/* Tab 1: What is a Wallet? */}
@@ -173,12 +181,7 @@ export function WalletGuide() {
             description="After connecting, visit your profile to save your wallet address for receiving tips. This is your 'receiving wallet' — when readers tip your articles, payments arrive here."
             isLast
           >
-            <Link
-              href="/profile?tab=wallet"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-muted text-foreground text-sm rounded-lg border border-border hover:bg-muted/80 transition-colors"
-            >
-              Go to Profile Settings
-            </Link>
+            <GuideWalletSettingsLink />
           </WalletStepCard>
         </TabsContent>
 
