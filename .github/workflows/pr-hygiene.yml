@@ -1,0 +1,95 @@
+name: PR Hygiene
+
+on:
+  pull_request:
+    branches: [main, development]
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-hygiene-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    name: PR title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern="^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9][a-z0-9._/-]{0,39}\))?: [A-Za-z0-9][A-Za-z0-9 ,.:'()/&+._/-]{0,100}$"
+
+          if ! printf '%s\n' "$TITLE" | grep -Eq "$pattern"; then
+            echo "PR title must match: type(scope): short description"
+            echo "Allowed types: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test"
+            echo "Received: $TITLE"
+            exit 1
+          fi
+
+  commit-subjects:
+    name: Commit subjects
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit subjects
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          pattern="^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9][a-z0-9._/-]{0,39}\))?: [A-Za-z0-9][A-Za-z0-9 ,.:'()/&+._/-]{0,100}$"
+          bad=0
+
+          while IFS= read -r subject; do
+            case "$subject" in
+              Merge\ *|Revert\ *) continue ;;
+            esac
+
+            if ! printf '%s\n' "$subject" | grep -Eq "$pattern"; then
+              echo "Invalid commit subject: $subject"
+              bad=1
+            fi
+          done < <(git log --format=%s "$BASE_SHA..$HEAD_SHA")
+
+          if [ "$bad" -ne 0 ]; then
+            echo "Commit subjects must match: type(scope): short description"
+            exit 1
+          fi
+
+  required:
+    name: PR Hygiene Required
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [title, commit-subjects]
+    if: always()
+    steps:
+      - name: Check required PR hygiene jobs
+        env:
+          TITLE_RESULT: ${{ needs.title.result }}
+          COMMIT_SUBJECTS_RESULT: ${{ needs.commit-subjects.result }}
+        run: |
+          failed=0
+
+          check_result() {
+            name="$1"
+            result="$2"
+
+            if [ "$result" != "success" ]; then
+              echo "$name did not pass: $result"
+              failed=1
+            fi
+          }
+
+          check_result "PR title" "$TITLE_RESULT"
+          check_result "Commit subjects" "$COMMIT_SUBJECTS_RESULT"
+
+          exit "$failed"

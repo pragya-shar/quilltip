@@ -7,8 +7,11 @@ on:
     branches: [main, development]
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   quality:
@@ -73,3 +76,32 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bun audit || true
+
+  required:
+    name: Required
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [quality, build]
+    if: always()
+    steps:
+      - name: Check required CI jobs
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          failed=0
+
+          check_result() {
+            name="$1"
+            result="$2"
+
+            if [ "$result" != "success" ]; then
+              echo "$name did not pass: $result"
+              failed=1
+            fi
+          }
+
+          check_result "Lint, Typecheck & Test" "$QUALITY_RESULT"
+          check_result "Build" "$BUILD_RESULT"
+
+          exit "$failed"
