@@ -522,6 +522,24 @@ export function HighlightableArticle({
     editor?.commands.focus()
   }, [editor])
 
+  const handleHighlightDeleted = useCallback(
+    (highlightId: Id<'highlights'>) => {
+      const remainingHighlights = (highlightsRef.current ?? []).filter(
+        (highlight) => highlight._id !== highlightId
+      )
+
+      highlightsRef.current = remainingHighlights
+      setHighlightTooltip((current) =>
+        current?.highlight._id === highlightId ? null : current
+      )
+
+      if (editor && highlightsActive) {
+        HighlightConverter.applyHighlightsToEditor(editor, remainingHighlights)
+      }
+    },
+    [editor, highlightsActive]
+  )
+
   const handleSignInPromptClose = useCallback(() => {
     if (editor) {
       const { from, to } = editor.state.selection
@@ -599,6 +617,7 @@ export function HighlightableArticle({
             highlight={highlightTooltip.highlight}
             position={highlightTooltip.position}
             onClose={handleTooltipClose}
+            onDeleted={handleHighlightDeleted}
             currentUserId={user?._id as Id<'users'> | undefined}
             articleId={articleId}
             articleSlug={article.slug}

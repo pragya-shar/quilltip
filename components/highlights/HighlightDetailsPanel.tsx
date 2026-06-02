@@ -54,6 +54,7 @@ interface HighlightDetailsPanelProps {
   }
   position: { top: number; left: number }
   onClose: () => void
+  onDeleted?: (highlightId: Id<'highlights'>) => void
   currentUserId?: Id<'users'>
   // Article data for tipping
   articleId?: Id<'articles'>
@@ -66,6 +67,7 @@ export function HighlightDetailsPanel({
   highlight,
   position,
   onClose,
+  onDeleted,
   currentUserId,
   articleId,
   articleSlug,
@@ -143,6 +145,7 @@ export function HighlightDetailsPanel({
       await deleteHighlight({ id: highlight._id })
       toast.success('Highlight deleted')
       setDeleteConfirmOpen(false)
+      onDeleted?.(highlight._id)
       onClose()
     } catch (error) {
       console.error('Failed to delete highlight:', error)
