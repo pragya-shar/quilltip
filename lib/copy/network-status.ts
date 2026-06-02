@@ -41,6 +41,18 @@ export function withdrawalNote(): string {
   return `Move testnet earnings to your Stellar wallet once your available balance reaches $${MIN_WITHDRAWAL_USD.toFixed(0)}. Test funds only—not withdrawable as real money.`
 }
 
+export function withdrawalDialogTitle(): string {
+  return getNetwork() === 'MAINNET'
+    ? 'Withdraw Earnings'
+    : 'Withdraw Testnet Earnings'
+}
+
+export function withdrawalDialogDescription(): string {
+  return getNetwork() === 'MAINNET'
+    ? 'Send earnings to your Stellar wallet'
+    : 'Send testnet XLM to your Stellar wallet'
+}
+
 export function tipFlowShortNote(): string {
   const network = networkLabelLowercase()
   if (getNetwork() === 'MAINNET') {

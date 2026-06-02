@@ -13,9 +13,11 @@ import {
 } from '@/components/ui/dialog'
 import { isValidStellarAccountId } from '@/lib/stellar/is-valid-stellar-account-id'
 import {
-  TESTNET_WITHDRAWAL_NOTE,
   withdrawalAcknowledgementLabel,
+  withdrawalDialogDescription,
+  withdrawalDialogTitle,
   withdrawalFlowNote,
+  withdrawalNote,
 } from '@/lib/copy/network-status'
 
 export type WithdrawalDialogProps = {
@@ -116,10 +118,8 @@ export function WithdrawalDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Withdraw Testnet Earnings</DialogTitle>
-          <DialogDescription>
-            Send testnet XLM to your Stellar wallet
-          </DialogDescription>
+          <DialogTitle>{withdrawalDialogTitle()}</DialogTitle>
+          <DialogDescription>{withdrawalDialogDescription()}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -190,8 +190,7 @@ export function WithdrawalDialog({
 
           <div className="bg-info border border-info/50 rounded-lg p-3">
             <p className="text-sm text-info-foreground">
-              {TESTNET_WITHDRAWAL_NOTE} Transaction fees are covered by
-              Quilltip.
+              {withdrawalNote()} Transaction fees are covered by Quilltip.
             </p>
             <p className="mt-2 text-sm text-info-foreground">
               {withdrawalFlowNote()}
