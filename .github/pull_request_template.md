@@ -1,24 +1,17 @@
-<!-- markdownlint-disable MD041 -->
+## Summary
 
-## What
+<!-- One or two sentences. Link Linear/GitHub issue if applicable. -->
 
-<!-- One-liner: what does this PR do? -->
+## Changes
 
-## Why
+-
 
-<!-- What problem does this solve? Link issue if applicable: Closes #__ -->
+## Testing
 
-## How
+-
 
-<!-- Brief description of the approach. Anything non-obvious? -->
+<!-- Common gates: `bun run format:check`, `bun run typecheck`, `bun run lint`, `bun run test:once`, `bun run build`. Add focused tests and contract tests when relevant. -->
 
-## Checklist
+## Notes
 
-- [ ] `bun run lint` and `bun run typecheck` pass
-- [ ] Tests added/updated (if applicable)
-- [ ] Tested locally with `bun run dev`
-- [ ] No secrets or `.env` values committed
-
-## Screenshots
-
-<!-- UI changes only. Delete this section otherwise. -->
+<!-- Risks, deferred work, env notes, QA limits, screenshots for UI changes, or "None". Do not include secrets, private evidence, full diffs, generated output, or local screenshots unless requested. -->

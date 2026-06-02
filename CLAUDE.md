@@ -41,6 +41,13 @@ bun run format:check  # Prettier check (CI)
 bun run build         # Next.js production build
 ```
 
+## Workflow Policies
+
+- Before repo work, read `docs/workflow/repo-workflow.md`.
+- For QA-heavy work, follow `docs/workflow/qa-checklist.md`.
+- For Linear issue creation or cleanup, follow `docs/workflow/linear-issue-policy.md`.
+- For PRs, follow `.github/pull_request_template.md` and `.github/workflows/pr-hygiene.yml`.
+
 ## Code Style
 
 - TypeScript for all new code. No `any` unless unavoidable.
