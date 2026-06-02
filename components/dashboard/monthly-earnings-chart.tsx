@@ -1,5 +1,11 @@
 'use client'
 
+import {
+  buildLastSixMonthSlots,
+  formatMonthLabel,
+  monthWindowSpansTwoYears,
+} from '@/lib/earnings/monthly-earnings'
+
 type MonthlyEarningsChartProps = {
   monthlyEarnings: Record<string, number>
 }
@@ -7,26 +13,42 @@ type MonthlyEarningsChartProps = {
 export function MonthlyEarningsChart({
   monthlyEarnings,
 }: MonthlyEarningsChartProps) {
-  if (Object.keys(monthlyEarnings).length === 0) {
-    return null
-  }
+  const slots = buildLastSixMonthSlots(monthlyEarnings)
+  const showYear = monthWindowSpansTwoYears(slots.map((slot) => slot.monthKey))
+  const allZero = slots.every((slot) => slot.amountUsd === 0)
 
   return (
     <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
-      <h3 className="text-lg font-semibold mb-4">Monthly Earnings</h3>
-      <div className="grid grid-cols-6 gap-2">
-        {Object.entries(monthlyEarnings)
-          .sort(([a], [b]) => b.localeCompare(a))
-          .slice(0, 6)
-          .reverse()
-          .map(([month, amount]) => (
-            <div key={month} className="text-center">
-              <div className="text-xs text-muted-foreground mb-1">{month}</div>
-              <div className="bg-success text-success-foreground rounded-lg p-2">
-                <p className="text-sm font-semibold">${amount.toFixed(0)}</p>
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold">Monthly Earnings</h3>
+        {allZero && (
+          <p className="text-sm text-muted-foreground mt-1">
+            No earnings in the last 6 months
+          </p>
+        )}
+      </div>
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        {slots.map((slot) => {
+          const hasEarnings = slot.amountUsd > 0
+          return (
+            <div key={slot.monthKey} className="min-w-0 text-center">
+              <div className="text-xs text-muted-foreground mb-1 whitespace-nowrap">
+                {formatMonthLabel(slot.monthKey, { showYear })}
+              </div>
+              <div
+                className={
+                  hasEarnings
+                    ? 'bg-success text-success-foreground rounded-lg p-2'
+                    : 'bg-muted text-muted-foreground rounded-lg border border-border p-2'
+                }
+              >
+                <p className="text-sm font-semibold">
+                  ${slot.amountUsd.toFixed(0)}
+                </p>
               </div>
             </div>
-          ))}
+          )
+        })}
       </div>
     </div>
   )

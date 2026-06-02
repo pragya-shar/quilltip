@@ -41,6 +41,7 @@ describe('WithdrawalDialog', () => {
 
     await user.type(screen.getByLabelText(/Amount \(USD\)/i), '10')
     setStellarAddress(VALID_TEST_PUBLIC_KEY)
+    await user.click(screen.getByRole('checkbox'))
     await user.click(screen.getByRole('button', { name: /Withdraw$/i }))
 
     await waitFor(() => {
@@ -69,6 +70,7 @@ describe('WithdrawalDialog', () => {
     )
 
     await user.type(screen.getByLabelText(/Amount \(USD\)/i), '20')
+    await user.click(screen.getByRole('checkbox'))
     await user.click(screen.getByRole('button', { name: /Withdraw$/i }))
 
     expect(onWithdraw).toHaveBeenCalledWith({

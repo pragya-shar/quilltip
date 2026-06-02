@@ -51,7 +51,7 @@ Quilltip is a decentralized publishing platform where writers earn money through
 ### For Readers
 
 - **Interactive Reading** — text highlighting with notes, public/private annotations, color-coded highlights, persistent across sessions
-- **Microtipping** — support authors with $0.01–$100, preset amounts, instant Stellar transactions
+- **Microtipping** — support authors with $0.01–$100, preset amounts, fast Stellar confirmations (testnet practice today)
 - **Content Discovery** — full-text search, tag-based filtering, author collections, trending articles
 
 ### For Collectors

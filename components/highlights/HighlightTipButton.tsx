@@ -40,6 +40,10 @@ import {
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
 import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import {
+  networkLabelLowercase,
+  tipFlowShortNote,
+} from '@/lib/copy/network-status'
+import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
 } from '@/lib/stellar/wallet-adapter'
@@ -601,8 +605,11 @@ export function HighlightTipButton({
           )}
 
           <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1 flex-wrap">
-            Powered by Stellar testnet <WalletTooltip concept="testnet" /> •
-            Fast testnet settlement • Low fees
+            Powered by Stellar {networkLabelLowercase()}{' '}
+            {networkLabelLowercase() === 'testnet' ? (
+              <WalletTooltip concept="testnet" />
+            ) : null}{' '}
+            • {tipFlowShortNote()}
           </p>
         </DialogContent>
       </Dialog>
