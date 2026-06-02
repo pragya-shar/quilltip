@@ -45,7 +45,9 @@ describe('WalletSettings', () => {
     )
 
     expect(
-      screen.getByText("alice hasn't set up their Stellar wallet yet.")
+      screen.getByText(
+        "alice hasn't connected a wallet yet, so in-app tipping isn't available."
+      )
     ).toBeInTheDocument()
     expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument()
   })
@@ -54,9 +56,25 @@ describe('WalletSettings', () => {
     render(<WalletSettings isOwnProfile={false} walletAddress={null} />)
 
     expect(
-      screen.getByText("This user hasn't set up their Stellar wallet yet.")
+      screen.getByText(
+        "This author hasn't connected a wallet yet, so in-app tipping isn't available."
+      )
     ).toBeInTheDocument()
     expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument()
+  })
+
+  it('shows browse articles link when profile username is provided', () => {
+    render(
+      <WalletSettings
+        isOwnProfile={false}
+        walletAddress={null}
+        profileUsername="alice"
+      />
+    )
+
+    expect(
+      screen.getByRole('link', { name: /Browse articles/i })
+    ).toHaveAttribute('href', '/alice?tab=articles')
   })
 
   it('shows owner connect CTA when wallet address is missing', () => {

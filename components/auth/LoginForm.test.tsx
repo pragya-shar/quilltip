@@ -7,6 +7,7 @@ import LoginForm from '@/components/auth/LoginForm'
 const mockSignIn = vi.hoisted(() => vi.fn())
 const mockReplace = vi.hoisted(() => vi.fn())
 const mockUseAuthReturnPath = vi.hoisted(() => vi.fn())
+const mockSearchParamsGet = vi.hoisted(() => vi.fn())
 
 vi.mock('@convex-dev/auth/react', () => ({
   useAuthActions: () => ({
@@ -17,6 +18,9 @@ vi.mock('@convex-dev/auth/react', () => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     replace: mockReplace,
+  }),
+  useSearchParams: () => ({
+    get: (key: string) => mockSearchParamsGet(key),
   }),
 }))
 
@@ -33,12 +37,14 @@ describe('LoginForm', () => {
     mockSignIn.mockReset()
     mockReplace.mockReset()
     mockUseAuthReturnPath.mockReset()
+    mockSearchParamsGet.mockReset()
     mockUseAuthReturnPath.mockReturnValue('/articles?tag=writing')
+    mockSearchParamsGet.mockReturnValue(null)
+    mockSignIn.mockResolvedValue(undefined)
   })
 
   it('shows redirecting message and navigates to the return path on successful sign in', async () => {
     const user = userEvent.setup({ delay: null })
-    mockSignIn.mockResolvedValue(undefined)
 
     render(<LoginForm />)
 
@@ -61,6 +67,40 @@ describe('LoginForm', () => {
     expect(
       screen.queryByRole('button', { name: /signing in/i })
     ).not.toBeInTheDocument()
+  })
+
+  it('redirects to safe redirect query param when present', async () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === 'redirect' ? '/profile?tab=wallet' : null
+    )
+    const user = userEvent.setup({ delay: null })
+
+    render(<LoginForm />)
+
+    await user.type(screen.getByLabelText(/email address/i), 'you@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'password123')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/profile?tab=wallet')
+    })
+  })
+
+  it('ignores unsafe redirect query params', async () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === 'redirect' ? 'https://evil.com' : null
+    )
+    const user = userEvent.setup({ delay: null })
+
+    render(<LoginForm />)
+
+    await user.type(screen.getByLabelText(/email address/i), 'you@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'password123')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/articles?tag=writing')
+    })
   })
 
   it('restores an editable form with retry after failed sign in', async () => {

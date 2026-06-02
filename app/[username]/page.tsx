@@ -258,7 +258,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
                 <p className="text-muted-foreground">
                   {isOwnProfile
                     ? 'Manage your Stellar testnet wallet for sending and receiving practice tips.'
-                    : 'View wallet address for sending tips to this user.'}
+                    : 'View and copy the wallet address, or tip this author from their articles.'}
                 </p>
               </div>
 
@@ -266,6 +266,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
               <div className="max-w-2xl">
                 <WalletSettings
                   walletAddress={localWalletAddress ?? user.stellarAddress}
+                  profileUsername={username}
                   isOwnProfile={isOwnProfile}
                   profileDisplayName={profileDisplayName}
                   onAddressChange={(address) => {
