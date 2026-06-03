@@ -30,6 +30,7 @@ export default function ShareButtons({
 
   const showTransientError = (message: string, ms = 3000) => {
     clearExistingTimeout()
+    setCopied(false)
     setError(message)
     timeoutRef.current = setTimeout(() => setError(null), ms)
   }
