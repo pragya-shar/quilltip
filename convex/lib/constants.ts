@@ -43,15 +43,21 @@ export function verifyDelayMs(attempt: number): number {
 // by the verifier are fixed for these names:
 //   tip_article / tip_article_with_arweave:
 //     [tipper, article_id, author, amount, (arweave_tx_id)]
+//   batch_tip:
+//     [tipper, [{ article_id, author, amount }]]
 //   tip_highlight_direct / tip_highlight_with_arweave:
 //     [tipper, highlight_id, article_id, author, amount, (arweave_tx_id)]
+//   batch_tip_highlights:
+//     [tipper, [{ highlight_id, article_id, author, amount }]]
 export const TIP_ARTICLE_FUNCTIONS = [
   'tip_article',
   'tip_article_with_arweave',
+  'batch_tip',
 ] as const
 export const TIP_HIGHLIGHT_FUNCTIONS = [
   'tip_highlight_direct',
   'tip_highlight_with_arweave',
+  'batch_tip_highlights',
 ] as const
 
 // Tipping contract ID is deployment-specific, so it is read from env at
