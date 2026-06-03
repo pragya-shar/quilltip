@@ -501,6 +501,8 @@ export const getUserMintedNFTsPaginated = query({
                 id: article._id,
                 title: article.title,
                 slug: article.slug,
+                excerpt: article.excerpt,
+                coverImage: article.coverImage,
                 authorUsername: article.authorUsername,
               }
             : null,

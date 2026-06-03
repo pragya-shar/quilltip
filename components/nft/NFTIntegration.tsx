@@ -25,7 +25,6 @@ interface NFTIntegrationProps {
   articleSlug: string
   authorId: Id<'users'>
   currentUserId?: Id<'users'>
-  currentUserAddress?: string | null
 }
 
 export function NFTIntegration({
@@ -34,7 +33,6 @@ export function NFTIntegration({
   articleSlug,
   authorId,
   currentUserId,
-  currentUserAddress,
 }: NFTIntegrationProps) {
   const [showTransferModal, setShowTransferModal] = useState(false)
   const transferTriggerRef = useRef<HTMLButtonElement>(null)
@@ -55,9 +53,10 @@ export function NFTIntegration({
   const isOwner =
     nftStatus != null &&
     nftStatus.isMinted === true &&
-    currentUserAddress === nftStatus.owner
+    currentUserId != null &&
+    nftStatus.ownerInfo?.id === currentUserId
   const canMint = isAuthor && !nftStatus?.isMinted && nftStatus?.isEligible
-  const canTransfer = isOwner && nftStatus?.isMinted === true
+  const canTransfer = isOwner
 
   const progressPercentage = nftStatus
     ? (nftStatus.totalTips / nftStatus.tipThreshold) * 100
@@ -277,6 +276,7 @@ export function NFTIntegration({
           articleId={articleId}
           articleTitle={articleTitle}
           currentOwner={nftStatus.owner}
+          currentOwnerUsername={nftStatus.ownerInfo?.username}
           nftId={nftStatus._id}
           onTransferComplete={handleTransferComplete}
           triggerRef={transferTriggerRef}
