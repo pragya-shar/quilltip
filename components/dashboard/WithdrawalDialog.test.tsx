@@ -126,6 +126,7 @@ describe('WithdrawalDialog', () => {
     )
 
     await user.type(screen.getByLabelText(/Amount \(USD\)/i), '2')
+    await user.click(screen.getByRole('checkbox'))
     await user.click(screen.getByRole('button', { name: /Withdraw$/i }))
 
     expect(onWithdraw).not.toHaveBeenCalled()
