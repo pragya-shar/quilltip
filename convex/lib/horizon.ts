@@ -44,6 +44,12 @@ export type TipInvocationExpectations = {
   allowedFunctions: readonly string[]
   authorAddress: string
   minStroops: bigint
+  batchTips?: readonly TipInvocationTipExpectation[]
+}
+
+export type TipInvocationTipExpectation = {
+  authorAddress: string
+  minStroops: bigint
 }
 
 type MinimalFetch = (
@@ -188,6 +194,13 @@ function verifyInvocation(
   }
 
   const fnArgs = ic.args()
+  if (fnName === 'batch_tip' || fnName === 'batch_tip_highlights') {
+    return verifyBatchInvocation(fnName, fnArgs, {
+      expectedSource: args.expectedSource,
+      invocation: args.invocation,
+    })
+  }
+
   const isHighlightFn =
     fnName === 'tip_highlight_direct' || fnName === 'tip_highlight_with_arweave'
   const tipperIdx = 0
@@ -234,6 +247,101 @@ function verifyInvocation(
   }
 
   return { kind: 'ok', onChainStroops: nativeAmount }
+}
+
+function verifyBatchInvocation(
+  fnName: string,
+  fnArgs: xdr.ScVal[],
+  args: {
+    expectedSource: string
+    invocation: TipInvocationExpectations
+  }
+): InvocationOk | InvocationFail {
+  if (fnArgs.length !== 2) {
+    return { kind: 'fail', reason: 'malformed_response' }
+  }
+
+  const tipperArg = fnArgs[0]
+  const tipsArg = fnArgs[1]
+  if (!tipperArg || !tipsArg) {
+    return { kind: 'fail', reason: 'malformed_response' }
+  }
+
+  let nativeTipper: unknown
+  let nativeTips: unknown
+  try {
+    nativeTipper = scValToNative(tipperArg)
+    nativeTips = scValToNative(tipsArg)
+  } catch {
+    return { kind: 'fail', reason: 'malformed_response' }
+  }
+
+  if (typeof nativeTipper !== 'string') {
+    return { kind: 'fail', reason: 'malformed_response' }
+  }
+  if (nativeTipper !== args.expectedSource) {
+    return { kind: 'fail', reason: 'tipper_mismatch' }
+  }
+  if (!Array.isArray(nativeTips) || nativeTips.length === 0) {
+    return { kind: 'fail', reason: 'malformed_response' }
+  }
+
+  const expectations = args.invocation.batchTips
+  if (expectations && expectations.length !== nativeTips.length) {
+    return { kind: 'fail', reason: 'malformed_response' }
+  }
+
+  let totalStroops = BigInt(0)
+  for (let index = 0; index < nativeTips.length; index++) {
+    const tip = nativeTips[index]
+    if (!isNativeBatchTip(tip, fnName)) {
+      return { kind: 'fail', reason: 'malformed_response' }
+    }
+
+    const expected = expectations?.[index] ?? {
+      authorAddress: args.invocation.authorAddress,
+      minStroops: args.invocation.minStroops,
+    }
+
+    if (tip.author !== expected.authorAddress) {
+      return { kind: 'fail', reason: 'author_mismatch' }
+    }
+    if (tip.amount < expected.minStroops) {
+      return { kind: 'fail', reason: 'amount_mismatch' }
+    }
+
+    totalStroops += tip.amount
+  }
+
+  return { kind: 'ok', onChainStroops: totalStroops }
+}
+
+type NativeBatchTip = {
+  article_id: string
+  author: string
+  amount: bigint
+  highlight_id?: string
+}
+
+function isNativeBatchTip(
+  value: unknown,
+  fnName: string
+): value is NativeBatchTip {
+  if (typeof value !== 'object' || value === null) return false
+  const tip = value as Record<string, unknown>
+  if (
+    typeof tip.article_id !== 'string' ||
+    typeof tip.author !== 'string' ||
+    typeof tip.amount !== 'bigint'
+  ) {
+    return false
+  }
+
+  if (fnName === 'batch_tip_highlights') {
+    return typeof tip.highlight_id === 'string'
+  }
+
+  return tip.highlight_id === undefined
 }
 
 function extractInnerTransaction(

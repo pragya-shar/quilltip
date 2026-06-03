@@ -72,6 +72,50 @@ function buildArticleTipEnvelope(opts: {
   return tx.toEnvelope().toXDR('base64')
 }
 
+function buildArticleBatchTipEnvelope(opts: {
+  tipper: string
+  author: string
+  contractId: string
+  amountStroops: bigint
+}): string {
+  const account = new Account(opts.tipper, '1')
+  const contract = new Contract(opts.contractId)
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call(
+        'batch_tip',
+        nativeToScVal(opts.tipper, { type: 'address' }),
+        nativeToScVal(
+          [
+            {
+              article_id: 'article1',
+              author: opts.author,
+              amount: opts.amountStroops,
+            },
+            {
+              article_id: 'article2',
+              author: opts.author,
+              amount: opts.amountStroops,
+            },
+          ],
+          {
+            type: {
+              article_id: ['symbol', 'symbol'],
+              author: ['symbol', 'address'],
+              amount: ['symbol', 'i128'],
+            },
+          }
+        )
+      )
+    )
+    .setTimeout(30)
+    .build()
+  return tx.toEnvelope().toXDR('base64')
+}
+
 // Horizon success response shape — must include `source_account` (outer tx
 // source, checked before invocation parsing) alongside the envelope XDR.
 function horizonSuccessBody(envelopeXdr: string, sourceAccount: string) {
@@ -220,6 +264,31 @@ describe('reconcileArticleTips', () => {
     expect(article?.tipCount).toBe(1)
     expect(tipper?.tipsSentCount).toBe(1)
     expect(author?.tipsReceivedCount).toBe(1)
+  })
+
+  it('leaves a CONFIRMED tip untouched when Horizon returns a matching batch_tip', async () => {
+    const t = convexTest(schema, modules)
+    const { tipId } = await seedConfirmedTip(t)
+
+    const envelope = buildArticleBatchTipEnvelope({
+      tipper: TIPPER_STELLAR,
+      author: AUTHOR_STELLAR,
+      contractId: TIPPING_CONTRACT_ID,
+      amountStroops: BigInt(10_000_000),
+    })
+    stubHorizonJson(horizonSuccessBody(envelope, TIPPER_STELLAR))
+
+    const summary = await t.action(
+      internal.reconcileTips.reconcileArticleTips,
+      {}
+    )
+
+    expect(summary.ok).toBe(1)
+    expect(summary.flagged).toBe(0)
+    expect(summary.unreachable).toBe(0)
+
+    const tip = await t.run(async (ctx) => await ctx.db.get(tipId))
+    expect(tip?.status).toBe('CONFIRMED')
   })
 
   it('marks FRAUDULENT and reverses counters on contract_mismatch when flag is on', async () => {
