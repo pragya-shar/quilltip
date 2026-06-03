@@ -126,9 +126,13 @@ describe('WithdrawalDialog', () => {
     )
 
     await user.type(screen.getByLabelText(/Amount \(USD\)/i), '2')
+    await user.click(screen.getByRole('checkbox'))
     await user.click(screen.getByRole('button', { name: /Withdraw$/i }))
 
     expect(onWithdraw).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Minimum withdrawal amount is $5.00'
+    )
   })
 
   it('renders nothing when closed', () => {

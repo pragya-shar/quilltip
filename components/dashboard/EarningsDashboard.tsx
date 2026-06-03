@@ -9,8 +9,9 @@ import {
   useUserByUsername,
   useUserReceivedTips,
 } from '@/hooks/convex'
-import { Coins } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Coins, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { useAuth } from '@/components/providers/AuthContext'
 import { MIN_WITHDRAWAL_USD } from '@/lib/constants'
 import { TipHistory } from '@/components/dashboard/TipHistory'
@@ -20,8 +21,17 @@ import { EarningsDashboardSkeleton } from '@/components/dashboard/EarningsDashbo
 import { withdrawalFlowNote } from '@/lib/copy/network-status'
 import { useProfileTabNavigation } from '@/hooks/useProfileTabNavigation'
 
+type WithdrawalOutcome =
+  | { kind: 'success'; message: string }
+  | { kind: 'error'; message: string }
+
 export function EarningsDashboard() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
+  const [withdrawalOutcome, setWithdrawalOutcome] =
+    useState<WithdrawalOutcome | null>(null)
+  const [withdrawalDialogError, setWithdrawalDialogError] = useState<
+    string | null
+  >(null)
   const withdrawTriggerRef = useRef<HTMLButtonElement>(null)
   const router = useRouter()
   const navigateToTab = useProfileTabNavigation()
@@ -43,14 +53,17 @@ export function EarningsDashboard() {
         amountUsd: args.amountUsd,
         stellarAddress: args.stellarAddress,
       })
-      toast.success(
-        `Withdrawal requested for $${args.amountUsd.toFixed(2)}. ${withdrawalFlowNote()}`
-      )
+      const successMessage = `Withdrawal requested for $${args.amountUsd.toFixed(2)}. ${withdrawalFlowNote()}`
+      setWithdrawalDialogError(null)
+      setWithdrawalOutcome({ kind: 'success', message: successMessage })
+      toast.success(successMessage)
     } catch (error) {
       console.error('Withdrawal error:', error)
-      toast.error(
+      const message =
         error instanceof Error ? error.message : 'Failed to process withdrawal'
-      )
+      setWithdrawalOutcome({ kind: 'error', message })
+      setWithdrawalDialogError(message)
+      toast.error(message)
       throw error
     }
   }
@@ -98,11 +111,48 @@ export function EarningsDashboard() {
 
   return (
     <div className="space-y-6">
+      {withdrawalOutcome && (
+        <div className="flex items-start gap-2">
+          <Alert
+            variant={
+              withdrawalOutcome.kind === 'error' ? 'destructive' : 'default'
+            }
+            className={
+              withdrawalOutcome.kind === 'success'
+                ? 'flex-1 border-success/50 bg-success/10'
+                : 'flex-1'
+            }
+          >
+            {withdrawalOutcome.kind === 'success' ? (
+              <CheckCircle2 className="h-4 w-4 text-success-foreground" />
+            ) : (
+              <AlertCircle className="h-4 w-4" />
+            )}
+            <AlertTitle>
+              {withdrawalOutcome.kind === 'success'
+                ? 'Withdrawal initiated'
+                : 'Withdrawal failed'}
+            </AlertTitle>
+            <AlertDescription>{withdrawalOutcome.message}</AlertDescription>
+          </Alert>
+          <button
+            type="button"
+            onClick={() => setWithdrawalOutcome(null)}
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Dismiss withdrawal message"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <EarningsStats
         earnings={earnings}
         userProfile={userProfile}
         minWithdrawalUsd={MIN_WITHDRAWAL_USD}
-        onOpenWithdrawModal={() => setShowWithdrawModal(true)}
+        onOpenWithdrawModal={() => {
+          setWithdrawalDialogError(null)
+          setShowWithdrawModal(true)
+        }}
         withdrawTriggerRef={withdrawTriggerRef}
       />
 
@@ -116,6 +166,7 @@ export function EarningsDashboard() {
         savedStellarAddress={userProfile?.stellarAddress}
         onWithdraw={handleWithdrawFromDialog}
         triggerRef={withdrawTriggerRef}
+        externalError={withdrawalDialogError}
       />
     </div>
   )

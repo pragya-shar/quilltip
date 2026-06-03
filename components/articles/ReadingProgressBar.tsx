@@ -91,45 +91,79 @@ function getScrollProgress(nested: HTMLElement | null): number {
 export function ReadingProgressBar() {
   const [progress, setProgress] = useState(0)
   const nestedRef = useRef<HTMLElement | null>(null)
-  const frameRef = useRef(0)
+  const nestedScrollCleanupRef = useRef<(() => void) | null>(null)
+  const rafPendingRef = useRef(false)
+  const frameRef = useRef<number | null>(null)
 
   useEffect(() => {
+    const updateProgressNow = () => {
+      const next = getScrollProgress(nestedRef.current)
+      setProgress((prev) => (Object.is(prev, next) ? prev : next))
+    }
+
+    const scheduleUpdate = () => {
+      if (rafPendingRef.current) return
+      rafPendingRef.current = true
+      frameRef.current = window.requestAnimationFrame(() => {
+        rafPendingRef.current = false
+        updateProgressNow()
+      })
+    }
+
     const refreshNested = () => {
-      nestedRef.current = findLikelyNestedScrollRoot()
+      const nextNested = findLikelyNestedScrollRoot()
+      if (nestedRef.current === nextNested) return
+
+      nestedScrollCleanupRef.current?.()
+      nestedScrollCleanupRef.current = null
+      nestedRef.current = nextNested
+
+      if (nextNested) {
+        const onNestedScroll = () => scheduleUpdate()
+        nextNested.addEventListener('scroll', onNestedScroll, { passive: true })
+        nestedScrollCleanupRef.current = () => {
+          nextNested.removeEventListener('scroll', onNestedScroll)
+        }
+      }
+
+      scheduleUpdate()
     }
 
     refreshNested()
+    scheduleUpdate()
 
     const ro =
       typeof ResizeObserver !== 'undefined'
         ? new ResizeObserver(() => {
             refreshNested()
+            scheduleUpdate()
           })
         : null
     ro?.observe(document.documentElement)
     if (document.body) ro?.observe(document.body)
 
-    const onLayout = () => refreshNested()
+    const onLayout = () => {
+      refreshNested()
+      scheduleUpdate()
+    }
+    const onScroll = () => scheduleUpdate()
+
     window.addEventListener('load', onLayout)
     window.addEventListener('resize', onLayout)
+    window.addEventListener('scroll', onScroll, { passive: true })
     visualViewport?.addEventListener('resize', onLayout)
 
-    let frameCount = 0
-    const tick = () => {
-      frameCount += 1
-      if (frameCount % 45 === 0) refreshNested()
-
-      const next = getScrollProgress(nestedRef.current)
-      setProgress((prev) => (Object.is(prev, next) ? prev : next))
-
-      frameRef.current = requestAnimationFrame(tick)
-    }
-    frameRef.current = requestAnimationFrame(tick)
-
     return () => {
-      cancelAnimationFrame(frameRef.current)
+      nestedScrollCleanupRef.current?.()
+      nestedScrollCleanupRef.current = null
+
+      if (frameRef.current != null) cancelAnimationFrame(frameRef.current)
+      frameRef.current = null
+      rafPendingRef.current = false
+
       window.removeEventListener('load', onLayout)
       window.removeEventListener('resize', onLayout)
+      window.removeEventListener('scroll', onScroll)
       visualViewport?.removeEventListener('resize', onLayout)
       ro?.disconnect()
     }

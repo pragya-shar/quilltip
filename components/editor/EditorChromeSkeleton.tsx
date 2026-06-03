@@ -2,7 +2,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export function EditorChromeSkeleton() {
   return (
-    <div className="flex flex-col pt-16">
+    <div className="flex flex-col pt-16" aria-hidden>
       <div className="sticky top-16 z-40 bg-background border-b border-border w-full mb-6 px-4 py-3">
         <div className="max-w-5xl mx-auto flex gap-2">
           <Skeleton className="h-9 w-20" />

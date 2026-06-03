@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
+import { truncateFeedbackMessage } from '@/lib/feedback/flow-feedback'
 import { estimateReadingMinutes } from '@/lib/reading-time'
 
 function draftStatusTitle(
@@ -200,7 +201,12 @@ export function EditorActionBar({
       </>
     )
   } else if (error) {
-    statusText = "Couldn't save"
+    statusText = (
+      <>
+        <span className="shrink-0">Couldn&apos;t save:</span>
+        <span className="truncate">{truncateFeedbackMessage(error, 80)}</span>
+      </>
+    )
     statusClassName = 'text-destructive'
   } else if (hasUnsavedChanges) {
     statusText = 'Unsaved changes'
@@ -397,12 +403,12 @@ export function EditorActionBar({
       </div>
 
       {error && (
-        <div
-          className="border-t border-border bg-destructive/10 px-4 py-2 text-xs text-destructive"
-          title={error}
+        <p
+          role="alert"
+          className="border-t border-border bg-destructive/10 px-4 py-2 text-xs text-destructive break-words"
         >
-          Save failed
-        </div>
+          {error}
+        </p>
       )}
 
       {publishBlockReason && !isPublished && (

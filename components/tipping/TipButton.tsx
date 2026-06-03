@@ -85,6 +85,10 @@ export function TipButton({
   const [isLoading, setIsLoading] = useState(false)
   const [tipFlowStep, setTipFlowStep] = useState<TipFlowStep | null>(null)
   const [tipFailure, setTipFailure] = useState<TipFailureMessage | null>(null)
+  const [tipFormError, setTipFormError] = useState<TipFailureMessage | null>(
+    null
+  )
+  const [tipSuccess, setTipSuccess] = useState<string | null>(null)
   const [tipMessage, setTipMessage] = useState('')
 
   const convex = useConvex()
@@ -123,6 +127,8 @@ export function TipButton({
     }
     setIsOpen(open)
     setTipFailure(null)
+    setTipFormError(null)
+    if (!open) setTipSuccess(null)
   }
 
   const handleSignInToTip = () => {
@@ -150,18 +156,25 @@ export function TipButton({
       customAmount,
       message: tipMessage,
     })
-    if (!validation.ok) return
+    if (!validation.ok) {
+      setTipFormError({ title: validation.message })
+      toast.error(validation.message)
+      return
+    }
     const amountCents = validation.amountCents
 
     if (!isConnected || !publicKey) {
-      toast.error('Please connect your Stellar wallet to send tips')
+      const message = 'Please connect your Stellar wallet to send tips'
+      setTipFormError({ title: message })
+      toast.error(message)
       return
     }
 
     if (!authorStellarAddress) {
-      toast.error(
+      const message =
         'Author has not set up their Stellar wallet for receiving tips'
-      )
+      setTipFormError({ title: message })
+      toast.error(message)
       return
     }
 
@@ -173,9 +186,9 @@ export function TipButton({
     try {
       const cooldown = await convex.query(api.tips.canTip, {})
       if (!cooldown.allowed) {
-        toast.error('Slow down', {
-          description: `Please wait ${cooldown.waitSec}s before tipping again.`,
-        })
+        const detail = `Please wait ${cooldown.waitSec}s before tipping again.`
+        setTipFormError({ title: 'Slow down', detail })
+        toast.error('Slow down', { description: detail })
         return
       }
     } catch (err) {
@@ -186,6 +199,8 @@ export function TipButton({
     }
 
     setTipFailure(null)
+    setTipFormError(null)
+    setTipSuccess(null)
     setIsLoading(true)
 
     try {
@@ -221,29 +236,33 @@ export function TipButton({
 
       clearPendingTipIntent()
       setTipFailure(null)
-      setIsOpen(false)
-      setSelectedAmount(null)
-      setCustomAmount('')
-      setTipMessage('')
+      setTipFormError(null)
+      const successMessage = `Successfully tipped ${authorName} $${(amountCents / 100).toFixed(2)} via Stellar!`
+      setTipSuccess(successMessage)
 
-      toast.success(
-        `Successfully tipped ${authorName} $${(amountCents / 100).toFixed(2)} via Stellar!`,
-        {
-          description: receipt.transactionHash
-            ? `Transaction: ${receipt.transactionHash.slice(0, 8)}...`
-            : undefined,
-          action: receipt.transactionHash
-            ? {
-                label: 'View',
-                onClick: () =>
-                  window.open(
-                    `https://stellar.expert/explorer/testnet/tx/${receipt.transactionHash}`,
-                    '_blank'
-                  ),
-              }
-            : undefined,
-        }
-      )
+      toast.success(successMessage, {
+        description: receipt.transactionHash
+          ? `Transaction: ${receipt.transactionHash.slice(0, 8)}...`
+          : undefined,
+        action: receipt.transactionHash
+          ? {
+              label: 'View',
+              onClick: () =>
+                window.open(
+                  `https://stellar.expert/explorer/testnet/tx/${receipt.transactionHash}`,
+                  '_blank'
+                ),
+            }
+          : undefined,
+      })
+
+      window.setTimeout(() => {
+        setIsOpen(false)
+        setTipSuccess(null)
+        setSelectedAmount(null)
+        setCustomAmount('')
+        setTipMessage('')
+      }, 3000)
     } catch (error) {
       console.error('Stellar tip error:', error)
       setTipFailure(formatTipFailureMessage(error))
@@ -263,6 +282,7 @@ export function TipButton({
     try {
       const connected = await connect()
       if (connected) {
+        setTipFormError(null)
         toast.success('Wallet connected successfully!')
       }
     } catch (error) {
@@ -278,9 +298,33 @@ export function TipButton({
         return
       }
 
+      setTipFormError({ title: message })
       toast.error(message)
     }
   }
+
+  const inlineTipAlert = tipSuccess ? (
+    <Alert className="border-success/50 bg-success/10 text-success-foreground">
+      <AlertTitle>Tip sent</AlertTitle>
+      <AlertDescription>{tipSuccess}</AlertDescription>
+    </Alert>
+  ) : tipFailure ? (
+    <Alert variant="destructive">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle>{tipFailure.title}</AlertTitle>
+      {tipFailure.detail ? (
+        <AlertDescription>{tipFailure.detail}</AlertDescription>
+      ) : null}
+    </Alert>
+  ) : tipFormError ? (
+    <Alert variant="destructive">
+      <AlertCircle className="h-4 w-4" />
+      <AlertTitle>{tipFormError.title}</AlertTitle>
+      {tipFormError.detail ? (
+        <AlertDescription>{tipFormError.detail}</AlertDescription>
+      ) : null}
+    </Alert>
+  ) : null
 
   return (
     <>
@@ -313,15 +357,7 @@ export function TipButton({
             </DialogDescription>
           </DialogHeader>
 
-          {tipFailure && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>{tipFailure.title}</AlertTitle>
-              {tipFailure.detail ? (
-                <AlertDescription>{tipFailure.detail}</AlertDescription>
-              ) : null}
-            </Alert>
-          )}
+          {inlineTipAlert}
 
           {!isAuthenticated ? (
             <div className="p-3 bg-muted border border-border rounded-lg text-sm text-muted-foreground">
@@ -478,7 +514,11 @@ export function TipButton({
               <button
                 type="button"
                 onClick={handleTip}
-                disabled={isLoading || (!selectedAmount && !customAmount)}
+                disabled={
+                  isLoading ||
+                  !!tipSuccess ||
+                  (!selectedAmount && !customAmount)
+                }
                 className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isLoading ? (

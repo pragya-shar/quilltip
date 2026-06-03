@@ -19,7 +19,27 @@ export default function ShareButtons({
   const [copied, setCopied] = useState(false)
   const [hasNativeShare, setHasNativeShare] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPopupBlockedFallback, setShowPopupBlockedFallback] =
+    useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+
+  const clearExistingTimeout = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    timeoutRef.current = undefined
+  }
+
+  const showTransientError = (message: string, ms = 3000) => {
+    clearExistingTimeout()
+    setCopied(false)
+    setError(message)
+    timeoutRef.current = setTimeout(() => setError(null), ms)
+  }
+
+  const showTransientCopied = () => {
+    clearExistingTimeout()
+    setCopied(true)
+    timeoutRef.current = setTimeout(() => setCopied(false), 2000)
+  }
 
   // Clean and encode sharing text
   const shareText = excerpt || title
@@ -45,9 +65,7 @@ export default function ShareButtons({
   // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
+      clearExistingTimeout()
     }
   }, [])
 
@@ -59,8 +77,7 @@ export default function ShareButtons({
       // Modern Clipboard API (requires HTTPS)
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(url)
-        setCopied(true)
-        timeoutRef.current = setTimeout(() => setCopied(false), 2000)
+        showTransientCopied()
         return
       }
 
@@ -75,8 +92,7 @@ export default function ShareButtons({
       try {
         const success = document.execCommand('copy')
         if (success) {
-          setCopied(true)
-          timeoutRef.current = setTimeout(() => setCopied(false), 2000)
+          showTransientCopied()
         } else {
           throw new Error('Copy command failed')
         }
@@ -84,8 +100,7 @@ export default function ShareButtons({
         document.body.removeChild(textArea)
       }
     } catch {
-      setError('Failed to copy link. Please manually copy the URL.')
-      timeoutRef.current = setTimeout(() => setError(null), 3000)
+      showTransientError('Failed to copy link. Please manually copy the URL.')
     }
   }
 
@@ -103,14 +118,14 @@ export default function ShareButtons({
     } catch (err: unknown) {
       // User cancelled (AbortError) - don't show error
       if (err instanceof Error && err.name !== 'AbortError') {
-        setError('Sharing failed. Please try another method.')
-        timeoutRef.current = setTimeout(() => setError(null), 3000)
+        showTransientError('Sharing failed. Please try another method.')
       }
     }
   }
 
   // Open share URL in new window
   const openShareWindow = (shareUrl: string) => {
+    setError(null)
     const popup = window.open(
       shareUrl,
       'share-dialog',
@@ -119,8 +134,8 @@ export default function ShareButtons({
 
     // Check if popup was blocked
     if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-      // Fallback: open in same tab
-      window.location.href = shareUrl
+      setShowPopupBlockedFallback(true)
+      showTransientError('Popup was blocked. Use the share options below.')
     }
   }
 
@@ -201,6 +216,78 @@ export default function ShareButtons({
           )}
         </button>
       </div>
+
+      {showPopupBlockedFallback && (
+        <div className="mt-3 rounded-lg border border-border bg-muted/40 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-foreground">
+              Popup blocked. Share using these links instead.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setShowPopupBlockedFallback(false)
+              }}
+              className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4 self-start sm:self-auto"
+            >
+              Dismiss
+            </button>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <a
+              href={shareUrls.twitter}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-blue-500 hover:bg-muted transition-colors"
+              aria-label="Open Twitter share in new tab"
+            >
+              <Twitter className="h-4 w-4" />
+              <span>Twitter</span>
+            </a>
+            <a
+              href={shareUrls.linkedin}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-blue-600 hover:bg-muted transition-colors"
+              aria-label="Open LinkedIn share in new tab"
+            >
+              <Linkedin className="h-4 w-4" />
+              <span>LinkedIn</span>
+            </a>
+            <a
+              href={shareUrls.facebook}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-blue-700 hover:bg-muted transition-colors"
+              aria-label="Open Facebook share in new tab"
+            >
+              <Facebook className="h-4 w-4" />
+              <span>Facebook</span>
+            </a>
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-brand-blue hover:bg-muted transition-colors"
+              aria-label="Copy link (fallback panel)"
+            >
+              {copied ? (
+                <>
+                  <Check className="h-4 w-4 text-green-800 dark:text-green-300" />
+                  <span className="text-green-800 dark:text-green-300">
+                    Copied!
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Link className="h-4 w-4" />
+                  <span>Copy Link</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

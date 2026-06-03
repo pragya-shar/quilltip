@@ -67,10 +67,10 @@ describe('EditorActionBar autosave status', () => {
     )
     const statuses = screen.getAllByRole('status')
     for (const status of statuses) {
-      expect(status).toHaveTextContent("Couldn't save")
+      expect(status).toHaveTextContent(/Couldn't save:?\s*Network error/)
     }
     expect(container.querySelector('.bg-destructive\\/15')).not.toBeNull()
-    expect(screen.getByText('Save failed')).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Network error')
   })
 
   it('shows relative saved label when lastSavedAt is set and not dirty', () => {
@@ -117,7 +117,7 @@ describe('EditorActionBar autosave status', () => {
     )
     const statuses = screen.getAllByRole('status')
     for (const status of statuses) {
-      expect(status).toHaveTextContent("Couldn't save")
+      expect(status).toHaveTextContent(/Couldn't save:?\s*Network error/)
       expect(status).toHaveAttribute(
         'title',
         `Network error · ${AUTO_SAVE_GUIDANCE}`

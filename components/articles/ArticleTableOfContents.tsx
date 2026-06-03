@@ -1,11 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { pickActiveId } from '@/lib/articles/tocActiveSection'
 import type { TocHeading } from '@/lib/tiptap/headings'
 
 const ARTICLE_ROOT_SELECTOR = '.article-content'
-/** Below fixed nav (h-16) + thin progress strip; aligns with prose scroll-margin. */
-const ACTIVE_HEADING_TOP_OFFSET_PX = 96
+const TOC_HEADING_ID = 'article-toc-heading'
+
+const TOC_LINK_CLASS =
+  'block w-full text-left text-sm rounded px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
 
 interface ArticleTableOfContentsProps {
   headings: TocHeading[]
@@ -17,22 +20,6 @@ function getHeadingElements(ids: string[]): HTMLElement[] {
     .filter((el): el is HTMLElement => el instanceof HTMLElement)
 }
 
-function pickActiveId(ids: string[]): string | null {
-  let active: string | null = null
-  let firstFound: string | null = null
-
-  for (const id of ids) {
-    const el = document.getElementById(id)
-    if (!el) continue
-    if (firstFound == null) firstFound = id
-    if (el.getBoundingClientRect().top <= ACTIVE_HEADING_TOP_OFFSET_PX) {
-      active = id
-    }
-  }
-
-  return active ?? firstFound
-}
-
 export function ArticleTableOfContents({
   headings,
 }: ArticleTableOfContentsProps) {
@@ -41,6 +28,13 @@ export function ArticleTableOfContents({
 
   const ids = useMemo(() => headings.map((h) => h.id), [headings])
 
+  const syncActiveFromScroll = useCallback(() => {
+    setActiveId((prev) => {
+      const next = pickActiveId(ids)
+      return prev === next ? prev : next
+    })
+  }, [ids])
+
   useEffect(() => {
     if (!enabled) return
 
@@ -48,18 +42,27 @@ export function ArticleTableOfContents({
 
     let scrollCleanup: (() => void) | null = null
     let mo: MutationObserver | null = null
+    let raf: number | null = null
 
-    const updateActive = () => {
-      setActiveId(pickActiveId(ids))
+    const scheduleSyncActive = () => {
+      if (raf != null) return
+      raf = requestAnimationFrame(() => {
+        raf = null
+        syncActiveFromScroll()
+      })
     }
 
     const attachScrollListeners = () => {
-      updateActive()
-      window.addEventListener('scroll', updateActive, { passive: true })
-      window.addEventListener('resize', updateActive)
+      syncActiveFromScroll()
+      window.addEventListener('scroll', scheduleSyncActive, { passive: true })
+      window.addEventListener('resize', scheduleSyncActive)
       return () => {
-        window.removeEventListener('scroll', updateActive)
-        window.removeEventListener('resize', updateActive)
+        window.removeEventListener('scroll', scheduleSyncActive)
+        window.removeEventListener('resize', scheduleSyncActive)
+        if (raf != null) {
+          cancelAnimationFrame(raf)
+          raf = null
+        }
       }
     }
 
@@ -83,37 +86,47 @@ export function ArticleTableOfContents({
     return () => {
       mo?.disconnect()
       scrollCleanup?.()
+      if (raf != null) cancelAnimationFrame(raf)
     }
-  }, [enabled, ids])
+  }, [enabled, ids, syncActiveFromScroll])
+
+  const scrollToHeading = useCallback((id: string) => {
+    setActiveId(id)
+    document.getElementById(id)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  }, [])
 
   if (!enabled) return null
 
   return (
     <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
-      <h3 className="text-lg font-semibold mb-3">On this page</h3>
-      <nav aria-label="Table of contents">
+      <h3 id={TOC_HEADING_ID} className="text-lg font-semibold mb-3">
+        On this page
+      </h3>
+      <nav aria-labelledby={TOC_HEADING_ID}>
         <ul className="space-y-1">
           {headings.map((h) => {
             const isActive = activeId === h.id
             return (
               <li key={h.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    document.getElementById(h.id)?.scrollIntoView({
-                      behavior: 'smooth',
-                      block: 'start',
-                    })
+                <a
+                  href={`#${h.id}`}
+                  aria-current={isActive ? 'location' : undefined}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    scrollToHeading(h.id)
                   }}
                   className={[
-                    'w-full text-left text-sm rounded px-2 py-1.5 transition-colors',
+                    TOC_LINK_CLASS,
                     isActive
                       ? 'bg-primary/10 text-foreground'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                   ].join(' ')}
                 >
                   {h.text}
-                </button>
+                </a>
               </li>
             )
           })}

@@ -141,4 +141,24 @@ describe('TipButton auth-first CTA', () => {
     await user.click(screen.getByRole('button', { name: /Tip Author/i }))
     expect(screen.getByRole('button', { name: 'Send Tip' })).toBeInTheDocument()
   })
+
+  it('shows inline alert for invalid tip amount when wallet is connected', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /Tip Author/i }))
+    const customInput = screen.getByPlaceholderText('0.00')
+    await user.type(customInput, '0')
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/valid amount/i)
+  })
 })
