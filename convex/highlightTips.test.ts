@@ -68,6 +68,55 @@ function buildHighlightTipEnvelope(opts: {
   return tx.toEnvelope().toXDR('base64')
 }
 
+function buildHighlightBatchTipEnvelope(opts: {
+  tipper: string
+  author: string
+  contractId: string
+  amountStroops: bigint
+  highlightId?: string
+  articleId?: string
+}): string {
+  const account = new Account(opts.tipper, '1')
+  const contract = new Contract(opts.contractId)
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call(
+        'batch_tip_highlights',
+        nativeToScVal(opts.tipper, { type: 'address' }),
+        nativeToScVal(
+          [
+            {
+              highlight_id: opts.highlightId ?? 'hash-abc',
+              article_id: opts.articleId ?? 'article1',
+              author: opts.author,
+              amount: opts.amountStroops,
+            },
+            {
+              highlight_id: 'hash-def',
+              article_id: opts.articleId ?? 'article1',
+              author: opts.author,
+              amount: opts.amountStroops,
+            },
+          ],
+          {
+            type: {
+              highlight_id: ['symbol', 'string'],
+              article_id: ['symbol', 'symbol'],
+              author: ['symbol', 'address'],
+              amount: ['symbol', 'i128'],
+            },
+          }
+        )
+      )
+    )
+    .setTimeout(30)
+    .build()
+  return tx.toEnvelope().toXDR('base64')
+}
+
 async function seed(t: ReturnType<typeof convexTest>) {
   return await t.run(async (ctx) => {
     const now = Date.now()
@@ -609,6 +658,40 @@ describe('verifyHighlightTip action', () => {
 
       const article = await ctx.db.get(articleId)
       expect(article?.tipCount).toBe(1)
+    })
+  })
+
+  it('flips to CONFIRMED when Horizon returns a matching batch_tip_highlights', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const tipId = await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-batch-tx-1')
+    )
+
+    stubHorizonResponse({
+      successful: true,
+      source_account: TIPPER_STELLAR,
+      ledger: 999,
+      envelope_xdr: buildHighlightBatchTipEnvelope({
+        tipper: TIPPER_STELLAR,
+        author: AUTHOR_STELLAR,
+        contractId: TIPPING_CONTRACT_ID,
+        amountStroops: TIP_STROOPS,
+      }),
+    })
+
+    await t.action(internal.stellarVerify.verifyHighlightTip, {
+      highlightTipId: tipId,
+      attempt: 1,
+    })
+
+    await t.run(async (ctx) => {
+      const tip = await ctx.db.get(tipId)
+      expect(tip?.status).toBe('CONFIRMED')
+      expect(tip?.stellarLedger).toBe(999)
     })
   })
 
