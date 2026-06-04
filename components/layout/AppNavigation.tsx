@@ -77,8 +77,6 @@ export default function AppNavigation() {
               <span>Guide</span>
             </Link>
 
-            <ThemeToggle />
-
             {isAuthenticated ? (
               <>
                 <Link
@@ -129,6 +127,8 @@ export default function AppNavigation() {
                 </Link>
               </>
             )}
+
+            <ThemeToggle />
           </div>
 
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -232,6 +232,10 @@ export default function AppNavigation() {
                     </Link>
                   </div>
                 )}
+
+                <div className="flex justify-end pt-3 mt-2 border-t border-border">
+                  <ThemeToggle />
+                </div>
               </div>
             </SheetContent>
           </Sheet>

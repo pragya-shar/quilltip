@@ -402,8 +402,6 @@ export default function Navigation() {
 
             <div className="w-px h-5 bg-border mx-2" />
 
-            <ThemeToggle />
-
             <Link
               href="/login"
               className="focus-ring px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-all duration-200"
@@ -418,6 +416,8 @@ export default function Navigation() {
               Try on Testnet
               <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
             </Link>
+
+            <ThemeToggle />
           </div>
 
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -493,6 +493,10 @@ export default function Navigation() {
                     Try on Testnet
                     <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
                   </Link>
+                </div>
+
+                <div className="flex justify-end pt-3 border-t border-border">
+                  <ThemeToggle />
                 </div>
               </div>
             </SheetContent>
