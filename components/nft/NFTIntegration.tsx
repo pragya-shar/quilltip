@@ -25,6 +25,7 @@ interface NFTIntegrationProps {
   articleSlug: string
   authorId: Id<'users'>
   currentUserId?: Id<'users'>
+  embedded?: boolean
 }
 
 export function NFTIntegration({
@@ -33,6 +34,7 @@ export function NFTIntegration({
   articleSlug,
   authorId,
   currentUserId,
+  embedded = false,
 }: NFTIntegrationProps) {
   const [showTransferModal, setShowTransferModal] = useState(false)
   const transferTriggerRef = useRef<HTMLButtonElement>(null)
@@ -62,17 +64,21 @@ export function NFTIntegration({
     ? (nftStatus.totalTips / nftStatus.tipThreshold) * 100
     : 0
 
+  const Shell = embedded ? 'div' : Card
+  const Header = embedded ? 'div' : CardHeader
+  const Content = embedded ? 'div' : CardContent
+
   if (isLoading) {
     return (
-      <Card className="w-full">
-        <CardHeader>
+      <Shell className="w-full">
+        <Header className={embedded ? 'space-y-2' : undefined}>
           <Skeleton className="h-8 w-32" />
           <Skeleton className="h-4 w-64 mt-2" />
-        </CardHeader>
-        <CardContent>
+        </Header>
+        <Content>
           <Skeleton className="h-24 w-full" />
-        </CardContent>
-      </Card>
+        </Content>
+      </Shell>
     )
   }
 
@@ -82,12 +88,13 @@ export function NFTIntegration({
 
   return (
     <div className="space-y-6">
-      {/* NFT Status Card */}
-      <Card className="w-full">
-        <CardHeader>
+      <Shell className="w-full">
+        <Header className={embedded ? 'space-y-2 mb-4' : undefined}>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle
+                className={`flex items-center gap-2 ${embedded ? 'text-sm font-medium' : ''}`}
+              >
                 NFT Status
                 {nftStatus.isMinted && (
                   <NFTBadge rarity={nftStatus.rarity || 'common'} size="sm" />
@@ -105,8 +112,8 @@ export function NFTIntegration({
               </Badge>
             )}
           </div>
-        </CardHeader>
-        <CardContent>
+        </Header>
+        <Content>
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -265,8 +272,8 @@ export function NFTIntegration({
               )}
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+        </Content>
+      </Shell>
 
       {/* Transfer Modal */}
       {nftStatus.isMinted && nftStatus.owner && (
