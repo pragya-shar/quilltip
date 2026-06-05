@@ -112,7 +112,9 @@ export function ArticleTableOfContents({
     >
       <h3
         id={TOC_HEADING_ID}
-        className={embedded ? 'text-sm font-medium mb-3' : 'text-lg font-semibold mb-3'}
+        className={
+          embedded ? 'text-sm font-medium mb-3' : 'text-lg font-semibold mb-3'
+        }
       >
         On this page
       </h3>

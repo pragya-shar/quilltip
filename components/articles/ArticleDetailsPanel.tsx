@@ -68,7 +68,11 @@ export function ArticleDetailsPanel({
   const noteCount = highlights?.filter((h) => h.note).length ?? 0
 
   return (
-    <Accordion type="single" collapsible className="mt-8 border-t border-border">
+    <Accordion
+      type="single"
+      collapsible
+      className="mt-8 border-t border-border"
+    >
       <AccordionItem value="article-details" className="border-none">
         <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
           Article details
