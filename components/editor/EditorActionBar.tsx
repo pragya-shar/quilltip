@@ -414,19 +414,30 @@ export function EditorActionBar({
         </p>
       )}
 
-      {publishBlockReason && !isPublished && (
-        <div
-          id={publishBlockReasonId}
-          role="status"
-          className={cn(
-            'border-t border-border bg-muted/50 px-4 py-2 text-xs text-muted-foreground',
-            onBlockReasonClick && 'cursor-pointer hover:bg-muted'
-          )}
-          onClick={onBlockReasonClick}
-        >
-          {publishBlockReason}
-        </div>
-      )}
+      {publishBlockReason &&
+        !isPublished &&
+        (onBlockReasonClick ? (
+          <button
+            type="button"
+            id={publishBlockReasonId}
+            onClick={onBlockReasonClick}
+            className={cn(
+              'w-full border-t border-border bg-muted/50 px-4 py-2 text-left text-xs text-muted-foreground',
+              'cursor-pointer hover:bg-muted',
+              focusRing
+            )}
+          >
+            {publishBlockReason}
+          </button>
+        ) : (
+          <div
+            id={publishBlockReasonId}
+            role="status"
+            className="border-t border-border bg-muted/50 px-4 py-2 text-xs text-muted-foreground"
+          >
+            {publishBlockReason}
+          </div>
+        ))}
     </div>
   )
 }

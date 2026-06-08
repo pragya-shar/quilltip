@@ -1041,7 +1041,9 @@ export function WriteEditorWorkspace() {
         error={error?.message ?? null}
         isPublished={publishStatus.published}
         isPublishing={isPublishing}
-        canPublish={!!editor && !editor.isEmpty && !isPublishing && !publishListingError}
+        canPublish={
+          !!editor && !editor.isEmpty && !isPublishing && !publishListingError
+        }
         publishBlockReason={publishListingError}
         onBlockReasonClick={
           publishListingError?.includes('excerpt')
