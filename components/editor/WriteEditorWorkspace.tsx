@@ -1041,8 +1041,19 @@ export function WriteEditorWorkspace() {
         error={error?.message ?? null}
         isPublished={publishStatus.published}
         isPublishing={isPublishing}
-        canPublish={!!editor && !editor.isEmpty && !isPublishing}
+        canPublish={!!editor && !editor.isEmpty && !isPublishing && !publishListingError}
         publishBlockReason={publishListingError}
+        onBlockReasonClick={
+          publishListingError?.includes('excerpt')
+            ? () => {
+                document
+                  .getElementById('field-excerpt')
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                setExcerptOpen(true)
+                window.setTimeout(() => excerptTextareaRef.current?.focus(), 0)
+              }
+            : undefined
+        }
         lastSavedAt={lastSavedAt ?? undefined}
         onDelete={handleRequestDelete}
         isDeleting={isDeleting}
@@ -1358,9 +1369,9 @@ export function WriteEditorWorkspace() {
               aria-invalid={!!titleError}
               aria-describedby={titleError ? ARTICLE_TITLE_ERROR_ID : undefined}
               className={cn(
-                'w-full resize-none overflow-hidden bg-transparent py-2 text-3xl font-semibold leading-snug text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                'w-full resize-none overflow-hidden bg-transparent py-2 text-3xl font-semibold leading-snug text-foreground placeholder:text-muted-foreground/50 focus:outline-none',
                 titleError
-                  ? 'rounded-md border border-destructive px-2 focus-visible:ring-destructive'
+                  ? 'rounded-md border border-destructive px-2'
                   : 'border border-transparent'
               )}
             />
@@ -1438,7 +1449,7 @@ export function WriteEditorWorkspace() {
                     setExcerpt(e.target.value)
                     setHasUnsavedChanges(true)
                   }}
-                  placeholder="Brief description of your article (optional)"
+                  placeholder="Brief description of your article"
                   rows={3}
                   maxLength={EXCERPT_MAX_CHARS}
                   className="resize-none"

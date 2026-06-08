@@ -14,6 +14,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import { cn } from '@/lib/utils'
 import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
 import { truncateFeedbackMessage } from '@/lib/feedback/flow-feedback'
 import { estimateReadingMinutes } from '@/lib/reading-time'
@@ -66,6 +67,7 @@ interface EditorActionBarProps {
   isPublishing: boolean
   canPublish: boolean
   publishBlockReason?: string | null
+  onBlockReasonClick?: () => void
   lastSavedAt?: Date | null
   onDelete?: () => void
   isDeleting?: boolean
@@ -164,6 +166,7 @@ export function EditorActionBar({
   isPublishing,
   canPublish,
   publishBlockReason = null,
+  onBlockReasonClick,
   lastSavedAt,
   onDelete,
   isDeleting = false,
@@ -415,7 +418,11 @@ export function EditorActionBar({
         <div
           id={publishBlockReasonId}
           role="status"
-          className="border-t border-border bg-muted/50 px-4 py-2 text-xs text-muted-foreground"
+          className={cn(
+            'border-t border-border bg-muted/50 px-4 py-2 text-xs text-muted-foreground',
+            onBlockReasonClick && 'cursor-pointer hover:bg-muted'
+          )}
+          onClick={onBlockReasonClick}
         >
           {publishBlockReason}
         </div>
