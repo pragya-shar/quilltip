@@ -47,6 +47,16 @@
   word-break: break-word;
 }
 
+/* Write page editor: empty-state placeholder (matches title placeholder tone) */
+.editor-content .ProseMirror p.is-empty:first-child::before {
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
 /* YouTube embeds: responsive iframe inside editor and article body */
 .editor-content [data-youtube-video],
 .article-content [data-youtube-video] {
