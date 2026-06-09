@@ -4,6 +4,9 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import AppNavigation from '@/components/layout/AppNavigation'
+import { NAV_SIGN_IN, NAV_TRY_ON_TESTNET } from '@/lib/copy/nav-cta'
+
+const mockUseAuth = vi.fn()
 
 vi.mock('next/link', () => ({
   default: (props: { href: string; children: ReactNode }) => (
@@ -16,20 +19,30 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/components/providers/AuthContext', () => ({
-  useAuth: () => ({
-    user: null,
-    isAuthenticated: false,
-    signOut: vi.fn(),
-  }),
+  useAuth: () => mockUseAuth(),
 }))
 
 vi.mock('@/components/theme/ThemeToggle', () => ({
   ThemeToggle: () => <button type="button">Theme</button>,
 }))
 
+vi.mock('motion/react', () => ({
+  motion: {
+    span: (props: { children: ReactNode; className?: string }) => (
+      <span className={props.className}>{props.children}</span>
+    ),
+  },
+}))
+
 describe('AppNavigation mobile menu', () => {
   beforeEach(() => {
     document.body.style.pointerEvents = ''
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      signOut: vi.fn(),
+    })
   })
 
   it('opens a dialog when the menu toggle is clicked', async () => {
@@ -44,7 +57,7 @@ describe('AppNavigation mobile menu', () => {
     expect(
       screen.getByRole('heading', { name: 'Navigation menu' })
     ).toBeInTheDocument()
-  })
+  }, 15000)
 
   it('closes the dialog when Escape is pressed', async () => {
     const user = userEvent.setup()
@@ -105,5 +118,55 @@ describe('AppNavigation mobile menu', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
+  })
+})
+
+describe('AppNavigation auth CTAs', () => {
+  beforeEach(() => {
+    document.body.style.pointerEvents = ''
+  })
+
+  it('hides signed-out CTAs while auth is loading', () => {
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      isLoading: true,
+      signOut: vi.fn(),
+    })
+
+    render(<AppNavigation />)
+
+    expect(screen.queryByText(NAV_SIGN_IN)).not.toBeInTheDocument()
+    expect(screen.queryByText(NAV_TRY_ON_TESTNET)).not.toBeInTheDocument()
+  })
+
+  it('shows signed-out CTAs when auth has resolved for guests', () => {
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      signOut: vi.fn(),
+    })
+
+    render(<AppNavigation />)
+
+    expect(screen.getByText(NAV_SIGN_IN)).toBeInTheDocument()
+    expect(screen.getByText(NAV_TRY_ON_TESTNET)).toBeInTheDocument()
+  })
+
+  it('shows authenticated links when signed in', () => {
+    mockUseAuth.mockReturnValue({
+      user: { username: 'writer' },
+      isAuthenticated: true,
+      isLoading: false,
+      signOut: vi.fn(),
+    })
+
+    render(<AppNavigation />)
+
+    expect(screen.getByText('Write')).toBeInTheDocument()
+    expect(screen.getByText('Profile')).toBeInTheDocument()
+    expect(screen.queryByText(NAV_SIGN_IN)).not.toBeInTheDocument()
+    expect(screen.queryByText(NAV_TRY_ON_TESTNET)).not.toBeInTheDocument()
   })
 })

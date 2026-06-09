@@ -1,8 +1,9 @@
 'use client'
 
-import { Heart, PenTool } from 'lucide-react'
+import { Heart } from 'lucide-react'
 import { Reveal } from '@/components/landing/Reveal'
 import { FooterNav } from '@/components/layout/FooterNav'
+import { Logo } from '@/components/ui/Logo'
 import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 import { cn } from '@/lib/utils'
 
@@ -22,13 +23,8 @@ export function SiteFooter({ variant = 'default' }: SiteFooterProps) {
         <div className="container mx-auto max-w-7xl px-8 relative z-10">
           <div className="py-16">
             <Reveal className="text-center">
-              <div className="flex items-center gap-3 mb-4 justify-center">
-                <div className="w-9 h-9 bg-card rounded-lg border border-border flex items-center justify-center shadow-sm">
-                  <PenTool className="w-5 h-5 text-foreground" />
-                </div>
-                <h3 className="text-2xl font-display font-medium tracking-[-0.01em]">
-                  Quilltip
-                </h3>
+              <div className="flex justify-center mb-4">
+                <Logo href={null} variant="onDark" size="lg" />
               </div>
               <p className="text-spotlight-muted text-[15px] leading-relaxed max-w-2xl mx-auto">
                 {TESTNET_PRACTICE_NOTE}
