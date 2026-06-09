@@ -27,13 +27,7 @@ import { toast } from 'sonner'
 import Image from 'next/image'
 import { EDITOR_PROSE_CLASS, UPLOAD_CONTROL_FOCUS_RING } from '@/lib/constants'
 import { mutationWithTimeout } from '@/lib/convexMutationWithTimeout'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
-import { Textarea } from '@/components/ui/textarea'
-import { AlertCircle, ChevronDown, Loader2, X } from 'lucide-react'
+import { AlertCircle, Loader2, X } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   AlertDialog,
@@ -147,6 +141,7 @@ export function WriteEditorWorkspace() {
   /** When true, user dismissed recovery (Not now / Esc); keep local backup until Restore/Discard. */
   const recoveryDeferredRef = useRef(false)
   const [excerptOpen, setExcerptOpen] = useState(false)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const excerptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const tagsInputRef = useRef<HTMLInputElement>(null)
   const coverChangeButtonRef = useRef<HTMLButtonElement>(null)
@@ -1048,9 +1043,7 @@ export function WriteEditorWorkspace() {
         onBlockReasonClick={
           publishListingError?.includes('excerpt')
             ? () => {
-                document
-                  .getElementById('field-excerpt')
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                setMoreMenuOpen(true)
                 setExcerptOpen(true)
                 window.setTimeout(() => excerptTextareaRef.current?.focus(), 0)
               }
@@ -1060,6 +1053,17 @@ export function WriteEditorWorkspace() {
         onDelete={handleRequestDelete}
         isDeleting={isDeleting}
         hasUnsavedChanges={hasUnsavedChanges}
+        excerpt={excerpt}
+        onExcerptChange={(value) => {
+          setExcerpt(value)
+          setHasUnsavedChanges(true)
+        }}
+        excerptOpen={excerptOpen}
+        onExcerptOpenChange={setExcerptOpen}
+        excerptTextareaRef={excerptTextareaRef}
+        moreMenuOpen={moreMenuOpen}
+        onMoreMenuOpenChange={setMoreMenuOpen}
+        excerptMaxChars={EXCERPT_MAX_CHARS}
       />
       {publishSuccessVisible ? (
         <div className="mx-auto w-full max-w-4xl px-4 pt-4 sm:px-6">
@@ -1163,9 +1167,7 @@ export function WriteEditorWorkspace() {
                 el?.focus()
               }}
               onFocusExcerpt={() => {
-                document
-                  .getElementById('field-excerpt')
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                setMoreMenuOpen(true)
                 setExcerptOpen(true)
                 window.setTimeout(() => excerptTextareaRef.current?.focus(), 0)
               }}
@@ -1394,70 +1396,6 @@ export function WriteEditorWorkspace() {
                   {savedArticleForLink.slug}
                 </p>
               )}
-          </div>
-
-          <div id="field-excerpt" className="mb-4">
-            <Collapsible open={excerptOpen} onOpenChange={setExcerptOpen}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      Excerpt
-                    </span>
-                    <span className="text-[11px] tabular-nums text-muted-foreground">
-                      {Math.min(excerpt.length, EXCERPT_MAX_CHARS)}/
-                      {EXCERPT_MAX_CHARS}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Required for publishing. Shown on article cards and in the
-                    publish preview (at least 10 characters).
-                  </p>
-                  {!excerptOpen && excerpt.trim().length > 0 && (
-                    <p className="mt-2 line-clamp-2 whitespace-pre-wrap break-words text-sm text-foreground/80">
-                      {excerpt.trim()}
-                    </p>
-                  )}
-                </div>
-
-                <CollapsibleTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                    onClick={() => {
-                      if (!excerptOpen) {
-                        window.setTimeout(
-                          () => excerptTextareaRef.current?.focus(),
-                          0
-                        )
-                      }
-                    }}
-                    aria-label={excerptOpen ? 'Hide excerpt' : 'Add excerpt'}
-                  >
-                    <span>{excerptOpen ? 'Hide' : 'Add excerpt'}</span>
-                    <ChevronDown
-                      className={`h-3.5 w-3.5 transition-transform ${excerptOpen ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-                </CollapsibleTrigger>
-              </div>
-
-              <CollapsibleContent className="mt-3">
-                <Textarea
-                  ref={excerptTextareaRef}
-                  id="article-excerpt"
-                  value={excerpt}
-                  onChange={(e) => {
-                    setExcerpt(e.target.value)
-                    setHasUnsavedChanges(true)
-                  }}
-                  placeholder="Brief description of your article"
-                  rows={3}
-                  maxLength={EXCERPT_MAX_CHARS}
-                  className="resize-none"
-                />
-              </CollapsibleContent>
-            </Collapsible>
           </div>
 
           {editor && (

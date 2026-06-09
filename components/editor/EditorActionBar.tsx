@@ -1,6 +1,12 @@
 'use client'
 
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useId,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { Editor } from '@tiptap/react'
 import { formatDistanceToNow } from 'date-fns'
 import {
@@ -12,12 +18,21 @@ import {
   Clock,
   LetterText,
   Loader2,
+  ChevronDown,
+  AlignLeft,
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
+import {
+  Collapsible,
+  CollapsibleContent,
+} from '@/components/ui/collapsible'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
 import { truncateFeedbackMessage } from '@/lib/feedback/flow-feedback'
 import { estimateReadingMinutes } from '@/lib/reading-time'
+import { MIN_LISTING_EXCERPT_CHARS } from '@/convex/lib/articleListingReady'
+import { useIsMobile } from '@/hooks/use-mobile'
 
 function draftStatusTitle(
   lastSavedAt: Date | null | undefined,
@@ -72,24 +87,59 @@ interface EditorActionBarProps {
   onDelete?: () => void
   isDeleting?: boolean
   hasUnsavedChanges?: boolean
+  excerpt?: string
+  onExcerptChange?: (value: string) => void
+  excerptOpen?: boolean
+  onExcerptOpenChange?: (open: boolean) => void
+  excerptTextareaRef?: RefObject<HTMLTextAreaElement | null>
+  moreMenuOpen?: boolean
+  onMoreMenuOpenChange?: (open: boolean) => void
+  excerptMaxChars?: number
 }
 
 const RELATIVE_TIME_INTERVAL_MS = 30_000
+const DEFAULT_EXCERPT_MAX_CHARS = 500
 
 function MoreMenu({
   editor,
   onDelete,
   isDeleting = false,
+  excerpt = '',
+  onExcerptChange,
+  excerptOpen = false,
+  onExcerptOpenChange,
+  excerptTextareaRef,
+  moreMenuOpen,
+  onMoreMenuOpenChange,
+  excerptMaxChars = DEFAULT_EXCERPT_MAX_CHARS,
+  isActive = true,
 }: {
   editor: Editor | null
   onDelete?: () => void
   isDeleting?: boolean
+  excerpt?: string
+  onExcerptChange?: (value: string) => void
+  excerptOpen?: boolean
+  onExcerptOpenChange?: (open: boolean) => void
+  excerptTextareaRef?: RefObject<HTMLTextAreaElement | null>
+  moreMenuOpen?: boolean
+  onMoreMenuOpenChange?: (open: boolean) => void
+  excerptMaxChars?: number
+  isActive?: boolean
 }) {
   const focusRing =
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+  const excerptLabel = excerpt.trim() ? 'Edit excerpt' : 'Add excerpt'
+  const menuOpen = isActive && Boolean(moreMenuOpen)
 
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root
+      open={menuOpen}
+      onOpenChange={(open) => {
+        if (!isActive) return
+        onMoreMenuOpenChange?.(open)
+      }}
+    >
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
@@ -102,7 +152,10 @@ function MoreMenu({
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          className="bg-card rounded-lg shadow-lg border border-border py-1 z-50 min-w-[180px]"
+          className={cn(
+            'bg-card rounded-lg shadow-lg border border-border py-1 z-50',
+            excerptOpen ? 'min-w-[280px]' : 'min-w-[180px]'
+          )}
           sideOffset={4}
           align="end"
         >
@@ -120,6 +173,65 @@ function MoreMenu({
             <Clock className="w-4 h-4 shrink-0" />~
             {estimateReadingMinutes(editor?.getText() ?? '')} min read
           </DropdownMenu.Item>
+          {onExcerptChange && onExcerptOpenChange && (
+            <>
+              <DropdownMenu.Separator className="h-px bg-border my-1" />
+              <Collapsible open={excerptOpen} onOpenChange={onExcerptOpenChange}>
+                <DropdownMenu.Item
+                  className="px-4 py-2.5 text-sm text-foreground outline-none flex cursor-pointer items-center justify-between gap-2 hover:bg-muted focus:bg-muted data-[highlighted]:bg-muted"
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    const next = !excerptOpen
+                    onExcerptOpenChange(next)
+                    if (next) {
+                      window.setTimeout(
+                        () => excerptTextareaRef?.current?.focus(),
+                        0
+                      )
+                    }
+                  }}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <AlignLeft className="w-4 h-4 shrink-0" />
+                    <span>{excerptLabel}</span>
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      'h-3.5 w-3.5 shrink-0 transition-transform',
+                      excerptOpen && 'rotate-180'
+                    )}
+                  />
+                </DropdownMenu.Item>
+                <CollapsibleContent>
+                  <div
+                    id="field-excerpt"
+                    className="space-y-2 border-t border-border px-3 pb-3 pt-2"
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <p className="text-[11px] leading-snug text-muted-foreground">
+                      Required for publishing. Shown on article cards and in the
+                      publish preview (at least {MIN_LISTING_EXCERPT_CHARS}{' '}
+                      characters).
+                    </p>
+                    <Textarea
+                      ref={excerptTextareaRef}
+                      id="article-excerpt"
+                      value={excerpt}
+                      onChange={(e) => onExcerptChange(e.target.value)}
+                      placeholder="Brief description of your article"
+                      rows={3}
+                      maxLength={excerptMaxChars}
+                      className="resize-none text-sm"
+                    />
+                    <p className="text-[11px] tabular-nums text-muted-foreground">
+                      {Math.min(excerpt.length, excerptMaxChars)}/
+                      {excerptMaxChars}
+                    </p>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </>
+          )}
           {onDelete && (
             <>
               <DropdownMenu.Separator className="h-px bg-border my-1" />
@@ -171,10 +283,24 @@ export function EditorActionBar({
   onDelete,
   isDeleting = false,
   hasUnsavedChanges = false,
+  excerpt,
+  onExcerptChange,
+  excerptOpen,
+  onExcerptOpenChange,
+  excerptTextareaRef,
+  moreMenuOpen,
+  onMoreMenuOpenChange,
+  excerptMaxChars,
 }: EditorActionBarProps) {
   const publishBlockReasonId = useId()
   const [relativeTick, setRelativeTick] = useState(0)
   const shortcuts = useUndoRedoShortcuts()
+  const isMobile = useIsMobile()
+
+  const handleMoreMenuOpenChange = (open: boolean) => {
+    onMoreMenuOpenChange?.(open)
+    if (!open) onExcerptOpenChange?.(false)
+  }
 
   const canUndo = editor?.can().undo ?? false
   const canRedo = editor?.can().redo ?? false
@@ -334,6 +460,15 @@ export function EditorActionBar({
               editor={editor}
               onDelete={onDelete}
               isDeleting={isDeleting}
+              excerpt={excerpt}
+              onExcerptChange={onExcerptChange}
+              excerptOpen={excerptOpen}
+              onExcerptOpenChange={onExcerptOpenChange}
+              excerptTextareaRef={excerptTextareaRef}
+              moreMenuOpen={moreMenuOpen}
+              onMoreMenuOpenChange={handleMoreMenuOpenChange}
+              excerptMaxChars={excerptMaxChars}
+              isActive={isMobile}
             />
           </div>
         </div>
@@ -401,6 +536,15 @@ export function EditorActionBar({
             editor={editor}
             onDelete={onDelete}
             isDeleting={isDeleting}
+            excerpt={excerpt}
+            onExcerptChange={onExcerptChange}
+            excerptOpen={excerptOpen}
+            onExcerptOpenChange={onExcerptOpenChange}
+            excerptTextareaRef={excerptTextareaRef}
+            moreMenuOpen={moreMenuOpen}
+            onMoreMenuOpenChange={handleMoreMenuOpenChange}
+            excerptMaxChars={excerptMaxChars}
+            isActive={!isMobile}
           />
         </div>
       </div>

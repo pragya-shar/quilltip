@@ -1,9 +1,15 @@
 /** @vitest-environment jsdom */
-import { act, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi, afterEach } from 'vitest'
+import { act, render, screen, fireEvent } from '@testing-library/react'
+import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest'
 import type { Editor } from '@tiptap/react'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
 import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
+
+const useIsMobileMock = vi.hoisted(() => vi.fn(() => false))
+
+vi.mock('@/hooks/use-mobile', () => ({
+  useIsMobile: () => useIsMobileMock(),
+}))
 
 function makeStubEditor(): Editor {
   return {
@@ -36,6 +42,10 @@ const baseProps = {
 }
 
 describe('EditorActionBar autosave status', () => {
+  beforeEach(() => {
+    useIsMobileMock.mockReturnValue(false)
+  })
+
   afterEach(() => {
     vi.useRealTimers()
   })
@@ -175,5 +185,43 @@ describe('EditorActionBar publish requirements', () => {
     )
     expect(screen.queryByText(/excerpt of at least/)).not.toBeInTheDocument()
     expect(screen.getAllByText('Published').length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('EditorActionBar excerpt menu', () => {
+  it('expands excerpt textarea inside the more menu', () => {
+    const onExcerptChange = vi.fn()
+    const onExcerptOpenChange = vi.fn()
+
+    render(
+      <EditorActionBar
+        {...baseProps}
+        excerpt=""
+        onExcerptChange={onExcerptChange}
+        excerptOpen={false}
+        onExcerptOpenChange={onExcerptOpenChange}
+        moreMenuOpen
+        onMoreMenuOpenChange={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByText('Add excerpt'))
+    expect(onExcerptOpenChange).toHaveBeenCalledWith(true)
+  })
+
+  it('shows Edit excerpt when excerpt text exists', () => {
+    render(
+      <EditorActionBar
+        {...baseProps}
+        excerpt="A short summary for the article."
+        onExcerptChange={vi.fn()}
+        excerptOpen={false}
+        onExcerptOpenChange={vi.fn()}
+        moreMenuOpen
+        onMoreMenuOpenChange={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Edit excerpt')).toBeInTheDocument()
   })
 })
