@@ -44,6 +44,8 @@ import {
   type TipFailureMessage,
 } from '@/lib/stellar/tip-error-messages'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { signInToTip, validateTipAmountForm } from '@/lib/tip/signInToTip'
 import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
 import { clearPendingTipIntent } from '@/lib/tip/pendingTipIntent'
@@ -330,13 +332,10 @@ export function TipButton({
     <>
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
-          <button
-            type="button"
-            className={`focus-ring inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105 shadow-lg ${className}`}
-          >
+          <Button variant="outline" className={cn('gap-2', className)}>
             <Coins className="w-4 h-4" />
-            <span className="font-medium">Tip Author</span>
-          </button>
+            Tip Author
+          </Button>
         </DialogTrigger>
         <DialogContent
           className="top-auto bottom-0 left-1/2 max-h-[min(90dvh,calc(100%-2rem))] max-w-md translate-x-[-50%] translate-y-0 gap-4 overflow-y-auto rounded-b-none rounded-t-xl border border-border bg-popover p-6 shadow-xl data-[state=closed]:slide-out-to-bottom-[48%] data-[state=open]:slide-in-from-bottom-[48%] sm:top-[50%] sm:bottom-auto sm:max-h-[min(90dvh,100%)] sm:translate-y-[-50%] sm:rounded-xl sm:data-[state=closed]:slide-out-to-left-1/2 sm:data-[state=closed]:slide-out-to-top-[48%] sm:data-[state=open]:slide-in-from-left-1/2 sm:data-[state=open]:slide-in-from-top-[48%]"
@@ -472,46 +471,47 @@ export function TipButton({
           )}
 
           <div className="flex gap-3">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => handleOpenChange(false)}
               disabled={isLoading}
-              className="focus-ring flex-1 px-4 py-2 border border-input bg-background text-foreground rounded-lg hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1"
             >
               Cancel
-            </button>
+            </Button>
 
             {!isAuthenticated ? (
-              <button
+              <Button
                 type="button"
                 onClick={handleSignInToTip}
                 disabled={isLoading || (!selectedAmount && !customAmount)}
-                className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 gap-2"
               >
                 <Heart className="w-4 h-4" />
-                <span>Sign in to tip</span>
-              </button>
+                Sign in to tip
+              </Button>
             ) : !isConnected ? (
-              <button
+              <Button
                 type="button"
                 onClick={handleConnectWallet}
                 disabled={isLoading || isWalletLoading}
-                className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 gap-2"
               >
                 {isWalletLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Connecting</span>
+                    Connecting
                   </>
                 ) : (
                   <>
                     <Wallet className="w-4 h-4" />
-                    <span>Connect Wallet</span>
+                    Connect Wallet
                   </>
                 )}
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 type="button"
                 onClick={handleTip}
                 disabled={
@@ -519,24 +519,22 @@ export function TipButton({
                   !!tipSuccess ||
                   (!selectedAmount && !customAmount)
                 }
-                className="focus-ring flex-1 px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="flex-1 gap-2"
               >
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>
-                      {tipFlowStep
-                        ? tipFlowProgressLabel(tipFlowStep)
-                        : 'Awaiting signature'}
-                    </span>
+                    {tipFlowStep
+                      ? tipFlowProgressLabel(tipFlowStep)
+                      : 'Awaiting signature'}
                   </>
                 ) : (
                   <>
                     <Heart className="w-4 h-4" />
-                    <span>{tipFailure ? 'Retry' : 'Send Tip'}</span>
+                    {tipFailure ? 'Retry' : 'Send Tip'}
                   </>
                 )}
-              </button>
+              </Button>
             )}
           </div>
 

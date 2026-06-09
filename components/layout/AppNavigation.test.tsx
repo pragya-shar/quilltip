@@ -33,7 +33,7 @@ describe('AppNavigation mobile menu', () => {
   })
 
   it('opens a dialog when the menu toggle is clicked', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     render(<AppNavigation />)
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()

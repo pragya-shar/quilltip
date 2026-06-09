@@ -12,6 +12,7 @@ const TOC_LINK_CLASS =
 
 interface ArticleTableOfContentsProps {
   headings: TocHeading[]
+  embedded?: boolean
 }
 
 function getHeadingElements(ids: string[]): HTMLElement[] {
@@ -22,6 +23,7 @@ function getHeadingElements(ids: string[]): HTMLElement[] {
 
 export function ArticleTableOfContents({
   headings,
+  embedded = false,
 }: ArticleTableOfContentsProps) {
   const enabled = headings.length >= 3
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -101,8 +103,19 @@ export function ArticleTableOfContents({
   if (!enabled) return null
 
   return (
-    <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]">
-      <h3 id={TOC_HEADING_ID} className="text-lg font-semibold mb-3">
+    <div
+      className={
+        embedded
+          ? undefined
+          : 'bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]'
+      }
+    >
+      <h3
+        id={TOC_HEADING_ID}
+        className={
+          embedded ? 'text-sm font-medium mb-3' : 'text-lg font-semibold mb-3'
+        }
+      >
         On this page
       </h3>
       <nav aria-labelledby={TOC_HEADING_ID}>

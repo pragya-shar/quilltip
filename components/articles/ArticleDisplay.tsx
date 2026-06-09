@@ -31,6 +31,7 @@ interface ArticleDisplayProps {
   authorStellarAddress?: string | null
   showHighlights?: boolean
   tocHeadings?: TocHeading[]
+  readerSupport?: React.ReactNode
 }
 
 export default function ArticleDisplay({
@@ -38,6 +39,7 @@ export default function ArticleDisplay({
   authorStellarAddress: _authorStellarAddress,
   showHighlights = true,
   tocHeadings = [],
+  readerSupport,
 }: ArticleDisplayProps) {
   const [currentUrl, setCurrentUrl] = useState('')
 
@@ -105,6 +107,8 @@ export default function ArticleDisplay({
           </div>
         )}
       </header>
+
+      {readerSupport}
 
       <div className="article-content">
         {showHighlights ? (

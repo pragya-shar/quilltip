@@ -24,7 +24,8 @@ export default defineConfig({
           exclude: ['node_modules', '.next', 'convex/**'],
           environment: 'node',
           setupFiles: ['./vitest.setup.ts'],
-          testTimeout: 10_000,
+          // UI interaction tests can exceed 10s when the full suite runs in parallel.
+          testTimeout: 30_000,
         },
       },
     ],

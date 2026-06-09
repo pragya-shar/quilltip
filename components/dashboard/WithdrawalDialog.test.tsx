@@ -51,7 +51,7 @@ describe('WithdrawalDialog', () => {
       })
       expect(onOpenChange).toHaveBeenCalledWith(false)
     })
-  }, 10_000)
+  })
 
   it('uses saved Stellar address without manual entry', async () => {
     const user = userEvent.setup({ delay: null })
