@@ -22,10 +22,7 @@ import {
   AlignLeft,
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import {
-  Collapsible,
-  CollapsibleContent,
-} from '@/components/ui/collapsible'
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
@@ -176,7 +173,10 @@ function MoreMenu({
           {onExcerptChange && onExcerptOpenChange && (
             <>
               <DropdownMenu.Separator className="h-px bg-border my-1" />
-              <Collapsible open={excerptOpen} onOpenChange={onExcerptOpenChange}>
+              <Collapsible
+                open={excerptOpen}
+                onOpenChange={onExcerptOpenChange}
+              >
                 <DropdownMenu.Item
                   className="px-4 py-2.5 text-sm text-foreground outline-none flex cursor-pointer items-center justify-between gap-2 hover:bg-muted focus:bg-muted data-[highlighted]:bg-muted"
                   onSelect={(e) => {
