@@ -11,7 +11,13 @@ interface HighlightHeatmapProps {
   articleId: Id<'articles'>
   isAuthor?: boolean
   className?: string
+  embedded?: boolean
 }
+
+const heatmapShellClass = (embedded: boolean) =>
+  embedded
+    ? ''
+    : 'bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]'
 
 type HeatmapWindow = 'all' | '7d' | '30d'
 
@@ -19,6 +25,7 @@ export function HighlightHeatmap({
   articleId,
   isAuthor = false,
   className,
+  embedded = false,
 }: HighlightHeatmapProps) {
   const [window, setWindow] = useState<HeatmapWindow>('all')
 
@@ -35,12 +42,7 @@ export function HighlightHeatmap({
   // Loading state
   if (stats === undefined) {
     return (
-      <div
-        className={cn(
-          'bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]',
-          className
-        )}
-      >
+      <div className={cn(heatmapShellClass(embedded), className)}>
         <div className="animate-pulse space-y-4">
           <div className="h-6 bg-muted rounded w-1/2" />
           <div className="h-20 bg-muted rounded"></div>
@@ -55,14 +57,14 @@ export function HighlightHeatmap({
   // Empty state - No tips yet
   if (!stats || stats.totalTips === 0) {
     return (
-      <div
-        className={cn(
-          'bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]',
-          className
-        )}
-      >
+      <div className={cn(heatmapShellClass(embedded), className)}>
         <div className="flex items-center justify-between gap-3 mb-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
+          <h3
+            className={cn(
+              'font-semibold flex items-center gap-2',
+              embedded ? 'text-sm font-medium' : 'text-lg font-semibold'
+            )}
+          >
             <Flame className="w-5 h-5 text-orange-500" />
             Highlight Heatmap
           </h3>
@@ -144,14 +146,14 @@ export function HighlightHeatmap({
   )
 
   return (
-    <div
-      className={cn(
-        'bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]',
-        className
-      )}
-    >
+    <div className={cn(heatmapShellClass(embedded), className)}>
       <div className="flex items-center justify-between gap-3 mb-4">
-        <h3 className="text-lg font-semibold flex items-center gap-2">
+        <h3
+          className={cn(
+            'flex items-center gap-2',
+            embedded ? 'text-sm font-medium' : 'text-lg font-semibold'
+          )}
+        >
           <Flame className="w-5 h-5 text-orange-500" />
           Highlight Heatmap
         </h3>
