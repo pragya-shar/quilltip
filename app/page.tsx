@@ -68,7 +68,7 @@ export default function HomePage() {
   const hasWallet = !!user?.stellarAddress
   const showOnboarding = isAuthenticated && user && !user.onboardingCompleted
 
-  if (isLoading) {
+  if (isAuthenticated && isLoading) {
     return <HomeLoadingShell />
   }
 
