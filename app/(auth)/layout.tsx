@@ -18,13 +18,6 @@ export default function AuthLayout({
 }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-cream to-background dark:from-background dark:to-muted">
-      {/* Navigation Header */}
-      <header className="absolute top-0 left-0 right-0 z-10">
-        <nav className="container mx-auto px-6 py-6">
-          <Logo />
-        </nav>
-      </header>
-
       {/* Auth Form Container */}
       <main className="flex min-h-screen items-center justify-center px-6 py-20">
         <div className="w-full max-w-md">
