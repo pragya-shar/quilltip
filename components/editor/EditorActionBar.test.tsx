@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import type { Editor } from '@tiptap/react'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
@@ -48,28 +49,25 @@ describe('EditorActionBar autosave status', () => {
     }
   })
 
-  it('shows Saving... in status and on Save button while isSaving with unsaved edits', () => {
+  it('shows Saving... in status while isSaving with unsaved edits', () => {
     render(<EditorActionBar {...baseProps} isSaving hasUnsavedChanges />)
     const statuses = screen.getAllByRole('status')
     for (const status of statuses) {
       expect(status).toHaveTextContent('Saving...')
     }
-    const saveButtons = screen.getAllByRole('button', { name: 'Saving...' })
-    expect(saveButtons.length).toBeGreaterThanOrEqual(1)
-    for (const button of saveButtons) {
-      expect(button).toBeDisabled()
-    }
+    expect(
+      screen.queryByRole('button', { name: 'Saving...' })
+    ).not.toBeInTheDocument()
   })
 
-  it('shows Could not save with destructive Draft pill when error and dirty', () => {
-    const { container } = render(
+  it('shows save error in status and alert banner when error and dirty', () => {
+    render(
       <EditorActionBar {...baseProps} error="Network error" hasUnsavedChanges />
     )
     const statuses = screen.getAllByRole('status')
     for (const status of statuses) {
       expect(status).toHaveTextContent(/Couldn't save:?\s*Network error/)
     }
-    expect(container.querySelector('.bg-destructive\\/15')).not.toBeNull()
     expect(screen.getByRole('alert')).toHaveTextContent('Network error')
   })
 
@@ -91,24 +89,19 @@ describe('EditorActionBar autosave status', () => {
   it('increments relative tick on interval while showing saved time', () => {
     vi.useFakeTimers()
     const t = new Date(Date.now() - 60_000)
-    render(
+    const { container } = render(
       <EditorActionBar
         {...baseProps}
         lastSavedAt={t}
         hasUnsavedChanges={false}
       />
     )
-    const statuses = screen.getAllByRole('status')
-    for (const status of statuses) {
-      expect(status.getAttribute('data-relative-tick')).toBe('0')
-    }
+    const tickEl = container.querySelector('[data-relative-tick]')
+    expect(tickEl?.getAttribute('data-relative-tick')).toBe('0')
     act(() => {
       vi.advanceTimersByTime(30_000)
     })
-    const statusesAfter = screen.getAllByRole('status')
-    for (const status of statusesAfter) {
-      expect(status.getAttribute('data-relative-tick')).toBe('1')
-    }
+    expect(tickEl?.getAttribute('data-relative-tick')).toBe('1')
   })
 
   it('shows error state when save failed', () => {
@@ -125,31 +118,35 @@ describe('EditorActionBar autosave status', () => {
     }
   })
 
-  it('shows Unsaved changes when dirty and not saving', () => {
+  it('shows Unsaved when dirty and not saving', () => {
     render(<EditorActionBar {...baseProps} hasUnsavedChanges />)
     const statuses = screen.getAllByRole('status')
     for (const status of statuses) {
-      expect(status).toHaveTextContent('Unsaved changes')
+      expect(status).toHaveTextContent('Unsaved')
     }
   })
 
-  it('shows Not saved yet when no save and not dirty', () => {
+  it('hides draft status when no save activity yet', () => {
     render(<EditorActionBar {...baseProps} />)
+    expect(screen.queryByText(/^Saved /)).not.toBeInTheDocument()
+    expect(screen.queryByText('Unsaved')).not.toBeInTheDocument()
+    expect(screen.queryByText('Saving...')).not.toBeInTheDocument()
     const statuses = screen.getAllByRole('status')
     for (const status of statuses) {
-      expect(status).toHaveTextContent('Not saved yet')
+      expect(status.textContent).toBe('')
     }
   })
 })
 
 describe('EditorActionBar publish requirements', () => {
-  it('shows a visible banner when publishBlockReason is set', () => {
+  it('keeps publishBlockReason screen-reader only (no visible banner)', () => {
     const reason =
       'Please add an excerpt of at least 10 characters before publishing'
     render(
       <EditorActionBar {...baseProps} canPublish publishBlockReason={reason} />
     )
-    expect(screen.getByText(reason)).toBeVisible()
+    const reasonEl = screen.getByText(reason)
+    expect(reasonEl).toHaveClass('sr-only')
   })
 
   it('associates Publish with the block reason via aria-describedby', () => {
@@ -175,5 +172,44 @@ describe('EditorActionBar publish requirements', () => {
     )
     expect(screen.queryByText(/excerpt of at least/)).not.toBeInTheDocument()
     expect(screen.getAllByText('Published').length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('EditorActionBar cover image menu', () => {
+  it('shows Add cover image when onAddCoverImage is provided and no cover is set', async () => {
+    const user = userEvent.setup()
+    render(<EditorActionBar {...baseProps} onAddCoverImage={vi.fn()} />)
+
+    await user.click(
+      screen.getAllByRole('button', { name: 'More options' })[0]!
+    )
+
+    expect(screen.getByText('Add cover image')).toBeInTheDocument()
+  })
+
+  it('hides Add cover image when hasCoverImage is true', async () => {
+    const user = userEvent.setup()
+    render(
+      <EditorActionBar {...baseProps} onAddCoverImage={vi.fn()} hasCoverImage />
+    )
+
+    await user.click(
+      screen.getAllByRole('button', { name: 'More options' })[0]!
+    )
+
+    expect(screen.queryByText('Add cover image')).not.toBeInTheDocument()
+  })
+
+  it('calls onAddCoverImage when the menu item is selected', async () => {
+    const user = userEvent.setup()
+    const onAddCoverImage = vi.fn()
+    render(<EditorActionBar {...baseProps} onAddCoverImage={onAddCoverImage} />)
+
+    await user.click(
+      screen.getAllByRole('button', { name: 'More options' })[0]!
+    )
+    await user.click(screen.getByText('Add cover image'))
+
+    expect(onAddCoverImage).toHaveBeenCalledTimes(1)
   })
 })
