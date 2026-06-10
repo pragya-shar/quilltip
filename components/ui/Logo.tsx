@@ -57,7 +57,10 @@ export function Logo({
     <span
       className={`${iconSizeClasses[size]} ${iconBoxClass} rounded-xl flex items-center justify-center shrink-0`}
     >
-      <PenTool className={`${iconInnerClasses[size]} ${iconColor}`} aria-hidden />
+      <PenTool
+        className={`${iconInnerClasses[size]} ${iconColor}`}
+        aria-hidden
+      />
     </span>
   )
 
@@ -69,7 +72,10 @@ export function Logo({
           whileHover={{ scale: 1.05 }}
           transition={{ type: 'spring', stiffness: 400, damping: 10 }}
         >
-          <PenTool className={`${iconInnerClasses[size]} ${iconColor}`} aria-hidden />
+          <PenTool
+            className={`${iconInnerClasses[size]} ${iconColor}`}
+            aria-hidden
+          />
         </motion.span>
       ) : (
         iconBox

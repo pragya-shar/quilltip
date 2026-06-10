@@ -15,6 +15,7 @@ vi.mock('motion/react', () => ({
   motion: {
     nav: (props: HTMLAttributes<HTMLElement>) => <nav {...props} />,
     div: (props: HTMLAttributes<HTMLDivElement>) => <div {...props} />,
+    span: (props: HTMLAttributes<HTMLSpanElement>) => <span {...props} />,
   },
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))

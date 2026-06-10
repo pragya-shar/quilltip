@@ -5,7 +5,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { Logo } from '@/components/ui/Logo'
 
 vi.mock('next/link', () => ({
-  default: (props: { href: string; children: ReactNode; 'aria-label'?: string }) => (
+  default: (props: {
+    href: string
+    children: ReactNode
+    'aria-label'?: string
+  }) => (
     <a href={props.href} aria-label={props['aria-label']}>
       {props.children}
     </a>
@@ -24,7 +28,10 @@ describe('Logo', () => {
   it('renders a home link with the Quilltip wordmark', () => {
     render(<Logo />)
 
-    expect(screen.getByRole('link', { name: 'Quilltip' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'Quilltip' })).toHaveAttribute(
+      'href',
+      '/'
+    )
     expect(screen.getByText('Quilltip')).toBeInTheDocument()
   })
 
