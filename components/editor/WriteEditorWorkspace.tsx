@@ -141,6 +141,8 @@ export function WriteEditorWorkspace() {
   const hasUnsavedRef = useRef(hasUnsavedChanges)
   /** When true, user dismissed recovery (Not now / Esc); keep local backup until Restore/Discard. */
   const recoveryDeferredRef = useRef(false)
+  const [excerptOpen, setExcerptOpen] = useState(false)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const excerptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const tagsInputRef = useRef<HTMLInputElement>(null)
   const coverChangeButtonRef = useRef<HTMLButtonElement>(null)
@@ -553,6 +555,12 @@ export function WriteEditorWorkspace() {
     })
   }, [])
 
+  const focusExcerptField = useCallback(() => {
+    setMoreMenuOpen(true)
+    setExcerptOpen(true)
+    window.setTimeout(() => excerptTextareaRef.current?.focus(), 0)
+  }, [])
+
   const blockPublishForPlaceholderTitle = useCallback((): boolean => {
     if (isPublishBlockedArticleTitle(title)) {
       setTitleError(TITLE_PUBLISH_ERROR)
@@ -570,9 +578,23 @@ export function WriteEditorWorkspace() {
       return
     }
     if (blockPublishForPlaceholderTitle()) return
+    const listingError = getListingReadyPublishError({ title, excerpt })
+    if (listingError) {
+      if (listingError.includes('excerpt')) {
+        focusExcerptField()
+      }
+      toast.warning(listingError)
+      return
+    }
     setPublishFeedback(null)
     setPublishConfirmOpen(true)
-  }, [editor, blockPublishForPlaceholderTitle])
+  }, [
+    editor,
+    title,
+    excerpt,
+    blockPublishForPlaceholderTitle,
+    focusExcerptField,
+  ])
 
   const handlePublish = useCallback(async () => {
     if (!editor || editor.isEmpty) {
@@ -854,6 +876,13 @@ export function WriteEditorWorkspace() {
     )
   }
 
+  const publishBlockReason =
+    editor && !editor.isEmpty
+      ? isPublishBlockedArticleTitle(title)
+        ? TITLE_PUBLISH_ERROR
+        : getListingReadyPublishError({ title, excerpt })
+      : null
+
   const publishUsername =
     savedArticleForLink?.authorUsername ??
     savedArticleForLink?.author?.username ??
@@ -873,7 +902,17 @@ export function WriteEditorWorkspace() {
         error={error?.message ?? null}
         isPublished={publishStatus.published}
         isPublishing={isPublishing}
-        canPublish={!!editor && !editor.isEmpty && !isPublishing}
+        canPublish={
+          !!editor && !editor.isEmpty && !isPublishing && !publishBlockReason
+        }
+        publishBlockReason={publishBlockReason}
+        onBlockReasonClick={
+          publishBlockReason?.includes('excerpt')
+            ? focusExcerptField
+            : publishBlockReason
+              ? focusTitleField
+              : undefined
+        }
         lastSavedAt={lastSavedAt ?? undefined}
         onDelete={handleRequestDelete}
         isDeleting={isDeleting}
@@ -885,6 +924,17 @@ export function WriteEditorWorkspace() {
         }}
         onAddCoverImage={() => setShowCoverImageDialog(true)}
         hasCoverImage={!!coverImage}
+        excerpt={excerpt}
+        onExcerptChange={(value) => {
+          setExcerpt(value)
+          setHasUnsavedChanges(true)
+        }}
+        excerptOpen={excerptOpen}
+        onExcerptOpenChange={setExcerptOpen}
+        excerptTextareaRef={excerptTextareaRef}
+        moreMenuOpen={moreMenuOpen}
+        onMoreMenuOpenChange={setMoreMenuOpen}
+        excerptMaxChars={EXCERPT_MAX_CHARS}
       />
       {publishSuccessVisible ? (
         <div className="mx-auto w-full max-w-4xl px-4 pt-4 sm:px-6">

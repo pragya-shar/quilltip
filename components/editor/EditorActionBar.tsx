@@ -1,6 +1,13 @@
 'use client'
 
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { Editor } from '@tiptap/react'
 import { formatDistanceToNow } from 'date-fns'
 import {
@@ -14,6 +21,8 @@ import {
   Loader2,
   FileText,
   ImageIcon,
+  AlignLeft,
+  ChevronDown,
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -21,6 +30,9 @@ import { cn } from '@/lib/utils'
 import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
 import { truncateFeedbackMessage } from '@/lib/feedback/flow-feedback'
 import { estimateReadingMinutes } from '@/lib/reading-time'
+import { MIN_LISTING_EXCERPT_CHARS } from '@/convex/lib/articleListingReady'
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Drawer,
   DrawerClose,
@@ -82,6 +94,7 @@ interface EditorActionBarProps {
   isPublishing: boolean
   canPublish: boolean
   publishBlockReason?: string | null
+  onBlockReasonClick?: () => void
   lastSavedAt?: Date | null
   onDelete?: () => void
   isDeleting?: boolean
@@ -90,9 +103,18 @@ interface EditorActionBarProps {
   onNotesChange?: (value: string) => void
   onAddCoverImage?: () => void
   hasCoverImage?: boolean
+  excerpt?: string
+  onExcerptChange?: (value: string) => void
+  excerptOpen?: boolean
+  onExcerptOpenChange?: (open: boolean) => void
+  excerptTextareaRef?: RefObject<HTMLTextAreaElement | null>
+  moreMenuOpen?: boolean
+  onMoreMenuOpenChange?: (open: boolean) => void
+  excerptMaxChars?: number
 }
 
 const RELATIVE_TIME_INTERVAL_MS = 30_000
+const DEFAULT_EXCERPT_MAX_CHARS = 500
 
 const focusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
@@ -103,23 +125,57 @@ function MoreMenu({
   isDeleting = false,
   onAddCoverImage,
   hasCoverImage = false,
+  excerpt = '',
+  onExcerptChange,
+  excerptOpen = false,
+  onExcerptOpenChange,
+  excerptTextareaRef,
+  moreMenuOpen,
+  onMoreMenuOpenChange,
+  excerptMaxChars = DEFAULT_EXCERPT_MAX_CHARS,
+  isActive = true,
 }: {
   editor: Editor | null
   onDelete?: () => void
   isDeleting?: boolean
   onAddCoverImage?: () => void
   hasCoverImage?: boolean
+  excerpt?: string
+  onExcerptChange?: (value: string) => void
+  excerptOpen?: boolean
+  onExcerptOpenChange?: (open: boolean) => void
+  excerptTextareaRef?: RefObject<HTMLTextAreaElement | null>
+  moreMenuOpen?: boolean
+  onMoreMenuOpenChange?: (open: boolean) => void
+  excerptMaxChars?: number
+  isActive?: boolean
 }) {
   const canUndo = editor?.can().undo() ?? false
   const canRedo = editor?.can().redo() ?? false
   const shortcuts = useUndoRedoShortcuts()
+  const [internalOpen, setInternalOpen] = useState(false)
+  const menuOpen = isActive && (moreMenuOpen ?? internalOpen)
+  const excerptLabel = excerpt.trim() ? 'Edit excerpt' : 'Add excerpt'
+
+  const handleOpenChange = (open: boolean) => {
+    if (!isActive) return
+    if (onMoreMenuOpenChange) {
+      onMoreMenuOpenChange(open)
+    } else {
+      setInternalOpen(open)
+    }
+    if (!open) onExcerptOpenChange?.(false)
+  }
 
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root open={menuOpen} onOpenChange={handleOpenChange}>
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
           aria-label="More options"
+          aria-hidden={!isActive}
+          disabled={!isActive}
+          tabIndex={isActive ? undefined : -1}
           className={`p-2 rounded-full border border-border text-muted-foreground hover:bg-muted hover:border-border transition-colors shrink-0 ${focusRing}`}
           title="More options"
         >
@@ -128,7 +184,10 @@ function MoreMenu({
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
-          className="bg-card rounded-lg shadow-lg border border-border py-1 z-50 min-w-[180px]"
+          className={cn(
+            'bg-card rounded-lg shadow-lg border border-border py-1 z-50',
+            excerptOpen ? 'min-w-[280px]' : 'min-w-[180px]'
+          )}
           sideOffset={4}
           align="end"
         >
@@ -182,6 +241,68 @@ function MoreMenu({
                 <ImageIcon className="w-4 h-4 shrink-0" />
                 <span>Add cover image</span>
               </DropdownMenu.Item>
+            </>
+          ) : null}
+          {onExcerptChange && onExcerptOpenChange ? (
+            <>
+              <DropdownMenu.Separator className="h-px bg-border my-1" />
+              <Collapsible
+                open={excerptOpen}
+                onOpenChange={onExcerptOpenChange}
+              >
+                <DropdownMenu.Item
+                  className="px-4 py-2.5 text-sm text-foreground outline-none flex cursor-pointer items-center justify-between gap-2 hover:bg-muted focus:bg-muted data-[highlighted]:bg-muted"
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    const nextOpen = !excerptOpen
+                    onExcerptOpenChange(nextOpen)
+                    if (nextOpen) {
+                      window.setTimeout(
+                        () => excerptTextareaRef?.current?.focus(),
+                        0
+                      )
+                    }
+                  }}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <AlignLeft className="w-4 h-4 shrink-0" />
+                    <span>{excerptLabel}</span>
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      'h-3.5 w-3.5 shrink-0 transition-transform',
+                      excerptOpen && 'rotate-180'
+                    )}
+                  />
+                </DropdownMenu.Item>
+                <CollapsibleContent>
+                  <div
+                    id="field-excerpt"
+                    className="space-y-2 border-t border-border px-3 pb-3 pt-2"
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    <p className="text-[11px] leading-snug text-muted-foreground">
+                      Required for publishing. Shown on article cards and in the
+                      publish preview (at least {MIN_LISTING_EXCERPT_CHARS}{' '}
+                      characters).
+                    </p>
+                    <Textarea
+                      ref={excerptTextareaRef}
+                      id="article-excerpt"
+                      value={excerpt}
+                      onChange={(event) => onExcerptChange(event.target.value)}
+                      placeholder="Brief description of your article"
+                      rows={3}
+                      maxLength={excerptMaxChars}
+                      className="resize-none text-sm"
+                    />
+                    <p className="text-[11px] tabular-nums text-muted-foreground">
+                      {Math.min(excerpt.length, excerptMaxChars)}/
+                      {excerptMaxChars}
+                    </p>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </>
           ) : null}
           <DropdownMenu.Separator className="h-px bg-border my-1" />
@@ -351,6 +472,7 @@ export function EditorActionBar({
   isPublishing,
   canPublish,
   publishBlockReason = null,
+  onBlockReasonClick,
   lastSavedAt,
   onDelete,
   isDeleting = false,
@@ -359,9 +481,18 @@ export function EditorActionBar({
   onNotesChange,
   onAddCoverImage,
   hasCoverImage = false,
+  excerpt,
+  onExcerptChange,
+  excerptOpen,
+  onExcerptOpenChange,
+  excerptTextareaRef,
+  moreMenuOpen,
+  onMoreMenuOpenChange,
+  excerptMaxChars,
 }: EditorActionBarProps) {
   const publishBlockReasonId = useId()
   const [relativeTick, setRelativeTick] = useState(0)
+  const isMobile = useIsMobile()
 
   const showRelativeSaved =
     !isSaving && !error && !hasUnsavedChanges && lastSavedAt != null
@@ -479,6 +610,15 @@ export function EditorActionBar({
               isDeleting={isDeleting}
               onAddCoverImage={onAddCoverImage}
               hasCoverImage={hasCoverImage}
+              excerpt={excerpt}
+              onExcerptChange={onExcerptChange}
+              excerptOpen={excerptOpen}
+              onExcerptOpenChange={onExcerptOpenChange}
+              excerptTextareaRef={excerptTextareaRef}
+              moreMenuOpen={moreMenuOpen}
+              onMoreMenuOpenChange={onMoreMenuOpenChange}
+              excerptMaxChars={excerptMaxChars}
+              isActive={isMobile}
             />
           </div>
         </div>
@@ -546,9 +686,41 @@ export function EditorActionBar({
             isDeleting={isDeleting}
             onAddCoverImage={onAddCoverImage}
             hasCoverImage={hasCoverImage}
+            excerpt={excerpt}
+            onExcerptChange={onExcerptChange}
+            excerptOpen={excerptOpen}
+            onExcerptOpenChange={onExcerptOpenChange}
+            excerptTextareaRef={excerptTextareaRef}
+            moreMenuOpen={moreMenuOpen}
+            onMoreMenuOpenChange={onMoreMenuOpenChange}
+            excerptMaxChars={excerptMaxChars}
+            isActive={!isMobile}
           />
         </div>
       </div>
+
+      {publishBlockReason &&
+        !isPublished &&
+        (onBlockReasonClick ? (
+          <button
+            type="button"
+            onClick={onBlockReasonClick}
+            className={cn(
+              'w-full border-t border-border bg-muted/50 px-4 py-2 text-left text-xs text-muted-foreground',
+              'cursor-pointer hover:bg-muted',
+              focusRing
+            )}
+          >
+            {publishBlockReason}
+          </button>
+        ) : (
+          <div
+            role="status"
+            className="border-t border-border bg-muted/50 px-4 py-2 text-xs text-muted-foreground"
+          >
+            {publishBlockReason}
+          </div>
+        ))}
 
       {error && (
         <p
