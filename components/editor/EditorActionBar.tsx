@@ -3,6 +3,7 @@
 import {
   useEffect,
   useId,
+  useRef,
   useState,
   type ReactNode,
   type RefObject,
@@ -18,18 +19,32 @@ import {
   Clock,
   LetterText,
   Loader2,
-  ChevronDown,
+  FileText,
+  ImageIcon,
   AlignLeft,
+  ChevronDown,
 } from 'lucide-react'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
-import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
-import { Textarea } from '@/components/ui/textarea'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
 import { truncateFeedbackMessage } from '@/lib/feedback/flow-feedback'
 import { estimateReadingMinutes } from '@/lib/reading-time'
 import { MIN_LISTING_EXCERPT_CHARS } from '@/convex/lib/articleListingReady'
-import { useIsMobile } from '@/hooks/use-mobile'
+import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer'
+import {
+  WRITER_NOTES_HELPER_TEXT,
+  WriterNotesPanel,
+} from '@/components/editor/WriterNotesPanel'
 
 function draftStatusTitle(
   lastSavedAt: Date | null | undefined,
@@ -84,6 +99,10 @@ interface EditorActionBarProps {
   onDelete?: () => void
   isDeleting?: boolean
   hasUnsavedChanges?: boolean
+  notes?: string
+  onNotesChange?: (value: string) => void
+  onAddCoverImage?: () => void
+  hasCoverImage?: boolean
   excerpt?: string
   onExcerptChange?: (value: string) => void
   excerptOpen?: boolean
@@ -97,10 +116,15 @@ interface EditorActionBarProps {
 const RELATIVE_TIME_INTERVAL_MS = 30_000
 const DEFAULT_EXCERPT_MAX_CHARS = 500
 
+const focusRing =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+
 function MoreMenu({
   editor,
   onDelete,
   isDeleting = false,
+  onAddCoverImage,
+  hasCoverImage = false,
   excerpt = '',
   onExcerptChange,
   excerptOpen = false,
@@ -114,6 +138,8 @@ function MoreMenu({
   editor: Editor | null
   onDelete?: () => void
   isDeleting?: boolean
+  onAddCoverImage?: () => void
+  hasCoverImage?: boolean
   excerpt?: string
   onExcerptChange?: (value: string) => void
   excerptOpen?: boolean
@@ -124,23 +150,32 @@ function MoreMenu({
   excerptMaxChars?: number
   isActive?: boolean
 }) {
-  const focusRing =
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+  const canUndo = editor?.can().undo() ?? false
+  const canRedo = editor?.can().redo() ?? false
+  const shortcuts = useUndoRedoShortcuts()
+  const [internalOpen, setInternalOpen] = useState(false)
+  const menuOpen = isActive && (moreMenuOpen ?? internalOpen)
   const excerptLabel = excerpt.trim() ? 'Edit excerpt' : 'Add excerpt'
-  const menuOpen = isActive && Boolean(moreMenuOpen)
+
+  const handleOpenChange = (open: boolean) => {
+    if (!isActive) return
+    if (onMoreMenuOpenChange) {
+      onMoreMenuOpenChange(open)
+    } else {
+      setInternalOpen(open)
+    }
+    if (!open) onExcerptOpenChange?.(false)
+  }
 
   return (
-    <DropdownMenu.Root
-      open={menuOpen}
-      onOpenChange={(open) => {
-        if (!isActive) return
-        onMoreMenuOpenChange?.(open)
-      }}
-    >
+    <DropdownMenu.Root open={menuOpen} onOpenChange={handleOpenChange}>
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
           aria-label="More options"
+          aria-hidden={!isActive}
+          disabled={!isActive}
+          tabIndex={isActive ? undefined : -1}
           className={`p-2 rounded-full border border-border text-muted-foreground hover:bg-muted hover:border-border transition-colors shrink-0 ${focusRing}`}
           title="More options"
         >
@@ -157,20 +192,58 @@ function MoreMenu({
           align="end"
         >
           <DropdownMenu.Item
-            className="px-4 py-2.5 text-sm text-muted-foreground outline-none flex items-center gap-2"
-            onSelect={(e) => e.preventDefault()}
+            disabled={!canUndo}
+            onSelect={(e) => {
+              e.preventDefault()
+              editor?.chain().focus().undo().run()
+            }}
+            className={cn(
+              'px-4 py-2.5 text-sm cursor-pointer outline-none flex items-center gap-2',
+              canUndo
+                ? 'text-foreground hover:bg-muted focus:bg-muted'
+                : 'opacity-40 cursor-not-allowed'
+            )}
           >
-            <LetterText className="w-4 h-4 shrink-0" />
-            {editor?.getText().split(/\s+/).filter(Boolean).length ?? 0} words
+            <Undo2 className="w-4 h-4 shrink-0" />
+            <span>Undo</span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {shortcuts.undo}
+            </span>
           </DropdownMenu.Item>
           <DropdownMenu.Item
-            className="px-4 py-2.5 text-sm text-muted-foreground outline-none flex items-center gap-2"
-            onSelect={(e) => e.preventDefault()}
+            disabled={!canRedo}
+            onSelect={(e) => {
+              e.preventDefault()
+              editor?.chain().focus().redo().run()
+            }}
+            className={cn(
+              'px-4 py-2.5 text-sm cursor-pointer outline-none flex items-center gap-2',
+              canRedo
+                ? 'text-foreground hover:bg-muted focus:bg-muted'
+                : 'opacity-40 cursor-not-allowed'
+            )}
           >
-            <Clock className="w-4 h-4 shrink-0" />~
-            {estimateReadingMinutes(editor?.getText() ?? '')} min read
+            <Redo2 className="w-4 h-4 shrink-0" />
+            <span>Redo</span>
+            <span className="ml-auto text-xs text-muted-foreground">
+              {shortcuts.redo}
+            </span>
           </DropdownMenu.Item>
-          {onExcerptChange && onExcerptOpenChange && (
+          {onAddCoverImage && !hasCoverImage ? (
+            <>
+              <DropdownMenu.Separator className="h-px bg-border my-1" />
+              <DropdownMenu.Item
+                onSelect={() => {
+                  onAddCoverImage()
+                }}
+                className="px-4 py-2.5 text-sm text-foreground hover:bg-muted focus:bg-muted cursor-pointer outline-none flex items-center gap-2"
+              >
+                <ImageIcon className="w-4 h-4 shrink-0" />
+                <span>Add cover image</span>
+              </DropdownMenu.Item>
+            </>
+          ) : null}
+          {onExcerptChange && onExcerptOpenChange ? (
             <>
               <DropdownMenu.Separator className="h-px bg-border my-1" />
               <Collapsible
@@ -179,11 +252,11 @@ function MoreMenu({
               >
                 <DropdownMenu.Item
                   className="px-4 py-2.5 text-sm text-foreground outline-none flex cursor-pointer items-center justify-between gap-2 hover:bg-muted focus:bg-muted data-[highlighted]:bg-muted"
-                  onSelect={(e) => {
-                    e.preventDefault()
-                    const next = !excerptOpen
-                    onExcerptOpenChange(next)
-                    if (next) {
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    const nextOpen = !excerptOpen
+                    onExcerptOpenChange(nextOpen)
+                    if (nextOpen) {
                       window.setTimeout(
                         () => excerptTextareaRef?.current?.focus(),
                         0
@@ -206,7 +279,7 @@ function MoreMenu({
                   <div
                     id="field-excerpt"
                     className="space-y-2 border-t border-border px-3 pb-3 pt-2"
-                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
                   >
                     <p className="text-[11px] leading-snug text-muted-foreground">
                       Required for publishing. Shown on article cards and in the
@@ -217,7 +290,7 @@ function MoreMenu({
                       ref={excerptTextareaRef}
                       id="article-excerpt"
                       value={excerpt}
-                      onChange={(e) => onExcerptChange(e.target.value)}
+                      onChange={(event) => onExcerptChange(event.target.value)}
                       placeholder="Brief description of your article"
                       rows={3}
                       maxLength={excerptMaxChars}
@@ -231,7 +304,22 @@ function MoreMenu({
                 </CollapsibleContent>
               </Collapsible>
             </>
-          )}
+          ) : null}
+          <DropdownMenu.Separator className="h-px bg-border my-1" />
+          <DropdownMenu.Item
+            className="px-4 py-2.5 text-sm text-muted-foreground outline-none flex items-center gap-2"
+            onSelect={(e) => e.preventDefault()}
+          >
+            <LetterText className="w-4 h-4 shrink-0" />
+            {editor?.getText().split(/\s+/).filter(Boolean).length ?? 0} words
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            className="px-4 py-2.5 text-sm text-muted-foreground outline-none flex items-center gap-2"
+            onSelect={(e) => e.preventDefault()}
+          >
+            <Clock className="w-4 h-4 shrink-0" />~
+            {estimateReadingMinutes(editor?.getText() ?? '')} min read
+          </DropdownMenu.Item>
           {onDelete && (
             <>
               <DropdownMenu.Separator className="h-px bg-border my-1" />
@@ -266,10 +354,116 @@ function MoreMenu({
   )
 }
 
+function NotesControl({
+  notes,
+  onNotesChange,
+}: {
+  notes: string
+  onNotesChange: (value: string) => void
+}) {
+  const isMobile = useIsMobile()
+  const [showNotes, setShowNotes] = useState(false)
+  const notesTriggerRef = useRef<HTMLButtonElement>(null)
+  const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const triggerButton = (
+    <button
+      ref={notesTriggerRef}
+      type="button"
+      aria-label="Notes"
+      aria-expanded={showNotes}
+      title="Notes"
+      onClick={() => {
+        if (isMobile) {
+          setShowNotes(true)
+        } else {
+          setShowNotes((open) => !open)
+        }
+      }}
+      className={cn(
+        'flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-muted shrink-0',
+        focusRing,
+        showNotes ? 'bg-muted text-primary' : 'text-muted-foreground'
+      )}
+    >
+      <FileText className="h-4 w-4 shrink-0" />
+      <span className="hidden sm:inline">Notes</span>
+    </button>
+  )
+
+  if (isMobile) {
+    return (
+      <Drawer open={showNotes} onOpenChange={setShowNotes}>
+        {triggerButton}
+        <DrawerContent
+          className="max-h-[min(70dvh,32rem)] gap-0 overflow-y-auto px-0 pb-6"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault()
+            notesTextareaRef.current?.focus()
+          }}
+          onCloseAutoFocus={(e) => {
+            e.preventDefault()
+            notesTriggerRef.current?.focus()
+          }}
+        >
+          <DrawerHeader className="space-y-0 px-4 pb-2 text-left">
+            <div className="flex items-start justify-between gap-3 pr-8">
+              <div className="min-w-0 space-y-1">
+                <DrawerTitle className="text-base">Personal Notes</DrawerTitle>
+                <DrawerDescription className="text-left text-xs leading-snug">
+                  {WRITER_NOTES_HELPER_TEXT}
+                </DrawerDescription>
+              </div>
+              <DrawerClose asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-primary hover:bg-muted',
+                    focusRing
+                  )}
+                >
+                  Done
+                </button>
+              </DrawerClose>
+            </div>
+          </DrawerHeader>
+          <WriterNotesPanel
+            ref={notesTextareaRef}
+            notes={notes}
+            onNotesChange={onNotesChange}
+            showHeader={false}
+            textareaClassName="min-h-[8rem] rounded-none border-0 bg-background"
+          />
+        </DrawerContent>
+      </Drawer>
+    )
+  }
+
+  return (
+    <div className="relative">
+      {triggerButton}
+      {showNotes && (
+        <div
+          className="absolute top-full right-0 z-50 mt-1 w-72 max-w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-popover shadow-lg"
+          role="dialog"
+          aria-label="Personal notes"
+        >
+          <WriterNotesPanel
+            ref={notesTextareaRef}
+            notes={notes}
+            onNotesChange={onNotesChange}
+            textareaClassName="rounded-b-lg"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function EditorActionBar({
   editor,
   onBack,
-  onSave,
+  onSave: _onSave,
   onPreview,
   onPublish,
   isSaving,
@@ -283,6 +477,10 @@ export function EditorActionBar({
   onDelete,
   isDeleting = false,
   hasUnsavedChanges = false,
+  notes = '',
+  onNotesChange,
+  onAddCoverImage,
+  hasCoverImage = false,
   excerpt,
   onExcerptChange,
   excerptOpen,
@@ -294,16 +492,7 @@ export function EditorActionBar({
 }: EditorActionBarProps) {
   const publishBlockReasonId = useId()
   const [relativeTick, setRelativeTick] = useState(0)
-  const shortcuts = useUndoRedoShortcuts()
   const isMobile = useIsMobile()
-
-  const handleMoreMenuOpenChange = (open: boolean) => {
-    onMoreMenuOpenChange?.(open)
-    if (!open) onExcerptOpenChange?.(false)
-  }
-
-  const canUndo = editor?.can().undo ?? false
-  const canRedo = editor?.can().redo ?? false
 
   const showRelativeSaved =
     !isSaving && !error && !hasUnsavedChanges && lastSavedAt != null
@@ -338,30 +527,13 @@ export function EditorActionBar({
     )
     statusClassName = 'text-destructive'
   } else if (hasUnsavedChanges) {
-    statusText = 'Unsaved changes'
-    statusClassName = 'text-destructive'
+    statusText = 'Unsaved'
+    statusClassName = 'text-muted-foreground/70'
   } else if (lastSavedAt) {
     statusText = `Saved ${formatDistanceToNow(lastSavedAt, { addSuffix: true })}`
   } else {
-    statusText = 'Not saved yet'
-    statusClassName = 'text-muted-foreground opacity-70'
+    statusText = null
   }
-
-  const focusRing =
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
-
-  const saveButton = (
-    <button
-      type="button"
-      onClick={onSave}
-      disabled={isSaving}
-      aria-busy={isSaving}
-      className="px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent rounded transition-colors shrink-0"
-      title={isSaving ? 'Saving draft...' : 'Save draft'}
-    >
-      {isSaving ? 'Saving...' : 'Save'}
-    </button>
-  )
 
   const publishControl = isPublished ? (
     <span className="px-4 py-2 text-sm font-medium bg-success text-success-foreground rounded-full shrink-0">
@@ -386,64 +558,38 @@ export function EditorActionBar({
     </button>
   )
 
-  const draftStatus = (
-    <span className="flex min-w-0 items-center gap-2 text-sm shrink-0">
-      <span
-        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full font-medium border ${hasUnsavedChanges ? 'bg-destructive/15 text-destructive border-destructive/25' : 'bg-warning text-warning-foreground border-transparent'}`}
-      >
-        <span
-          className={`w-1.5 h-1.5 rounded-full shrink-0 ${hasUnsavedChanges ? 'bg-destructive' : 'bg-warning-foreground/80'}`}
-          aria-hidden
-        />
-        Draft
-      </span>
-      <span
-        title={draftStatusTitle(lastSavedAt, isSaving, error)}
-        className={`flex items-center text-xs sm:text-sm truncate ${statusClassName} ${isSaving ? 'gap-2' : 'gap-1.5'}`}
-      >
-        {statusText}
-      </span>
+  const draftStatus = statusText ? (
+    <span
+      title={draftStatusTitle(lastSavedAt, isSaving, error)}
+      className={`flex items-center gap-1.5 text-xs truncate ${statusClassName} ${isSaving ? 'gap-2' : 'gap-1.5'}`}
+      aria-live="polite"
+      data-relative-tick={relativeTick}
+    >
+      {statusText}
     </span>
-  )
-
-  const undoRedo = (
-    <>
-      <button
-        type="button"
-        onClick={() => editor?.chain().focus().undo().run()}
-        disabled={!canUndo}
-        aria-label={`Undo (${shortcuts.undo})`}
-        className={`p-2 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors shrink-0 ${focusRing}`}
-        title={`Undo (${shortcuts.undo})`}
-      >
-        <Undo2 className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => editor?.chain().focus().redo().run()}
-        disabled={!canRedo}
-        aria-label={`Redo (${shortcuts.redo})`}
-        className={`p-2 rounded-md text-muted-foreground opacity-70 hover:bg-muted hover:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors shrink-0 ${focusRing}`}
-        title={`Redo (${shortcuts.redo})`}
-      >
-        <Redo2 className="h-4 w-4" />
-      </button>
-    </>
-  )
+  ) : null
 
   return (
     <div className="w-full min-w-0 bg-card border-b border-border shadow-sm">
+      {/* sr-only live region for assistive technology */}
       <span
         role="status"
         aria-live="polite"
-        data-relative-tick={relativeTick}
-        title={draftStatusTitle(lastSavedAt, isSaving, error)}
         className="sr-only"
+        title={draftStatusTitle(lastSavedAt, isSaving, error)}
       >
         {statusText}
       </span>
-      {/* Mobile: primary row (Back + Save + Publish + More), secondary scroll row */}
-      <div className="flex flex-col gap-2 px-4 py-3 sm:hidden">
+
+      {/* sr-only publish block reason for aria-describedby */}
+      {publishBlockReason && !isPublished && (
+        <span id={publishBlockReasonId} className="sr-only">
+          {publishBlockReason}
+        </span>
+      )}
+
+      {/* Mobile layout */}
+      <div className="flex flex-col gap-1.5 px-4 py-2.5 sm:hidden">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <button
             type="button"
@@ -454,46 +600,49 @@ export function EditorActionBar({
             Back
           </button>
           <div className="flex min-w-0 items-center justify-end gap-1.5">
-            {saveButton}
+            {onNotesChange && (
+              <NotesControl notes={notes} onNotesChange={onNotesChange} />
+            )}
             {publishControl}
             <MoreMenu
               editor={editor}
               onDelete={onDelete}
               isDeleting={isDeleting}
+              onAddCoverImage={onAddCoverImage}
+              hasCoverImage={hasCoverImage}
               excerpt={excerpt}
               onExcerptChange={onExcerptChange}
               excerptOpen={excerptOpen}
               onExcerptOpenChange={onExcerptOpenChange}
               excerptTextareaRef={excerptTextareaRef}
               moreMenuOpen={moreMenuOpen}
-              onMoreMenuOpenChange={handleMoreMenuOpenChange}
+              onMoreMenuOpenChange={onMoreMenuOpenChange}
               excerptMaxChars={excerptMaxChars}
               isActive={isMobile}
             />
           </div>
         </div>
-        <div className="flex min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain [-webkit-overflow-scrolling:touch] pb-0.5 [scrollbar-width:thin]">
-          {undoRedo}
-          <div className="mx-1 h-6 w-px shrink-0 bg-border" />
-          {draftStatus}
-          {onPreview && (
-            <>
-              <div className="mx-1 h-6 w-px shrink-0 bg-border" />
-              <button
-                type="button"
-                onClick={onPreview}
-                className="shrink-0 rounded px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                title="Preview"
-              >
-                Preview
-              </button>
-            </>
-          )}
-        </div>
+        {draftStatus && (
+          <div className="flex min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden pb-0.5">
+            {draftStatus}
+            {onPreview && (
+              <>
+                <div className="mx-1 h-4 w-px shrink-0 bg-border" />
+                <button
+                  type="button"
+                  onClick={onPreview}
+                  className="shrink-0 rounded px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  Preview
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Desktop: single row (unchanged structure) */}
-      <div className="hidden items-center justify-between gap-4 px-4 py-3 sm:flex">
+      {/* Desktop layout */}
+      <div className="hidden items-center justify-between gap-4 px-4 py-2.5 sm:flex">
         <button
           type="button"
           onClick={onBack}
@@ -504,19 +653,15 @@ export function EditorActionBar({
         </button>
 
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-          {undoRedo}
-
-          <div className="mx-1 h-6 w-px bg-border" />
-
-          {draftStatus}
-
-          <div className="mx-1 h-6 w-px bg-border" />
-
-          {saveButton}
+          {draftStatus && (
+            <>
+              {draftStatus}
+              <div className="mx-1 h-5 w-px shrink-0 bg-border" />
+            </>
+          )}
 
           {onPreview && (
             <>
-              <div className="mx-1 h-6 w-px bg-border" />
               <button
                 type="button"
                 onClick={onPreview}
@@ -525,10 +670,13 @@ export function EditorActionBar({
               >
                 Preview
               </button>
+              <div className="mx-1 h-5 w-px shrink-0 bg-border" />
             </>
           )}
 
-          <div className="mx-1 h-6 w-px bg-border" />
+          {onNotesChange && (
+            <NotesControl notes={notes} onNotesChange={onNotesChange} />
+          )}
 
           {publishControl}
 
@@ -536,34 +684,26 @@ export function EditorActionBar({
             editor={editor}
             onDelete={onDelete}
             isDeleting={isDeleting}
+            onAddCoverImage={onAddCoverImage}
+            hasCoverImage={hasCoverImage}
             excerpt={excerpt}
             onExcerptChange={onExcerptChange}
             excerptOpen={excerptOpen}
             onExcerptOpenChange={onExcerptOpenChange}
             excerptTextareaRef={excerptTextareaRef}
             moreMenuOpen={moreMenuOpen}
-            onMoreMenuOpenChange={handleMoreMenuOpenChange}
+            onMoreMenuOpenChange={onMoreMenuOpenChange}
             excerptMaxChars={excerptMaxChars}
             isActive={!isMobile}
           />
         </div>
       </div>
 
-      {error && (
-        <p
-          role="alert"
-          className="border-t border-border bg-destructive/10 px-4 py-2 text-xs text-destructive break-words"
-        >
-          {error}
-        </p>
-      )}
-
       {publishBlockReason &&
         !isPublished &&
         (onBlockReasonClick ? (
           <button
             type="button"
-            id={publishBlockReasonId}
             onClick={onBlockReasonClick}
             className={cn(
               'w-full border-t border-border bg-muted/50 px-4 py-2 text-left text-xs text-muted-foreground',
@@ -575,13 +715,21 @@ export function EditorActionBar({
           </button>
         ) : (
           <div
-            id={publishBlockReasonId}
             role="status"
             className="border-t border-border bg-muted/50 px-4 py-2 text-xs text-muted-foreground"
           >
             {publishBlockReason}
           </div>
         ))}
+
+      {error && (
+        <p
+          role="alert"
+          className="border-t border-border bg-destructive/10 px-4 py-2 text-xs text-destructive break-words"
+        >
+          {error}
+        </p>
+      )}
     </div>
   )
 }

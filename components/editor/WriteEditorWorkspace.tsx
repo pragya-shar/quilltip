@@ -13,9 +13,11 @@ import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
-import { EditorToolbar } from '@/components/editor/EditorToolbar'
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
+import { EditorBubbleToolbar } from '@/components/editor/EditorBubbleToolbar'
+import { EditorFloatingInsert } from '@/components/editor/EditorFloatingInsert'
 import { ImageUploadDialog } from '@/components/editor/ImageUploadDialog'
+import { YouTubeEmbedDialog } from '@/components/editor/YouTubeEmbedDialog'
 import { useAuth } from '@/components/providers/AuthContext'
 import { EditorChromeSkeleton } from '@/components/editor/EditorChromeSkeleton'
 import { useAutoSave } from '@/hooks/useAutoSave'
@@ -27,6 +29,7 @@ import { toast } from 'sonner'
 import Image from 'next/image'
 import { EDITOR_PROSE_CLASS, UPLOAD_CONTROL_FOCUS_RING } from '@/lib/constants'
 import { mutationWithTimeout } from '@/lib/convexMutationWithTimeout'
+import { Textarea } from '@/components/ui/textarea'
 import { AlertCircle, Loader2, X } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -62,18 +65,20 @@ import {
 } from '@/lib/draftBackup'
 import { getListingReadyPublishError } from '@/convex/lib/articleListingReady'
 import { getWriteUrlWithDraftId } from '@/lib/writeDraftUrl'
-import { isPublishBlockedArticleTitle } from '@/convex/lib/articleTitle'
+import {
+  isPublishBlockedArticleTitle,
+  isPlaceholderArticleTitle,
+} from '@/convex/lib/articleTitle'
 import { PublishSuccessPanel } from '@/components/editor/PublishSuccessPanel'
 
-const PUBLISH_EXCERPT_PREVIEW_MAX = 280
 const ARTICLE_TITLE_ERROR_ID = 'article-title-error'
 const TITLE_PUBLISH_ERROR = 'Add a title before publishing'
 const EXCERPT_MAX_CHARS = 500
 
-const COVER_FILE_INPUT_ID = 'cover-image-file-input'
-const BODY_FILE_INPUT_ID = 'body-image-file-input'
-const COVER_UPLOAD_ERROR_ID = 'cover-upload-error'
-const COVER_UPLOAD_STATUS_ID = 'cover-upload-status'
+function editorTitleFromStored(storedTitle: string): string {
+  return isPlaceholderArticleTitle(storedTitle) ? '' : storedTitle
+}
+
 const BODY_UPLOAD_ERROR_ID = 'body-upload-error'
 const BODY_UPLOAD_STATUS_ID = 'body-upload-status'
 
@@ -122,13 +127,9 @@ export function WriteEditorWorkspace() {
   const [tags, setTags] = useState('')
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
-  const [coverDropActive, setCoverDropActive] = useState(false)
-  const [coverDropUploading, setCoverDropUploading] = useState(false)
   const [bodyImageDragging, setBodyImageDragging] = useState(false)
   const [bodyImageUploading, setBodyImageUploading] = useState(false)
   const [bodyImageUploadProgress, setBodyImageUploadProgress] = useState(0)
-  const [coverUploadAnnouncement, setCoverUploadAnnouncement] =
-    useState<UploadAnnouncement | null>(null)
   const [bodyUploadAnnouncement, setBodyUploadAnnouncement] =
     useState<UploadAnnouncement | null>(null)
   const [isPublishing, setIsPublishing] = useState(false)
@@ -145,9 +146,8 @@ export function WriteEditorWorkspace() {
   const excerptTextareaRef = useRef<HTMLTextAreaElement>(null)
   const tagsInputRef = useRef<HTMLInputElement>(null)
   const coverChangeButtonRef = useRef<HTMLButtonElement>(null)
-  const coverFileInputRef = useRef<HTMLInputElement>(null)
-  const bodyFileInputRef = useRef<HTMLInputElement>(null)
-  const coverLastAnnouncedProgressRef = useRef(-1)
+  const [showBodyImageDialog, setShowBodyImageDialog] = useState(false)
+  const [showBodyYouTubeDialog, setShowBodyYouTubeDialog] = useState(false)
   const bodyLastAnnouncedProgressRef = useRef(-1)
   const [publishStatus, setPublishStatus] = useState<{
     published: boolean
@@ -180,7 +180,6 @@ export function WriteEditorWorkspace() {
   const searchParams = useSearchParams()
   const { isAuthenticated } = useAuth()
 
-  const coverUploadAbortRef = useRef<AbortController | null>(null)
   const bodyUploadAbortRef = useRef<AbortController | null>(null)
   const hydratedDraftIdRef = useRef<string | null>(null)
 
@@ -208,9 +207,7 @@ export function WriteEditorWorkspace() {
 
   useEffect(() => {
     return () => {
-      coverUploadAbortRef.current?.abort()
       bodyUploadAbortRef.current?.abort()
-      coverUploadAbortRef.current = null
       bodyUploadAbortRef.current = null
     }
   }, [])
@@ -251,7 +248,7 @@ export function WriteEditorWorkspace() {
       }),
       createYoutubeExtension(),
       Placeholder.configure({
-        placeholder: 'Start writing your story...',
+        placeholder: 'Share your thoughts...',
       }),
       CodeBlockLowlight.configure({
         lowlight,
@@ -266,7 +263,7 @@ export function WriteEditorWorkspace() {
     content: '',
     editorProps: {
       attributes: {
-        class: `${EDITOR_PROSE_CLASS} min-h-[400px] py-6 break-words`,
+        class: `${EDITOR_PROSE_CLASS} min-h-[400px] py-0 break-words`,
       },
     },
     onCreate: ({ editor }) => {
@@ -426,7 +423,7 @@ export function WriteEditorWorkspace() {
     hydratedDraftIdRef.current = draft._id
     setArticleId(draft._id)
     syncDraftIdInUrl(draft._id)
-    setTitle(draft.title)
+    setTitle(editorTitleFromStored(draft.title))
     setExcerpt(draft.excerpt || '')
     setTags(draft.tags?.join(', ') ?? '')
     setCoverImage(draft.coverImage || '')
@@ -451,7 +448,7 @@ export function WriteEditorWorkspace() {
         setArticleId(backup.articleId)
         syncDraftIdInUrl(backup.articleId)
       }
-      setTitle(backup.title)
+      setTitle(editorTitleFromStored(backup.title))
       setExcerpt(backup.excerpt || '')
       setTags(backup.tags?.join(', ') ?? '')
       setCoverImage(backup.coverImage || '')
@@ -558,6 +555,12 @@ export function WriteEditorWorkspace() {
     })
   }, [])
 
+  const focusExcerptField = useCallback(() => {
+    setMoreMenuOpen(true)
+    setExcerptOpen(true)
+    window.setTimeout(() => excerptTextareaRef.current?.focus(), 0)
+  }, [])
+
   const blockPublishForPlaceholderTitle = useCallback((): boolean => {
     if (isPublishBlockedArticleTitle(title)) {
       setTitleError(TITLE_PUBLISH_ERROR)
@@ -568,11 +571,6 @@ export function WriteEditorWorkspace() {
     return false
   }, [title, focusTitleField])
 
-  const publishListingError = getListingReadyPublishError({
-    title,
-    excerpt,
-  })
-
   const requestPublish = useCallback(() => {
     if (!editor || editor.isEmpty) {
       setPublishFeedback(PUBLISH_EMPTY_CONTENT_FEEDBACK)
@@ -582,12 +580,21 @@ export function WriteEditorWorkspace() {
     if (blockPublishForPlaceholderTitle()) return
     const listingError = getListingReadyPublishError({ title, excerpt })
     if (listingError) {
+      if (listingError.includes('excerpt')) {
+        focusExcerptField()
+      }
       toast.warning(listingError)
       return
     }
     setPublishFeedback(null)
     setPublishConfirmOpen(true)
-  }, [editor, title, excerpt, blockPublishForPlaceholderTitle])
+  }, [
+    editor,
+    title,
+    excerpt,
+    blockPublishForPlaceholderTitle,
+    focusExcerptField,
+  ])
 
   const handlePublish = useCallback(async () => {
     if (!editor || editor.isEmpty) {
@@ -726,129 +733,6 @@ export function WriteEditorWorkspace() {
     }
   }, [hasUnsavedChanges, router])
 
-  const handleCoverPlaceholderDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setCoverDropActive(true)
-  }, [])
-
-  const handleCoverPlaceholderDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setCoverDropActive(false)
-    }
-  }, [])
-
-  const uploadCoverFromFile = useCallback(
-    async (file: File) => {
-      setCoverUploadAnnouncement(null)
-      coverLastAnnouncedProgressRef.current = -1
-
-      const validation = validateImageUploadFile(file)
-      if (!validation.ok) {
-        setCoverUploadAnnouncement({ type: 'error', text: validation.error })
-        toast.error(validation.error)
-        return
-      }
-
-      coverUploadAbortRef.current?.abort()
-      const controller = new AbortController()
-      coverUploadAbortRef.current = controller
-
-      setCoverDropUploading(true)
-      setCoverUploadAnnouncement({
-        type: 'status',
-        text: 'Uploading cover image',
-      })
-
-      try {
-        const compressedFile = await compressImage(
-          file,
-          1200,
-          0.8,
-          controller.signal
-        )
-        const result = await uploadFile(
-          compressedFile,
-          convex,
-          'article_image',
-          undefined,
-          (progress) => {
-            const pct = progress.percentage
-            if (
-              shouldAnnounceProgress(coverLastAnnouncedProgressRef.current, pct)
-            ) {
-              coverLastAnnouncedProgressRef.current = pct
-              setCoverUploadAnnouncement({
-                type: 'status',
-                text: `Uploading cover image, ${pct}% complete`,
-              })
-            }
-          },
-          controller.signal
-        )
-        if (result.success && result.url) {
-          setCoverImage(result.url)
-          setHasUnsavedChanges(true)
-          setCoverUploadAnnouncement({
-            type: 'status',
-            text: 'Cover image uploaded',
-          })
-        } else {
-          const message = result.error || 'Upload failed'
-          setCoverUploadAnnouncement({ type: 'error', text: message })
-          toast.error(message)
-        }
-      } catch (err) {
-        if (isAbortError(err)) {
-          return
-        }
-        console.error('Cover upload error:', err)
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Upload failed. Please try again.'
-        setCoverUploadAnnouncement({ type: 'error', text: message })
-        toast.error(message)
-      } finally {
-        if (coverUploadAbortRef.current === controller) {
-          coverUploadAbortRef.current = null
-        }
-        setCoverDropUploading(false)
-      }
-    },
-    [convex]
-  )
-
-  const handleCoverPlaceholderDrop = useCallback(
-    async (e: React.DragEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setCoverDropActive(false)
-
-      const file = e.dataTransfer.files?.[0]
-      if (!file) return
-
-      await uploadCoverFromFile(file)
-    },
-    [uploadCoverFromFile]
-  )
-
-  const handleCoverFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      e.target.value = ''
-      if (file) {
-        void uploadCoverFromFile(file)
-      }
-    },
-    [uploadCoverFromFile]
-  )
-
-  const openCoverFilePicker = useCallback(() => {
-    coverFileInputRef.current?.click()
-  }, [])
-
   const handleBodyEditorDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -968,17 +852,6 @@ export function WriteEditorWorkspace() {
     [editor, uploadBodyImageFromFile]
   )
 
-  const handleBodyFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      e.target.value = ''
-      if (file) {
-        void uploadBodyImageFromFile(file)
-      }
-    },
-    [uploadBodyImageFromFile]
-  )
-
   const confirmLeaveNavigation = useCallback(() => {
     setNavConfirm((current) => {
       if (!current) return null
@@ -1003,19 +876,12 @@ export function WriteEditorWorkspace() {
     )
   }
 
-  const tagsPreview =
-    tags
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean)
-      .join(', ') || 'No tags'
-  const excerptTrimmed = excerpt.trim()
-  const excerptPreview =
-    excerptTrimmed.length === 0
-      ? 'No excerpt'
-      : excerptTrimmed.length <= PUBLISH_EXCERPT_PREVIEW_MAX
-        ? excerptTrimmed
-        : `${excerptTrimmed.slice(0, PUBLISH_EXCERPT_PREVIEW_MAX).trimEnd()}...`
+  const publishBlockReason =
+    editor && !editor.isEmpty
+      ? isPublishBlockedArticleTitle(title)
+        ? TITLE_PUBLISH_ERROR
+        : getListingReadyPublishError({ title, excerpt })
+      : null
 
   const publishUsername =
     savedArticleForLink?.authorUsername ??
@@ -1037,22 +903,27 @@ export function WriteEditorWorkspace() {
         isPublished={publishStatus.published}
         isPublishing={isPublishing}
         canPublish={
-          !!editor && !editor.isEmpty && !isPublishing && !publishListingError
+          !!editor && !editor.isEmpty && !isPublishing && !publishBlockReason
         }
-        publishBlockReason={publishListingError}
+        publishBlockReason={publishBlockReason}
         onBlockReasonClick={
-          publishListingError?.includes('excerpt')
-            ? () => {
-                setMoreMenuOpen(true)
-                setExcerptOpen(true)
-                window.setTimeout(() => excerptTextareaRef.current?.focus(), 0)
-              }
-            : undefined
+          publishBlockReason?.includes('excerpt')
+            ? focusExcerptField
+            : publishBlockReason
+              ? focusTitleField
+              : undefined
         }
         lastSavedAt={lastSavedAt ?? undefined}
         onDelete={handleRequestDelete}
         isDeleting={isDeleting}
         hasUnsavedChanges={hasUnsavedChanges}
+        notes={writerNotes}
+        onNotesChange={(value) => {
+          setWriterNotes(value)
+          setHasUnsavedChanges(true)
+        }}
+        onAddCoverImage={() => setShowCoverImageDialog(true)}
+        hasCoverImage={!!coverImage}
         excerpt={excerpt}
         onExcerptChange={(value) => {
           setExcerpt(value)
@@ -1069,7 +940,7 @@ export function WriteEditorWorkspace() {
         <div className="mx-auto w-full max-w-4xl px-4 pt-4 sm:px-6">
           <PublishSuccessPanel
             title={title.trim() || 'Untitled'}
-            excerpt={excerptTrimmed.length ? excerptTrimmed : null}
+            excerpt={excerpt.trim().length ? excerpt.trim() : null}
             username={publishUsername}
             slug={publishSlug}
             origin={pageOrigin}
@@ -1135,58 +1006,9 @@ export function WriteEditorWorkspace() {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col pb-8">
-        <div className="sticky top-16 z-40 mb-6 w-full bg-background">
-          <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
-            <EditorToolbar
-              editor={editor}
-              notes={writerNotes}
-              onNotesChange={(value) => {
-                setWriterNotes(value)
-                setHasUnsavedChanges(true)
-              }}
-              onFocusCoverImage={() => {
-                document
-                  .getElementById('field-cover-image')
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                if (coverImage) {
-                  window.setTimeout(
-                    () => coverChangeButtonRef.current?.focus(),
-                    0
-                  )
-                } else {
-                  setShowCoverImageDialog(true)
-                }
-              }}
-              onFocusTitle={() => {
-                const el = document.getElementById(
-                  'article-title'
-                ) as HTMLInputElement | null
-                document
-                  .getElementById('field-article-title')
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                el?.focus()
-              }}
-              onFocusExcerpt={() => {
-                setMoreMenuOpen(true)
-                setExcerptOpen(true)
-                window.setTimeout(() => excerptTextareaRef.current?.focus(), 0)
-              }}
-              onFocusTags={() => {
-                document
-                  .getElementById('field-tags')
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                window.setTimeout(() => tagsInputRef.current?.focus(), 0)
-              }}
-            />
-          </div>
-          <div
-            className="pointer-events-none absolute bottom-0 left-0 right-0 h-[2px] bg-primary"
-            aria-hidden
-          />
-        </div>
         <div className="mx-auto w-full max-w-4xl px-4 sm:px-6">
-          <div id="field-cover-image" className="mb-4">
-            {coverImage ? (
+          {coverImage ? (
+            <div id="field-cover-image" className="mb-4">
               <div
                 className="group relative h-56 w-full overflow-hidden rounded-xl sm:h-72"
                 role="group"
@@ -1235,125 +1057,10 @@ export function WriteEditorWorkspace() {
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <div
-                  role="button"
-                  tabIndex={0}
-                  aria-label="Add cover image. Drag an image here, or choose a file."
-                  aria-describedby={
-                    [
-                      coverUploadAnnouncement?.type === 'error'
-                        ? COVER_UPLOAD_ERROR_ID
-                        : null,
-                      coverUploadAnnouncement?.type === 'status'
-                        ? COVER_UPLOAD_STATUS_ID
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(' ') || undefined
-                  }
-                  onClick={openCoverFilePicker}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      openCoverFilePicker()
-                    }
-                  }}
-                  onDragOver={handleCoverPlaceholderDragOver}
-                  onDragLeave={handleCoverPlaceholderDragLeave}
-                  onDrop={handleCoverPlaceholderDrop}
-                  className={cn(
-                    'group flex h-28 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary',
-                    UPLOAD_CONTROL_FOCUS_RING,
-                    coverDropActive &&
-                      'border-primary bg-primary/15 text-primary',
-                    coverDropUploading && 'pointer-events-none opacity-70'
-                  )}
-                >
-                  <svg
-                    className="h-5 w-5 shrink-0"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                  <span className="text-sm font-medium">
-                    {coverDropUploading
-                      ? 'Uploading…'
-                      : coverDropActive
-                        ? 'Drop image to set cover'
-                        : 'Drag an image here, or choose a file'}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <label
-                    className={cn(
-                      'inline-flex cursor-pointer text-sm font-medium text-primary underline-offset-4 hover:text-primary/80 hover:underline',
-                      UPLOAD_CONTROL_FOCUS_RING
-                    )}
-                  >
-                    <input
-                      ref={coverFileInputRef}
-                      id={COVER_FILE_INPUT_ID}
-                      type="file"
-                      accept="image/png,image/jpeg,image/gif,image/webp"
-                      className="sr-only"
-                      onChange={handleCoverFileChange}
-                    />
-                    Choose file
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowCoverImageDialog(true)}
-                    className={cn(
-                      'text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline',
-                      UPLOAD_CONTROL_FOCUS_RING
-                    )}
-                  >
-                    Paste image URL
-                  </button>
-                </div>
-                {coverUploadAnnouncement ? (
-                  <p
-                    id={
-                      coverUploadAnnouncement.type === 'error'
-                        ? COVER_UPLOAD_ERROR_ID
-                        : COVER_UPLOAD_STATUS_ID
-                    }
-                    role={
-                      coverUploadAnnouncement.type === 'error'
-                        ? 'alert'
-                        : 'status'
-                    }
-                    aria-live={
-                      coverUploadAnnouncement.type === 'error'
-                        ? 'assertive'
-                        : 'polite'
-                    }
-                    aria-atomic="true"
-                    className={cn(
-                      'text-xs',
-                      coverUploadAnnouncement.type === 'error'
-                        ? 'text-destructive'
-                        : 'sr-only'
-                    )}
-                  >
-                    {coverUploadAnnouncement.text}
-                  </p>
-                ) : null}
-              </div>
-            )}
-          </div>
+            </div>
+          ) : null}
 
-          <div id="field-article-title" className="mb-2">
+          <div id="field-article-title" className="mb-0">
             <textarea
               id="article-title"
               value={title}
@@ -1368,14 +1075,14 @@ export function WriteEditorWorkspace() {
                   editor?.commands.focus()
                 }
               }}
-              placeholder="Untitled"
+              placeholder="Title"
               rows={1}
               aria-invalid={!!titleError}
               aria-describedby={titleError ? ARTICLE_TITLE_ERROR_ID : undefined}
               className={cn(
-                'w-full resize-none overflow-hidden bg-transparent py-2 text-3xl font-semibold leading-snug text-foreground placeholder:text-muted-foreground/50 focus:outline-none',
+                'w-full resize-none overflow-hidden bg-transparent py-2 text-3xl font-semibold leading-snug text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                 titleError
-                  ? 'rounded-md border border-destructive px-2'
+                  ? 'rounded-md border border-destructive px-2 focus-visible:ring-destructive'
                   : 'border border-transparent'
               )}
             />
@@ -1388,14 +1095,6 @@ export function WriteEditorWorkspace() {
                 {titleError}
               </p>
             ) : null}
-            {savedArticleForLink?.authorUsername &&
-              savedArticleForLink.slug && (
-                <p className="mt-1 font-mono text-xs text-muted-foreground">
-                  Public URL path (when published): /
-                  {savedArticleForLink.authorUsername}/
-                  {savedArticleForLink.slug}
-                </p>
-              )}
           </div>
 
           {editor && (
@@ -1425,6 +1124,13 @@ export function WriteEditorWorkspace() {
                 <EditorContent
                   editor={editor}
                   className="editor-content min-h-[400px]"
+                />
+
+                <EditorBubbleToolbar editor={editor} />
+                <EditorFloatingInsert
+                  editor={editor}
+                  onInsertImage={() => setShowBodyImageDialog(true)}
+                  onInsertYouTube={() => setShowBodyYouTubeDialog(true)}
                 />
 
                 {bodyImageDragging && (
@@ -1475,27 +1181,6 @@ export function WriteEditorWorkspace() {
                   </div>
                 )}
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label
-                  className={cn(
-                    'inline-flex cursor-pointer text-sm font-medium text-primary underline-offset-4 hover:text-primary/80 hover:underline',
-                    UPLOAD_CONTROL_FOCUS_RING
-                  )}
-                >
-                  <input
-                    ref={bodyFileInputRef}
-                    id={BODY_FILE_INPUT_ID}
-                    type="file"
-                    accept="image/png,image/jpeg,image/gif,image/webp"
-                    className="sr-only"
-                    onChange={handleBodyFileChange}
-                  />
-                  Choose image file
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  You can also insert an image from the toolbar.
-                </p>
-              </div>
               {bodyUploadAnnouncement &&
               !bodyImageUploading &&
               bodyUploadAnnouncement.type === 'error' ? (
@@ -1523,27 +1208,6 @@ export function WriteEditorWorkspace() {
               ) : null}
             </div>
           )}
-
-          <div id="field-tags" className="mt-8 border-t border-border pt-4">
-            <label
-              htmlFor="article-tags"
-              className="mb-1 block text-xs font-medium text-muted-foreground"
-            >
-              Tags
-            </label>
-            <input
-              id="article-tags"
-              ref={tagsInputRef}
-              type="text"
-              value={tags}
-              onChange={(e) => {
-                setTags(e.target.value)
-                setHasUnsavedChanges(true)
-              }}
-              placeholder="Add tags separated by commas (e.g. rust, programming)"
-              className="w-full bg-transparent py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-            />
-          </div>
         </div>
       </div>
 
@@ -1561,46 +1225,107 @@ export function WriteEditorWorkspace() {
         />
       )}
 
+      {showBodyImageDialog && (
+        <ImageUploadDialog
+          isOpen={showBodyImageDialog}
+          onImageSelect={(url) => {
+            editor?.chain().focus().setResizableImage({ src: url }).run()
+            setShowBodyImageDialog(false)
+          }}
+          onClose={() => setShowBodyImageDialog(false)}
+        />
+      )}
+
+      {showBodyYouTubeDialog && (
+        <YouTubeEmbedDialog
+          isOpen
+          onClose={() => setShowBodyYouTubeDialog(false)}
+          onVideoEmbed={(url, width, height) => {
+            if (!editor) return false
+            return editor
+              .chain()
+              .focus()
+              .setYoutubeVideo({ src: url, width, height })
+              .run()
+          }}
+        />
+      )}
+
       <AlertDialog
         open={publishConfirmOpen}
         onOpenChange={setPublishConfirmOpen}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle>Publish this article?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3 text-left text-sm text-muted-foreground">
-                <p>
-                  Publishing stores your content on Arweave (permanent storage).
-                  You cannot undo this or remove that snapshot from Arweave.
-                </p>
-                <div className="space-y-2 rounded-md border border-border bg-muted/40 p-3 text-foreground">
-                  <div>
-                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Title
-                    </div>
-                    <p className="mt-0.5 font-medium">
-                      {title.trim() || 'Untitled'}
-                    </p>
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Tags
-                    </div>
-                    <p className="mt-0.5">{tagsPreview}</p>
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Excerpt
-                    </div>
-                    <p className="mt-0.5 whitespace-pre-wrap break-words">
-                      {excerptPreview}
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <AlertDialogTitle>Publishing details</AlertDialogTitle>
+            <AlertDialogDescription className="text-left text-sm text-muted-foreground">
+              Publishing stores your content on Arweave (permanent storage). You
+              cannot undo this or remove that snapshot from Arweave.
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-md border border-border bg-muted/40 p-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Title
+              </div>
+              <p className="mt-0.5 font-medium">{title.trim() || 'Untitled'}</p>
+            </div>
+
+            <div className="space-y-1">
+              <label
+                htmlFor="publish-excerpt"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Excerpt
+                <span className="ml-1 text-muted-foreground/60">
+                  (required · at least 10 characters)
+                </span>
+              </label>
+              <Textarea
+                ref={excerptTextareaRef}
+                id="publish-excerpt"
+                value={excerpt}
+                onChange={(e) => {
+                  setExcerpt(e.target.value)
+                  setHasUnsavedChanges(true)
+                }}
+                placeholder="A short description shown on article cards..."
+                rows={3}
+                maxLength={EXCERPT_MAX_CHARS}
+                className="resize-none text-sm"
+              />
+              <p className="text-right text-[11px] tabular-nums text-muted-foreground">
+                {Math.min(excerpt.length, EXCERPT_MAX_CHARS)}/
+                {EXCERPT_MAX_CHARS}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <label
+                htmlFor="publish-tags"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                Tags
+                <span className="ml-1 text-muted-foreground/60">
+                  (optional)
+                </span>
+              </label>
+              <input
+                id="publish-tags"
+                ref={tagsInputRef}
+                type="text"
+                value={tags}
+                onChange={(e) => {
+                  setTags(e.target.value)
+                  setHasUnsavedChanges(true)
+                }}
+                placeholder="rust, programming, tutorial"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+            </div>
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
             <AlertDialogAction
