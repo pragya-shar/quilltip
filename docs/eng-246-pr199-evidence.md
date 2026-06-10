@@ -8,6 +8,7 @@
 - Verified code head before adding evidence docs: `fa5beddcd68c9d690e2762f16a61cdb86693b432`
 - Review worktree: `/private/tmp/quilltip-pr199`
 - Evidence date: `2026-06-09`
+- Manual preview pass update: `2026-06-10`
 
 ## Branch Freshness
 
@@ -96,7 +97,11 @@ gstack unauthenticated smoke result:
 - Console evidence: one expected failed-resource error for the protected preview root
 - Security note: no cookies were imported, no authenticated browser session was used, and no app secrets were exposed
 
-Status: app-level `/write` smoke is manual-only unless the user explicitly authorizes an authenticated preview browser session.
+Authenticated manual preview smoke result:
+
+- Status: passed on 2026-06-10.
+- Covered: focused `/write` title/body canvas, `Title` and `Share your thoughts...` placeholders, autosave and reload persistence, selection bubble toolbar, floating insert menu, image and YouTube dialogs, Notes, More menu, publish details dialog, title/body/excerpt guards, responsive mobile/tablet/desktop layouts, signed-out write boundary, draft ownership boundary, existing draft load, draft delete cancel, and existing reader page regression check.
+- Final permanent Arweave publish was intentionally not performed; the checklist stops at the safe publish-intent and validation boundary to avoid creating throwaway permanent content.
 
 ## PR Body Follow-Up
 
