@@ -29,6 +29,8 @@ export function mapListArticleRowToDisplay(
       name: tagName,
       slug: tagName.toLowerCase().replace(/\s+/g, '-'),
     })),
+    readTime: article.readTime,
+    tipCount: article.tipCount,
   }
 }
 

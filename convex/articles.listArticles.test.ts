@@ -483,4 +483,319 @@ describe('listArticles', () => {
       expect(res.articles[0]!.title).toBe(title)
     })
   })
+
+  it('sorts by oldest when sort=oldest', async () => {
+    const t = convexTest(schema, modules)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const u = await ctx.db.insert('users', {
+        email: 'sort@x.test',
+        username: 'sortwriter',
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert('articles', {
+        slug: 'older',
+        title: 'Older',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now,
+        authorId: u,
+        authorUsername: 'sortwriter',
+        tags: [],
+        searchContent: 'Older',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert('articles', {
+        slug: 'newer',
+        title: 'Newer',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now + 1000,
+        authorId: u,
+        authorUsername: 'sortwriter',
+        tags: [],
+        searchContent: 'Newer',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const res = await ctx.runQuery(api.articles.listArticles, {
+        sort: 'oldest',
+        page: 1,
+        limit: 10,
+      })
+      expect(res.articles.map((a) => a.slug)).toEqual(['older', 'newer'])
+    })
+  })
+
+  it('featured view returns tipped articles and sets fallback meta when none', async () => {
+    const t = convexTest(schema, modules)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const u = await ctx.db.insert('users', {
+        email: 'feat@x.test',
+        username: 'featwriter',
+        createdAt: now,
+        updatedAt: now,
+      })
+      const tippedId = await ctx.db.insert('articles', {
+        slug: 'tipped',
+        title: 'Tipped',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now,
+        authorId: u,
+        authorUsername: 'featwriter',
+        tags: [],
+        searchContent: 'Tipped',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 3,
+        totalTipsUsd: 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert('articles', {
+        slug: 'plain',
+        title: 'Plain',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now + 1000,
+        authorId: u,
+        authorUsername: 'featwriter',
+        tags: [],
+        searchContent: 'Plain',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const featured = await ctx.runQuery(api.articles.listArticles, {
+        view: 'featured',
+        page: 1,
+        limit: 10,
+      })
+      expect(featured.total).toBe(1)
+      expect(featured.articles[0]!._id).toBe(tippedId)
+      expect(featured.browseMeta?.featuredFallback).toBeUndefined()
+
+      const noTipsUser = await ctx.db.insert('users', {
+        email: 'notipped@x.test',
+        username: 'notipped',
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert('articles', {
+        slug: 'recent',
+        title: 'Recent',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now + 3000,
+        authorId: noTipsUser,
+        authorUsername: 'notipped',
+        tags: [],
+        searchContent: 'Recent',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const fallback = await ctx.runQuery(api.articles.listArticles, {
+        view: 'featured',
+        author: 'notipped',
+        page: 1,
+        limit: 10,
+      })
+      expect(fallback.browseMeta?.featuredFallback).toBe(true)
+      expect(fallback.articles[0]!.slug).toBe('recent')
+    })
+  })
+
+  it('trending view orders by engagement and falls back when scores are zero', async () => {
+    const t = convexTest(schema, modules)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const u = await ctx.db.insert('users', {
+        email: 'trend@x.test',
+        username: 'trendwriter',
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert('articles', {
+        slug: 'quiet',
+        title: 'Quiet',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now + 2000,
+        authorId: u,
+        authorUsername: 'trendwriter',
+        tags: [],
+        searchContent: 'Quiet',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const hotId = await ctx.db.insert('articles', {
+        slug: 'hot',
+        title: 'Hot',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now,
+        authorId: u,
+        authorUsername: 'trendwriter',
+        tags: [],
+        searchContent: 'Hot',
+        viewCount: 0,
+        highlightCount: 1,
+        tipCount: 1,
+        totalTipsUsd: 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const trending = await ctx.runQuery(api.articles.listArticles, {
+        view: 'trending',
+        page: 1,
+        limit: 10,
+      })
+      expect(trending.articles[0]!._id).toBe(hotId)
+
+      const fallbackUser = await ctx.db.insert('users', {
+        email: 'flat@x.test',
+        username: 'flatwriter',
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert('articles', {
+        slug: 'flat-old',
+        title: 'Flat Old',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now,
+        authorId: fallbackUser,
+        authorUsername: 'flatwriter',
+        tags: [],
+        searchContent: 'Flat Old',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.insert('articles', {
+        slug: 'flat-new',
+        title: 'Flat New',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now + 5000,
+        authorId: fallbackUser,
+        authorUsername: 'flatwriter',
+        tags: [],
+        searchContent: 'Flat New',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const fallback = await ctx.runQuery(api.articles.listArticles, {
+        view: 'trending',
+        author: 'flatwriter',
+        page: 1,
+        limit: 10,
+      })
+      expect(fallback.browseMeta?.trendingFallback).toBe(true)
+      expect(fallback.articles[0]!.slug).toBe('flat-new')
+    })
+  })
+})
+
+describe('listBrowseTags', () => {
+  it('returns tags ordered by article count', async () => {
+    const t = convexTest(schema, modules)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const u = await ctx.db.insert('users', {
+        email: 'chips@x.test',
+        username: 'chipwriter',
+        createdAt: now,
+        updatedAt: now,
+      })
+      const a1 = await ctx.db.insert('articles', {
+        slug: 'one',
+        title: 'One',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now,
+        authorId: u,
+        authorUsername: 'chipwriter',
+        tags: ['rust', 'web'],
+        searchContent: 'One',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const a2 = await ctx.db.insert('articles', {
+        slug: 'two',
+        title: 'Two',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now + 1,
+        authorId: u,
+        authorUsername: 'chipwriter',
+        tags: ['rust'],
+        searchContent: 'Two',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      const doc1 = await ctx.db.get(a1)
+      const doc2 = await ctx.db.get(a2)
+      if (doc1) await replaceTagLinksForArticle(ctx, doc1)
+      if (doc2) await replaceTagLinksForArticle(ctx, doc2)
+
+      const tags = await ctx.runQuery(api.articles.listBrowseTags, { limit: 5 })
+      expect(tags[0]).toEqual({ tag: 'rust', articleCount: 2 })
+      expect(tags[1]).toEqual({ tag: 'web', articleCount: 1 })
+    })
+  })
 })

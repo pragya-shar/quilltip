@@ -23,6 +23,11 @@ import {
 } from './lib/articleListingReady'
 import { searchListingArticles } from './lib/articleSearch'
 import {
+  sortArticlesForBrowse,
+  type BrowseSort,
+  type BrowseView,
+} from './lib/articleBrowseSort'
+import {
   extractTextFromTiptapJson,
   tiptapJsonHasNonEmptyText,
 } from './lib/tiptapContent'
@@ -69,6 +74,40 @@ function validateArticleInput(args: {
   }
 }
 
+const browseViewValidator = v.union(
+  v.literal('latest'),
+  v.literal('trending'),
+  v.literal('featured')
+)
+
+const browseSortValidator = v.union(
+  v.literal('newest'),
+  v.literal('oldest'),
+  v.literal('most_tipped')
+)
+
+function paginateBrowseArticles<T extends {
+  publishedAt?: number
+  tipCount?: number
+  highlightCount?: number
+}>(
+  articles: T[],
+  view: BrowseView,
+  sort: BrowseSort,
+  offset: number,
+  limit: number
+) {
+  const { articles: sorted, meta } = sortArticlesForBrowse(articles, view, sort)
+  const total = sorted.length
+  const slice = sorted.slice(offset, offset + limit)
+  return {
+    slice,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    browseMeta: meta,
+  }
+}
+
 // List articles with pagination and filters
 export const listArticles = query({
   args: {
@@ -77,11 +116,15 @@ export const listArticles = query({
     tag: v.optional(v.string()),
     author: v.optional(v.string()),
     search: v.optional(v.string()),
+    view: v.optional(browseViewValidator),
+    sort: v.optional(browseSortValidator),
   },
   handler: async (ctx, args) => {
     const page = Math.max(args.page || 1, 1)
     const limit = Math.min(Math.max(args.limit || 10, 1), 50)
     const offset = (page - 1) * limit
+    const view: BrowseView = args.view ?? 'latest'
+    const sort: BrowseSort = args.sort ?? 'newest'
 
     const tag = args.tag?.trim() || undefined
     const searchRaw = args.search?.trim()
@@ -114,8 +157,13 @@ export const listArticles = query({
         authorId,
         filterTag: tag,
       })
-      const total = rows.length
-      const slice = rows.slice(offset, offset + limit)
+      const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
+        rows,
+        view,
+        sort,
+        offset,
+        limit
+      )
       const enrichedArticles = await Promise.all(
         slice.map(async (article) => ({
           ...stripWriterNotes(article),
@@ -127,7 +175,8 @@ export const listArticles = query({
         total,
         page,
         limit,
-        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+        totalPages,
+        browseMeta,
       }
     }
 
@@ -152,10 +201,15 @@ export const listArticles = query({
         (a): a is NonNullable<typeof a> =>
           a?.published === true && isArticleListingReady(a)
       )
-      const total = articles.length
-      const pageSlice = articles.slice(offset, offset + limit)
+      const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
+        articles,
+        view,
+        sort,
+        offset,
+        limit
+      )
       const enrichedArticles = await Promise.all(
-        pageSlice.map(async (article) => ({
+        slice.map(async (article) => ({
           ...stripWriterNotes(article),
           author: await enrichWithUser(ctx, article.authorId),
         }))
@@ -165,7 +219,8 @@ export const listArticles = query({
         total,
         page,
         limit,
-        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+        totalPages,
+        browseMeta,
       }
     }
 
@@ -180,8 +235,13 @@ export const listArticles = query({
 
     let rows = await rowsQuery.collect()
     rows = rows.filter(isArticleListingReady)
-    const total = rows.length
-    const slice = rows.slice(offset, offset + limit)
+    const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
+      rows,
+      view,
+      sort,
+      offset,
+      limit
+    )
     const enrichedArticles = await Promise.all(
       slice.map(async (article) => ({
         ...stripWriterNotes(article),
@@ -193,8 +253,27 @@ export const listArticles = query({
       total,
       page,
       limit,
-      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      totalPages,
+      browseMeta,
     }
+  },
+})
+
+export const listBrowseTags = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 12, 1), 30)
+    const links = await ctx.db.query('articleTagLinks').collect()
+    const counts = new Map<string, number>()
+    for (const link of links) {
+      counts.set(link.tag, (counts.get(link.tag) ?? 0) + 1)
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, limit)
+      .map(([tag, articleCount]) => ({ tag, articleCount }))
   },
 })
 

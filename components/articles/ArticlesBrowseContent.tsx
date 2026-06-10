@@ -9,6 +9,8 @@ import Pagination from '@/components/articles/Pagination'
 import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
 import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
 import { readBrowseScrollY } from '@/lib/articles/browseListScrollStorage'
+import { getBrowseContextMessage } from '@/components/articles/ArticlesBrowseDiscoveryHeader'
+import type { BrowseSort, BrowseView } from '@/lib/articles/browseDiscovery'
 
 function buildPagination(result: {
   page: number
@@ -33,6 +35,8 @@ export function ArticlesBrowseContent({
   tag,
   author,
   urlSearch,
+  view,
+  sort,
   scrollStorageKey,
   onArticleNavigate,
 }: {
@@ -40,6 +44,8 @@ export function ArticlesBrowseContent({
   tag?: string
   author?: string
   urlSearch?: string
+  view: BrowseView
+  sort: BrowseSort
   scrollStorageKey: string
   onArticleNavigate?: () => void
 }) {
@@ -51,6 +57,8 @@ export function ArticlesBrowseContent({
     tag,
     author,
     search: urlSearch,
+    view,
+    sort,
   })
 
   const listReady = result !== undefined
@@ -68,6 +76,7 @@ export function ArticlesBrowseContent({
 
   const articles = mapListArticlesToDisplay(result.articles)
   const pagination = buildPagination(result)
+  const contextMessage = getBrowseContextMessage(view, result.browseMeta)
 
   const handlePageChange = (page: number) => {
     router.push(
@@ -78,9 +87,40 @@ export function ArticlesBrowseContent({
     )
   }
 
+  const handleClearSearch = () => {
+    router.push(
+      buildArticlesBrowseHref({
+        search: '',
+        page: 1,
+        sourceParams: searchParams,
+      })
+    )
+  }
+
+  const handleClearAll = () => {
+    router.push('/articles')
+  }
+
+  const hasSearch = Boolean(urlSearch?.trim())
+  const hasFilters = Boolean(tag || author || hasSearch)
+
   return (
     <>
-      <ArticleGrid articles={articles} onArticleNavigate={onArticleNavigate} />
+      {contextMessage && (
+        <p className="mb-4 text-sm text-muted-foreground">{contextMessage}</p>
+      )}
+
+      <ArticleGrid
+        articles={articles}
+        onArticleNavigate={onArticleNavigate}
+        view={view}
+        emptyState={{
+          hasSearch,
+          hasFilters,
+          onClearSearch: handleClearSearch,
+          onClearAll: handleClearAll,
+        }}
+      />
 
       {pagination.totalPages > 1 && (
         <div className="mt-12">

@@ -16,6 +16,7 @@ import type * as crons from "../crons.js";
 import type * as highlightTips from "../highlightTips.js";
 import type * as highlights from "../highlights.js";
 import type * as http from "../http.js";
+import type * as lib_articleBrowseSort from "../lib/articleBrowseSort.js";
 import type * as lib_articleListing from "../lib/articleListing.js";
 import type * as lib_articleListingReady from "../lib/articleListingReady.js";
 import type * as lib_articleSearch from "../lib/articleSearch.js";
@@ -55,6 +56,7 @@ declare const fullApi: ApiFromModules<{
   highlightTips: typeof highlightTips;
   highlights: typeof highlights;
   http: typeof http;
+  "lib/articleBrowseSort": typeof lib_articleBrowseSort;
   "lib/articleListing": typeof lib_articleListing;
   "lib/articleListingReady": typeof lib_articleListingReady;
   "lib/articleSearch": typeof lib_articleSearch;

@@ -30,11 +30,13 @@ export function TagFilterLink({
       aria-label={`Filter by tag ${tag}`}
       className={[
         'focus-ring inline-flex items-center rounded-full',
-        'text-xs px-2 py-1 bg-muted text-foreground',
+        'text-xs px-2.5 py-1 bg-muted text-foreground',
         'hover:bg-muted/80 hover:text-foreground',
         'transition-colors',
         className,
-      ].join(' ')}
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       {children ?? tag}
     </Link>

@@ -20,6 +20,8 @@ export interface ArticleForDisplay {
     name: string
     slug: string
   }>
+  readTime?: number
+  tipCount?: number
   content?: JSONContent
   tipStats?: ArticleBySlug['tipStats']
 }
