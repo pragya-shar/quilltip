@@ -1,23 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
   WALLET_PROFILE_HUB_PATH,
+  getDashboardWalletPath,
   getLoginRedirectPath,
   getSafeRedirectPath,
-  getWalletTabPath,
 } from './walletProfileDestination'
 
 describe('walletProfileDestination', () => {
-  it('defines the wallet profile hub path', () => {
-    expect(WALLET_PROFILE_HUB_PATH).toBe('/profile?tab=wallet')
+  it('defines the wallet dashboard hub path', () => {
+    expect(WALLET_PROFILE_HUB_PATH).toBe('/dashboard/wallet')
   })
 
-  it('builds wallet tab path from username', () => {
-    expect(getWalletTabPath('alice')).toBe('/alice?tab=wallet')
+  it('builds dashboard wallet path', () => {
+    expect(getDashboardWalletPath()).toBe('/dashboard/wallet')
   })
 
   it('builds login redirect path with encoded intended path', () => {
-    expect(getLoginRedirectPath('/profile?tab=wallet')).toBe(
-      '/login?redirect=%2Fprofile%3Ftab%3Dwallet'
+    expect(getLoginRedirectPath('/dashboard/wallet')).toBe(
+      '/login?redirect=%2Fdashboard%2Fwallet'
     )
   })
 
@@ -29,9 +29,7 @@ describe('walletProfileDestination', () => {
     })
 
     it('allows safe relative paths', () => {
-      expect(getSafeRedirectPath('/profile?tab=wallet')).toBe(
-        '/profile?tab=wallet'
-      )
+      expect(getSafeRedirectPath('/dashboard/wallet')).toBe('/dashboard/wallet')
       expect(getSafeRedirectPath('/articles')).toBe('/articles')
     })
 

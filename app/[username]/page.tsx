@@ -1,16 +1,21 @@
 'use client'
 
 import { useUserByUsername, useUserStats } from '@/hooks/convex'
-import { use, useState, useEffect } from 'react'
+import { use, useEffect } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { LoadingRegion } from '@/components/a11y/LoadingRegion'
 import { useStaleLoading } from '@/hooks/useStaleLoading'
 import {
   buildProfileTabHref,
+  isLegacyCreatorTab,
   parseProfileTab,
   profileTabUrlIsCanonical,
   type ProfileTabId,
 } from '@/lib/profile/profileTab'
+import {
+  getDashboardTabPath,
+  parseLegacyProfileCreatorTab,
+} from '@/lib/dashboard/dashboardTab'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
@@ -20,9 +25,7 @@ import { ProfileArticlesTabContent } from '@/components/profile/ProfileArticlesT
 import { ProfileNftsTabContent } from '@/components/profile/ProfileNftsTabContent'
 import { AuthorNotFoundPage } from '@/components/profile/AuthorNotFoundPage'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
-import { EarningsDashboard } from '@/components/dashboard/EarningsDashboard'
-import { WalletSettings } from '@/components/stellar'
-import { BookOpen, DollarSign, Image, ChartBar, Wallet } from 'lucide-react'
+import { BookOpen, Image } from 'lucide-react'
 
 interface ProfilePageProps {
   params: Promise<{
@@ -36,9 +39,6 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user: currentUser, isLoading: authLoading } = useAuth()
-  const [localWalletAddress, setLocalWalletAddress] = useState<
-    string | null | undefined
-  >()
   const page = Math.max(parseInt(searchParams?.get('page') || '1', 10) || 1, 1)
   const parsePositivePage = (raw: string | null) => {
     const n = parseInt(raw || '1', 10)
@@ -51,33 +51,40 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     searchParams?.get('nftMintedPage') ?? null
   )
 
-  // Fetch user profile
   const user = useUserByUsername(username)
   const { isStale, reset: resetStale } = useStaleLoading(user === undefined)
 
-  // Sync local wallet address with user data
-  useEffect(() => {
-    if (user?.stellarAddress !== localWalletAddress) {
-      setLocalWalletAddress(user?.stellarAddress)
-    }
-  }, [user?.stellarAddress, localWalletAddress])
-
-  // Fetch user stats
   const userStats = useUserStats(user?._id)
 
-  // Check if this is the current user's profile
   const isOwnProfile = currentUser?.username === username
   const rawTab = searchParams?.get('tab') ?? null
-  const activeTab = parseProfileTab(rawTab, authLoading ? false : isOwnProfile)
+  const activeTab = parseProfileTab(rawTab)
 
   useEffect(() => {
     if (authLoading) return
-    if (profileTabUrlIsCanonical(rawTab, isOwnProfile)) return
+
+    const legacyTab = parseLegacyProfileCreatorTab(rawTab)
+    if (legacyTab) {
+      if (isOwnProfile) {
+        router.replace(getDashboardTabPath(legacyTab))
+      } else {
+        router.replace(
+          buildProfileTabHref(
+            pathname,
+            new URLSearchParams(searchParams?.toString() ?? ''),
+            'articles'
+          )
+        )
+      }
+      return
+    }
+
+    if (profileTabUrlIsCanonical(rawTab)) return
     router.replace(
       buildProfileTabHref(
         pathname,
         new URLSearchParams(searchParams?.toString() ?? ''),
-        parseProfileTab(rawTab, isOwnProfile)
+        parseProfileTab(rawTab)
       )
     )
   }, [authLoading, isOwnProfile, pathname, rawTab, router, searchParams])
@@ -86,7 +93,6 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     return <AuthorNotFoundPage username={username} />
   }
 
-  // Show loading while data is being fetched
   if (user === undefined) {
     return (
       <div className="min-h-screen bg-background">
@@ -107,9 +113,12 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     )
   }
 
+  if (!authLoading && isLegacyCreatorTab(rawTab)) {
+    return null
+  }
+
   const profileDisplayName = user.name || user.username
 
-  // Prepare user data with stats
   const userWithStats = {
     id: user._id,
     username: user.username,
@@ -124,7 +133,6 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     nftsCreated: user.nftsCreated || 0,
   }
 
-  // Tab configuration
   const tabs = [
     {
       id: 'articles' as ProfileTabId,
@@ -138,28 +146,6 @@ export default function ProfilePage({ params }: ProfilePageProps) {
       icon: Image,
       count: userWithStats.nftsOwned,
     },
-    {
-      id: 'wallet' as ProfileTabId,
-      label: 'Wallet',
-      icon: Wallet,
-      count: null,
-    },
-    ...(isOwnProfile
-      ? [
-          {
-            id: 'earnings' as ProfileTabId,
-            label: 'Earnings',
-            icon: DollarSign,
-            count: null,
-          },
-          {
-            id: 'stats' as ProfileTabId,
-            label: 'Stats',
-            icon: ChartBar,
-            count: null,
-          },
-        ]
-      : []),
   ]
 
   return (
@@ -167,7 +153,6 @@ export default function ProfilePage({ params }: ProfilePageProps) {
       <AppNavigation />
 
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 w-full min-w-0">
-        {/* Profile Header */}
         <div className="mb-8">
           <ProfileHeader user={userWithStats} isOwnProfile={isOwnProfile} />
         </div>
@@ -184,9 +169,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
           }
         />
 
-        {/* Tab Content */}
         <div>
-          {/* Articles Tab */}
           {activeTab === 'articles' && (
             <div>
               <ProfileArticlesTabContent
@@ -199,7 +182,6 @@ export default function ProfilePage({ params }: ProfilePageProps) {
             </div>
           )}
 
-          {/* NFTs Tab */}
           {activeTab === 'nfts' && (
             <ProfileNftsTabContent
               userId={user._id}
@@ -210,87 +192,6 @@ export default function ProfilePage({ params }: ProfilePageProps) {
               displayName={profileDisplayName}
             />
           )}
-
-          {/* Earnings Tab (Only for own profile) */}
-          {activeTab === 'earnings' && isOwnProfile && (
-            <div>
-              <EarningsDashboard />
-            </div>
-          )}
-
-          {/* Stats Tab (Only for own profile) */}
-          {activeTab === 'stats' && isOwnProfile && (
-            <div className="space-y-6">
-              {/* Overall Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-muted-foreground">
-                      Total Articles
-                    </span>
-                    <BookOpen className="w-5 h-5 text-blue-500" />
-                  </div>
-                  <p className="text-3xl font-bold text-foreground">
-                    {userWithStats.articleCount}
-                  </p>
-                </div>
-                <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-muted-foreground">Tips Received</span>
-                    <DollarSign className="w-5 h-5 text-green-500" />
-                  </div>
-                  <p className="text-3xl font-bold text-foreground">
-                    {userWithStats.tipsReceivedCount}
-                  </p>
-                </div>
-                <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-muted-foreground">NFTs Owned</span>
-                    <Image
-                      className="w-5 h-5 text-purple-500"
-                      aria-label="NFTs"
-                    />
-                  </div>
-                  <p className="text-3xl font-bold text-foreground">
-                    {userWithStats.nftsOwned}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Wallet Tab */}
-          {activeTab === 'wallet' && (
-            <div className="space-y-8">
-              {/* Page Header */}
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-foreground mb-2">
-                  {isOwnProfile
-                    ? 'Wallet Management'
-                    : `${profileDisplayName}'s Wallet`}
-                </h2>
-                <p className="text-muted-foreground">
-                  {isOwnProfile
-                    ? 'Manage your Stellar testnet wallet for sending and receiving practice tips.'
-                    : 'View and copy the wallet address, or tip this author from their articles.'}
-                </p>
-              </div>
-
-              {/* Wallet Settings */}
-              <div className="max-w-2xl">
-                <WalletSettings
-                  walletAddress={localWalletAddress ?? user.stellarAddress}
-                  profileUsername={username}
-                  isOwnProfile={isOwnProfile}
-                  profileDisplayName={profileDisplayName}
-                  onAddressChange={(address) => {
-                    // Immediately update local state for instant UI feedback
-                    setLocalWalletAddress(address || undefined)
-                  }}
-                />
-              </div>
-            </div>
-          )}
         </div>
       </main>
       <SiteFooter variant="default" />
@@ -298,6 +199,5 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   )
 }
 
-// Configure dynamic behavior
 export const dynamic = 'force-dynamic'
 export const dynamicParams = true

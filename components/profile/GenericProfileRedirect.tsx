@@ -6,10 +6,7 @@ import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
 import { buildLoginHref } from '@/lib/auth/safeReturnPath'
-import {
-  buildPathWithSearch,
-  resolveSignedInProfilePath,
-} from '@/lib/profile/profileDestination'
+import { resolveProfileAliasPath } from '@/lib/profile/profileDestination'
 
 export function GenericProfileRedirect() {
   const router = useRouter()
@@ -20,13 +17,12 @@ export function GenericProfileRedirect() {
   useEffect(() => {
     if (isLoading) return
 
-    const intendedPath = buildPathWithSearch(
-      pathname,
-      new URLSearchParams(searchParams?.toString() ?? '')
-    )
+    const params = new URLSearchParams(searchParams?.toString() ?? '')
 
     if (!isAuthenticated) {
-      router.replace(buildLoginHref(intendedPath))
+      router.replace(
+        buildLoginHref(resolveProfileAliasPath(pathname, params))
+      )
       return
     }
 
@@ -35,12 +31,7 @@ export function GenericProfileRedirect() {
       return
     }
 
-    router.replace(
-      resolveSignedInProfilePath(
-        user.username,
-        new URLSearchParams(searchParams?.toString() ?? '')
-      )
-    )
+    router.replace(resolveProfileAliasPath(pathname, params, user.username))
   }, [
     isAuthenticated,
     isLoading,

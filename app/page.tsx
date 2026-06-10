@@ -123,7 +123,7 @@ export default function HomePage() {
 
               {hasWallet ? (
                 <Link
-                  href={`/${user.username}?tab=earnings`}
+                  href="/dashboard/earnings"
                   className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
                 >
                   <div className="flex items-center mb-4">

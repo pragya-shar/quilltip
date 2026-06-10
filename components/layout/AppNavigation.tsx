@@ -12,6 +12,7 @@ import {
   BookOpen,
   HelpCircle,
   Menu,
+  LayoutDashboard,
   ArrowRight,
 } from 'lucide-react'
 import { usePathname } from 'next/navigation'
@@ -37,6 +38,7 @@ export default function AppNavigation() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   const isActive = (path: string) => pathname === path
+  const isDashboardActive = pathname.startsWith('/dashboard')
 
   const closeMenu = () => setMenuOpen(false)
 
@@ -88,6 +90,15 @@ export default function AppNavigation() {
           >
             <User className="w-4 h-4 shrink-0" />
             <span>Profile</span>
+          </Link>
+          <Link
+            href="/dashboard"
+            className={desktopLinkClass(isDashboardActive, {
+              largeScreenOnly: true,
+            })}
+          >
+            <LayoutDashboard className="w-4 h-4 shrink-0" />
+            <span>Dashboard</span>
           </Link>
           <button
             type="button"
@@ -157,6 +168,14 @@ export default function AppNavigation() {
           >
             <User className="w-4 h-4 shrink-0" />
             <span>Profile</span>
+          </Link>
+          <Link
+            href="/dashboard"
+            className={mobileLinkClass(isDashboardActive)}
+            onClick={closeMenu}
+          >
+            <LayoutDashboard className="w-4 h-4 shrink-0" />
+            <span>Dashboard</span>
           </Link>
           <button
             type="button"

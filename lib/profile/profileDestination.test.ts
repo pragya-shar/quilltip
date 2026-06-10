@@ -14,9 +14,14 @@ describe('buildGenericProfilePath', () => {
     expect(buildGenericProfilePath('articles')).toBe('/profile')
   })
 
-  it('includes tab query for non-articles tabs', () => {
-    expect(buildGenericProfilePath('wallet')).toBe('/profile?tab=wallet')
-    expect(buildGenericProfilePath('earnings')).toBe('/profile?tab=earnings')
+  it('includes tab query for nfts', () => {
+    expect(buildGenericProfilePath('nfts')).toBe('/profile?tab=nfts')
+  })
+
+  it('routes legacy creator tabs to dashboard', () => {
+    expect(buildGenericProfilePath('wallet')).toBe('/dashboard/wallet')
+    expect(buildGenericProfilePath('earnings')).toBe('/dashboard/earnings')
+    expect(buildGenericProfilePath('stats')).toBe('/dashboard/stats')
   })
 })
 
@@ -27,19 +32,25 @@ describe('resolveSignedInProfilePath', () => {
     )
   })
 
-  it('maps wallet tab to profile URL', () => {
+  it('maps legacy wallet tab to dashboard', () => {
     expect(
       resolveSignedInProfilePath('alice', new URLSearchParams('tab=wallet'))
-    ).toBe('/alice?tab=wallet')
+    ).toBe('/dashboard/wallet')
   })
 
-  it('preserves other query params', () => {
+  it('maps legacy earnings tab to dashboard', () => {
+    expect(
+      resolveSignedInProfilePath('alice', new URLSearchParams('tab=earnings'))
+    ).toBe('/dashboard/earnings')
+  })
+
+  it('preserves other query params for profile tabs', () => {
     const result = resolveSignedInProfilePath(
       'alice',
-      new URLSearchParams('tab=wallet&page=2')
+      new URLSearchParams('tab=nfts&page=2')
     )
     expect(result).toContain('/alice')
-    expect(result).toContain('tab=wallet')
+    expect(result).toContain('tab=nfts')
     expect(result).toContain('page=2')
   })
 
@@ -52,8 +63,8 @@ describe('resolveSignedInProfilePath', () => {
 
 describe('buildLoginRedirectPath', () => {
   it('encodes intended path in next param', () => {
-    expect(buildLoginRedirectPath('/profile?tab=wallet')).toBe(
-      '/login?next=%2Fprofile%3Ftab%3Dwallet'
+    expect(buildLoginRedirectPath('/dashboard/wallet')).toBe(
+      '/login?next=%2Fdashboard%2Fwallet'
     )
   })
 })
@@ -61,9 +72,7 @@ describe('buildLoginRedirectPath', () => {
 describe('parseSafeNextParam', () => {
   it('accepts same-site relative paths', () => {
     expect(parseSafeNextParam('/profile')).toBe('/profile')
-    expect(parseSafeNextParam('/profile?tab=wallet')).toBe(
-      '/profile?tab=wallet'
-    )
+    expect(parseSafeNextParam('/dashboard/wallet')).toBe('/dashboard/wallet')
   })
 
   it('rejects open redirects and external URLs', () => {
@@ -92,8 +101,8 @@ describe('appendNextToAuthPath', () => {
   })
 
   it('appends safe next param', () => {
-    expect(appendNextToAuthPath('/login', '/profile?tab=wallet')).toBe(
-      '/login?next=%2Fprofile%3Ftab%3Dwallet'
+    expect(appendNextToAuthPath('/login', '/dashboard/wallet')).toBe(
+      '/login?next=%2Fdashboard%2Fwallet'
     )
     expect(appendNextToAuthPath('/register', '/profile')).toBe(
       '/register?next=%2Fprofile'

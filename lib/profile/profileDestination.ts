@@ -1,4 +1,8 @@
 import {
+  getDashboardTabPath,
+  parseLegacyProfileCreatorTab,
+} from '@/lib/dashboard/dashboardTab'
+import {
   buildProfileTabHref,
   parseProfileTab,
   type ProfileTabId,
@@ -8,17 +12,45 @@ export const GENERIC_PROFILE_PATHS = ['/profile', '/settings/profile'] as const
 
 export type GenericProfilePath = (typeof GENERIC_PROFILE_PATHS)[number]
 
-export function buildGenericProfilePath(tab?: ProfileTabId): string {
+export function buildGenericProfilePath(tab?: ProfileTabId | string): string {
+  const legacyTab = parseLegacyProfileCreatorTab(tab ?? null)
+  if (legacyTab) {
+    return getDashboardTabPath(legacyTab)
+  }
   if (!tab || tab === 'articles') return '/profile'
-  return `/profile?tab=${tab}`
+  const profileTab = parseProfileTab(typeof tab === 'string' ? tab : tab)
+  if (profileTab === 'articles') return '/profile'
+  return `/profile?tab=${profileTab}`
+}
+
+export function resolveProfileAliasPath(
+  pathname: string,
+  searchParams: URLSearchParams,
+  username?: string | null
+): string {
+  const legacyTab = parseLegacyProfileCreatorTab(searchParams.get('tab'))
+  if (legacyTab) {
+    return getDashboardTabPath(legacyTab)
+  }
+
+  if (username) {
+    return resolveSignedInProfilePath(username, searchParams)
+  }
+
+  return buildPathWithSearch(pathname, searchParams)
 }
 
 export function resolveSignedInProfilePath(
   username: string,
   searchParams: URLSearchParams
 ): string {
+  const legacyTab = parseLegacyProfileCreatorTab(searchParams.get('tab'))
+  if (legacyTab) {
+    return getDashboardTabPath(legacyTab)
+  }
+
   const pathname = `/${username}`
-  const tab = parseProfileTab(searchParams.get('tab'), true)
+  const tab = parseProfileTab(searchParams.get('tab'))
   return buildProfileTabHref(pathname, searchParams, tab)
 }
 
