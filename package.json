@@ -20,6 +20,7 @@
     "eng-224:console-baseline": "node scripts/eng-224-console-baseline.mjs",
     "eng-235:batch-evidence": "bun scripts/eng-235-batch-evidence-runner.ts",
     "eng-236:batch-evidence": "bun scripts/eng-236-batch-evidence-runner.ts",
+    "eng-238:page-load": "bun scripts/eng-238-page-load-performance.ts",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
     "test:coverage": "vitest run --coverage --coverage.reporter=text"
   },
