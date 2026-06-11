@@ -11,7 +11,7 @@ const LandingBelowFold = dynamic(
   { ssr: false }
 )
 import { useLandingHashScroll } from '@/components/landing/useLandingHashScroll'
-import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
+import { OnboardingIntentHome } from '@/components/onboarding/OnboardingIntentHome'
 import { HomeRecentArticlesSection } from '@/components/articles/HomeRecentArticlesSection'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { DashboardRecentArticlesFallback } from '@/components/error/SectionErrorFallback'
@@ -73,10 +73,18 @@ export default function HomePage() {
   }
 
   if (isAuthenticated && user) {
+    if (showOnboarding) {
+      return (
+        <div className="min-h-screen bg-background">
+          <AppNavigation />
+          <OnboardingIntentHome />
+        </div>
+      )
+    }
+
     return (
       <div className="min-h-screen bg-background">
         <AppNavigation />
-        {showOnboarding && <OnboardingDialog />}
         <div className="pt-24 pb-8">
           <div className="max-w-6xl mx-auto px-4">
             <div className="mb-8">
