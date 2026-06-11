@@ -82,10 +82,10 @@ export function ArticlesBrowseDiscoveryHeader({
 
   return (
     <div className="mb-6 space-y-4 border-b border-border pb-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div className="-mb-px flex-1 overflow-x-auto">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex-1 overflow-x-auto">
           <div
-            className="flex min-w-max items-center gap-0.5"
+            className="inline-flex min-w-max items-center gap-0.5 rounded-full bg-muted p-1"
             role="tablist"
             aria-label="Browse articles"
           >
@@ -100,10 +100,10 @@ export function ArticlesBrowseDiscoveryHeader({
                   aria-selected={isActive}
                   onClick={() => handleViewChange(tab.id)}
                   className={cn(
-                    'focus-ring inline-flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap transition-colors min-h-[44px]',
+                    'focus-ring inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors min-h-[36px]',
                     isActive
-                      ? 'border-foreground text-foreground'
-                      : 'border-transparent text-muted-foreground hover:border-border hover:text-foreground'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden />
