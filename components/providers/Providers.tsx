@@ -10,6 +10,7 @@ import {
   WalletActivationProvider,
   useWalletActivation,
 } from './WalletActivationContext'
+import { AuthSessionProvider } from './AuthContext'
 
 const LazyWalletProvider = dynamic(
   () =>
@@ -45,16 +46,18 @@ function WalletBoundary({ children }: { children: React.ReactNode }) {
 export default function Providers({ children }: ProvidersProps) {
   return (
     <ConvexAuthProvider client={convex}>
-      <ThemeProvider>
-        <WalletActivationProvider>
-          <ErrorBoundary fallback={WalletErrorFallback}>
-            <WalletBoundary>
-              {children}
-              <Toaster />
-            </WalletBoundary>
-          </ErrorBoundary>
-        </WalletActivationProvider>
-      </ThemeProvider>
+      <AuthSessionProvider>
+        <ThemeProvider>
+          <WalletActivationProvider>
+            <ErrorBoundary fallback={WalletErrorFallback}>
+              <WalletBoundary>
+                {children}
+                <Toaster />
+              </WalletBoundary>
+            </ErrorBoundary>
+          </WalletActivationProvider>
+        </ThemeProvider>
+      </AuthSessionProvider>
     </ConvexAuthProvider>
   )
 }

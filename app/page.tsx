@@ -1,10 +1,10 @@
 'use client'
 
-import dynamic from 'next/dynamic'
 import { useAuth } from '@/components/providers/AuthContext'
-import Navigation from '@/components/landing/Navigation'
 import AppNavigation from '@/components/layout/AppNavigation'
 import HeroSection from '@/components/landing/HeroSection'
+
+import dynamic from 'next/dynamic'
 
 const LandingBelowFold = dynamic(
   () => import('@/components/landing/LandingBelowFold'),
@@ -17,6 +17,38 @@ import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { DashboardRecentArticlesFallback } from '@/components/error/SectionErrorFallback'
 import Link from 'next/link'
 import { PenSquare, BookOpen, Wallet, TrendingUp } from 'lucide-react'
+import Navigation from '@/components/landing/Navigation'
+
+function HomeLoadingShell() {
+  return (
+    <div className="min-h-screen bg-background">
+      <AppNavigation />
+      <div className="pt-24 pb-8 max-w-6xl mx-auto px-4 animate-pulse">
+        <div className="mb-8 space-y-3">
+          <div className="h-9 w-64 rounded-lg bg-muted" />
+          <div className="h-5 w-80 rounded-lg bg-muted" />
+        </div>
+        <div className="grid md:grid-cols-3 gap-6 mb-12">
+          {[0, 1, 2].map((key) => (
+            <div
+              key={key}
+              className="h-40 rounded-[var(--card-radius)] bg-muted"
+            />
+          ))}
+        </div>
+        <div className="h-7 w-40 rounded-lg bg-muted mb-6" />
+        <div className="grid gap-4 md:grid-cols-2">
+          {[0, 1].map((key) => (
+            <div
+              key={key}
+              className="h-28 rounded-[var(--card-radius)] bg-muted"
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function PublicLandingPage() {
   useLandingHashScroll()
@@ -31,10 +63,14 @@ function PublicLandingPage() {
 }
 
 export default function HomePage() {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, isLoading } = useAuth()
 
   const hasWallet = !!user?.stellarAddress
   const showOnboarding = isAuthenticated && user && !user.onboardingCompleted
+
+  if (isAuthenticated && isLoading) {
+    return <HomeLoadingShell />
+  }
 
   if (isAuthenticated && user) {
     return (

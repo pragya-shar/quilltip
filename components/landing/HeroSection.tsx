@@ -3,6 +3,11 @@
 import Link from 'next/link'
 import { ArrowRight, Zap } from 'lucide-react'
 import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
+import {
+  HERO_START_READING,
+  HERO_START_WRITING,
+  HERO_WALLET_SETUP,
+} from '@/lib/copy/nav-cta'
 import { LandingProductProof } from '@/components/landing/LandingProductProof'
 import { motion, AnimatePresence } from 'motion/react'
 import { useEffect, useState, useCallback, useRef } from 'react'
@@ -216,7 +221,7 @@ export default function HeroSection() {
               href="/articles"
               className="focus-ring group inline-flex w-full items-center justify-center gap-2 rounded-lg bg-brand px-6 py-2.5 text-[13px] font-medium text-brand-foreground transition-all duration-200 hover:bg-brand-hover hover:shadow-lg sm:w-auto"
             >
-              Start Reading
+              {HERO_START_READING}
               <ArrowRight className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
             </Link>
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px] sm:text-[13px]">
@@ -224,7 +229,7 @@ export default function HeroSection() {
                 href="/register"
                 className="focus-ring rounded-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                Start Writing
+                {HERO_START_WRITING}
               </Link>
               <span className="text-border" aria-hidden>
                 ·
@@ -233,7 +238,7 @@ export default function HeroSection() {
                 href="/guide"
                 className="focus-ring rounded-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                Testnet wallet setup
+                {HERO_WALLET_SETUP}
               </Link>
             </div>
           </motion.div>

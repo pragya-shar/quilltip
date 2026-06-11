@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react'
 import { LucideIcon } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { Logo } from '@/components/ui/Logo'
 import {
   Sheet,
   SheetContent,
@@ -30,6 +31,7 @@ import {
   handleLandingHashClick,
   scrollToLandingSection,
 } from '@/lib/landing/scroll-to-section'
+import { NAV_SIGN_IN, NAV_TRY_ON_TESTNET } from '@/lib/copy/nav-cta'
 
 const MOBILE_MENU_CLOSE_MS = 280
 
@@ -257,22 +259,7 @@ export default function Navigation() {
     >
       <div className="container mx-auto max-w-7xl px-6">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link
-            href="/"
-            className="focus-ring flex items-center gap-3 group rounded-lg"
-          >
-            <motion.div
-              className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-accent rounded-xl flex items-center justify-center shadow-sm"
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-            >
-              <PenTool className="w-[18px] h-[18px] text-brand-foreground" />
-            </motion.div>
-            <span className="text-[22px] font-semibold text-foreground tracking-tight">
-              Quilltip
-            </span>
-          </Link>
+          <Logo animated />
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1" ref={navRef}>
@@ -406,14 +393,14 @@ export default function Navigation() {
               href="/login"
               className="focus-ring px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-all duration-200"
             >
-              Sign In
+              {NAV_SIGN_IN}
             </Link>
 
             <Link
               href="/register"
               className="focus-ring inline-flex items-center gap-1.5 bg-brand text-brand-foreground px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-brand-hover transition-all duration-200 ml-1"
             >
-              Try on Testnet
+              {NAV_TRY_ON_TESTNET}
               <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
             </Link>
 
@@ -483,14 +470,14 @@ export default function Navigation() {
                     className="focus-ring block rounded-lg text-foreground hover:bg-muted text-sm font-medium transition-colors py-2 px-1"
                     onClick={() => setIsOpen(false)}
                   >
-                    Sign In
+                    {NAV_SIGN_IN}
                   </Link>
                   <Link
                     href="/register"
                     className="focus-ring inline-flex w-full items-center justify-center gap-1.5 bg-brand text-brand-foreground px-5 py-2.5 rounded-lg hover:bg-brand-hover transition-colors text-sm font-medium"
                     onClick={() => setIsOpen(false)}
                   >
-                    Try on Testnet
+                    {NAV_TRY_ON_TESTNET}
                     <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
                   </Link>
                 </div>
