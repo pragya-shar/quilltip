@@ -32,12 +32,20 @@ describe('sortArticlesForBrowse', () => {
   ]
 
   it('sorts latest by newest', () => {
-    const { articles: sorted } = sortArticlesForBrowse(articles, 'latest', 'newest')
+    const { articles: sorted } = sortArticlesForBrowse(
+      articles,
+      'latest',
+      'newest'
+    )
     expect(sorted.map((a) => a.id)).toEqual(['new', 'tipped', 'old'])
   })
 
   it('sorts latest by oldest', () => {
-    const { articles: sorted } = sortArticlesForBrowse(articles, 'latest', 'oldest')
+    const { articles: sorted } = sortArticlesForBrowse(
+      articles,
+      'latest',
+      'oldest'
+    )
     expect(sorted.map((a) => a.id)).toEqual(['old', 'tipped', 'new'])
   })
 
@@ -77,7 +85,11 @@ describe('sortArticlesForBrowse', () => {
       row('high', 100, 1, 0),
       row('mid', 200, 0, 2),
     ]
-    const { articles: sorted } = sortArticlesForBrowse(mixed, 'trending', 'newest')
+    const { articles: sorted } = sortArticlesForBrowse(
+      mixed,
+      'trending',
+      'newest'
+    )
     expect(sorted.map((a) => a.id)).toEqual(['high', 'mid', 'low'])
   })
 

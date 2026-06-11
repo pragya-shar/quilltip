@@ -17,9 +17,7 @@ describe('getFeedRowContextLabel', () => {
   })
 
   it('returns Trending when engagement exists on trending view', () => {
-    expect(getFeedRowContextLabel('trending', { tipCount: 1 })).toBe(
-      'Trending'
-    )
+    expect(getFeedRowContextLabel('trending', { tipCount: 1 })).toBe('Trending')
     expect(getFeedRowContextLabel('trending', { highlightCount: 2 })).toBe(
       'Trending'
     )

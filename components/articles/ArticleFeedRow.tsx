@@ -58,7 +58,7 @@ export default function ArticleFeedRow({
   const publishedDateTime =
     article.publishedAt instanceof Date
       ? article.publishedAt.toISOString()
-      : article.publishedAt ?? undefined
+      : (article.publishedAt ?? undefined)
 
   return (
     <article className="py-8 first:pt-6 last:pb-6">

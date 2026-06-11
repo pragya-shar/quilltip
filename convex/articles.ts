@@ -86,11 +86,13 @@ const browseSortValidator = v.union(
   v.literal('most_tipped')
 )
 
-function paginateBrowseArticles<T extends {
-  publishedAt?: number
-  tipCount?: number
-  highlightCount?: number
-}>(
+function paginateBrowseArticles<
+  T extends {
+    publishedAt?: number
+    tipCount?: number
+    highlightCount?: number
+  },
+>(
   articles: T[],
   view: BrowseView,
   sort: BrowseSort,
