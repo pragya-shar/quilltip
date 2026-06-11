@@ -166,6 +166,7 @@ describe('AppNavigation auth CTAs', () => {
 
     expect(screen.getByText('Write')).toBeInTheDocument()
     expect(screen.getByText('Profile')).toBeInTheDocument()
+    expect(screen.getByText('Dashboard')).toBeInTheDocument()
     expect(screen.queryByText(NAV_SIGN_IN)).not.toBeInTheDocument()
     expect(screen.queryByText(NAV_TRY_ON_TESTNET)).not.toBeInTheDocument()
   })
