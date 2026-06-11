@@ -5,7 +5,7 @@
 - Linear issue: `ENG-237` Run beta-critical manual QA
 - Branch: `eng-237-Run-beta-critical-manual-QA`
 - Base branch: `development`
-- PR: TBD
+- PR: [#204](https://github.com/pragya-shar/quilltip/pull/204)
 - Date: `2026-06-11`
 - Local URL: `http://localhost:3000`
 - Backend target: local Convex dev unless noted otherwise
@@ -159,4 +159,4 @@
 | [x]    | C2 diff scope       | `git diff --stat origin/development...HEAD` and `git diff --check origin/development...HEAD` | Diff is limited to ENG-237 QA artifact and any in-scope bug fixes; no whitespace errors | N/A      | N/A                   | N/A              | `git diff --check origin/development...HEAD` passed; staged diff should contain this checklist only.                             |
 | [x]    | C3 PR hygiene title | Use PR title `test(qa): run beta-critical manual QA` or another valid conventional title     | `.github/workflows/pr-hygiene.yml` title pattern passes                                 | N/A      | N/A                   | N/A              | Planned PR title: `test(qa): run beta-critical manual QA`.                                                                       |
 | [x]    | C4 commit hygiene   | Commit subject follows `test(qa): ...` or `docs(qa): ...`                                    | PR Hygiene commit-subjects job passes                                                   | N/A      | N/A                   | N/A              | Planned commit subject: `test(qa): add ENG-237 beta manual QA checklist`.                                                        |
-| [x]    | C5 PR body          | Fill `.github/pull_request_template.md` Summary, Changes, Testing, Notes                     | PR body is concise and does not expose secrets or raw local evidence                    | N/A      | N/A                   | N/A              | PR body will summarize counts/status and link `ENG-264` without exposing raw local logs, secrets, or transaction hashes.         |
+| [x]    | C5 PR body          | Fill `.github/pull_request_template.md` Summary, Changes, Testing, Notes                     | PR body is concise and does not expose secrets or raw local evidence                    | N/A      | N/A                   | N/A              | PR #204 summarizes counts/status and links `ENG-264` without exposing raw local logs, secrets, or transaction hashes.            |
