@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { format } from 'date-fns'
+import { Bookmark, MoreHorizontal } from 'lucide-react'
 import { ArticleForDisplay } from '@/types/index'
 import { canLinkAuthorProfile } from '@/components/articles/ArticleAuthorByline'
 import { TagFilterLink } from '@/components/articles/TagFilterLink'
 import { UserAvatar } from '@/components/ui/user-avatar'
+import { Button } from '@/components/ui/button'
 import {
   formatReadTime,
   getFeedRowContextLabel,
@@ -139,8 +141,8 @@ export default function ArticleFeedRow({
         )}
       </div>
 
-      {(primaryTag || readTimeLabel || contextLabel) && (
-        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-muted-foreground">
+      <div className="mt-4 flex items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-muted-foreground">
           {primaryTag && (
             <TagFilterLink
               tag={primaryTag.name}
@@ -153,7 +155,28 @@ export default function ArticleFeedRow({
           {readTimeLabel && <span>{readTimeLabel}</span>}
           {contextLabel && <span>{contextLabel}</span>}
         </div>
-      )}
+
+        <div className="flex shrink-0 items-center gap-0.5 text-muted-foreground">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
+            aria-label={`Save ${article.title}`}
+          >
+            <Bookmark className="h-5 w-5" aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
+            aria-label={`More options for ${article.title}`}
+          >
+            <MoreHorizontal className="h-5 w-5" aria-hidden />
+          </Button>
+        </div>
+      </div>
     </article>
   )
 }
