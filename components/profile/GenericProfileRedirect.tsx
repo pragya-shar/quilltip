@@ -20,9 +20,7 @@ export function GenericProfileRedirect() {
     const params = new URLSearchParams(searchParams?.toString() ?? '')
 
     if (!isAuthenticated) {
-      router.replace(
-        buildLoginHref(resolveProfileAliasPath(pathname, params))
-      )
+      router.replace(buildLoginHref(resolveProfileAliasPath(pathname, params)))
       return
     }
 

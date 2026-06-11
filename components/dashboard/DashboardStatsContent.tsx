@@ -16,7 +16,9 @@ export function DashboardStatsContent() {
   return (
     <div className="space-y-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-foreground mb-2">Creator Stats</h2>
+        <h2 className="text-2xl font-bold text-foreground mb-2">
+          Creator Stats
+        </h2>
         <p className="text-muted-foreground">
           Overview of your publishing activity and testnet tips.
         </p>
