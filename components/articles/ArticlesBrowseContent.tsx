@@ -6,7 +6,7 @@ import { useListArticles } from '@/hooks/convex'
 import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
 import ArticleGrid from '@/components/articles/ArticleGrid'
 import Pagination from '@/components/articles/Pagination'
-import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
+import { ArticleFeedSkeleton } from '@/components/articles/ArticleFeedSkeleton'
 import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
 import { readBrowseScrollY } from '@/lib/articles/browseListScrollStorage'
 import { getBrowseContextMessage } from '@/components/articles/ArticlesBrowseDiscoveryHeader'
@@ -71,7 +71,7 @@ export function ArticlesBrowseContent({
   }, [scrollStorageKey, listReady])
 
   if (result === undefined) {
-    return <ArticleGridSkeleton count={9} />
+    return <ArticleFeedSkeleton count={6} />
   }
 
   const articles = mapListArticlesToDisplay(result.articles)

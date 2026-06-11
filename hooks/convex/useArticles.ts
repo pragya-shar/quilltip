@@ -22,6 +22,10 @@ export function useBrowseTags(limit = 12) {
   return useQuery(api.articles.listBrowseTags, { limit })
 }
 
+export function useBrowseAuthors(limit = 20) {
+  return useQuery(api.articles.listBrowseAuthors, { limit })
+}
+
 export function useArticleBySlug(
   username: string | null | undefined,
   slug: string | null | undefined

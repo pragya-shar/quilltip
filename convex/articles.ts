@@ -277,6 +277,49 @@ export const listBrowseTags = query({
   },
 })
 
+export const listBrowseAuthors = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 20, 1), 50)
+    const rows = await ctx.db
+      .query('articles')
+      .withIndex('by_published_date', (q) => q.eq('published', true))
+      .order('desc')
+      .collect()
+
+    const counts = new Map<Id<'users'>, number>()
+    for (const article of rows) {
+      if (!isArticleListingReady(article)) continue
+      counts.set(article.authorId, (counts.get(article.authorId) ?? 0) + 1)
+    }
+
+    const sorted = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+
+    const authors: {
+      username: string
+      name: string | null
+      articleCount: number
+    }[] = []
+
+    for (const [authorId, articleCount] of sorted) {
+      const user = await ctx.db.get(authorId)
+      const username = user?.username?.trim()
+      if (!user || !username) continue
+      authors.push({
+        username,
+        name: user.name ?? null,
+        articleCount,
+      })
+    }
+
+    return authors
+  },
+})
+
 // Get article by slug
 export const getArticleBySlug = query({
   args: {

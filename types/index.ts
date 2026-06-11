@@ -22,6 +22,7 @@ export interface ArticleForDisplay {
   }>
   readTime?: number
   tipCount?: number
+  highlightCount?: number
   content?: JSONContent
   tipStats?: ArticleBySlug['tipStats']
 }

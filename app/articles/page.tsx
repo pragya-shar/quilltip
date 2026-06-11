@@ -113,9 +113,10 @@ export default function ArticlesPage() {
           view={view}
           sort={sort}
           activeTag={tag}
+          activeAuthor={author}
         />
 
-        {(tag || author || urlSearch) && (
+        {(tag || author) && (
           <div className="mb-6 flex items-center gap-2 flex-wrap">
             <span className="text-sm text-muted-foreground">Filtering by:</span>
             {tag && (
@@ -153,26 +154,6 @@ export default function ArticlesPage() {
                   }}
                   className="ml-2 hover:text-primary-foreground/80"
                   aria-label="Remove author filter"
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            {urlSearch && (
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-brand-blue text-white">
-                Search: &ldquo;{urlSearch}&rdquo;
-                <button
-                  onClick={() => {
-                    router.push(
-                      buildArticlesBrowseHref({
-                        search: '',
-                        page: 1,
-                        sourceParams: searchParams,
-                      })
-                    )
-                  }}
-                  className="ml-2 hover:text-primary-foreground/80"
-                  aria-label="Remove search filter"
                 >
                   ×
                 </button>

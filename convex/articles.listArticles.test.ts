@@ -741,6 +741,82 @@ describe('listArticles', () => {
   })
 })
 
+describe('listBrowseAuthors', () => {
+  it('returns authors ordered by published article count', async () => {
+    const t = convexTest(schema, modules)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const prolific = await ctx.db.insert('users', {
+        email: 'prolific@x.test',
+        username: 'prolific',
+        name: 'Prolific Writer',
+        createdAt: now,
+        updatedAt: now,
+      })
+      const quiet = await ctx.db.insert('users', {
+        email: 'quiet@x.test',
+        username: 'quiet',
+        name: 'Quiet Writer',
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      for (let i = 0; i < 2; i++) {
+        await ctx.db.insert('articles', {
+          slug: `prolific-${i}`,
+          title: `Prolific ${i}`,
+          excerpt: listingExcerpt,
+          content: emptyDoc,
+          published: true,
+          publishedAt: now + i,
+          authorId: prolific,
+          authorUsername: 'prolific',
+          tags: [],
+          searchContent: `Prolific ${i}`,
+          viewCount: 0,
+          highlightCount: 0,
+          tipCount: 0,
+          totalTipsUsd: 0,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+
+      await ctx.db.insert('articles', {
+        slug: 'quiet-one',
+        title: 'Quiet one',
+        excerpt: listingExcerpt,
+        content: emptyDoc,
+        published: true,
+        publishedAt: now,
+        authorId: quiet,
+        authorUsername: 'quiet',
+        tags: [],
+        searchContent: 'Quiet one',
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+
+      const authors = await ctx.runQuery(api.articles.listBrowseAuthors, {
+        limit: 5,
+      })
+      expect(authors[0]).toMatchObject({
+        username: 'prolific',
+        name: 'Prolific Writer',
+        articleCount: 2,
+      })
+      expect(authors[1]).toMatchObject({
+        username: 'quiet',
+        articleCount: 1,
+      })
+    })
+  })
+})
+
 describe('listBrowseTags', () => {
   it('returns tags ordered by article count', async () => {
     const t = convexTest(schema, modules)

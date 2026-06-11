@@ -31,6 +31,7 @@ export function mapListArticleRowToDisplay(
     })),
     readTime: article.readTime,
     tipCount: article.tipCount,
+    highlightCount: article.highlightCount,
   }
 }
 

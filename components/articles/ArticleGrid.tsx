@@ -1,4 +1,5 @@
 import ArticleCard from './ArticleCard'
+import ArticleFeedRow from './ArticleFeedRow'
 import { ArticleForDisplay } from '@/types/index'
 import Link from 'next/link'
 import { BookOpen } from 'lucide-react'
@@ -85,6 +86,23 @@ export default function ArticleGrid({
               </Button>
             )}
         </div>
+      </div>
+    )
+  }
+
+  if (variant === 'articles') {
+    return (
+      <div className="max-w-3xl mx-auto divide-y divide-border">
+        {articles.map((article, index) => (
+          <ArticleFeedRow
+            key={article.id}
+            article={article}
+            priority={index === 0}
+            onArticleNavigate={onArticleNavigate}
+            tagLinkAuthor={tagLinkAuthor}
+            view={view}
+          />
+        ))}
       </div>
     )
   }
