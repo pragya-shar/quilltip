@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Sparkles, Clock, TrendingUp } from 'lucide-react'
 import { useBrowseAuthors, useBrowseTags } from '@/hooks/convex'
@@ -80,7 +81,7 @@ export function ArticlesBrowseDiscoveryHeader({
   const authors = browseAuthors ?? []
 
   return (
-    <div className="mb-6 border-b border-border">
+    <div className="mb-6 space-y-4 border-b border-border pb-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="-mb-px flex-1 overflow-x-auto">
           <div
@@ -110,30 +111,10 @@ export function ArticlesBrowseDiscoveryHeader({
                 </button>
               )
             })}
-
-            {tags.length > 0 && (
-              <>
-                <span
-                  className="mx-2 h-4 w-px shrink-0 bg-border self-center"
-                  aria-hidden
-                />
-                {tags.map(({ tag }) => (
-                  <TagFilterLink
-                    key={tag}
-                    tag={tag}
-                    className={cn(
-                      'my-1 shrink-0',
-                      activeTag === tag &&
-                        'bg-foreground text-background hover:bg-foreground/90 hover:text-background'
-                    )}
-                  />
-                ))}
-              </>
-            )}
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-3 pb-3">
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
           {authors.length > 0 && (
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
               <span className="sr-only sm:not-sr-only">Author</span>
@@ -172,6 +153,34 @@ export function ArticlesBrowseDiscoveryHeader({
           )}
         </div>
       </div>
+
+      {tags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground shrink-0">Topics</span>
+          {tags.map(({ tag }) => (
+            <TagFilterLink
+              key={tag}
+              tag={tag}
+              className={cn(
+                activeTag === tag &&
+                  'bg-foreground text-background hover:bg-foreground/90 hover:text-background'
+              )}
+            />
+          ))}
+          {activeTag && (
+            <Link
+              href={buildArticlesBrowseHref({
+                tag: '',
+                page: 1,
+                sourceParams: searchParams,
+              })}
+              className="text-sm text-brand-blue hover:text-brand-accent underline"
+            >
+              Clear topic
+            </Link>
+          )}
+        </div>
+      )}
     </div>
   )
 }
