@@ -1,10 +1,10 @@
 'use client'
 
 import { AlertCircle } from 'lucide-react'
-import { useProfileTabNavigation } from '@/hooks/useProfileTabNavigation'
+import { useDashboardNavigation } from '@/hooks/useDashboardNavigation'
 
 export function WalletSetupNotice() {
-  const navigateToTab = useProfileTabNavigation()
+  const navigateToDashboard = useDashboardNavigation()
 
   return (
     <div className="bg-warning border border-warning/50 rounded-lg p-6">
@@ -20,7 +20,7 @@ export function WalletSetupNotice() {
           </p>
           <button
             type="button"
-            onClick={() => navigateToTab('wallet')}
+            onClick={() => navigateToDashboard('wallet')}
             className="text-sm font-medium text-warning-foreground hover:text-warning-foreground/80 underline"
           >
             Go to Wallet Settings →

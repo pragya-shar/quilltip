@@ -5,7 +5,7 @@ import ProfileRedirectPage from './page'
 import { buildLoginHref } from '@/lib/auth/safeReturnPath'
 import {
   WALLET_PROFILE_HUB_PATH,
-  getWalletTabPath,
+  getDashboardWalletPath,
 } from '@/lib/navigation/walletProfileDestination'
 
 const replace = vi.fn()
@@ -47,7 +47,7 @@ describe('ProfileRedirectPage', () => {
     expect(replace).not.toHaveBeenCalled()
   })
 
-  it('redirects authenticated users to their wallet tab', async () => {
+  it('redirects authenticated users to dashboard wallet', async () => {
     useAuthMock.mockReturnValue({
       user: { username: 'alice' },
       isAuthenticated: true,
@@ -57,7 +57,7 @@ describe('ProfileRedirectPage', () => {
     render(<ProfileRedirectPage />)
 
     await waitFor(() => {
-      expect(replace).toHaveBeenCalledWith(getWalletTabPath('alice'))
+      expect(replace).toHaveBeenCalledWith(getDashboardWalletPath())
     })
   })
 

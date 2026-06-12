@@ -19,7 +19,7 @@ import { WithdrawalDialog } from '@/components/dashboard/WithdrawalDialog'
 import { EarningsStats } from '@/components/dashboard/EarningsStats'
 import { EarningsDashboardSkeleton } from '@/components/dashboard/EarningsDashboardSkeleton'
 import { withdrawalFlowNote } from '@/lib/copy/network-status'
-import { useProfileTabNavigation } from '@/hooks/useProfileTabNavigation'
+import { useDashboardNavigation } from '@/hooks/useDashboardNavigation'
 
 type WithdrawalOutcome =
   | { kind: 'success'; message: string }
@@ -34,7 +34,7 @@ export function EarningsDashboard() {
   >(null)
   const withdrawTriggerRef = useRef<HTMLButtonElement>(null)
   const router = useRouter()
-  const navigateToTab = useProfileTabNavigation()
+  const navigateToDashboard = useDashboardNavigation()
 
   const { user: currentUser } = useAuth()
 
@@ -79,7 +79,7 @@ export function EarningsDashboard() {
       if (hasWallet) {
         router.push('/write')
       } else {
-        navigateToTab('wallet')
+        navigateToDashboard('wallet')
       }
     }
 

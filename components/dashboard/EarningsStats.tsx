@@ -6,7 +6,7 @@ import type { Doc } from '@/types/convex'
 import { MonthlyEarningsChart } from '@/components/dashboard/monthly-earnings-chart'
 import { TopEarningArticles } from '@/components/dashboard/top-earning-articles'
 import { WalletSetupNotice } from '@/components/dashboard/wallet-setup-notice'
-import { useProfileTabNavigation } from '@/hooks/useProfileTabNavigation'
+import { useDashboardNavigation } from '@/hooks/useDashboardNavigation'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   networkLabelLowercase,
@@ -28,7 +28,7 @@ export function EarningsStats({
   onOpenWithdrawModal,
   withdrawTriggerRef,
 }: EarningsStatsProps) {
-  const navigateToTab = useProfileTabNavigation()
+  const navigateToDashboard = useDashboardNavigation()
   const lastWithdrawal = earnings.lastWithdrawalAt
   const belowWithdrawalMinimum = earnings.availableBalanceUsd < minWithdrawalUsd
   const showMinimumWithdrawalHelper =
@@ -71,7 +71,7 @@ export function EarningsStats({
             type="button"
             onClick={() => {
               if (!userProfile?.stellarAddress) {
-                navigateToTab('wallet')
+                navigateToDashboard('wallet')
               } else {
                 onOpenWithdrawModal()
               }

@@ -58,6 +58,6 @@ describe('WalletGuide tabs', () => {
     await user.click(screen.getByRole('tab', { name: 'Connect' }))
     expect(
       screen.getByRole('link', { name: 'Go to Profile Settings' })
-    ).toHaveAttribute('href', '/profile?tab=wallet')
+    ).toHaveAttribute('href', '/dashboard/wallet')
   })
 })

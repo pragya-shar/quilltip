@@ -1,7 +1,7 @@
-export const WALLET_PROFILE_HUB_PATH = '/profile?tab=wallet'
+export const WALLET_PROFILE_HUB_PATH = '/dashboard/wallet'
 
-export function getWalletTabPath(username: string): string {
-  return `/${username}?tab=wallet`
+export function getDashboardWalletPath(): string {
+  return '/dashboard/wallet'
 }
 
 export function getLoginRedirectPath(intendedPath: string): string {
