@@ -1,16 +1,31 @@
 'use client'
 
-import { createContext, useContext, useEffect, type ReactNode } from 'react'
+import dynamic from 'next/dynamic'
 import {
-  useStellarWallet,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react'
+import type {
   StellarWalletState,
   StellarWalletActions,
 } from '@/hooks/useStellarWallet'
 import { useWalletActivation } from './WalletActivationContext'
 
-type WalletContextType = StellarWalletState & StellarWalletActions
+export type WalletContextType = StellarWalletState & StellarWalletActions
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
+
+const LazyWalletRuntime = dynamic(
+  () =>
+    import('./WalletRuntime').then((mod) => ({
+      default: mod.WalletRuntime,
+    })),
+  { ssr: false }
+)
 
 const INACTIVE_WALLET_STUB: WalletContextType = {
   isInstalled: false,
@@ -39,10 +54,31 @@ interface WalletProviderProps {
 }
 
 export function WalletProvider({ children }: WalletProviderProps) {
-  const wallet = useStellarWallet()
+  const { isWalletActive, activateWallet } = useWalletActivation()
+  const [activeWallet, setActiveWallet] = useState<WalletContextType | null>(
+    null
+  )
+
+  const inactiveWallet = useMemo<WalletContextType>(
+    () => ({
+      ...INACTIVE_WALLET_STUB,
+      connect: async () => {
+        activateWallet()
+        return false
+      },
+    }),
+    [activateWallet]
+  )
+
+  const wallet = !isWalletActive
+    ? inactiveWallet
+    : (activeWallet ?? LOADING_WALLET_STUB)
 
   return (
-    <WalletContext.Provider value={wallet}>{children}</WalletContext.Provider>
+    <WalletContext.Provider value={wallet}>
+      {isWalletActive && <LazyWalletRuntime onWalletChange={setActiveWallet} />}
+      {children}
+    </WalletContext.Provider>
   )
 }
 
@@ -54,6 +90,16 @@ type UseWalletOptions = {
 export function useWallet(options?: UseWalletOptions): WalletContextType {
   const { isWalletActive, activateWallet } = useWalletActivation()
   const context = useContext(WalletContext)
+  const inactiveWallet = useMemo<WalletContextType>(
+    () => ({
+      ...INACTIVE_WALLET_STUB,
+      connect: async () => {
+        activateWallet()
+        return false
+      },
+    }),
+    [activateWallet]
+  )
 
   useEffect(() => {
     if (options?.activateOnMount) {
@@ -61,17 +107,8 @@ export function useWallet(options?: UseWalletOptions): WalletContextType {
     }
   }, [options?.activateOnMount, activateWallet])
 
-  if (!isWalletActive) {
-    return {
-      ...INACTIVE_WALLET_STUB,
-      connect: async () => {
-        activateWallet()
-        return false
-      },
-    }
-  }
-
   if (context === undefined) {
+    if (!isWalletActive) return inactiveWallet
     return LOADING_WALLET_STUB
   }
 

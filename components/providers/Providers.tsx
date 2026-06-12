@@ -1,22 +1,13 @@
 'use client'
 
-import dynamic from 'next/dynamic'
 import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import { ConvexReactClient } from 'convex/react'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
-import {
-  WalletActivationProvider,
-  useWalletActivation,
-} from './WalletActivationContext'
+import { WalletActivationProvider } from './WalletActivationContext'
+import { WalletProvider } from './WalletProvider'
 import { AuthSessionProvider } from './AuthContext'
-
-const LazyWalletProvider = dynamic(
-  () =>
-    import('./WalletProvider').then((mod) => ({ default: mod.WalletProvider })),
-  { ssr: false }
-)
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
@@ -33,16 +24,6 @@ const WalletErrorFallback = (
   </div>
 )
 
-function WalletBoundary({ children }: { children: React.ReactNode }) {
-  const { isWalletActive } = useWalletActivation()
-
-  if (!isWalletActive) {
-    return <>{children}</>
-  }
-
-  return <LazyWalletProvider>{children}</LazyWalletProvider>
-}
-
 export default function Providers({ children }: ProvidersProps) {
   return (
     <ConvexAuthProvider client={convex}>
@@ -50,10 +31,10 @@ export default function Providers({ children }: ProvidersProps) {
         <ThemeProvider>
           <WalletActivationProvider>
             <ErrorBoundary fallback={WalletErrorFallback}>
-              <WalletBoundary>
+              <WalletProvider>
                 {children}
                 <Toaster />
-              </WalletBoundary>
+              </WalletProvider>
             </ErrorBoundary>
           </WalletActivationProvider>
         </ThemeProvider>

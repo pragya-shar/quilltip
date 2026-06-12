@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   walletAdapter,
   WalletInfo,
@@ -226,11 +226,14 @@ export function useStellarWallet(): StellarWalletState & StellarWalletActions {
     }
   }, [state.isInstalled, state.isConnected])
 
-  return {
-    ...state,
-    connect,
-    disconnect,
-    signTransaction: signTransactionXDR,
-    refreshConnection,
-  }
+  return useMemo(
+    () => ({
+      ...state,
+      connect,
+      disconnect,
+      signTransaction: signTransactionXDR,
+      refreshConnection,
+    }),
+    [connect, disconnect, refreshConnection, signTransactionXDR, state]
+  )
 }
