@@ -100,11 +100,11 @@ export function OnboardingIntentHome() {
         <div className="text-center mb-10">
           <h1
             id="onboarding-heading"
-            className="text-3xl font-bold text-foreground mb-3"
+            className="text-3xl font-bold text-brand mb-3"
           >
             Welcome to Quilltip
           </h1>
-          <p className="text-muted-foreground leading-relaxed">
+          <p className="text-brand/70 leading-relaxed">
             Reading and writing are free. Choose where to start.
           </p>
         </div>
@@ -127,28 +127,28 @@ export function OnboardingIntentHome() {
                 onClick={() => setSelected(intent.id)}
                 className={cn(
                   'relative flex flex-col text-left rounded-[var(--card-radius)] border bg-card p-5 transition-all',
-                  'hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+                  'hover:border-brand/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2',
                   'disabled:opacity-50 disabled:pointer-events-none',
                   isSelected
-                    ? 'border-primary ring-1 ring-primary shadow-sm'
-                    : 'border-border'
+                    ? 'border-brand bg-brand/5 ring-1 ring-brand shadow-sm'
+                    : 'border-brand/25'
                 )}
               >
                 <span
                   aria-hidden
                   className={cn(
                     'absolute top-4 right-4 h-5 w-5 rounded-full border-2 flex items-center justify-center',
-                    isSelected ? 'border-primary' : 'border-muted-foreground/40'
+                    isSelected ? 'border-brand' : 'border-brand/30'
                   )}
                 >
                   {isSelected ? (
-                    <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-brand" />
                   ) : null}
                 </span>
 
                 <div
                   aria-hidden
-                  className="mb-5 flex h-28 items-center justify-center rounded-lg border border-border/60 overflow-hidden bg-white"
+                  className="mb-5 flex h-28 items-center justify-center rounded-lg border border-brand/15 overflow-hidden bg-brand/5"
                 >
                   <Image
                     src={intent.imageSrc}
@@ -162,10 +162,10 @@ export function OnboardingIntentHome() {
                   />
                 </div>
 
-                <h2 className="text-base font-semibold text-foreground mb-1.5 pr-6">
+                <h2 className="text-base font-semibold text-brand mb-1.5 pr-6">
                   {intent.title}
                 </h2>
-                <p className="text-sm text-muted-foreground leading-relaxed">
+                <p className="text-sm text-brand/70 leading-relaxed">
                   {intent.description}
                 </p>
               </button>
@@ -177,7 +177,7 @@ export function OnboardingIntentHome() {
           <Button
             type="button"
             size="lg"
-            className="w-full sm:w-auto min-w-48 min-h-11 text-base px-10"
+            className="w-full sm:w-auto min-w-48 min-h-11 text-base px-10 bg-brand text-brand-foreground hover:bg-brand-hover"
             disabled={!selected || isCompleting}
             onClick={handleContinue}
           >
