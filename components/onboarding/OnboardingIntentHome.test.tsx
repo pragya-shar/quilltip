@@ -36,14 +36,16 @@ describe('OnboardingIntentHome', () => {
     expect(
       screen.getByRole('heading', { name: /Welcome to Quilltip/i })
     ).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Read first/i })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Write first/i })).toBeInTheDocument()
+    expect(
+      screen.getByRole('radio', { name: /Read first/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('radio', { name: /Write first/i })
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('radio', { name: /Set up wallet/i })
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: /Continue/i })
-    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: /Continue/i })).toBeDisabled()
     expect(screen.queryByText(/Step \d+ of \d+/)).not.toBeInTheDocument()
   })
 
