@@ -5,9 +5,9 @@ import {
 } from './buildArticlesBrowseHref'
 
 describe('pickArticlesBrowseParams', () => {
-  it('keeps only tag, page, search, and author', () => {
+  it('keeps only browse query keys', () => {
     const source = new URLSearchParams(
-      'page=2&tag=rust&search=foo&author=alice&nftOwnedPage=3&tab=earnings'
+      'page=2&tag=rust&search=foo&author=alice&view=trending&sort=oldest&nftOwnedPage=3&tab=earnings'
     )
     const picked = pickArticlesBrowseParams(source)
     expect(Object.fromEntries(picked)).toEqual({
@@ -15,6 +15,8 @@ describe('pickArticlesBrowseParams', () => {
       page: '2',
       search: 'foo',
       author: 'alice',
+      view: 'trending',
+      sort: 'oldest',
     })
   })
 
@@ -78,5 +80,25 @@ describe('buildArticlesBrowseHref', () => {
         page: 2,
       })
     ).toBe('/articles?tag=rust&page=2')
+  })
+
+  it('sets view and sort when non-default', () => {
+    expect(
+      buildArticlesBrowseHref({
+        view: 'trending',
+        sort: 'oldest',
+        page: 1,
+      })
+    ).toBe('/articles?view=trending&sort=oldest')
+  })
+
+  it('omits default view and sort from href', () => {
+    expect(
+      buildArticlesBrowseHref({
+        view: 'latest',
+        sort: 'newest',
+        page: 1,
+      })
+    ).toBe('/articles')
   })
 })
