@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { MIN_WITHDRAWAL_USD } from '@/lib/constants'
+import { REGISTER_FOR_WRITE_HREF } from '@/lib/auth/auth-links'
 
 export interface LandingFeature {
   icon: LucideIcon
@@ -23,7 +24,7 @@ export const LANDING_FEATURES: LandingFeature[] = [
     icon: Edit3,
     title: 'Rich Editor',
     description: 'Code blocks, media embeds, and full markdown support.',
-    href: '/register',
+    href: REGISTER_FOR_WRITE_HREF,
   },
   {
     icon: DollarSign,

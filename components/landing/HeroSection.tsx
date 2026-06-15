@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { ArrowRight, Zap } from 'lucide-react'
 import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
+import { REGISTER_FOR_WRITE_HREF } from '@/lib/auth/auth-links'
 import {
   HERO_START_READING,
   HERO_START_WRITING,
@@ -226,7 +227,7 @@ export default function HeroSection() {
             </Link>
             <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px] sm:text-[13px]">
               <Link
-                href="/register"
+                href={REGISTER_FOR_WRITE_HREF}
                 className="focus-ring rounded-sm text-muted-foreground transition-colors hover:text-foreground"
               >
                 {HERO_START_WRITING}

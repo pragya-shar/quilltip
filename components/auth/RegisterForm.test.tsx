@@ -36,6 +36,21 @@ describe('RegisterForm accessibility', () => {
     mockUseAuthReturnPath.mockReturnValue('/profile?tab=wallet')
   })
 
+  it('does not show a full name field on the initial signup screen', () => {
+    render(<RegisterForm />)
+
+    expect(screen.queryByLabelText(/full name/i)).not.toBeInTheDocument()
+  })
+
+  it('uses write-intent submit label when return path is the editor', () => {
+    mockUseAuthReturnPath.mockReturnValue('/write')
+    render(<RegisterForm />)
+
+    expect(
+      screen.getByRole('button', { name: /create account and start writing/i })
+    ).toBeInTheDocument()
+  })
+
   it('marks the first invalid field and associates its error on empty submit', async () => {
     const user = userEvent.setup({ delay: null })
     render(<RegisterForm />)

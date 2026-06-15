@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
+import { useAuthPageCopy } from '@/components/auth/AuthIntentHeading'
 import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import { getSafeRedirectPath } from '@/lib/navigation/walletProfileDestination'
 import { useForm } from 'react-hook-form'
@@ -34,6 +35,7 @@ export default function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnToPath = useAuthReturnPath()
+  const copy = useAuthPageCopy('login')
   const redirectParam = searchParams.get('redirect')
   const postLoginPath =
     redirectParam != null && redirectParam !== ''
@@ -101,7 +103,7 @@ export default function LoginForm() {
               aria-hidden="true"
               className="h-4 w-4 shrink-0 text-success-foreground"
             />
-            <span>Signed in successfully! Redirecting to dashboard...</span>
+            <span>{copy.successMessage}</span>
           </p>
         </div>
       </div>
@@ -185,10 +187,10 @@ export default function LoginForm() {
         {isLoading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            Signing in...
+            {copy.submitLoadingLabel}
           </>
         ) : (
-          'Sign in'
+          copy.submitLabel
         )}
       </Button>
     </form>

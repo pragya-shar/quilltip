@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, type FieldErrors } from 'react-hook-form'
 import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
+import { useAuthPageCopy } from '@/components/auth/AuthIntentHeading'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { parseRegisterSignInError } from '@/lib/auth/map-register-error'
 import { getFirstRegisterFieldError } from '@/lib/auth/register-form-a11y'
@@ -24,7 +25,7 @@ const PASSWORD_VALIDATION_MESSAGE = 'Password does not meet all requirements'
 /**
  * Register Form Component
  *
- * Handles user registration with email, username, password, and optional name.
+ * Handles user registration with email, username, and password.
  * Includes form validation, error handling, and loading states.
  */
 
@@ -42,6 +43,7 @@ export default function RegisterForm() {
 
   const router = useRouter()
   const returnPath = useAuthReturnPath()
+  const copy = useAuthPageCopy('register')
   const { signIn } = useAuth()
 
   const {
@@ -100,7 +102,6 @@ export default function RegisterForm() {
         password: data.password,
         flow: 'signUp',
         username: data.username,
-        ...(data.name && { name: data.name }),
       })
 
       setSuccess(true)
@@ -148,9 +149,7 @@ export default function RegisterForm() {
               aria-hidden="true"
               className="h-4 w-4 shrink-0 text-success-foreground"
             />
-            <span>
-              Account created successfully! Redirecting to dashboard...
-            </span>
+            <span>{copy.successMessage}</span>
           </p>
         </div>
       </div>
@@ -205,29 +204,6 @@ export default function RegisterForm() {
             id="username"
             autoComplete="username"
             placeholder="Choose a unique username"
-            aria-invalid={control['aria-invalid']}
-            aria-describedby={control['aria-describedby']}
-            className={control.inputClassName}
-          />
-        )}
-      </RegisterFormField>
-
-      <RegisterFormField
-        id="name"
-        label={
-          <>
-            Full Name <span className="text-muted-foreground">(optional)</span>
-          </>
-        }
-        error={errors.name?.message}
-      >
-        {(control) => (
-          <Input
-            {...registerField('name')}
-            type="text"
-            id="name"
-            autoComplete="name"
-            placeholder="Your full name"
             aria-invalid={control['aria-invalid']}
             aria-describedby={control['aria-describedby']}
             className={control.inputClassName}
@@ -326,10 +302,10 @@ export default function RegisterForm() {
         {isLoading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Creating account...
+            {copy.submitLoadingLabel}
           </>
         ) : (
-          'Create account'
+          copy.submitLabel
         )}
       </Button>
     </form>
