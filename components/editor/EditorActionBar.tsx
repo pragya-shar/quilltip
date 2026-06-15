@@ -111,6 +111,8 @@ interface EditorActionBarProps {
   moreMenuOpen?: boolean
   onMoreMenuOpenChange?: (open: boolean) => void
   excerptMaxChars?: number
+  notesOpen?: boolean
+  onNotesOpenChange?: (open: boolean) => void
 }
 
 const RELATIVE_TIME_INTERVAL_MS = 30_000
@@ -118,6 +120,134 @@ const DEFAULT_EXCERPT_MAX_CHARS = 500
 
 const focusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+
+function NotesMenuSection({
+  notes,
+  onNotesChange,
+  notesOpen,
+  onNotesOpenChange,
+  notesTextareaRef,
+  onRequestCloseMenu,
+}: {
+  notes: string
+  onNotesChange: (value: string) => void
+  notesOpen: boolean
+  onNotesOpenChange: (open: boolean) => void
+  notesTextareaRef: RefObject<HTMLTextAreaElement | null>
+  onRequestCloseMenu?: () => void
+}) {
+  const isMobile = useIsMobile()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const notesTriggerRef = useRef<HTMLButtonElement>(null)
+
+  if (isMobile) {
+    return (
+      <>
+        <DropdownMenu.Item
+          className="px-4 py-2.5 text-sm text-foreground outline-none flex cursor-pointer flex-col items-start gap-0.5 hover:bg-muted focus:bg-muted"
+          onSelect={(event) => {
+            event.preventDefault()
+            onRequestCloseMenu?.()
+            setDrawerOpen(true)
+          }}
+        >
+          <span className="flex items-center gap-2">
+            <FileText className="h-4 w-4 shrink-0" />
+            <span>Personal notes</span>
+          </span>
+          <span className="pl-6 text-[11px] leading-snug text-muted-foreground">
+            Private, not published
+          </span>
+        </DropdownMenu.Item>
+        <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+          <DrawerContent
+            className="max-h-[min(70dvh,32rem)] gap-0 overflow-y-auto px-0 pb-6"
+            onOpenAutoFocus={(e) => {
+              e.preventDefault()
+              notesTextareaRef.current?.focus()
+            }}
+          >
+            <DrawerHeader className="space-y-0 px-4 pb-2 text-left">
+              <div className="flex items-start justify-between gap-3 pr-8">
+                <div className="min-w-0 space-y-1">
+                  <DrawerTitle className="text-base">Personal Notes</DrawerTitle>
+                  <DrawerDescription className="text-left text-xs leading-snug">
+                    {WRITER_NOTES_HELPER_TEXT}
+                  </DrawerDescription>
+                </div>
+                <DrawerClose asChild>
+                  <button
+                    ref={notesTriggerRef}
+                    type="button"
+                    className={cn(
+                      'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-primary hover:bg-muted',
+                      focusRing
+                    )}
+                  >
+                    Done
+                  </button>
+                </DrawerClose>
+              </div>
+            </DrawerHeader>
+            <WriterNotesPanel
+              ref={notesTextareaRef}
+              notes={notes}
+              onNotesChange={onNotesChange}
+              showHeader={false}
+              textareaClassName="min-h-[8rem] rounded-none border-0 bg-background"
+            />
+          </DrawerContent>
+        </Drawer>
+      </>
+    )
+  }
+
+  return (
+    <Collapsible open={notesOpen} onOpenChange={onNotesOpenChange}>
+      <DropdownMenu.Item
+        className="px-4 py-2.5 text-sm text-foreground outline-none flex cursor-pointer items-center justify-between gap-2 hover:bg-muted focus:bg-muted data-[highlighted]:bg-muted"
+        onSelect={(event) => {
+          event.preventDefault()
+          const nextOpen = !notesOpen
+          onNotesOpenChange(nextOpen)
+          if (nextOpen) {
+            window.setTimeout(() => notesTextareaRef.current?.focus(), 0)
+          }
+        }}
+      >
+        <span className="flex min-w-0 flex-col items-start gap-0.5">
+          <span className="flex items-center gap-2">
+            <FileText className="h-4 w-4 shrink-0" />
+            <span>Personal notes</span>
+          </span>
+          <span className="pl-6 text-[11px] leading-snug text-muted-foreground">
+            Private, not published
+          </span>
+        </span>
+        <ChevronDown
+          className={cn(
+            'h-3.5 w-3.5 shrink-0 transition-transform',
+            notesOpen && 'rotate-180'
+          )}
+        />
+      </DropdownMenu.Item>
+      <CollapsibleContent>
+        <div
+          className="space-y-2 border-t border-border px-3 pb-3 pt-2"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <WriterNotesPanel
+            ref={notesTextareaRef}
+            notes={notes}
+            onNotesChange={onNotesChange}
+            showHeader={false}
+            textareaClassName="min-h-[6rem] resize-none text-sm"
+          />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
 
 function MoreMenu({
   editor,
@@ -130,6 +260,11 @@ function MoreMenu({
   excerptOpen = false,
   onExcerptOpenChange,
   excerptTextareaRef,
+  notes = '',
+  onNotesChange,
+  notesOpen = false,
+  onNotesOpenChange,
+  notesTextareaRef,
   moreMenuOpen,
   onMoreMenuOpenChange,
   excerptMaxChars = DEFAULT_EXCERPT_MAX_CHARS,
@@ -145,6 +280,11 @@ function MoreMenu({
   excerptOpen?: boolean
   onExcerptOpenChange?: (open: boolean) => void
   excerptTextareaRef?: RefObject<HTMLTextAreaElement | null>
+  notes?: string
+  onNotesChange?: (value: string) => void
+  notesOpen?: boolean
+  onNotesOpenChange?: (open: boolean) => void
+  notesTextareaRef?: RefObject<HTMLTextAreaElement | null>
   moreMenuOpen?: boolean
   onMoreMenuOpenChange?: (open: boolean) => void
   excerptMaxChars?: number
@@ -164,7 +304,14 @@ function MoreMenu({
     } else {
       setInternalOpen(open)
     }
-    if (!open) onExcerptOpenChange?.(false)
+    if (!open) {
+      onExcerptOpenChange?.(false)
+      onNotesOpenChange?.(false)
+    }
+  }
+
+  const closeMenu = () => {
+    handleOpenChange(false)
   }
 
   return (
@@ -186,7 +333,7 @@ function MoreMenu({
         <DropdownMenu.Content
           className={cn(
             'bg-card rounded-lg shadow-lg border border-border py-1 z-50',
-            excerptOpen ? 'min-w-[280px]' : 'min-w-[180px]'
+            excerptOpen || notesOpen ? 'min-w-[280px]' : 'min-w-[180px]'
           )}
           sideOffset={4}
           align="end"
@@ -305,6 +452,19 @@ function MoreMenu({
               </Collapsible>
             </>
           ) : null}
+          {onNotesChange && onNotesOpenChange && notesTextareaRef ? (
+            <>
+              <DropdownMenu.Separator className="h-px bg-border my-1" />
+              <NotesMenuSection
+                notes={notes}
+                onNotesChange={onNotesChange}
+                notesOpen={notesOpen}
+                onNotesOpenChange={onNotesOpenChange}
+                notesTextareaRef={notesTextareaRef}
+                onRequestCloseMenu={closeMenu}
+              />
+            </>
+          ) : null}
           <DropdownMenu.Separator className="h-px bg-border my-1" />
           <DropdownMenu.Item
             className="px-4 py-2.5 text-sm text-muted-foreground outline-none flex items-center gap-2"
@@ -354,112 +514,6 @@ function MoreMenu({
   )
 }
 
-function NotesControl({
-  notes,
-  onNotesChange,
-}: {
-  notes: string
-  onNotesChange: (value: string) => void
-}) {
-  const isMobile = useIsMobile()
-  const [showNotes, setShowNotes] = useState(false)
-  const notesTriggerRef = useRef<HTMLButtonElement>(null)
-  const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
-
-  const triggerButton = (
-    <button
-      ref={notesTriggerRef}
-      type="button"
-      aria-label="Notes"
-      aria-expanded={showNotes}
-      title="Notes"
-      onClick={() => {
-        if (isMobile) {
-          setShowNotes(true)
-        } else {
-          setShowNotes((open) => !open)
-        }
-      }}
-      className={cn(
-        'flex items-center gap-1.5 rounded px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-muted shrink-0',
-        focusRing,
-        showNotes ? 'bg-muted text-primary' : 'text-muted-foreground'
-      )}
-    >
-      <FileText className="h-4 w-4 shrink-0" />
-      <span className="hidden sm:inline">Notes</span>
-    </button>
-  )
-
-  if (isMobile) {
-    return (
-      <Drawer open={showNotes} onOpenChange={setShowNotes}>
-        {triggerButton}
-        <DrawerContent
-          className="max-h-[min(70dvh,32rem)] gap-0 overflow-y-auto px-0 pb-6"
-          onOpenAutoFocus={(e) => {
-            e.preventDefault()
-            notesTextareaRef.current?.focus()
-          }}
-          onCloseAutoFocus={(e) => {
-            e.preventDefault()
-            notesTriggerRef.current?.focus()
-          }}
-        >
-          <DrawerHeader className="space-y-0 px-4 pb-2 text-left">
-            <div className="flex items-start justify-between gap-3 pr-8">
-              <div className="min-w-0 space-y-1">
-                <DrawerTitle className="text-base">Personal Notes</DrawerTitle>
-                <DrawerDescription className="text-left text-xs leading-snug">
-                  {WRITER_NOTES_HELPER_TEXT}
-                </DrawerDescription>
-              </div>
-              <DrawerClose asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-primary hover:bg-muted',
-                    focusRing
-                  )}
-                >
-                  Done
-                </button>
-              </DrawerClose>
-            </div>
-          </DrawerHeader>
-          <WriterNotesPanel
-            ref={notesTextareaRef}
-            notes={notes}
-            onNotesChange={onNotesChange}
-            showHeader={false}
-            textareaClassName="min-h-[8rem] rounded-none border-0 bg-background"
-          />
-        </DrawerContent>
-      </Drawer>
-    )
-  }
-
-  return (
-    <div className="relative">
-      {triggerButton}
-      {showNotes && (
-        <div
-          className="absolute top-full right-0 z-50 mt-1 w-72 max-w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-popover shadow-lg"
-          role="dialog"
-          aria-label="Personal notes"
-        >
-          <WriterNotesPanel
-            ref={notesTextareaRef}
-            notes={notes}
-            onNotesChange={onNotesChange}
-            textareaClassName="rounded-b-lg"
-          />
-        </div>
-      )}
-    </div>
-  )
-}
-
 export function EditorActionBar({
   editor,
   onBack,
@@ -489,10 +543,16 @@ export function EditorActionBar({
   moreMenuOpen,
   onMoreMenuOpenChange,
   excerptMaxChars,
+  notesOpen: notesOpenProp,
+  onNotesOpenChange: onNotesOpenChangeProp,
 }: EditorActionBarProps) {
   const publishBlockReasonId = useId()
   const [relativeTick, setRelativeTick] = useState(0)
   const isMobile = useIsMobile()
+  const [internalNotesOpen, setInternalNotesOpen] = useState(false)
+  const notesTextareaRef = useRef<HTMLTextAreaElement>(null)
+  const notesOpen = notesOpenProp ?? internalNotesOpen
+  const onNotesOpenChange = onNotesOpenChangeProp ?? setInternalNotesOpen
 
   const showRelativeSaved =
     !isSaving && !error && !hasUnsavedChanges && lastSavedAt != null
@@ -600,9 +660,6 @@ export function EditorActionBar({
             Back
           </button>
           <div className="flex min-w-0 items-center justify-end gap-1.5">
-            {onNotesChange && (
-              <NotesControl notes={notes} onNotesChange={onNotesChange} />
-            )}
             {publishControl}
             <MoreMenu
               editor={editor}
@@ -615,6 +672,11 @@ export function EditorActionBar({
               excerptOpen={excerptOpen}
               onExcerptOpenChange={onExcerptOpenChange}
               excerptTextareaRef={excerptTextareaRef}
+              notes={notes}
+              onNotesChange={onNotesChange}
+              notesOpen={notesOpen}
+              onNotesOpenChange={onNotesOpenChange}
+              notesTextareaRef={notesTextareaRef}
               moreMenuOpen={moreMenuOpen}
               onMoreMenuOpenChange={onMoreMenuOpenChange}
               excerptMaxChars={excerptMaxChars}
@@ -674,10 +736,6 @@ export function EditorActionBar({
             </>
           )}
 
-          {onNotesChange && (
-            <NotesControl notes={notes} onNotesChange={onNotesChange} />
-          )}
-
           {publishControl}
 
           <MoreMenu
@@ -691,6 +749,11 @@ export function EditorActionBar({
             excerptOpen={excerptOpen}
             onExcerptOpenChange={onExcerptOpenChange}
             excerptTextareaRef={excerptTextareaRef}
+            notes={notes}
+            onNotesChange={onNotesChange}
+            notesOpen={notesOpen}
+            onNotesOpenChange={onNotesOpenChange}
+            notesTextareaRef={notesTextareaRef}
             moreMenuOpen={moreMenuOpen}
             onMoreMenuOpenChange={onMoreMenuOpenChange}
             excerptMaxChars={excerptMaxChars}

@@ -3,8 +3,21 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { type Editor } from '@tiptap/react'
-import { Code, Image as ImageIcon, Plus, Quote, Youtube } from 'lucide-react'
+import {
+  Code,
+  Image as ImageIcon,
+  List,
+  ListOrdered,
+  Plus,
+  Quote,
+  Youtube,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  editorInsertPlusButtonClass,
+  editorToolbarIconButtonClass,
+  editorToolbarPillClass,
+} from './editorToolbarUi'
 
 interface Props {
   editor: Editor | null
@@ -63,6 +76,57 @@ export function EditorFloatingInsert({
 
   const stop = (e: React.MouseEvent) => e.preventDefault()
 
+  const formatAction = (action: () => void) => () => {
+    action()
+    setOpen(false)
+  }
+
+  const iconBtn = (
+    title: string,
+    icon: React.ReactNode,
+    action: () => void,
+    active = false
+  ) => (
+    <button
+      key={title}
+      type="button"
+      title={title}
+      aria-label={title}
+      aria-pressed={active}
+      onMouseDown={stop}
+      onClick={formatAction(action)}
+      className={cn(
+        editorToolbarIconButtonClass,
+        active ? 'bg-muted text-primary' : 'text-foreground'
+      )}
+    >
+      {icon}
+    </button>
+  )
+
+  const headingBtn = (level: 2 | 3, label: string) => (
+    <button
+      key={label}
+      type="button"
+      title={`Heading ${level}`}
+      aria-label={`Heading ${level}`}
+      aria-pressed={editor.isActive('heading', { level })}
+      onMouseDown={stop}
+      onClick={formatAction(() =>
+        editor.chain().focus().toggleHeading({ level }).run()
+      )}
+      className={cn(
+        editorToolbarIconButtonClass,
+        'text-xs font-semibold',
+        editor.isActive('heading', { level })
+          ? 'bg-muted text-primary'
+          : 'text-foreground'
+      )}
+    >
+      {label}
+    </button>
+  )
+
   return createPortal(
     <div
       style={{
@@ -77,10 +141,11 @@ export function EditorFloatingInsert({
         type="button"
         title={open ? 'Close' : 'Insert block'}
         aria-label={open ? 'Close' : 'Insert block'}
+        aria-expanded={open}
         onMouseDown={stop}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'flex h-7 w-7 items-center justify-center rounded-full border border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:text-primary',
+          editorInsertPlusButtonClass,
           open && 'border-primary text-primary'
         )}
       >
@@ -90,93 +155,56 @@ export function EditorFloatingInsert({
       </button>
 
       {open && (
-        <div className="flex items-center overflow-hidden rounded-lg border border-border bg-card shadow-md">
-          {(
-            [
-              {
-                title: 'Heading 2',
-                label: 'H2',
-                action: () => {
-                  editor.chain().focus().toggleHeading({ level: 2 }).run()
-                  setOpen(false)
-                },
-              },
-              {
-                title: 'Heading 3',
-                label: 'H3',
-                action: () => {
-                  editor.chain().focus().toggleHeading({ level: 3 }).run()
-                  setOpen(false)
-                },
-              },
-            ] as const
-          ).map(({ title, label, action }) => (
-            <button
-              key={title}
-              type="button"
-              title={title}
-              aria-label={title}
-              onMouseDown={stop}
-              onClick={action}
-              className="px-2.5 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
-            >
-              {label}
-            </button>
-          ))}
+        <div className={cn(editorToolbarPillClass, 'rounded-2xl')}>
+          <div
+            className="flex items-center px-1"
+            role="group"
+            aria-label="Format"
+          >
+            {headingBtn(2, 'H2')}
+            {headingBtn(3, 'H3')}
+            {iconBtn(
+              'Blockquote',
+              <Quote className="h-3.5 w-3.5" />,
+              () => editor.chain().focus().toggleBlockquote().run(),
+              editor.isActive('blockquote')
+            )}
+            {iconBtn(
+              'Code block',
+              <Code className="h-3.5 w-3.5" />,
+              () => editor.chain().focus().toggleCodeBlock().run(),
+              editor.isActive('codeBlock')
+            )}
+            {iconBtn(
+              'Bullet list',
+              <List className="h-3.5 w-3.5" />,
+              () => editor.chain().focus().toggleBulletList().run(),
+              editor.isActive('bulletList')
+            )}
+            {iconBtn(
+              'Numbered list',
+              <ListOrdered className="h-3.5 w-3.5" />,
+              () => editor.chain().focus().toggleOrderedList().run(),
+              editor.isActive('orderedList')
+            )}
+          </div>
           <div className="w-px self-stretch bg-border" />
-          <button
-            type="button"
-            title="Blockquote"
-            aria-label="Blockquote"
-            onMouseDown={stop}
-            onClick={() => {
-              editor.chain().focus().toggleBlockquote().run()
-              setOpen(false)
-            }}
-            className="px-2.5 py-2 text-foreground transition-colors hover:bg-muted"
+          <div
+            className="flex items-center px-1"
+            role="group"
+            aria-label="Media"
           >
-            <Quote className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            title="Code block"
-            aria-label="Code block"
-            onMouseDown={stop}
-            onClick={() => {
-              editor.chain().focus().toggleCodeBlock().run()
-              setOpen(false)
-            }}
-            className="px-2.5 py-2 text-foreground transition-colors hover:bg-muted"
-          >
-            <Code className="h-3.5 w-3.5" />
-          </button>
-          <div className="w-px self-stretch bg-border" />
-          <button
-            type="button"
-            title="Insert image"
-            aria-label="Insert image"
-            onMouseDown={stop}
-            onClick={() => {
-              onInsertImage()
-              setOpen(false)
-            }}
-            className="px-2.5 py-2 text-foreground transition-colors hover:bg-muted"
-          >
-            <ImageIcon className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            title="Embed YouTube"
-            aria-label="Embed YouTube"
-            onMouseDown={stop}
-            onClick={() => {
-              onInsertYouTube()
-              setOpen(false)
-            }}
-            className="px-2.5 py-2 text-foreground transition-colors hover:bg-muted"
-          >
-            <Youtube className="h-3.5 w-3.5" />
-          </button>
+            {iconBtn(
+              'Insert image',
+              <ImageIcon className="h-3.5 w-3.5" />,
+              onInsertImage
+            )}
+            {iconBtn(
+              'Embed YouTube',
+              <Youtube className="h-3.5 w-3.5" />,
+              onInsertYouTube
+            )}
+          </div>
         </div>
       )}
     </div>,
