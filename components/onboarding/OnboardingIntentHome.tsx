@@ -7,6 +7,7 @@ import { useMutation } from 'convex/react'
 import { toast } from 'sonner'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Loader2 } from 'lucide-react'
 import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 import { cn } from '@/lib/utils'
@@ -109,24 +110,24 @@ export function OnboardingIntentHome() {
           </p>
         </div>
 
-        <div
-          role="radiogroup"
+        <RadioGroup
           aria-label="Choose where to start"
+          value={selected ?? ''}
+          onValueChange={(value) => setSelected(value as IntentId)}
+          disabled={isCompleting}
           className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"
         >
           {INTENTS.map((intent) => {
             const isSelected = selected === intent.id
 
             return (
-              <button
+              <RadioGroupItem
                 key={intent.id}
                 type="button"
-                role="radio"
-                aria-checked={isSelected}
+                value={intent.id}
                 disabled={isCompleting}
-                onClick={() => setSelected(intent.id)}
                 className={cn(
-                  'relative flex flex-col text-left rounded-[var(--card-radius)] border bg-card p-5 transition-all',
+                  'relative flex aspect-auto h-auto min-h-full w-full flex-col text-left rounded-[var(--card-radius)] border bg-card p-5 text-brand shadow-none transition-all',
                   'hover:border-brand/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2',
                   'disabled:opacity-50 disabled:pointer-events-none',
                   isSelected
@@ -168,10 +169,10 @@ export function OnboardingIntentHome() {
                 <p className="text-sm text-brand/70 leading-relaxed">
                   {intent.description}
                 </p>
-              </button>
+              </RadioGroupItem>
             )
           })}
-        </div>
+        </RadioGroup>
 
         <div className="flex flex-col items-center gap-6">
           <Button

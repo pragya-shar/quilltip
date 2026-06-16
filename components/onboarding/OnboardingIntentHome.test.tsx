@@ -66,6 +66,20 @@ describe('OnboardingIntentHome', () => {
     expect(screen.getByRole('button', { name: /Continue/i })).toBeEnabled()
   })
 
+  it('supports arrow-key navigation between intent cards', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<OnboardingIntentHome />)
+
+    await user.click(screen.getByRole('radio', { name: /Read first/i }))
+    await user.keyboard('{ArrowRight>}')
+
+    await waitFor(() => {
+      expect(screen.getByRole('radio', { name: /Write first/i })).toBeChecked()
+    })
+    await user.keyboard('{/ArrowRight}')
+    expect(screen.getByRole('button', { name: /Continue/i })).toBeEnabled()
+  })
+
   it('calls completeOnboarding when Skip for now is clicked', async () => {
     const user = userEvent.setup({ delay: null })
     render(<OnboardingIntentHome />)
