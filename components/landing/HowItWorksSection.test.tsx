@@ -38,22 +38,28 @@ vi.mock('next/link', () => ({
   ),
 }))
 
+vi.mock('@/components/landing/LandingTippingDemo', () => ({
+  LandingTippingDemo: () => <div data-testid="landing-tipping-demo" />,
+}))
+
 describe('HowItWorksSection step controls', () => {
   beforeEach(() => {
     isMobileViewport = false
   })
 
-  function stepsTablist(label: 'Writer steps' | 'Reader steps') {
-    const lists = screen.getAllByRole('tablist', { name: label })
+  function stepsTablist() {
+    const lists = screen.getAllByRole('tablist', {
+      name: 'How it works steps',
+    })
     const active = lists.find((el) => el.getAttribute('aria-hidden') !== 'true')
     if (!active) {
-      throw new Error(`No active tablist for ${label}`)
+      throw new Error('No active tablist for how it works steps')
     }
     return active
   }
 
-  function stepTab(label: 'Writer steps' | 'Reader steps', name: string) {
-    return within(stepsTablist(label)).getByRole('tab', { name })
+  function stepTab(name: string) {
+    return within(stepsTablist()).getByRole('tab', { name })
   }
 
   function expectPanelShows(tab: HTMLElement, text: string) {
@@ -64,14 +70,21 @@ describe('HowItWorksSection step controls', () => {
     expect(within(panel!).getByText(text)).toBeVisible()
   }
 
-  it('selects the first writer step by default on desktop', () => {
+  it('renders three launch-critical steps on desktop', () => {
     render(<HowItWorksSection />)
 
-    const signUp = stepTab('Writer steps', 'Sign Up')
-    expect(signUp).toHaveAttribute('aria-selected', 'true')
+    expect(within(stepsTablist()).getAllByRole('tab')).toHaveLength(3)
+    expect(screen.getByRole('heading', { name: 'How tipping works' })).toBeInTheDocument()
+  })
+
+  it('selects the first step by default on desktop', () => {
+    render(<HowItWorksSection />)
+
+    const browse = stepTab('Browse')
+    expect(browse).toHaveAttribute('aria-selected', 'true')
     expectPanelShows(
-      signUp,
-      'One-click registration with your email. Connect Freighter wallet to start receiving tips instantly.'
+      browse,
+      'All articles are free to read. Explore by topic, trending, or latest. No paywalls, ever.'
     )
   })
 
@@ -79,17 +92,14 @@ describe('HowItWorksSection step controls', () => {
     const user = userEvent.setup()
     render(<HowItWorksSection />)
 
-    const write = stepTab('Writer steps', 'Write')
-    await user.click(write)
+    const tip = stepTab('Tip')
+    await user.click(tip)
 
-    expect(write).toHaveAttribute('aria-selected', 'true')
-    expect(stepTab('Writer steps', 'Sign Up')).toHaveAttribute(
-      'aria-selected',
-      'false'
-    )
+    expect(tip).toHaveAttribute('aria-selected', 'true')
+    expect(stepTab('Browse')).toHaveAttribute('aria-selected', 'false')
     expectPanelShows(
-      write,
-      'Full markdown support, code blocks, media embeds, and a distraction-free writing experience.'
+      tip,
+      "Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds."
     )
   })
 
@@ -97,42 +107,24 @@ describe('HowItWorksSection step controls', () => {
     const user = userEvent.setup()
     render(<HowItWorksSection />)
 
-    const signUp = stepTab('Writer steps', 'Sign Up')
-    signUp.focus()
+    const browse = stepTab('Browse')
+    browse.focus()
     await user.keyboard('{ArrowRight}')
 
-    const write = stepTab('Writer steps', 'Write')
-    expect(write).toHaveFocus()
-    expect(write).toHaveAttribute('aria-selected', 'true')
+    const tip = stepTab('Tip')
+    expect(tip).toHaveFocus()
+    expect(tip).toHaveAttribute('aria-selected', 'true')
   })
 
   it('links each tab to its tabpanel', () => {
     render(<HowItWorksSection />)
 
-    const signUp = stepTab('Writer steps', 'Sign Up')
-    const panelId = signUp.getAttribute('aria-controls')
+    const browse = stepTab('Browse')
+    const panelId = browse.getAttribute('aria-controls')
     expect(panelId).toBeTruthy()
     const panel = document.getElementById(panelId!)
     expect(panel).toHaveAttribute('role', 'tabpanel')
-    expect(panel).toHaveAttribute('aria-labelledby', signUp.id)
-  })
-
-  it('resets to the first reader step when switching audience tabs', async () => {
-    const user = userEvent.setup()
-    render(<HowItWorksSection />)
-
-    await user.click(stepTab('Writer steps', 'Write'))
-    await user.click(screen.getByRole('tab', { name: 'For Readers' }))
-
-    const browse = stepTab('Reader steps', 'Browse')
-    expect(browse).toHaveAttribute('aria-selected', 'true')
-    expectPanelShows(
-      browse,
-      'All articles are free to read. Explore by topic, trending, or latest. No paywalls, ever.'
-    )
-    expect(
-      within(stepsTablist('Reader steps')).getAllByRole('tab')
-    ).toHaveLength(4)
+    expect(panel).toHaveAttribute('aria-labelledby', browse.id)
   })
 
   it('operates mobile step tabs when the mobile layout is active', async () => {
@@ -140,13 +132,13 @@ describe('HowItWorksSection step controls', () => {
     const user = userEvent.setup()
     render(<HowItWorksSection />)
 
-    const publish = stepTab('Writer steps', 'Publish')
+    const publish = stepTab('Publish & earn')
     await user.click(publish)
 
     expect(publish).toHaveAttribute('aria-selected', 'true')
     expectPanelShows(
       publish,
-      'Your article is stored permanently on Arweave. A tamper-proof record of your creative work, forever.'
+      'Use the rich editor to publish your work. Tips go directly to your wallet with near-zero fees.'
     )
   })
 })

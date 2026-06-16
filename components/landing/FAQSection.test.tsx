@@ -16,8 +16,8 @@ vi.mock('motion/react', () => ({
 }))
 
 describe('FAQSection accordion accessibility', () => {
-  const firstQuestion = 'What is Quilltip and what problem does it solve?'
-  const secondQuestion = 'Do I need cryptocurrency to read articles?'
+  const firstQuestion = 'Do I need cryptocurrency to read articles?'
+  const secondQuestion = 'How does the tipping mechanism work?'
 
   function getTrigger(name: string) {
     return screen.getByRole('button', { name })
@@ -73,6 +73,7 @@ describe('FAQSection accordion accessibility', () => {
     expect(document.getElementById('faq-heading')).toHaveTextContent(
       'Frequently Asked Questions'
     )
+    expect(screen.getAllByRole('button')).toHaveLength(4)
   })
 
   it('keeps FAQ items in left-started desktop columns', () => {

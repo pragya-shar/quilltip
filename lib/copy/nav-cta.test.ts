@@ -4,6 +4,7 @@ import {
   HERO_START_WRITING,
   HERO_WALLET_SETUP,
   NAV_SIGN_IN,
+  NAV_START_WRITING,
   NAV_TRY_ON_TESTNET,
 } from '@/lib/copy/nav-cta'
 
@@ -11,6 +12,7 @@ describe('nav-cta vocabulary', () => {
   it('exports the approved navigation labels', () => {
     expect(NAV_SIGN_IN).toBe('Sign In')
     expect(NAV_TRY_ON_TESTNET).toBe('Try on Testnet')
+    expect(NAV_START_WRITING).toBe('Start Writing')
   })
 
   it('exports the approved landing hero labels', () => {

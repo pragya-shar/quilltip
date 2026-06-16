@@ -2,7 +2,6 @@ export const LANDING_SECTION_IDS = [
   'features',
   'how-it-works',
   'security',
-  'arweave-storage',
   'faq',
 ] as const
 
@@ -13,5 +12,4 @@ export const LANDING_NAV_HASHES = [
   '#how-it-works',
   '#faq',
   '#security',
-  '#arweave-storage',
 ] as const

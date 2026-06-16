@@ -2,23 +2,12 @@
 
 import Link from 'next/link'
 import { useState, useRef, type KeyboardEvent } from 'react'
-import {
-  UserPlus,
-  Edit3,
-  Globe,
-  Coins,
-  ArrowRight,
-  Sparkles,
-  BookOpen,
-  Highlighter,
-  Wallet,
-  Heart,
-} from 'lucide-react'
+import { BookOpen, Wallet, Coins, ArrowRight } from 'lucide-react'
 import { motion, AnimatePresence, useInView } from 'motion/react'
 import { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { REGISTER_FOR_WRITE_HREF } from '@/lib/auth/auth-links'
+import { LandingTippingDemo } from '@/components/landing/LandingTippingDemo'
 
 type StepVariant = 'desktop' | 'mobile'
 
@@ -29,20 +18,12 @@ interface Step {
   detail: string
 }
 
-function stepTabId(
-  tab: 'writers' | 'readers',
-  index: number,
-  variant: StepVariant
-) {
-  return `how-it-works-${tab}-${variant}-tab-${index}`
+function stepTabId(index: number, variant: StepVariant) {
+  return `how-it-works-${variant}-tab-${index}`
 }
 
-function stepPanelId(
-  tab: 'writers' | 'readers',
-  index: number,
-  variant: StepVariant
-) {
-  return `how-it-works-${tab}-${variant}-panel-${index}`
+function stepPanelId(index: number, variant: StepVariant) {
+  return `how-it-works-${variant}-panel-${index}`
 }
 
 const stepTabFocusClass =
@@ -51,85 +32,35 @@ const stepTabFocusClass =
 const stepCardBaseClass =
   'relative rounded-2xl border overflow-hidden transition-colors duration-300 text-left w-full p-0 bg-transparent'
 
+const steps: Step[] = [
+  {
+    icon: BookOpen,
+    title: 'Browse',
+    description: 'Discover articles from writers across the platform',
+    detail:
+      'All articles are free to read. Explore by topic, trending, or latest. No paywalls, ever.',
+  },
+  {
+    icon: Wallet,
+    title: 'Tip',
+    description: 'Connect a Stellar wallet and tip your favorite passages',
+    detail:
+      "Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds.",
+  },
+  {
+    icon: Coins,
+    title: 'Publish & earn',
+    description: 'Write, publish, and keep 97.5% of every tip',
+    detail:
+      'Use the rich editor to publish your work. Tips go directly to your wallet with near-zero fees.',
+  },
+]
+
 export default function HowItWorksSection() {
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, margin: '-100px' })
   const isMobile = useIsMobile()
-  const [activeTab, setActiveTab] = useState<'writers' | 'readers'>('writers')
   const [activeStep, setActiveStep] = useState(0)
-
-  const writerSteps: Step[] = [
-    {
-      icon: UserPlus,
-      title: 'Sign Up',
-      description:
-        'Create your account and connect your Stellar wallet in seconds',
-      detail:
-        'One-click registration with your email. Connect Freighter wallet to start receiving tips instantly.',
-    },
-    {
-      icon: Edit3,
-      title: 'Write',
-      description:
-        'Craft compelling content with our intuitive rich text editor',
-      detail:
-        'Full markdown support, code blocks, media embeds, and a distraction-free writing experience.',
-    },
-    {
-      icon: Globe,
-      title: 'Publish',
-      description: 'Share your work with the world on the blockchain',
-      detail:
-        'Your article is stored permanently on Arweave. A tamper-proof record of your creative work, forever.',
-    },
-    {
-      icon: Coins,
-      title: 'Earn',
-      description: 'Receive instant tips from readers who value your work',
-      detail:
-        'Tips settle in 3 seconds via Stellar. You keep 97.5% of every tip — no waiting periods.',
-    },
-  ]
-
-  const readerSteps: Step[] = [
-    {
-      icon: BookOpen,
-      title: 'Browse',
-      description: 'Discover articles from writers across the platform',
-      detail:
-        'All articles are free to read. Explore by topic, trending, or latest. No paywalls, ever.',
-    },
-    {
-      icon: Highlighter,
-      title: 'Highlight',
-      description: 'Select your favorite passages and save them',
-      detail:
-        'Mark the words that resonate with you. Add colors and notes to build your personal collection.',
-    },
-    {
-      icon: Wallet,
-      title: 'Connect',
-      description: 'Set up a Stellar wallet in 2 minutes',
-      detail:
-        "Install Freighter, fund with free testnet XLM, and you're ready to tip your favorite writers.",
-    },
-    {
-      icon: Heart,
-      title: 'Tip',
-      description: 'Send micro-tips starting at $0.01',
-      detail:
-        'Tip an article or a specific highlight. 97.5% goes directly to the author — near-zero fees.',
-    },
-  ]
-
-  const steps = activeTab === 'writers' ? writerSteps : readerSteps
-  const stepsTablistLabel =
-    activeTab === 'writers' ? 'Writer steps' : 'Reader steps'
-
-  const handleTabChange = (tab: 'writers' | 'readers') => {
-    setActiveTab(tab)
-    setActiveStep(0)
-  }
 
   const handleStepTabKeyDown = (
     e: KeyboardEvent<HTMLButtonElement>,
@@ -148,7 +79,7 @@ export default function HowItWorksSection() {
     const next = (index + delta + steps.length) % steps.length
     setActiveStep(next)
     const variant: StepVariant = isMobile ? 'mobile' : 'desktop'
-    document.getElementById(stepTabId(activeTab, next, variant))?.focus()
+    document.getElementById(stepTabId(next, variant))?.focus()
   }
 
   return (
@@ -156,93 +87,27 @@ export default function HowItWorksSection() {
       id="how-it-works"
       className="py-32 px-6 bg-spotlight text-spotlight-foreground relative overflow-hidden"
     >
-      {/* Subtle background grain */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_color-mix(in_oklab,var(--spotlight-foreground)_6%,transparent)_0%,_transparent_60%)]" />
 
       <div className="container mx-auto max-w-7xl relative z-10" ref={ref}>
-        {/* Section Header */}
         <motion.div
           className="mb-16"
           initial={{ opacity: 0, y: 30 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
           transition={{ duration: 0.8 }}
         >
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8">
-            <div>
-              <motion.div
-                className="inline-flex items-center gap-2 px-4 py-2 bg-foreground/5 backdrop-blur-sm rounded-full border border-foreground/10 mb-6"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={
-                  isInView
-                    ? { opacity: 1, scale: 1 }
-                    : { opacity: 0, scale: 0.9 }
-                }
-                transition={{ duration: 0.5 }}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-spotlight-muted" />
-                <span className="text-[11px] font-semibold text-spotlight-muted uppercase tracking-wider">
-                  Simple Process
-                </span>
-              </motion.div>
-
-              <h2 className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-4 leading-[1.15]">
-                <span className="text-spotlight-foreground">
-                  From idea to impact,{' '}
-                </span>
-                <span className="text-spotlight-muted italic">
-                  in four steps.
-                </span>
-              </h2>
-              <p className="text-[15px] text-spotlight-muted max-w-lg leading-relaxed">
-                Whether you write or read, Quilltip makes it simple to
-                participate in the future of publishing.
-              </p>
-            </div>
-
-            {/* Writer / Reader Toggle */}
-            <div
-              role="tablist"
-              aria-label="Audience"
-              className="inline-flex items-center bg-foreground/5 rounded-lg p-1 border border-foreground/10 shrink-0"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'writers'}
-                onClick={() => handleTabChange('writers')}
-                className={cn(
-                  'px-5 py-2 rounded-md text-[13px] font-medium transition-all duration-200',
-                  stepTabFocusClass,
-                  activeTab === 'writers'
-                    ? 'bg-card text-card-foreground shadow-sm'
-                    : 'text-spotlight-muted hover:text-spotlight-foreground'
-                )}
-              >
-                For Writers
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeTab === 'readers'}
-                onClick={() => handleTabChange('readers')}
-                className={cn(
-                  'px-5 py-2 rounded-md text-[13px] font-medium transition-all duration-200',
-                  stepTabFocusClass,
-                  activeTab === 'readers'
-                    ? 'bg-card text-card-foreground shadow-sm'
-                    : 'text-spotlight-muted hover:text-spotlight-foreground'
-                )}
-              >
-                For Readers
-              </button>
-            </div>
-          </div>
+          <h2 className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-4 leading-[1.15] text-spotlight-foreground">
+            How tipping works
+          </h2>
+          <p className="text-[15px] text-spotlight-muted max-w-lg leading-relaxed">
+            Read for free, tip what moves you, or publish and earn — all on
+            Stellar testnet.
+          </p>
         </motion.div>
 
-        {/* Expandable Steps — Desktop */}
         <motion.div
           role="tablist"
-          aria-label={stepsTablistLabel}
+          aria-label="How it works steps"
           aria-orientation="horizontal"
           aria-hidden={isMobile}
           inert={isMobile ? true : undefined}
@@ -253,11 +118,11 @@ export default function HowItWorksSection() {
         >
           {steps.map((step, index) => {
             const isActive = activeStep === index
-            const tabId = stepTabId(activeTab, index, 'desktop')
-            const panelId = stepPanelId(activeTab, index, 'desktop')
+            const tabId = stepTabId(index, 'desktop')
+            const panelId = stepPanelId(index, 'desktop')
             return (
               <motion.div
-                key={`${activeTab}-${step.title}`}
+                key={step.title}
                 className={cn(
                   stepCardBaseClass,
                   'flex flex-col min-h-0',
@@ -378,10 +243,9 @@ export default function HowItWorksSection() {
           })}
         </motion.div>
 
-        {/* Steps — Mobile (vertical accordion) */}
         <motion.div
           role="tablist"
-          aria-label={stepsTablistLabel}
+          aria-label="How it works steps"
           aria-orientation="vertical"
           aria-hidden={!isMobile}
           inert={!isMobile ? true : undefined}
@@ -392,11 +256,11 @@ export default function HowItWorksSection() {
         >
           {steps.map((step, index) => {
             const isActive = activeStep === index
-            const tabId = stepTabId(activeTab, index, 'mobile')
-            const panelId = stepPanelId(activeTab, index, 'mobile')
+            const tabId = stepTabId(index, 'mobile')
+            const panelId = stepPanelId(index, 'mobile')
             return (
               <motion.div
-                key={`${activeTab}-${step.title}`}
+                key={step.title}
                 className={cn(
                   stepCardBaseClass,
                   isActive
@@ -480,7 +344,15 @@ export default function HowItWorksSection() {
           })}
         </motion.div>
 
-        {/* CTA */}
+        <motion.div
+          className="mt-12 flex justify-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+        >
+          <LandingTippingDemo />
+        </motion.div>
+
         <motion.div
           className="mt-16 text-center"
           initial={{ opacity: 0, y: 20 }}
@@ -488,7 +360,7 @@ export default function HowItWorksSection() {
           transition={{ duration: 0.8, delay: 0.8 }}
         >
           <Link
-            href={REGISTER_FOR_WRITE_HREF}
+            href="/register"
             className="focus-ring group inline-flex items-center justify-center gap-2 bg-card text-card-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-muted transition-all duration-200"
           >
             Start Writing & Earning Today

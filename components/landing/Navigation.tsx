@@ -10,12 +10,8 @@ import {
   Highlighter,
   HelpCircle,
   FileText,
-  Shield,
   ChevronDown,
   BookOpen,
-  Coins,
-  Globe,
-  Sparkles,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 import { LucideIcon } from 'lucide-react'
@@ -31,7 +27,7 @@ import {
   handleLandingHashClick,
   scrollToLandingSection,
 } from '@/lib/landing/scroll-to-section'
-import { NAV_SIGN_IN, NAV_TRY_ON_TESTNET } from '@/lib/copy/nav-cta'
+import { NAV_SIGN_IN, NAV_START_WRITING } from '@/lib/copy/nav-cta'
 
 const MOBILE_MENU_CLOSE_MS = 280
 
@@ -67,55 +63,31 @@ const navDropdowns: NavDropdown[] = [
     label: 'Product',
     featured: {
       title: 'Quilltip Platform',
-      description:
-        'Write, publish, and receive testnet tips — all on Stellar testnet.',
+      description: 'Read stories for free, tip writers, or publish your own.',
       href: '#features',
       bgClass: 'bg-gradient-to-br from-muted/70 to-muted',
       icon: PenTool,
     },
     columns: [
       {
-        heading: 'Features',
+        heading: 'Read & write',
         items: [
+          {
+            icon: Highlighter,
+            title: 'Interactive Reading',
+            description: 'Browse articles and tip passages',
+            href: '/articles',
+          },
           {
             icon: PenTool,
             title: 'Rich Editor',
-            description: 'Write with markdown & media',
-            href: '#features',
+            description: 'Publish with markdown and media',
+            href: '/register',
           },
-          {
-            icon: Highlighter,
-            title: 'Highlights',
-            description: 'Readers tip specific passages',
-            href: '#features',
-          },
-          {
-            icon: Sparkles,
-            title: 'NFT Minting',
-            description: 'Mint articles as collectibles',
-            href: '#features',
-          },
-        ],
-      },
-      {
-        heading: 'Earn',
-        items: [
           {
             icon: Zap,
-            title: 'Testnet Tips',
-            description: 'Receive tips via Stellar testnet',
-            href: '#how-it-works',
-          },
-          {
-            icon: Coins,
-            title: 'Low Fees',
-            description: '97.5% goes directly to you',
-            href: '#how-it-works',
-          },
-          {
-            icon: Globe,
-            title: 'Permanent Storage',
-            description: 'Articles stored on Arweave',
+            title: 'How tipping works',
+            description: 'Three steps to read, tip, and earn',
             href: '#how-it-works',
           },
         ],
@@ -126,8 +98,7 @@ const navDropdowns: NavDropdown[] = [
     label: 'Resources',
     featured: {
       title: 'Getting Started',
-      description:
-        'Set up a testnet wallet and practice tipping in under 5 minutes.',
+      description: 'Set up a testnet wallet and practice tipping.',
       href: '/guide',
       bgClass: 'bg-gradient-to-br from-muted/60 to-muted',
       icon: BookOpen,
@@ -147,23 +118,6 @@ const navDropdowns: NavDropdown[] = [
             title: 'FAQ',
             description: 'Common questions answered',
             href: '#faq',
-          },
-        ],
-      },
-      {
-        heading: 'Trust & Safety',
-        items: [
-          {
-            icon: Shield,
-            title: 'Security',
-            description: 'Blockchain security overview',
-            href: '#security',
-          },
-          {
-            icon: Globe,
-            title: 'Arweave Storage',
-            description: 'How permanent storage works',
-            href: '#arweave-storage',
           },
         ],
       },
@@ -400,7 +354,7 @@ export default function Navigation() {
               href="/register"
               className="focus-ring inline-flex items-center gap-1.5 bg-brand text-brand-foreground px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-brand-hover transition-all duration-200 ml-1"
             >
-              {NAV_TRY_ON_TESTNET}
+              {NAV_START_WRITING}
               <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
             </Link>
 
@@ -477,7 +431,7 @@ export default function Navigation() {
                     className="focus-ring inline-flex w-full items-center justify-center gap-1.5 bg-brand text-brand-foreground px-5 py-2.5 rounded-lg hover:bg-brand-hover transition-colors text-sm font-medium"
                     onClick={() => setIsOpen(false)}
                   >
-                    {NAV_TRY_ON_TESTNET}
+                    {NAV_START_WRITING}
                     <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
                   </Link>
                 </div>

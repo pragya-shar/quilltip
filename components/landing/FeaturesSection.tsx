@@ -43,11 +43,15 @@ export default function FeaturesSection() {
     >
       <div className="container mx-auto max-w-3xl relative z-10">
         <Reveal className="text-center mb-12">
+          <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-muted/60 border border-border/60 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-4">
+            <span className="w-1.5 h-1.5 bg-success rounded-full" />
+            Live on Stellar Testnet
+          </span>
           <h2 className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-3 leading-[1.15]">
-            <span className="text-foreground">Core Features</span>
+            <span className="text-foreground">Why Quilltip</span>
           </h2>
           <p className="text-[15px] text-muted-foreground leading-relaxed">
-            Everything writers and readers need on testnet.
+            Read for free, tip what resonates, publish and earn.
           </p>
           <p className="text-[13px] text-muted-foreground leading-relaxed mt-2 max-w-lg mx-auto">
             {TESTNET_PRACTICE_NOTE}
