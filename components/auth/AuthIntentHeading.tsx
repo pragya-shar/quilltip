@@ -11,7 +11,10 @@ interface AuthIntentHeadingProps {
   variant: 'login' | 'register'
 }
 
-function getCopy(variant: AuthIntentHeadingProps['variant'], returnPath: string): AuthPageCopy {
+function getCopy(
+  variant: AuthIntentHeadingProps['variant'],
+  returnPath: string
+): AuthPageCopy {
   return variant === 'register'
     ? getRegisterCopy(returnPath)
     : getLoginCopy(returnPath)
@@ -29,7 +32,9 @@ export function AuthIntentHeading({ variant }: AuthIntentHeadingProps) {
   )
 }
 
-export function useAuthPageCopy(variant: AuthIntentHeadingProps['variant']): AuthPageCopy {
+export function useAuthPageCopy(
+  variant: AuthIntentHeadingProps['variant']
+): AuthPageCopy {
   const returnPath = useAuthReturnPath()
   return getCopy(variant, returnPath)
 }

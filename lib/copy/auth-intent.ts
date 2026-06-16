@@ -33,21 +33,18 @@ const REGISTER_COPY: Record<AuthIntent, AuthPageCopy> = {
     subtitle: "You'll go straight to the editor after signup.",
     submitLabel: 'Create account and start writing',
     submitLoadingLabel: 'Creating account...',
-    successMessage:
-      'Account created successfully! Opening the editor...',
+    successMessage: 'Account created successfully! Opening the editor...',
   },
   read: {
     heading: 'Create your account',
     subtitle: 'Sign up to browse articles and tip writers on testnet.',
     submitLabel: 'Create account and start reading',
     submitLoadingLabel: 'Creating account...',
-    successMessage:
-      'Account created successfully! Taking you to articles...',
+    successMessage: 'Account created successfully! Taking you to articles...',
   },
   default: {
     heading: 'Create your account',
-    subtitle:
-      'Create your account to write, publish, and receive tips.',
+    subtitle: 'Create your account to write, publish, and receive tips.',
     submitLabel: 'Create account',
     submitLoadingLabel: 'Creating account...',
     successMessage: 'Account created successfully! Redirecting...',

@@ -185,9 +185,7 @@ describe('RegisterForm accessibility', () => {
 
     await user.type(passwordInput, 'word1')
 
-    expect(
-      screen.getByText(/password meets requirements/i)
-    ).toBeInTheDocument()
+    expect(screen.getByText(/password meets requirements/i)).toBeInTheDocument()
     expect(
       document.getElementById('password-requirements')?.querySelectorAll('li')
     ).toHaveLength(0)
