@@ -3,14 +3,12 @@
 import type { RefObject } from 'react'
 import { Coins, Clock, DollarSign, Wallet } from 'lucide-react'
 import type { Doc } from '@/types/convex'
+import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
 import { MonthlyEarningsChart } from '@/components/dashboard/monthly-earnings-chart'
 import { TopEarningArticles } from '@/components/dashboard/top-earning-articles'
-import { WalletSetupNotice } from '@/components/dashboard/wallet-setup-notice'
 import { useDashboardNavigation } from '@/hooks/useDashboardNavigation'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   networkLabelLowercase,
-  practiceFundsNote,
 } from '@/lib/copy/network-status'
 
 export type EarningsStatsProps = {
@@ -36,13 +34,9 @@ export function EarningsStats({
 
   return (
     <>
-      <Alert className="border-border bg-muted/60">
-        <AlertDescription className="text-sm text-muted-foreground">
-          {practiceFundsNote()}
-        </AlertDescription>
-      </Alert>
-
-      {userProfile && !userProfile.stellarAddress && <WalletSetupNotice />}
+      {userProfile && !userProfile.stellarAddress && (
+        <ContextualWalletSetup mode="receive" />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">

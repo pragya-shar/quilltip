@@ -124,6 +124,10 @@ describe('TipButton auth-first CTA', () => {
     expect(
       screen.getByRole('button', { name: 'Connect Wallet' })
     ).toBeInTheDocument()
+    expect(screen.getByText('Connect to tip Author')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /Follow our setup guide/i })
+    ).not.toBeInTheDocument()
   })
 
   it('shows Send Tip when signed in with wallet', async () => {

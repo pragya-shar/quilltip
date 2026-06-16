@@ -31,8 +31,7 @@ export function DashboardWalletContent() {
           Wallet Management
         </h2>
         <p className="text-muted-foreground">
-          Manage your Stellar testnet wallet for sending and receiving practice
-          tips.
+          Manage your Stellar wallet for sending and receiving tips.
         </p>
       </div>
 

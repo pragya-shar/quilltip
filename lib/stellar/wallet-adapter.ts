@@ -19,6 +19,7 @@ import type {
 import { toast } from 'sonner'
 import { hasInstalledWalletForKitModal as supportedWalletsAllowKitModal } from '@/lib/stellar/wallet-availability'
 import { loadWalletKit } from '@/lib/stellar/wallet-kit-loader'
+import { setWalletPickerOpen } from '@/lib/stellar/wallet-picker-state'
 import {
   FREIGHTER_ID,
   XBULL_ID,
@@ -320,8 +321,11 @@ class StellarWalletAdapter {
       return this.connectPromise
     }
 
+    setWalletPickerOpen(true)
+
     this.connectPromise = this.openWalletModalConnection().finally(() => {
       this.connectPromise = null
+      setWalletPickerOpen(false)
     })
 
     return this.connectPromise

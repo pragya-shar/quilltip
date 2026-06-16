@@ -1,10 +1,8 @@
 /** @vitest-environment jsdom */
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WalletSettings } from '@/components/stellar/WalletSettings'
 
-const mockConnect = vi.fn()
 const mockDisconnect = vi.fn()
 
 vi.mock('convex/react', () => ({
@@ -14,7 +12,6 @@ vi.mock('convex/react', () => ({
 vi.mock('@/components/providers/WalletProvider', () => ({
   useWallet: () => ({
     isLoading: false,
-    connect: mockConnect,
     disconnect: mockDisconnect,
   }),
 }))
@@ -38,9 +35,25 @@ vi.mock('@/components/legal/LegalLinks', () => ({
   LegalLinks: () => null,
 }))
 
+vi.mock('@/components/stellar/ContextualWalletSetup', () => ({
+  ContextualWalletSetup: ({
+    mode,
+    recipientLabel,
+  }: {
+    mode: string
+    recipientLabel?: string
+  }) => (
+    <div>
+      {mode === 'send'
+        ? `Connect to tip ${recipientLabel}`
+        : 'Connect to receive tips'}
+      <button type="button">Connect wallet</button>
+    </div>
+  ),
+}))
+
 describe('WalletSettings', () => {
   beforeEach(() => {
-    mockConnect.mockReset()
     mockDisconnect.mockReset()
   })
 
@@ -86,32 +99,13 @@ describe('WalletSettings', () => {
     ).toHaveAttribute('href', '/alice?tab=articles')
   })
 
-  it('shows owner connect CTA when wallet address is missing', () => {
+  it('shows owner contextual wallet setup when wallet address is missing', () => {
     render(<WalletSettings isOwnProfile walletAddress={null} />)
 
+    expect(screen.getByText('Connect to receive tips')).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: /Connect Stellar Wallet/i })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByText(
-        /Connect your Stellar testnet wallet to send and receive tips/i
-      )
+      screen.getByRole('button', { name: /Connect wallet/i })
     ).toBeInTheDocument()
     expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument()
-  })
-
-  it('shows persistent alert when connect fails', async () => {
-    mockConnect.mockRejectedValue(new Error('User rejected'))
-    const user = userEvent.setup({ delay: null })
-
-    render(<WalletSettings isOwnProfile walletAddress={null} />)
-
-    await user.click(
-      screen.getByRole('button', { name: /Connect Stellar Wallet/i })
-    )
-
-    await waitFor(() => {
-      expect(screen.getByText('User rejected')).toBeInTheDocument()
-    })
   })
 })

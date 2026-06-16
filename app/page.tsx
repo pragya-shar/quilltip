@@ -148,7 +148,7 @@ export default function HomePage() {
                 </Link>
               ) : (
                 <Link
-                  href="/guide"
+                  href="/dashboard/wallet"
                   className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
                 >
                   <div className="flex items-center mb-4">
@@ -156,12 +156,11 @@ export default function HomePage() {
                       <Wallet className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                     </div>
                     <h3 className="text-lg font-semibold ml-3">
-                      Set Up Testnet Wallet
+                      Set Up Wallet
                     </h3>
                   </div>
                   <p className="text-muted-foreground">
-                    Connect a Stellar testnet wallet to send and receive
-                    practice tips
+                    Connect a Stellar wallet to send and receive tips
                   </p>
                 </Link>
               )}

@@ -118,7 +118,7 @@ describe('OnboardingIntentHome', () => {
     })
   })
 
-  it('navigates to guide when Set up wallet is selected and Continue is clicked', async () => {
+  it('navigates to dashboard wallet when Set up wallet is selected and Continue is clicked', async () => {
     const user = userEvent.setup({ delay: null })
     render(<OnboardingIntentHome />)
 
@@ -127,7 +127,7 @@ describe('OnboardingIntentHome', () => {
 
     await waitFor(() => {
       expect(mockCompleteOnboarding).toHaveBeenCalledTimes(1)
-      expect(mockPush).toHaveBeenCalledWith('/guide')
+      expect(mockPush).toHaveBeenCalledWith('/dashboard/wallet')
     })
   })
 
@@ -146,6 +146,14 @@ describe('OnboardingIntentHome', () => {
     expect(
       screen.getByRole('button', { name: /Skip for now/i })
     ).toBeInTheDocument()
+  })
+
+  it('does not show footer testnet practice note', () => {
+    render(<OnboardingIntentHome />)
+
+    expect(
+      screen.queryByText(/Tips use free test XLM for practice/i)
+    ).not.toBeInTheDocument()
   })
 
   it('renders as a page section, not a dialog', () => {
