@@ -1,6 +1,5 @@
 import { Check, Circle } from 'lucide-react'
 import { getPasswordRuleStatuses } from '@/lib/validations/password-rules'
-import { cn } from '@/lib/utils'
 
 export const PASSWORD_REQUIREMENTS_ID = 'password-requirements'
 
@@ -14,6 +13,45 @@ export function PasswordRequirements({
   highlightFailures = false,
 }: PasswordRequirementsProps) {
   const rules = getPasswordRuleStatuses(password)
+  const unmetRules = rules.filter((rule) => !rule.met)
+  const hasInput = password.length > 0
+  const allMet = unmetRules.length === 0
+
+  if (allMet && hasInput) {
+    return (
+      <p
+        id={PASSWORD_REQUIREMENTS_ID}
+        aria-live="polite"
+        className="mt-2 flex items-center gap-2 text-sm text-success-foreground"
+      >
+        <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span>Password meets requirements</span>
+      </p>
+    )
+  }
+
+  if (hasInput || highlightFailures) {
+    return (
+      <ul
+        id={PASSWORD_REQUIREMENTS_ID}
+        aria-live="polite"
+        className="mt-2 space-y-1"
+      >
+        {unmetRules.map((rule) => (
+          <li
+            key={rule.id}
+            className="flex items-center gap-2 text-sm text-destructive"
+          >
+            <Circle
+              className="h-3.5 w-3.5 shrink-0 text-destructive"
+              aria-hidden="true"
+            />
+            <span>{rule.label}</span>
+          </li>
+        ))}
+      </ul>
+    )
+  }
 
   return (
     <ul
@@ -24,26 +62,12 @@ export function PasswordRequirements({
       {rules.map((rule) => (
         <li
           key={rule.id}
-          className={cn(
-            'flex items-center gap-2 text-sm',
-            rule.met
-              ? 'text-success-foreground'
-              : highlightFailures
-                ? 'text-destructive'
-                : 'text-muted-foreground'
-          )}
+          className="flex items-center gap-2 text-sm text-muted-foreground"
         >
-          {rule.met ? (
-            <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          ) : (
-            <Circle
-              className={cn(
-                'h-3.5 w-3.5 shrink-0',
-                highlightFailures ? 'text-destructive' : 'text-muted-foreground'
-              )}
-              aria-hidden="true"
-            />
-          )}
+          <Circle
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
           <span>{rule.label}</span>
         </li>
       ))}

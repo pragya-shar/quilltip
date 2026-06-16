@@ -169,20 +169,28 @@ describe('RegisterForm accessibility', () => {
     expect(screen.getByText(/one number/i)).toBeInTheDocument()
   })
 
-  it('updates password requirements as the user types', async () => {
+  it('removes satisfied password rules instead of turning them green', async () => {
     const user = userEvent.setup({ delay: null })
     render(<RegisterForm />)
 
     const passwordInput = screen.getByLabelText(/^password$/i)
-    await user.type(passwordInput, 'Password1')
+    await user.type(passwordInput, 'Pass')
 
     const requirements = document.getElementById('password-requirements')
-    expect(requirements).toBeInTheDocument()
-    const items = requirements?.querySelectorAll('li') ?? []
-    expect(items).toHaveLength(4)
-    items.forEach((item) => {
-      expect(item).toHaveClass('text-success-foreground')
-    })
+    expect(requirements?.querySelectorAll('li')).toHaveLength(2)
+    expect(screen.getByText(/at least 8 characters/i)).toBeInTheDocument()
+    expect(screen.getByText(/one number/i)).toBeInTheDocument()
+    expect(screen.queryByText(/one uppercase letter/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/one lowercase letter/i)).not.toBeInTheDocument()
+
+    await user.type(passwordInput, 'word1')
+
+    expect(
+      screen.getByText(/password meets requirements/i)
+    ).toBeInTheDocument()
+    expect(
+      document.getElementById('password-requirements')?.querySelectorAll('li')
+    ).toHaveLength(0)
   })
 
   it('highlights unmet password rules on failed submit', async () => {

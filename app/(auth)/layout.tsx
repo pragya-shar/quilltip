@@ -20,8 +20,8 @@ export default function AuthLayout({
     <div className="min-h-screen bg-gradient-to-br from-brand-cream to-background dark:from-background dark:to-muted">
       <AuthShellHeader />
 
-      <main className="flex min-h-screen items-center justify-center px-6 pb-20 pt-24">
-        <div className="w-full max-w-md">
+      <main className="flex min-h-screen items-start justify-center px-6 pb-20 pt-28 sm:pt-32">
+        <div className="w-full max-w-md mt-8">
           <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-8">
             {children}
           </div>
