@@ -74,4 +74,15 @@ describe('FAQSection accordion accessibility', () => {
       'Frequently Asked Questions'
     )
   })
+
+  it('keeps FAQ items in left-started desktop columns', () => {
+    render(<FAQSection />)
+
+    const accordion = screen.getByTestId('faq-accordion')
+    expect(accordion).toHaveClass('grid')
+    expect(accordion).toHaveClass('grid-cols-1')
+    expect(accordion).toHaveClass('md:grid-cols-2')
+
+    expect(getTrigger(firstQuestion)).toHaveClass('justify-start')
+  })
 })

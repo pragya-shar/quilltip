@@ -90,6 +90,7 @@ export default function FAQSection() {
           type="single"
           collapsible
           defaultValue="faq-0"
+          data-testid="faq-accordion"
           className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-6"
         >
           {faqs.map((faq, index) => (
@@ -103,7 +104,7 @@ export default function FAQSection() {
                 <AccordionTrigger
                   showChevron={false}
                   className={cn(
-                    'group w-full flex items-start gap-4 py-2 hover:no-underline',
+                    'group w-full flex justify-start items-start gap-4 py-2 hover:no-underline',
                     faqTriggerFocusClass
                   )}
                 >
