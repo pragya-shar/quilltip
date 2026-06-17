@@ -74,4 +74,13 @@ describe('FAQSection accordion accessibility', () => {
       'Frequently Asked Questions'
     )
   })
+
+  it('keeps FAQ items in a single centered accordion column', () => {
+    render(<FAQSection />)
+
+    const accordion = screen.getByTestId('faq-accordion')
+    expect(accordion).toHaveClass('max-w-4xl')
+    expect(accordion).toHaveClass('space-y-3')
+    expect(accordion.className).not.toContain('grid-cols-')
+  })
 })
