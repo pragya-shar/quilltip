@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TipButton } from '@/components/tipping/TipButton'
@@ -7,6 +7,7 @@ import { TipButton } from '@/components/tipping/TipButton'
 const mockRedirectToLoginForTip = vi.hoisted(() => vi.fn())
 const mockIsAuthenticated = vi.hoisted(() => vi.fn(() => false))
 const mockIsConnected = vi.hoisted(() => vi.fn(() => false))
+const mockUseArticleTipResume = vi.hoisted(() => vi.fn())
 
 vi.mock('convex/react', () => ({
   useConvex: () => ({ query: vi.fn() }),
@@ -20,7 +21,8 @@ vi.mock('@/components/providers/AuthContext', () => ({
 vi.mock('@/components/providers/WalletProvider', () => ({
   useWallet: () => ({
     isConnected: mockIsConnected(),
-    publicKey: null,
+    isLoading: false,
+    publicKey: mockIsConnected() ? 'GABCDEF123456789' : null,
     signTransaction: vi.fn(),
     connect: vi.fn(),
   }),
@@ -49,7 +51,9 @@ vi.mock('@/lib/tip/pendingTipIntent', () => ({
 }))
 
 vi.mock('@/hooks/useArticleTipResume', () => ({
-  useArticleTipResume: vi.fn(),
+  useArticleTipResume: (opts: { onResume: (intent: unknown) => void }) => {
+    mockUseArticleTipResume(opts)
+  },
 }))
 
 vi.mock('@/lib/stellar/stellar-flow-emitter', () => ({
@@ -57,14 +61,36 @@ vi.mock('@/lib/stellar/stellar-flow-emitter', () => ({
   tipFlowProgressLabel: () => 'Processing',
 }))
 
-describe('TipButton auth-first CTA', () => {
+vi.mock('@/components/stellar/InstallWalletDialog', () => ({
+  InstallWalletDialog: () => null,
+}))
+
+vi.mock('@/components/guide/WalletTooltip', () => ({
+  WalletTooltip: () => null,
+}))
+
+async function openArticleTipModal(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('button', { name: /Tip Author/i }))
+}
+
+async function selectPresetAndContinue(
+  user: ReturnType<typeof userEvent.setup>,
+  label = '$1'
+) {
+  await openArticleTipModal(user)
+  await user.click(screen.getByRole('button', { name: label }))
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
+}
+
+describe('TipButton two-stage flow', () => {
   beforeEach(() => {
     mockRedirectToLoginForTip.mockClear()
+    mockUseArticleTipResume.mockClear()
     mockIsAuthenticated.mockReturnValue(false)
     mockIsConnected.mockReturnValue(false)
   })
 
-  it('shows Sign in to tip when signed out', async () => {
+  it('shows Continue on stage 1 without wallet or sign-in CTAs', async () => {
     const user = userEvent.setup({ delay: null })
     render(
       <TipButton
@@ -74,14 +100,53 @@ describe('TipButton auth-first CTA', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: /Tip Author/i }))
-    await user.click(screen.getByRole('button', { name: '$1' }))
+    await openArticleTipModal(user)
+
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
     expect(
-      screen.getByRole('button', { name: 'Sign in to tip' })
-    ).toBeInTheDocument()
+      screen.queryByRole('button', { name: 'Sign in to tip' })
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Connect Wallet' })
     ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Send Tip' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/Connect your Stellar wallet/i)
+    ).not.toBeInTheDocument()
+  })
+
+  it('disables Continue until an amount is selected', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await openArticleTipModal(user)
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled()
+  })
+
+  it('shows Sign in to tip on stage 2 when signed out', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await selectPresetAndContinue(user)
+
+    expect(
+      screen.getByRole('button', { name: 'Sign in to tip' })
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '$1' })).not.toBeInTheDocument()
   })
 
   it('redirects to login with article intent when Sign in to tip is clicked', async () => {
@@ -94,8 +159,7 @@ describe('TipButton auth-first CTA', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: /Tip Author/i }))
-    await user.click(screen.getByRole('button', { name: '$1' }))
+    await selectPresetAndContinue(user)
     await user.click(screen.getByRole('button', { name: 'Sign in to tip' }))
 
     expect(mockRedirectToLoginForTip).toHaveBeenCalledWith(
@@ -109,7 +173,7 @@ describe('TipButton auth-first CTA', () => {
     )
   })
 
-  it('shows Connect Wallet when signed in without wallet', async () => {
+  it('shows Connect Wallet on stage 2 when signed in without wallet', async () => {
     mockIsAuthenticated.mockReturnValue(true)
     const user = userEvent.setup({ delay: null })
     render(
@@ -120,7 +184,8 @@ describe('TipButton auth-first CTA', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: /Tip Author/i }))
+    await selectPresetAndContinue(user)
+
     expect(
       screen.getByRole('button', { name: 'Connect Wallet' })
     ).toBeInTheDocument()
@@ -130,7 +195,7 @@ describe('TipButton auth-first CTA', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('shows Send Tip when signed in with wallet', async () => {
+  it('shows Send Tip on stage 2 when signed in with wallet', async () => {
     mockIsAuthenticated.mockReturnValue(true)
     mockIsConnected.mockReturnValue(true)
     const user = userEvent.setup({ delay: null })
@@ -142,13 +207,12 @@ describe('TipButton auth-first CTA', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: /Tip Author/i }))
+    await selectPresetAndContinue(user)
+
     expect(screen.getByRole('button', { name: 'Send Tip' })).toBeInTheDocument()
   })
 
-  it('shows inline alert for invalid tip amount when wallet is connected', async () => {
-    mockIsAuthenticated.mockReturnValue(true)
-    mockIsConnected.mockReturnValue(true)
+  it('returns to stage 1 with amount preserved when Back is clicked', async () => {
     const user = userEvent.setup({ delay: null })
     render(
       <TipButton
@@ -158,11 +222,60 @@ describe('TipButton auth-first CTA', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: /Tip Author/i }))
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '$1' })).toBeInTheDocument()
+  })
+
+  it('shows inline alert for invalid tip amount on stage 1 Continue', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await openArticleTipModal(user)
     const customInput = screen.getByPlaceholderText('0.00')
     await user.type(customInput, '0')
-    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
 
     expect(screen.getByRole('alert')).toHaveTextContent(/valid amount/i)
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
+  })
+
+  it('opens at checkout on resume after login', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    const onResume = mockUseArticleTipResume.mock.calls[0]![0].onResume
+
+    await act(async () => {
+      onResume({
+        kind: 'article',
+        articleId: 'articles:abc',
+        amountCents: 500,
+        message: 'Thanks!',
+      })
+    })
+
+    expect(screen.getByRole('button', { name: 'Send Tip' })).toBeInTheDocument()
+    expect(screen.getByText(/Tip amount: \$5\.00/)).toBeInTheDocument()
+    expect(screen.getByText(/Thanks!/)).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Continue' })
+    ).not.toBeInTheDocument()
   })
 })
