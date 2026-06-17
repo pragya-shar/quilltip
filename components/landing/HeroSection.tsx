@@ -8,6 +8,7 @@ import {
 } from '@/lib/copy/landing-hero'
 import { HERO_START_READING, HERO_START_WRITING } from '@/lib/copy/nav-cta'
 import { LandingProductProof } from '@/components/landing/LandingProductProof'
+import { LandingTippingDemo } from '@/components/landing/LandingTippingDemo'
 import { motion } from 'motion/react'
 
 export default function HeroSection() {
@@ -41,10 +42,19 @@ export default function HeroSection() {
           </motion.p>
 
           <motion.div
-            className="mt-6 flex w-full max-w-md flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center"
+            className="mt-8 hidden w-full justify-center lg:flex"
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.15, ease: 'easeOut' }}
+          >
+            <LandingTippingDemo />
+          </motion.div>
+
+          <motion.div
+            className="mt-6 flex w-full max-w-md flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2, ease: 'easeOut' }}
           >
             <Link
               href="/articles"
@@ -64,7 +74,7 @@ export default function HeroSection() {
           <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2, ease: 'easeOut' }}
+            transition={{ duration: 0.5, delay: 0.25, ease: 'easeOut' }}
             className="mt-8 w-full flex justify-center opacity-90"
           >
             <LandingProductProof />

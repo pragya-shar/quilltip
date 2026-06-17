@@ -32,10 +32,6 @@ vi.mock('next/link', () => ({
   ),
 }))
 
-vi.mock('@/components/landing/LandingTippingDemo', () => ({
-  LandingTippingDemo: () => <div data-testid="landing-tipping-demo" />,
-}))
-
 describe('HowItWorksSection step controls', () => {
   function stepsRegion() {
     return screen.getByLabelText('How it works steps')

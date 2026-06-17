@@ -150,7 +150,7 @@ export function LandingTippingDemo() {
   )
 
   return (
-    <div className="hidden w-full max-w-2xl md:block">
+    <div className="w-full max-w-2xl">
       <div className="relative bg-card rounded-xl border border-border shadow-[var(--card-shadow)] overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/60">
           <div className="flex gap-1.5">

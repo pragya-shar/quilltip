@@ -6,7 +6,6 @@ import { BookOpen, Wallet, Coins, ArrowRight, ChevronDown } from 'lucide-react'
 import { motion, useInView } from 'motion/react'
 import { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { LandingTippingDemo } from '@/components/landing/LandingTippingDemo'
 import {
   Accordion,
   AccordionContent,
@@ -82,75 +81,66 @@ export default function HowItWorksSection() {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6, delay: 0.3 }}
         >
-          <Accordion
-            type="single"
-            collapsible
-            defaultValue="how-it-works-0"
-            className="space-y-3"
-          >
-            {steps.map((step, index) => (
-              <AccordionItem
-                key={step.title}
-                value={`how-it-works-${index}`}
-                className={cn(
-                  'border-none rounded-2xl border transition-colors duration-200 overflow-hidden',
-                  'border-foreground/[0.06] bg-foreground/[0.02]',
-                  'data-[state=open]:border-foreground/15 data-[state=open]:bg-foreground/[0.04]'
-                )}
+              <Accordion
+                type="single"
+                collapsible
+                defaultValue="how-it-works-0"
+                className="space-y-3"
               >
-                <div>
-                  <AccordionTrigger
-                    showChevron={false}
+                {steps.map((step, index) => (
+                  <AccordionItem
+                    key={step.title}
+                    value={`how-it-works-${index}`}
                     className={cn(
-                      'group w-full flex items-center gap-4 px-5 py-4 hover:no-underline',
-                      stepTriggerFocusClass
+                      'border-none rounded-2xl border transition-colors duration-200 overflow-hidden',
+                      'border-foreground/[0.06] bg-foreground/[0.02]',
+                      'data-[state=open]:border-foreground/15 data-[state=open]:bg-foreground/[0.04]'
                     )}
                   >
-                    <div
-                      className={cn(
-                        'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0',
-                        'bg-foreground/5 border border-foreground/[0.06]',
-                        'group-data-[state=open]:bg-foreground/10 group-data-[state=open]:border-foreground/10'
-                      )}
-                      aria-hidden="true"
-                    >
-                      <ChevronDown className="w-4 h-4 text-spotlight-muted transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                    </div>
+                    <div>
+                      <AccordionTrigger
+                        showChevron={false}
+                        className={cn(
+                          'group w-full flex items-center gap-4 px-5 py-4 hover:no-underline',
+                          stepTriggerFocusClass
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            'w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0',
+                            'bg-foreground/5 border border-foreground/[0.06]',
+                            'group-data-[state=open]:bg-foreground/10 group-data-[state=open]:border-foreground/10'
+                          )}
+                          aria-hidden="true"
+                        >
+                          <ChevronDown className="w-4 h-4 text-spotlight-muted transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                        </div>
 
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <step.icon
-                        className="w-4.5 h-4.5 text-spotlight-muted flex-shrink-0"
-                        aria-hidden="true"
-                      />
-                      <span className="font-display text-lg md:text-xl font-medium tracking-tight text-spotlight-foreground truncate">
-                        {step.title}
-                      </span>
-                    </div>
-                  </AccordionTrigger>
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <step.icon
+                            className="w-4.5 h-4.5 text-spotlight-muted flex-shrink-0"
+                            aria-hidden="true"
+                          />
+                          <span className="font-display text-lg md:text-xl font-medium tracking-tight text-spotlight-foreground truncate">
+                            {step.title}
+                          </span>
+                        </div>
+                      </AccordionTrigger>
 
-                  <AccordionContent className="px-5 pb-5 pt-0">
-                    <ul className="list-disc pl-5 space-y-2">
-                      <li className="text-[14px] text-spotlight-foreground/85 leading-relaxed">
-                        {step.description}
-                      </li>
-                      <li className="text-[13px] text-spotlight-muted leading-relaxed">
-                        {step.detail}
-                      </li>
-                    </ul>
-                  </AccordionContent>
-                </div>
-              </AccordionItem>
-            ))}
+                      <AccordionContent className="px-5 pb-5 pt-0">
+                        <ul className="list-disc pl-5 space-y-2">
+                          <li className="text-[14px] text-spotlight-foreground/85 leading-relaxed">
+                            {step.description}
+                          </li>
+                          <li className="text-[13px] text-spotlight-muted leading-relaxed">
+                            {step.detail}
+                          </li>
+                        </ul>
+                      </AccordionContent>
+                    </div>
+                  </AccordionItem>
+                ))}
           </Accordion>
-        </motion.div>
-
-        <motion.div
-          className="mt-12 flex justify-center"
-          initial={{ opacity: 0, y: 20 }}
-          animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-        >
-          <LandingTippingDemo />
         </motion.div>
 
         <motion.div

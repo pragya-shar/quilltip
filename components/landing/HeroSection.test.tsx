@@ -32,6 +32,10 @@ vi.mock('@/components/landing/LandingProductProof', () => ({
   LandingProductProof: () => <div data-testid="landing-product-proof" />,
 }))
 
+vi.mock('@/components/landing/LandingTippingDemo', () => ({
+  LandingTippingDemo: () => <div data-testid="landing-tipping-demo" />,
+}))
+
 describe('HeroSection launch CTAs', () => {
   it('shows one primary and one secondary CTA without wallet setup', () => {
     render(<HeroSection />)
