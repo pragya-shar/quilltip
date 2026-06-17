@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  getAuthPageCopy,
   getAuthIntent,
   getLoginCopy,
   getRegisterCopy,
@@ -46,5 +47,16 @@ describe('getLoginCopy', () => {
   it('uses read-intent messaging for articles', () => {
     const copy = getLoginCopy('/articles')
     expect(copy.submitLabel).toBe('Sign in and start reading')
+  })
+})
+
+describe('getAuthPageCopy', () => {
+  it('routes register and login variants through the shared return path', () => {
+    expect(getAuthPageCopy('register', '/write')).toBe(
+      getRegisterCopy('/write')
+    )
+    expect(getAuthPageCopy('login', '/articles')).toBe(
+      getLoginCopy('/articles')
+    )
   })
 })

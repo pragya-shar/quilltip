@@ -1,4 +1,5 @@
 export type AuthIntent = 'write' | 'read' | 'default'
+export type AuthPageVariant = 'login' | 'register'
 
 export interface AuthPageCopy {
   heading: string
@@ -81,4 +82,13 @@ export function getRegisterCopy(returnPath: string): AuthPageCopy {
 
 export function getLoginCopy(returnPath: string): AuthPageCopy {
   return LOGIN_COPY[getAuthIntent(returnPath)]
+}
+
+export function getAuthPageCopy(
+  variant: AuthPageVariant,
+  returnPath: string
+): AuthPageCopy {
+  return variant === 'register'
+    ? getRegisterCopy(returnPath)
+    : getLoginCopy(returnPath)
 }

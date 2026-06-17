@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
-import { useAuthPageCopy } from '@/components/auth/AuthIntentHeading'
+import { getLoginCopy } from '@/lib/copy/auth-intent'
 import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import { getSafeRedirectPath } from '@/lib/navigation/walletProfileDestination'
 import { useForm } from 'react-hook-form'
@@ -35,7 +35,7 @@ export default function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const returnToPath = useAuthReturnPath()
-  const copy = useAuthPageCopy('login')
+  const copy = getLoginCopy(returnToPath)
   const redirectParam = searchParams.get('redirect')
   const postLoginPath =
     redirectParam != null && redirectParam !== ''

@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, type FieldErrors } from 'react-hook-form'
 import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
-import { useAuthPageCopy } from '@/components/auth/AuthIntentHeading'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { parseRegisterSignInError } from '@/lib/auth/map-register-error'
 import { getFirstRegisterFieldError } from '@/lib/auth/register-form-a11y'
+import { getRegisterCopy } from '@/lib/copy/auth-intent'
 import { registerSchema, type RegisterFormData } from '@/lib/validations/auth'
 import { allPasswordRulesMet } from '@/lib/validations/password-rules'
 import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
@@ -43,7 +43,7 @@ export default function RegisterForm() {
 
   const router = useRouter()
   const returnPath = useAuthReturnPath()
-  const copy = useAuthPageCopy('register')
+  const copy = getRegisterCopy(returnPath)
   const { signIn } = useAuth()
 
   const {

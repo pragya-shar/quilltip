@@ -50,6 +50,8 @@ describe('LoginForm', () => {
     expect(
       screen.getByRole('button', { name: /sign in and continue writing/i })
     ).toBeInTheDocument()
+    // React may invoke initial render twice; the old nested hook path exceeded this.
+    expect(mockUseAuthReturnPath.mock.calls.length).toBeLessThanOrEqual(2)
   })
 
   it('shows redirecting message and navigates to the return path on successful sign in', async () => {

@@ -49,6 +49,8 @@ describe('RegisterForm accessibility', () => {
     expect(
       screen.getByRole('button', { name: /create account and start writing/i })
     ).toBeInTheDocument()
+    // React may invoke initial render twice; the old nested hook path exceeded this.
+    expect(mockUseAuthReturnPath.mock.calls.length).toBeLessThanOrEqual(2)
   })
 
   it('marks the first invalid field and associates its error on empty submit', async () => {
@@ -163,6 +165,10 @@ describe('RegisterForm accessibility', () => {
   it('shows password requirements before submit', () => {
     render(<RegisterForm />)
 
+    expect(document.getElementById('password-requirements')).toHaveAttribute(
+      'aria-relevant',
+      'all'
+    )
     expect(screen.getByText(/at least 8 characters/i)).toBeInTheDocument()
     expect(screen.getByText(/one uppercase letter/i)).toBeInTheDocument()
     expect(screen.getByText(/one lowercase letter/i)).toBeInTheDocument()
