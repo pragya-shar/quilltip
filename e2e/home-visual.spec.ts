@@ -155,16 +155,16 @@ test.describe('landing how it works', () => {
     ).toBeVisible()
   })
 
-  test('desktop step cards update selection and panel content', async ({
+  test('desktop accordion steps update selection and panel content', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
 
-    const steps = page.getByRole('tablist', { name: 'How it works steps' })
-    const tip = steps.getByRole('tab', { name: 'Tip' })
+    const steps = page.getByLabel('How it works steps')
+    const tip = steps.getByRole('button', { name: 'Tip' })
     await tip.click()
 
-    await expect(tip).toHaveAttribute('aria-selected', 'true')
+    await expect(tip).toHaveAttribute('aria-expanded', 'true')
     await expect(
       page.getByText(
         "Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds."
@@ -172,31 +172,29 @@ test.describe('landing how it works', () => {
     ).toBeVisible()
   })
 
-  test('desktop step cards respond to ArrowRight keyboard navigation', async ({
+  test('desktop accordion steps toggle with Enter keyboard interaction', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
 
-    const steps = page.getByRole('tablist', { name: 'How it works steps' })
-    const browse = steps.getByRole('tab', { name: 'Browse' })
+    const steps = page.getByLabel('How it works steps')
+    const browse = steps.getByRole('button', { name: 'Browse' })
     await browse.focus()
-    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('Enter')
 
-    const tip = steps.getByRole('tab', { name: 'Tip' })
-    await expect(tip).toBeFocused()
-    await expect(tip).toHaveAttribute('aria-selected', 'true')
+    await expect(browse).toHaveAttribute('aria-expanded', 'false')
   })
 
-  test('mobile step cards update selection and panel content', async ({
+  test('mobile accordion steps update selection and panel content', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 })
 
-    const steps = page.getByRole('tablist', { name: 'How it works steps' })
-    const publish = steps.getByRole('tab', { name: 'Publish & earn' })
+    const steps = page.getByLabel('How it works steps')
+    const publish = steps.getByRole('button', { name: 'Publish & earn' })
     await publish.click()
 
-    await expect(publish).toHaveAttribute('aria-selected', 'true')
+    await expect(publish).toHaveAttribute('aria-expanded', 'true')
     await expect(
       page.getByText(
         'Use the rich editor to publish your work. Tips go directly to your wallet with near-zero fees.'
