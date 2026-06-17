@@ -75,10 +75,9 @@ describe('Navigation launch IA', () => {
   it('shows Start Writing as the primary nav action', () => {
     render(<Navigation />)
 
-    expect(screen.getByRole('link', { name: NAV_START_WRITING })).toHaveAttribute(
-      'href',
-      '/register'
-    )
+    expect(
+      screen.getByRole('link', { name: NAV_START_WRITING })
+    ).toHaveAttribute('href', '/register')
   })
 
   it('limits Product dropdown items to read, write, and tipping', async () => {
@@ -86,11 +85,21 @@ describe('Navigation launch IA', () => {
     render(<Navigation />)
 
     await user.click(screen.getByRole('button', { name: 'Toggle menu' }))
-    expect(screen.getByRole('link', { name: 'Interactive Reading' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Rich Editor' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'How tipping works' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'NFT Minting' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Permanent Storage' })).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Interactive Reading' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Rich Editor' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'How tipping works' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'NFT Minting' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Permanent Storage' })
+    ).not.toBeInTheDocument()
   })
 
   it('limits Resources dropdown to wallet guide and FAQ', async () => {
@@ -99,9 +108,15 @@ describe('Navigation launch IA', () => {
 
     await user.click(screen.getByRole('button', { name: 'Toggle menu' }))
 
-    expect(screen.getByRole('link', { name: 'Wallet Guide' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Wallet Guide' })
+    ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'FAQ' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Security' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Arweave Storage' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Security' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Arweave Storage' })
+    ).not.toBeInTheDocument()
   })
 })

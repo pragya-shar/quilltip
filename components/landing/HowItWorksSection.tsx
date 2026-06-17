@@ -37,7 +37,7 @@ const steps: Step[] = [
     title: 'Tip',
     description: 'Connect a Stellar wallet and tip your favorite passages',
     detail:
-      "Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds.",
+      'Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds.',
   },
   {
     icon: Coins,

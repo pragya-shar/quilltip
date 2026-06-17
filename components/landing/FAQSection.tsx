@@ -34,7 +34,7 @@ const faqs = [
   {
     question: 'What does it cost to use Quilltip as a writer or reader?',
     answer:
-      "Reading articles: completely free, no wallet needed. Tipping writers: pay only the Stellar network fee (0.05 XLM, less than $0.01) plus your chosen tip amount. Publishing articles: free, no hosting fees or subscriptions.",
+      'Reading articles: completely free, no wallet needed. Tipping writers: pay only the Stellar network fee (0.05 XLM, less than $0.01) plus your chosen tip amount. Publishing articles: free, no hosting fees or subscriptions.',
   },
 ] as const
 

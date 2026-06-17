@@ -78,7 +78,7 @@ describe('HowItWorksSection step controls', () => {
     expect(tip).toHaveAttribute('aria-expanded', 'true')
     expect(stepTrigger('Browse')).toHaveAttribute('aria-expanded', 'false')
     expectStepContentVisible(
-      "Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds."
+      'Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds.'
     )
   })
 

@@ -36,16 +36,18 @@ describe('HeroSection launch CTAs', () => {
   it('shows one primary and one secondary CTA without wallet setup', () => {
     render(<HeroSection />)
 
-    expect(screen.getByRole('link', { name: HERO_START_READING })).toHaveAttribute(
-      'href',
-      '/articles'
-    )
-    expect(screen.getByRole('link', { name: HERO_START_WRITING })).toHaveAttribute(
-      'href',
-      '/register'
-    )
-    expect(screen.queryByRole('link', { name: HERO_WALLET_SETUP })).not.toBeInTheDocument()
-    expect(screen.queryByText('Live on Stellar Testnet')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: HERO_START_READING })
+    ).toHaveAttribute('href', '/articles')
+    expect(
+      screen.getByRole('link', { name: HERO_START_WRITING })
+    ).toHaveAttribute('href', '/register')
+    expect(
+      screen.queryByRole('link', { name: HERO_WALLET_SETUP })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Live on Stellar Testnet')
+    ).not.toBeInTheDocument()
     expect(screen.queryByText('97.5%')).not.toBeInTheDocument()
   })
 })

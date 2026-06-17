@@ -167,7 +167,7 @@ test.describe('landing how it works', () => {
     await expect(tip).toHaveAttribute('aria-expanded', 'true')
     await expect(
       page.getByText(
-        "Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds."
+        'Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds.'
       )
     ).toBeVisible()
   })
