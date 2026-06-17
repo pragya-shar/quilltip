@@ -91,7 +91,7 @@ export default function FAQSection() {
           collapsible
           defaultValue="faq-0"
           data-testid="faq-accordion"
-          className="mx-auto max-w-4xl space-y-3"
+          className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-6"
         >
           {faqs.map((faq, index) => (
             <motion.div
@@ -100,14 +100,11 @@ export default function FAQSection() {
               animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
               transition={{ duration: 0.5, delay: index * 0.08 }}
             >
-              <AccordionItem
-                value={`faq-${index}`}
-                className="rounded-lg border border-border/70 bg-card/70 px-4 shadow-sm"
-              >
+              <AccordionItem value={`faq-${index}`} className="border-none">
                 <AccordionTrigger
                   showChevron={false}
                   className={cn(
-                    'group w-full flex items-start gap-4 py-4 hover:no-underline',
+                    'group w-full flex justify-start items-start gap-4 py-2 hover:no-underline',
                     faqTriggerFocusClass
                   )}
                 >
@@ -127,7 +124,7 @@ export default function FAQSection() {
                     {faq.question}
                   </span>
                 </AccordionTrigger>
-                <AccordionContent className="ml-12 pr-3 text-[14px] text-muted-foreground leading-relaxed">
+                <AccordionContent className="ml-12 text-[14px] text-muted-foreground leading-relaxed">
                   {faq.answer}
                 </AccordionContent>
               </AccordionItem>

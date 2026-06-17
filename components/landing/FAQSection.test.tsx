@@ -75,12 +75,14 @@ describe('FAQSection accordion accessibility', () => {
     )
   })
 
-  it('keeps FAQ items in a single centered accordion column', () => {
+  it('keeps FAQ items in left-started desktop columns', () => {
     render(<FAQSection />)
 
     const accordion = screen.getByTestId('faq-accordion')
-    expect(accordion).toHaveClass('max-w-4xl')
-    expect(accordion).toHaveClass('space-y-3')
-    expect(accordion.className).not.toContain('grid-cols-')
+    expect(accordion).toHaveClass('grid')
+    expect(accordion).toHaveClass('grid-cols-1')
+    expect(accordion).toHaveClass('md:grid-cols-2')
+
+    expect(getTrigger(firstQuestion)).toHaveClass('justify-start')
   })
 })
