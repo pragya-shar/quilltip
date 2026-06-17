@@ -18,6 +18,7 @@ import { motion, AnimatePresence, useInView } from 'motion/react'
 import { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { REGISTER_FOR_WRITE_HREF } from '@/lib/auth/auth-links'
 
 type StepVariant = 'desktop' | 'mobile'
 
@@ -487,7 +488,7 @@ export default function HowItWorksSection() {
           transition={{ duration: 0.8, delay: 0.8 }}
         >
           <Link
-            href="/register"
+            href={REGISTER_FOR_WRITE_HREF}
             className="focus-ring group inline-flex items-center justify-center gap-2 bg-card text-card-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-muted transition-all duration-200"
           >
             Start Writing & Earning Today

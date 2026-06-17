@@ -43,6 +43,17 @@ describe('LoginForm', () => {
     mockSignIn.mockResolvedValue(undefined)
   })
 
+  it('uses write-intent submit label when return path is the editor', () => {
+    mockUseAuthReturnPath.mockReturnValue('/write')
+    render(<LoginForm />)
+
+    expect(
+      screen.getByRole('button', { name: /sign in and continue writing/i })
+    ).toBeInTheDocument()
+    // React may invoke initial render twice; the old nested hook path exceeded this.
+    expect(mockUseAuthReturnPath.mock.calls.length).toBeLessThanOrEqual(2)
+  })
+
   it('shows redirecting message and navigates to the return path on successful sign in', async () => {
     const user = userEvent.setup({ delay: null })
 
@@ -54,7 +65,7 @@ describe('LoginForm', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/signed in successfully! redirecting to dashboard/i)
+        screen.getByText(/signed in successfully! taking you to articles/i)
       ).toBeInTheDocument()
     })
 

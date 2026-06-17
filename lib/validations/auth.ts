@@ -50,12 +50,6 @@ export const registerSchema = z
         'Password must contain at least one uppercase letter, one lowercase letter, and one number'
       ),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
-    name: z
-      .union([
-        z.literal(''),
-        z.string().max(50, 'Name must be at most 50 characters'),
-      ])
-      .optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords don't match",

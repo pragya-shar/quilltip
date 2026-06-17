@@ -4,7 +4,6 @@ import type { RegisterFormData } from '@/lib/validations/auth'
 export const REGISTER_FIELD_ORDER = [
   'email',
   'username',
-  'name',
   'password',
   'confirmPassword',
 ] as const satisfies readonly (keyof RegisterFormData)[]

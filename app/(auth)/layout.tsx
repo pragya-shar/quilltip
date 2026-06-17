@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { LegalLinks } from '@/components/legal/LegalLinks'
-import { Logo } from '@/components/ui/Logo'
+import { AuthShellHeader } from '@/components/auth/AuthShellHeader'
 import { AUTH_FOOTER_LINKS } from '@/lib/copy/footer-links'
 
 /**
@@ -18,23 +18,10 @@ export default function AuthLayout({
 }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-cream to-background dark:from-background dark:to-muted">
-      {/* Auth Form Container */}
-      <main className="flex min-h-screen items-center justify-center px-6 py-20">
-        <div className="w-full max-w-md">
-          {/* Logo and Welcome Message */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center mb-4">
-              <Logo href={null} size="lg" />
-            </div>
-            <h1 className="text-3xl font-bold text-foreground">
-              Welcome to Quilltip
-            </h1>
-            <p className="mt-2 text-muted-foreground">
-              Where your words find their worth
-            </p>
-          </div>
+      <AuthShellHeader />
 
-          {/* Auth Form Card */}
+      <main className="flex min-h-screen items-start justify-center px-6 pb-20 pt-28 sm:pt-32">
+        <div className="w-full max-w-md mt-8">
           <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-8">
             {children}
           </div>
