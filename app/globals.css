@@ -677,3 +677,10 @@
     animation: var(--animate-accordion-up);
   }
 }
+
+/* Stellar Wallets Kit modal must sit above Radix dialog overlays (z-50). */
+stellar-wallets-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+}

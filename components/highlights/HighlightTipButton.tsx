@@ -40,6 +40,7 @@ import {
 } from '@/lib/stellar/tip-error-messages'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { signInToTip, validateTipAmountForm } from '@/lib/tip/signInToTip'
+import { connectWalletFromOverlay } from '@/lib/wallet/connectWalletFromOverlay'
 import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
 import {
   clearPendingTipIntent,
@@ -206,14 +207,18 @@ export function HighlightTipButton({
     setTipSuccess(null)
   }
 
+  const suspendDialogForWalletRef = useRef(false)
+
   const handleOpenChange = (open: boolean) => {
     if (!open && isLoading) return
     setIsOpen(open)
     onResumeOpenChange?.(open)
     if (!open) {
-      resetModalState()
-      setSelectedAmount(null)
-      setCustomAmount('')
+      if (!suspendDialogForWalletRef.current) {
+        resetModalState()
+        setSelectedAmount(null)
+        setCustomAmount('')
+      }
     } else {
       setTipFailure(null)
       setTipFormError(null)
@@ -398,7 +403,19 @@ export function HighlightTipButton({
 
   const handleConnectWallet = async () => {
     try {
-      const connected = await connect()
+      const connected = await connectWalletFromOverlay({
+        activateWallet,
+        connect,
+        closeOverlay: () => {
+          suspendDialogForWalletRef.current = true
+          setIsOpen(false)
+        },
+        reopenOverlay: () => {
+          suspendDialogForWalletRef.current = false
+          setModalStep('checkout')
+          setIsOpen(true)
+        },
+      })
       if (connected) {
         setTipFormError(null)
         toast.success('Wallet connected successfully!')

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useConvex, useMutation } from 'convex/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
@@ -38,6 +38,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { signInToTip, validateTipAmountForm } from '@/lib/tip/signInToTip'
+import { connectWalletFromOverlay } from '@/lib/wallet/connectWalletFromOverlay'
 import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
 import { clearPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import type { ArticlePendingTipIntent } from '@/lib/tip/pendingTipIntent'
@@ -83,6 +84,7 @@ export function TipButton({
   )
   const [tipSuccess, setTipSuccess] = useState<string | null>(null)
   const [tipMessage, setTipMessage] = useState('')
+  const suspendDialogForWalletRef = useRef(false)
 
   const convex = useConvex()
   const sendTip = useMutation(api.tips.sendTip)
@@ -125,7 +127,9 @@ export function TipButton({
     if (!open && isLoading) return
     setIsOpen(open)
     if (!open) {
-      resetModalState()
+      if (!suspendDialogForWalletRef.current) {
+        resetModalState()
+      }
     } else {
       setTipFailure(null)
       setTipFormError(null)
@@ -292,7 +296,19 @@ export function TipButton({
 
   const handleConnectWallet = async () => {
     try {
-      const connected = await connect()
+      const connected = await connectWalletFromOverlay({
+        activateWallet,
+        connect,
+        closeOverlay: () => {
+          suspendDialogForWalletRef.current = true
+          setIsOpen(false)
+        },
+        reopenOverlay: () => {
+          suspendDialogForWalletRef.current = false
+          setModalStep('checkout')
+          setIsOpen(true)
+        },
+      })
       if (connected) {
         setTipFormError(null)
         toast.success('Wallet connected successfully!')
