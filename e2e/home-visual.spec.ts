@@ -33,12 +33,12 @@ test.describe('home landing visual regression', () => {
   test('full page screenshot', async ({ page }) => {
     await scrollSectionIntoView(page, '#features')
     await expect(
-      page.getByRole('heading', { name: 'Core Features' })
+      page.getByRole('heading', { name: 'Why Quilltip' })
     ).toBeVisible()
 
     await scrollSectionIntoView(page, '#how-it-works')
     await expect(
-      page.getByRole('heading', { name: /From idea to impact/ })
+      page.getByRole('heading', { name: 'How tipping works' })
     ).toBeVisible()
 
     await scrollSectionIntoView(page, '#security')
@@ -80,12 +80,12 @@ test.describe('landing nav hash navigation', () => {
     await assertRevealContentVisible(page, '#features')
 
     await page.getByRole('button', { name: 'Resources' }).click()
-    await page.getByRole('link', { name: 'Security' }).click()
+    await page.getByRole('link', { name: 'FAQ' }).click()
     await page.waitForTimeout(900)
     await expect(
-      page.getByRole('heading', { name: 'Security on testnet' })
+      page.getByRole('heading', { name: 'Frequently Asked Questions' })
     ).toBeVisible()
-    await assertRevealContentVisible(page, '#security')
+    await assertRevealContentVisible(page, '#faq')
   })
 
   test('mobile menu links reveal section content', async ({ page }) => {
@@ -100,13 +100,13 @@ test.describe('landing nav hash navigation', () => {
       {
         linkName: 'Rich Editor',
         hash: '#features',
-        heading: 'Core Features',
+        heading: 'Why Quilltip',
         section: '#features',
       },
       {
-        linkName: 'Testnet Tips',
+        linkName: 'How tipping works',
         hash: '#how-it-works',
-        heading: /From idea to impact/,
+        heading: 'How tipping works',
         section: '#how-it-works',
       },
       {
@@ -114,18 +114,6 @@ test.describe('landing nav hash navigation', () => {
         hash: '#faq',
         heading: 'Frequently Asked Questions',
         section: '#faq',
-      },
-      {
-        linkName: 'Security',
-        hash: '#security',
-        heading: 'Security on testnet',
-        section: '#security',
-      },
-      {
-        linkName: 'Arweave Storage',
-        hash: '#arweave-storage',
-        heading: 'Permanent storage with Arweave',
-        section: '#arweave-storage',
       },
     ]
 
@@ -153,7 +141,7 @@ test.describe('landing nav hash navigation', () => {
     await expect(page).toHaveURL(/#features$/)
     await page.waitForTimeout(900)
     await expect(
-      page.getByRole('heading', { name: 'Core Features' })
+      page.getByRole('heading', { name: 'Why Quilltip' })
     ).toBeVisible()
     await assertRevealContentVisible(page, '#features')
   })
@@ -163,65 +151,53 @@ test.describe('landing how it works', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/#how-it-works')
     await expect(
-      page.getByRole('heading', { name: /From idea to impact/ })
+      page.getByRole('heading', { name: 'How tipping works' })
     ).toBeVisible()
   })
 
-  test('desktop step cards update selection and panel content', async ({
+  test('desktop accordion steps update selection and panel content', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
 
-    const writerSteps = page.getByRole('tablist', { name: 'Writer steps' })
-    const write = writerSteps.getByRole('tab', { name: 'Write' })
-    await write.click()
+    const steps = page.getByLabel('How it works steps')
+    const tip = steps.getByRole('button', { name: 'Tip' })
+    await tip.click()
 
-    await expect(write).toHaveAttribute('aria-selected', 'true')
+    await expect(tip).toHaveAttribute('aria-expanded', 'true')
     await expect(
       page.getByText(
-        'Full markdown support, code blocks, media embeds, and a distraction-free writing experience.'
-      )
-    ).toBeVisible()
-
-    await page.getByRole('tab', { name: 'For Readers' }).click()
-    const readerSteps = page.getByRole('tablist', { name: 'Reader steps' })
-    const browse = readerSteps.getByRole('tab', { name: 'Browse' })
-    await expect(browse).toHaveAttribute('aria-selected', 'true')
-    await expect(
-      page.getByText(
-        'All articles are free to read. Explore by topic, trending, or latest. No paywalls, ever.'
+        'Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds.'
       )
     ).toBeVisible()
   })
 
-  test('desktop step cards respond to ArrowRight keyboard navigation', async ({
+  test('desktop accordion steps toggle with Enter keyboard interaction', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
 
-    const writerSteps = page.getByRole('tablist', { name: 'Writer steps' })
-    const signUp = writerSteps.getByRole('tab', { name: 'Sign Up' })
-    await signUp.focus()
-    await page.keyboard.press('ArrowRight')
+    const steps = page.getByLabel('How it works steps')
+    const browse = steps.getByRole('button', { name: 'Browse' })
+    await browse.focus()
+    await page.keyboard.press('Enter')
 
-    const write = writerSteps.getByRole('tab', { name: 'Write' })
-    await expect(write).toBeFocused()
-    await expect(write).toHaveAttribute('aria-selected', 'true')
+    await expect(browse).toHaveAttribute('aria-expanded', 'false')
   })
 
-  test('mobile step cards update selection and panel content', async ({
+  test('mobile accordion steps update selection and panel content', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 })
 
-    const writerSteps = page.getByRole('tablist', { name: 'Writer steps' })
-    const publish = writerSteps.getByRole('tab', { name: 'Publish' })
+    const steps = page.getByLabel('How it works steps')
+    const publish = steps.getByRole('button', { name: 'Publish & earn' })
     await publish.click()
 
-    await expect(publish).toHaveAttribute('aria-selected', 'true')
+    await expect(publish).toHaveAttribute('aria-expanded', 'true')
     await expect(
       page.getByText(
-        'Your article is stored permanently on Arweave. A tamper-proof record of your creative work, forever.'
+        'Use the rich editor to publish your work. Tips go directly to your wallet with near-zero fees.'
       )
     ).toBeVisible()
   })

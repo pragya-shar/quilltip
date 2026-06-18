@@ -26,6 +26,8 @@ describe('FeaturesSection keyboard navigation', () => {
   it('exposes a focusable link for each core feature', () => {
     render(<FeaturesSection />)
 
+    expect(LANDING_FEATURES).toHaveLength(4)
+
     for (const feature of LANDING_FEATURES) {
       expect(
         screen.getAllByRole('link', { name: feature.title }).length

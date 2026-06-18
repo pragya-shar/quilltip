@@ -9,8 +9,7 @@ describe('landing nav targets', () => {
     }
   })
 
-  it('includes security and arweave storage anchors', () => {
+  it('includes security anchor', () => {
     expect(LANDING_SECTION_IDS).toContain('security')
-    expect(LANDING_SECTION_IDS).toContain('arweave-storage')
   })
 })
