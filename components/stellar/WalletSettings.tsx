@@ -31,9 +31,7 @@ import { toast } from 'sonner'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
 import { LegalLinks } from '@/components/legal/LegalLinks'
-import {
-  networkLabelLowercase,
-} from '@/lib/copy/network-status'
+import { networkLabelLowercase } from '@/lib/copy/network-status'
 
 interface WalletSettingsProps {
   walletAddress?: string | null

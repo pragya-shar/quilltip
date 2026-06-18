@@ -19,7 +19,9 @@ export function practiceFundsNote(): string {
 }
 
 export function testnetBadgeLabel(): string {
-  return getNetwork() === 'MAINNET' ? 'Mainnet' : 'Testnet — practice funds only'
+  return getNetwork() === 'MAINNET'
+    ? 'Mainnet'
+    : 'Testnet — practice funds only'
 }
 
 export function tipSpeedNote(): string {

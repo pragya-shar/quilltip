@@ -46,9 +46,7 @@ describe('ContextualWalletSetup', () => {
   })
 
   it('renders send mode copy with recipient label', () => {
-    render(
-      <ContextualWalletSetup mode="send" recipientLabel="Jane Doe" />
-    )
+    render(<ContextualWalletSetup mode="send" recipientLabel="Jane Doe" />)
 
     expect(screen.getByText('Connect to tip Jane Doe')).toBeInTheDocument()
     expect(

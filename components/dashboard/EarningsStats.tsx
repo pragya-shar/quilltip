@@ -7,9 +7,7 @@ import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetu
 import { MonthlyEarningsChart } from '@/components/dashboard/monthly-earnings-chart'
 import { TopEarningArticles } from '@/components/dashboard/top-earning-articles'
 import { useDashboardNavigation } from '@/hooks/useDashboardNavigation'
-import {
-  networkLabelLowercase,
-} from '@/lib/copy/network-status'
+import { networkLabelLowercase } from '@/lib/copy/network-status'
 
 export type EarningsStatsProps = {
   earnings: Doc<'authorEarnings'>

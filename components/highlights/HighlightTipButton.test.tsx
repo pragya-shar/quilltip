@@ -103,8 +103,9 @@ describe('HighlightTipButton', () => {
     )
 
     expect(screen.getByText('Connect to tip Author')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: /Connect wallet/i }).length)
-      .toBeGreaterThanOrEqual(1)
+    expect(
+      screen.getAllByRole('button', { name: /Connect wallet/i }).length
+    ).toBeGreaterThanOrEqual(1)
     expect(
       screen.queryByRole('link', { name: /Follow our setup guide/i })
     ).not.toBeInTheDocument()

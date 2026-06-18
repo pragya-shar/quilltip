@@ -1365,7 +1365,9 @@ export function WriteEditorWorkspace() {
               <div className="space-y-3">
                 <ContextualWalletSetup
                   mode="receive"
-                  onAddressSaved={(address) => setReceivingWalletAddress(address)}
+                  onAddressSaved={(address) =>
+                    setReceivingWalletAddress(address)
+                  }
                 />
                 <p className="text-sm text-muted-foreground">
                   Readers cannot tip this article until a receiving wallet is

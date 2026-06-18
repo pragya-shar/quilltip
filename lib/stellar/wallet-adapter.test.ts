@@ -93,9 +93,8 @@ describe('walletAdapter', () => {
 
   it('shares an in-flight connect attempt instead of reopening the wallet modal', async () => {
     const { walletAdapter } = await import('@/lib/stellar/wallet-adapter')
-    const { getWalletPickerOpen } = await import(
-      '@/lib/stellar/wallet-picker-state'
-    )
+    const { getWalletPickerOpen } =
+      await import('@/lib/stellar/wallet-picker-state')
 
     const firstConnect = walletAdapter.connect()
     const secondConnect = walletAdapter.connect()
