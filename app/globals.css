@@ -190,6 +190,18 @@
   --info-foreground: oklch(0.48 0.17 240);
 
   /*
+   * Monetization status mapping (reader-facing tip, highlight, NFT surfaces):
+   * - Wallet not connected: bg-warning text-warning-foreground border-warning/30
+   * - Tip / upload success: bg-success text-success-foreground
+   * - Pending / uploading / info: bg-info text-info-foreground
+   * - Section icons / quiet stats: text-muted-foreground
+   * - Heat / NFT progress emphasis: bg-primary/50 on bg-muted track
+   * - Errors: destructive variant
+   * Wallet/NFT accent: reuse --primary (no separate monetization token).
+   * See docs/design-system/monetization-status-colors.md
+   */
+
+  /*
    * Landing semantic tokens
    * - brand: consistent CTA color across modes
    * - spotlight: intentionally darker section surface that still adapts in dark mode

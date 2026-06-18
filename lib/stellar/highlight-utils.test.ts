@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   calculateTipBreakdown,
   formatTipAmount,
+  getHeatmapColor,
 } from '@/lib/stellar/highlight-utils'
 import { STELLAR_CONFIG } from '@/lib/stellar/config'
 
@@ -28,6 +29,26 @@ describe('calculateTipBreakdown', () => {
     expect(b.authorShare).toBe(249)
     expect(b.platformFeeFormatted).toBe('$0.06')
     expect(b.authorShareFormatted).toBe('$2.49')
+  })
+})
+
+describe('getHeatmapColor', () => {
+  it('returns low opacity for zero amount when max is zero', () => {
+    expect(getHeatmapColor(0, 0)).toBe(0.15)
+  })
+
+  it('returns monotonically increasing opacity with amount', () => {
+    const low = getHeatmapColor(10, 100)
+    const mid = getHeatmapColor(50, 100)
+    const high = getHeatmapColor(100, 100)
+    expect(low).toBeLessThan(mid)
+    expect(mid).toBeLessThan(high)
+    expect(high).toBeLessThanOrEqual(1)
+    expect(low).toBeGreaterThanOrEqual(0.2)
+  })
+
+  it('caps intensity at max amount', () => {
+    expect(getHeatmapColor(200, 100)).toBe(getHeatmapColor(100, 100))
   })
 })
 

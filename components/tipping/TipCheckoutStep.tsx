@@ -30,7 +30,6 @@ interface TipCheckoutStepProps {
   onSignIn: () => void
   onConnectWallet: () => void
   onSendTip: () => void
-  useGradientButtons?: boolean
 }
 
 export function TipCheckoutStep({
@@ -50,13 +49,7 @@ export function TipCheckoutStep({
   onSignIn,
   onConnectWallet,
   onSendTip,
-  useGradientButtons = false,
 }: TipCheckoutStepProps) {
-  const primaryGradientClass =
-    'bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600'
-  const connectGradientClass =
-    'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
-
   const renderPrimaryButton = () => {
     if (!isAuthenticated) {
       return (
@@ -64,7 +57,7 @@ export function TipCheckoutStep({
           type="button"
           onClick={onSignIn}
           disabled={isLoading}
-          className={`flex-1 gap-2 ${useGradientButtons ? primaryGradientClass : ''}`}
+          className="flex-1 gap-2"
         >
           <Heart className="w-4 h-4" />
           Sign in to tip
@@ -78,7 +71,7 @@ export function TipCheckoutStep({
           type="button"
           onClick={onConnectWallet}
           disabled={isLoading || isWalletLoading}
-          className={`flex-1 gap-2 ${useGradientButtons ? connectGradientClass : ''}`}
+          className="flex-1 gap-2"
         >
           {isWalletLoading ? (
             <>
@@ -100,7 +93,7 @@ export function TipCheckoutStep({
         type="button"
         onClick={onSendTip}
         disabled={isLoading || !!tipSuccess}
-        className={`flex-1 gap-2 ${useGradientButtons ? primaryGradientClass : ''}`}
+        className="flex-1 gap-2"
       >
         {isLoading ? (
           <>
@@ -130,7 +123,7 @@ export function TipCheckoutStep({
           </p>
         </div>
       ) : !isConnected ? (
-        <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-900 dark:text-amber-100">
+        <div className="p-3 bg-warning text-warning-foreground border border-warning/30 rounded-lg text-sm">
           <p>
             Connect your Stellar wallet to send your {formatTipLabel(variant)}{' '}
             to {authorName}.
@@ -139,7 +132,7 @@ export function TipCheckoutStep({
             New to crypto?{' '}
             <Link
               href="/guide"
-              className="focus-ring rounded text-amber-700 dark:text-amber-300 underline font-medium hover:text-amber-900 dark:hover:text-amber-100"
+              className="focus-ring rounded underline font-medium hover:opacity-80"
             >
               Follow our setup guide
             </Link>
@@ -165,7 +158,7 @@ export function TipCheckoutStep({
       </div>
 
       {isConnected && publicKey ? (
-        <div className="text-xs text-green-800 dark:text-green-300 text-center">
+        <div className="text-xs text-success-foreground text-center">
           <p className="flex items-center justify-center gap-1">
             <Wallet className="w-3 h-3" />
             Connected: {publicKey.slice(0, 6)}...{publicKey.slice(-6)}

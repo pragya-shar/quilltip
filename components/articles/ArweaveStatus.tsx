@@ -24,24 +24,22 @@ const statusConfig: Record<
   { color: string; icon: React.ReactNode; label: string }
 > = {
   pending: {
-    color:
-      'text-yellow-900 bg-yellow-50 dark:text-yellow-200 dark:bg-yellow-950/50',
+    color: 'bg-warning text-warning-foreground',
     icon: <Clock className="w-4 h-4" />,
     label: 'Uploading to Arweave',
   },
   uploaded: {
-    color: 'text-blue-900 bg-blue-50 dark:text-blue-200 dark:bg-blue-950/50',
+    color: 'bg-info text-info-foreground',
     icon: <Loader2 className="w-4 h-4 animate-spin" />,
     label: 'Confirming on Arweave',
   },
   verified: {
-    color:
-      'text-green-900 bg-green-50 dark:text-green-200 dark:bg-green-950/50',
+    color: 'bg-success text-success-foreground',
     icon: <CheckCircle className="w-4 h-4" />,
     label: 'Permanently stored',
   },
   failed: {
-    color: 'text-red-900 bg-red-50 dark:text-red-200 dark:bg-red-950/50',
+    color: 'bg-destructive/10 text-destructive',
     icon: <XCircle className="w-4 h-4" />,
     label: 'Upload failed',
   },

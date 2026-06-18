@@ -309,9 +309,9 @@ export function HighlightDetailsPanel({
 
         {/* Tip Statistics */}
         {tipStats.count > 0 && (
-          <div className="px-4 py-3 border-b border-border bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/30 dark:to-orange-950/30">
+          <div className="px-4 py-3 border-b border-border bg-muted">
             <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-4 h-4 text-orange-500" />
+              <TrendingUp className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs font-medium text-foreground">
                 Tip Statistics
               </span>
@@ -327,7 +327,7 @@ export function HighlightDetailsPanel({
                 <div className="text-xs text-muted-foreground">
                   Total Earned
                 </div>
-                <div className="text-lg font-bold text-orange-600">
+                <div className="text-lg font-bold text-foreground">
                   {formatTipAmount(tipStats.totalCents)}
                 </div>
               </div>
@@ -402,7 +402,7 @@ export function HighlightDetailsPanel({
                 />
                 {tipStats.count === 0 && (
                   <p className="text-xs text-center text-muted-foreground mt-2">
-                    Be the first to tip this highlight!
+                    No support for this highlight yet
                   </p>
                 )}
               </div>

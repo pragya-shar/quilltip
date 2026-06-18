@@ -39,6 +39,8 @@ import {
   type TipFailureMessage,
 } from '@/lib/stellar/tip-error-messages'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { signInToTip, validateTipAmountForm } from '@/lib/tip/signInToTip'
 import { connectWalletFromOverlay } from '@/lib/wallet/connectWalletFromOverlay'
 import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
@@ -473,14 +475,16 @@ export function HighlightTipButton({
     <>
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
-          <button
+          <Button
             type="button"
-            className={`focus-ring inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg hover:from-yellow-500 hover:to-orange-600 transition-all transform hover:scale-105 shadow-md text-sm ${className}`}
+            variant="outline"
+            size="sm"
+            className={cn('gap-2', className)}
             title="Tip this highlight"
           >
             <Coins className="w-3.5 h-3.5" />
             <span className="font-medium">Tip Highlight</span>
-          </button>
+          </Button>
         </DialogTrigger>
         <DialogContent
           data-testid="highlight-tip-dialog"
@@ -541,7 +545,6 @@ export function HighlightTipButton({
               onSignIn={handleSignInToTip}
               onConnectWallet={handleConnectWallet}
               onSendTip={() => void handleTip()}
-              useGradientButtons
             />
           )}
         </DialogContent>

@@ -105,39 +105,16 @@ export function truncateText(text: string, maxLength: number = 100): string {
 }
 
 /**
- * Get color intensity for heatmap visualization
- * Based on tip amount relative to max amount
+ * Get opacity intensity for heatmap visualization (0.2–1.0).
+ * Based on tip amount relative to max amount. Uses primary color at this opacity in UI.
  *
- * @param amount - Current tip amount
+ * @param amount - Current tip amount in cents
  * @param maxAmount - Maximum tip amount in dataset
- * @returns RGB color string
+ * @returns Opacity fraction for color-mix with var(--primary)
  */
-export function getHeatmapColor(amount: number, maxAmount: number): string {
-  if (maxAmount === 0) return 'rgb(255, 255, 200)' // Light yellow for zero
+export function getHeatmapColor(amount: number, maxAmount: number): number {
+  if (maxAmount === 0) return 0.15
 
   const intensity = Math.min(amount / maxAmount, 1)
-
-  // Helper to clamp RGB values between 0-255
-  const clamp = (value: number) => Math.max(0, Math.min(255, Math.floor(value)))
-
-  // Color gradient: Yellow (low) → Orange → Red (high)
-  if (intensity < 0.33) {
-    // Yellow to light orange
-    const r = 255
-    const g = clamp(255 - intensity * 3 * 100)
-    const b = 150
-    return `rgb(${r}, ${g}, ${b})`
-  } else if (intensity < 0.66) {
-    // Orange
-    const r = 255
-    const g = clamp(200 - (intensity - 0.33) * 3 * 100)
-    const b = 100
-    return `rgb(${r}, ${g}, ${b})`
-  } else {
-    // Red
-    const r = 255
-    const g = clamp(100 - (intensity - 0.66) * 3 * 100)
-    const b = 50
-    return `rgb(${r}, ${g}, ${b})`
-  }
+  return 0.2 + intensity * 0.8
 }

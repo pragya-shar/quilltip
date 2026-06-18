@@ -36,58 +36,20 @@ export function NFTBadge({
   const getRarity = (tips?: number) => {
     if (rarityProp) {
       const rarityMap = {
-        legendary: {
-          label: 'Legendary',
-          color: 'bg-gradient-to-r from-purple-500 to-pink-500',
-        },
-        epic: {
-          label: 'Epic',
-          color: 'bg-gradient-to-r from-blue-500 to-purple-500',
-        },
-        rare: {
-          label: 'Rare',
-          color: 'bg-gradient-to-r from-green-500 to-blue-500',
-        },
-        uncommon: {
-          label: 'Uncommon',
-          color: 'bg-gradient-to-r from-yellow-500 to-green-500',
-        },
-        common: {
-          label: 'Common',
-          color: 'bg-gradient-to-r from-gray-500 to-gray-600',
-        },
+        legendary: { label: 'Legendary' },
+        epic: { label: 'Epic' },
+        rare: { label: 'Rare' },
+        uncommon: { label: 'Uncommon' },
+        common: { label: 'Common' },
       }
       return rarityMap[rarityProp]
     }
-    if (tips === undefined)
-      return {
-        label: 'NFT',
-        color: 'bg-gradient-to-r from-gray-500 to-gray-600',
-      }
-    if (tips >= 100)
-      return {
-        label: 'Legendary',
-        color: 'bg-gradient-to-r from-purple-500 to-pink-500',
-      }
-    if (tips >= 50)
-      return {
-        label: 'Epic',
-        color: 'bg-gradient-to-r from-blue-500 to-purple-500',
-      }
-    if (tips >= 25)
-      return {
-        label: 'Rare',
-        color: 'bg-gradient-to-r from-green-500 to-blue-500',
-      }
-    if (tips >= 10)
-      return {
-        label: 'Uncommon',
-        color: 'bg-gradient-to-r from-yellow-500 to-green-500',
-      }
-    return {
-      label: 'Common',
-      color: 'bg-gradient-to-r from-gray-500 to-gray-600',
-    }
+    if (tips === undefined) return { label: 'NFT' }
+    if (tips >= 100) return { label: 'Legendary' }
+    if (tips >= 50) return { label: 'Epic' }
+    if (tips >= 25) return { label: 'Rare' }
+    if (tips >= 10) return { label: 'Uncommon' }
+    return { label: 'Common' }
   }
 
   const rarity = getRarity(totalTips)
@@ -119,9 +81,7 @@ export function NFTBadge({
   // Simple badge without tooltip if showLabel is true
   if (showLabel) {
     return (
-      <Badge
-        className={`${sizeClasses[size]} ${rarity.color} text-white border-0`}
-      >
+      <Badge variant="secondary" className={sizeClasses[size]}>
         <Sparkles className={`mr-1 ${iconSize[size]}`} />
         {rarity.label}
       </Badge>
@@ -133,7 +93,8 @@ export function NFTBadge({
       <Tooltip>
         <TooltipTrigger asChild>
           <Badge
-            className={`${sizeClasses[size]} ${rarity.color} text-white border-0 cursor-default`}
+            variant="secondary"
+            className={`${sizeClasses[size]} cursor-default`}
           >
             <Sparkles className={`mr-1 ${iconSize[size]}`} />
             NFT {rarity.label !== 'NFT' ? `• ${rarity.label}` : ''}
