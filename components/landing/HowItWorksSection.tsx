@@ -75,6 +75,7 @@ export default function HowItWorksSection() {
         </motion.div>
 
         <motion.div
+          role="group"
           aria-label="How it works steps"
           className="max-w-3xl"
           initial={{ opacity: 0, y: 20 }}
