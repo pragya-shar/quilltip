@@ -2,12 +2,27 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { EarningsStats } from '@/components/dashboard/EarningsStats'
+import type { Doc } from '@/types/convex'
+import type { Id } from '@/types/convex'
 
 vi.mock('@/hooks/useDashboardNavigation', () => ({
   useDashboardNavigation: () => vi.fn(),
 }))
-import type { Doc } from '@/types/convex'
-import type { Id } from '@/types/convex'
+
+vi.mock('convex/react', () => ({
+  useMutation: () => vi.fn(),
+}))
+
+vi.mock('@/components/providers/WalletProvider', () => ({
+  useWallet: () => ({
+    isLoading: false,
+    connect: vi.fn(),
+  }),
+}))
+
+vi.mock('@/components/stellar/InstallWalletDialog', () => ({
+  InstallWalletDialog: () => null,
+}))
 
 function makeEarnings(
   overrides: Partial<Doc<'authorEarnings'>> = {}
@@ -79,7 +94,7 @@ describe('EarningsStats', () => {
     vi.useRealTimers()
   })
 
-  it('shows wallet setup notice when profile has no Stellar address', () => {
+  it('shows inline wallet setup when profile has no Stellar address', () => {
     const earnings = makeEarnings()
     render(
       <EarningsStats
@@ -90,8 +105,9 @@ describe('EarningsStats', () => {
       />
     )
 
+    expect(screen.getByText('Connect to receive tips')).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: /Stellar Wallet Not Configured/i })
+      screen.getByRole('button', { name: /Connect wallet/i })
     ).toBeInTheDocument()
   })
 

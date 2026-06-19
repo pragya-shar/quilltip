@@ -86,6 +86,31 @@ vi.mock('@/components/guide/WalletTooltip', () => ({
 import { HighlightTipButton } from '@/components/highlights/HighlightTipButton'
 
 describe('HighlightTipButton', () => {
+  it('shows contextual wallet setup when signed in without wallet', () => {
+    mockAuth.isAuthenticated = true
+    render(
+      <HighlightTipButton
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        articleId={'articles:123' as any}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+        resumeOpen
+      />
+    )
+
+    expect(screen.getByText('Connect to tip Author')).toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: /Connect wallet/i }).length
+    ).toBeGreaterThanOrEqual(1)
+    expect(
+      screen.queryByRole('link', { name: /Follow our setup guide/i })
+    ).not.toBeInTheDocument()
+  })
+
   it('persists pending highlight selection before Sign in to tip', () => {
     mockAuth.isAuthenticated = false
     render(

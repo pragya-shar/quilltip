@@ -24,6 +24,7 @@ import {
 import { TipBreakdownSummaryLine } from '@/components/tipping/TipBreakdownSummaryLine'
 import { TipUsdXlmRateLine } from '@/components/tipping/TipUsdXlmRateLine'
 import { useTipDialogXlmUsdRate } from '@/hooks/useTipDialogXlmUsdRate'
+import { useSuspendDialogModalForWallet } from '@/hooks/useSuspendDialogModalForWallet'
 import {
   TIP_PRESETS_HIGHLIGHT,
   TIP_MIN_USD,
@@ -38,6 +39,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
 import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import {
   networkLabelLowercase,
@@ -126,6 +128,7 @@ export function HighlightTipButton({
   const convex = useConvex()
   const createHighlightTip = useMutation(api.highlightTips.create)
   const { priceUsd: displayXlmUsdRate } = useTipDialogXlmUsdRate(isOpen)
+  const suspendDialogModalForWallet = useSuspendDialogModalForWallet()
 
   useEffect(() => {
     return stellarFlowEmitter.subscribe((event) => {
@@ -206,7 +209,7 @@ export function HighlightTipButton({
   ])
 
   const handleOpenChange = (open: boolean) => {
-    if (!open && isLoading) return
+    if (!open && (isLoading || suspendDialogModalForWallet)) return
     if (open && isAuthenticated) {
       activateWallet()
     }
@@ -444,7 +447,11 @@ export function HighlightTipButton({
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <Dialog
+        open={isOpen}
+        onOpenChange={handleOpenChange}
+        modal={!suspendDialogModalForWallet}
+      >
         <DialogTrigger asChild>
           <button
             type="button"
@@ -459,10 +466,10 @@ export function HighlightTipButton({
           data-testid="highlight-tip-dialog"
           className="max-w-md max-h-[min(90dvh,calc(100%-2rem))] overflow-y-auto"
           onEscapeKeyDown={(e) => {
-            if (isLoading) e.preventDefault()
+            if (isLoading || suspendDialogModalForWallet) e.preventDefault()
           }}
           onInteractOutside={(e) => {
-            if (isLoading) e.preventDefault()
+            if (isLoading || suspendDialogModalForWallet) e.preventDefault()
           }}
         >
           <DialogHeader>
@@ -493,9 +500,12 @@ export function HighlightTipButton({
               </p>
             </div>
           ) : !isConnected ? (
-            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-900 dark:text-amber-100">
-              <p>Connect your Stellar wallet to tip this highlight.</p>
-            </div>
+            <ContextualWalletSetup
+              mode="send"
+              recipientLabel={authorName}
+              className="mb-4"
+              onConnected={() => setTipFormError(null)}
+            />
           ) : null}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">

@@ -9,7 +9,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AlertCircle, Coins, Heart, Loader2, Wallet } from 'lucide-react'
 import { WalletTooltip } from '@/components/guide/WalletTooltip'
-import Link from 'next/link'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
@@ -35,6 +34,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
 import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
@@ -51,6 +51,7 @@ import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
 import { clearPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import type { ArticlePendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import { useArticleTipResume } from '@/hooks/useArticleTipResume'
+import { useSuspendDialogModalForWallet } from '@/hooks/useSuspendDialogModalForWallet'
 import {
   networkLabelLowercase,
   tipFlowShortNote,
@@ -96,6 +97,7 @@ export function TipButton({
   const convex = useConvex()
   const sendTip = useMutation(api.tips.sendTip)
   const { priceUsd: displayXlmUsdRate } = useTipDialogXlmUsdRate(isOpen)
+  const suspendDialogModalForWallet = useSuspendDialogModalForWallet()
 
   useEffect(() => {
     return stellarFlowEmitter.subscribe((event) => {
@@ -123,7 +125,7 @@ export function TipButton({
   })
 
   const handleOpenChange = (open: boolean) => {
-    if (!open && isLoading) return
+    if (!open && (isLoading || suspendDialogModalForWallet)) return
     if (open && isAuthenticated) {
       activateWallet()
     }
@@ -330,7 +332,11 @@ export function TipButton({
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <Dialog
+        open={isOpen}
+        onOpenChange={handleOpenChange}
+        modal={!suspendDialogModalForWallet}
+      >
         <DialogTrigger asChild>
           <Button variant="outline" className={cn('gap-2', className)}>
             <Coins className="w-4 h-4" />
@@ -340,10 +346,10 @@ export function TipButton({
         <DialogContent
           className="top-auto bottom-0 left-1/2 max-h-[min(90dvh,calc(100%-2rem))] max-w-md translate-x-[-50%] translate-y-0 gap-4 overflow-y-auto rounded-b-none rounded-t-xl border border-border bg-popover p-6 shadow-xl data-[state=closed]:slide-out-to-bottom-[48%] data-[state=open]:slide-in-from-bottom-[48%] sm:top-[50%] sm:bottom-auto sm:max-h-[min(90dvh,100%)] sm:translate-y-[-50%] sm:rounded-xl sm:data-[state=closed]:slide-out-to-left-1/2 sm:data-[state=closed]:slide-out-to-top-[48%] sm:data-[state=open]:slide-in-from-left-1/2 sm:data-[state=open]:slide-in-from-top-[48%]"
           onInteractOutside={(e) => {
-            if (isLoading) e.preventDefault()
+            if (isLoading || suspendDialogModalForWallet) e.preventDefault()
           }}
           onEscapeKeyDown={(e) => {
-            if (isLoading) e.preventDefault()
+            if (isLoading || suspendDialogModalForWallet) e.preventDefault()
           }}
         >
           <DialogHeader className="text-left">
@@ -366,18 +372,11 @@ export function TipButton({
               </p>
             </div>
           ) : !isConnected ? (
-            <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-900 dark:text-amber-100">
-              <p>Connect your Stellar wallet to send tips to {authorName}.</p>
-              <p className="mt-1">
-                New to crypto?{' '}
-                <Link
-                  href="/guide"
-                  className="focus-ring rounded text-amber-700 dark:text-amber-300 underline font-medium hover:text-amber-900 dark:hover:text-amber-100"
-                >
-                  Follow our setup guide
-                </Link>
-              </p>
-            </div>
+            <ContextualWalletSetup
+              mode="send"
+              recipientLabel={authorName}
+              onConnected={() => setTipFormError(null)}
+            />
           ) : null}
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

@@ -18,6 +18,12 @@ export function practiceFundsNote(): string {
   return 'Quilltip runs on Stellar testnet. Tips use free test XLM for practice—not real money.'
 }
 
+export function testnetBadgeLabel(): string {
+  return getNetwork() === 'MAINNET'
+    ? 'Mainnet'
+    : 'Testnet — practice funds only'
+}
+
 export function tipSpeedNote(): string {
   const network = networkLabelLowercase()
   return `Tips typically confirm in a few seconds on Stellar ${network} with near-zero fees.`

@@ -24,22 +24,14 @@ import {
   DollarSign,
   ArrowUpRight,
   Loader2,
-  PlugZap,
   Power,
 } from 'lucide-react'
 import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import { toast } from 'sonner'
 import { useWallet } from '@/components/providers/WalletProvider'
-import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
 import { LegalLinks } from '@/components/legal/LegalLinks'
-import {
-  NO_WALLET_AVAILABLE_ERROR_CODE,
-  ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
-} from '@/lib/stellar/wallet-adapter'
-import {
-  networkLabelLowercase,
-  practiceFundsNote,
-} from '@/lib/copy/network-status'
+import { networkLabelLowercase } from '@/lib/copy/network-status'
 
 interface WalletSettingsProps {
   walletAddress?: string | null
@@ -59,12 +51,11 @@ export function WalletSettings({
   className = '',
 }: WalletSettingsProps) {
   const updateProfile = useMutation(api.users.updateProfile)
-  const { isLoading, connect, disconnect } = useWallet({
+  const { disconnect } = useWallet({
     activateOnMount: true,
   })
   const [isCopied, setIsCopied] = useState(false)
-  const [isConnecting, setIsConnecting] = useState(false)
-  const [installDialogOpen, setInstallDialogOpen] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [walletFeedback, setWalletFeedback] = useState<FlowFeedback | null>(
     null
   )
@@ -88,63 +79,10 @@ export function WalletSettings({
     }
   }
 
-  const handleConnectWallet = async () => {
-    setIsConnecting(true)
-    setWalletFeedback(null)
-    try {
-      const success = await connect()
-      if (success) {
-        // Get publicKey from wallet adapter after successful connection
-        const { walletAdapter } = await import('@/lib/stellar/wallet-adapter')
-        const connectedKey = await walletAdapter.getPublicKey()
-
-        if (connectedKey) {
-          await updateProfile({
-            stellarAddress: connectedKey,
-          })
-          onAddressChange?.(connectedKey)
-          setWalletFeedback(null)
-          toast.success('Wallet connected and saved successfully!')
-        }
-      } else {
-        setWalletFeedback({
-          variant: 'destructive',
-          title: 'Failed to connect wallet',
-          detail: 'Try again or choose a different wallet extension.',
-        })
-        toast.error('Failed to connect wallet')
-      }
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Failed to connect and save wallet address'
-
-      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
-        setInstallDialogOpen(true)
-        return
-      }
-
-      if (message.startsWith(`${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}:`)) {
-        return
-      }
-
-      setWalletFeedback({
-        variant: 'destructive',
-        title: 'Failed to connect wallet',
-        detail: message,
-      })
-      toast.error(message)
-    } finally {
-      setIsConnecting(false)
-    }
-  }
-
   const handleDisconnectWallet = async () => {
-    // Prevent double-click
-    if (isConnecting) return
+    if (isDisconnecting) return
 
-    setIsConnecting(true)
+    setIsDisconnecting(true)
     setWalletFeedback(null)
 
     try {
@@ -203,7 +141,7 @@ export function WalletSettings({
       // Don't clear local state if DB update failed
       // This keeps UI in sync with actual DB state
     } finally {
-      setIsConnecting(false)
+      setIsDisconnecting(false)
     }
   }
 
@@ -283,7 +221,7 @@ export function WalletSettings({
               ) : null}
             </Alert>
           )}
-          {isOwnProfile && (
+          {isOwnProfile && walletAddress ? (
             <Alert className="border-info/50 bg-info">
               <AlertCircle className="h-4 w-4 text-info-foreground" />
               <AlertDescription className="text-info-foreground">
@@ -293,56 +231,15 @@ export function WalletSettings({
                 their articles.
               </AlertDescription>
             </Alert>
-          )}
-
-          {isOwnProfile ? (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{practiceFundsNote()}</AlertDescription>
-            </Alert>
           ) : null}
 
           {isOwnProfile ? (
             <>
               {!walletAddress ? (
-                <div className="space-y-4">
-                  <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Connect your Stellar {networkLabelLowercase()} wallet to
-                      send and receive tips
-                    </AlertDescription>
-                  </Alert>
-
-                  <Button
-                    onClick={handleConnectWallet}
-                    disabled={isConnecting || isLoading}
-                    className="w-full"
-                    size="lg"
-                  >
-                    {isConnecting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Connecting Wallet...
-                      </>
-                    ) : (
-                      <>
-                        <PlugZap className="w-4 h-4 mr-2" />
-                        Connect Stellar Wallet
-                      </>
-                    )}
-                  </Button>
-
-                  <div className="text-center text-sm text-muted-foreground">
-                    Need a wallet?{' '}
-                    <Link
-                      href="/guide"
-                      className="text-info-foreground hover:underline"
-                    >
-                      Follow our setup guide
-                    </Link>
-                  </div>
-                </div>
+                <ContextualWalletSetup
+                  mode="receive"
+                  onAddressSaved={(address) => onAddressChange?.(address)}
+                />
               ) : (
                 <div className="space-y-4">
                   {/* Connected State */}
@@ -412,11 +309,11 @@ export function WalletSettings({
                     </Button>
                     <Button
                       onClick={handleDisconnectWallet}
-                      disabled={isConnecting}
+                      disabled={isDisconnecting}
                       variant="outline"
                       className="flex-1"
                     >
-                      {isConnecting ? (
+                      {isDisconnecting ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           Disconnecting...
@@ -489,11 +386,6 @@ export function WalletSettings({
           )}
         </CardContent>
       </Card>
-
-      <InstallWalletDialog
-        open={installDialogOpen}
-        onOpenChange={setInstallDialogOpen}
-      />
     </>
   )
 }

@@ -4,11 +4,24 @@ import { Heart } from 'lucide-react'
 import { Reveal } from '@/components/landing/Reveal'
 import { FooterNav } from '@/components/layout/FooterNav'
 import { Logo } from '@/components/ui/Logo'
-import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
+import { testnetBadgeLabel } from '@/lib/copy/network-status'
 import { cn } from '@/lib/utils'
 
 type SiteFooterProps = {
   variant?: 'landing' | 'default'
+}
+
+function NetworkBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground',
+        className
+      )}
+    >
+      {testnetBadgeLabel()}
+    </span>
+  )
 }
 
 export function SiteFooter({ variant = 'default' }: SiteFooterProps) {
@@ -26,9 +39,9 @@ export function SiteFooter({ variant = 'default' }: SiteFooterProps) {
               <div className="flex justify-center mb-4">
                 <Logo href={null} variant="onDark" size="lg" />
               </div>
-              <p className="text-spotlight-muted text-[15px] leading-relaxed max-w-2xl mx-auto">
-                {TESTNET_PRACTICE_NOTE}
-              </p>
+              <div className="flex justify-center">
+                <NetworkBadge className="border-spotlight-border bg-spotlight-muted/20 text-spotlight-muted" />
+              </div>
             </Reveal>
           </div>
 
@@ -49,9 +62,7 @@ export function SiteFooter({ variant = 'default' }: SiteFooterProps) {
     <footer className={cn('border-t border-border bg-background mt-auto')}>
       <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 space-y-6">
         <div className="max-w-3xl">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {TESTNET_PRACTICE_NOTE}
-          </p>
+          <NetworkBadge />
         </div>
         <FooterNav variant="default" className="max-w-3xl" />
         <p className="text-sm text-muted-foreground">

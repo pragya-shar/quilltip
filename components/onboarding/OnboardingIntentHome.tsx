@@ -9,7 +9,6 @@ import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Loader2 } from 'lucide-react'
-import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 import { cn } from '@/lib/utils'
 
 type IntentId = 'read' | 'write' | 'wallet'
@@ -45,8 +44,8 @@ const INTENTS: {
   {
     id: 'wallet',
     title: 'Set up wallet',
-    description: 'Connect a Stellar testnet wallet to send practice tips.',
-    href: '/guide',
+    description: 'Connect a Stellar wallet to send and receive tips.',
+    href: '/dashboard/wallet',
     imageSrc: '/onboarding/wallet-setup-illustration.jpg',
     imageWidth: 513,
     imageHeight: 802,
@@ -188,10 +187,6 @@ export function OnboardingIntentHome() {
               'Continue'
             )}
           </Button>
-
-          <p className="text-sm text-muted-foreground text-center max-w-md">
-            {TESTNET_PRACTICE_NOTE}
-          </p>
 
           <button
             type="button"

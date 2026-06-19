@@ -19,6 +19,9 @@ import { EditorFloatingInsert } from '@/components/editor/EditorFloatingInsert'
 import { ImageUploadDialog } from '@/components/editor/ImageUploadDialog'
 import { YouTubeEmbedDialog } from '@/components/editor/YouTubeEmbedDialog'
 import { useAuth } from '@/components/providers/AuthContext'
+import { useCurrentUser } from '@/hooks/convex/useUsers'
+import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
+import { useSuspendDialogModalForWallet } from '@/hooks/useSuspendDialogModalForWallet'
 import { EditorChromeSkeleton } from '@/components/editor/EditorChromeSkeleton'
 import { useAutoSave } from '@/hooks/useAutoSave'
 import { useConvex, useMutation } from 'convex/react'
@@ -30,6 +33,15 @@ import Image from 'next/image'
 import { EDITOR_PROSE_CLASS, UPLOAD_CONTROL_FOCUS_RING } from '@/lib/constants'
 import { mutationWithTimeout } from '@/lib/convexMutationWithTimeout'
 import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { AlertCircle, Loader2, X } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -179,6 +191,18 @@ export function WriteEditorWorkspace() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { isAuthenticated } = useAuth()
+  const currentUser = useCurrentUser()
+  const [receivingWalletAddress, setReceivingWalletAddress] = useState<
+    string | null | undefined
+  >(undefined)
+
+  useEffect(() => {
+    if (currentUser !== undefined) {
+      setReceivingWalletAddress(currentUser?.stellarAddress ?? null)
+    }
+  }, [currentUser])
+
+  const suspendDialogModalForWallet = useSuspendDialogModalForWallet()
 
   const bodyUploadAbortRef = useRef<AbortController | null>(null)
   const hydratedDraftIdRef = useRef<string | null>(null)
@@ -1251,18 +1275,30 @@ export function WriteEditorWorkspace() {
         />
       )}
 
-      <AlertDialog
+      <Dialog
         open={publishConfirmOpen}
-        onOpenChange={setPublishConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open && suspendDialogModalForWallet) return
+          setPublishConfirmOpen(open)
+        }}
+        modal={!suspendDialogModalForWallet}
       >
-        <AlertDialogContent className="max-w-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Publishing details</AlertDialogTitle>
-            <AlertDialogDescription className="text-left text-sm text-muted-foreground">
+        <DialogContent
+          className="max-w-lg"
+          onInteractOutside={(e) => {
+            if (suspendDialogModalForWallet) e.preventDefault()
+          }}
+          onEscapeKeyDown={(e) => {
+            if (suspendDialogModalForWallet) e.preventDefault()
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>Publishing details</DialogTitle>
+            <DialogDescription className="text-left text-sm text-muted-foreground">
               Publishing stores your content on Arweave (permanent storage). You
               cannot undo this or remove that snapshot from Arweave.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
+            </DialogDescription>
+          </DialogHeader>
 
           <div className="space-y-4">
             <div className="rounded-md border border-border bg-muted/40 p-3">
@@ -1324,11 +1360,32 @@ export function WriteEditorWorkspace() {
                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
+
+            {receivingWalletAddress === null && (
+              <div className="space-y-3">
+                <ContextualWalletSetup
+                  mode="receive"
+                  onAddressSaved={(address) =>
+                    setReceivingWalletAddress(address)
+                  }
+                />
+                <p className="text-sm text-muted-foreground">
+                  Readers cannot tip this article until a receiving wallet is
+                  connected.
+                </p>
+              </div>
+            )}
           </div>
 
-          <AlertDialogFooter>
-            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
-            <AlertDialogAction
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPublishConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
               type="button"
               onClick={() => {
                 setPublishConfirmOpen(false)
@@ -1336,10 +1393,10 @@ export function WriteEditorWorkspace() {
               }}
             >
               Publish
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={backupPrompt !== null}

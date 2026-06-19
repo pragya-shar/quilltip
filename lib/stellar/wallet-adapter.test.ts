@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetWalletPickerOpenForTests } from '@/lib/stellar/wallet-picker-state'
 
 const walletKitState = vi.hoisted(() => ({
   modalCallbacks: null as {
@@ -50,6 +51,7 @@ describe('walletAdapter', () => {
   beforeEach(() => {
     vi.resetModules()
     vi.unstubAllGlobals()
+    resetWalletPickerOpenForTests()
     walletKitState.modalCallbacks = null
     walletKitState.openModal.mockReset()
     walletKitState.setWallet.mockReset()
@@ -91,6 +93,8 @@ describe('walletAdapter', () => {
 
   it('shares an in-flight connect attempt instead of reopening the wallet modal', async () => {
     const { walletAdapter } = await import('@/lib/stellar/wallet-adapter')
+    const { getWalletPickerOpen } =
+      await import('@/lib/stellar/wallet-picker-state')
 
     const firstConnect = walletAdapter.connect()
     const secondConnect = walletAdapter.connect()
@@ -98,6 +102,7 @@ describe('walletAdapter', () => {
     await vi.waitFor(() => {
       expect(walletKitState.openModal).toHaveBeenCalledTimes(1)
       expect(walletKitState.modalCallbacks).not.toBeNull()
+      expect(getWalletPickerOpen()).toBe(true)
     })
 
     await walletKitState.modalCallbacks?.onWalletSelected({ id: 'freighter' })
@@ -112,5 +117,6 @@ describe('walletAdapter', () => {
       network: 'TESTNET',
       networkPassphrase: 'Test SDF Network ; September 2015',
     })
+    expect(getWalletPickerOpen()).toBe(false)
   })
 })
