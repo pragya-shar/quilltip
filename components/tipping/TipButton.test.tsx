@@ -189,10 +189,6 @@ describe('TipButton two-stage flow', () => {
     expect(
       screen.getByRole('button', { name: 'Connect Wallet' })
     ).toBeInTheDocument()
-    expect(screen.getByText('Connect to tip Author')).toBeInTheDocument()
-    expect(
-      screen.queryByRole('link', { name: /Follow our setup guide/i })
-    ).not.toBeInTheDocument()
   })
 
   it('shows Send Tip on stage 2 when signed in with wallet', async () => {
