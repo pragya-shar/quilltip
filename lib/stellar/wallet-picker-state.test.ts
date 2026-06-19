@@ -26,6 +26,18 @@ describe('wallet-picker-state', () => {
     unsubscribe()
   })
 
+  it('clears subscribers during test reset', () => {
+    const calls: boolean[] = []
+    subscribeWalletPickerOpen(() => {
+      calls.push(getWalletPickerOpen())
+    })
+
+    resetWalletPickerOpenForTests()
+    setWalletPickerOpen(true)
+
+    expect(calls).toEqual([])
+  })
+
   it('removes inert from the stellar wallet picker while open', () => {
     const walletModal = document.createElement('stellar-wallets-modal')
     walletModal.setAttribute('inert', '')

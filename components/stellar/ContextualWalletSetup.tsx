@@ -80,6 +80,15 @@ export function ContextualWalletSetup({
           await updateProfile({ stellarAddress: connectedKey })
           onAddressSaved?.(connectedKey)
           toast.success('Wallet connected and saved successfully!')
+        } else {
+          setFeedback({
+            variant: 'destructive',
+            title: 'Could not retrieve wallet address',
+            detail:
+              'The wallet connected but returned no public key. Try again.',
+          })
+          toast.error('Could not retrieve wallet address')
+          return
         }
       } else {
         toast.success('Wallet connected successfully!')

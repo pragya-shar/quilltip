@@ -4,9 +4,11 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
 import { NO_WALLET_AVAILABLE_ERROR_CODE } from '@/lib/stellar/wallet-adapter'
+import { toast } from 'sonner'
 
 const mockConnect = vi.fn()
 const mockUpdateProfile = vi.fn()
+const mockGetPublicKey = vi.hoisted(() => vi.fn())
 
 vi.mock('convex/react', () => ({
   useMutation: () => mockUpdateProfile,
@@ -32,7 +34,7 @@ vi.mock('@/lib/stellar/wallet-adapter', async (importOriginal) => {
   return {
     ...actual,
     walletAdapter: {
-      getPublicKey: vi.fn().mockResolvedValue('G' + 'A'.repeat(55)),
+      getPublicKey: mockGetPublicKey,
     },
   }
 })
@@ -41,8 +43,12 @@ describe('ContextualWalletSetup', () => {
   beforeEach(() => {
     mockConnect.mockReset()
     mockUpdateProfile.mockReset()
+    mockGetPublicKey.mockReset()
     mockConnect.mockResolvedValue(true)
     mockUpdateProfile.mockResolvedValue(undefined)
+    mockGetPublicKey.mockResolvedValue('G' + 'A'.repeat(55))
+    vi.mocked(toast.success).mockReset()
+    vi.mocked(toast.error).mockReset()
   })
 
   it('renders send mode copy with recipient label', () => {
@@ -90,6 +96,41 @@ describe('ContextualWalletSetup', () => {
       })
       expect(onAddressSaved).toHaveBeenCalledWith('G' + 'A'.repeat(55))
     })
+  })
+
+  it('shows an error without completing receive mode when the wallet returns no public key', async () => {
+    mockGetPublicKey.mockResolvedValueOnce(null)
+    const onAddressSaved = vi.fn()
+    const onConnected = vi.fn()
+    const user = userEvent.setup({ delay: null })
+
+    render(
+      <ContextualWalletSetup
+        mode="receive"
+        onAddressSaved={onAddressSaved}
+        onConnected={onConnected}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /Connect wallet/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Could not retrieve wallet address')
+      ).toBeInTheDocument()
+    })
+    expect(
+      screen.getByText(
+        'The wallet connected but returned no public key. Try again.'
+      )
+    ).toBeInTheDocument()
+    expect(mockUpdateProfile).not.toHaveBeenCalled()
+    expect(onAddressSaved).not.toHaveBeenCalled()
+    expect(onConnected).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith(
+      'Could not retrieve wallet address'
+    )
+    expect(toast.success).not.toHaveBeenCalled()
   })
 
   it('does not persist address in send mode', async () => {

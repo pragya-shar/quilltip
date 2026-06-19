@@ -70,9 +70,9 @@ export function setWalletPickerOpen(open: boolean): void {
 /** Test-only reset */
 export function resetWalletPickerOpenForTests(): void {
   walletPickerOpen = false
+  listeners.clear()
   if (typeof document !== 'undefined') {
     document.documentElement.classList.remove('wallet-picker-open')
   }
   stopWalletPickerInteractionUnlock()
-  notifyWalletPickerListeners()
 }

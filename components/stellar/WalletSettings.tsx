@@ -55,7 +55,7 @@ export function WalletSettings({
     activateOnMount: true,
   })
   const [isCopied, setIsCopied] = useState(false)
-  const [isConnecting, setIsConnecting] = useState(false)
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [walletFeedback, setWalletFeedback] = useState<FlowFeedback | null>(
     null
   )
@@ -80,10 +80,9 @@ export function WalletSettings({
   }
 
   const handleDisconnectWallet = async () => {
-    // Prevent double-click
-    if (isConnecting) return
+    if (isDisconnecting) return
 
-    setIsConnecting(true)
+    setIsDisconnecting(true)
     setWalletFeedback(null)
 
     try {
@@ -142,7 +141,7 @@ export function WalletSettings({
       // Don't clear local state if DB update failed
       // This keeps UI in sync with actual DB state
     } finally {
-      setIsConnecting(false)
+      setIsDisconnecting(false)
     }
   }
 
@@ -310,11 +309,11 @@ export function WalletSettings({
                     </Button>
                     <Button
                       onClick={handleDisconnectWallet}
-                      disabled={isConnecting}
+                      disabled={isDisconnecting}
                       variant="outline"
                       className="flex-1"
                     >
-                      {isConnecting ? (
+                      {isDisconnecting ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                           Disconnecting...
