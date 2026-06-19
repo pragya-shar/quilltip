@@ -494,7 +494,9 @@ export function HighlightTipButton({
         >
           <DialogHeader>
             <DialogTitle>
-              {modalStep === 'appreciation' ? 'Tip this highlight' : 'Send your tip'}
+              {modalStep === 'appreciation'
+                ? 'Tip this highlight'
+                : 'Send your tip'}
             </DialogTitle>
             <DialogDescription className="sr-only">
               {modalStep === 'appreciation'

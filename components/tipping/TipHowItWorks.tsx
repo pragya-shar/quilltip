@@ -46,7 +46,10 @@ export function TipHowItWorks({
         />
       </CollapsibleTrigger>
       <CollapsibleContent className="mt-2 space-y-2 rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
-        <p>97.5% of your tip goes directly to the author. A small platform fee covers payment processing.</p>
+        <p>
+          97.5% of your tip goes directly to the author. A small platform fee
+          covers payment processing.
+        </p>
         {showBreakdown ? (
           <TipBreakdownSummaryLine
             totalFormatted={totalFormatted}

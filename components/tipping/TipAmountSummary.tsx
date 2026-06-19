@@ -5,7 +5,10 @@ interface TipAmountSummaryProps {
   message?: string
 }
 
-export function TipAmountSummary({ amountCents, message }: TipAmountSummaryProps) {
+export function TipAmountSummary({
+  amountCents,
+  message,
+}: TipAmountSummaryProps) {
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
       <p className="font-medium text-foreground">

@@ -165,9 +165,7 @@ export function TipAppreciationStep({
       <TipHowItWorks
         priceUsd={priceUsd}
         totalFormatted={
-          tipBreakdownPreview
-            ? formatTipAmount(previewCents)
-            : undefined
+          tipBreakdownPreview ? formatTipAmount(previewCents) : undefined
         }
         authorFormatted={tipBreakdownPreview?.authorShareFormatted}
         platformFeeFormatted={tipBreakdownPreview?.platformFeeFormatted}
