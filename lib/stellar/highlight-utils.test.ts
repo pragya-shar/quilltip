@@ -3,6 +3,7 @@ import {
   calculateTipBreakdown,
   formatTipAmount,
   getHeatmapColor,
+  HEATMAP_PALETTE,
 } from '@/lib/stellar/highlight-utils'
 import { STELLAR_CONFIG } from '@/lib/stellar/config'
 
@@ -32,19 +33,34 @@ describe('calculateTipBreakdown', () => {
   })
 })
 
+function channelValue(hex: string, channel: 'r' | 'g' | 'b'): number {
+  const normalized = hex.replace('#', '')
+  const offset = channel === 'r' ? 0 : channel === 'g' ? 2 : 4
+  return parseInt(normalized.slice(offset, offset + 2), 16)
+}
+
+function relativeLuminance(hex: string): number {
+  const channels = (['r', 'g', 'b'] as const).map((channel) => {
+    const value = channelValue(hex, channel) / 255
+    return value <= 0.03928
+      ? value / 12.92
+      : ((value + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+}
+
 describe('getHeatmapColor', () => {
-  it('returns low opacity for zero amount when max is zero', () => {
-    expect(getHeatmapColor(0, 0)).toBe(0.15)
+  it('returns the lightest palette color when max is zero', () => {
+    expect(getHeatmapColor(0, 0)).toBe(HEATMAP_PALETTE[0])
   })
 
-  it('returns monotonically increasing opacity with amount', () => {
+  it('returns darker colors as amount increases', () => {
     const low = getHeatmapColor(10, 100)
     const mid = getHeatmapColor(50, 100)
     const high = getHeatmapColor(100, 100)
-    expect(low).toBeLessThan(mid)
-    expect(mid).toBeLessThan(high)
-    expect(high).toBeLessThanOrEqual(1)
-    expect(low).toBeGreaterThanOrEqual(0.2)
+    expect(relativeLuminance(low)).toBeGreaterThan(relativeLuminance(mid))
+    expect(relativeLuminance(mid)).toBeGreaterThan(relativeLuminance(high))
+    expect(high).toBe(HEATMAP_PALETTE[3])
   })
 
   it('caps intensity at max amount', () => {

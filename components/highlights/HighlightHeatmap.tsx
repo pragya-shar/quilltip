@@ -2,7 +2,11 @@
 
 import { useArticleHighlightTipStats } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
-import { getHeatmapColor, formatTipAmount } from '@/lib/stellar/highlight-utils'
+import {
+  HEATMAP_GRADIENT_CSS,
+  getHeatmapColor,
+  formatTipAmount,
+} from '@/lib/stellar/highlight-utils'
 import { Flame, TrendingUp, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMemo, useState } from 'react'
@@ -234,7 +238,7 @@ export function HighlightHeatmap({
           {stats.topHighlights.map((highlight, index: number) => {
             const intensity =
               maxAmount > 0 ? highlight.totalAmountCents / maxAmount : 0
-            const heatOpacity = getHeatmapColor(
+            const heatColor = getHeatmapColor(
               highlight.totalAmountCents,
               maxAmount
             )
@@ -265,8 +269,11 @@ export function HighlightHeatmap({
 
                 <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-primary/50 transition-all"
-                    style={{ width: `${intensity * 100}%`, opacity: heatOpacity }}
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${intensity * 100}%`,
+                      backgroundColor: heatColor,
+                    }}
                   />
                 </div>
               </div>
@@ -282,7 +289,10 @@ export function HighlightHeatmap({
         </p>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Low</span>
-          <div className="flex-1 h-3 rounded-full bg-gradient-to-r from-primary/20 via-primary/50 to-primary" />
+          <div
+            className="flex-1 h-3 rounded-full"
+            style={{ background: HEATMAP_GRADIENT_CSS }}
+          />
           <span className="text-xs text-muted-foreground">High</span>
         </div>
       </div>
