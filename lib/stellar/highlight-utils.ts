@@ -148,11 +148,7 @@ function interpolateHeatmapPalette(intensity: number): string {
   const [r1, g1, b1] = hexToRgb(lowerColor)
   const [r2, g2, b2] = hexToRgb(upperColor)
 
-  return rgbToHex(
-    r1 + (r2 - r1) * t,
-    g1 + (g2 - g1) * t,
-    b1 + (b2 - b1) * t
-  )
+  return rgbToHex(r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t)
 }
 
 /**

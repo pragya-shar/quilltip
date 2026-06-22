@@ -4,15 +4,15 @@ Reader-facing tip, highlight-tip, and NFT surfaces use semantic status tokens fr
 
 ## Token mapping
 
-| State | Tailwind utilities |
-|-------|-------------------|
-| Wallet not connected | `bg-warning text-warning-foreground border-warning/30` |
-| Tip sent / upload verified | `bg-success text-success-foreground` |
-| Pending upload / informational | `bg-info text-info-foreground` |
-| Section icons / quiet stats | `text-muted-foreground` |
-| Heat intensity bars / legend | `--heatmap-gradient` (cream → sky blue → navy → primary) |
-| NFT progress fill | `bg-primary/50` on `bg-muted` track |
-| Error / failed upload | `destructive` button or `bg-destructive/10 text-destructive` |
+| State                          | Tailwind utilities                                           |
+| ------------------------------ | ------------------------------------------------------------ |
+| Wallet not connected           | `bg-warning text-warning-foreground border-warning/30`       |
+| Tip sent / upload verified     | `bg-success text-success-foreground`                         |
+| Pending upload / informational | `bg-info text-info-foreground`                               |
+| Section icons / quiet stats    | `text-muted-foreground`                                      |
+| Heat intensity bars / legend   | `--heatmap-gradient` (cream → sky blue → navy → primary)     |
+| NFT progress fill              | `bg-primary/50` on `bg-muted` track                          |
+| Error / failed upload          | `destructive` button or `bg-destructive/10 text-destructive` |
 
 ## Accent
 

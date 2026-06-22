@@ -250,7 +250,10 @@ export function HighlightHeatmap({
               >
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="h-6 w-6 justify-center p-0 text-xs">
+                    <Badge
+                      variant="secondary"
+                      className="h-6 w-6 justify-center p-0 text-xs"
+                    >
                       {index + 1}
                     </Badge>
                     <span className="text-xs text-muted-foreground">

@@ -42,9 +42,7 @@ function channelValue(hex: string, channel: 'r' | 'g' | 'b'): number {
 function relativeLuminance(hex: string): number {
   const channels = (['r', 'g', 'b'] as const).map((channel) => {
     const value = channelValue(hex, channel) / 255
-    return value <= 0.03928
-      ? value / 12.92
-      : ((value + 0.055) / 1.055) ** 2.4
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
   })
   const [r, g, b] = channels
   return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0)
