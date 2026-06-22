@@ -3,8 +3,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { usePathname, useSearchParams, useRouter } from 'next/navigation'
 import AppNavigation from '@/components/layout/AppNavigation'
+import { SiteFooter } from '@/components/layout/SiteFooter'
 import SearchInput from '@/components/articles/SearchInput'
 import { ArticlesBrowseContent } from '@/components/articles/ArticlesBrowseContent'
+import { ArticlesBrowseDiscoveryHeader } from '@/components/articles/ArticlesBrowseDiscoveryHeader'
+import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
+import {
+  parseBrowseSort,
+  parseBrowseView,
+} from '@/lib/articles/browseDiscovery'
 import {
   buildArticlesBrowseScrollStorageKey,
   writeBrowseScrollY,
@@ -34,7 +41,6 @@ export default function ArticlesPage() {
 
   useEffect(() => {
     const onPageHide = () => {
-      // If we already saved right before a click navigation, don't overwrite it.
       if (didSaveOnNavigateRef.current) return
       writeBrowseScrollY(scrollStorageKey, window.scrollY)
     }
@@ -53,21 +59,21 @@ export default function ArticlesPage() {
   const tag = searchParams?.get('tag') || undefined
   const author = searchParams?.get('author') || undefined
   const urlSearch = searchParams?.get('search') || undefined
+  const view = parseBrowseView(searchParams?.get('view'))
+  const sort = parseBrowseSort(searchParams?.get('sort'))
 
-  // Sync searchTerm with URL parameter
   useEffect(() => {
     setSearchTerm(urlSearch || '')
   }, [urlSearch])
 
   const handleSearchChange = (search: string) => {
-    const params = new URLSearchParams(searchParams?.toString() || '')
-    if (search.trim()) {
-      params.set('search', search.trim())
-    } else {
-      params.delete('search')
-    }
-    params.set('page', '1') // Reset to first page when searching
-    router.push(`/articles?${params.toString()}`)
+    router.push(
+      buildArticlesBrowseHref({
+        search,
+        page: 1,
+        sourceParams: searchParams,
+      })
+    )
   }
 
   const clearFilters = () => {
@@ -75,11 +81,10 @@ export default function ArticlesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <AppNavigation />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
-        {/* Page Header */}
+      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 w-full">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-foreground mb-2">
             All Articles
@@ -89,31 +94,43 @@ export default function ArticlesPage() {
           </p>
         </div>
 
-        {/* Search Input */}
-        <div className="mb-6">
+        <div className="mb-6 max-w-md">
+          <label
+            htmlFor="articles-browse-search"
+            className="mb-2 block text-sm font-medium text-foreground"
+          >
+            Search articles
+          </label>
           <SearchInput
+            id="articles-browse-search"
             value={searchTerm}
             onChange={handleSearchChange}
             placeholder="Search articles by title or excerpt..."
-            className="max-w-md"
           />
         </div>
 
-        {/* Active Filters */}
-        {(tag || author || urlSearch) && (
-          <div className="mb-6 flex items-center gap-2">
+        <ArticlesBrowseDiscoveryHeader
+          view={view}
+          sort={sort}
+          activeTag={tag}
+          activeAuthor={author}
+        />
+
+        {(tag || author) && (
+          <div className="mb-6 flex items-center gap-2 flex-wrap">
             <span className="text-sm text-muted-foreground">Filtering by:</span>
             {tag && (
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-brand-blue text-white">
                 Tag: {tag}
                 <button
                   onClick={() => {
-                    const params = new URLSearchParams(
-                      searchParams?.toString() || ''
+                    router.push(
+                      buildArticlesBrowseHref({
+                        tag: '',
+                        page: 1,
+                        sourceParams: searchParams,
+                      })
                     )
-                    params.delete('tag')
-                    params.set('page', '1')
-                    router.push(`/articles?${params.toString()}`)
                   }}
                   className="ml-2 hover:text-primary-foreground/80"
                   aria-label="Remove tag filter"
@@ -127,34 +144,16 @@ export default function ArticlesPage() {
                 Author: @{author}
                 <button
                   onClick={() => {
-                    const params = new URLSearchParams(
-                      searchParams?.toString() || ''
+                    router.push(
+                      buildArticlesBrowseHref({
+                        author: '',
+                        page: 1,
+                        sourceParams: searchParams,
+                      })
                     )
-                    params.delete('author')
-                    params.set('page', '1')
-                    router.push(`/articles?${params.toString()}`)
                   }}
                   className="ml-2 hover:text-primary-foreground/80"
                   aria-label="Remove author filter"
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            {urlSearch && (
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-brand-blue text-white">
-                Search: &ldquo;{urlSearch}&rdquo;
-                <button
-                  onClick={() => {
-                    const params = new URLSearchParams(
-                      searchParams?.toString() || ''
-                    )
-                    params.delete('search')
-                    params.set('page', '1')
-                    router.push(`/articles?${params.toString()}`)
-                  }}
-                  className="ml-2 hover:text-primary-foreground/80"
-                  aria-label="Remove search filter"
                 >
                   ×
                 </button>
@@ -174,10 +173,13 @@ export default function ArticlesPage() {
           tag={tag}
           author={author}
           urlSearch={urlSearch}
+          view={view}
+          sort={sort}
           scrollStorageKey={scrollStorageKey}
           onArticleNavigate={saveBrowseScrollPosition}
         />
       </main>
+      <SiteFooter variant="default" />
     </div>
   )
 }

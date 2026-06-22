@@ -6,8 +6,11 @@ import { useListArticles } from '@/hooks/convex'
 import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
 import ArticleGrid from '@/components/articles/ArticleGrid'
 import Pagination from '@/components/articles/Pagination'
-import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
+import { ArticleFeedSkeleton } from '@/components/articles/ArticleFeedSkeleton'
+import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
 import { readBrowseScrollY } from '@/lib/articles/browseListScrollStorage'
+import { getBrowseContextMessage } from '@/components/articles/ArticlesBrowseDiscoveryHeader'
+import type { BrowseSort, BrowseView } from '@/lib/articles/browseDiscovery'
 
 function buildPagination(result: {
   page: number
@@ -32,6 +35,8 @@ export function ArticlesBrowseContent({
   tag,
   author,
   urlSearch,
+  view,
+  sort,
   scrollStorageKey,
   onArticleNavigate,
 }: {
@@ -39,6 +44,8 @@ export function ArticlesBrowseContent({
   tag?: string
   author?: string
   urlSearch?: string
+  view: BrowseView
+  sort: BrowseSort
   scrollStorageKey: string
   onArticleNavigate?: () => void
 }) {
@@ -50,6 +57,8 @@ export function ArticlesBrowseContent({
     tag,
     author,
     search: urlSearch,
+    view,
+    sort,
   })
 
   const listReady = result !== undefined
@@ -62,21 +71,56 @@ export function ArticlesBrowseContent({
   }, [scrollStorageKey, listReady])
 
   if (result === undefined) {
-    return <ArticleGridSkeleton count={9} />
+    return <ArticleFeedSkeleton count={6} />
   }
 
   const articles = mapListArticlesToDisplay(result.articles)
   const pagination = buildPagination(result)
+  const contextMessage = getBrowseContextMessage(view, result.browseMeta)
 
   const handlePageChange = (page: number) => {
-    const params = new URLSearchParams(searchParams?.toString() || '')
-    params.set('page', page.toString())
-    router.push(`/articles?${params.toString()}`)
+    router.push(
+      buildArticlesBrowseHref({
+        page,
+        sourceParams: searchParams,
+      })
+    )
   }
+
+  const handleClearSearch = () => {
+    router.push(
+      buildArticlesBrowseHref({
+        search: '',
+        page: 1,
+        sourceParams: searchParams,
+      })
+    )
+  }
+
+  const handleClearAll = () => {
+    router.push('/articles')
+  }
+
+  const hasSearch = Boolean(urlSearch?.trim())
+  const hasFilters = Boolean(tag || author || hasSearch)
 
   return (
     <>
-      <ArticleGrid articles={articles} onArticleNavigate={onArticleNavigate} />
+      {contextMessage && (
+        <p className="mb-4 text-sm text-muted-foreground">{contextMessage}</p>
+      )}
+
+      <ArticleGrid
+        articles={articles}
+        onArticleNavigate={onArticleNavigate}
+        view={view}
+        emptyState={{
+          hasSearch,
+          hasFilters,
+          onClearSearch: handleClearSearch,
+          onClearAll: handleClearAll,
+        }}
+      />
 
       {pagination.totalPages > 1 && (
         <div className="mt-12">

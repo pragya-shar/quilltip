@@ -1,31 +1,90 @@
 'use client'
 
 import { useAuth } from '@/components/providers/AuthContext'
-import Navigation from '@/components/landing/Navigation'
 import AppNavigation from '@/components/layout/AppNavigation'
 import HeroSection from '@/components/landing/HeroSection'
-import FeaturesSection from '@/components/landing/FeaturesSection'
-import HowItWorksSection from '@/components/landing/HowItWorksSection'
-import FAQSection from '@/components/landing/FAQSection'
-import Footer from '@/components/landing/Footer'
-import { OnboardingDialog } from '@/components/onboarding/OnboardingDialog'
+
+import dynamic from 'next/dynamic'
+
+const LandingBelowFold = dynamic(
+  () => import('@/components/landing/LandingBelowFold'),
+  { ssr: false }
+)
+import { useLandingHashScroll } from '@/components/landing/useLandingHashScroll'
+import { OnboardingIntentHome } from '@/components/onboarding/OnboardingIntentHome'
 import { HomeRecentArticlesSection } from '@/components/articles/HomeRecentArticlesSection'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { DashboardRecentArticlesFallback } from '@/components/error/SectionErrorFallback'
 import Link from 'next/link'
 import { PenSquare, BookOpen, Wallet, TrendingUp } from 'lucide-react'
+import Navigation from '@/components/landing/Navigation'
+
+function HomeLoadingShell() {
+  return (
+    <div className="min-h-screen bg-background">
+      <AppNavigation />
+      <div className="pt-24 pb-8 max-w-6xl mx-auto px-4 animate-pulse">
+        <div className="mb-8 space-y-3">
+          <div className="h-9 w-64 rounded-lg bg-muted" />
+          <div className="h-5 w-80 rounded-lg bg-muted" />
+        </div>
+        <div className="grid md:grid-cols-3 gap-6 mb-12">
+          {[0, 1, 2].map((key) => (
+            <div
+              key={key}
+              className="h-40 rounded-[var(--card-radius)] bg-muted"
+            />
+          ))}
+        </div>
+        <div className="h-7 w-40 rounded-lg bg-muted mb-6" />
+        <div className="grid gap-4 md:grid-cols-2">
+          {[0, 1].map((key) => (
+            <div
+              key={key}
+              className="h-28 rounded-[var(--card-radius)] bg-muted"
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PublicLandingPage() {
+  useLandingHashScroll()
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-background via-muted/30 to-background">
+      <Navigation />
+      <HeroSection />
+      <LandingBelowFold />
+    </div>
+  )
+}
 
 export default function HomePage() {
-  const { user, isAuthenticated } = useAuth()
+  const { user, isAuthenticated, isLoading } = useAuth()
 
   const hasWallet = !!user?.stellarAddress
   const showOnboarding = isAuthenticated && user && !user.onboardingCompleted
 
+  if (isAuthenticated && isLoading) {
+    return <HomeLoadingShell />
+  }
+
   if (isAuthenticated && user) {
+    if (showOnboarding) {
+      return (
+        <div className="min-h-screen bg-background">
+          <AppNavigation />
+          <OnboardingIntentHome />
+        </div>
+      )
+    }
+
     return (
       <div className="min-h-screen bg-background">
         <AppNavigation />
-        {showOnboarding && <OnboardingDialog />}
         <div className="pt-24 pb-8">
           <div className="max-w-6xl mx-auto px-4">
             <div className="mb-8">
@@ -72,7 +131,7 @@ export default function HomePage() {
 
               {hasWallet ? (
                 <Link
-                  href={`/${user.username}?tab=earnings`}
+                  href="/dashboard/earnings"
                   className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
                 >
                   <div className="flex items-center mb-4">
@@ -84,12 +143,12 @@ export default function HomePage() {
                     </h3>
                   </div>
                   <p className="text-muted-foreground">
-                    Track tips received and article performance
+                    Track testnet tip activity and article performance
                   </p>
                 </Link>
               ) : (
                 <Link
-                  href="/guide"
+                  href="/dashboard/wallet"
                   className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
                 >
                   <div className="flex items-center mb-4">
@@ -130,14 +189,5 @@ export default function HomePage() {
     )
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-background via-muted/30 to-background">
-      <Navigation />
-      <HeroSection />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <FAQSection />
-      <Footer />
-    </div>
-  )
+  return <PublicLandingPage />
 }

@@ -3,12 +3,11 @@
 import type { RefObject } from 'react'
 import { Coins, Clock, DollarSign, Wallet } from 'lucide-react'
 import type { Doc } from '@/types/convex'
+import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
 import { MonthlyEarningsChart } from '@/components/dashboard/monthly-earnings-chart'
 import { TopEarningArticles } from '@/components/dashboard/top-earning-articles'
-import {
-  WalletSetupNotice,
-  navigateToWalletTab,
-} from '@/components/dashboard/wallet-setup-notice'
+import { useDashboardNavigation } from '@/hooks/useDashboardNavigation'
+import { networkLabelLowercase } from '@/lib/copy/network-status'
 
 export type EarningsStatsProps = {
   earnings: Doc<'authorEarnings'>
@@ -25,6 +24,7 @@ export function EarningsStats({
   onOpenWithdrawModal,
   withdrawTriggerRef,
 }: EarningsStatsProps) {
+  const navigateToDashboard = useDashboardNavigation()
   const lastWithdrawal = earnings.lastWithdrawalAt
   const belowWithdrawalMinimum = earnings.availableBalanceUsd < minWithdrawalUsd
   const showMinimumWithdrawalHelper =
@@ -32,7 +32,9 @@ export function EarningsStats({
 
   return (
     <>
-      {userProfile && !userProfile.stellarAddress && <WalletSetupNotice />}
+      {userProfile && !userProfile.stellarAddress && (
+        <ContextualWalletSetup mode="receive" />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
@@ -44,7 +46,7 @@ export function EarningsStats({
             ${earnings.totalEarnedUsd.toFixed(2)}
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            {earnings.tipCount} tips received
+            {earnings.tipCount} {networkLabelLowercase()} tips received
           </p>
         </div>
 
@@ -61,7 +63,7 @@ export function EarningsStats({
             type="button"
             onClick={() => {
               if (!userProfile?.stellarAddress) {
-                navigateToWalletTab()
+                navigateToDashboard('wallet')
               } else {
                 onOpenWithdrawModal()
               }
@@ -75,7 +77,7 @@ export function EarningsStats({
           {showMinimumWithdrawalHelper && (
             <p className="mt-2 text-sm text-muted-foreground">
               Withdrawals require a minimum available balance of $
-              {minWithdrawalUsd.toFixed(2)}. Add earnings until your balance
+              {minWithdrawalUsd.toFixed(2)}. Add more tips until your balance
               reaches this amount.
             </p>
           )}
@@ -97,9 +99,7 @@ export function EarningsStats({
         </div>
       </div>
 
-      {earnings.monthlyEarnings && (
-        <MonthlyEarningsChart monthlyEarnings={earnings.monthlyEarnings} />
-      )}
+      <MonthlyEarningsChart monthlyEarnings={earnings.monthlyEarnings ?? {}} />
 
       {earnings.topArticles && earnings.topArticles.length > 0 && (
         <TopEarningArticles articles={earnings.topArticles} />

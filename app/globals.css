@@ -36,92 +36,6 @@
   }
 }
 
-@keyframes highlight-pulse {
-  0%,
-  100% {
-    filter: brightness(1);
-  }
-  50% {
-    filter: brightness(1.2);
-  }
-}
-
-/* Base highlight styles */
-mark[data-highlight-id] {
-  background-image: linear-gradient(
-    var(--highlight-color, #ffeb3b),
-    var(--highlight-color, #ffeb3b)
-  );
-  background-repeat: no-repeat;
-  background-position: 0% 100%;
-  background-size: 100% 100%;
-  cursor: pointer;
-  position: relative;
-  transition: filter 0.2s ease;
-  padding: 0 2px;
-  border-radius: 2px;
-}
-
-mark[data-highlight-id]:hover {
-  filter: brightness(1.15);
-  animation: highlight-pulse 1s ease-in-out infinite;
-}
-
-/* Different highlight colors */
-mark[data-color='#FFEB3B'] {
-  --highlight-color: #ffeb3b;
-} /* Yellow */
-mark[data-color='#FFB3BA'] {
-  --highlight-color: #ffb3ba;
-} /* Pink */
-mark[data-color='#BAE1FF'] {
-  --highlight-color: #bae1ff;
-} /* Blue */
-mark[data-color='#BAFFC9'] {
-  --highlight-color: #baffc9;
-} /* Green */
-mark[data-color='#FFD9BA'] {
-  --highlight-color: #ffd9ba;
-} /* Orange */
-mark[data-color='#E8BAFF'] {
-  --highlight-color: #e8baff;
-} /* Purple */
-
-/* Highlight with note indicator */
-mark[data-note]::after {
-  content: '💬';
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  font-size: 12px;
-  background: var(--card);
-  border-radius: 50%;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-mark[data-note]:hover::after {
-  opacity: 1;
-}
-
-/* Overlapping highlights */
-mark[data-highlight-id] mark[data-highlight-id] {
-  background-image: linear-gradient(
-    45deg,
-    var(--highlight-color, #ffeb3b) 25%,
-    transparent 25%,
-    transparent 75%,
-    var(--highlight-color, #ffeb3b) 75%
-  );
-  background-size: 10px 10px;
-}
-
 /* Selection styles */
 .ProseMirror ::selection {
   background-color: rgba(99, 178, 255, 0.3);
@@ -131,6 +45,37 @@ mark[data-highlight-id] mark[data-highlight-id] {
 .editor-content .ProseMirror {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+/* Write page editor: empty-state placeholder (matches title placeholder tone) */
+.editor-content .ProseMirror p.is-empty:first-child::before {
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* YouTube embeds: responsive iframe inside editor and article body */
+.editor-content [data-youtube-video],
+.article-content [data-youtube-video] {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  margin: 1rem 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg, 0.5rem);
+}
+
+.editor-content [data-youtube-video] iframe,
+.article-content [data-youtube-video] iframe {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border: 0;
 }
 
 /* Highlight creation feedback */
@@ -731,4 +676,11 @@ mark[data-highlight-id] mark[data-highlight-id] {
   .animate-accordion-up {
     animation: var(--animate-accordion-up);
   }
+}
+
+/* Stellar Wallets Kit modal must sit above Radix dialog overlays (z-50). */
+stellar-wallets-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
 }

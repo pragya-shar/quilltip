@@ -1,41 +1,27 @@
-import Link from 'next/link'
+import { Suspense } from 'react'
 import LoginForm from '@/components/auth/LoginForm'
+import { AuthReturnLinks } from '@/components/auth/AuthReturnLinks'
+import { AuthIntentHeading } from '@/components/auth/AuthIntentHeading'
 
 /**
  * Login Page
  *
  * Provides user login functionality with email and password.
- * Integrates with NextAuth for authentication.
+ * Integrates with Convex Auth for authentication.
  */
 
 export default function LoginPage() {
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-foreground">
-          Sign in to your account
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Welcome back! Please enter your details.
-        </p>
-      </div>
+      <Suspense fallback={null}>
+        <AuthIntentHeading variant="login" />
+      </Suspense>
 
-      {/* Login Form */}
-      <LoginForm />
+      <Suspense fallback={null}>
+        <LoginForm />
+      </Suspense>
 
-      {/* Registration Link */}
-      <div className="text-center">
-        <p className="text-sm text-muted-foreground">
-          Don&apos;t have an account?{' '}
-          <Link
-            href="/register"
-            className="font-medium text-brand-blue hover:text-brand-accent transition-colors"
-          >
-            Sign up for free
-          </Link>
-        </p>
-      </div>
+      <AuthReturnLinks variant="login" />
     </div>
   )
 }

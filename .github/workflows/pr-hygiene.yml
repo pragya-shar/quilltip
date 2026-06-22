@@ -1,0 +1,145 @@
+name: PR Hygiene
+
+on:
+  pull_request:
+    branches: [main, development]
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: pr-hygiene-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  title:
+    name: PR title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern="^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9][a-z0-9._/-]{0,39}\))?: [A-Za-z0-9][A-Za-z0-9 ,.:'()/&+._/-]{0,100}$"
+
+          if ! printf '%s\n' "$TITLE" | grep -Eq "$pattern"; then
+            echo "PR title must match: type(scope): short description"
+            echo "Allowed types: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test"
+            echo "Received: $TITLE"
+            exit 1
+          fi
+
+  commit-subjects:
+    name: Commit subjects
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit subjects
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          pattern="^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9][a-z0-9._/-]{0,39}\))?: [A-Za-z0-9][A-Za-z0-9 ,.:'()/&+._/-]{0,100}$"
+          bad=0
+
+          is_legacy_main_release_commit() {
+            if [ "$BASE_REF" != "main" ] || [ "$HEAD_REF" != "development" ]; then
+              return 1
+            fi
+
+            case "$1" in
+              fbaef060445a52b6f717dc254d4693a5e96f07c3|\
+              a5272974dd143be963ac409a8072ecd37c9bf97e|\
+              f3d10cb1300c78fde1dfe676a81ebbf0dd5cbec6|\
+              f2123af00963623946fc6b1ef7b7f37094d9a1a0|\
+              a5ff4a1c4b5fe49fb5e2fc7ad218388d5f0fbb18|\
+              5c38df17caafdf3b5d8601ace0266e76d4755a32|\
+              041a955399a48835f827f1da18954da1e4da1d7b|\
+              4f471643c6492e4a3f9412f3d8a9a812d8859b7e|\
+              0cf1c291698ed38e4d13a88886e9cfc80ac58809|\
+              2eb2affc5d3cf024afb8d6712a706694a1e869ad|\
+              697ed876e351099d8b1b3646656a443401f42c5b|\
+              6827ece2124e3fd03d1ed88bd5fcf2d2f4f84812|\
+              fc14fde38679bf2ae363fbab48b81dbd91d82c84|\
+              51c49774c8f588922bc166cea0564a822c11b6d5|\
+              977289819dbefd6efbb65599cc0167e43d170458|\
+              cd989f12ca8080084e8ec5fc898e8cd728648e69|\
+              a51d60d676a8c695fe55b860b52422c6149df6e0|\
+              2bc946fd6801165e8e4a938e5735f8a8d225316b|\
+              461e39f7cbc8f6eab51d7e0649d70580fcd3fdd9|\
+              a3f45eaa931c1edc8957b6b8ee0f013e68cf16a9|\
+              e3f69874e954822858ca4fb09b0f459c4c52cce3|\
+              8b51130d6a50ac545b203c97860d624788345bd1|\
+              2296e6f180e1f36c6d98700ba0a5953c8789ddbf|\
+              9216e96ab283ee46d6406477fc75141138b0add1|\
+              ee9c9a3fb1fae87180c6ec8fcc7b1a3621eddf71|\
+              ae25ebd8285d5a56d1fe509c8a221417de89ba45|\
+              0f3cdb272a5ea0a178e457c4c2768daa2310af2e|\
+              8e7df50e63b9df88347b8d6fbb5299cb39de1667|\
+              a25858aa39e6b93153da818c49a91edca8dc2555)
+                return 0
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+          }
+
+          while IFS=$'\t' read -r commit subject; do
+            case "$subject" in
+              Merge\ *|Revert\ *) continue ;;
+            esac
+
+            if ! printf '%s\n' "$subject" | grep -Eq "$pattern"; then
+              if is_legacy_main_release_commit "$commit"; then
+                echo "Allowed legacy development -> main release commit subject: $subject"
+                continue
+              fi
+
+              echo "Invalid commit subject: $subject"
+              bad=1
+            fi
+          done < <(git log --format='%H%x09%s' "$BASE_SHA..$HEAD_SHA")
+
+          if [ "$bad" -ne 0 ]; then
+            echo "Commit subjects must match: type(scope): short description"
+            exit 1
+          fi
+
+  required:
+    name: PR Hygiene Required
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [title, commit-subjects]
+    if: always()
+    steps:
+      - name: Check required PR hygiene jobs
+        env:
+          TITLE_RESULT: ${{ needs.title.result }}
+          COMMIT_SUBJECTS_RESULT: ${{ needs.commit-subjects.result }}
+        run: |
+          failed=0
+
+          check_result() {
+            name="$1"
+            result="$2"
+
+            if [ "$result" != "success" ]; then
+              echo "$name did not pass: $result"
+              failed=1
+            fi
+          }
+
+          check_result "PR title" "$TITLE_RESULT"
+          check_result "Commit subjects" "$COMMIT_SUBJECTS_RESULT"
+
+          exit "$failed"

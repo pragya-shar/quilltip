@@ -1,4 +1,7 @@
 import Link from 'next/link'
+import { LegalLinks } from '@/components/legal/LegalLinks'
+import { AuthShellHeader } from '@/components/auth/AuthShellHeader'
+import { AUTH_FOOTER_LINKS } from '@/lib/copy/footer-links'
 
 /**
  * Auth Layout
@@ -15,53 +18,39 @@ export default function AuthLayout({
 }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-cream to-background dark:from-background dark:to-muted">
-      {/* Navigation Header */}
-      <header className="absolute top-0 left-0 right-0 z-10">
-        <nav className="container mx-auto px-6 py-6">
-          <Link
-            href="/"
-            className="inline-flex items-center text-2xl font-bold text-brand-blue hover:text-brand-accent transition-colors"
-          >
-            <span className="font-handwritten text-3xl mr-2">Q</span>
-            Quilltip
-          </Link>
-        </nav>
-      </header>
+      <AuthShellHeader />
 
-      {/* Auth Form Container */}
-      <main className="flex min-h-screen items-center justify-center px-6 py-20">
-        <div className="w-full max-w-md">
-          {/* Logo and Welcome Message */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center mb-4">
-              <span className="text-5xl font-handwritten text-brand-blue">
-                Q
-              </span>
-            </div>
-            <h1 className="text-3xl font-bold text-foreground">
-              Welcome to Quilltip
-            </h1>
-            <p className="mt-2 text-muted-foreground">
-              Where your words find their worth
-            </p>
-          </div>
-
-          {/* Auth Form Card */}
+      <main className="flex min-h-screen items-start justify-center px-6 pb-20 pt-28 sm:pt-32">
+        <div className="w-full max-w-md mt-8">
           <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-8">
             {children}
           </div>
 
           {/* Footer Links */}
-          <div className="mt-8 text-center text-sm text-muted-foreground">
+          <div className="mt-8 space-y-3 text-center text-sm text-muted-foreground">
             <p>
               By continuing, you agree to Quilltip&apos;s{' '}
-              <Link href="/terms" className="text-primary hover:underline">
-                Terms of Service
-              </Link>{' '}
-              and{' '}
-              <Link href="/privacy" className="text-primary hover:underline">
-                Privacy Policy
-              </Link>
+              <LegalLinks
+                conjunction="and"
+                linkClassName="text-primary hover:underline"
+              />
+            </p>
+            <p>
+              {AUTH_FOOTER_LINKS.map((link, index) => (
+                <span key={link.href}>
+                  {index > 0 ? (
+                    <span className="mx-1.5 text-muted-foreground" aria-hidden>
+                      |
+                    </span>
+                  ) : null}
+                  <Link
+                    href={link.href}
+                    className="text-primary hover:underline underline-offset-4"
+                  >
+                    {link.label}
+                  </Link>
+                </span>
+              ))}
             </p>
           </div>
         </div>

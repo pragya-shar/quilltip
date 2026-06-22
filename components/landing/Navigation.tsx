@@ -5,22 +5,31 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   ArrowRight,
   Menu,
-  X,
   PenTool,
   Zap,
   Highlighter,
   HelpCircle,
   FileText,
-  Shield,
   ChevronDown,
   BookOpen,
-  Coins,
-  Globe,
-  Sparkles,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 import { LucideIcon } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { Logo } from '@/components/ui/Logo'
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
+import {
+  handleLandingHashClick,
+  scrollToLandingSection,
+} from '@/lib/landing/scroll-to-section'
+import { NAV_SIGN_IN, NAV_START_WRITING } from '@/lib/copy/nav-cta'
+
+const MOBILE_MENU_CLOSE_MS = 280
 
 interface NavDropdownItem {
   icon: LucideIcon
@@ -54,55 +63,31 @@ const navDropdowns: NavDropdown[] = [
     label: 'Product',
     featured: {
       title: 'Quilltip Platform',
-      description:
-        'Write, publish, and earn — all in one decentralized platform built on Stellar.',
+      description: 'Read stories for free, tip writers, or publish your own.',
       href: '#features',
       bgClass: 'bg-gradient-to-br from-muted/70 to-muted',
       icon: PenTool,
     },
     columns: [
       {
-        heading: 'Features',
+        heading: 'Read & write',
         items: [
+          {
+            icon: Highlighter,
+            title: 'Interactive Reading',
+            description: 'Browse articles and tip passages',
+            href: '/articles',
+          },
           {
             icon: PenTool,
             title: 'Rich Editor',
-            description: 'Write with markdown & media',
-            href: '#features',
+            description: 'Publish with markdown and media',
+            href: '/register',
           },
-          {
-            icon: Highlighter,
-            title: 'Highlights',
-            description: 'Readers tip specific passages',
-            href: '#features',
-          },
-          {
-            icon: Sparkles,
-            title: 'NFT Minting',
-            description: 'Mint articles as collectibles',
-            href: '#features',
-          },
-        ],
-      },
-      {
-        heading: 'Earn',
-        items: [
           {
             icon: Zap,
-            title: 'Instant Tips',
-            description: 'Get paid via Stellar network',
-            href: '#how-it-works',
-          },
-          {
-            icon: Coins,
-            title: 'Low Fees',
-            description: '97.5% goes directly to you',
-            href: '#how-it-works',
-          },
-          {
-            icon: Globe,
-            title: 'Permanent Storage',
-            description: 'Articles stored on Arweave',
+            title: 'How tipping works',
+            description: 'Three steps to read, tip, and earn',
             href: '#how-it-works',
           },
         ],
@@ -113,8 +98,7 @@ const navDropdowns: NavDropdown[] = [
     label: 'Resources',
     featured: {
       title: 'Getting Started',
-      description:
-        'Set up your wallet and start earning tips in under 5 minutes.',
+      description: 'Set up a testnet wallet and practice tipping.',
       href: '/guide',
       bgClass: 'bg-gradient-to-br from-muted/60 to-muted',
       icon: BookOpen,
@@ -133,23 +117,6 @@ const navDropdowns: NavDropdown[] = [
             icon: HelpCircle,
             title: 'FAQ',
             description: 'Common questions answered',
-            href: '#faq',
-          },
-        ],
-      },
-      {
-        heading: 'Trust & Safety',
-        items: [
-          {
-            icon: Shield,
-            title: 'Security',
-            description: 'Blockchain security overview',
-            href: '#faq',
-          },
-          {
-            icon: Globe,
-            title: 'Arweave Storage',
-            description: 'How permanent storage works',
             href: '#faq',
           },
         ],
@@ -202,39 +169,42 @@ export default function Navigation() {
   }, [])
 
   useEffect(() => {
-    if (!openDropdown) return
+    if (!openDropdown || isOpen) return
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpenDropdown(null)
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [openDropdown])
+  }, [openDropdown, isOpen])
 
-  const handleSmoothScroll = (
+  const onHashNavClick = (
     e: React.MouseEvent<HTMLAnchorElement>,
     href: string
   ) => {
-    if (href.startsWith('#')) {
-      e.preventDefault()
-      const element = document.querySelector(href)
-      if (element) {
-        const offsetTop =
-          element.getBoundingClientRect().top + window.pageYOffset - 80
-        window.scrollTo({
-          top: offsetTop,
-          behavior: 'smooth',
-        })
-      }
+    if (handleLandingHashClick(e, href)) {
       setIsOpen(false)
       setOpenDropdown(null)
     }
   }
 
+  const onMobileHashNavClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => {
+    if (!href.startsWith('#')) return
+
+    e.preventDefault()
+    setIsOpen(false)
+    window.setTimeout(() => scrollToLandingSection(href), MOBILE_MENU_CLOSE_MS)
+  }
+
+  const headerSolid = scrolled || isOpen
+
   return (
     <motion.nav
       className={`fixed top-0 w-full z-50 transition-all duration-500 ${
-        scrolled
-          ? 'bg-background/70 backdrop-blur-xl border-b border-border/60 shadow-sm'
+        headerSolid
+          ? 'bg-background border-b border-border shadow-sm'
           : 'bg-transparent'
       }`}
       initial={{ y: -100 }}
@@ -243,22 +213,7 @@ export default function Navigation() {
     >
       <div className="container mx-auto max-w-7xl px-6">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link
-            href="/"
-            className="focus-ring flex items-center gap-3 group rounded-lg"
-          >
-            <motion.div
-              className="w-9 h-9 bg-gradient-to-br from-brand-blue to-brand-accent rounded-xl flex items-center justify-center shadow-sm"
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-            >
-              <PenTool className="w-[18px] h-[18px] text-brand-foreground" />
-            </motion.div>
-            <span className="text-[22px] font-semibold text-foreground tracking-tight">
-              Quilltip
-            </span>
-          </Link>
+          <Logo animated />
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-1" ref={navRef}>
@@ -317,7 +272,7 @@ export default function Navigation() {
                           <Link
                             href={dropdown.featured.href}
                             onClick={(e) =>
-                              handleSmoothScroll(e, dropdown.featured.href)
+                              onHashNavClick(e, dropdown.featured.href)
                             }
                             className={`focus-ring w-[200px] shrink-0 p-5 ${dropdown.featured.bgClass} flex flex-col justify-between group/featured rounded-l-2xl`}
                           >
@@ -351,7 +306,7 @@ export default function Navigation() {
                                       key={item.title}
                                       href={item.href}
                                       onClick={(e) => {
-                                        handleSmoothScroll(e, item.href)
+                                        onHashNavClick(e, item.href)
                                         setOpenDropdown(null)
                                       }}
                                       className="focus-ring flex items-start gap-2.5 px-2.5 py-2 rounded-xl hover:bg-muted/50 transition-colors duration-150 group/item"
@@ -388,66 +343,51 @@ export default function Navigation() {
 
             <div className="w-px h-5 bg-border mx-2" />
 
-            <ThemeToggle />
-
             <Link
               href="/login"
               className="focus-ring px-3 py-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/60 transition-all duration-200"
             >
-              Sign In
+              {NAV_SIGN_IN}
             </Link>
 
             <Link
               href="/register"
               className="focus-ring inline-flex items-center gap-1.5 bg-brand text-brand-foreground px-4 py-1.5 rounded-lg text-[13px] font-medium hover:bg-brand-hover transition-all duration-200 ml-1"
             >
-              Try on Testnet
+              {NAV_START_WRITING}
               <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
             </Link>
+
+            <ThemeToggle />
           </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            type="button"
-            className="focus-ring md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
-            onClick={() => setIsOpen(!isOpen)}
-            aria-expanded={isOpen}
-            aria-label="Toggle menu"
-          >
-            {isOpen ? (
-              <X size={22} className="text-foreground" />
-            ) : (
-              <Menu size={22} className="text-foreground" />
-            )}
-          </button>
-        </div>
-
-        {/* Mobile Navigation */}
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              className="md:hidden border-t border-border/60"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.25 }}
+          <Sheet open={isOpen} onOpenChange={setIsOpen}>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                className="focus-ring md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
+                aria-expanded={isOpen}
+                aria-label="Toggle menu"
+              >
+                <Menu size={22} className="text-foreground" />
+              </button>
+            </SheetTrigger>
+            <SheetContent
+              side="right"
+              className="w-full sm:max-w-sm p-0 flex flex-col"
             >
-              <div className="py-4 space-y-4">
+              <SheetTitle className="sr-only">Navigation menu</SheetTitle>
+              <div className="px-4 pt-14 pb-6 space-y-4 overflow-y-auto">
                 <Link
                   href="/articles"
-                  className="focus-ring flex items-center gap-3 py-1.5 rounded-md text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
+                  className="focus-ring flex items-center gap-3 py-2 rounded-lg text-foreground hover:bg-muted text-sm font-medium transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   Articles
                 </Link>
-                {navDropdowns.map((dropdown, dropdownIndex) => (
-                  <motion.div
-                    key={dropdown.label}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: dropdownIndex * 0.1 }}
-                  >
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                {navDropdowns.map((dropdown) => (
+                  <div key={dropdown.label}>
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
                       {dropdown.label}
                     </p>
                     <div className="space-y-0.5">
@@ -456,14 +396,17 @@ export default function Navigation() {
                           <Link
                             key={item.title}
                             href={item.href}
-                            className="focus-ring flex items-center gap-2.5 py-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+                            className="focus-ring flex items-center gap-2.5 py-2 px-1 rounded-lg text-foreground hover:bg-muted transition-colors"
                             onClick={(e) => {
-                              handleSmoothScroll(e, item.href)
+                              if (item.href.startsWith('#')) {
+                                onMobileHashNavClick(e, item.href)
+                                return
+                              }
                               setIsOpen(false)
                             }}
                           >
-                            <div className="w-7 h-7 bg-muted rounded-lg flex items-center justify-center">
-                              <item.icon className="w-3.5 h-3.5 text-muted-foreground" />
+                            <div className="w-7 h-7 bg-muted rounded-lg flex items-center justify-center shrink-0">
+                              <item.icon className="w-3.5 h-3.5 text-foreground" />
                             </div>
                             <span className="text-sm font-medium">
                               {item.title}
@@ -472,38 +415,34 @@ export default function Navigation() {
                         ))
                       )}
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
 
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{
-                    duration: 0.3,
-                    delay: navDropdowns.length * 0.1,
-                  }}
-                  className="pt-3 space-y-2 border-t border-border/60"
-                >
+                <div className="pt-3 space-y-2 border-t border-border">
                   <Link
                     href="/login"
-                    className="focus-ring block rounded-md text-muted-foreground hover:text-foreground text-sm font-medium transition-colors py-1.5"
+                    className="focus-ring block rounded-lg text-foreground hover:bg-muted text-sm font-medium transition-colors py-2 px-1"
                     onClick={() => setIsOpen(false)}
                   >
-                    Sign In
+                    {NAV_SIGN_IN}
                   </Link>
                   <Link
                     href="/register"
                     className="focus-ring inline-flex w-full items-center justify-center gap-1.5 bg-brand text-brand-foreground px-5 py-2.5 rounded-lg hover:bg-brand-hover transition-colors text-sm font-medium"
                     onClick={() => setIsOpen(false)}
                   >
-                    Try on Testnet
+                    {NAV_START_WRITING}
                     <ArrowRight className="w-3.5 h-3.5 shrink-0 text-brand-foreground/80" />
                   </Link>
-                </motion.div>
+                </div>
+
+                <div className="flex justify-end pt-3 border-t border-border">
+                  <ThemeToggle />
+                </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </motion.nav>
   )

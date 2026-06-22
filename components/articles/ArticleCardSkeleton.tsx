@@ -2,7 +2,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export function ArticleCardSkeleton() {
   return (
-    <div className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border overflow-hidden">
+    <div
+      className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border overflow-hidden"
+      aria-hidden
+    >
       {/* Cover image placeholder */}
       <Skeleton className="h-48 w-full rounded-none" />
 

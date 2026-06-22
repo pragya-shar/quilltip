@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState, type RefObject } from 'react'
-import { Loader2, Wallet } from 'lucide-react'
-import { toast } from 'sonner'
+import { AlertCircle, Loader2, Wallet } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { isValidStellarAccountId } from '@/lib/stellar/is-valid-stellar-account-id'
+import {
+  withdrawalAcknowledgementLabel,
+  withdrawalDialogDescription,
+  withdrawalDialogTitle,
+  withdrawalFlowNote,
+  withdrawalNote,
+} from '@/lib/copy/network-status'
 
 export type WithdrawalDialogProps = {
   open: boolean
@@ -24,6 +31,7 @@ export type WithdrawalDialogProps = {
     stellarAddress: string
   }) => Promise<void>
   triggerRef: RefObject<HTMLButtonElement | null>
+  externalError?: string | null
 }
 
 export function WithdrawalDialog({
@@ -34,15 +42,20 @@ export function WithdrawalDialog({
   savedStellarAddress,
   onWithdraw,
   triggerRef,
+  externalError = null,
 }: WithdrawalDialogProps) {
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [stellarAddress, setStellarAddress] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [acknowledged, setAcknowledged] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       setWithdrawAmount('')
       setStellarAddress(savedStellarAddress ?? '')
+      setAcknowledged(false)
+      setSubmitError(null)
     }
   }, [open, savedStellarAddress])
 
@@ -59,22 +72,23 @@ export function WithdrawalDialog({
     const amount = parseFloat(withdrawAmount)
 
     if (!amount || amount < minWithdrawalUsd) {
-      toast.error(
+      setSubmitError(
         `Minimum withdrawal amount is $${minWithdrawalUsd.toFixed(2)}`
       )
       return
     }
 
     if (!isValidStellarAccountId(trimmedAddress)) {
-      toast.error('Please enter a valid Stellar address')
+      setSubmitError('Please enter a valid Stellar address')
       return
     }
 
     if (amount > availableBalanceUsd) {
-      toast.error('Insufficient balance')
+      setSubmitError('Insufficient balance')
       return
     }
 
+    setSubmitError(null)
     setIsSubmitting(true)
     try {
       await onWithdraw({
@@ -82,12 +96,16 @@ export function WithdrawalDialog({
         stellarAddress: trimmedAddress,
       })
       onOpenChange(false)
-    } catch {
-      // Parent shows toast for mutation errors
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to process withdrawal'
+      setSubmitError(message)
     } finally {
       setIsSubmitting(false)
     }
   }
+
+  const displayError = submitError ?? externalError
 
   if (!open) {
     return null
@@ -109,8 +127,8 @@ export function WithdrawalDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle>Withdraw Earnings</DialogTitle>
-          <DialogDescription>Withdraw to your Stellar wallet</DialogDescription>
+          <DialogTitle>{withdrawalDialogTitle()}</DialogTitle>
+          <DialogDescription>{withdrawalDialogDescription()}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -132,7 +150,10 @@ export function WithdrawalDialog({
                 max={availableBalanceUsd}
                 step="0.01"
                 value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value)}
+                onChange={(e) => {
+                  setWithdrawAmount(e.target.value)
+                  setSubmitError(null)
+                }}
                 disabled={isSubmitting}
                 className="w-full pl-8 pr-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
                 placeholder={`${minWithdrawalUsd.toFixed(2)}`}
@@ -155,7 +176,10 @@ export function WithdrawalDialog({
               id="stellar-address"
               type="text"
               value={stellarAddress || savedStellarAddress || ''}
-              onChange={(e) => setStellarAddress(e.target.value)}
+              onChange={(e) => {
+                setStellarAddress(e.target.value)
+                setSubmitError(null)
+              }}
               aria-invalid={showAddressError}
               className={`w-full px-3 py-2 border bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring read-only:bg-muted/50 ${
                 showAddressError
@@ -181,11 +205,32 @@ export function WithdrawalDialog({
 
           <div className="bg-info border border-info/50 rounded-lg p-3">
             <p className="text-sm text-info-foreground">
-              Withdrawals are processed instantly on the Stellar network.
-              Transaction fees are covered by Quilltip.
+              {withdrawalNote()} Transaction fees are covered by Quilltip.
+            </p>
+            <p className="mt-2 text-sm text-info-foreground">
+              {withdrawalFlowNote()}
             </p>
           </div>
+
+          <label className="flex items-start gap-2 rounded-lg border border-border bg-card p-3 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={acknowledged}
+              onChange={(e) => setAcknowledged(e.target.checked)}
+              disabled={isSubmitting}
+              className="mt-0.5 h-4 w-4 accent-foreground"
+            />
+            <span>{withdrawalAcknowledgementLabel()}</span>
+          </label>
         </div>
+
+        {displayError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Withdrawal failed</AlertTitle>
+            <AlertDescription>{displayError}</AlertDescription>
+          </Alert>
+        )}
 
         <DialogFooter className="gap-3 sm:gap-0">
           <button
@@ -203,7 +248,8 @@ export function WithdrawalDialog({
               isSubmitting ||
               !withdrawAmount ||
               !trimmedAddress ||
-              !isValidStellarAccountId(trimmedAddress)
+              !isValidStellarAccountId(trimmedAddress) ||
+              !acknowledged
             }
             className="flex-1 px-4 py-2 bg-brand text-brand-foreground rounded-lg hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 sm:flex-none"
           >

@@ -1,37 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-
-/** Quill / pen nib outline: oval with hole and two tines */
-function QuillIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden
-    >
-      <path d="M12 5c-2.5 0-4 1.8-4 4s1 4 4 5c3-1 4-2.5 4-5s-1.5-4-4-4z" />
-      <circle cx="12" cy="8.5" r="1.25" />
-    </svg>
-  )
-}
+import { PenTool } from 'lucide-react'
+import { motion } from 'motion/react'
 
 export interface LogoProps {
-  /** Link to home. Omit to render as div (e.g. in footer) */
-  href?: string
-  /** 'dark' = dark icon + dark text (light bg). 'light' = light icon + light text (dark bg) */
-  variant?: 'dark' | 'light'
-  /** Show text "QuillTip" next to icon */
+  /** Link target. Omit for home (`/`). Pass `null` for a static, non-link lockup. */
+  href?: string | null
+  /** `default` for light backgrounds; `onDark` for spotlight/dark footer surfaces. */
+  variant?: 'default' | 'onDark'
+  /** Show "Quilltip" wordmark next to icon. */
   showText?: boolean
-  /** Size of the icon box */
-  iconSize?: 'sm' | 'md' | 'lg'
-  /** Optional class for the container */
+  size?: 'sm' | 'md' | 'lg'
+  /** Spring hover scale on the icon box (landing nav only). */
+  animated?: boolean
   className?: string
+  onClick?: () => void
 }
 
 const iconSizeClasses = {
@@ -53,42 +37,69 @@ const textSizeClasses = {
 }
 
 export function Logo({
-  href = '/',
-  variant = 'dark',
+  href,
+  variant = 'default',
   showText = true,
-  iconSize = 'md',
+  size = 'md',
+  animated = false,
   className = '',
+  onClick,
 }: LogoProps) {
-  const isDark = variant === 'dark'
-  const boxBg = isDark ? 'bg-neutral-900' : 'bg-neutral-700'
-  const iconColor = 'text-white'
-  const textColor = isDark ? 'text-neutral-900' : 'text-white'
-  const textFont = isDark ? 'font-semibold' : 'font-medium'
+  const isOnDark = variant === 'onDark'
+  const iconBoxClass = isOnDark
+    ? 'bg-card border border-border shadow-sm'
+    : 'bg-gradient-to-br from-brand-blue to-brand-accent shadow-sm'
+  const iconColor = isOnDark ? 'text-foreground' : 'text-brand-foreground'
+  const textColor = isOnDark ? 'text-spotlight-foreground' : 'text-foreground'
+  const textFont = isOnDark ? 'font-medium font-display' : 'font-semibold'
+
+  const iconBox = (
+    <span
+      className={`${iconSizeClasses[size]} ${iconBoxClass} rounded-xl flex items-center justify-center shrink-0`}
+    >
+      <PenTool
+        className={`${iconInnerClasses[size]} ${iconColor}`}
+        aria-hidden
+      />
+    </span>
+  )
 
   const content = (
     <>
-      <span
-        className={`${iconSizeClasses[iconSize]} ${boxBg} rounded-xl flex items-center justify-center shrink-0 ${isDark ? 'shadow-sm' : 'shadow-lg'}`}
-      >
-        <QuillIcon className={`${iconInnerClasses[iconSize]} ${iconColor}`} />
-      </span>
+      {animated ? (
+        <motion.span
+          className={`${iconSizeClasses[size]} ${iconBoxClass} rounded-xl flex items-center justify-center shrink-0`}
+          whileHover={{ scale: 1.05 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+        >
+          <PenTool
+            className={`${iconInnerClasses[size]} ${iconColor}`}
+            aria-hidden
+          />
+        </motion.span>
+      ) : (
+        iconBox
+      )}
       {showText && (
         <span
-          className={`${textSizeClasses[iconSize]} ${textFont} ${textColor} tracking-tight`}
+          className={`${textSizeClasses[size]} ${textFont} ${textColor} tracking-tight`}
         >
-          QuillTip
+          Quilltip
         </span>
       )}
     </>
   )
 
   const sharedClass = `inline-flex items-center gap-3 ${className}`
+  const linkHref = href === undefined ? '/' : href
 
-  if (href) {
+  if (linkHref !== null) {
     return (
       <Link
-        href={href}
-        className={`${sharedClass} hover:opacity-90 transition-opacity`}
+        href={linkHref}
+        onClick={onClick}
+        className={`${sharedClass} focus-ring rounded-lg hover:opacity-90 transition-opacity`}
+        aria-label="Quilltip"
       >
         {content}
       </Link>

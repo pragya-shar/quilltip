@@ -1,7 +1,13 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { usePathname, useSearchParams } from 'next/navigation'
+import {
+  useEditor,
+  EditorContent,
+  type Editor,
+  type JSONContent,
+} from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
@@ -9,33 +15,40 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import HighlightExtension from '@/components/editor/extensions/HighlightExtension'
+import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
+import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { HighlightConverter } from '@/lib/highlights/HighlightConverter'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useArticleById, useArticleHighlightsQuery } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
 import { HighlightPopover } from '@/components/highlights/HighlightPopover'
+import { HighlightSignInPrompt } from '@/components/highlights/HighlightSignInPrompt'
 import { HighlightDetailsPanel } from '@/components/highlights/HighlightDetailsPanel'
 import { cn } from '@/lib/utils'
-import { JSONContent } from '@tiptap/react'
 import { AnimatePresence } from 'motion/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { toast } from 'sonner'
 import { EDITOR_PROSE_CLASS } from '@/lib/constants'
-import { getRangeBoundingBox } from '@/lib/highlights/utils'
+import { handleArticleHighlightOverlayPointerDown } from '@/lib/highlights/articleOverlayPointerDismiss'
+import { getRangeTopCenterAnchor } from '@/lib/highlights/utils'
+import {
+  applyPendingHighlightToEditor,
+  readPendingHighlightPopoverAnchor,
+  shouldKeepTryingHighlightSelectionResume,
+} from '@/lib/highlight/resumePendingHighlightSelection'
 import type { TocHeading } from '@/lib/tiptap/headings'
 import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
-
-function getRangeTopCenterAnchor(
-  range: Range
-): { top: number; left: number } | null {
-  const box = getRangeBoundingBox(range)
-  if (!box) return null
-  return {
-    top: box.top,
-    left: box.left + box.width / 2,
-  }
-}
+import { getCurrentReturnPath } from '@/lib/auth/safeReturnPath'
+import {
+  clearPendingHighlightSelection,
+  readPendingHighlightSelection,
+  writePendingHighlightSelection,
+} from '@/lib/highlight/pendingHighlightSelection'
+import {
+  matchesHighlightPendingIntent,
+  readPendingTipIntent,
+} from '@/lib/tip/pendingTipIntent'
 
 interface HighlightData {
   _id: Id<'highlights'>
@@ -86,170 +99,323 @@ export function HighlightableArticle({
     highlight: HighlightData
     position: { top: number; left: number }
   } | null>(null)
+  const [signInPromptPosition, setSignInPromptPosition] = useState<{
+    top: number
+    left: number
+  } | null>(null)
+  const [signInSelection, setSignInSelection] = useState<{
+    text: string
+    from: number
+    to: number
+  } | null>(null)
   const editorRef = useRef<HTMLDivElement>(null)
   const isApplyingHighlightsRef = useRef(false)
-  // Tracks whether the user is in the middle of a mouse/touch drag-select.
-  // During a drag, onSelectionUpdate fires on every move; if we let it mount
-  // the popover at 3 chars, HighlightPopover's FocusScope trap steals focus
-  // from the article body and the native selection collapses, capping
-  // selections at 3 characters. Defer popover display to pointerup instead.
+  const selectionRestoredEditorRef = useRef<Editor | null>(null)
+  const [resumeHighlightTip, setResumeHighlightTip] = useState<{
+    amountCents?: number
+    customAmount?: string
+  } | null>(null)
+  const pendingSelectionNeedsClearRef = useRef(false)
+  // During a drag, onSelectionUpdate fires on every move; if we mount the
+  // popover at 3 chars, HighlightPopover's FocusScope trap steals focus from
+  // the article body and the native selection collapses. Defer popover to pointerup.
   const isDraggingRef = useRef(false)
 
-  // Get current user for ownership checks
-  const { user } = useAuth()
+  const { user, isAuthenticated } = useAuth()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const returnPath = getCurrentReturnPath(pathname, searchParams)
+  const highlightsActive = showHighlights && isAuthenticated
+  const signInPromptActive = showHighlights && !isAuthenticated
 
   useEnsureHeadingIds(tocHeadings, { rootSelector: '.highlightable-article' })
-
-  // Fetch article data (for author info, Stellar address, etc.)
   const article = useArticleById(articleId)
+  const canTipHighlight = Boolean(article?.author?.stellarAddress)
 
-  const highlights = useArticleHighlightsQuery(articleId)
+  const highlights = useArticleHighlightsQuery(articleId, highlightsActive)
 
-  // Use ref to avoid stale closure in onHighlightClick callback
   const highlightsRef = useRef(highlights)
   useEffect(() => {
     highlightsRef.current = highlights
   }, [highlights])
 
-  // Mutation to create a highlight
   const createHighlight = useMutation(api.highlights.createHighlight)
 
-  // Initialize TipTap editor with highlight extension
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        // StarterKit v3 ships codeBlock, link, and underline by default; we
-        // register customised versions of each below, so disable them here
-        // to avoid duplicate-extension warnings.
-        codeBlock: false,
-        link: false,
-        underline: false,
-      }),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-      }),
-      CodeBlockLowlight.configure({
-        lowlight,
-      }),
-      ResizableImage,
-      HighlightExtension.configure({
-        multicolor: true,
-        highlights:
-          highlights?.map((h) => ({
-            id: h._id,
-            color: h.color || '#FFEB3B',
-            userId: h.userId,
-            userName: h.userName,
-            userAvatar: h.userAvatar,
-            note: h.note,
-            createdAt: h.createdAt,
-          })) || [],
-        onHighlightClick: (highlightAttrs, event) => {
-          // Use ref to get current highlights (avoids stale closure)
-          const currentHighlights = highlightsRef.current
+  const applySignedOutTextSelection = useCallback(
+    (text: string, from: number, to: number, range: Range) => {
+      const anchor = getRangeTopCenterAnchor(range)
+      if (!anchor) return
 
-          // Find the full highlight data with defensive lookup
-          // Try matching by _id first (correct way)
-          let fullHighlight = currentHighlights?.find(
-            (h) => h._id === highlightAttrs.id
-          )
-
-          // Fallback: try matching by highlightId for backwards compatibility
-          if (!fullHighlight && highlightAttrs.id) {
-            fullHighlight = currentHighlights?.find(
-              (h) => h.highlightId === highlightAttrs.id
-            )
-          }
-
-          if (fullHighlight) {
-            // Show tooltip with highlight info
-            if (onHighlightClick) {
-              onHighlightClick(fullHighlight)
-            } else {
-              // Default behavior: show tooltip using click event position
-              const target = event.target as HTMLElement
-              const rect = target.getBoundingClientRect()
-              setHighlightTooltip({
-                highlight: fullHighlight,
-                position: {
-                  top: rect.top - 10,
-                  left: rect.left + rect.width / 2,
-                },
-              })
-            }
-          }
-        },
-      }),
-    ],
-    content,
-    editable,
-    immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        class: `${EDITOR_PROSE_CLASS} prose-stone`,
-      },
-    },
-    onSelectionUpdate: ({ editor }) => {
-      if (editable || isApplyingHighlightsRef.current) return
-      // During active mouse/touch drag, defer popover creation to pointerup.
-      // Keyboard selection (shift+arrow, ctrl+a) still runs this path.
-      if (isDraggingRef.current) return
-
-      const { selection } = editor.state
-      const { from, to } = selection
-      const text = editor.state.doc.textBetween(from, to, ' ')
-
-      if (text.trim().length >= 3) {
-        // Get the DOM selection for positioning
-        const domSelection = window.getSelection()
-        if (domSelection && domSelection.rangeCount > 0) {
-          const range = domSelection.getRangeAt(0)
-          const anchor = getRangeTopCenterAnchor(range)
-          if (!anchor) return
-
-          setSelectedText({ text, from, to })
-          setPopoverPosition({
-            // Viewport coordinates (HighlightPopover is `position: fixed`).
-            // Anchor at top-center of the selection bounding box.
-            top: anchor.top,
-            left: anchor.left,
-          })
-        }
+      if (canTipHighlight) {
+        setSelectedText({ text, from, to })
+        setPopoverPosition(anchor)
+        setSignInSelection(null)
       } else {
+        setSignInSelection({ text, from, to })
+        setSignInPromptPosition(anchor)
         setSelectedText(null)
         setPopoverPosition(null)
       }
     },
-  })
+    [canTipHighlight]
+  )
 
-  // Apply highlights when they change
+  const editor = useEditor(
+    {
+      extensions: [
+        StarterKit.configure({
+          // StarterKit v3 ships codeBlock, link, and underline by default; we
+          // register customised versions below, so disable them here.
+          codeBlock: false,
+          link: false,
+          underline: false,
+        }),
+        Underline,
+        Link.configure({
+          openOnClick: false,
+        }),
+        CodeBlockLowlight.configure({
+          lowlight,
+        }),
+        ResizableImage,
+        createYoutubeExtension(),
+        ...(editable ? [EditorKeymap] : []),
+        ...(highlightsActive
+          ? [
+              HighlightExtension.configure({
+                multicolor: true,
+                highlights:
+                  highlights?.map((h) => ({
+                    id: h._id,
+                    startOffset: h.startOffset,
+                    endOffset: h.endOffset,
+                    color: h.color || '#FFEB3B',
+                    userId: h.userId,
+                    userName: h.userName,
+                    userAvatar: h.userAvatar,
+                    note: h.note,
+                    createdAt: h.createdAt,
+                  })) || [],
+                onHighlightClick: (highlightAttrs, event) => {
+                  const currentHighlights = highlightsRef.current
+
+                  let fullHighlight = currentHighlights?.find(
+                    (h) => h._id === highlightAttrs.id
+                  )
+
+                  if (!fullHighlight && highlightAttrs.id) {
+                    fullHighlight = currentHighlights?.find(
+                      (h) => h.highlightId === highlightAttrs.id
+                    )
+                  }
+
+                  if (fullHighlight) {
+                    if (onHighlightClick) {
+                      onHighlightClick(fullHighlight)
+                    } else {
+                      const target = event.target as HTMLElement
+                      const rect = target.getBoundingClientRect()
+                      setHighlightTooltip({
+                        highlight: fullHighlight,
+                        position: {
+                          top: rect.top - 10,
+                          left: rect.left + rect.width / 2,
+                        },
+                      })
+                    }
+                  }
+                },
+              }),
+            ]
+          : []),
+      ],
+      content,
+      editable,
+      immediatelyRender: false,
+      editorProps: {
+        attributes: {
+          class: `${EDITOR_PROSE_CLASS} prose-stone`,
+        },
+      },
+      onSelectionUpdate: ({ editor }) => {
+        if (editable || isApplyingHighlightsRef.current) return
+        if (!showHighlights) return
+        // Keyboard selection (shift+arrow, ctrl+a) still runs this path.
+        if (isDraggingRef.current) return
+
+        const { selection } = editor.state
+        const { from, to } = selection
+        const text = editor.state.doc.textBetween(from, to, ' ')
+
+        if (text.trim().length >= 3) {
+          const domSelection = window.getSelection()
+          if (domSelection && domSelection.rangeCount > 0) {
+            const range = domSelection.getRangeAt(0)
+
+            if (signInPromptActive) {
+              applySignedOutTextSelection(text, from, to, range)
+            } else if (highlightsActive) {
+              const rect = range.getBoundingClientRect()
+              const containerRect = editorRef.current?.getBoundingClientRect()
+
+              setSelectedText({ text, from, to })
+              if (containerRect) {
+                setPopoverPosition({
+                  top: rect.top - containerRect.top - 60,
+                  left: rect.left - containerRect.left + rect.width / 2,
+                })
+              }
+              setSignInSelection(null)
+              setSignInPromptPosition(null)
+            }
+          }
+        } else {
+          setSelectedText(null)
+          setPopoverPosition(null)
+          setSignInSelection(null)
+          setSignInPromptPosition(null)
+        }
+      },
+    },
+    [
+      showHighlights,
+      highlightsActive,
+      signInPromptActive,
+      editable,
+      articleId,
+      applySignedOutTextSelection,
+    ]
+  )
+
   useEffect(() => {
-    if (!editor || !highlights || !showHighlights) return
+    if (!showHighlights) {
+      setSelectedText(null)
+      setPopoverPosition(null)
+      setHighlightTooltip(null)
+      setSignInSelection(null)
+      setSignInPromptPosition(null)
+    }
+  }, [showHighlights])
 
-    // Flag to suppress popover during programmatic highlight application
+  useEffect(() => {
+    if (!isAuthenticated || !highlightsActive || !editor) return
+
+    const pending = readPendingHighlightSelection()
+    if (
+      !shouldKeepTryingHighlightSelectionResume(
+        pending,
+        String(articleId),
+        selectionRestoredEditorRef.current,
+        editor
+      )
+    ) {
+      return
+    }
+
+    let cancelled = false
+
+    const tryRestoreSelection = (): boolean => {
+      if (cancelled || !pending) return true
+      if (selectionRestoredEditorRef.current === editor) return true
+
+      applyPendingHighlightToEditor(editor, pending)
+
+      const anchor = readPendingHighlightPopoverAnchor(editor)
+      if (!anchor) return false
+
+      selectionRestoredEditorRef.current = editor
+      pendingSelectionNeedsClearRef.current = true
+      setSelectedText({
+        text: pending.highlightText,
+        from: pending.startOffset,
+        to: pending.endOffset,
+      })
+      setPopoverPosition(anchor)
+      setSignInSelection(null)
+      setSignInPromptPosition(null)
+
+      const tipIntent = readPendingTipIntent()
+      if (matchesHighlightPendingIntent(tipIntent, articleId)) {
+        setResumeHighlightTip({
+          amountCents: tipIntent.amountCents,
+          customAmount: tipIntent.customAmount,
+        })
+      }
+
+      return true
+    }
+
+    if (tryRestoreSelection()) return
+
+    const intervalId = window.setInterval(() => {
+      if (tryRestoreSelection()) {
+        window.clearInterval(intervalId)
+      }
+    }, 100)
+
+    const timeoutId = window.setTimeout(() => {
+      window.clearInterval(intervalId)
+    }, 15_000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+      window.clearTimeout(timeoutId)
+    }
+  }, [isAuthenticated, highlightsActive, articleId, editor])
+
+  useEffect(() => {
+    if (!pendingSelectionNeedsClearRef.current) return
+    if (!popoverPosition || !selectedText) return
+
+    // Clear storage only after we can observe the popover in the DOM.
+    const raf1 = requestAnimationFrame(() => {
+      const raf2 = requestAnimationFrame(() => {
+        const popover = document.querySelector(
+          '[data-testid="highlight-popover"]'
+        )
+        if (popover) {
+          clearPendingHighlightSelection()
+          pendingSelectionNeedsClearRef.current = false
+        }
+      })
+      return () => cancelAnimationFrame(raf2)
+    })
+    return () => cancelAnimationFrame(raf1)
+  }, [popoverPosition, selectedText])
+
+  useEffect(() => {
+    if (!editor || !highlights || !highlightsActive) return
+
+    // Suppress popover during programmatic highlight application
     isApplyingHighlightsRef.current = true
     HighlightConverter.applyHighlightsToEditor(editor, highlights)
-    // Use requestAnimationFrame to clear flag after all selection events have fired
+    // Clear flag after selection events from apply have fired
     requestAnimationFrame(() => {
       isApplyingHighlightsRef.current = false
     })
-  }, [editor, highlights, showHighlights])
+  }, [editor, highlights, highlightsActive])
 
-  // Show the highlight popover only after the user releases a drag-select.
-  // Mounting it mid-drag traps focus and collapses the selection.
+  // Show overlay only after the user releases a drag-select.
   useEffect(() => {
     const container = editorRef.current
-    if (!container || editable) return
+    if (!container || editable || !showHighlights) return
 
     const handlePointerDown = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as HTMLElement | null
-      // Ignore events originating from an open popover/details dialog so
-      // their own buttons still receive the click.
-      if (target?.closest('[role="dialog"]')) return
-      isDraggingRef.current = true
-      setSelectedText(null)
-      setPopoverPosition(null)
+      handleArticleHighlightOverlayPointerDown(e.target, {
+        closeCreatePopover: () => {
+          isDraggingRef.current = true
+          setSelectedText(null)
+          setPopoverPosition(null)
+          setSignInSelection(null)
+          setSignInPromptPosition(null)
+        },
+        closeDetailsPanel: () => setHighlightTooltip(null),
+        closeSignInPrompt: () => {
+          setSignInSelection(null)
+          setSignInPromptPosition(null)
+        },
+      })
     }
 
     const handlePointerUp = () => {
@@ -266,13 +432,15 @@ export function HighlightableArticle({
         const range = domSelection.getRangeAt(0)
         const anchor = getRangeTopCenterAnchor(range)
         if (!anchor) return
-        setSelectedText({ text, from, to })
-        setPopoverPosition({
-          // Viewport coordinates (HighlightPopover is `position: fixed`).
-          // Anchor at top-center of the selection bounding box.
-          top: anchor.top,
-          left: anchor.left,
-        })
+
+        if (signInPromptActive) {
+          applySignedOutTextSelection(text, from, to, range)
+        } else if (highlightsActive) {
+          setSelectedText({ text, from, to })
+          setPopoverPosition(anchor)
+          setSignInSelection(null)
+          setSignInPromptPosition(null)
+        }
       })
     }
 
@@ -289,15 +457,20 @@ export function HighlightableArticle({
       document.removeEventListener('mouseup', handlePointerUp)
       document.removeEventListener('touchend', handlePointerUp)
     }
-  }, [editor, editable])
+  }, [
+    editor,
+    editable,
+    showHighlights,
+    highlightsActive,
+    signInPromptActive,
+    applySignedOutTextSelection,
+  ])
 
-  // Handle highlight creation
   const handleCreateHighlight = useCallback(
     async (color: string, note?: string, isPublic: boolean = true) => {
       if (!selectedText || !editor) return
 
       try {
-        // Create highlight data from selection
         const highlightData = HighlightConverter.createHighlightFromSelection(
           editor,
           {
@@ -308,20 +481,15 @@ export function HighlightableArticle({
         )
 
         if (highlightData) {
-          // Save to database and get the new highlight ID
           await createHighlight({
             articleId,
             ...highlightData,
           })
 
-          // Clear selection immediately for better UX
           setSelectedText(null)
           setPopoverPosition(null)
           window.getSelection()?.removeAllRanges()
-
-          // Note: The highlight will be applied automatically when the
-          // highlights query refetches (due to Convex reactivity)
-          // No need to manually apply a temporary highlight
+          // Highlights re-apply when the Convex query refetches.
         }
       } catch (error) {
         console.error('Error creating highlight:', error)
@@ -354,19 +522,46 @@ export function HighlightableArticle({
     editor?.commands.focus()
   }, [editor])
 
-  useEffect(() => {
-    if (highlightTooltip === null) return
+  const handleHighlightDeleted = useCallback(
+    (highlightId: Id<'highlights'>) => {
+      const remainingHighlights = (highlightsRef.current ?? []).filter(
+        (highlight) => highlight._id !== highlightId
+      )
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      e.preventDefault()
-      e.stopPropagation()
-      handleTooltipClose()
+      highlightsRef.current = remainingHighlights
+      setHighlightTooltip((current) =>
+        current?.highlight._id === highlightId ? null : current
+      )
+
+      if (editor && highlightsActive) {
+        HighlightConverter.applyHighlightsToEditor(editor, remainingHighlights)
+      }
+    },
+    [editor, highlightsActive]
+  )
+
+  const handleSignInPromptClose = useCallback(() => {
+    if (editor) {
+      const { from, to } = editor.state.selection
+      if (from !== to) {
+        editor.chain().setTextSelection(from).run()
+      }
     }
+    setSignInSelection(null)
+    setSignInPromptPosition(null)
+    window.getSelection()?.removeAllRanges()
+    editor?.commands.focus()
+  }, [editor])
 
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [highlightTooltip, handleTooltipClose])
+  const saveHighlightSelectionBeforeAuth = useCallback(() => {
+    if (!signInSelection) return
+    writePendingHighlightSelection({
+      articleId: String(articleId),
+      highlightText: signInSelection.text,
+      startOffset: signInSelection.from,
+      endOffset: signInSelection.to,
+    })
+  }, [articleId, signInSelection])
 
   return (
     <div
@@ -375,31 +570,54 @@ export function HighlightableArticle({
     >
       <EditorContent editor={editor} />
 
-      {/* Highlight creation popover */}
       <AnimatePresence>
-        {popoverPosition && selectedText && article && (
-          <HighlightPopover
-            position={popoverPosition}
-            onCreateHighlight={handleCreateHighlight}
-            onClose={handlePopoverClose}
-            selectedText={selectedText.text}
-            articleId={articleId}
-            articleSlug={article.slug}
-            authorName={article.author?.name || article.authorName || 'Author'}
-            authorStellarAddress={article.author?.stellarAddress}
-            startOffset={selectedText.from}
-            endOffset={selectedText.to}
-          />
-        )}
+        {popoverPosition &&
+          selectedText &&
+          article &&
+          (highlightsActive || (signInPromptActive && canTipHighlight)) && (
+            <HighlightPopover
+              position={popoverPosition}
+              onCreateHighlight={handleCreateHighlight}
+              onClose={handlePopoverClose}
+              selectedText={selectedText.text}
+              articleId={articleId}
+              articleSlug={article.slug}
+              authorName={
+                article.author?.name || article.authorName || 'Author'
+              }
+              authorStellarAddress={article.author?.stellarAddress}
+              startOffset={selectedText.from}
+              endOffset={selectedText.to}
+              resumeHighlightTip={resumeHighlightTip}
+              onHighlightTipResumeOpened={() => {
+                setResumeHighlightTip(null)
+              }}
+            />
+          )}
       </AnimatePresence>
 
-      {/* Highlight details panel */}
+      <AnimatePresence>
+        {signInPromptActive &&
+          signInPromptPosition &&
+          signInSelection &&
+          !canTipHighlight && (
+            <HighlightSignInPrompt
+              position={signInPromptPosition}
+              selectedText={signInSelection.text}
+              returnPath={returnPath}
+              onBeforeAuthNavigate={saveHighlightSelectionBeforeAuth}
+              onClose={handleSignInPromptClose}
+            />
+          )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {highlightTooltip && article && (
           <HighlightDetailsPanel
             highlight={highlightTooltip.highlight}
             position={highlightTooltip.position}
             onClose={handleTooltipClose}
+            onDeleted={handleHighlightDeleted}
             currentUserId={user?._id as Id<'users'> | undefined}
             articleId={articleId}
             articleSlug={article.slug}

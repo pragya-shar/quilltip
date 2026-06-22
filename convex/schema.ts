@@ -50,6 +50,8 @@ export default defineSchema({
     content: v.any(), // TipTap JSON content
     excerpt: v.optional(v.string()),
     coverImage: v.optional(v.string()),
+    /** Author-only planning notes; never exposed on public article reads */
+    writerNotes: v.optional(v.string()),
 
     // Publishing
     published: v.boolean(),

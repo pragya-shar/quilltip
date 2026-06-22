@@ -1,18 +1,34 @@
 import ArticleCard from './ArticleCard'
+import ArticleFeedRow from './ArticleFeedRow'
 import { ArticleForDisplay } from '@/types/index'
 import Link from 'next/link'
 import { BookOpen } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import type { BrowseView } from '@/lib/articles/browseDiscovery'
+
+export type ArticleGridEmptyState = {
+  hasSearch: boolean
+  hasFilters: boolean
+  onClearSearch?: () => void
+  onClearAll?: () => void
+}
 
 interface ArticleGridProps {
   articles: ArticleForDisplay[]
   variant?: 'home' | 'articles'
+  view?: BrowseView
   onArticleNavigate?: () => void
+  tagLinkAuthor?: string
+  emptyState?: ArticleGridEmptyState
 }
 
 export default function ArticleGrid({
   articles,
   variant = 'articles',
+  view = 'latest',
   onArticleNavigate,
+  tagLinkAuthor,
+  emptyState,
 }: ArticleGridProps) {
   if (articles.length === 0) {
     if (variant === 'home') {
@@ -47,28 +63,46 @@ export default function ArticleGrid({
 
     return (
       <div className="text-center py-12">
-        <div className="max-w-sm mx-auto">
-          <svg
-            className="mx-auto h-12 w-12 text-muted-foreground mb-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9.5a2 2 0 00-2-2h-2"
-            />
-          </svg>
+        <div className="max-w-sm mx-auto rounded-[var(--card-radius)] border border-border bg-card px-6 py-10 shadow-[var(--card-shadow)]">
+          <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium text-foreground mb-1">
             No articles found
           </h3>
-          <p className="text-muted-foreground">
-            Try adjusting your search or filters to find what you&apos;re
-            looking for.
+          <p className="text-muted-foreground mb-6">
+            {emptyState?.hasSearch
+              ? 'No articles match your search. Try a different term or clear your search.'
+              : "Try adjusting your search or filters to find what you're looking for."}
           </p>
+          {emptyState?.hasSearch && emptyState.onClearSearch && (
+            <Button type="button" onClick={emptyState.onClearSearch}>
+              Clear search
+            </Button>
+          )}
+          {!emptyState?.hasSearch &&
+            emptyState?.hasFilters &&
+            emptyState.onClearAll && (
+              <Button type="button" onClick={emptyState.onClearAll}>
+                Clear filters
+              </Button>
+            )}
         </div>
+      </div>
+    )
+  }
+
+  if (variant === 'articles') {
+    return (
+      <div className="max-w-3xl mx-auto divide-y divide-border">
+        {articles.map((article, index) => (
+          <ArticleFeedRow
+            key={article.id}
+            article={article}
+            priority={index === 0}
+            onArticleNavigate={onArticleNavigate}
+            tagLinkAuthor={tagLinkAuthor}
+            view={view}
+          />
+        ))}
       </div>
     )
   }
@@ -81,6 +115,8 @@ export default function ArticleGrid({
           article={article}
           priority={index === 0}
           onArticleNavigate={onArticleNavigate}
+          tagLinkAuthor={tagLinkAuthor}
+          view={view}
         />
       ))}
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   walletAdapter,
   WalletInfo,
@@ -30,7 +30,7 @@ export function useStellarWallet(): StellarWalletState & StellarWalletActions {
   const [state, setState] = useState<StellarWalletState>({
     isInstalled: false,
     isConnected: false,
-    isLoading: true,
+    isLoading: false,
     publicKey: null,
     network: null,
     networkPassphrase: null,
@@ -188,9 +188,9 @@ export function useStellarWallet(): StellarWalletState & StellarWalletActions {
     await checkWalletStatus()
   }, [checkWalletStatus])
 
-  // Initialize wallet check on mount
+  // Run status check when the wallet provider mounts (after activation).
   useEffect(() => {
-    checkWalletStatus()
+    void checkWalletStatus()
   }, [checkWalletStatus])
 
   // NOTE: Removed automatic wallet detail fetching to prevent unwanted popups
@@ -226,11 +226,14 @@ export function useStellarWallet(): StellarWalletState & StellarWalletActions {
     }
   }, [state.isInstalled, state.isConnected])
 
-  return {
-    ...state,
-    connect,
-    disconnect,
-    signTransaction: signTransactionXDR,
-    refreshConnection,
-  }
+  return useMemo(
+    () => ({
+      ...state,
+      connect,
+      disconnect,
+      signTransaction: signTransactionXDR,
+      refreshConnection,
+    }),
+    [connect, disconnect, refreshConnection, signTransactionXDR, state]
+  )
 }

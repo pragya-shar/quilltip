@@ -1,10 +1,11 @@
 import Link from 'next/link'
 
+import { FailurePageShell } from '@/components/error/FailurePageShell'
 import { Button } from '@/components/ui/button'
 
 function NotFoundIllustration() {
   return (
-    <div className="mx-auto w-full max-w-[220px]">
+    <div className="mx-auto mb-6 w-full max-w-[220px]">
       <svg
         viewBox="0 0 200 168"
         className="h-auto w-full"
@@ -17,12 +18,12 @@ function NotFoundIllustration() {
           width="116"
           height="92"
           rx="8"
-          className="fill-brand-cream stroke-brand-blue"
+          className="fill-card stroke-border"
           strokeWidth="2"
         />
         <path
           d="M132 28h36v36l-36-36z"
-          className="fill-brand-accent/20 stroke-brand-blue"
+          className="fill-brand-accent/20 stroke-border"
           strokeWidth="1.5"
           strokeLinejoin="round"
         />
@@ -31,7 +32,7 @@ function NotFoundIllustration() {
           y1="52"
           x2="118"
           y2="52"
-          className="stroke-quill-300"
+          className="stroke-muted-foreground/60"
           strokeWidth="3"
           strokeLinecap="round"
         />
@@ -40,7 +41,7 @@ function NotFoundIllustration() {
           y1="68"
           x2="104"
           y2="68"
-          className="stroke-quill-300"
+          className="stroke-muted-foreground/60"
           strokeWidth="3"
           strokeLinecap="round"
         />
@@ -49,7 +50,7 @@ function NotFoundIllustration() {
           y1="84"
           x2="110"
           y2="84"
-          className="stroke-quill-300"
+          className="stroke-muted-foreground/60"
           strokeWidth="3"
           strokeLinecap="round"
         />
@@ -61,11 +62,11 @@ function NotFoundIllustration() {
         />
         <path
           d="M142 80l-10 26 8 4 10-24c4-10 3-22-4-30"
-          className="fill-brand-blue/15 stroke-brand-blue"
+          className="fill-primary/15 stroke-primary"
           strokeWidth="1.75"
           strokeLinejoin="round"
         />
-        <circle cx="139" cy="74" r="2" className="fill-brand-blue" />
+        <circle cx="139" cy="74" r="2" className="fill-primary" />
       </svg>
     </div>
   )
@@ -73,36 +74,33 @@ function NotFoundIllustration() {
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-6 py-12">
-      <div className="mx-auto flex w-full max-w-md flex-col items-center gap-6 text-center">
-        <NotFoundIllustration />
-        <div className="space-y-2">
-          <h1 className="font-display text-5xl font-medium tracking-[-0.01em] text-brand-blue sm:text-6xl">
+    <FailurePageShell
+      illustration={<NotFoundIllustration />}
+      heading={
+        <>
+          <h1 className="font-display text-5xl font-medium tracking-[-0.01em] text-foreground sm:text-6xl">
             404
           </h1>
           <h2 className="font-display text-2xl font-medium text-foreground">
             Page not found
           </h2>
-          <p className="font-sans text-quill-700">
-            Sorry, we couldn&apos;t find the page you&apos;re looking for.
-          </p>
-        </div>
-        <div className="flex w-full flex-col items-center gap-4 sm:w-auto">
-          <Button
-            asChild
-            size="lg"
-            className="bg-brand-blue text-white shadow hover:bg-brand-accent focus-visible:ring-brand-blue"
-          >
+        </>
+      }
+      description="Sorry, we couldn't find the page you're looking for."
+      actionsClassName="flex flex-col items-center gap-4 sm:flex-col"
+      actions={
+        <>
+          <Button asChild size="lg" className="w-full sm:w-auto">
             <Link href="/">Go Home</Link>
           </Button>
           <Link
             href="/articles"
-            className="text-sm text-brand-blue underline-offset-4 transition-colors hover:text-brand-accent hover:underline"
+            className="text-sm font-medium text-primary underline-offset-4 transition-colors hover:underline"
           >
             Browse articles
           </Link>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    />
   )
 }

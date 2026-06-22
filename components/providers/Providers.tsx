@@ -2,18 +2,12 @@
 
 import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import { ConvexReactClient } from 'convex/react'
-import { WalletProvider } from './WalletProvider'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
-
-/**
- * Global Providers
- *
- * Wraps the application with ConvexAuthProvider for authentication,
- * Convex database access, and Stellar wallet connection.
- * Provides real-time subscriptions and type-safe queries throughout the app.
- */
+import { WalletActivationProvider } from './WalletActivationContext'
+import { WalletProvider } from './WalletProvider'
+import { AuthSessionProvider } from './AuthContext'
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
@@ -33,14 +27,18 @@ const WalletErrorFallback = (
 export default function Providers({ children }: ProvidersProps) {
   return (
     <ConvexAuthProvider client={convex}>
-      <ThemeProvider>
-        <ErrorBoundary fallback={WalletErrorFallback}>
-          <WalletProvider>
-            {children}
-            <Toaster />
-          </WalletProvider>
-        </ErrorBoundary>
-      </ThemeProvider>
+      <AuthSessionProvider>
+        <ThemeProvider>
+          <WalletActivationProvider>
+            <ErrorBoundary fallback={WalletErrorFallback}>
+              <WalletProvider>
+                {children}
+                <Toaster />
+              </WalletProvider>
+            </ErrorBoundary>
+          </WalletActivationProvider>
+        </ThemeProvider>
+      </AuthSessionProvider>
     </ConvexAuthProvider>
   )
 }

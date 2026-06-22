@@ -1,10 +1,29 @@
 /// <reference types="vite/client" />
 import { describe, expect, it } from 'vitest'
 import { verifyTipTransaction } from './horizon'
+import {
+  Account,
+  BASE_FEE,
+  Contract,
+  Keypair,
+  Networks,
+  TransactionBuilder,
+  nativeToScVal,
+} from '@stellar/stellar-sdk'
 
 const HORIZON = 'https://horizon-testnet.stellar.org'
 const TX = 'abc123'
-const SOURCE = 'GABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGHIJKLMNOPQRSTUV'
+const SOURCE_KEYPAIR = Keypair.random()
+const AUTHOR_ONE_KEYPAIR = Keypair.random()
+const AUTHOR_TWO_KEYPAIR = Keypair.random()
+const ATTACKER_KEYPAIR = Keypair.random()
+const SOURCE = SOURCE_KEYPAIR.publicKey()
+const AUTHOR_ONE = AUTHOR_ONE_KEYPAIR.publicKey()
+const AUTHOR_TWO = AUTHOR_TWO_KEYPAIR.publicKey()
+const ATTACKER = ATTACKER_KEYPAIR.publicKey()
+const CONTRACT_ID = 'CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY'
+const WRONG_CONTRACT_ID =
+  'CAS44OQK7A6W5FDRAH3K3ZN7TTQTJ5ESRVG6MB2HBVFWZ5TVH26UUB4S'
 
 function makeFetch(
   response:
@@ -26,6 +45,91 @@ function makeFetch(
       },
     }
   }
+}
+
+function horizonBody(envelopeXdr: string) {
+  return {
+    successful: true,
+    source_account: SOURCE,
+    ledger: 12345,
+    envelope_xdr: envelopeXdr,
+  }
+}
+
+function buildArticleBatchEnvelope(opts: {
+  contractId?: string
+  tips: Array<{ articleId: string; author: string; amount: bigint }>
+}) {
+  const account = new Account(SOURCE, '1')
+  const contract = new Contract(opts.contractId ?? CONTRACT_ID)
+  const tips = opts.tips.map((tip) => ({
+    article_id: tip.articleId,
+    author: tip.author,
+    amount: tip.amount,
+  }))
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call(
+        'batch_tip',
+        nativeToScVal(SOURCE, { type: 'address' }),
+        nativeToScVal(tips, {
+          type: {
+            article_id: ['symbol', 'symbol'],
+            author: ['symbol', 'address'],
+            amount: ['symbol', 'i128'],
+          },
+        })
+      )
+    )
+    .setTimeout(30)
+    .build()
+
+  return tx.toEnvelope().toXDR('base64')
+}
+
+function buildHighlightBatchEnvelope(opts: {
+  tips: Array<{
+    highlightId: string
+    articleId: string
+    author: string
+    amount: bigint
+  }>
+}) {
+  const account = new Account(SOURCE, '1')
+  const contract = new Contract(CONTRACT_ID)
+  const tips = opts.tips.map((tip) => ({
+    highlight_id: tip.highlightId,
+    article_id: tip.articleId,
+    author: tip.author,
+    amount: tip.amount,
+  }))
+
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call(
+        'batch_tip_highlights',
+        nativeToScVal(SOURCE, { type: 'address' }),
+        nativeToScVal(tips, {
+          type: {
+            highlight_id: ['symbol', 'string'],
+            article_id: ['symbol', 'symbol'],
+            author: ['symbol', 'address'],
+            amount: ['symbol', 'i128'],
+          },
+        })
+      )
+    )
+    .setTimeout(30)
+    .build()
+
+  return tx.toEnvelope().toXDR('base64')
 }
 
 describe('verifyTipTransaction', () => {
@@ -82,6 +186,29 @@ describe('verifyTipTransaction', () => {
       ok: false,
       kind: 'transient',
       reason: 'network_error',
+    })
+  })
+
+  it('returns transient server_error before parsing an expected batch invocation', async () => {
+    const fetchImpl = makeFetch({ status: 503 })
+    const result = await verifyTipTransaction(fetchImpl, {
+      txId: TX,
+      expectedSource: SOURCE,
+      horizonUrl: HORIZON,
+      invocation: {
+        contractId: CONTRACT_ID,
+        allowedFunctions: ['batch_tip'],
+        authorAddress: AUTHOR_ONE,
+        minStroops: BigInt(100_000_000),
+        batchTips: [
+          { authorAddress: AUTHOR_ONE, minStroops: BigInt(100_000_000) },
+        ],
+      },
+    })
+    expect(result).toEqual({
+      ok: false,
+      kind: 'transient',
+      reason: 'server_error',
     })
   })
 
@@ -191,5 +318,244 @@ describe('verifyTipTransaction', () => {
       horizonUrl: `${HORIZON}/`,
     })
     expect(capturedUrl).toBe(`${HORIZON}/transactions/${TX}`)
+  })
+
+  it('accepts batch_tip when every article tip matches expected batch items', async () => {
+    const envelopeXdr = buildArticleBatchEnvelope({
+      tips: [
+        {
+          articleId: 'article-one',
+          author: AUTHOR_ONE,
+          amount: BigInt(100_000_000),
+        },
+        {
+          articleId: 'article-two',
+          author: AUTHOR_TWO,
+          amount: BigInt(250_000_000),
+        },
+      ],
+    })
+    const fetchImpl = makeFetch({ status: 200, body: horizonBody(envelopeXdr) })
+
+    const result = await verifyTipTransaction(fetchImpl, {
+      txId: TX,
+      expectedSource: SOURCE,
+      horizonUrl: HORIZON,
+      invocation: {
+        contractId: CONTRACT_ID,
+        allowedFunctions: ['batch_tip'],
+        authorAddress: AUTHOR_ONE,
+        minStroops: BigInt(100_000_000),
+        batchTips: [
+          { authorAddress: AUTHOR_ONE, minStroops: BigInt(100_000_000) },
+          { authorAddress: AUTHOR_TWO, minStroops: BigInt(200_000_000) },
+        ],
+      },
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      ledger: 12345,
+      onChainStroops: BigInt(350_000_000),
+    })
+  })
+
+  it('accepts batch_tip_highlights when every highlight tip matches expected batch items', async () => {
+    const envelopeXdr = buildHighlightBatchEnvelope({
+      tips: [
+        {
+          highlightId: 'highlight-1',
+          articleId: 'article-one',
+          author: AUTHOR_ONE,
+          amount: BigInt(125_000_000),
+        },
+        {
+          highlightId: 'highlight-2',
+          articleId: 'article-two',
+          author: AUTHOR_TWO,
+          amount: BigInt(175_000_000),
+        },
+      ],
+    })
+    const fetchImpl = makeFetch({ status: 200, body: horizonBody(envelopeXdr) })
+
+    const result = await verifyTipTransaction(fetchImpl, {
+      txId: TX,
+      expectedSource: SOURCE,
+      horizonUrl: HORIZON,
+      invocation: {
+        contractId: CONTRACT_ID,
+        allowedFunctions: ['batch_tip_highlights'],
+        authorAddress: AUTHOR_ONE,
+        minStroops: BigInt(100_000_000),
+        batchTips: [
+          { authorAddress: AUTHOR_ONE, minStroops: BigInt(100_000_000) },
+          { authorAddress: AUTHOR_TWO, minStroops: BigInt(150_000_000) },
+        ],
+      },
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      ledger: 12345,
+      onChainStroops: BigInt(300_000_000),
+    })
+  })
+
+  it('rejects batch_tip when the contract is wrong', async () => {
+    const envelopeXdr = buildArticleBatchEnvelope({
+      contractId: WRONG_CONTRACT_ID,
+      tips: [
+        {
+          articleId: 'article-one',
+          author: AUTHOR_ONE,
+          amount: BigInt(100_000_000),
+        },
+      ],
+    })
+    const fetchImpl = makeFetch({ status: 200, body: horizonBody(envelopeXdr) })
+
+    const result = await verifyTipTransaction(fetchImpl, {
+      txId: TX,
+      expectedSource: SOURCE,
+      horizonUrl: HORIZON,
+      invocation: {
+        contractId: CONTRACT_ID,
+        allowedFunctions: ['batch_tip'],
+        authorAddress: AUTHOR_ONE,
+        minStroops: BigInt(100_000_000),
+        batchTips: [
+          { authorAddress: AUTHOR_ONE, minStroops: BigInt(100_000_000) },
+        ],
+      },
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      kind: 'permanent',
+      reason: 'contract_mismatch',
+    })
+  })
+
+  it('rejects batch_tip when any article tip author is wrong', async () => {
+    const envelopeXdr = buildArticleBatchEnvelope({
+      tips: [
+        {
+          articleId: 'article-one',
+          author: AUTHOR_ONE,
+          amount: BigInt(100_000_000),
+        },
+        {
+          articleId: 'article-two',
+          author: ATTACKER,
+          amount: BigInt(250_000_000),
+        },
+      ],
+    })
+    const fetchImpl = makeFetch({ status: 200, body: horizonBody(envelopeXdr) })
+
+    const result = await verifyTipTransaction(fetchImpl, {
+      txId: TX,
+      expectedSource: SOURCE,
+      horizonUrl: HORIZON,
+      invocation: {
+        contractId: CONTRACT_ID,
+        allowedFunctions: ['batch_tip'],
+        authorAddress: AUTHOR_ONE,
+        minStroops: BigInt(100_000_000),
+        batchTips: [
+          { authorAddress: AUTHOR_ONE, minStroops: BigInt(100_000_000) },
+          { authorAddress: AUTHOR_TWO, minStroops: BigInt(200_000_000) },
+        ],
+      },
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      kind: 'permanent',
+      reason: 'author_mismatch',
+    })
+  })
+
+  it('rejects batch_tip when any article tip amount is too small', async () => {
+    const envelopeXdr = buildArticleBatchEnvelope({
+      tips: [
+        {
+          articleId: 'article-one',
+          author: AUTHOR_ONE,
+          amount: BigInt(100_000_000),
+        },
+        {
+          articleId: 'article-two',
+          author: AUTHOR_TWO,
+          amount: BigInt(50_000_000),
+        },
+      ],
+    })
+    const fetchImpl = makeFetch({ status: 200, body: horizonBody(envelopeXdr) })
+
+    const result = await verifyTipTransaction(fetchImpl, {
+      txId: TX,
+      expectedSource: SOURCE,
+      horizonUrl: HORIZON,
+      invocation: {
+        contractId: CONTRACT_ID,
+        allowedFunctions: ['batch_tip'],
+        authorAddress: AUTHOR_ONE,
+        minStroops: BigInt(100_000_000),
+        batchTips: [
+          { authorAddress: AUTHOR_ONE, minStroops: BigInt(100_000_000) },
+          { authorAddress: AUTHOR_TWO, minStroops: BigInt(200_000_000) },
+        ],
+      },
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      kind: 'permanent',
+      reason: 'amount_mismatch',
+    })
+  })
+
+  it('rejects batch_tip_highlights when any highlight tip amount is too small', async () => {
+    const envelopeXdr = buildHighlightBatchEnvelope({
+      tips: [
+        {
+          highlightId: 'highlight-1',
+          articleId: 'article-one',
+          author: AUTHOR_ONE,
+          amount: BigInt(125_000_000),
+        },
+        {
+          highlightId: 'highlight-2',
+          articleId: 'article-two',
+          author: AUTHOR_TWO,
+          amount: BigInt(50_000_000),
+        },
+      ],
+    })
+    const fetchImpl = makeFetch({ status: 200, body: horizonBody(envelopeXdr) })
+
+    const result = await verifyTipTransaction(fetchImpl, {
+      txId: TX,
+      expectedSource: SOURCE,
+      horizonUrl: HORIZON,
+      invocation: {
+        contractId: CONTRACT_ID,
+        allowedFunctions: ['batch_tip_highlights'],
+        authorAddress: AUTHOR_ONE,
+        minStroops: BigInt(100_000_000),
+        batchTips: [
+          { authorAddress: AUTHOR_ONE, minStroops: BigInt(100_000_000) },
+          { authorAddress: AUTHOR_TWO, minStroops: BigInt(150_000_000) },
+        ],
+      },
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      kind: 'permanent',
+      reason: 'amount_mismatch',
+    })
   })
 })

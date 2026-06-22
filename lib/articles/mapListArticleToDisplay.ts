@@ -20,15 +20,18 @@ export function mapListArticleRowToDisplay(
         }
       : {
           id: '',
-          name: null,
-          username: 'unknown',
-          avatar: null,
+          name: article.authorName ?? null,
+          username: article.authorUsername?.trim() || 'unknown',
+          avatar: article.authorAvatar ?? null,
         },
     tags: (article.tags ?? []).map((tagName, index) => ({
       id: `tag-${index}`,
       name: tagName,
       slug: tagName.toLowerCase().replace(/\s+/g, '-'),
     })),
+    readTime: article.readTime,
+    tipCount: article.tipCount,
+    highlightCount: article.highlightCount,
   }
 }
 

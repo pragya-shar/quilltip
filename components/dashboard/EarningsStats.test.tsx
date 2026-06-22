@@ -5,6 +5,25 @@ import { EarningsStats } from '@/components/dashboard/EarningsStats'
 import type { Doc } from '@/types/convex'
 import type { Id } from '@/types/convex'
 
+vi.mock('@/hooks/useDashboardNavigation', () => ({
+  useDashboardNavigation: () => vi.fn(),
+}))
+
+vi.mock('convex/react', () => ({
+  useMutation: () => vi.fn(),
+}))
+
+vi.mock('@/components/providers/WalletProvider', () => ({
+  useWallet: () => ({
+    isLoading: false,
+    connect: vi.fn(),
+  }),
+}))
+
+vi.mock('@/components/stellar/InstallWalletDialog', () => ({
+  InstallWalletDialog: () => null,
+}))
+
 function makeEarnings(
   overrides: Partial<Doc<'authorEarnings'>> = {}
 ): Doc<'authorEarnings'> {
@@ -47,15 +66,15 @@ describe('EarningsStats', () => {
     expect(screen.getByText('$123.45')).toBeInTheDocument()
     expect(screen.getByText('$67.89')).toBeInTheDocument()
     expect(screen.getByText('$12.00')).toBeInTheDocument()
-    expect(screen.getByText('5 tips received')).toBeInTheDocument()
+    expect(screen.getByText('5 testnet tips received')).toBeInTheDocument()
   })
 
-  it('renders monthly chart labels in display order', () => {
+  it('renders monthly chart with readable labels for recent months', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2024, 5, 15))
     const earnings = makeEarnings({
       monthlyEarnings: {
-        '2024-01': 10,
-        '2024-02': 20,
-        '2024-03': 30,
+        '2024-06': 30,
       },
     })
     render(
@@ -67,12 +86,15 @@ describe('EarningsStats', () => {
       />
     )
 
-    expect(screen.getByText('2024-01')).toBeInTheDocument()
-    expect(screen.getByText('2024-02')).toBeInTheDocument()
-    expect(screen.getByText('2024-03')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /monthly earnings/i })
+    ).toBeInTheDocument()
+    expect(screen.getByText('$30')).toBeInTheDocument()
+    expect(screen.queryByText('2024-06')).not.toBeInTheDocument()
+    vi.useRealTimers()
   })
 
-  it('shows wallet setup notice when profile has no Stellar address', () => {
+  it('shows inline wallet setup when profile has no Stellar address', () => {
     const earnings = makeEarnings()
     render(
       <EarningsStats
@@ -83,8 +105,9 @@ describe('EarningsStats', () => {
       />
     )
 
+    expect(screen.getByText('Connect to receive tips')).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: /Stellar Wallet Not Configured/i })
+      screen.getByRole('button', { name: /Connect wallet/i })
     ).toBeInTheDocument()
   })
 

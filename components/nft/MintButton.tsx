@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useMutation } from 'convex/react'
+import { useState, useEffect, useRef } from 'react'
+import { useAction, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Loader2, Sparkles, Wallet } from 'lucide-react'
+import { Check, Loader2, Sparkles, Wallet } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -15,15 +15,50 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { useStellarWallet } from '@/hooks/useStellarWallet'
+import { useWallet } from '@/components/providers/WalletProvider'
+import { useWalletActivation } from '@/components/providers/WalletActivationContext'
 import { nftClient } from '@/lib/stellar/nft-client'
 import { stellarClient } from '@/lib/stellar/client'
-import { ConvexHttpClient } from 'convex/browser'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
 import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
 } from '@/lib/stellar/wallet-adapter'
+import {
+  stellarFlowEmitter,
+  type NftMintFlowStep,
+  type StellarFlowEvent,
+  nftMintFlowProgressLabel,
+} from '@/lib/stellar/stellar-flow-emitter'
+import { cn } from '@/lib/utils'
+
+const NFT_MINT_UI_STEPS: readonly NftMintFlowStep[] = [
+  'awaiting_signature',
+  'submitting',
+  'confirming',
+] as const
+
+function nftMintStepIndex(step: NftMintFlowStep): number {
+  return NFT_MINT_UI_STEPS.indexOf(step)
+}
+
+function getFriendlyMintErrorMessage(error: unknown, fallback: string): string {
+  const message = error instanceof Error ? error.message : ''
+
+  if (
+    message.includes('Arweave uploads are disabled') ||
+    message.includes('Arweave wallet key is not configured') ||
+    message.includes('Arweave wallet key is invalid')
+  ) {
+    return 'NFT minting is temporarily unavailable. Please try again later.'
+  }
+
+  if (message.includes('NFT metadata upload to Arweave failed')) {
+    return "We couldn't prepare your NFT metadata right now. Please try again in a moment."
+  }
+
+  return message || fallback
+}
 
 interface MintButtonProps {
   articleId: string | Id<'articles'>
@@ -51,15 +86,27 @@ export function MintButton({
   const [isLoading, setIsLoading] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
-  const [mintingStep, setMintingStep] = useState<
-    'checking' | 'wallet' | 'blockchain' | 'database'
-  >('checking')
+  const [nftMintFlowStep, setNftMintFlowStep] =
+    useState<NftMintFlowStep | null>(null)
+  const nftMintFlowStepRef = useRef<NftMintFlowStep | null>(null)
 
   const mintNFT = useMutation(api.nfts.mintNFT)
-  const wallet = useStellarWallet()
+  const uploadNftMetadataForMint = useAction(
+    api.nftMetadataUpload.uploadNftMetadataForMint
+  )
+  const wallet = useWallet()
+  const { activateWallet } = useWalletActivation()
   const [xlmPrice, setXlmPrice] = useState<number | null>(null)
 
-  // Fetch real-time XLM price
+  useEffect(() => {
+    return stellarFlowEmitter.subscribe((event: StellarFlowEvent) => {
+      if (event.flow === 'nft_mint') {
+        setNftMintFlowStep(event.step)
+        nftMintFlowStepRef.current = event.step
+      }
+    })
+  }, [])
+
   useEffect(() => {
     stellarClient.getXLMPrice().then(setXlmPrice)
   }, [])
@@ -67,13 +114,17 @@ export function MintButton({
   const canMint = totalTips >= threshold && isAuthor
   const progress = Math.min(100, (totalTips / threshold) * 100)
 
+  const mintStepActiveIndex =
+    nftMintFlowStep != null
+      ? nftMintStepIndex(nftMintFlowStep)
+      : isLoading
+        ? 0
+        : -1
+
   // Convert USD to stroops for contract (using real-time price)
   const tipAmountInStroops = xlmPrice
     ? Math.floor((totalTips / xlmPrice) * 10_000_000)
     : 0
-
-  // Initialize Convex HTTP client for async calls
-  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
   const handleConnectWallet = async () => {
     try {
@@ -103,10 +154,10 @@ export function MintButton({
     }
 
     setIsLoading(true)
-    setMintingStep('checking')
 
     try {
-      // Step 1: Check eligibility on blockchain
+      stellarFlowEmitter.emit({ flow: 'nft_mint', step: 'awaiting_signature' })
+
       const eligibility = await nftClient.checkEligibility(
         articleId as string,
         tipAmountInStroops
@@ -117,22 +168,11 @@ export function MintButton({
         )
       }
 
-      // Step 2: Generate metadata using Convex
-      setMintingStep('wallet')
-      const metadata = await convex.query(api.nfts.generateNFTMetadata, {
+      const { metadataUrl } = await uploadNftMetadataForMint({
         articleId: articleId as Id<'articles'>,
-        xlmPrice: xlmPrice!, // Pass live price for accurate conversion
+        xlmPrice: xlmPrice!,
       })
 
-      if (!metadata) {
-        throw new Error('Failed to generate NFT metadata')
-      }
-
-      // For now, we'll use a simple URL that returns this metadata
-      // In the future, this will be stored on IPFS
-      const metadataUrl = `data:application/json,${encodeURIComponent(JSON.stringify(metadata))}`
-
-      // Step 3: Build and sign transaction
       const { xdr } = await nftClient.buildMintTransaction(wallet.publicKey, {
         authorAddress: wallet.publicKey,
         articleId: articleId as string,
@@ -140,22 +180,18 @@ export function MintButton({
         metadataUrl,
       })
 
-      // Step 4: Sign transaction with wallet
       const signedXDR = await wallet.signTransaction(xdr)
 
-      // Step 5: Submit to blockchain
-      setMintingStep('blockchain')
       const result = await nftClient.submitMintTransaction(signedXDR)
 
       if (!result.success) {
         throw new Error(result.error || 'Blockchain transaction failed')
       }
 
-      // Step 6: Update Convex database
-      setMintingStep('database')
       const nftId = await mintNFT({
         articleId: articleId as Id<'articles'>,
         tipThreshold: threshold,
+        metadataUrl,
       })
 
       if (nftId) {
@@ -172,17 +208,19 @@ export function MintButton({
     } catch (error) {
       console.error('Minting error:', error)
 
-      let errorMessage = 'Failed to mint NFT'
-      if (mintingStep === 'wallet') {
-        errorMessage = 'Transaction cancelled or wallet error'
-      } else if (mintingStep === 'blockchain') {
-        errorMessage = 'Blockchain transaction failed. Please try again'
+      const step = nftMintFlowStepRef.current
+      let fallback = 'Failed to mint NFT'
+      if (step === 'awaiting_signature' || step === null) {
+        fallback = 'Transaction cancelled or wallet error'
+      } else if (step === 'submitting' || step === 'confirming') {
+        fallback = 'Blockchain transaction failed. Please try again'
       }
 
-      toast.error(error instanceof Error ? error.message : errorMessage)
+      toast.error(getFriendlyMintErrorMessage(error, fallback))
     } finally {
+      setNftMintFlowStep(null)
+      nftMintFlowStepRef.current = null
       setIsLoading(false)
-      setMintingStep('checking')
     }
   }
 
@@ -214,7 +252,13 @@ export function MintButton({
 
   return (
     <>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (open) activateWallet()
+          setDialogOpen(open)
+        }}
+      >
         <DialogTrigger asChild>
           <Button
             disabled={!canMint}
@@ -243,8 +287,8 @@ export function MintButton({
 
           <div className="space-y-4">
             {!wallet.isConnected && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                <p className="text-sm text-amber-900">
+              <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                <p className="text-sm text-amber-900 dark:text-amber-100">
                   Connect your wallet to mint this article as an NFT.
                 </p>
               </div>
@@ -263,19 +307,19 @@ export function MintButton({
                   </span>
                 </div>
                 {wallet.isConnected && wallet.publicKey ? (
-                  <div className="bg-green-50 border border-green-200 rounded p-2">
+                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-green-900 font-medium">
+                      <span className="text-green-900 dark:text-green-200 font-medium">
                         ✓ Wallet Connected
                       </span>
-                      <span className="font-mono text-green-700">
+                      <span className="font-mono text-green-700 dark:text-green-300">
                         {`${wallet.publicKey.slice(0, 4)}...${wallet.publicKey.slice(-4)}`}
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-amber-50 border border-amber-200 rounded p-2">
-                    <span className="text-xs text-amber-900">
+                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded p-2">
+                    <span className="text-xs text-amber-900 dark:text-amber-100">
                       Wallet not connected
                     </span>
                   </div>
@@ -284,17 +328,68 @@ export function MintButton({
             </div>
 
             {isLoading && (
-              <div className="bg-blue-50 p-4 rounded-lg space-y-2">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="font-medium">Minting in Progress...</span>
-                </div>
-                <div className="text-sm text-muted-foreground">
-                  {mintingStep === 'checking' && 'Verifying eligibility...'}
-                  {mintingStep === 'wallet' && 'Sign in your wallet...'}
-                  {mintingStep === 'blockchain' && 'Minting NFT...'}
-                  {mintingStep === 'database' && 'Finalizing...'}
-                </div>
+              <div
+                className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30"
+                aria-busy="true"
+                aria-live="polite"
+              >
+                <p className="mb-3 text-sm font-medium text-foreground">
+                  Mint in progress
+                </p>
+                <ol className="flex w-full items-start gap-2 sm:gap-3">
+                  {NFT_MINT_UI_STEPS.map((stepKey, i) => {
+                    const activeIdx =
+                      mintStepActiveIndex >= 0 ? mintStepActiveIndex : 0
+                    const isComplete = i < activeIdx
+                    const isCurrent = i === activeIdx
+                    return (
+                      <li
+                        key={stepKey}
+                        className="flex min-w-0 flex-1 flex-col items-center gap-1.5"
+                      >
+                        <div
+                          className={cn(
+                            'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors',
+                            isComplete &&
+                              'border-green-600 bg-green-100 text-green-800 dark:border-green-500 dark:bg-green-950/50 dark:text-green-300',
+                            isCurrent &&
+                              !isComplete &&
+                              'border-primary bg-primary/10 text-primary',
+                            !isComplete &&
+                              !isCurrent &&
+                              'border-muted-foreground/30 bg-muted/50 text-muted-foreground'
+                          )}
+                          aria-current={isCurrent ? 'step' : undefined}
+                        >
+                          {isComplete ? (
+                            <Check
+                              className="h-4 w-4"
+                              strokeWidth={2.5}
+                              aria-hidden
+                            />
+                          ) : isCurrent ? (
+                            <Loader2
+                              className="h-4 w-4 animate-spin"
+                              aria-hidden
+                            />
+                          ) : (
+                            <span>{i + 1}</span>
+                          )}
+                        </div>
+                        <span
+                          className={cn(
+                            'text-center text-[10px] font-medium leading-tight sm:text-xs',
+                            isCurrent && 'text-foreground',
+                            isComplete && 'text-green-800 dark:text-green-300',
+                            !isCurrent && !isComplete && 'text-muted-foreground'
+                          )}
+                        >
+                          {nftMintFlowProgressLabel(stepKey)}
+                        </span>
+                      </li>
+                    )
+                  })}
+                </ol>
               </div>
             )}
 
@@ -339,7 +434,9 @@ export function MintButton({
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Minting...
+                      {nftMintFlowStep
+                        ? nftMintFlowProgressLabel(nftMintFlowStep)
+                        : 'Minting'}
                     </>
                   ) : (
                     <>

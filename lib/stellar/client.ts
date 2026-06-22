@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { ConvexHttpClient } from 'convex/browser'
+import { getConvexHttpClient } from '@/lib/convex-http-client'
 import { STELLAR_CONFIG } from './config'
 import { loadStellarSdk } from './sdk-loader'
 import { api } from '@/convex/_generated/api'
@@ -13,7 +13,16 @@ import type {
   AuthorBalance,
   TipData,
   XLMPriceData,
+  ArticleBatchTipParams,
+  HighlightBatchTipParams,
+  ArticleBatchTipQuote,
+  HighlightBatchTipQuote,
+  BatchTipQuote,
+  BatchTipTransactionResult,
 } from './types'
+import { stellarFlowEmitter } from './stellar-flow-emitter'
+
+const MAX_BATCH_TIP_ITEMS = 10
 
 /**
  * Generate a deterministic short ID from article ID using SHA256
@@ -23,24 +32,50 @@ function shortArticleId(articleId: string): string {
   return createHash('sha256').update(articleId).digest('hex').slice(0, 10)
 }
 
+function validateBatchSize(size: number): void {
+  if (size < 1) {
+    throw new Error('Batch must include at least one tip')
+  }
+  if (size > MAX_BATCH_TIP_ITEMS) {
+    throw new Error(
+      `Batch cannot include more than ${MAX_BATCH_TIP_ITEMS} tips`
+    )
+  }
+}
+
+function calculateTipSplit(stroops: number): {
+  authorReceived: number
+  platformFee: number
+} {
+  const platformFee = Math.floor(
+    (stroops * STELLAR_CONFIG.PLATFORM_FEE_BPS) / 10_000
+  )
+  return {
+    authorReceived: stroops - platformFee,
+    platformFee,
+  }
+}
+
+function summarizeBatch<TItem extends BatchTipQuote>(
+  items: TItem[]
+): Pick<
+  BatchTipTransactionResult<TItem>,
+  'stroops' | 'authorReceived' | 'platformFee' | 'items'
+> {
+  return {
+    stroops: items.reduce((sum, item) => sum + item.stroops, 0),
+    authorReceived: items.reduce((sum, item) => sum + item.authorReceived, 0),
+    platformFee: items.reduce((sum, item) => sum + item.platformFee, 0),
+    items,
+  }
+}
+
 // In-tab cache so a single user opening the tip dialog and clicking through
 // doesn't burn a Convex round-trip per click. Real freshness is enforced
 // server-side by the cron that refreshes xlmPriceCache every 5 min.
 let xlmPriceCache: { price: number; timestamp: number; source: string } | null =
   null
 const PRICE_CACHE_TTL = 60 * 1000 // 1 minute in-tab cache
-
-let convexHttpClient: ConvexHttpClient | null = null
-function getConvexHttpClient(): ConvexHttpClient {
-  if (!convexHttpClient) {
-    const url = process.env.NEXT_PUBLIC_CONVEX_URL
-    if (!url) {
-      throw new Error('NEXT_PUBLIC_CONVEX_URL is not set')
-    }
-    convexHttpClient = new ConvexHttpClient(url)
-  }
-  return convexHttpClient
-}
 
 /**
  * Read the latest XLM/USD price from the Convex-backed cache. The cache is
@@ -237,10 +272,7 @@ export class StellarClient {
   }> {
     const { StellarSdk, server, sorobanServer } = await this.getSdkContext()
     const stroops = await this.convertCentsToStroops(params.amountCents)
-    const platformFee = Math.floor(
-      (stroops * STELLAR_CONFIG.PLATFORM_FEE_BPS) / 10_000
-    )
-    const authorReceived = stroops - platformFee
+    const { authorReceived, platformFee } = calculateTipSplit(stroops)
 
     const account = await server.loadAccount(tipperPublicKey)
 
@@ -293,10 +325,7 @@ export class StellarClient {
   }> {
     const { StellarSdk, server, sorobanServer } = await this.getSdkContext()
     const stroops = await this.convertCentsToStroops(params.amountCents)
-    const platformFee = Math.floor(
-      (stroops * STELLAR_CONFIG.PLATFORM_FEE_BPS) / 10_000
-    )
-    const authorReceived = stroops - platformFee
+    const { authorReceived, platformFee } = calculateTipSplit(stroops)
 
     const account = await server.loadAccount(tipperPublicKey)
 
@@ -334,6 +363,126 @@ export class StellarClient {
     }
   }
 
+  async buildArticleBatchTipTransaction(
+    tipperPublicKey: string,
+    params: ArticleBatchTipParams[]
+  ): Promise<BatchTipTransactionResult<ArticleBatchTipQuote>> {
+    validateBatchSize(params.length)
+
+    const { StellarSdk, server, sorobanServer } = await this.getSdkContext()
+    const items = await Promise.all(
+      params.map(async (item) => {
+        const stroops = await this.convertCentsToStroops(item.amountCents)
+        const { authorReceived, platformFee } = calculateTipSplit(stroops)
+
+        return {
+          ...item,
+          stroops,
+          authorReceived,
+          platformFee,
+        }
+      })
+    )
+
+    const account = await server.loadAccount(tipperPublicKey)
+    const contract = new StellarSdk.Contract(STELLAR_CONFIG.TIPPING_CONTRACT_ID)
+
+    const tips = items.map((item) => ({
+      article_id: shortArticleId(item.articleId),
+      author: item.authorAddress,
+      amount: BigInt(item.stroops),
+    }))
+
+    const transaction = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(
+        contract.call(
+          'batch_tip',
+          StellarSdk.nativeToScVal(tipperPublicKey, { type: 'address' }),
+          StellarSdk.nativeToScVal(tips, {
+            type: {
+              article_id: ['symbol', 'symbol'],
+              author: ['symbol', 'address'],
+              amount: ['symbol', 'i128'],
+            },
+          })
+        )
+      )
+      .setTimeout(180)
+      .build()
+
+    const preparedTransaction =
+      await sorobanServer.prepareTransaction(transaction)
+
+    return {
+      xdr: preparedTransaction.toXDR(),
+      ...summarizeBatch(items),
+    }
+  }
+
+  async buildHighlightBatchTipTransaction(
+    tipperPublicKey: string,
+    params: HighlightBatchTipParams[]
+  ): Promise<BatchTipTransactionResult<HighlightBatchTipQuote>> {
+    validateBatchSize(params.length)
+
+    const { StellarSdk, server, sorobanServer } = await this.getSdkContext()
+    const items = await Promise.all(
+      params.map(async (item) => {
+        const stroops = await this.convertCentsToStroops(item.amountCents)
+        const { authorReceived, platformFee } = calculateTipSplit(stroops)
+
+        return {
+          ...item,
+          stroops,
+          authorReceived,
+          platformFee,
+        }
+      })
+    )
+
+    const account = await server.loadAccount(tipperPublicKey)
+    const contract = new StellarSdk.Contract(STELLAR_CONFIG.TIPPING_CONTRACT_ID)
+
+    const tips = items.map((item) => ({
+      highlight_id: item.highlightId,
+      article_id: shortArticleId(item.articleId),
+      author: item.authorAddress,
+      amount: BigInt(item.stroops),
+    }))
+
+    const transaction = new StellarSdk.TransactionBuilder(account, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: this.networkPassphrase,
+    })
+      .addOperation(
+        contract.call(
+          'batch_tip_highlights',
+          StellarSdk.nativeToScVal(tipperPublicKey, { type: 'address' }),
+          StellarSdk.nativeToScVal(tips, {
+            type: {
+              highlight_id: ['symbol', 'string'],
+              article_id: ['symbol', 'symbol'],
+              author: ['symbol', 'address'],
+              amount: ['symbol', 'i128'],
+            },
+          })
+        )
+      )
+      .setTimeout(180)
+      .build()
+
+    const preparedTransaction =
+      await sorobanServer.prepareTransaction(transaction)
+
+    return {
+      xdr: preparedTransaction.toXDR(),
+      ...summarizeBatch(items),
+    }
+  }
+
   async submitTipTransaction(signedXDR: string): Promise<TipReceipt> {
     const { StellarSdk, sorobanServer } = await this.getSdkContext()
     const transaction = StellarSdk.TransactionBuilder.fromXDR(
@@ -341,9 +490,11 @@ export class StellarClient {
       this.networkPassphrase
     )
 
+    stellarFlowEmitter.emit({ flow: 'tip', step: 'submitting' })
     const result = await sorobanServer.sendTransaction(transaction)
 
     if (result.status === 'PENDING') {
+      stellarFlowEmitter.emit({ flow: 'tip', step: 'confirming' })
       let txResult = await sorobanServer.getTransaction(result.hash)
       let retries = 0
       const maxRetries = 30

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type RefObject } from 'react'
+import { useState, useRef, useEffect, type RefObject } from 'react'
 import { Youtube, Link2, Play } from 'lucide-react'
 import Image from 'next/image'
 import {
@@ -12,11 +12,13 @@ import {
 } from '@/components/ui/dialog'
 
 interface YouTubeEmbedDialogProps {
-  onVideoEmbed: (url: string, width?: number, height?: number) => void
+  onVideoEmbed: (url: string, width?: number, height?: number) => boolean
   onClose: () => void
   isOpen: boolean
   triggerRef?: RefObject<HTMLElement | null>
 }
+
+const YOUTUBE_URL_ERROR_ID = 'youtube-url-error'
 
 function extractYouTubeId(url: string): string | null {
   const patterns = [
@@ -55,6 +57,16 @@ export function YouTubeEmbedDialog({
   const [height, setHeight] = useState(480)
   const [error, setError] = useState('')
   const [imageError, setImageError] = useState(false)
+  const urlInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+    urlInputRef.current?.focus()
+  }, [isOpen])
+
+  if (!isOpen) {
+    return null
+  }
 
   const handleSubmit = () => {
     setError('')
@@ -69,11 +81,18 @@ export function YouTubeEmbedDialog({
       return
     }
 
-    onVideoEmbed(
+    const ok = onVideoEmbed(
       videoUrl.trim(),
       customDimensions ? width : undefined,
       customDimensions ? height : undefined
     )
+
+    if (!ok) {
+      setError(
+        'Could not embed this video. Use a youtube.com or youtu.be link.'
+      )
+      return
+    }
 
     handleClose()
   }
@@ -130,19 +149,23 @@ export function YouTubeEmbedDialog({
             <div className="relative">
               <Link2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
+                ref={urlInputRef}
                 id="youtube-url"
                 type="url"
                 placeholder="https://www.youtube.com/watch?v=..."
                 value={videoUrl}
-                onChange={(e) => setVideoUrl(e.target.value)}
+                onChange={(e) => {
+                  setVideoUrl(e.target.value)
+                  if (error) setError('')
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     handleSubmit()
                   }
                 }}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? YOUTUBE_URL_ERROR_ID : undefined}
                 className="w-full pl-10 pr-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                // eslint-disable-next-line jsx-a11y/no-autofocus -- primary field when dialog opens
-                autoFocus
               />
             </div>
             <p className="text-xs text-muted-foreground">
@@ -254,7 +277,11 @@ export function YouTubeEmbedDialog({
           </div>
 
           {error && (
-            <div className="rounded-lg border border-destructive/25 bg-destructive/10 p-3">
+            <div
+              id={YOUTUBE_URL_ERROR_ID}
+              role="alert"
+              className="rounded-lg border border-destructive/25 bg-destructive/10 p-3"
+            >
               <p className="text-sm text-destructive">{error}</p>
             </div>
           )}

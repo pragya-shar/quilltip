@@ -1,28 +1,47 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { UserAvatar } from '@/components/ui/user-avatar'
 import { formatDistanceToNow } from 'date-fns'
 import { ArticleForDisplay } from '@/types/index'
+import { ArticleAuthorByline } from '@/components/articles/ArticleAuthorByline'
 import { TagFilterLink } from '@/components/articles/TagFilterLink'
+import type { BrowseView } from '@/lib/articles/browseDiscovery'
 
 interface ArticleCardProps {
   article: ArticleForDisplay
   priority?: boolean
   onArticleNavigate?: () => void
+  tagLinkAuthor?: string
+  view?: BrowseView
+}
+
+function formatReadTime(minutes?: number): string | null {
+  if (!minutes || minutes < 1) return null
+  return `${minutes} min read`
 }
 
 export default function ArticleCard({
   article,
   priority,
   onArticleNavigate,
+  tagLinkAuthor,
+  view = 'latest',
 }: ArticleCardProps) {
   const publishedDate = article.publishedAt
     ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
     : null
+  const readTimeLabel = formatReadTime(article.readTime)
+  const tipCount = article.tipCount ?? 0
+
+  const metaParts = [
+    readTimeLabel,
+    publishedDate,
+    view === 'featured' && tipCount > 0
+      ? `${tipCount} tip${tipCount === 1 ? '' : 's'}`
+      : null,
+  ].filter((part): part is string => Boolean(part))
 
   return (
-    <article className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border ring-1 ring-border/60 hover:shadow-md transition-shadow duration-200">
-      {/* Cover Image */}
+    <article className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border ring-1 ring-border/60 hover:shadow-md transition-shadow duration-200 flex flex-col h-full">
       {article.coverImage && (
         <Link
           href={`/${article.author.username}/${article.slug}`}
@@ -44,8 +63,7 @@ export default function ArticleCard({
         </Link>
       )}
 
-      <div className="p-[var(--card-padding)]">
-        {/* Title */}
+      <div className="p-[var(--card-padding)] flex flex-col flex-1">
         <Link
           href={`/${article.author.username}/${article.slug}`}
           scroll={false}
@@ -58,18 +76,16 @@ export default function ArticleCard({
           </h2>
         </Link>
 
-        {/* Excerpt */}
         {article.excerpt && (
-          <p className="text-muted-foreground mb-4 line-clamp-3">
+          <p className="text-muted-foreground mb-4 line-clamp-3 flex-1">
             {article.excerpt}
           </p>
         )}
 
-        {/* Tags */}
         {article.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-4">
+          <div className="flex flex-wrap gap-2 mb-4 min-h-[28px]">
             {article.tags.slice(0, 3).map((tag) => (
-              <TagFilterLink key={tag.id} tag={tag.name}>
+              <TagFilterLink key={tag.id} tag={tag.name} author={tagLinkAuthor}>
                 {tag.name}
               </TagFilterLink>
             ))}
@@ -81,33 +97,13 @@ export default function ArticleCard({
           </div>
         )}
 
-        {/* Author Info */}
-        <div className="flex items-center justify-between pt-4 border-t border-border">
-          <Link
-            href={`/${article.author.username}`}
-            className="focus-ring flex items-center gap-3 rounded-md hover:opacity-80 transition-opacity"
-          >
-            <UserAvatar
-              src={article.author.avatar}
-              alt={article.author.name || article.author.username}
-              name={article.author.name || article.author.username}
-              className="h-9 w-9"
-            />
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                {article.author.name || article.author.username}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                @{article.author.username}
-              </p>
-            </div>
-          </Link>
+        <div className="flex items-end justify-between gap-3 pt-4 border-t border-border mt-auto">
+          <ArticleAuthorByline author={article.author} size="sm" showHandle />
 
-          {/* Published Date */}
-          {publishedDate && (
-            <span className="text-xs text-muted-foreground">
-              {publishedDate}
-            </span>
+          {metaParts.length > 0 && (
+            <p className="text-xs text-muted-foreground text-right shrink-0">
+              {metaParts.join(' · ')}
+            </p>
           )}
         </div>
       </div>

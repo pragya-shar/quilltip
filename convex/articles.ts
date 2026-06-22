@@ -14,15 +14,39 @@ import {
   replaceTagLinksForArticle,
 } from './lib/articleListing'
 import {
+  assertPublishableArticleTitle,
+  isPlaceholderArticleTitle,
+} from './lib/articleTitle'
+import {
+  assertArticleListingReady,
+  isArticleListingReady,
+} from './lib/articleListingReady'
+import { searchListingArticles } from './lib/articleSearch'
+import {
+  sortArticlesForBrowse,
+  type BrowseSort,
+  type BrowseView,
+} from './lib/articleBrowseSort'
+import {
   extractTextFromTiptapJson,
   tiptapJsonHasNonEmptyText,
 } from './lib/tiptapContent'
+
+const WRITER_NOTES_MAX_LENGTH = 5000
+
+function stripWriterNotes<T extends { writerNotes?: string }>(
+  article: T
+): Omit<T, 'writerNotes'> {
+  const { writerNotes: _writerNotes, ...rest } = article
+  return rest
+}
 
 // Validation helper for article input
 function validateArticleInput(args: {
   title: string
   excerpt?: string
   tags?: string[]
+  writerNotes?: string
 }) {
   if (!args.title || args.title.trim().length === 0) {
     throw new Error('Title is required')
@@ -43,6 +67,47 @@ function validateArticleInput(args: {
       }
     }
   }
+  if (args.writerNotes && args.writerNotes.length > WRITER_NOTES_MAX_LENGTH) {
+    throw new Error(
+      `Writer notes must be ${WRITER_NOTES_MAX_LENGTH} characters or less`
+    )
+  }
+}
+
+const browseViewValidator = v.union(
+  v.literal('latest'),
+  v.literal('trending'),
+  v.literal('featured')
+)
+
+const browseSortValidator = v.union(
+  v.literal('newest'),
+  v.literal('oldest'),
+  v.literal('most_tipped')
+)
+
+function paginateBrowseArticles<
+  T extends {
+    publishedAt?: number
+    tipCount?: number
+    highlightCount?: number
+  },
+>(
+  articles: T[],
+  view: BrowseView,
+  sort: BrowseSort,
+  offset: number,
+  limit: number
+) {
+  const { articles: sorted, meta } = sortArticlesForBrowse(articles, view, sort)
+  const total = sorted.length
+  const slice = sorted.slice(offset, offset + limit)
+  return {
+    slice,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    browseMeta: meta,
+  }
 }
 
 // List articles with pagination and filters
@@ -53,11 +118,15 @@ export const listArticles = query({
     tag: v.optional(v.string()),
     author: v.optional(v.string()),
     search: v.optional(v.string()),
+    view: v.optional(browseViewValidator),
+    sort: v.optional(browseSortValidator),
   },
   handler: async (ctx, args) => {
     const page = Math.max(args.page || 1, 1)
     const limit = Math.min(Math.max(args.limit || 10, 1), 50)
     const offset = (page - 1) * limit
+    const view: BrowseView = args.view ?? 'latest'
+    const sort: BrowseSort = args.sort ?? 'newest'
 
     const tag = args.tag?.trim() || undefined
     const searchRaw = args.search?.trim()
@@ -84,30 +153,22 @@ export const listArticles = query({
     }
 
     if (search) {
-      // FTS: tokenized (whitespace/punctuation, terms up to 32 chars, lowercased), not raw
-      // substring matches; prefix on the last term per Convex text search. Results are then
-      // sorted by publishedAt desc so newest-first matches the by_published_date listing.
-      const matches = await ctx.db
-        .query('articles')
-        .withSearchIndex('search_listing', (q) => {
-          let s = q.search('searchContent', search).eq('published', true)
-          if (args.author) {
-            s = s.eq('authorUsername', args.author!)
-          }
-          return s
-        })
-        .collect()
-
-      let rows = matches
-      if (tag) {
-        rows = rows.filter((a) => a.tags?.includes(tag))
-      }
-      rows.sort((a, b) => (b.publishedAt ?? 0) - (a.publishedAt ?? 0))
-      const total = rows.length
-      const slice = rows.slice(offset, offset + limit)
+      const rows = await searchListingArticles(ctx, {
+        search,
+        authorUsername: args.author,
+        authorId,
+        filterTag: tag,
+      })
+      const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
+        rows,
+        view,
+        sort,
+        offset,
+        limit
+      )
       const enrichedArticles = await Promise.all(
         slice.map(async (article) => ({
-          ...article,
+          ...stripWriterNotes(article),
           author: await enrichWithUser(ctx, article.authorId),
         }))
       )
@@ -116,7 +177,8 @@ export const listArticles = query({
         total,
         page,
         limit,
-        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+        totalPages,
+        browseMeta,
       }
     }
 
@@ -134,17 +196,23 @@ export const listArticles = query({
             .withIndex('by_tag_publishedAt', (q) => q.eq('tag', tag))
             .order('desc')
             .collect()
-      const total = linkRows.length
-      const pageLinks = linkRows.slice(offset, offset + limit)
       const fetched = await Promise.all(
-        pageLinks.map((row) => ctx.db.get(row.articleId))
+        linkRows.map((row) => ctx.db.get(row.articleId))
       )
       const articles = fetched.filter(
-        (a): a is NonNullable<typeof a> => a?.published === true
+        (a): a is NonNullable<typeof a> =>
+          a?.published === true && isArticleListingReady(a)
+      )
+      const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
+        articles,
+        view,
+        sort,
+        offset,
+        limit
       )
       const enrichedArticles = await Promise.all(
-        articles.map(async (article) => ({
-          ...article,
+        slice.map(async (article) => ({
+          ...stripWriterNotes(article),
           author: await enrichWithUser(ctx, article.authorId),
         }))
       )
@@ -153,7 +221,8 @@ export const listArticles = query({
         total,
         page,
         limit,
-        totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+        totalPages,
+        browseMeta,
       }
     }
 
@@ -166,12 +235,18 @@ export const listArticles = query({
       rowsQuery = rowsQuery.filter((q) => q.eq(q.field('authorId'), authorId!))
     }
 
-    const rows = await rowsQuery.collect()
-    const total = rows.length
-    const slice = rows.slice(offset, offset + limit)
+    let rows = await rowsQuery.collect()
+    rows = rows.filter(isArticleListingReady)
+    const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
+      rows,
+      view,
+      sort,
+      offset,
+      limit
+    )
     const enrichedArticles = await Promise.all(
       slice.map(async (article) => ({
-        ...article,
+        ...stripWriterNotes(article),
         author: await enrichWithUser(ctx, article.authorId),
       }))
     )
@@ -180,8 +255,70 @@ export const listArticles = query({
       total,
       page,
       limit,
-      totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+      totalPages,
+      browseMeta,
     }
+  },
+})
+
+export const listBrowseTags = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 12, 1), 30)
+    const links = await ctx.db.query('articleTagLinks').collect()
+    const counts = new Map<string, number>()
+    for (const link of links) {
+      counts.set(link.tag, (counts.get(link.tag) ?? 0) + 1)
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, limit)
+      .map(([tag, articleCount]) => ({ tag, articleCount }))
+  },
+})
+
+export const listBrowseAuthors = query({
+  args: {
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = Math.min(Math.max(args.limit ?? 20, 1), 50)
+    const rows = await ctx.db
+      .query('articles')
+      .withIndex('by_published_date', (q) => q.eq('published', true))
+      .order('desc')
+      .collect()
+
+    const counts = new Map<Id<'users'>, number>()
+    for (const article of rows) {
+      if (!isArticleListingReady(article)) continue
+      counts.set(article.authorId, (counts.get(article.authorId) ?? 0) + 1)
+    }
+
+    const sorted = [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+
+    const authors: {
+      username: string
+      name: string | null
+      articleCount: number
+    }[] = []
+
+    for (const [authorId, articleCount] of sorted) {
+      const user = await ctx.db.get(authorId)
+      const username = user?.username?.trim()
+      if (!user || !username) continue
+      authors.push({
+        username,
+        name: user.name ?? null,
+        articleCount,
+      })
+    }
+
+    return authors
   },
 })
 
@@ -230,7 +367,7 @@ export const getArticleBySlug = query({
     }
 
     return {
-      ...article,
+      ...stripWriterNotes(article),
       author: {
         id: author._id,
         name: author.name,
@@ -250,15 +387,16 @@ export const getArticleById = query({
     const article = await ctx.db.get(args.id)
     if (!article) return null
 
+    const userId = await getAuthUserId(ctx)
+    const isAuthor = userId === article.authorId
+
     // If unpublished, only the author can view it
-    if (!article.published) {
-      const userId = await getAuthUserId(ctx)
-      if (userId !== article.authorId) return null
-    }
+    if (!article.published && !isAuthor) return null
 
     const author = await ctx.db.get(article.authorId)
     return {
-      ...article,
+      ...stripWriterNotes(article),
+      ...(isAuthor ? { writerNotes: article.writerNotes } : {}),
       author: author
         ? {
             id: author._id,
@@ -307,12 +445,23 @@ export const createArticle = mutation({
     // Validate input
     validateArticleInput(args)
 
-    if (args.published && !tiptapJsonHasNonEmptyText(args.content)) {
-      throw new Error('Cannot publish: article body is empty')
+    if (args.published) {
+      assertPublishableArticleTitle(args.title)
+      if (!tiptapJsonHasNonEmptyText(args.content)) {
+        throw new Error('Cannot publish: article body is empty')
+      }
     }
 
     const user = await ctx.db.get(userId)
     if (!user) throw new Error('User not found')
+
+    if (args.published) {
+      assertArticleListingReady({
+        title: args.title,
+        excerpt: args.excerpt,
+        authorUsername: user.username,
+      })
+    }
 
     const finalSlug = await generateUniqueArticleSlugForAuthor(ctx, {
       title: args.title,
@@ -434,6 +583,20 @@ export const updateArticle = mutation({
       )
     }
 
+    if (article.published) {
+      const merged = {
+        title: updates.title ?? article.title,
+        excerpt:
+          updates.excerpt !== undefined ? updates.excerpt : article.excerpt,
+        authorUsername: article.authorUsername,
+      }
+      if (!isArticleListingReady(merged)) {
+        throw new Error(
+          'Cannot update: published articles must keep a real title and excerpt for public discovery'
+        )
+      }
+    }
+
     await ctx.db.patch(args.id, updates)
 
     const updated = await ctx.db.get(args.id)
@@ -460,15 +623,19 @@ export const publishArticle = mutation({
     if (article.published) throw new Error('Already published')
 
     // Validate article has required content before publishing
-    if (!article.title || article.title.trim().length === 0) {
-      throw new Error('Cannot publish: title is required')
-    }
+    assertPublishableArticleTitle(article.title)
     if (!article.content) {
       throw new Error('Cannot publish: content is required')
     }
     if (!tiptapJsonHasNonEmptyText(article.content)) {
       throw new Error('Cannot publish: article body is empty')
     }
+
+    assertArticleListingReady({
+      title: article.title,
+      excerpt: article.excerpt,
+      authorUsername: article.authorUsername,
+    })
 
     const now = Date.now()
 
@@ -588,6 +755,7 @@ export const saveDraft = mutation({
     excerpt: v.optional(v.string()),
     coverImage: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
+    writerNotes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
@@ -608,6 +776,7 @@ export const saveDraft = mutation({
         excerpt?: string
         coverImage?: string
         tags?: string[]
+        writerNotes?: string
         updatedAt: number
         slug?: string
         searchContent: string
@@ -617,6 +786,7 @@ export const saveDraft = mutation({
         excerpt: args.excerpt,
         coverImage: args.coverImage,
         tags: args.tags,
+        writerNotes: args.writerNotes,
         updatedAt: Date.now(),
         searchContent: buildSearchContent(args.title, args.excerpt, {
           tags: args.tags,
@@ -660,6 +830,7 @@ export const saveDraft = mutation({
         content: args.content,
         excerpt: args.excerpt,
         coverImage: args.coverImage,
+        writerNotes: args.writerNotes,
         published: false,
         authorId: userId,
         authorUsername: user.username,
@@ -682,7 +853,7 @@ export const saveDraft = mutation({
   },
 })
 
-// One-off after deploy: bunx convex run internal/articles:backfillArticleTagsAndSearchContent
+// One-off after deploy: bunx convex run articles:backfillArticleTagsAndSearchContent
 export const backfillArticleTagsAndSearchContent = internalMutation({
   args: {},
   handler: async (ctx) => {
@@ -698,6 +869,48 @@ export const backfillArticleTagsAndSearchContent = internalMutation({
       if (fresh?.published) await replaceTagLinksForArticle(ctx, fresh)
       updated += 1
     }
+    return { updated }
+  },
+})
+
+// One-off after deploy: bunx convex run internal/articles:unpublishArticlesWithPlaceholderTitles
+export const unpublishArticlesWithPlaceholderTitles = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const articles = await ctx.db.query('articles').collect()
+    const now = Date.now()
+    let updated = 0
+    const articleCountDeltaByAuthor = new Map<Id<'users'>, number>()
+
+    for (const article of articles) {
+      if (!article.published || !isPlaceholderArticleTitle(article.title)) {
+        continue
+      }
+
+      await removeTagLinksForArticle(ctx, article._id)
+      await ctx.db.patch(article._id, {
+        published: false,
+        publishedAt: undefined,
+        updatedAt: now,
+      })
+
+      articleCountDeltaByAuthor.set(
+        article.authorId,
+        (articleCountDeltaByAuthor.get(article.authorId) ?? 0) + 1
+      )
+      updated += 1
+    }
+
+    for (const [authorId, delta] of articleCountDeltaByAuthor) {
+      const user = await ctx.db.get(authorId)
+      if (user) {
+        await ctx.db.patch(authorId, {
+          articleCount: Math.max(0, (user.articleCount || 0) - delta),
+          updatedAt: now,
+        })
+      }
+    }
+
     return { updated }
   },
 })

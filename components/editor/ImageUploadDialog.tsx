@@ -1,8 +1,15 @@
 'use client'
 
-import { useState, useRef, type RefObject } from 'react'
+import { useState, useRef, useEffect, type RefObject } from 'react'
 import { Upload, Link2, Image as ImageIcon } from 'lucide-react'
-import { uploadFile, compressImage } from '@/lib/upload'
+import {
+  uploadFile,
+  compressImage,
+  validateImageUploadFile,
+  isValidImageSourceUrl,
+  IMAGE_UPLOAD_FORMAT_HINT,
+} from '@/lib/upload'
+import { UPLOAD_CONTROL_FOCUS_RING } from '@/lib/constants'
 import { useConvex } from 'convex/react'
 import {
   Dialog,
@@ -11,6 +18,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
+
+const IMAGE_FILE_INPUT_ID = 'image-file-input'
+const IMAGE_URL_INPUT_ID = 'image-url-input'
+const IMAGE_URL_REQUIREMENTS_ID = 'image-url-requirements'
+const IMAGE_URL_ERROR_ID = 'image-url-error'
+const FILE_UPLOAD_ERROR_ID = 'file-upload-error'
+const FILE_UPLOAD_STATUS_ID = 'file-upload-status'
+const URL_UPLOAD_STATUS_ID = 'url-upload-status'
 
 interface ImageUploadDialogProps {
   onImageSelect: (url: string) => void
@@ -28,18 +47,96 @@ export function ImageUploadDialog({
   title = 'Add Image',
   triggerRef,
 }: ImageUploadDialogProps) {
+  const IMAGE_ACCEPT = 'image/png,image/jpeg,image/gif,image/webp'
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file')
   const [imageUrl, setImageUrl] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [dragActive, setDragActive] = useState(false)
-  const [error, setError] = useState('')
+  const [fileError, setFileError] = useState('')
+  const [urlError, setUrlError] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const convex = useConvex()
+  const urlInputRef = useRef<HTMLInputElement>(null)
+  const [open, setOpen] = useState(isOpen)
+  const isUploadingRef = useRef(isUploading)
+  const handleCloseRef = useRef<() => void>(() => {})
+
+  isUploadingRef.current = isUploading
+
+  useEffect(() => {
+    if (isOpen) setOpen(true)
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!open || uploadMethod !== 'url') return
+    urlInputRef.current?.focus()
+  }, [open, uploadMethod])
+
+  const handleUploadMethodChange = (value: string) => {
+    setUploadMethod(value as 'file' | 'url')
+    setFileError('')
+    setUrlError('')
+  }
+
+  const resetState = () => {
+    setImageUrl('')
+    setIsUploading(false)
+    setUploadProgress(0)
+    setFileError('')
+    setUrlError('')
+    setUploadMethod('file')
+  }
+
+  const handleClose = () => {
+    setOpen(false)
+    onClose()
+    resetState()
+  }
+
+  handleCloseRef.current = handleClose
+
+  // Radix only delivers Escape to the top dismissable layer; a higher invisible
+  // layer (e.g. another dialog portal) can block it while outside click still works.
+  useEffect(() => {
+    if (!open) return
+
+    const onDocumentKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || isUploadingRef.current) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      handleCloseRef.current()
+    }
+
+    document.addEventListener('keydown', onDocumentKeyDown, { capture: true })
+    return () =>
+      document.removeEventListener('keydown', onDocumentKeyDown, {
+        capture: true,
+      })
+  }, [open])
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setOpen(true)
+      return
+    }
+    handleClose()
+  }
+
+  if (!isOpen) {
+    return null
+  }
 
   const handleFileSelect = async (file: File) => {
-    setError('')
+    setFileError('')
+
+    const validation = validateImageUploadFile(file)
+    if (!validation.ok) {
+      setFileError(validation.error)
+      return
+    }
+
     setIsUploading(true)
     setUploadProgress(0)
 
@@ -57,13 +154,12 @@ export function ImageUploadDialog({
 
       if (result.success && result.url) {
         onImageSelect(result.url)
-        onClose()
-        resetState()
+        handleClose()
       } else {
-        setError(result.error || 'Upload failed')
+        setFileError(result.error || 'Upload failed')
       }
     } catch (error) {
-      setError('Upload failed. Please try again.')
+      setFileError('Upload failed. Please try again.')
       console.error('Upload error:', error)
     } finally {
       setIsUploading(false)
@@ -72,8 +168,9 @@ export function ImageUploadDialog({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (file) {
-      handleFileSelect(file)
+      void handleFileSelect(file)
     }
   }
 
@@ -92,23 +189,32 @@ export function ImageUploadDialog({
     setDragActive(false)
 
     const file = e.dataTransfer.files?.[0]
-    if (file && file.type.startsWith('image/')) {
-      handleFileSelect(file)
-    } else {
-      setError('Please drop an image file')
+    if (!file) {
+      setFileError('Please drop an image file')
+      return
     }
+
+    void handleFileSelect(file)
   }
 
   const handleUrlSubmit = async () => {
-    if (!imageUrl.trim()) return
+    const trimmed = imageUrl.trim()
+    if (!trimmed) {
+      setUrlError('Enter an image URL')
+      return
+    }
+    if (!isValidImageSourceUrl(trimmed)) {
+      setUrlError('URL must start with http:// or https://')
+      return
+    }
 
-    setError('')
+    setUrlError('')
     setIsUploading(true)
     setUploadProgress(0)
 
     try {
       setUploadProgress(20)
-      const response = await fetch(imageUrl)
+      const response = await fetch(trimmed)
 
       if (!response.ok) {
         throw new Error('Failed to fetch image from URL')
@@ -117,11 +223,12 @@ export function ImageUploadDialog({
       const blob = await response.blob()
       setUploadProgress(40)
 
-      if (!blob.type.startsWith('image/')) {
-        throw new Error('URL does not point to a valid image')
+      const file = new File([blob], 'image-from-url', { type: blob.type })
+      const validation = validateImageUploadFile(file)
+      if (!validation.ok) {
+        throw new Error(validation.error)
       }
 
-      const file = new File([blob], 'image-from-url', { type: blob.type })
       setUploadProgress(60)
 
       const compressedFile = await compressImage(file, 1200, 0.8)
@@ -139,22 +246,21 @@ export function ImageUploadDialog({
 
       if (result.success && result.url) {
         onImageSelect(result.url)
-        onClose()
-        resetState()
+        handleClose()
       } else {
-        setError(result.error || 'Upload failed')
+        setUrlError(result.error || 'Upload failed')
       }
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('Failed to fetch')) {
-          setError(
+          setUrlError(
             'Unable to fetch image from URL. The image may be protected by CORS policy.'
           )
         } else {
-          setError(error.message)
+          setUrlError(error.message)
         }
       } else {
-        setError('Failed to process image from URL')
+        setUrlError('Failed to process image from URL')
       }
       console.error('URL image upload error:', error)
     } finally {
@@ -162,25 +268,29 @@ export function ImageUploadDialog({
     }
   }
 
-  const resetState = () => {
-    setImageUrl('')
-    setIsUploading(false)
-    setUploadProgress(0)
-    setError('')
-    setUploadMethod('file')
-  }
+  const urlDescribedBy = urlError
+    ? `${IMAGE_URL_REQUIREMENTS_ID} ${IMAGE_URL_ERROR_ID}`
+    : IMAGE_URL_REQUIREMENTS_ID
 
-  const handleClose = () => {
-    onClose()
-    resetState()
-  }
+  const fileDropDescribedBy =
+    [
+      fileError ? FILE_UPLOAD_ERROR_ID : null,
+      isUploading && uploadMethod === 'file' ? FILE_UPLOAD_STATUS_ID : null,
+    ]
+      .filter(Boolean)
+      .join(' ') || undefined
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open) handleClose()
-  }
+  const fileProgressStatusText =
+    isUploading && uploadMethod === 'file'
+      ? `Uploading image, ${uploadProgress}% complete`
+      : ''
+
+  const urlProgressStatusText = isUploading
+    ? `Processing image from URL, ${uploadProgress}% complete`
+    : ''
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className="sm:max-w-md p-0 gap-0 overflow-hidden"
         onCloseAutoFocus={(e) => {
@@ -196,55 +306,55 @@ export function ImageUploadDialog({
           if (isUploading) e.preventDefault()
         }}
       >
-        <DialogHeader className="p-4 border-b border-border space-y-0 text-left pr-12">
+        <DialogHeader className="p-4 border-b border-border space-y-1 text-left pr-12">
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription className="sr-only">
+          <DialogDescription>
             Upload a file or paste an image URL to insert into your article.
           </DialogDescription>
         </DialogHeader>
 
         <div className="p-4">
-          <div className="flex gap-2 mb-4">
-            <button
-              type="button"
-              onClick={() => setUploadMethod('file')}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                uploadMethod === 'file'
-                  ? 'bg-primary/15 text-primary border border-border'
-                  : 'bg-muted text-foreground hover:bg-muted/80'
-              }`}
+          <Tabs
+            value={uploadMethod}
+            onValueChange={handleUploadMethodChange}
+            className="w-full"
+          >
+            <TabsList
+              className="grid w-full grid-cols-2 mb-4 h-auto p-1"
+              aria-label="Image upload method"
             >
-              <Upload className="w-4 h-4 inline mr-2" />
-              Upload File
-            </button>
-            <button
-              type="button"
-              onClick={() => setUploadMethod('url')}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                uploadMethod === 'url'
-                  ? 'bg-primary/15 text-primary border border-border'
-                  : 'bg-muted text-foreground hover:bg-muted/80'
-              }`}
-            >
-              <Link2 className="w-4 h-4 inline mr-2" />
-              URL
-            </button>
-          </div>
+              <TabsTrigger value="file" className="gap-2 py-2">
+                <Upload className="w-4 h-4" />
+                Upload File
+              </TabsTrigger>
+              <TabsTrigger value="url" className="gap-2 py-2">
+                <Link2 className="w-4 h-4" />
+                URL
+              </TabsTrigger>
+            </TabsList>
 
-          {uploadMethod === 'file' && (
-            <div>
+            <TabsContent value="file" className="mt-0">
               <div
-                className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                className={cn(
+                  'border-2 border-dashed rounded-lg p-6 text-center transition-colors',
                   dragActive
                     ? 'border-primary bg-primary/15'
-                    : 'border-border hover:border-muted-foreground/40'
-                }`}
+                    : 'border-border hover:border-muted-foreground/40',
+                  fileError && 'border-destructive'
+                )}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
+                aria-describedby={fileDropDescribedBy}
               >
-                {isUploading ? (
-                  <div className="space-y-3">
+                {isUploading && uploadMethod === 'file' ? (
+                  <div
+                    className="space-y-3"
+                    role="status"
+                    aria-live="polite"
+                    aria-atomic="true"
+                    id={FILE_UPLOAD_STATUS_ID}
+                  >
                     <div className="w-12 h-12 bg-primary/15 rounded-full flex items-center justify-center mx-auto">
                       <Upload className="w-6 h-6 text-primary animate-pulse" />
                     </div>
@@ -253,7 +363,14 @@ export function ImageUploadDialog({
                         Optimizing and uploading...
                       </p>
                       <div className="mt-2">
-                        <div className="bg-muted rounded-full h-2">
+                        <div
+                          className="bg-muted rounded-full h-2"
+                          role="progressbar"
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={uploadProgress}
+                          aria-label="Upload progress"
+                        >
                           <div
                             className="bg-primary h-2 rounded-full transition-all duration-300"
                             style={{ width: `${uploadProgress}%` }}
@@ -263,6 +380,7 @@ export function ImageUploadDialog({
                           {uploadProgress}%
                         </p>
                       </div>
+                      <p className="sr-only">{fileProgressStatusText}</p>
                     </div>
                   </div>
                 ) : (
@@ -272,37 +390,52 @@ export function ImageUploadDialog({
                     </div>
                     <div>
                       <p className="text-sm font-medium text-foreground">
-                        Drag and drop an image, or{' '}
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="text-primary hover:text-primary/80"
-                        >
-                          browse
-                        </button>
+                        Drag and drop an image here, or choose a file to upload.
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        PNG, JPG, GIF up to 10MB
+                        {IMAGE_UPLOAD_FORMAT_HINT}
                       </p>
+                      <Label
+                        className={cn(
+                          'mt-3 inline-flex cursor-pointer rounded-md text-sm font-medium text-primary underline-offset-4 hover:text-primary/80 hover:underline',
+                          UPLOAD_CONTROL_FOCUS_RING
+                        )}
+                      >
+                        <input
+                          ref={fileInputRef}
+                          id={IMAGE_FILE_INPUT_ID}
+                          type="file"
+                          accept={IMAGE_ACCEPT}
+                          onChange={handleFileChange}
+                          className="sr-only"
+                        />
+                        Choose file
+                      </Label>
                     </div>
                   </div>
                 )}
               </div>
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </div>
-          )}
+              {fileError ? (
+                <p
+                  id={FILE_UPLOAD_ERROR_ID}
+                  role="alert"
+                  className="text-xs text-destructive mt-2"
+                >
+                  {fileError}
+                </p>
+              ) : null}
+            </TabsContent>
 
-          {uploadMethod === 'url' && (
-            <div className="space-y-3">
+            <TabsContent value="url" className="mt-0">
               {isUploading ? (
-                <div className="space-y-3">
+                <div
+                  className="space-y-3"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  id={URL_UPLOAD_STATUS_ID}
+                >
                   <div className="w-12 h-12 bg-primary/15 rounded-full flex items-center justify-center mx-auto">
                     <Upload className="w-6 h-6 text-primary animate-pulse" />
                   </div>
@@ -311,7 +444,14 @@ export function ImageUploadDialog({
                       Processing image from URL...
                     </p>
                     <div className="mt-2">
-                      <div className="bg-muted rounded-full h-2">
+                      <div
+                        className="bg-muted rounded-full h-2"
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={uploadProgress}
+                        aria-label="URL upload progress"
+                      >
                         <div
                           className="bg-primary h-2 rounded-full transition-all duration-300"
                           style={{ width: `${uploadProgress}%` }}
@@ -321,45 +461,71 @@ export function ImageUploadDialog({
                         {uploadProgress}%
                       </p>
                     </div>
+                    <p className="sr-only">{urlProgressStatusText}</p>
                   </div>
                 </div>
               ) : (
-                <>
-                  <input
-                    type="url"
-                    placeholder="https://example.com/image.jpg"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !isUploading) {
-                        void handleUrlSubmit()
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-                    // eslint-disable-next-line jsx-a11y/no-autofocus -- focus first field when URL tab is chosen
-                    autoFocus
-                  />
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor={IMAGE_URL_INPUT_ID}>Image URL</Label>
+                    <Input
+                      ref={urlInputRef}
+                      id={IMAGE_URL_INPUT_ID}
+                      type="url"
+                      placeholder="https://example.com/image.jpg"
+                      value={imageUrl}
+                      onChange={(e) => {
+                        setImageUrl(e.target.value)
+                        if (urlError) setUrlError('')
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !isUploading) {
+                          void handleUrlSubmit()
+                        }
+                      }}
+                      aria-invalid={!!urlError}
+                      aria-describedby={urlDescribedBy}
+                      aria-busy={isUploading}
+                      className={cn(
+                        urlError &&
+                          'border-destructive focus-visible:ring-destructive'
+                      )}
+                    />
+                    <p
+                      id={IMAGE_URL_REQUIREMENTS_ID}
+                      className="text-xs text-muted-foreground"
+                    >
+                      Must be http:// or https://. Image will be downloaded;
+                      supported types: {IMAGE_UPLOAD_FORMAT_HINT}.
+                    </p>
+                    {urlError ? (
+                      <p
+                        id={IMAGE_URL_ERROR_ID}
+                        role="alert"
+                        className="text-xs text-destructive"
+                      >
+                        {urlError}
+                      </p>
+                    ) : null}
+                  </div>
                   <button
                     type="button"
                     onClick={() => void handleUrlSubmit()}
-                    disabled={!imageUrl.trim() || isUploading}
-                    className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={isUploading}
+                    className={cn(
+                      'w-full bg-primary text-primary-foreground py-2 px-4 rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed',
+                      UPLOAD_CONTROL_FOCUS_RING
+                    )}
                   >
                     Upload Image
                   </button>
                   <p className="text-xs text-muted-foreground text-center">
                     External images will be downloaded and stored in Convex
                   </p>
-                </>
+                </div>
               )}
-            </div>
-          )}
-
-          {error && (
-            <div className="mt-3 rounded-lg border border-destructive/25 bg-destructive/10 p-3">
-              <p className="text-sm text-destructive">{error}</p>
-            </div>
-          )}
+            </TabsContent>
+          </Tabs>
         </div>
       </DialogContent>
     </Dialog>

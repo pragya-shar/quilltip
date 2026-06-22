@@ -22,3 +22,6 @@ export interface ArweaveTransactionStatus {
   confirmations: number
   blockHeight?: number
 }
+
+/** Short tag pairs for Turbo data items (keep values small; full text lives in JSON body). */
+export type ArweaveDataTag = { name: string; value: string }

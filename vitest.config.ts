@@ -12,6 +12,8 @@ export default defineConfig({
           include: ['convex/**/*.test.ts'],
           exclude: ['node_modules', 'convex/_generated'],
           environment: 'edge-runtime',
+          // Scheduled-function tests share fake DB state; run files one at a time.
+          fileParallelism: false,
         },
       },
       {
@@ -22,6 +24,8 @@ export default defineConfig({
           exclude: ['node_modules', '.next', 'convex/**'],
           environment: 'node',
           setupFiles: ['./vitest.setup.ts'],
+          // UI interaction tests can exceed 10s when the full suite runs in parallel.
+          testTimeout: 30_000,
         },
       },
     ],
