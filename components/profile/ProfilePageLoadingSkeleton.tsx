@@ -1,5 +1,5 @@
 import { Skeleton } from '@/components/ui/skeleton'
-import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
+import { ArticleFeedSkeleton } from '@/components/articles/ArticleFeedSkeleton'
 
 export function ProfilePageLoadingSkeleton() {
   return (
@@ -48,7 +48,7 @@ export function ProfilePageLoadingSkeleton() {
         </nav>
       </div>
 
-      <ArticleGridSkeleton count={9} />
+      <ArticleFeedSkeleton count={9} />
     </main>
   )
 }
