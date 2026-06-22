@@ -105,7 +105,6 @@ export function TipButton({
       setModalStep('checkout')
       activateWallet()
       setIsOpen(true)
-      requestAnimationFrame(() => setIsOpen(true))
     },
     [activateWallet]
   )
