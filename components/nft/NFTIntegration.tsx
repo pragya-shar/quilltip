@@ -135,7 +135,7 @@ export function NFTIntegration({
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
                       <div
-                        className="bg-primary/50 h-2 rounded-full transition-all duration-500"
+                        className="bg-collectible h-2 rounded-full transition-all duration-500"
                         style={{
                           width: `${Math.min(progressPercentage, 100)}%`,
                         }}

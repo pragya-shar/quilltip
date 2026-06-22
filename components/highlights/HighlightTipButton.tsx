@@ -481,12 +481,11 @@ export function HighlightTipButton({
         <DialogTrigger asChild>
           <Button
             type="button"
-            variant="outline"
             size="sm"
-            className={cn('gap-2', className)}
+            className={cn('w-full gap-2 shadow-md', className)}
             title="Tip this highlight"
           >
-            <Coins className="w-3.5 h-3.5" />
+            <Coins className="w-4 h-4" />
             <span className="font-medium">Tip Highlight</span>
           </Button>
         </DialogTrigger>

@@ -19,14 +19,14 @@ export function CreatorStatsPanel({
         <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-muted-foreground">Total Articles</span>
-            <BookOpen className="w-5 h-5 text-blue-500" />
+            <BookOpen className="w-5 h-5 text-muted-foreground" />
           </div>
           <p className="text-3xl font-bold text-foreground">{articleCount}</p>
         </div>
         <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-muted-foreground">Tips Received</span>
-            <DollarSign className="w-5 h-5 text-green-500" />
+            <DollarSign className="w-5 h-5 text-muted-foreground" />
           </div>
           <p className="text-3xl font-bold text-foreground">
             {tipsReceivedCount}
@@ -35,7 +35,7 @@ export function CreatorStatsPanel({
         <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6">
           <div className="flex items-center justify-between mb-2">
             <span className="text-muted-foreground">NFTs Owned</span>
-            <Image className="w-5 h-5 text-purple-500" aria-label="NFTs" />
+            <Image className="w-5 h-5 text-muted-foreground" aria-label="NFTs" />
           </div>
           <p className="text-3xl font-bold text-foreground">{nftsOwned}</p>
         </div>

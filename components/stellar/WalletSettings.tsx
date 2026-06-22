@@ -246,7 +246,7 @@ export function WalletSettings({
                   <div className="p-4 bg-success border border-success/50 rounded-lg space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
                         <span className="text-sm font-medium text-success-foreground">
                           Wallet Connected
                         </span>

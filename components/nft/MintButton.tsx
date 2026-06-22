@@ -288,8 +288,8 @@ export function MintButton({
 
           <div className="space-y-4">
             {!wallet.isConnected && (
-              <div className="bg-warning text-warning-foreground border border-warning/30 rounded-lg p-3">
-                <p className="text-sm">
+              <div className="bg-warning/10 border border-warning/50 rounded-lg p-3">
+                <p className="text-sm text-warning-foreground">
                   Connect your wallet to mint this article as an NFT.
                 </p>
               </div>
@@ -308,17 +308,21 @@ export function MintButton({
                   </span>
                 </div>
                 {wallet.isConnected && wallet.publicKey ? (
-                  <div className="bg-success/10 text-success-foreground border border-success/30 rounded p-2">
+                  <div className="bg-success/10 border border-success/50 rounded p-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium">✓ Wallet Connected</span>
-                      <span className="font-mono">
+                      <span className="text-success-foreground font-medium">
+                        ✓ Wallet Connected
+                      </span>
+                      <span className="font-mono text-success-foreground">
                         {`${wallet.publicKey.slice(0, 4)}...${wallet.publicKey.slice(-4)}`}
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-warning text-warning-foreground border border-warning/30 rounded p-2">
-                    <span className="text-xs">Wallet not connected</span>
+                  <div className="bg-warning/10 border border-warning/50 rounded p-2">
+                    <span className="text-xs text-warning-foreground">
+                      Wallet not connected
+                    </span>
                   </div>
                 )}
               </div>
@@ -326,7 +330,7 @@ export function MintButton({
 
             {isLoading && (
               <div
-                className="rounded-lg border border-info/30 bg-info/10 p-4 text-info-foreground"
+                className="rounded-lg border border-info/50 bg-info/10 p-4"
                 aria-busy="true"
                 aria-live="polite"
               >
@@ -348,7 +352,7 @@ export function MintButton({
                           className={cn(
                             'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors',
                             isComplete &&
-                              'border-success bg-success/20 text-success-foreground',
+                              'border-success bg-success text-success-foreground',
                             isCurrent &&
                               !isComplete &&
                               'border-primary bg-primary/10 text-primary',
@@ -377,7 +381,7 @@ export function MintButton({
                           className={cn(
                             'text-center text-[10px] font-medium leading-tight sm:text-xs',
                             isCurrent && 'text-foreground',
-                            isComplete && 'text-green-800 dark:text-green-300',
+                            isComplete && 'text-success-foreground',
                             !isCurrent && !isComplete && 'text-muted-foreground'
                           )}
                         >

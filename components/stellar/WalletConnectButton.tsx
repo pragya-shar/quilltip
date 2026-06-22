@@ -129,7 +129,7 @@ export function WalletConnectButton({
         size={size}
         variant="outline"
         className={cn(
-          'text-destructive border-destructive/50 dark:text-red-300 dark:border-red-800',
+          'text-destructive border-destructive/50',
           className
         )}
       >
@@ -150,7 +150,7 @@ export function WalletConnectButton({
             className={cn('gap-2', className)}
             aria-label="Open wallet menu"
           >
-            <CheckCircle className="w-4 h-4 text-green-800 dark:text-green-300" />
+            <CheckCircle className="w-4 h-4 text-success-foreground" />
             <div className="flex flex-col items-start">
               <span className="text-sm font-medium">
                 {formatAddress(publicKey)}

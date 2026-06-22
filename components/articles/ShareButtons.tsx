@@ -168,7 +168,7 @@ export default function ShareButtons({
         {/* Twitter */}
         <button
           onClick={() => openShareWindow(shareUrls.twitter)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-blue-500 hover:bg-muted rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on Twitter"
         >
           <Twitter className="h-4 w-4" />
@@ -178,7 +178,7 @@ export default function ShareButtons({
         {/* LinkedIn */}
         <button
           onClick={() => openShareWindow(shareUrls.linkedin)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-blue-600 hover:bg-muted rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on LinkedIn"
         >
           <Linkedin className="h-4 w-4" />
@@ -188,7 +188,7 @@ export default function ShareButtons({
         {/* Facebook */}
         <button
           onClick={() => openShareWindow(shareUrls.facebook)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-blue-700 hover:bg-muted rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on Facebook"
         >
           <Facebook className="h-4 w-4" />
@@ -203,8 +203,8 @@ export default function ShareButtons({
         >
           {copied ? (
             <>
-              <Check className="h-4 w-4 text-green-800 dark:text-green-300" />
-              <span className="hidden sm:inline text-green-800 dark:text-green-300">
+              <Check className="h-4 w-4 text-success-foreground" />
+              <span className="hidden sm:inline text-success-foreground">
                 Copied!
               </span>
             </>
@@ -239,7 +239,7 @@ export default function ShareButtons({
               href={shareUrls.twitter}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-blue-500 hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted transition-colors"
               aria-label="Open Twitter share in new tab"
             >
               <Twitter className="h-4 w-4" />
@@ -249,7 +249,7 @@ export default function ShareButtons({
               href={shareUrls.linkedin}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-blue-600 hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted transition-colors"
               aria-label="Open LinkedIn share in new tab"
             >
               <Linkedin className="h-4 w-4" />
@@ -259,7 +259,7 @@ export default function ShareButtons({
               href={shareUrls.facebook}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-blue-700 hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted transition-colors"
               aria-label="Open Facebook share in new tab"
             >
               <Facebook className="h-4 w-4" />
@@ -273,8 +273,8 @@ export default function ShareButtons({
             >
               {copied ? (
                 <>
-                  <Check className="h-4 w-4 text-green-800 dark:text-green-300" />
-                  <span className="text-green-800 dark:text-green-300">
+                  <Check className="h-4 w-4 text-success-foreground" />
+                  <span className="text-success-foreground">
                     Copied!
                   </span>
                 </>

@@ -22,7 +22,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { DraftsListSkeleton } from '@/components/drafts/DraftsListSkeleton'
 import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -189,7 +190,7 @@ export default function DraftsPage() {
                       {!draft.published && (
                         <>
                           <span>•</span>
-                          <span className="text-amber-600 dark:text-amber-400 font-medium">
+                          <span className="text-warning-foreground font-medium">
                             Draft
                           </span>
                         </>
@@ -252,7 +253,10 @@ export default function DraftsPage() {
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className={cn(
+                buttonVariants({ variant: 'destructive' }),
+                'disabled:opacity-50 disabled:cursor-not-allowed'
+              )}
               onClick={(e) => {
                 e.preventDefault()
                 void handleConfirmDelete()

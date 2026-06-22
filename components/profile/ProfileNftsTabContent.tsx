@@ -98,7 +98,7 @@ export function ProfileNftsTabContent({
       {ownedData.total > 0 && (
         <div>
           <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-yellow-500" />
+            <Trophy className="w-5 h-5 text-collectible-foreground" />
             Owned NFTs
           </h3>
           <PaginationTransition isPaginating={owned.isPaginating}>

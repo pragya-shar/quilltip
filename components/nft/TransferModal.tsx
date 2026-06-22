@@ -19,6 +19,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { userFacingTransferNftError } from '@/lib/convex/userFacingTransferNftError'
+import { statusVariants } from '@/lib/ui/status-config'
 
 type TransferStep = 'details' | 'confirm'
 
@@ -196,20 +197,20 @@ export function TransferModal({
 
   const messageBannerClass =
     transferMessage.kind === 'success'
-      ? 'bg-success text-success-foreground'
+      ? statusVariants.success
       : transferMessage.kind === 'error'
-        ? 'bg-destructive/10 text-destructive'
+        ? statusVariants.error
         : transferMessage.kind === 'progress'
-          ? 'bg-info text-info-foreground'
+          ? statusVariants.info
           : ''
 
   const messageIcon =
     transferMessage.kind === 'progress' ? (
       <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
     ) : transferMessage.kind === 'success' ? (
-      <CheckCircle className="h-4 w-4 shrink-0" />
+      <CheckCircle className="h-4 w-4 shrink-0 text-success-foreground" />
     ) : transferMessage.kind === 'error' ? (
-      <AlertCircle className="h-4 w-4 shrink-0" />
+      <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
     ) : null
 
   const irreversibleWarning = `You are transferring ownership of the NFT for "${articleTitle}" to @${recipientUsername}. This cannot be undone.`

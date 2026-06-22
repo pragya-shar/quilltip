@@ -123,7 +123,7 @@ export function TipCheckoutStep({
           </p>
         </div>
       ) : !isConnected ? (
-        <div className="p-3 bg-warning text-warning-foreground border border-warning/30 rounded-lg text-sm">
+        <div className="p-3 bg-info/10 border border-info/50 rounded-lg text-sm text-info-foreground">
           <p>
             Connect your Stellar wallet to send your {formatTipLabel(variant)}{' '}
             to {authorName}.
@@ -132,7 +132,7 @@ export function TipCheckoutStep({
             New to crypto?{' '}
             <Link
               href="/guide"
-              className="focus-ring rounded underline font-medium hover:opacity-80"
+              className="focus-ring rounded text-info-foreground underline font-medium hover:opacity-80"
             >
               Follow our setup guide
             </Link>

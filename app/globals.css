@@ -81,7 +81,7 @@
 /* Highlight creation feedback */
 .highlight-creating {
   animation: highlight-fade-in 0.4s ease-out;
-  background-color: rgba(255, 235, 59, 0.3);
+  background-color: color-mix(in srgb, var(--warning) 30%, transparent);
 }
 
 /* Tooltip for highlights */
@@ -189,6 +189,19 @@
   --sidebar-ring: oklch(0.708 0 0);
 
   /*
+   * Approved semantic color variant matrix (ENG-262)
+   * -----------------------------------------------------------------------
+   * Primary CTA (tip, publish, connect)  -> Button default / bg-primary
+   * Success (connected, verified)        -> bg-success text-success-foreground
+   * Warning / pending                    -> bg-warning text-warning-foreground
+   * Info / support context               -> bg-info text-info-foreground
+   * Error                                -> bg-destructive text-destructive-foreground
+   * NFT / collectible                    -> bg-collectible* variants (tonal family)
+   * Decorative stat icon                 -> text-muted-foreground
+   * Do NOT use raw Tailwind palette classes (yellow-*, blue-500, etc.) for UI states.
+   */
+
+  /*
    * Semantic status tokens. Each pair: background (--*) + legible text (--*-foreground).
    * Use as Tailwind utilities: bg-success text-success-foreground, bg-warning text-warning-foreground, etc.
    * For error/danger states use --destructive / --destructive-foreground (already present above).
@@ -199,6 +212,31 @@
   --warning-foreground: oklch(0.45 0.14 85);
   --info: oklch(0.965 0.03 240);
   --info-foreground: oklch(0.48 0.17 240);
+
+  /* Aliased semantic tokens */
+  --support: var(--info);
+  --support-foreground: var(--info-foreground);
+  --wallet: var(--success);
+  --wallet-foreground: var(--success-foreground);
+
+  /* Collectible / NFT tonal family (restrained violet-navy, not rainbow) */
+  --collectible-muted: oklch(0.96 0.02 270);
+  --collectible-muted-foreground: oklch(0.5 0.08 270);
+  --collectible: oklch(0.93 0.04 265);
+  --collectible-foreground: oklch(0.42 0.14 265);
+  --collectible-emphasis: oklch(0.88 0.08 260);
+  --collectible-emphasis-foreground: oklch(0.35 0.16 260);
+
+  /* Documented gradient stops (use via bg-gradient-to-r from-* to-*) */
+  --gradient-brand-from: var(--brand);
+  --gradient-brand-to: var(--brand-hover);
+  --gradient-collectible-from: oklch(0.55 0.12 265);
+  --gradient-collectible-to: oklch(0.45 0.14 260);
+
+  /* Heatmap intensity scale (data encoding, not CTAs) */
+  --heatmap-low: oklch(0.95 0.04 85);
+  --heatmap-mid: oklch(0.75 0.14 55);
+  --heatmap-high: oklch(0.55 0.2 25);
 
   /*
    * Monetization status mapping (reader-facing tip, highlight, NFT surfaces):
@@ -571,6 +609,23 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-support: var(--support);
+  --color-support-foreground: var(--support-foreground);
+  --color-wallet: var(--wallet);
+  --color-wallet-foreground: var(--wallet-foreground);
+  --color-collectible-muted: var(--collectible-muted);
+  --color-collectible-muted-foreground: var(--collectible-muted-foreground);
+  --color-collectible: var(--collectible);
+  --color-collectible-foreground: var(--collectible-foreground);
+  --color-collectible-emphasis: var(--collectible-emphasis);
+  --color-collectible-emphasis-foreground: var(--collectible-emphasis-foreground);
+  --color-gradient-brand-from: var(--gradient-brand-from);
+  --color-gradient-brand-to: var(--gradient-brand-to);
+  --color-gradient-collectible-from: var(--gradient-collectible-from);
+  --color-gradient-collectible-to: var(--gradient-collectible-to);
+  --color-heatmap-low: var(--heatmap-low);
+  --color-heatmap-mid: var(--heatmap-mid);
+  --color-heatmap-high: var(--heatmap-high);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-hover: var(--brand-hover);
@@ -671,6 +726,27 @@
   --info: oklch(0.28 0.06 240);
   --info-foreground: oklch(0.9 0.07 240);
 
+  --support: var(--info);
+  --support-foreground: var(--info-foreground);
+  --wallet: var(--success);
+  --wallet-foreground: var(--success-foreground);
+
+  --collectible-muted: oklch(0.28 0.04 270);
+  --collectible-muted-foreground: oklch(0.82 0.05 270);
+  --collectible: oklch(0.32 0.06 265);
+  --collectible-foreground: oklch(0.88 0.06 265);
+  --collectible-emphasis: oklch(0.38 0.1 260);
+  --collectible-emphasis-foreground: oklch(0.92 0.05 260);
+
+  --gradient-brand-from: var(--brand);
+  --gradient-brand-to: var(--brand-hover);
+  --gradient-collectible-from: oklch(0.5 0.1 265);
+  --gradient-collectible-to: oklch(0.42 0.12 260);
+
+  --heatmap-low: oklch(0.35 0.06 85);
+  --heatmap-mid: oklch(0.45 0.12 55);
+  --heatmap-high: oklch(0.5 0.18 25);
+
   /* Landing semantic tokens */
   --brand: #1a365d;
   --brand-foreground: #fefefe;
@@ -694,6 +770,31 @@
 @layer utilities {
   .focus-ring {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  .bg-gradient-brand {
+    background-image: linear-gradient(
+      to right,
+      var(--gradient-brand-from),
+      var(--gradient-brand-to)
+    );
+  }
+
+  .bg-gradient-collectible {
+    background-image: linear-gradient(
+      to right,
+      var(--gradient-collectible-from),
+      var(--gradient-collectible-to)
+    );
+  }
+
+  .bg-gradient-surface {
+    background-image: linear-gradient(
+      to bottom,
+      var(--background),
+      color-mix(in srgb, var(--muted) 30%, transparent),
+      var(--background)
+    );
   }
 
   .animate-accordion-down {

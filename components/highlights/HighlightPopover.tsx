@@ -187,7 +187,7 @@ export function HighlightPopover({
               >
                 {isPublic ? (
                   <>
-                    <Globe className="w-4 h-4 text-green-800 dark:text-green-300" />
+                    <Globe className="w-4 h-4 text-success-foreground" />
                     <span className="text-sm text-foreground">Public</span>
                   </>
                 ) : (
@@ -235,11 +235,12 @@ export function HighlightPopover({
             {isAuthenticated && (
               <Button
                 type="button"
+                size="sm"
                 onClick={handleSaveHighlight}
-                className="highlight-action-button flex-1"
+                className="min-w-0 flex-1 gap-2 shadow-md"
               >
-                <Highlighter className="w-4 h-4 mr-2" />
-                <span>Save</span>
+                <Highlighter className="w-4 h-4" />
+                <span className="font-medium">Save</span>
               </Button>
             )}
 
@@ -256,7 +257,7 @@ export function HighlightPopover({
                   highlightText={selectedText}
                   startOffset={startOffset}
                   endOffset={endOffset}
-                  className="flex-1"
+                  className="min-w-0 flex-1"
                   resumeOpen={Boolean(resumeHighlightTip)}
                   resumeAmountCents={resumeHighlightTip?.amountCents}
                   resumeCustomAmount={resumeHighlightTip?.customAmount}

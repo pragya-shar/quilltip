@@ -94,14 +94,14 @@ export function WalletStatus({ className }: WalletStatusProps) {
       <Card className={className}>
         <CardContent className="pt-6">
           <div className="flex flex-col items-center space-y-4 text-center">
-            <div className="w-12 h-12 bg-red-100 dark:bg-red-950/50 rounded-full flex items-center justify-center">
-              <Wallet className="w-6 h-6 text-red-600 dark:text-red-300" />
+            <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center">
+              <Wallet className="w-6 h-6 text-destructive" />
             </div>
             <div>
-              <h3 className="font-semibold text-red-900 dark:text-red-200">
+              <h3 className="font-semibold text-destructive">
                 Wallet Connection Error
               </h3>
-              <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
+              <p className="text-sm text-destructive">{error}</p>
             </div>
             <Button variant="outline" onClick={refreshConnection}>
               <RefreshCw className="w-4 h-4 mr-2" />
@@ -164,8 +164,8 @@ export function WalletStatus({ className }: WalletStatusProps) {
       <Card className={className}>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-green-100 dark:bg-green-950/50 rounded-full flex items-center justify-center">
-              <Wallet className="w-4 h-4 text-green-800 dark:text-green-300" />
+            <div className="w-8 h-8 bg-success/20 rounded-full flex items-center justify-center">
+              <Wallet className="w-4 h-4 text-success-foreground" />
             </div>
             <div className="flex flex-col">
               <span>Wallet Connected</span>

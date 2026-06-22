@@ -66,7 +66,7 @@ export function TipAppreciationStep({
   return (
     <>
       {variant === 'highlight' && displayHighlightText ? (
-        <div className="p-3 bg-muted border border-border rounded-lg">
+        <div className="p-3 bg-warning/10 border border-warning/50 rounded-lg">
           <p className="text-sm text-foreground italic">
             &ldquo;{displayHighlightText}&rdquo;
           </p>
@@ -91,8 +91,8 @@ export function TipAppreciationStep({
             disabled={isLoading}
             className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border transition-colors disabled:opacity-50 ${
               selectedAmount === amount.cents
-                ? 'border-primary bg-muted ring-1 ring-primary'
-                : 'border-input hover:bg-accent'
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/40'
             }`}
           >
             {amount.popular && (

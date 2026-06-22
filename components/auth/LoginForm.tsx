@@ -13,6 +13,7 @@ import { loginSchema, type LoginFormData } from '@/lib/validations/auth'
 import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const authInputClassName =
   'rounded-lg bg-background text-foreground focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:border-transparent'
@@ -114,9 +115,9 @@ export default function LoginForm() {
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       {/* Error Message */}
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
       {/* Email Field */}
@@ -136,7 +137,7 @@ export default function LoginForm() {
           placeholder="you@example.com"
         />
         {errors.email && (
-          <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+          <p className="mt-1 text-sm text-destructive">{errors.email.message}</p>
         )}
       </div>
 
@@ -174,7 +175,7 @@ export default function LoginForm() {
           </Button>
         </div>
         {errors.password && (
-          <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+          <p className="mt-1 text-sm text-destructive">{errors.password.message}</p>
         )}
       </div>
 
