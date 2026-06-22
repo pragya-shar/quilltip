@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { act, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const writePendingHighlightSelection = vi.fn()
 vi.mock('@/lib/highlight/pendingHighlightSelection', () => ({
@@ -22,14 +23,17 @@ vi.mock('@/lib/tip/signInToTip', async () => {
 const mockAuth = vi.hoisted(() => ({
   isAuthenticated: false,
 }))
+const mockIsConnected = vi.hoisted(() => vi.fn(() => false))
+
 vi.mock('@/components/providers/AuthContext', () => ({
   useAuth: () => ({ isAuthenticated: mockAuth.isAuthenticated }),
 }))
 
 vi.mock('@/components/providers/WalletProvider', () => ({
   useWallet: () => ({
-    isConnected: false,
-    publicKey: null,
+    isConnected: mockIsConnected(),
+    isLoading: false,
+    publicKey: mockIsConnected() ? 'GABCDEF123456789' : null,
     signTransaction: vi.fn(),
     connect: vi.fn(),
   }),
@@ -85,38 +89,79 @@ vi.mock('@/components/guide/WalletTooltip', () => ({
 
 import { HighlightTipButton } from '@/components/highlights/HighlightTipButton'
 
-describe('HighlightTipButton', () => {
-  it('shows contextual wallet setup when signed in without wallet', () => {
-    mockAuth.isAuthenticated = true
+async function openHighlightTipAndContinue(
+  user: ReturnType<typeof userEvent.setup>,
+  presetLabel = '$1'
+) {
+  await user.click(screen.getByRole('button', { name: 'Tip Highlight' }))
+  await user.click(screen.getByRole('button', { name: presetLabel }))
+  await user.click(screen.getByRole('button', { name: 'Continue' }))
+}
+
+describe('HighlightTipButton two-stage flow', () => {
+  beforeEach(() => {
+    mockAuth.isAuthenticated = false
+    mockIsConnected.mockReturnValue(false)
+    writePendingHighlightSelection.mockClear()
+    signInToTip.mockClear()
+    clearPendingTipIntent.mockClear()
+    readPendingTipIntent.mockReturnValue(null)
+  })
+
+  it('shows Continue on stage 1 without sign-in CTA', async () => {
+    const user = userEvent.setup({ delay: null })
     render(
       <HighlightTipButton
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        articleId={'articles:123' as any}
+        articleId={'articles:123' as never}
         articleSlug="my-article"
         authorName="Author"
         authorStellarAddress="GABC"
         highlightText="Some highlighted text"
         startOffset={10}
         endOffset={20}
-        resumeOpen
       />
     )
 
-    expect(screen.getByText('Connect to tip Author')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Tip Highlight' }))
+
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
     expect(
-      screen.getAllByRole('button', { name: /Connect wallet/i }).length
-    ).toBeGreaterThanOrEqual(1)
-    expect(
-      screen.queryByRole('link', { name: /Follow our setup guide/i })
+      screen.queryByRole('button', { name: 'Sign in to tip' })
     ).not.toBeInTheDocument()
   })
 
-  it('persists pending highlight selection before Sign in to tip', () => {
+  it('persists pending highlight selection before Sign in to tip on stage 2', async () => {
+    mockAuth.isAuthenticated = false
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await openHighlightTipAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Sign in to tip' }))
+
+    expect(writePendingHighlightSelection).toHaveBeenCalledWith({
+      articleId: 'articles:123',
+      highlightText: 'Some highlighted text',
+      startOffset: 10,
+      endOffset: 20,
+    })
+    expect(signInToTip).toHaveBeenCalled()
+  })
+
+  it('opens at checkout on resume with Sign in to tip visible', () => {
     mockAuth.isAuthenticated = false
     render(
       <HighlightTipButton
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        articleId={'articles:123' as any}
+        articleId={'articles:123' as never}
         articleSlug="my-article"
         authorName="Author"
         authorStellarAddress="GABC"
@@ -128,19 +173,18 @@ describe('HighlightTipButton', () => {
       />
     )
 
-    screen.getByRole('button', { name: 'Sign in to tip' }).click()
-
-    expect(writePendingHighlightSelection).toHaveBeenCalledWith({
-      articleId: 'articles:123',
-      highlightText: 'Some highlighted text',
-      startOffset: 10,
-      endOffset: 20,
-    })
-    expect(signInToTip).toHaveBeenCalled()
+    expect(
+      screen.getByRole('button', { name: 'Sign in to tip' })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Continue' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByText(/Tip amount: \$5\.00/)).toBeInTheDocument()
   })
 
-  it('restores amount from pending tip intent when opening dialog', async () => {
+  it('restores amount from pending tip intent and opens checkout', async () => {
     mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
     readPendingTipIntent.mockReturnValue({
       kind: 'highlight',
       articleId: 'articles:123',
@@ -153,8 +197,7 @@ describe('HighlightTipButton', () => {
 
     render(
       <HighlightTipButton
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        articleId={'articles:123' as any}
+        articleId={'articles:123' as never}
         articleSlug="my-article"
         authorName="Author"
         authorStellarAddress="GABC"
@@ -175,9 +218,34 @@ describe('HighlightTipButton', () => {
       screen.getByRole('button', { name: 'Tip Highlight' }).click()
     })
 
-    // When restored, the dialog should show the chosen amount as selected.
     expect(await screen.findByTestId('highlight-tip-dialog')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Send Tip' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Continue' })
+    ).not.toBeInTheDocument()
     expect(clearPendingTipIntent).toHaveBeenCalled()
     raf.mockRestore()
+  })
+
+  it('shows Connect Wallet on stage 2 when signed in without wallet', async () => {
+    mockAuth.isAuthenticated = true
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await openHighlightTipAndContinue(user)
+
+    expect(
+      screen.getByRole('button', { name: 'Connect Wallet' })
+    ).toBeInTheDocument()
   })
 })
