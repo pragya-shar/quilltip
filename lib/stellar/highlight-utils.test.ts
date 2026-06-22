@@ -46,7 +46,8 @@ function relativeLuminance(hex: string): number {
       ? value / 12.92
       : ((value + 0.055) / 1.055) ** 2.4
   })
-  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+  const [r, g, b] = channels
+  return 0.2126 * (r ?? 0) + 0.7152 * (g ?? 0) + 0.0722 * (b ?? 0)
 }
 
 describe('getHeatmapColor', () => {

@@ -112,6 +112,8 @@ export const HEATMAP_PALETTE = [
   '#1a365d',
 ] as const
 
+const HEATMAP_FALLBACK_COLOR = HEATMAP_PALETTE[0]!
+
 export const HEATMAP_GRADIENT_CSS = `linear-gradient(to right, ${HEATMAP_PALETTE.join(', ')})`
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -140,8 +142,11 @@ function interpolateHeatmapPalette(intensity: number): string {
   const upperIndex = Math.min(lowerIndex + 1, HEATMAP_PALETTE.length - 1)
   const t = scaled - lowerIndex
 
-  const [r1, g1, b1] = hexToRgb(HEATMAP_PALETTE[lowerIndex])
-  const [r2, g2, b2] = hexToRgb(HEATMAP_PALETTE[upperIndex])
+  const lowerColor = HEATMAP_PALETTE[lowerIndex] ?? HEATMAP_FALLBACK_COLOR
+  const upperColor = HEATMAP_PALETTE[upperIndex] ?? HEATMAP_FALLBACK_COLOR
+
+  const [r1, g1, b1] = hexToRgb(lowerColor)
+  const [r2, g2, b2] = hexToRgb(upperColor)
 
   return rgbToHex(
     r1 + (r2 - r1) * t,
