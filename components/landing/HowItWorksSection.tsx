@@ -12,6 +12,12 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import {
+  HOW_IT_WORKS_HEADING,
+  HOW_IT_WORKS_STEPS,
+  HOW_IT_WORKS_SUBHEAD,
+} from '@/lib/copy/landing-sections'
+import { NAV_START_WRITING } from '@/lib/copy/nav-cta'
 
 interface Step {
   icon: LucideIcon
@@ -23,29 +29,18 @@ interface Step {
 const stepTriggerFocusClass =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-spotlight'
 
-const steps: Step[] = [
-  {
-    icon: BookOpen,
-    title: 'Browse',
-    description: 'Discover articles from writers across the platform',
-    detail:
-      'All articles are free to read. Explore by topic, trending, or latest. No paywalls, ever.',
-  },
-  {
-    icon: Wallet,
-    title: 'Tip',
-    description: 'Connect a Stellar wallet and tip your favorite passages',
-    detail:
-      'Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds.',
-  },
-  {
-    icon: Coins,
-    title: 'Publish & earn',
-    description: 'Write, publish, and keep 97.5% of every tip',
-    detail:
-      'Use the rich editor to publish your work. Tips go directly to your wallet with near-zero fees.',
-  },
-]
+const STEP_ICONS: LucideIcon[] = [BookOpen, Wallet, Coins]
+
+const steps: Step[] = HOW_IT_WORKS_STEPS.map((step, index) => {
+  const icon = STEP_ICONS[index]
+  if (!icon) {
+    throw new Error(`Missing how-it-works icon for index ${index}`)
+  }
+  return {
+    ...step,
+    icon,
+  }
+})
 
 export default function HowItWorksSection() {
   const ref = useRef(null)
@@ -66,11 +61,10 @@ export default function HowItWorksSection() {
           transition={{ duration: 0.8 }}
         >
           <h2 className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-4 leading-[1.15] text-spotlight-foreground">
-            How tipping works
+            {HOW_IT_WORKS_HEADING}
           </h2>
           <p className="text-[15px] text-spotlight-muted max-w-lg leading-relaxed">
-            Read for free, tip what moves you, or publish and earn — all on
-            Stellar testnet.
+            {HOW_IT_WORKS_SUBHEAD}
           </p>
         </motion.div>
 
@@ -154,7 +148,7 @@ export default function HowItWorksSection() {
             href="/register"
             className="focus-ring group inline-flex items-center justify-center gap-2 bg-card text-card-foreground px-6 py-2.5 rounded-lg text-[13px] font-medium hover:bg-muted transition-all duration-200"
           >
-            Start Writing & Earning Today
+            {NAV_START_WRITING}
             <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-200" />
           </Link>
         </motion.div>

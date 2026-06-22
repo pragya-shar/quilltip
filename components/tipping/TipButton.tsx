@@ -46,6 +46,7 @@ import { useArticleTipResume } from '@/hooks/useArticleTipResume'
 import { TipAppreciationStep } from '@/components/tipping/TipAppreciationStep'
 import { TipCheckoutStep } from '@/components/tipping/TipCheckoutStep'
 import type { TipModalStep } from '@/components/tipping/tipModalStep'
+import { tipDialogDescription, tipDialogTitle } from '@/lib/copy/tipping'
 
 interface TipButtonProps {
   articleId: Id<'articles'>
@@ -383,12 +384,12 @@ export function TipButton({
           <DialogHeader className="text-left">
             <DialogTitle className="text-xl font-bold">
               {modalStep === 'appreciation'
-                ? `Support ${authorName}`
+                ? tipDialogTitle(authorName)
                 : 'Send your tip'}
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
               {modalStep === 'appreciation'
-                ? 'Choose how much you would like to support this author.'
+                ? tipDialogDescription()
                 : `Complete your tip to ${authorName}.`}
             </DialogDescription>
           </DialogHeader>

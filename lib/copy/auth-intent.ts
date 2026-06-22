@@ -1,3 +1,5 @@
+import { LANDING_VALUE_SUBHEAD } from '@/lib/copy/landing-hero'
+
 export type AuthIntent = 'write' | 'read' | 'default'
 export type AuthPageVariant = 'login' | 'register'
 
@@ -38,14 +40,14 @@ const REGISTER_COPY: Record<AuthIntent, AuthPageCopy> = {
   },
   read: {
     heading: 'Create your account',
-    subtitle: 'Sign up to browse articles and tip writers on testnet.',
+    subtitle: 'Sign up to browse articles and tip the passages that move you.',
     submitLabel: 'Create account and start reading',
     submitLoadingLabel: 'Creating account...',
     successMessage: 'Account created successfully! Taking you to articles...',
   },
   default: {
     heading: 'Create your account',
-    subtitle: 'Create your account to write, publish, and receive tips.',
+    subtitle: LANDING_VALUE_SUBHEAD,
     submitLabel: 'Create account',
     submitLoadingLabel: 'Creating account...',
     successMessage: 'Account created successfully! Redirecting...',
@@ -69,7 +71,7 @@ const LOGIN_COPY: Record<AuthIntent, AuthPageCopy> = {
   },
   default: {
     heading: 'Sign in to your account',
-    subtitle: 'Welcome back! Please enter your details.',
+    subtitle: LANDING_VALUE_SUBHEAD,
     submitLabel: 'Sign in',
     submitLoadingLabel: 'Signing in...',
     successMessage: 'Signed in successfully! Redirecting...',

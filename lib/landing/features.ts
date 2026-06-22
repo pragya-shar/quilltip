@@ -5,6 +5,7 @@ import {
   MessageSquare,
   type LucideIcon,
 } from 'lucide-react'
+import { LANDING_FEATURE_COPY } from '@/lib/copy/landing-sections'
 
 export interface LandingFeature {
   icon: LucideIcon
@@ -13,30 +14,22 @@ export interface LandingFeature {
   href: string
 }
 
-export const LANDING_FEATURES: LandingFeature[] = [
-  {
-    icon: MessageSquare,
-    title: 'Interactive Reading',
-    description: 'Highlight passages and tip the words that move you.',
-    href: '/articles',
-  },
-  {
-    icon: DollarSign,
-    title: 'Fast Testnet Tips',
-    description:
-      'Tips settle in about 3 seconds on Stellar testnet with near-zero fees.',
-    href: '#how-it-works',
-  },
-  {
-    icon: Edit3,
-    title: 'Rich Editor',
-    description: 'Code blocks, media embeds, and full markdown support.',
-    href: '/register',
-  },
-  {
-    icon: Shield,
-    title: '100% Ownership',
-    description: 'Your content, your rules. No platform lock-in.',
-    href: '#security',
-  },
+const FEATURE_ICONS: LucideIcon[] = [
+  MessageSquare,
+  DollarSign,
+  Edit3,
+  Shield,
 ]
+
+export const LANDING_FEATURES: LandingFeature[] = LANDING_FEATURE_COPY.map(
+  (feature, index) => {
+    const icon = FEATURE_ICONS[index]
+    if (!icon) {
+      throw new Error(`Missing feature icon for index ${index}`)
+    }
+    return {
+      ...feature,
+      icon,
+    }
+  }
+)

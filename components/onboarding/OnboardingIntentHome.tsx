@@ -10,52 +10,41 @@ import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  ONBOARDING_INTENTS,
+  type OnboardingIntentId,
+} from '@/lib/copy/onboarding'
 
-type IntentId = 'read' | 'write' | 'wallet'
-
-const INTENTS: {
-  id: IntentId
-  title: string
-  description: string
-  href: string
-  imageSrc: string
-  imageWidth: number
-  imageHeight: number
-  imageClassName?: string
-}[] = [
+const ONBOARDING_INTENT_IMAGES: Record<
+  OnboardingIntentId,
   {
-    id: 'read',
-    title: 'Read first',
-    description: 'Discover stories and tip the writers you love.',
-    href: '/articles',
+    imageSrc: string
+    imageWidth: number
+    imageHeight: number
+    imageClassName?: string
+  }
+> = {
+  read: {
     imageSrc: '/onboarding/read-first-illustration.png',
     imageWidth: 305,
     imageHeight: 324,
   },
-  {
-    id: 'write',
-    title: 'Write first',
-    description: 'Publish on Arweave and earn tips from readers.',
-    href: '/write',
+  write: {
     imageSrc: '/onboarding/write-first-illustration.jpg',
     imageWidth: 350,
     imageHeight: 350,
   },
-  {
-    id: 'wallet',
-    title: 'Set up wallet',
-    description: 'Connect a Stellar wallet to send and receive tips.',
-    href: '/dashboard/wallet',
+  wallet: {
     imageSrc: '/onboarding/wallet-setup-illustration.jpg',
     imageWidth: 513,
     imageHeight: 802,
     imageClassName: 'h-[6.75rem] w-auto max-w-full object-contain',
   },
-]
+}
 
 export function OnboardingIntentHome() {
   const router = useRouter()
-  const [selected, setSelected] = useState<IntentId | null>(null)
+  const [selected, setSelected] = useState<OnboardingIntentId | null>(null)
   const [isCompleting, setIsCompleting] = useState(false)
   const completingRef = useRef(false)
   const completeOnboarding = useMutation(api.users.completeOnboarding)
@@ -84,7 +73,7 @@ export function OnboardingIntentHome() {
   }
 
   const handleContinue = () => {
-    const intent = INTENTS.find((item) => item.id === selected)
+    const intent = ONBOARDING_INTENTS.find((item) => item.id === selected)
     if (intent) {
       void navigateAfterComplete(intent.href)
     }
@@ -112,12 +101,13 @@ export function OnboardingIntentHome() {
         <RadioGroup
           aria-label="Choose where to start"
           value={selected ?? ''}
-          onValueChange={(value) => setSelected(value as IntentId)}
+          onValueChange={(value) => setSelected(value as OnboardingIntentId)}
           disabled={isCompleting}
           className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"
         >
-          {INTENTS.map((intent) => {
+          {ONBOARDING_INTENTS.map((intent) => {
             const isSelected = selected === intent.id
+            const image = ONBOARDING_INTENT_IMAGES[intent.id]
 
             return (
               <RadioGroupItem
@@ -151,12 +141,12 @@ export function OnboardingIntentHome() {
                   className="mb-5 flex h-28 items-center justify-center rounded-lg border border-brand/15 overflow-hidden bg-brand/5"
                 >
                   <Image
-                    src={intent.imageSrc}
+                    src={image.imageSrc}
                     alt=""
-                    width={intent.imageWidth}
-                    height={intent.imageHeight}
+                    width={image.imageWidth}
+                    height={image.imageHeight}
                     className={
-                      intent.imageClassName ??
+                      image.imageClassName ??
                       'h-[5.5rem] w-auto object-contain'
                     }
                   />

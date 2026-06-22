@@ -30,9 +30,9 @@ describe('getRegisterCopy', () => {
     expect(copy.submitLabel).toBe('Create account and start writing')
   })
 
-  it('uses concrete default messaging', () => {
+  it('uses concrete default messaging aligned with landing promise', () => {
     const copy = getRegisterCopy('/')
-    expect(copy.subtitle).toMatch(/write, publish/i)
+    expect(copy.subtitle).toMatch(/moves you/)
     expect(copy.submitLabel).toBe('Create account')
   })
 })

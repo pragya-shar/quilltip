@@ -28,6 +28,11 @@ import {
   scrollToLandingSection,
 } from '@/lib/landing/scroll-to-section'
 import { NAV_SIGN_IN, NAV_START_WRITING } from '@/lib/copy/nav-cta'
+import { WALLET_GUIDE_LABEL } from '@/lib/copy/launch-guide'
+import {
+  NAV_RESOURCES_FEATURED_DESCRIPTION,
+  NAV_WALLET_GUIDE_DESCRIPTION,
+} from '@/lib/copy/landing-sections'
 
 const MOBILE_MENU_CLOSE_MS = 280
 
@@ -98,7 +103,7 @@ const navDropdowns: NavDropdown[] = [
     label: 'Resources',
     featured: {
       title: 'Getting Started',
-      description: 'Set up a testnet wallet and practice tipping.',
+      description: NAV_RESOURCES_FEATURED_DESCRIPTION,
       href: '/guide',
       bgClass: 'bg-gradient-to-br from-muted/60 to-muted',
       icon: BookOpen,
@@ -109,8 +114,8 @@ const navDropdowns: NavDropdown[] = [
         items: [
           {
             icon: FileText,
-            title: 'Wallet Guide',
-            description: 'Set up Freighter wallet',
+            title: WALLET_GUIDE_LABEL,
+            description: NAV_WALLET_GUIDE_DESCRIPTION,
             href: '/guide',
           },
           {
