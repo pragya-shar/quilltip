@@ -104,36 +104,18 @@ export function truncateText(text: string, maxLength: number = 100): string {
   return text.slice(0, maxLength) + '...'
 }
 
-/** Heat intensity palette: light cream → sky blue → navy → Quilltip primary. */
+/** Heat intensity palette tokens defined in app/globals.css. */
 export const HEATMAP_PALETTE = [
-  '#E6E6C3',
-  '#7FB3D5',
-  '#003366',
-  '#1a365d',
+  'var(--heatmap-0)',
+  'var(--heatmap-1)',
+  'var(--heatmap-2)',
+  'var(--heatmap-3)',
 ] as const
 
 const HEATMAP_FALLBACK_COLOR = HEATMAP_PALETTE[0]!
 
-export const HEATMAP_GRADIENT_CSS = `linear-gradient(to right, ${HEATMAP_PALETTE.join(', ')})`
-
-function hexToRgb(hex: string): [number, number, number] {
-  const normalized = hex.replace('#', '')
-  return [
-    parseInt(normalized.slice(0, 2), 16),
-    parseInt(normalized.slice(2, 4), 16),
-    parseInt(normalized.slice(4, 6), 16),
-  ]
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  return `#${[r, g, b]
-    .map((channel) =>
-      Math.round(Math.max(0, Math.min(255, channel)))
-        .toString(16)
-        .padStart(2, '0')
-    )
-    .join('')}`
-}
+/** Use `var(--heatmap-gradient)` in inline styles, defined in app/globals.css. */
+export const HEATMAP_GRADIENT_CSS = 'var(--heatmap-gradient)'
 
 function interpolateHeatmapPalette(intensity: number): string {
   const clamped = Math.max(0, Math.min(intensity, 1))
@@ -145,10 +127,13 @@ function interpolateHeatmapPalette(intensity: number): string {
   const lowerColor = HEATMAP_PALETTE[lowerIndex] ?? HEATMAP_FALLBACK_COLOR
   const upperColor = HEATMAP_PALETTE[upperIndex] ?? HEATMAP_FALLBACK_COLOR
 
-  const [r1, g1, b1] = hexToRgb(lowerColor)
-  const [r2, g2, b2] = hexToRgb(upperColor)
+  if (t === 0 || lowerColor === upperColor) {
+    return lowerColor
+  }
 
-  return rgbToHex(r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t)
+  return `color-mix(in srgb, ${lowerColor} ${Math.round(
+    (1 - t) * 100
+  )}%, ${upperColor})`
 }
 
 /**
@@ -156,10 +141,10 @@ function interpolateHeatmapPalette(intensity: number): string {
  *
  * @param amount - Current tip amount in cents
  * @param maxAmount - Maximum tip amount in dataset
- * @returns Hex color for bars and heat indicators
+ * @returns CSS color value for bars and heat indicators
  */
 export function getHeatmapColor(amount: number, maxAmount: number): string {
-  if (maxAmount === 0) return HEATMAP_PALETTE[0]
+  if (maxAmount <= 0) return HEATMAP_PALETTE[0]
 
   const intensity = Math.min(amount / maxAmount, 1)
   return interpolateHeatmapPalette(intensity)
