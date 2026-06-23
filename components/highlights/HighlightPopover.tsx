@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter, MessageSquare, Lock, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { HighlightTipButton } from './HighlightTipButton'
 import { Id } from '@/convex/_generated/dataModel'
 import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
@@ -232,13 +233,14 @@ export function HighlightPopover({
 
           <div className="flex gap-2 mb-3">
             {isAuthenticated && (
-              <button
+              <Button
+                type="button"
                 onClick={handleSaveHighlight}
-                className="highlight-action-button flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 flex items-center justify-center"
+                className="highlight-action-button flex-1"
               >
                 <Highlighter className="w-4 h-4 mr-2" />
                 <span>Save</span>
-              </button>
+              </Button>
             )}
 
             {articleId &&

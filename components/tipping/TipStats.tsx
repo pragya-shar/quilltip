@@ -38,14 +38,14 @@ export function TipStats({ articleId, className = '' }: TipStatsProps) {
       className={`flex items-center gap-4 text-sm text-muted-foreground ${className}`}
     >
       <div className="flex items-center gap-1">
-        <Coins className="w-4 h-4 text-yellow-500" />
+        <Coins className="w-4 h-4 text-muted-foreground" />
         <span className="font-medium">
           ${(stats?.totalAmountUsd ?? 0).toFixed(2)}
         </span>
         <span>earned</span>
       </div>
       <div className="flex items-center gap-1">
-        <Users className="w-4 h-4 text-blue-500" />
+        <Users className="w-4 h-4 text-muted-foreground" />
         <span className="font-medium">{stats?.uniqueTippers ?? 0}</span>
         <span>
           {(stats?.uniqueTippers ?? 0) === 1 ? 'supporter' : 'supporters'}

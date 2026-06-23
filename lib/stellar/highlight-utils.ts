@@ -104,40 +104,48 @@ export function truncateText(text: string, maxLength: number = 100): string {
   return text.slice(0, maxLength) + '...'
 }
 
+/** Heat intensity palette tokens defined in app/globals.css. */
+export const HEATMAP_PALETTE = [
+  'var(--heatmap-0)',
+  'var(--heatmap-1)',
+  'var(--heatmap-2)',
+  'var(--heatmap-3)',
+] as const
+
+const HEATMAP_FALLBACK_COLOR = HEATMAP_PALETTE[0]!
+
+/** Use `var(--heatmap-gradient)` in inline styles, defined in app/globals.css. */
+export const HEATMAP_GRADIENT_CSS = 'var(--heatmap-gradient)'
+
+function interpolateHeatmapPalette(intensity: number): string {
+  const clamped = Math.max(0, Math.min(intensity, 1))
+  const scaled = clamped * (HEATMAP_PALETTE.length - 1)
+  const lowerIndex = Math.floor(scaled)
+  const upperIndex = Math.min(lowerIndex + 1, HEATMAP_PALETTE.length - 1)
+  const t = scaled - lowerIndex
+
+  const lowerColor = HEATMAP_PALETTE[lowerIndex] ?? HEATMAP_FALLBACK_COLOR
+  const upperColor = HEATMAP_PALETTE[upperIndex] ?? HEATMAP_FALLBACK_COLOR
+
+  if (t === 0 || lowerColor === upperColor) {
+    return lowerColor
+  }
+
+  return `color-mix(in srgb, ${lowerColor} ${Math.round(
+    (1 - t) * 100
+  )}%, ${upperColor})`
+}
+
 /**
- * Get color intensity for heatmap visualization
- * Based on tip amount relative to max amount
+ * Map tip amount to a heat color from the Quilltip heat palette.
  *
- * @param amount - Current tip amount
+ * @param amount - Current tip amount in cents
  * @param maxAmount - Maximum tip amount in dataset
- * @returns RGB color string
+ * @returns CSS color value for bars and heat indicators
  */
 export function getHeatmapColor(amount: number, maxAmount: number): string {
-  if (maxAmount === 0) return 'rgb(255, 255, 200)' // Light yellow for zero
+  if (maxAmount <= 0) return HEATMAP_PALETTE[0]
 
   const intensity = Math.min(amount / maxAmount, 1)
-
-  // Helper to clamp RGB values between 0-255
-  const clamp = (value: number) => Math.max(0, Math.min(255, Math.floor(value)))
-
-  // Color gradient: Yellow (low) → Orange → Red (high)
-  if (intensity < 0.33) {
-    // Yellow to light orange
-    const r = 255
-    const g = clamp(255 - intensity * 3 * 100)
-    const b = 150
-    return `rgb(${r}, ${g}, ${b})`
-  } else if (intensity < 0.66) {
-    // Orange
-    const r = 255
-    const g = clamp(200 - (intensity - 0.33) * 3 * 100)
-    const b = 100
-    return `rgb(${r}, ${g}, ${b})`
-  } else {
-    // Red
-    const r = 255
-    const g = clamp(100 - (intensity - 0.66) * 3 * 100)
-    const b = 50
-    return `rgb(${r}, ${g}, ${b})`
-  }
+  return interpolateHeatmapPalette(intensity)
 }

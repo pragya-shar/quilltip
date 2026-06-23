@@ -152,6 +152,17 @@
   --popover-foreground: #202124;
   --primary: #1a365d;
   --primary-foreground: #fefefe;
+  --heatmap-0: #e6e6c3;
+  --heatmap-1: #7fb3d5;
+  --heatmap-2: #003366;
+  --heatmap-3: #1a365d;
+  --heatmap-gradient: linear-gradient(
+    to right,
+    var(--heatmap-0),
+    var(--heatmap-1),
+    var(--heatmap-2),
+    var(--heatmap-3)
+  );
   --secondary: #f1f3f4;
   --secondary-foreground: #202124;
   --muted: #f1f3f4;
@@ -188,6 +199,19 @@
   --warning-foreground: oklch(0.45 0.14 85);
   --info: oklch(0.965 0.03 240);
   --info-foreground: oklch(0.48 0.17 240);
+
+  /*
+   * Monetization status mapping (reader-facing tip, highlight, NFT surfaces):
+   * - Wallet not connected: bg-warning text-warning-foreground border-warning/30
+   * - Tip / upload success: bg-success text-success-foreground
+   * - Pending / uploading / info: bg-info text-info-foreground
+   * - Section icons / quiet stats: text-muted-foreground
+   * - Heat intensity bars: --heatmap-gradient (cream → sky → navy → primary)
+   * - NFT progress emphasis: bg-primary/50 on bg-muted track
+   * - Errors: destructive variant
+   * Wallet/NFT accent: reuse --primary (no separate monetization token).
+   * See docs/design-system/monetization-status-colors.md
+   */
 
   /*
    * Landing semantic tokens
@@ -608,6 +632,8 @@
   --popover-foreground: #f8f9fa;
   --primary: #e8eaed;
   --primary-foreground: #202124;
+  --heatmap-2: #7fb3d5;
+  --heatmap-3: #e8eaed;
   --secondary: #3c4043;
   --secondary-foreground: #f8f9fa;
   --muted: #3c4043;

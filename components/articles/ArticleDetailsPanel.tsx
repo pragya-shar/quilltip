@@ -87,7 +87,7 @@ export function ArticleDetailsPanel({
 
             <DetailsSection>
               <h4 className="text-sm font-medium flex items-center gap-2 mb-4">
-                <Trophy className="w-4 h-4 text-purple-500" />
+                <Trophy className="w-4 h-4 text-muted-foreground" />
                 NFT Collection
               </h4>
               <NFTIntegration
@@ -110,7 +110,7 @@ export function ArticleDetailsPanel({
 
             <DetailsSection>
               <h4 className="text-sm font-medium flex items-center gap-2 mb-4">
-                <MessageSquare className="w-4 h-4 text-blue-500" />
+                <MessageSquare className="w-4 h-4 text-muted-foreground" />
                 Highlight Notes
                 {noteCount > 0 && (
                   <span className="px-2 py-0.5 bg-primary/15 text-primary text-xs rounded-full">
@@ -138,7 +138,7 @@ export function ArticleDetailsPanel({
             {tipStats && (
               <DetailsSection>
                 <h4 className="text-sm font-medium flex items-center gap-2 mb-4">
-                  <DollarSign className="w-4 h-4 text-green-500" />
+                  <DollarSign className="w-4 h-4 text-muted-foreground" />
                   Article Stats
                 </h4>
                 <div className="space-y-3">
@@ -159,7 +159,7 @@ export function ArticleDetailsPanel({
             {arweaveStatus && (
               <DetailsSection>
                 <h4 className="text-sm font-medium flex items-center gap-2 mb-4">
-                  <Archive className="w-4 h-4 text-blue-500" />
+                  <Archive className="w-4 h-4 text-muted-foreground" />
                   Permanent Storage
                 </h4>
                 <ArweaveStatus

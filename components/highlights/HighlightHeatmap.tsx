@@ -2,10 +2,15 @@
 
 import { useArticleHighlightTipStats } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
-import { getHeatmapColor, formatTipAmount } from '@/lib/stellar/highlight-utils'
+import {
+  HEATMAP_GRADIENT_CSS,
+  getHeatmapColor,
+  formatTipAmount,
+} from '@/lib/stellar/highlight-utils'
 import { Flame, TrendingUp, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMemo, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
 
 interface HighlightHeatmapProps {
   articleId: Id<'articles'>
@@ -65,7 +70,7 @@ export function HighlightHeatmap({
               embedded ? 'text-sm font-medium' : 'text-lg font-semibold'
             )}
           >
-            <Flame className="w-5 h-5 text-orange-500" />
+            <Flame className="w-5 h-5 text-muted-foreground" />
             Highlight Heatmap
           </h3>
 
@@ -117,13 +122,13 @@ export function HighlightHeatmap({
             {window === 'all'
               ? isAuthor
                 ? 'No highlight tips yet'
-                : 'Be the first to tip a highlight!'
+                : 'No highlighted passages supported yet'
               : `No highlight tips in the last ${windowLabel}`}
           </p>
           <p className="text-foreground/85 text-xs">
             {isAuthor
               ? 'Readers can highlight specific phrases and tip them directly'
-              : 'Select text to highlight and add a tip to your favorite phrases'}
+              : 'Highlight a passage you valued and choose an amount to support it'}
           </p>
         </div>
 
@@ -131,8 +136,8 @@ export function HighlightHeatmap({
         {!isAuthor && (
           <div className="mt-4 p-4 rounded-lg border border-border bg-muted">
             <p className="text-sm text-foreground">
-              <strong>How it works:</strong> Select any text in the article,
-              then click the tip button to support specific phrases you love!
+              <strong>How it works:</strong> Highlight a passage you valued and
+              choose an amount to support it.
             </p>
           </div>
         )}
@@ -154,7 +159,7 @@ export function HighlightHeatmap({
             embedded ? 'text-sm font-medium' : 'text-lg font-semibold'
           )}
         >
-          <Flame className="w-5 h-5 text-orange-500" />
+          <Flame className="w-5 h-5 text-muted-foreground" />
           Highlight Heatmap
         </h3>
 
@@ -233,7 +238,7 @@ export function HighlightHeatmap({
           {stats.topHighlights.map((highlight, index: number) => {
             const intensity =
               maxAmount > 0 ? highlight.totalAmountCents / maxAmount : 0
-            const bgColor = getHeatmapColor(
+            const heatColor = getHeatmapColor(
               highlight.totalAmountCents,
               maxAmount
             )
@@ -241,20 +246,16 @@ export function HighlightHeatmap({
             return (
               <div
                 key={highlight.highlightId}
-                className="p-3 rounded-lg border transition-all hover:shadow-md"
-                style={{
-                  backgroundColor: `${bgColor}20`, // 20% opacity
-                  borderColor: bgColor,
-                }}
+                className="p-3 rounded-lg border border-border bg-muted/50 transition-colors hover:bg-muted/80"
               >
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="flex items-center gap-2">
-                    <span
-                      className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white"
-                      style={{ backgroundColor: bgColor }}
+                    <Badge
+                      variant="secondary"
+                      className="h-6 w-6 justify-center p-0 text-xs"
                     >
                       {index + 1}
-                    </span>
+                    </Badge>
                     <span className="text-xs text-muted-foreground">
                       {highlight.tipCount} tip
                       {highlight.tipCount > 1 ? 's' : ''}
@@ -269,13 +270,12 @@ export function HighlightHeatmap({
                   &ldquo;{highlight.text}&rdquo;
                 </p>
 
-                {/* Intensity bar */}
                 <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{
                       width: `${intensity * 100}%`,
-                      backgroundColor: bgColor,
+                      backgroundColor: heatColor,
                     }}
                   />
                 </div>
@@ -294,9 +294,7 @@ export function HighlightHeatmap({
           <span className="text-xs text-muted-foreground">Low</span>
           <div
             className="flex-1 h-3 rounded-full"
-            style={{
-              background: `linear-gradient(to right, ${getHeatmapColor(0, 100)}, ${getHeatmapColor(33, 100)}, ${getHeatmapColor(66, 100)}, ${getHeatmapColor(100, 100)})`,
-            }}
+            style={{ background: HEATMAP_GRADIENT_CSS }}
           />
           <span className="text-xs text-muted-foreground">High</span>
         </div>

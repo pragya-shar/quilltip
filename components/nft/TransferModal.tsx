@@ -196,20 +196,20 @@ export function TransferModal({
 
   const messageBannerClass =
     transferMessage.kind === 'success'
-      ? 'bg-green-50 text-green-700 dark:bg-green-950/50 dark:text-green-200'
+      ? 'bg-success text-success-foreground'
       : transferMessage.kind === 'error'
-        ? 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-200'
+        ? 'bg-destructive/10 text-destructive'
         : transferMessage.kind === 'progress'
-          ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200'
+          ? 'bg-info text-info-foreground'
           : ''
 
   const messageIcon =
     transferMessage.kind === 'progress' ? (
       <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
     ) : transferMessage.kind === 'success' ? (
-      <CheckCircle className="h-4 w-4 shrink-0 text-green-500" />
+      <CheckCircle className="h-4 w-4 shrink-0" />
     ) : transferMessage.kind === 'error' ? (
-      <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
+      <AlertCircle className="h-4 w-4 shrink-0" />
     ) : null
 
   const irreversibleWarning = `You are transferring ownership of the NFT for "${articleTitle}" to @${recipientUsername}. This cannot be undone.`
@@ -381,7 +381,6 @@ export function TransferModal({
                   transferMessage.kind === 'success' ||
                   !recipientUsername.trim()
                 }
-                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
               >
                 <Send className="mr-2 h-4 w-4" aria-hidden />
                 Review transfer
@@ -392,7 +391,6 @@ export function TransferModal({
                 onClick={() => void handleTransfer()}
                 disabled={isBusy || transferMessage.kind === 'success'}
                 aria-busy={isBusy}
-                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
               >
                 {isBusy ? (
                   <>
