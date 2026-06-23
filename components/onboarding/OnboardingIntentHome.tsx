@@ -146,8 +146,7 @@ export function OnboardingIntentHome() {
                     width={image.imageWidth}
                     height={image.imageHeight}
                     className={
-                      image.imageClassName ??
-                      'h-[5.5rem] w-auto object-contain'
+                      image.imageClassName ?? 'h-[5.5rem] w-auto object-contain'
                     }
                   />
                 </div>

@@ -14,15 +14,15 @@ Use "moves you" consistently — not "resonates."
 
 ## Approved CTA labels
 
-| Action | Label | Surfaces |
-|--------|-------|----------|
-| Start reading | Start Reading | Hero, reader paths |
-| Start writing | Start Writing | Nav, hero, how-it-works bottom CTA |
-| Sign in | Sign In | Nav, auth |
-| Create account | Create account | Register default |
-| Wallet resource | Wallet Guide | Nav, footer, auth links (title case) |
-| Wallet setup action | Set up wallet | Onboarding cards, dashboard wallet card |
-| Try testnet | Try on Testnet | App nav (logged-out public shell) |
+| Action              | Label          | Surfaces                                |
+| ------------------- | -------------- | --------------------------------------- |
+| Start reading       | Start Reading  | Hero, reader paths                      |
+| Start writing       | Start Writing  | Nav, hero, how-it-works bottom CTA      |
+| Sign in             | Sign In        | Nav, auth                               |
+| Create account      | Create account | Register default                        |
+| Wallet resource     | Wallet Guide   | Nav, footer, auth links (title case)    |
+| Wallet setup action | Set up wallet  | Onboarding cards, dashboard wallet card |
+| Try testnet         | Try on Testnet | App nav (logged-out public shell)       |
 
 ## Tipping vocabulary
 
@@ -33,11 +33,11 @@ Use "moves you" consistently — not "resonates."
 
 ## Testnet explanation tiers
 
-| Tier | Where | Example |
-|------|-------|---------|
-| Badge | Footer, features section | Testnet — practice funds only |
-| One-liner | Features badge only on landing (no duplicate paragraph) | Live on Stellar Testnet badge |
-| Deep | FAQ (dedicated question), guide tabs, wallet settings | Freighter, XLM, Soroban detail |
+| Tier      | Where                                                   | Example                        |
+| --------- | ------------------------------------------------------- | ------------------------------ |
+| Badge     | Footer, features section                                | Testnet — practice funds only  |
+| One-liner | Features badge only on landing (no duplicate paragraph) | Live on Stellar Testnet badge  |
+| Deep      | FAQ (dedicated question), guide tabs, wallet settings   | Freighter, XLM, Soroban detail |
 
 Do not repeat the full `practiceFundsNote()` paragraph on landing trust section or features subhead when the badge is present.
 

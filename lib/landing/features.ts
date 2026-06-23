@@ -14,12 +14,7 @@ export interface LandingFeature {
   href: string
 }
 
-const FEATURE_ICONS: LucideIcon[] = [
-  MessageSquare,
-  DollarSign,
-  Edit3,
-  Shield,
-]
+const FEATURE_ICONS: LucideIcon[] = [MessageSquare, DollarSign, Edit3, Shield]
 
 export const LANDING_FEATURES: LandingFeature[] = LANDING_FEATURE_COPY.map(
   (feature, index) => {

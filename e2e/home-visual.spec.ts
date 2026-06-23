@@ -90,10 +90,9 @@ test.describe('landing nav hash navigation', () => {
     await assertRevealContentVisible(page, '#how-it-works')
 
     await page.getByRole('button', { name: 'Resources' }).hover()
-    await expect(page.getByRole('button', { name: 'Resources' })).toHaveAttribute(
-      'aria-expanded',
-      'true'
-    )
+    await expect(
+      page.getByRole('button', { name: 'Resources' })
+    ).toHaveAttribute('aria-expanded', 'true')
     await page.getByRole('link', { name: 'FAQ' }).click()
     await page.waitForTimeout(900)
     await expect(
