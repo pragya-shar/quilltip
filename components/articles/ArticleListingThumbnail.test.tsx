@@ -3,13 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/image', () => ({
-  default: function MockImage({
-    alt,
-    src,
-  }: {
-    alt: string
-    src: string
-  }) {
+  default: function MockImage({ alt, src }: { alt: string; src: string }) {
     // eslint-disable-next-line @next/next/no-img-element -- test mock for next/image
     return <img alt={alt} src={src} />
   },
