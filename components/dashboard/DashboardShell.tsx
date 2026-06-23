@@ -6,6 +6,7 @@ import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthent
 import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import { DashboardTabBar } from '@/components/dashboard/DashboardTabBar'
+import { DashboardShellSkeleton } from '@/components/dashboard/DashboardShellSkeleton'
 import {
   DASHBOARD_TAB_IDS,
   type DashboardTabId,
@@ -36,6 +37,19 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated && !isLoading) {
     return null
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <AppNavigation />
+
+        <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 w-full min-w-0">
+          <DashboardShellSkeleton />
+        </main>
+        <SiteFooter variant="default" />
+      </div>
+    )
   }
 
   return (

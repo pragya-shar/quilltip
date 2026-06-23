@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/components/providers/AuthContext'
-import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 import Link from 'next/link'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { useMutation } from 'convex/react'
@@ -31,13 +30,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Loader2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { Loader2, MoreHorizontal, Pencil, Trash2, FileText } from 'lucide-react'
 import { mutationWithTimeout } from '@/lib/convexMutationWithTimeout'
+import { ProtectedPageShell } from '@/components/layout/ProtectedPageShell'
+import { RouteEmptyState } from '@/components/ui/route-empty-state'
 
 export default function DraftsPage() {
   const { isAuthenticated, isLoading } = useAuth()
-
-  useRedirectWhenUnauthenticated(isLoading, isAuthenticated)
 
   const draftsQuery = useUserDrafts()
   const loading = draftsQuery === undefined
@@ -63,25 +62,6 @@ export default function DraftsPage() {
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-muted/30">
-        <AppNavigation />
-        <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-8">
-            <Skeleton className="h-9 w-48" />
-            <Skeleton className="h-10 w-32" />
-          </div>
-          <DraftsListSkeleton />
-        </div>
-      </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return null
-  }
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-US', {
@@ -94,7 +74,21 @@ export default function DraftsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <ProtectedPageShell
+      isLoading={isLoading}
+      isAuthenticated={isAuthenticated}
+      shellClassName="min-h-screen bg-muted/30"
+      loadingContent={
+        <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-8">
+            <Skeleton className="h-9 w-48" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+          <DraftsListSkeleton />
+        </div>
+      }
+    >
+      <div className="min-h-screen bg-muted/30">
       <AppNavigation />
       <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-8">
@@ -110,15 +104,12 @@ export default function DraftsPage() {
         {loading ? (
           <DraftsListSkeleton />
         ) : drafts.length === 0 ? (
-          <div className="text-center py-12 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)]">
-            <div className="text-muted-foreground mb-4">No drafts yet</div>
-            <Link
-              href="/write"
-              className="text-primary hover:text-primary/80 font-medium"
-            >
-              Start writing your first article →
-            </Link>
-          </div>
+          <RouteEmptyState
+            icon={FileText}
+            title="No drafts yet"
+            description="Saved drafts appear here while you work on an article."
+            action={{ label: 'Start a draft', href: '/write' }}
+          />
         ) : (
           <div className="space-y-4">
             {drafts.map((draft) => (
@@ -274,6 +265,7 @@ export default function DraftsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </div>
+    </ProtectedPageShell>
   )
 }

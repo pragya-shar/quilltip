@@ -1,7 +1,9 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
+import { Button } from '@/components/ui/button'
 import type { Doc } from '@/types/convex'
 
 export type ReceivedTipRow = Doc<'tips'> & {
@@ -322,11 +324,14 @@ export function TipHistory({ tips }: TipHistoryProps) {
           </div>
         </>
       ) : (
-        <div className="flex min-h-[12rem] flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+        <div className="flex min-h-[12rem] flex-col items-center justify-center gap-3 px-6 py-10 text-center">
           <p className="font-medium text-foreground">No tips yet</p>
           <p className="max-w-sm text-sm text-muted-foreground">
             When readers tip your work, they will show up here.
           </p>
+          <Button asChild className="mt-2">
+            <Link href="/write">Write an article</Link>
+          </Button>
         </div>
       )}
     </div>

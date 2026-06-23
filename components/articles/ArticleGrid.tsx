@@ -1,14 +1,16 @@
 import ArticleCard from './ArticleCard'
 import ArticleFeedRow from './ArticleFeedRow'
 import { ArticleForDisplay } from '@/types/index'
-import Link from 'next/link'
 import { BookOpen } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { RouteEmptyState } from '@/components/ui/route-empty-state'
 import type { BrowseView } from '@/lib/articles/browseDiscovery'
 
 export type ArticleGridEmptyState = {
   hasSearch: boolean
   hasFilters: boolean
+  searchTerm?: string
+  activeTag?: string
+  activeAuthor?: string
   onClearSearch?: () => void
   onClearAll?: () => void
 }
@@ -20,6 +22,66 @@ interface ArticleGridProps {
   onArticleNavigate?: () => void
   tagLinkAuthor?: string
   emptyState?: ArticleGridEmptyState
+}
+
+function getBrowseEmptyContent(emptyState?: ArticleGridEmptyState): {
+  title: string
+  description: string
+  primaryLabel: string
+  onPrimary: (() => void) | undefined
+  primaryHref: string | undefined
+} {
+  const hasSearch = Boolean(emptyState?.hasSearch)
+  const hasTagOrAuthor = Boolean(
+    emptyState?.activeTag?.trim() || emptyState?.activeAuthor?.trim()
+  )
+  const searchTerm = emptyState?.searchTerm?.trim() ?? ''
+
+  if (hasSearch && hasTagOrAuthor) {
+    const filterParts = [
+      emptyState?.activeTag ? `tag "${emptyState.activeTag}"` : null,
+      emptyState?.activeAuthor ? `author "${emptyState.activeAuthor}"` : null,
+    ].filter(Boolean)
+    return {
+      title: `No results for "${searchTerm}"`,
+      description: `No articles match your search with ${filterParts.join(' and ')}. Try another term or clear everything.`,
+      primaryLabel: 'Clear all',
+      onPrimary: emptyState?.onClearAll,
+      primaryHref: undefined,
+    }
+  }
+
+  if (hasSearch) {
+    return {
+      title: `No results for "${searchTerm}"`,
+      description: 'Try a different term or clear your search.',
+      primaryLabel: 'Clear search',
+      onPrimary: emptyState?.onClearSearch,
+      primaryHref: undefined,
+    }
+  }
+
+  if (hasTagOrAuthor) {
+    const filterParts = [
+      emptyState?.activeTag ? `tag "${emptyState.activeTag}"` : null,
+      emptyState?.activeAuthor ? `author "${emptyState.activeAuthor}"` : null,
+    ].filter(Boolean)
+    return {
+      title: 'No articles match these filters',
+      description: `No articles found for ${filterParts.join(' and ')}. Try different filters or clear them.`,
+      primaryLabel: 'Clear filters',
+      onPrimary: emptyState?.onClearAll,
+      primaryHref: undefined,
+    }
+  }
+
+  return {
+    title: 'No articles yet',
+    description: 'Check back soon for new stories from writers on Quilltip.',
+    primaryLabel: 'Browse latest',
+    onPrimary: undefined,
+    primaryHref: '/articles',
+  }
 }
 
 export default function ArticleGrid({
@@ -34,58 +96,32 @@ export default function ArticleGrid({
     if (variant === 'home') {
       return (
         <div className="text-center py-12">
-          <div className="max-w-sm mx-auto">
-            <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-1">
-              No articles in your feed yet
-            </h3>
-            <p className="text-muted-foreground mb-6">
-              Browse articles or write your first story.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
-                href="/articles"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4"
-              >
-                Browse articles
-              </Link>
-              <Link
-                href="/write"
-                className="inline-flex items-center justify-center rounded-md text-sm font-medium bg-muted text-foreground hover:bg-muted/80 h-9 px-4 border border-border"
-              >
-                Write your first article
-              </Link>
-            </div>
-          </div>
+          <RouteEmptyState
+            icon={BookOpen}
+            title="No articles in your feed yet"
+            description="Write your first story or browse what others have published."
+            action={{ label: 'Write your first article', href: '/write' }}
+            secondaryAction={{ label: 'Browse articles', href: '/articles' }}
+          />
         </div>
       )
     }
 
+    const browseEmpty = getBrowseEmptyContent(emptyState)
     return (
       <div className="text-center py-12">
-        <div className="max-w-sm mx-auto rounded-[var(--card-radius)] border border-border bg-card px-6 py-10 shadow-[var(--card-shadow)]">
-          <BookOpen className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium text-foreground mb-1">
-            No articles found
-          </h3>
-          <p className="text-muted-foreground mb-6">
-            {emptyState?.hasSearch
-              ? 'No articles match your search. Try a different term or clear your search.'
-              : "Try adjusting your search or filters to find what you're looking for."}
-          </p>
-          {emptyState?.hasSearch && emptyState.onClearSearch && (
-            <Button type="button" onClick={emptyState.onClearSearch}>
-              Clear search
-            </Button>
-          )}
-          {!emptyState?.hasSearch &&
-            emptyState?.hasFilters &&
-            emptyState.onClearAll && (
-              <Button type="button" onClick={emptyState.onClearAll}>
-                Clear filters
-              </Button>
-            )}
-        </div>
+        <RouteEmptyState
+          icon={BookOpen}
+          title={browseEmpty.title}
+          description={browseEmpty.description}
+          action={
+            browseEmpty.onPrimary
+              ? { label: browseEmpty.primaryLabel, onClick: browseEmpty.onPrimary }
+              : browseEmpty.primaryHref
+                ? { label: browseEmpty.primaryLabel, href: browseEmpty.primaryHref }
+                : undefined
+          }
+        />
       </div>
     )
   }
