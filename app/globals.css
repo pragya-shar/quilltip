@@ -618,7 +618,9 @@
   --color-collectible: var(--collectible);
   --color-collectible-foreground: var(--collectible-foreground);
   --color-collectible-emphasis: var(--collectible-emphasis);
-  --color-collectible-emphasis-foreground: var(--collectible-emphasis-foreground);
+  --color-collectible-emphasis-foreground: var(
+    --collectible-emphasis-foreground
+  );
   --color-gradient-brand-from: var(--gradient-brand-from);
   --color-gradient-brand-to: var(--gradient-brand-to);
   --color-gradient-collectible-from: var(--gradient-collectible-from);

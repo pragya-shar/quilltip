@@ -274,9 +274,7 @@ export default function ShareButtons({
               {copied ? (
                 <>
                   <Check className="h-4 w-4 text-success-foreground" />
-                  <span className="text-success-foreground">
-                    Copied!
-                  </span>
+                  <span className="text-success-foreground">Copied!</span>
                 </>
               ) : (
                 <>

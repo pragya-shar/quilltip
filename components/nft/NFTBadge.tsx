@@ -40,9 +40,15 @@ function rarityToVariant(tier: RarityTier): CollectibleVariant {
   return 'collectible-muted'
 }
 
-function getRarityFromTips(tips?: number, rarityProp?: NFTBadgeProps['rarity']) {
+function getRarityFromTips(
+  tips?: number,
+  rarityProp?: NFTBadgeProps['rarity']
+) {
   if (rarityProp) {
-    const labels: Record<Exclude<NFTBadgeProps['rarity'], undefined>, string> = {
+    const labels: Record<
+      Exclude<NFTBadgeProps['rarity'], undefined>,
+      string
+    > = {
       legendary: 'Legendary',
       epic: 'Epic',
       rare: 'Rare',
