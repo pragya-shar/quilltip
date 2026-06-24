@@ -1,6 +1,5 @@
 import { formatDistanceToNow } from 'date-fns'
 
-export const LISTING_EXCERPT_CLAMP = 2
 export const LISTING_FEED_TAG_LIMIT = 2
 export const LISTING_CARD_TAG_LIMIT = 3
 

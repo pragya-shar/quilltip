@@ -27,6 +27,7 @@ export function ArticleListingThumbnail({
       <Link
         href={href}
         scroll={false}
+        aria-label={coverImage ? undefined : title}
         className={cn(
           'focus-ring relative shrink-0 overflow-hidden bg-muted',
           'h-[72px] w-[72px] rounded-sm sm:h-[112px] sm:w-[112px]'
@@ -56,6 +57,7 @@ export function ArticleListingThumbnail({
     <Link
       href={href}
       scroll={false}
+      aria-label={coverImage ? undefined : title}
       className="focus-ring block rounded-t-[var(--card-radius)]"
       onPointerDown={() => onNavigate?.()}
       onClick={() => onNavigate?.()}

@@ -39,9 +39,13 @@ describe('ArticleListingThumbnail', () => {
 
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
     expect(screen.getByText('He')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Hello World' })).toHaveAttribute(
+      'href',
+      '/author/slug'
+    )
   })
 
-  it('links to article href', () => {
+  it('labels card monogram links with the article title', () => {
     render(
       <ArticleListingThumbnail
         title="Hello World"
@@ -50,6 +54,9 @@ describe('ArticleListingThumbnail', () => {
       />
     )
 
-    expect(screen.getByRole('link')).toHaveAttribute('href', '/author/my-slug')
+    expect(screen.getByRole('link', { name: 'Hello World' })).toHaveAttribute(
+      'href',
+      '/author/my-slug'
+    )
   })
 })

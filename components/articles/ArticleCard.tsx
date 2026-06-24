@@ -10,14 +10,12 @@ import {
   getListingPublishedDateTime,
   LISTING_CARD_TAG_LIMIT,
 } from '@/lib/articles/articleListingMeta'
-import type { BrowseView } from '@/lib/articles/browseDiscovery'
 
 interface ArticleCardProps {
   article: ArticleForDisplay
   priority?: boolean
   onArticleNavigate?: () => void
   tagLinkAuthor?: string
-  view?: BrowseView
 }
 
 export default function ArticleCard({

@@ -117,7 +117,6 @@ export default function ArticleGrid({
           priority={index === 0}
           onArticleNavigate={onArticleNavigate}
           tagLinkAuthor={tagLinkAuthor}
-          view={view}
         />
       ))}
     </div>
