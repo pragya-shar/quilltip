@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import type { Doc } from '@/types/convex'
+import { Card, CardContent } from '@/components/ui/card'
 
 export type ReceivedTipRow = Doc<'tips'> & {
   tipper: { name?: string; username?: string } | null
@@ -154,7 +155,8 @@ export function TipHistory({ tips }: TipHistoryProps) {
   }
 
   return (
-    <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border">
+    <Card variant="quiet" className="overflow-hidden">
+      <CardContent className="p-0">
       <div className="p-6 border-b border-border">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-semibold">Recent Tips</h3>
@@ -329,6 +331,7 @@ export function TipHistory({ tips }: TipHistoryProps) {
           </p>
         </div>
       )}
-    </div>
+      </CardContent>
+    </Card>
   )
 }

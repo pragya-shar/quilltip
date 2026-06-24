@@ -39,16 +39,12 @@ describe('WalletGuide tabs', () => {
     ).toBeInTheDocument()
   })
 
-  it('uses a 2×2 grid on mobile and a single row on larger screens', () => {
+  it('uses underline tab navigation', () => {
     render(<WalletGuide />)
     const list = screen.getByLabelText('Wallet setup steps')
-    expect(list.className).toContain('grid-cols-2')
-    expect(list.className).toContain('sm:grid-cols-4')
-  })
-
-  it('allows tab labels to wrap', () => {
-    render(<WalletGuide />)
+    expect(list.className).toContain('border-b')
     const trigger = screen.getByRole('tab', { name: 'What is a Wallet?' })
+    expect(trigger.className).toContain('border-b-2')
     expect(trigger.className).toContain('whitespace-normal')
   })
 

@@ -30,6 +30,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Card } from '@/components/ui/card'
+import { WorkspaceSurface } from '@/components/layout/WorkspaceSurface'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Loader2, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { mutationWithTimeout } from '@/lib/convexMutationWithTimeout'
@@ -67,13 +69,13 @@ export default function DraftsPage() {
     return (
       <div className="min-h-screen bg-muted/30">
         <AppNavigation />
-        <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
+        <WorkspaceSurface>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-8">
             <Skeleton className="h-9 w-48" />
             <Skeleton className="h-10 w-32" />
           </div>
           <DraftsListSkeleton />
-        </div>
+        </WorkspaceSurface>
       </div>
     )
   }
@@ -96,7 +98,7 @@ export default function DraftsPage() {
   return (
     <div className="min-h-screen bg-muted/30">
       <AppNavigation />
-      <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
+      <WorkspaceSurface>
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-8">
           <h1 className="text-3xl font-bold text-foreground">Your Drafts</h1>
           <Link
@@ -110,7 +112,7 @@ export default function DraftsPage() {
         {loading ? (
           <DraftsListSkeleton />
         ) : drafts.length === 0 ? (
-          <div className="text-center py-12 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)]">
+          <div className="text-center py-12">
             <div className="text-muted-foreground mb-4">No drafts yet</div>
             <Link
               href="/write"
@@ -118,14 +120,18 @@ export default function DraftsPage() {
             >
               Start writing your first article →
             </Link>
+            <p className="mt-6 text-sm text-muted-foreground max-w-md mx-auto">
+              {AUTO_SAVE_GUIDANCE} Delete drafts you no longer need to keep your
+              workspace clean.
+            </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <Card
+            variant="quiet"
+            className="divide-y divide-border overflow-hidden"
+          >
             {drafts.map((draft) => (
-              <div
-                key={draft._id}
-                className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border ring-1 ring-border/60 p-[var(--card-padding)] hover:shadow-md transition-shadow"
-              >
+              <div key={draft._id} className="p-[var(--workspace-row-padding)] hover:bg-muted/40 transition-colors">
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
                   <div className="min-w-0 flex-1 w-full">
                     <div className="flex items-start justify-between gap-2 mb-2">
@@ -216,23 +222,9 @@ export default function DraftsPage() {
                 </div>
               </div>
             ))}
-          </div>
+          </Card>
         )}
-
-        <div className="mt-8 text-sm text-muted-foreground bg-muted border border-border p-4 rounded-lg">
-          <p className="font-semibold mb-2">About Drafts</p>
-          <ul className="space-y-1">
-            <li>
-              • All your unpublished articles are saved here automatically
-            </li>
-            <li>• Click &quot;Edit&quot; to continue working on any draft</li>
-            <li>• {AUTO_SAVE_GUIDANCE}</li>
-            <li>
-              • Delete drafts you no longer need to keep your workspace clean
-            </li>
-          </ul>
-        </div>
-      </div>
+      </WorkspaceSurface>
 
       <AlertDialog
         open={!!deleteTarget}

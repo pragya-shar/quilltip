@@ -1,6 +1,7 @@
 'use client'
 
 import { TrendingUp } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 
 export type TopArticleRow = {
   articleId: string
@@ -19,7 +20,8 @@ export function TopEarningArticles({ articles }: TopEarningArticlesProps) {
   }
 
   return (
-    <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border">
+    <Card variant="quiet" className="mt-6 overflow-hidden">
+      <CardContent className="p-0">
       <div className="p-6 border-b border-border">
         <h3 className="text-lg font-semibold flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-success-foreground" />
@@ -52,6 +54,7 @@ export function TopEarningArticles({ articles }: TopEarningArticlesProps) {
           </div>
         ))}
       </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
