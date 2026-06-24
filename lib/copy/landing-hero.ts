@@ -1,3 +1,9 @@
-export const LANDING_HERO_HEADLINE = 'Reward the words that move you'
-export const LANDING_HERO_SUBTITLE =
-  'Read published stories for free. Tip the passages that move you.'
+import {
+  PRODUCT_HEADLINE,
+  PRODUCT_HERO_SUBTITLE,
+  PRODUCT_VALUE_SUBHEAD,
+} from '@/lib/copy/launch-guide'
+
+export const LANDING_HERO_HEADLINE = PRODUCT_HEADLINE
+export const LANDING_HERO_SUBTITLE = PRODUCT_HERO_SUBTITLE
+export const LANDING_VALUE_SUBHEAD = PRODUCT_VALUE_SUBHEAD

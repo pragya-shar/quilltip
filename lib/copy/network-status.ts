@@ -59,6 +59,13 @@ export function withdrawalDialogDescription(): string {
     : 'Send testnet XLM to your Stellar wallet'
 }
 
+export function tipDialogFooterNote(): string {
+  if (getNetwork() === 'MAINNET') {
+    return 'Tips confirm in seconds on Stellar mainnet.'
+  }
+  return 'Tips confirm in seconds. Practice funds on testnet.'
+}
+
 export function tipFlowShortNote(): string {
   const network = networkLabelLowercase()
   if (getNetwork() === 'MAINNET') {

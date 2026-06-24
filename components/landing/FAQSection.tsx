@@ -10,33 +10,10 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion'
 import { cn } from '@/lib/utils'
+import { LANDING_FAQS } from '@/lib/copy/landing-sections'
 
 const faqTriggerFocusClass =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
-
-const faqs = [
-  {
-    question: 'Do I need cryptocurrency to read articles?',
-    answer:
-      'No. Reading articles on Quilltip is completely free — no wallet, no account, no crypto needed. You only need a Stellar wallet if you want to tip writers for content you love. Setting up a wallet takes about 2 minutes, and we have a step-by-step guide to help you.',
-  },
-  {
-    question: 'How does the tipping mechanism work?',
-    answer:
-      "Readers connect a Stellar wallet (Freighter, xBull, Albedo, or hot wallet), browse articles, and click \"Tip\" to send XLM directly to the writer's wallet. The transaction completes in 3-5 seconds through Soroban smart contracts. Writers receive funds instantly in their wallet - no withdrawal process or waiting period. Minimum tip is 0.026 XLM (approximately $0.01 USD) to ensure transaction fees don't exceed the tip value. There's no maximum limit.",
-  },
-  {
-    question:
-      'Is Quilltip live on mainnet or testnet? When can I use it with real money?',
-    answer:
-      "We're live on testnet for now and working towards our mainnet launch soon. You can test all features with free testnet XLM — no real money needed.",
-  },
-  {
-    question: 'What does it cost to use Quilltip as a writer or reader?',
-    answer:
-      'Reading articles: completely free, no wallet needed. Tipping writers: pay only the Stellar network fee (0.05 XLM, less than $0.01) plus your chosen tip amount. Publishing articles: free, no hosting fees or subscriptions.',
-  },
-] as const
 
 export default function FAQSection() {
   const ref = useRef(null)
@@ -66,7 +43,7 @@ export default function FAQSection() {
           data-testid="faq-accordion"
           className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-6"
         >
-          {faqs.map((faq, index) => (
+          {LANDING_FAQS.map((faq, index) => (
             <motion.div
               key={faq.question}
               initial={{ opacity: 0, y: 20 }}

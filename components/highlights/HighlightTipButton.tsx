@@ -31,6 +31,10 @@ import {
 } from '@/components/ui/dialog'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
 import {
+  tipHighlightDialogDescription,
+  tipHighlightDialogTitle,
+} from '@/lib/copy/tipping'
+import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
 } from '@/lib/stellar/wallet-adapter'
@@ -499,12 +503,12 @@ export function HighlightTipButton({
           <DialogHeader>
             <DialogTitle>
               {modalStep === 'appreciation'
-                ? 'Tip this highlight'
+                ? tipHighlightDialogTitle(authorName)
                 : 'Send your tip'}
             </DialogTitle>
             <DialogDescription className="sr-only">
               {modalStep === 'appreciation'
-                ? 'Choose an amount to tip this highlight.'
+                ? tipHighlightDialogDescription(authorName)
                 : 'Complete your highlight tip.'}
             </DialogDescription>
           </DialogHeader>

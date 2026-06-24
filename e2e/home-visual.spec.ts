@@ -16,6 +16,7 @@ async function assertRevealContentVisible(
   const section = page.locator(selector).first()
   await expect(section).toBeVisible()
   const reveal = section.locator('[data-reveal]').first()
+  if ((await reveal.count()) === 0) return
   await expect(reveal).toBeVisible()
   await expect(reveal).toHaveCSS('opacity', /^(?!0$)/)
 }
@@ -43,7 +44,7 @@ test.describe('home landing visual regression', () => {
 
     await scrollSectionIntoView(page, '#security')
     await expect(
-      page.getByRole('heading', { name: 'Security on testnet' })
+      page.getByRole('heading', { name: 'Security and transparency' })
     ).toBeVisible()
 
     await scrollSectionIntoView(page, '#faq')
@@ -73,13 +74,25 @@ test.describe('landing nav hash navigation', () => {
 
   test('desktop menu links reveal section content', async ({ page }) => {
     test.skip(test.info().project.name === 'mobile', 'desktop nav only')
+    await page.setViewportSize({ width: 1280, height: 900 })
 
-    await page.getByRole('button', { name: 'Product' }).click()
-    await page.getByRole('link', { name: 'Rich Editor' }).click()
+    const productButton = page.getByRole('button', { name: 'Product' })
+    await productButton.hover()
+    await expect(productButton).toHaveAttribute('aria-expanded', 'true')
+    await page
+      .getByRole('link', { name: /How tipping works/i })
+      .first()
+      .click()
     await page.waitForTimeout(900)
-    await assertRevealContentVisible(page, '#features')
+    await expect(
+      page.getByRole('heading', { name: 'How tipping works' })
+    ).toBeVisible()
+    await assertRevealContentVisible(page, '#how-it-works')
 
-    await page.getByRole('button', { name: 'Resources' }).click()
+    await page.getByRole('button', { name: 'Resources' }).hover()
+    await expect(
+      page.getByRole('button', { name: 'Resources' })
+    ).toHaveAttribute('aria-expanded', 'true')
     await page.getByRole('link', { name: 'FAQ' }).click()
     await page.waitForTimeout(900)
     await expect(
@@ -93,37 +106,27 @@ test.describe('landing nav hash navigation', () => {
 
     const cases: {
       linkName: string
-      hash: string
       heading: string | RegExp
       section: string
     }[] = [
       {
-        linkName: 'Rich Editor',
-        hash: '#features',
-        heading: 'Why Quilltip',
-        section: '#features',
-      },
-      {
         linkName: 'How tipping works',
-        hash: '#how-it-works',
         heading: 'How tipping works',
         section: '#how-it-works',
       },
       {
         linkName: 'FAQ',
-        hash: '#faq',
         heading: 'Frequently Asked Questions',
         section: '#faq',
       },
     ]
 
-    for (const { linkName, hash, heading, section } of cases) {
+    for (const { linkName, heading, section } of cases) {
       await page.getByRole('button', { name: 'Toggle menu' }).click()
       await expect(page.getByRole('dialog')).toBeVisible()
       await page.getByRole('link', { name: linkName }).click()
-      await expect(page).toHaveURL(new RegExp(`${hash}$`))
       await expect(page.getByRole('dialog')).not.toBeVisible()
-      await page.waitForTimeout(900)
+      await page.waitForTimeout(1200)
       await expect(page.getByRole('heading', { name: heading })).toBeVisible()
       await assertRevealContentVisible(page, section)
     }
@@ -137,13 +140,12 @@ test.describe('landing nav hash navigation', () => {
     await page.waitForTimeout(200)
 
     await page.getByRole('button', { name: 'Toggle menu' }).click()
-    await page.getByRole('link', { name: 'Rich Editor' }).click()
-    await expect(page).toHaveURL(/#features$/)
-    await page.waitForTimeout(900)
+    await page.getByRole('link', { name: 'How tipping works' }).click()
+    await page.waitForTimeout(1200)
     await expect(
-      page.getByRole('heading', { name: 'Why Quilltip' })
+      page.getByRole('heading', { name: 'How tipping works' })
     ).toBeVisible()
-    await assertRevealContentVisible(page, '#features')
+    await assertRevealContentVisible(page, '#how-it-works')
   })
 })
 

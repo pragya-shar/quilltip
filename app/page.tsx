@@ -17,6 +17,15 @@ import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { DashboardRecentArticlesFallback } from '@/components/error/SectionErrorFallback'
 import Link from 'next/link'
 import { PenSquare, BookOpen, Wallet, TrendingUp } from 'lucide-react'
+import {
+  DASHBOARD_HOME_BROWSE_CARD,
+  DASHBOARD_HOME_EARNINGS_CARD,
+  DASHBOARD_HOME_RECENT_ARTICLES_HEADING,
+  DASHBOARD_HOME_VIEW_ALL_LABEL,
+  DASHBOARD_HOME_WALLET_CARD,
+  DASHBOARD_HOME_WELCOME_SUBTITLE,
+  DASHBOARD_HOME_WRITE_CARD,
+} from '@/lib/copy/dashboard-home'
 import Navigation from '@/components/landing/Navigation'
 
 function HomeLoadingShell() {
@@ -92,7 +101,7 @@ export default function HomePage() {
                 Welcome back, {user.name || user.username || user.email}
               </h1>
               <p className="text-muted-foreground">
-                Ready to read or write your next story?
+                {DASHBOARD_HOME_WELCOME_SUBTITLE}
               </p>
             </div>
 
@@ -105,10 +114,12 @@ export default function HomePage() {
                   <div className="p-3 bg-blue-100 dark:bg-blue-950/50 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-950/70 transition-colors">
                     <PenSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <h3 className="text-lg font-semibold ml-3">Write Article</h3>
+                  <h3 className="text-lg font-semibold ml-3">
+                    {DASHBOARD_HOME_WRITE_CARD.title}
+                  </h3>
                 </div>
                 <p className="text-muted-foreground">
-                  Create a new story with our powerful editor
+                  {DASHBOARD_HOME_WRITE_CARD.description}
                 </p>
               </Link>
 
@@ -121,11 +132,11 @@ export default function HomePage() {
                     <BookOpen className="w-6 h-6 text-green-800 dark:text-green-400" />
                   </div>
                   <h3 className="text-lg font-semibold ml-3">
-                    Browse Articles
+                    {DASHBOARD_HOME_BROWSE_CARD.title}
                   </h3>
                 </div>
                 <p className="text-muted-foreground">
-                  Discover stories and tip the writers you love
+                  {DASHBOARD_HOME_BROWSE_CARD.description}
                 </p>
               </Link>
 
@@ -139,11 +150,11 @@ export default function HomePage() {
                       <TrendingUp className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                     </div>
                     <h3 className="text-lg font-semibold ml-3">
-                      Your Earnings
+                      {DASHBOARD_HOME_EARNINGS_CARD.title}
                     </h3>
                   </div>
                   <p className="text-muted-foreground">
-                    Track testnet tip activity and article performance
+                    {DASHBOARD_HOME_EARNINGS_CARD.description}
                   </p>
                 </Link>
               ) : (
@@ -156,11 +167,11 @@ export default function HomePage() {
                       <Wallet className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                     </div>
                     <h3 className="text-lg font-semibold ml-3">
-                      Set Up Wallet
+                      {DASHBOARD_HOME_WALLET_CARD.title}
                     </h3>
                   </div>
                   <p className="text-muted-foreground">
-                    Connect a Stellar wallet to send and receive tips
+                    {DASHBOARD_HOME_WALLET_CARD.description}
                   </p>
                 </Link>
               )}
@@ -170,13 +181,13 @@ export default function HomePage() {
             <div>
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-foreground">
-                  Recent Articles
+                  {DASHBOARD_HOME_RECENT_ARTICLES_HEADING}
                 </h2>
                 <Link
                   href="/articles"
                   className="text-sm text-primary hover:text-primary/80 font-medium"
                 >
-                  View all
+                  {DASHBOARD_HOME_VIEW_ALL_LABEL}
                 </Link>
               </div>
               <ErrorBoundary fallback={<DashboardRecentArticlesFallback />}>

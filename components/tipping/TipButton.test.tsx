@@ -8,6 +8,9 @@ const mockRedirectToLoginForTip = vi.hoisted(() => vi.fn())
 const mockIsAuthenticated = vi.hoisted(() => vi.fn(() => false))
 const mockIsConnected = vi.hoisted(() => vi.fn(() => false))
 const mockUseArticleTipResume = vi.hoisted(() => vi.fn())
+const mockTipDialogFooterNote = vi.hoisted(() =>
+  vi.fn(() => 'Review footer note from copy helper')
+)
 
 vi.mock('convex/react', () => ({
   useConvex: () => ({ query: vi.fn() }),
@@ -40,6 +43,16 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/hooks/useTipDialogXlmUsdRate', () => ({
   useTipDialogXlmUsdRate: () => ({ priceUsd: null }),
 }))
+
+vi.mock('@/lib/copy/network-status', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/copy/network-status')
+  >('@/lib/copy/network-status')
+  return {
+    ...actual,
+    tipDialogFooterNote: () => mockTipDialogFooterNote(),
+  }
+})
 
 vi.mock('@/lib/tip/redirectToLoginForTip', () => ({
   redirectToLoginForTip: (...args: unknown[]) =>
@@ -88,6 +101,7 @@ describe('TipButton two-stage flow', () => {
     mockUseArticleTipResume.mockClear()
     mockIsAuthenticated.mockReturnValue(false)
     mockIsConnected.mockReturnValue(false)
+    mockTipDialogFooterNote.mockClear()
   })
 
   it('shows Continue on stage 1 without wallet or sign-in CTAs', async () => {
@@ -206,6 +220,26 @@ describe('TipButton two-stage flow', () => {
     await selectPresetAndContinue(user)
 
     expect(screen.getByRole('button', { name: 'Send Tip' })).toBeInTheDocument()
+  })
+
+  it('renders the shared checkout footer note on stage 2', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await selectPresetAndContinue(user)
+
+    expect(mockTipDialogFooterNote).toHaveBeenCalled()
+    expect(
+      screen.getByText(/Review footer note from copy helper/)
+    ).toBeInTheDocument()
   })
 
   it('returns to stage 1 with amount preserved when Back is clicked', async () => {

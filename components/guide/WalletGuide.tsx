@@ -18,6 +18,11 @@ import Link from 'next/link'
 import { GuideWalletSettingsLink } from '@/components/guide/GuideWalletSettingsLink'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
+import {
+  WALLET_GUIDE_HEADING,
+  WALLET_GUIDE_SUBHEAD,
+} from '@/lib/copy/landing-sections'
+import { WRITER_FEE_PHRASE } from '@/lib/copy/launch-guide'
 
 const WALLET_GUIDE_TABS = [
   { value: 'what-is-wallet', label: 'What is a Wallet?' },
@@ -31,12 +36,10 @@ export function WalletGuide() {
     <div className="max-w-3xl mx-auto">
       <div className="text-center mb-10">
         <h1 className="text-3xl lg:text-4xl font-bold text-foreground mb-3">
-          Getting Started with Quilltip
+          {WALLET_GUIDE_HEADING}
         </h1>
         <p className="text-muted-foreground max-w-xl mx-auto">
-          Everything you need to know to start reading, highlighting, and
-          practicing tips on Stellar testnet — even if you&apos;ve never used
-          crypto before.
+          {WALLET_GUIDE_SUBHEAD}
         </p>
       </div>
 
@@ -193,8 +196,7 @@ export function WalletGuide() {
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
               You can tip an entire article or a specific highlight with testnet
-              XLM. 97.5% goes directly to the writer — typically within seconds
-              on testnet.
+              XLM. {WRITER_FEE_PHRASE} — typically within seconds on testnet.
             </p>
           </div>
 
