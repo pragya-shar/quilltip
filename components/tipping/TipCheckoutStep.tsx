@@ -7,7 +7,7 @@ import { TipAmountSummary } from '@/components/tipping/TipAmountSummary'
 import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import {
   networkLabelLowercase,
-  tipFlowShortNote,
+  tipDialogFooterNote,
 } from '@/lib/copy/network-status'
 import type { TipFlowStep } from '@/lib/stellar/stellar-flow-emitter'
 import { tipFlowProgressLabel } from '@/lib/stellar/stellar-flow-emitter'
@@ -172,7 +172,7 @@ export function TipCheckoutStep({
         {networkLabelLowercase() === 'testnet' ? (
           <WalletTooltip concept="testnet" />
         ) : null}{' '}
-        • {tipFlowShortNote()}
+        • {tipDialogFooterNote()}
       </p>
     </>
   )

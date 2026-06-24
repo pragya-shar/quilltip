@@ -48,6 +48,12 @@ describe('getLoginCopy', () => {
     const copy = getLoginCopy('/articles')
     expect(copy.submitLabel).toBe('Sign in and start reading')
   })
+
+  it('uses contextual default messaging for returning users', () => {
+    const copy = getLoginCopy('/')
+    expect(copy.subtitle).toBe('Welcome back. Sign in to continue.')
+    expect(copy.submitLabel).toBe('Sign in')
+  })
 })
 
 describe('getAuthPageCopy', () => {

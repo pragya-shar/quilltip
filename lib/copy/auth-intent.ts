@@ -71,7 +71,7 @@ const LOGIN_COPY: Record<AuthIntent, AuthPageCopy> = {
   },
   default: {
     heading: 'Sign in to your account',
-    subtitle: LANDING_VALUE_SUBHEAD,
+    subtitle: 'Welcome back. Sign in to continue.',
     submitLabel: 'Sign in',
     submitLoadingLabel: 'Signing in...',
     successMessage: 'Signed in successfully! Redirecting...',
