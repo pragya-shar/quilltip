@@ -101,6 +101,7 @@ export default function ArticleGrid({
             onArticleNavigate={onArticleNavigate}
             tagLinkAuthor={tagLinkAuthor}
             view={view}
+            isHero={view === 'featured' && index === 0}
           />
         ))}
       </div>
@@ -116,7 +117,6 @@ export default function ArticleGrid({
           priority={index === 0}
           onArticleNavigate={onArticleNavigate}
           tagLinkAuthor={tagLinkAuthor}
-          view={view}
         />
       ))}
     </div>

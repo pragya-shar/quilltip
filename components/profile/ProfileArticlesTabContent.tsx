@@ -5,7 +5,7 @@ import { usePaginationTransition } from '@/hooks/usePaginationTransition'
 import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
 import ArticleGrid from '@/components/articles/ArticleGrid'
 import Pagination from '@/components/articles/Pagination'
-import { ArticleGridSkeleton } from '@/components/articles/ArticleCardSkeleton'
+import { ArticleFeedSkeleton } from '@/components/articles/ArticleFeedSkeleton'
 import { PaginationTransition } from '@/components/profile/PaginationTransition'
 import { BookOpen } from 'lucide-react'
 import Link from 'next/link'
@@ -32,7 +32,7 @@ export function ProfileArticlesTabContent({
   const { data, isPaginating } = usePaginationTransition(articlesData)
 
   if (data === undefined) {
-    return <ArticleGridSkeleton count={9} />
+    return <ArticleFeedSkeleton count={9} />
   }
 
   const articles = mapListArticlesToDisplay(data.articles)

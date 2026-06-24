@@ -34,7 +34,4 @@ export function getFeedRowStatusLabel(
   return getFeedRowContextLabel(view, article)
 }
 
-export function formatReadTime(minutes?: number): string | null {
-  if (!minutes || minutes < 1) return null
-  return `${minutes} min read`
-}
+export { formatListingReadTime as formatReadTime } from './articleListingMeta'
