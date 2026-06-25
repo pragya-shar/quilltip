@@ -19,7 +19,7 @@ export default function StatusPage() {
       <div className="space-y-10 text-foreground">
         <div
           role="status"
-          className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
+          className="rounded-lg border border-warning/50 bg-warning/10 px-4 py-3 text-sm leading-relaxed text-warning-foreground"
         >
           {statusBanner}
         </div>
@@ -42,7 +42,7 @@ export default function StatusPage() {
                     {service.detail}
                   </p>
                 </div>
-                <span className="shrink-0 text-sm font-medium text-green-700 dark:text-green-400">
+                <span className="shrink-0 text-sm font-medium text-success-foreground">
                   {service.status}
                 </span>
               </li>

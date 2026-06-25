@@ -109,7 +109,7 @@ export function HighlightNotes({
             if (!tipData?.count) return null
             return (
               <div className="mb-2">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-muted text-muted-foreground text-xs rounded-full">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-warning text-warning-foreground text-xs rounded-full">
                   <Coins className="w-3 h-3" />
                   {tipData.count} tip{tipData.count > 1 ? 's' : ''}
                   {' · '}${tipData.totalUsd.toFixed(2)}

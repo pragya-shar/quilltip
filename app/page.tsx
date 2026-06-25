@@ -111,8 +111,8 @@ export default function HomePage() {
                 className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
               >
                 <div className="flex items-center mb-4">
-                  <div className="p-3 bg-blue-100 dark:bg-blue-950/50 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-950/70 transition-colors">
-                    <PenSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                  <div className="p-3 bg-muted rounded-lg group-hover:bg-muted/80 transition-colors">
+                    <PenSquare className="w-6 h-6 text-brand" />
                   </div>
                   <h3 className="text-lg font-semibold ml-3">
                     {DASHBOARD_HOME_WRITE_CARD.title}
@@ -128,8 +128,8 @@ export default function HomePage() {
                 className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
               >
                 <div className="flex items-center mb-4">
-                  <div className="p-3 bg-green-100 dark:bg-green-950/50 rounded-lg group-hover:bg-green-200 dark:group-hover:bg-green-950/70 transition-colors">
-                    <BookOpen className="w-6 h-6 text-green-800 dark:text-green-400" />
+                  <div className="p-3 bg-muted rounded-lg group-hover:bg-muted/80 transition-colors">
+                    <BookOpen className="w-6 h-6 text-foreground" />
                   </div>
                   <h3 className="text-lg font-semibold ml-3">
                     {DASHBOARD_HOME_BROWSE_CARD.title}
@@ -146,8 +146,8 @@ export default function HomePage() {
                   className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
                 >
                   <div className="flex items-center mb-4">
-                    <div className="p-3 bg-purple-100 dark:bg-purple-950/50 rounded-lg group-hover:bg-purple-200 dark:group-hover:bg-purple-950/70 transition-colors">
-                      <TrendingUp className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                    <div className="p-3 bg-muted rounded-lg group-hover:bg-muted/80 transition-colors">
+                      <TrendingUp className="w-6 h-6 text-foreground" />
                     </div>
                     <h3 className="text-lg font-semibold ml-3">
                       {DASHBOARD_HOME_EARNINGS_CARD.title}
@@ -163,8 +163,8 @@ export default function HomePage() {
                   className="group p-6 bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] hover:shadow-md transition-shadow border border-border"
                 >
                   <div className="flex items-center mb-4">
-                    <div className="p-3 bg-amber-100 dark:bg-amber-950/50 rounded-lg group-hover:bg-amber-200 dark:group-hover:bg-amber-950/70 transition-colors">
-                      <Wallet className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                    <div className="p-3 bg-muted rounded-lg group-hover:bg-muted/80 transition-colors">
+                      <Wallet className="w-6 h-6 text-foreground" />
                     </div>
                     <h3 className="text-lg font-semibold ml-3">
                       {DASHBOARD_HOME_WALLET_CARD.title}

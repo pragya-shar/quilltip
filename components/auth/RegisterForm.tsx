@@ -14,6 +14,7 @@ import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   PasswordRequirements,
   PASSWORD_REQUIREMENTS_ID,
@@ -165,12 +166,9 @@ export default function RegisterForm() {
       ) : null}
 
       {formError ? (
-        <div
-          role="alert"
-          className="p-4 bg-red-50 border border-red-200 rounded-lg"
-        >
-          <p className="text-sm text-red-700">{formError}</p>
-        </div>
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
       ) : null}
 
       <RegisterFormField
