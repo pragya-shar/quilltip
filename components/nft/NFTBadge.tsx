@@ -34,9 +34,6 @@ type CollectibleVariant =
 function rarityToVariant(tier: RarityTier): CollectibleVariant {
   if (tier === 'legendary') return 'collectible-emphasis'
   if (tier === 'rare' || tier === 'epic') return 'collectible'
-  if (tier === 'common' || tier === 'uncommon' || tier === 'nft') {
-    return 'collectible-muted'
-  }
   return 'collectible-muted'
 }
 
