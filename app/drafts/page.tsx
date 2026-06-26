@@ -89,182 +89,184 @@ export default function DraftsPage() {
       }
     >
       <div className="min-h-screen bg-muted/30">
-      <AppNavigation />
-      <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-8">
-          <h1 className="text-3xl font-bold text-foreground">Your Drafts</h1>
-          <Link
-            href="/write"
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shrink-0 self-start sm:self-auto"
-          >
-            New Article
-          </Link>
-        </div>
+        <AppNavigation />
+        <div className="max-w-5xl mx-auto pt-24 pb-8 px-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-8">
+            <h1 className="text-3xl font-bold text-foreground">Your Drafts</h1>
+            <Link
+              href="/write"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shrink-0 self-start sm:self-auto"
+            >
+              New Article
+            </Link>
+          </div>
 
-        {loading ? (
-          <DraftsListSkeleton />
-        ) : drafts.length === 0 ? (
-          <RouteEmptyState
-            icon={FileText}
-            title="No drafts yet"
-            description="Saved drafts appear here while you work on an article."
-            action={{ label: 'Start a draft', href: '/write' }}
-          />
-        ) : (
-          <div className="space-y-4">
-            {drafts.map((draft) => (
-              <div
-                key={draft._id}
-                className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border ring-1 ring-border/60 p-[var(--card-padding)] hover:shadow-md transition-shadow"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
-                  <div className="min-w-0 flex-1 w-full">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h2 className="text-xl font-semibold text-foreground break-words min-w-0 flex-1">
-                        {draft.title || 'Untitled'}
-                      </h2>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="sm:hidden shrink-0"
-                            aria-label="Draft actions"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          className="min-w-[10rem]"
-                        >
-                          <DropdownMenuItem asChild>
-                            <Link
-                              href={`/write?id=${draft._id}`}
-                              className="cursor-pointer gap-2"
+          {loading ? (
+            <DraftsListSkeleton />
+          ) : drafts.length === 0 ? (
+            <RouteEmptyState
+              icon={FileText}
+              title="No drafts yet"
+              description="Saved drafts appear here while you work on an article."
+              action={{ label: 'Start a draft', href: '/write' }}
+            />
+          ) : (
+            <div className="space-y-4">
+              {drafts.map((draft) => (
+                <div
+                  key={draft._id}
+                  className="bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border ring-1 ring-border/60 p-[var(--card-padding)] hover:shadow-md transition-shadow"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
+                    <div className="min-w-0 flex-1 w-full">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h2 className="text-xl font-semibold text-foreground break-words min-w-0 flex-1">
+                          {draft.title || 'Untitled'}
+                        </h2>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="sm:hidden shrink-0"
+                              aria-label="Draft actions"
                             >
-                              <Pencil className="h-4 w-4" />
-                              Edit
-                            </Link>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="cursor-pointer gap-2 text-destructive focus:text-destructive disabled:opacity-50 disabled:pointer-events-none"
-                            disabled={isDeleting}
-                            onSelect={() => {
-                              if (isDeleting) return
-                              setDeleteTarget(draft._id)
-                            }}
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="end"
+                            className="min-w-[10rem]"
                           >
-                            <Trash2 className="h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    {draft.excerpt && (
-                      <p className="text-muted-foreground mb-3 line-clamp-2">
-                        {draft.excerpt}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                      <span>
-                        Created:{' '}
-                        {formatDate(
-                          new Date(draft._creationTime).toISOString()
-                        )}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        Last saved:{' '}
-                        {formatDate(new Date(draft.updatedAt).toISOString())}
-                      </span>
-                      {!draft.published && (
-                        <>
-                          <span>•</span>
-                          <span className="text-warning-foreground font-medium">
-                            Draft
-                          </span>
-                        </>
+                            <DropdownMenuItem asChild>
+                              <Link
+                                href={`/write?id=${draft._id}`}
+                                className="cursor-pointer gap-2"
+                              >
+                                <Pencil className="h-4 w-4" />
+                                Edit
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="cursor-pointer gap-2 text-destructive focus:text-destructive disabled:opacity-50 disabled:pointer-events-none"
+                              disabled={isDeleting}
+                              onSelect={() => {
+                                if (isDeleting) return
+                                setDeleteTarget(draft._id)
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      {draft.excerpt && (
+                        <p className="text-muted-foreground mb-3 line-clamp-2">
+                          {draft.excerpt}
+                        </p>
                       )}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                        <span>
+                          Created:{' '}
+                          {formatDate(
+                            new Date(draft._creationTime).toISOString()
+                          )}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Last saved:{' '}
+                          {formatDate(new Date(draft.updatedAt).toISOString())}
+                        </span>
+                        {!draft.published && (
+                          <>
+                            <span>•</span>
+                            <span className="text-warning-foreground font-medium">
+                              Draft
+                            </span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="hidden sm:flex gap-2 shrink-0">
-                    <Link
-                      href={`/write?id=${draft._id}`}
-                      className="px-4 py-2 rounded-lg border border-primary text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
-                    >
-                      Edit
-                    </Link>
-                    <button
-                      type="button"
-                      disabled={isDeleting}
-                      onClick={() => setDeleteTarget(draft._id)}
-                      className="px-4 py-2 rounded-lg border border-destructive text-destructive bg-destructive/5 hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Delete
-                    </button>
+                    <div className="hidden sm:flex gap-2 shrink-0">
+                      <Link
+                        href={`/write?id=${draft._id}`}
+                        className="px-4 py-2 rounded-lg border border-primary text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
+                      >
+                        Edit
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={isDeleting}
+                        onClick={() => setDeleteTarget(draft._id)}
+                        className="px-4 py-2 rounded-lg border border-destructive text-destructive bg-destructive/5 hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          )}
+
+          <div className="mt-8 text-sm text-muted-foreground bg-muted border border-border p-4 rounded-lg">
+            <p className="font-semibold mb-2">About Drafts</p>
+            <ul className="space-y-1">
+              <li>
+                • All your unpublished articles are saved here automatically
+              </li>
+              <li>• Click &quot;Edit&quot; to continue working on any draft</li>
+              <li>• {AUTO_SAVE_GUIDANCE}</li>
+              <li>
+                • Delete drafts you no longer need to keep your workspace clean
+              </li>
+            </ul>
           </div>
-        )}
-
-        <div className="mt-8 text-sm text-muted-foreground bg-muted border border-border p-4 rounded-lg">
-          <p className="font-semibold mb-2">About Drafts</p>
-          <ul className="space-y-1">
-            <li>
-              • All your unpublished articles are saved here automatically
-            </li>
-            <li>• Click &quot;Edit&quot; to continue working on any draft</li>
-            <li>• {AUTO_SAVE_GUIDANCE}</li>
-            <li>
-              • Delete drafts you no longer need to keep your workspace clean
-            </li>
-          </ul>
         </div>
-      </div>
 
-      <AlertDialog
-        open={!!deleteTarget}
-        onOpenChange={(open) => {
-          if (isDeleting) return
-          if (!open) setDeleteTarget(null)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. The draft will be permanently
-              deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={isDeleting}
-              className={cn(
-                buttonVariants({ variant: 'destructive' }),
-                'disabled:opacity-50 disabled:cursor-not-allowed'
-              )}
-              onClick={(e) => {
-                e.preventDefault()
-                void handleConfirmDelete()
-              }}
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                'Delete'
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <AlertDialog
+          open={!!deleteTarget}
+          onOpenChange={(open) => {
+            if (isDeleting) return
+            if (!open) setDeleteTarget(null)
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete this draft?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action cannot be undone. The draft will be permanently
+                deleted.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isDeleting}
+                className={cn(
+                  buttonVariants({ variant: 'destructive' }),
+                  'disabled:opacity-50 disabled:cursor-not-allowed'
+                )}
+                onClick={(e) => {
+                  e.preventDefault()
+                  void handleConfirmDelete()
+                }}
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </ProtectedPageShell>
   )

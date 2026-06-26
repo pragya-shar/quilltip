@@ -116,9 +116,15 @@ export default function ArticleGrid({
           description={browseEmpty.description}
           action={
             browseEmpty.onPrimary
-              ? { label: browseEmpty.primaryLabel, onClick: browseEmpty.onPrimary }
+              ? {
+                  label: browseEmpty.primaryLabel,
+                  onClick: browseEmpty.onPrimary,
+                }
               : browseEmpty.primaryHref
-                ? { label: browseEmpty.primaryLabel, href: browseEmpty.primaryHref }
+                ? {
+                    label: browseEmpty.primaryLabel,
+                    href: browseEmpty.primaryHref,
+                  }
                 : undefined
           }
         />

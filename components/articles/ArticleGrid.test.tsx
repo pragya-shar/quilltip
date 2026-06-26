@@ -80,9 +80,8 @@ describe('ArticleGrid empty states', () => {
     expect(
       screen.getByRole('link', { name: 'Write your first article' })
     ).toHaveAttribute('href', '/write')
-    expect(screen.getByRole('link', { name: 'Browse articles' })).toHaveAttribute(
-      'href',
-      '/articles'
-    )
+    expect(
+      screen.getByRole('link', { name: 'Browse articles' })
+    ).toHaveAttribute('href', '/articles')
   })
 })
