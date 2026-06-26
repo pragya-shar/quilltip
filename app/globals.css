@@ -143,6 +143,15 @@
   --card-radius: 0.75rem;
   --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
 
+  /* Surface density tokens */
+  --surface-editorial-max: 56rem;
+  --surface-workspace-max: 64rem;
+  --surface-settings-max: 42rem;
+  --surface-guide-max: 48rem;
+  --chrome-quiet: none;
+  --chrome-raised: var(--card-shadow);
+  --workspace-row-padding: 1rem;
+
   /* Shadcn semantic vars (quill palette) */
   --background: #fefefe;
   --foreground: #202124;

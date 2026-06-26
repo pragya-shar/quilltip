@@ -22,6 +22,7 @@ import {
   ArticleSidebarSectionFallback,
 } from '@/components/error/SectionErrorFallback'
 import { ReadingProgressBar } from '@/components/articles/ReadingProgressBar'
+import { EditorialSurface } from '@/components/layout/EditorialSurface'
 import { extractH2HeadingsFromTiptapJson } from '@/lib/tiptap/headings'
 import { LoadingRegion } from '@/components/a11y/LoadingRegion'
 import { useStaleLoading } from '@/hooks/useStaleLoading'
@@ -113,7 +114,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
       <AppNavigation />
       <ReadingProgressBar />
       <main className="flex-1 pt-20 w-full">
-        <div className="max-w-4xl mx-auto px-4 py-8">
+        <EditorialSurface>
           <ErrorBoundary fallback={<ArticleDisplaySectionFallback />}>
             <ArticleDisplay
               article={articleForDisplay}
@@ -147,7 +148,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
               arweaveTimestamp={article.arweaveTimestamp}
             />
           </ErrorBoundary>
-        </div>
+        </EditorialSurface>
       </main>
       <SiteFooter variant="default" />
     </div>

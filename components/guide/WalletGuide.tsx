@@ -16,13 +16,15 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { GuideWalletSettingsLink } from '@/components/guide/GuideWalletSettingsLink'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ActionableNotice } from '@/components/ui/ActionableNotice'
+import { GuideSurface } from '@/components/layout/GuideSurface'
 import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
 import {
   WALLET_GUIDE_HEADING,
   WALLET_GUIDE_SUBHEAD,
 } from '@/lib/copy/landing-sections'
 import { WRITER_FEE_PHRASE } from '@/lib/copy/launch-guide'
+import { cn } from '@/lib/utils'
 
 const WALLET_GUIDE_TABS = [
   { value: 'what-is-wallet', label: 'What is a Wallet?' },
@@ -31,52 +33,67 @@ const WALLET_GUIDE_TABS = [
   { value: 'first-tip', label: 'Your First Tip' },
 ] as const
 
+function GuideTabIntro({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="mb-8">
+      <h2 className="text-lg font-semibold text-foreground mb-2">{title}</h2>
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        {children}
+      </p>
+    </div>
+  )
+}
+
 export function WalletGuide() {
   return (
-    <div className="max-w-3xl mx-auto">
+    <GuideSurface>
       <div className="text-center mb-10">
         <h1 className="text-3xl lg:text-4xl font-bold text-foreground mb-3">
           {WALLET_GUIDE_HEADING}
         </h1>
-        <p className="text-muted-foreground max-w-xl mx-auto">
+        <p className="text-muted-foreground max-w-xl mx-auto mb-3">
           {WALLET_GUIDE_SUBHEAD}
         </p>
+        <ActionableNotice intent="informational" className="max-w-xl mx-auto">
+          {TESTNET_PRACTICE_NOTE}
+        </ActionableNotice>
       </div>
 
-      <Alert className="mb-8 border-border bg-muted/60">
-        <AlertDescription className="text-sm text-muted-foreground">
-          {TESTNET_PRACTICE_NOTE}
-        </AlertDescription>
-      </Alert>
-
       <Tabs defaultValue="what-is-wallet" className="w-full">
-        <TabsList
-          className="grid w-full grid-cols-2 gap-2 h-auto p-1 mb-8 sm:grid-cols-4 sm:gap-1"
-          aria-label="Wallet setup steps"
-        >
-          {WALLET_GUIDE_TABS.map((tab) => (
-            <TabsTrigger
-              key={tab.value}
-              value={tab.value}
-              className="min-h-11 py-2.5 px-2 text-sm whitespace-normal text-center leading-snug sm:min-h-9 sm:py-1.5 sm:px-3 data-[state=active]:ring-2 data-[state=active]:ring-ring"
-            >
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <div className="min-w-0 w-full overflow-hidden border-b border-border mb-8">
+          <TabsList
+            aria-label="Wallet setup steps"
+            className="h-auto w-full justify-start gap-4 sm:gap-8 rounded-none bg-transparent p-0"
+          >
+            {WALLET_GUIDE_TABS.map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className={cn(
+                  'shrink-0 rounded-none border-0 border-b-2 bg-transparent px-3 py-3 min-h-[44px] text-sm font-medium shadow-none whitespace-normal text-center leading-snug',
+                  'text-muted-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none',
+                  'data-[state=active]:border-brand-blue dark:data-[state=active]:border-primary',
+                  'border-transparent hover:text-foreground hover:border-border'
+                )}
+              >
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
-        {/* Tab 1: What is a Wallet? */}
         <TabsContent value="what-is-wallet">
-          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
-            <h2 className="text-lg font-semibold text-foreground mb-2">
-              No crypto experience? No problem.
-            </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Reading articles on Quilltip is completely free — no wallet
-              needed. You only need a wallet if you want to{' '}
-              <strong>tip writers</strong> for content you love.
-            </p>
-          </div>
+          <GuideTabIntro title="No crypto experience? No problem.">
+            Reading articles on Quilltip is completely free — no wallet needed.
+            You only need a wallet if you want to <strong>tip writers</strong>{' '}
+            for content you love.
+          </GuideTabIntro>
 
           <WalletStepCard
             step={1}
@@ -99,17 +116,11 @@ export function WalletGuide() {
           />
         </TabsContent>
 
-        {/* Tab 2: Set Up Freighter */}
         <TabsContent value="setup">
-          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
-            <h2 className="text-lg font-semibold text-foreground mb-2">
-              Freighter is the easiest Stellar wallet
-            </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              It&apos;s a free browser extension that takes about 2 minutes to
-              set up. Works with Chrome, Firefox, and Brave.
-            </p>
-          </div>
+          <GuideTabIntro title="Freighter is the easiest Stellar wallet">
+            It&apos;s a free browser extension that takes about 2 minutes to set
+            up. Works with Chrome, Firefox, and Brave.
+          </GuideTabIntro>
 
           <WalletStepCard
             step={1}
@@ -154,17 +165,11 @@ export function WalletGuide() {
           </WalletStepCard>
         </TabsContent>
 
-        {/* Tab 3: Connect to Quilltip */}
         <TabsContent value="connect">
-          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
-            <h2 className="text-lg font-semibold text-foreground mb-2">
-              Connect your wallet to Quilltip
-            </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Once Freighter is installed, connecting takes one click. Try it
-              right here!
-            </p>
-          </div>
+          <GuideTabIntro title="Connect your wallet to Quilltip">
+            Once Freighter is installed, connecting takes one click. Try it
+            right here!
+          </GuideTabIntro>
 
           <WalletStepCard
             step={1}
@@ -188,17 +193,11 @@ export function WalletGuide() {
           </WalletStepCard>
         </TabsContent>
 
-        {/* Tab 4: Your First Tip */}
         <TabsContent value="first-tip">
-          <div className="rounded-xl border border-border bg-muted/60 p-6 mb-8">
-            <h2 className="text-lg font-semibold text-foreground mb-2">
-              Tipping on Quilltip is simple
-            </h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              You can tip an entire article or a specific highlight with testnet
-              XLM. {WRITER_FEE_PHRASE} — typically within seconds on testnet.
-            </p>
-          </div>
+          <GuideTabIntro title="Tipping on Quilltip is simple">
+            You can tip an entire article or a specific highlight with testnet
+            XLM. {WRITER_FEE_PHRASE} — typically within seconds on testnet.
+          </GuideTabIntro>
 
           <WalletStepCard
             step={1}
@@ -230,6 +229,6 @@ export function WalletGuide() {
           />
         </TabsContent>
       </Tabs>
-    </div>
+    </GuideSurface>
   )
 }

@@ -15,13 +15,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { ActionableNotice } from '@/components/ui/ActionableNotice'
 import type { FlowFeedback } from '@/lib/feedback/flow-feedback'
 import {
   Wallet,
   Copy,
   Check,
   AlertCircle,
-  DollarSign,
   ArrowUpRight,
   Loader2,
   Power,
@@ -147,7 +147,7 @@ export function WalletSettings({
 
   if (!isOwnProfile && !walletAddress) {
     return (
-      <Card className={className}>
+      <Card variant="quiet" className={className}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Wallet className="h-5 w-5" />
@@ -162,13 +162,10 @@ export function WalletSettings({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              You can still read their work. Once they connect a wallet, you can
-              tip from any article using &quot;Tip Author&quot;.
-            </AlertDescription>
-          </Alert>
+          <ActionableNotice intent="informational">
+            You can still read their work. Once they connect a wallet, you can
+            tip from any article using &quot;Tip Author&quot;.
+          </ActionableNotice>
 
           <div className="flex flex-col gap-2 sm:flex-row">
             {profileUsername ? (
@@ -189,7 +186,7 @@ export function WalletSettings({
 
   return (
     <>
-      <Card className={className}>
+      <Card variant="quiet" className={className}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Wallet className="h-5 w-5" />
@@ -222,15 +219,12 @@ export function WalletSettings({
             </Alert>
           )}
           {isOwnProfile && walletAddress ? (
-            <Alert className="border-info/50 bg-info">
-              <AlertCircle className="h-4 w-4 text-info-foreground" />
-              <AlertDescription className="text-info-foreground">
-                <strong>This wallet is for receiving tips.</strong> When readers
-                tip your articles, payments come here. To send tips to other
-                authors, you&apos;ll connect your wallet extension directly on
-                their articles.
-              </AlertDescription>
-            </Alert>
+            <ActionableNotice intent="informational">
+              <strong>This wallet is for receiving tips.</strong> When readers
+              tip your articles, payments come here. To send tips to other
+              authors, you&apos;ll connect your wallet extension directly on
+              their articles.
+            </ActionableNotice>
           ) : null}
 
           {isOwnProfile ? (
@@ -278,14 +272,11 @@ export function WalletSettings({
                     </div>
                   </div>
 
-                  <Alert>
-                    <DollarSign className="h-4 w-4" />
-                    <AlertDescription>
-                      You can send and receive tips with this wallet. You can
-                      change it anytime by disconnecting and connecting a
-                      different account.
-                    </AlertDescription>
-                  </Alert>
+                  <ActionableNotice intent="informational">
+                    You can send and receive tips with this wallet. You can
+                    change it anytime by disconnecting and connecting a
+                    different account.
+                  </ActionableNotice>
 
                   <div className="flex gap-2">
                     <Button
@@ -369,13 +360,10 @@ export function WalletSettings({
                 View on Stellar Explorer
               </Button>
 
-              <Alert>
-                <DollarSign className="h-4 w-4" />
-                <AlertDescription>
-                  Want to tip in-app? Open any of their articles and click
-                  &quot;Tip Author&quot;.
-                </AlertDescription>
-              </Alert>
+              <ActionableNotice intent="informational">
+                Want to tip in-app? Open any of their articles and click
+                &quot;Tip Author&quot;.
+              </ActionableNotice>
             </div>
           )}
 
