@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import {
   useNFTsByOwnerPaginated,
@@ -14,6 +13,7 @@ import { PaginationTransition } from '@/components/profile/PaginationTransition'
 import Pagination from '@/components/articles/Pagination'
 import { buildProfileNftPaginationHref } from '@/lib/profile/buildProfileNftPaginationHref'
 import { NftCard } from '@/components/nft/NftCard'
+import { RouteEmptyState } from '@/components/ui/route-empty-state'
 import { ImageIcon, Trophy } from 'lucide-react'
 
 const NFT_PAGE_LIMIT = 9
@@ -181,28 +181,20 @@ export function ProfileNftsTabContent({
       )}
 
       {bothEmpty && (
-        <div className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-8 sm:p-12 text-center">
-          <ImageIcon
-            className="w-12 h-12 text-muted-foreground/50 mx-auto mb-4"
-            aria-hidden
-          />
-          <h3 className="text-lg font-semibold text-foreground mb-2">
-            No NFTs yet
-          </h3>
-          <p className="text-muted-foreground max-w-md mx-auto">
-            {isOwnProfile
+        <RouteEmptyState
+          icon={ImageIcon}
+          title="No NFTs yet"
+          description={
+            isOwnProfile
               ? 'Articles earn NFTs when they reach the tip threshold. Mint or collect one to see it here.'
-              : `${displayName} doesn't have any NFTs yet.`}
-          </p>
-          {isOwnProfile && (
-            <Link
-              href="/articles"
-              className="focus-ring inline-block mt-6 text-sm font-medium text-brand-blue hover:underline"
-            >
-              Browse articles
-            </Link>
-          )}
-        </div>
+              : `${displayName} doesn't have any NFTs yet.`
+          }
+          action={
+            isOwnProfile
+              ? { label: 'Browse articles', href: '/articles' }
+              : undefined
+          }
+        />
       )}
     </div>
   )

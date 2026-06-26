@@ -1,8 +1,8 @@
 'use client'
 
 import { useAuth } from '@/components/providers/AuthContext'
-import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 import AppNavigation from '@/components/layout/AppNavigation'
+import { ProtectedPageShell } from '@/components/layout/ProtectedPageShell'
 import { EditorChromeSkeleton } from '@/components/editor/EditorChromeSkeleton'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { EditorWorkspaceErrorFallback } from '@/components/error/SectionErrorFallback'
@@ -16,12 +16,11 @@ export default function WritePage() {
   const router = useRouter()
   const { isStale, reset: resetStale } = useStaleLoading(isLoading)
 
-  useRedirectWhenUnauthenticated(isLoading, isAuthenticated)
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <AppNavigation />
+  return (
+    <ProtectedPageShell
+      isLoading={isLoading}
+      isAuthenticated={isAuthenticated}
+      loadingContent={
         <LoadingRegion
           label="editor"
           isLoading
@@ -34,24 +33,18 @@ export default function WritePage() {
         >
           <div />
         </LoadingRegion>
+      }
+    >
+      <div className="min-h-screen bg-background">
+        <AppNavigation />
+        <ErrorBoundary
+          fallback={({ reset }) => (
+            <EditorWorkspaceErrorFallback onRetry={reset} />
+          )}
+        >
+          <WriteEditorWorkspace />
+        </ErrorBoundary>
       </div>
-    )
-  }
-
-  if (!isAuthenticated) {
-    return null
-  }
-
-  return (
-    <div className="min-h-screen bg-background">
-      <AppNavigation />
-      <ErrorBoundary
-        fallback={({ reset }) => (
-          <EditorWorkspaceErrorFallback onRetry={reset} />
-        )}
-      >
-        <WriteEditorWorkspace />
-      </ErrorBoundary>
-    </div>
+    </ProtectedPageShell>
   )
 }
