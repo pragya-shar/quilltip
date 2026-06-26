@@ -5,7 +5,10 @@ type EditorialSurfaceProps = {
   className?: string
 }
 
-export function EditorialSurface({ children, className }: EditorialSurfaceProps) {
+export function EditorialSurface({
+  children,
+  className,
+}: EditorialSurfaceProps) {
   return (
     <div
       className={cn('mx-auto w-full max-w-4xl px-4 py-8', className)}

@@ -43,7 +43,9 @@ function GuideTabIntro({
   return (
     <div className="mb-8">
       <h2 className="text-lg font-semibold text-foreground mb-2">{title}</h2>
-      <p className="text-sm text-muted-foreground leading-relaxed">{children}</p>
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        {children}
+      </p>
     </div>
   )
 }
@@ -165,8 +167,8 @@ export function WalletGuide() {
 
         <TabsContent value="connect">
           <GuideTabIntro title="Connect your wallet to Quilltip">
-            Once Freighter is installed, connecting takes one click. Try it right
-            here!
+            Once Freighter is installed, connecting takes one click. Try it
+            right here!
           </GuideTabIntro>
 
           <WalletStepCard

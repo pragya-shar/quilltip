@@ -131,7 +131,10 @@ export default function DraftsPage() {
             className="divide-y divide-border overflow-hidden"
           >
             {drafts.map((draft) => (
-              <div key={draft._id} className="p-[var(--workspace-row-padding)] hover:bg-muted/40 transition-colors">
+              <div
+                key={draft._id}
+                className="p-[var(--workspace-row-padding)] hover:bg-muted/40 transition-colors"
+              >
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-start">
                   <div className="min-w-0 flex-1 w-full">
                     <div className="flex items-start justify-between gap-2 mb-2">

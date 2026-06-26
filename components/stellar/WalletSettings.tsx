@@ -220,10 +220,10 @@ export function WalletSettings({
           )}
           {isOwnProfile && walletAddress ? (
             <ActionableNotice intent="informational">
-              <strong>This wallet is for receiving tips.</strong> When readers tip
-              your articles, payments come here. To send tips to other authors,
-              you&apos;ll connect your wallet extension directly on their
-              articles.
+              <strong>This wallet is for receiving tips.</strong> When readers
+              tip your articles, payments come here. To send tips to other
+              authors, you&apos;ll connect your wallet extension directly on
+              their articles.
             </ActionableNotice>
           ) : null}
 

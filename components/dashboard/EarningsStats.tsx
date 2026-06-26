@@ -80,8 +80,8 @@ export function EarningsStats({
               {showMinimumWithdrawalHelper && (
                 <p className="mt-2 text-sm text-muted-foreground">
                   Withdrawals require a minimum available balance of $
-                  {minWithdrawalUsd.toFixed(2)}. Add more tips until your balance
-                  reaches this amount.
+                  {minWithdrawalUsd.toFixed(2)}. Add more tips until your
+                  balance reaches this amount.
                 </p>
               )}
             </div>

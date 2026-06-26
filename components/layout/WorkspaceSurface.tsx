@@ -5,7 +5,10 @@ type WorkspaceSurfaceProps = {
   className?: string
 }
 
-export function WorkspaceSurface({ children, className }: WorkspaceSurfaceProps) {
+export function WorkspaceSurface({
+  children,
+  className,
+}: WorkspaceSurfaceProps) {
   return (
     <div
       className={cn('mx-auto w-full max-w-5xl px-4 pt-24 pb-8', className)}
