@@ -1,5 +1,8 @@
 import { Skeleton } from '@/components/ui/skeleton'
 import { EarningsDashboardSkeleton } from '@/components/dashboard/EarningsDashboardSkeleton'
+import { DashboardStatsSkeleton } from '@/components/dashboard/DashboardStatsSkeleton'
+import { DashboardWalletSkeleton } from '@/components/dashboard/DashboardWalletSkeleton'
+import type { DashboardTabId } from '@/lib/dashboard/dashboardTab'
 
 function DashboardHeaderSkeleton() {
   return (
@@ -22,12 +25,32 @@ function DashboardTabBarSkeleton() {
   )
 }
 
-export function DashboardShellSkeleton() {
+type DashboardShellSkeletonProps = {
+  activeTab: DashboardTabId
+}
+
+function DashboardTabContentSkeleton({
+  activeTab,
+}: DashboardShellSkeletonProps) {
+  if (activeTab === 'wallet') {
+    return <DashboardWalletSkeleton />
+  }
+
+  if (activeTab === 'stats') {
+    return <DashboardStatsSkeleton />
+  }
+
+  return <EarningsDashboardSkeleton />
+}
+
+export function DashboardShellSkeleton({
+  activeTab,
+}: DashboardShellSkeletonProps) {
   return (
     <>
       <DashboardHeaderSkeleton />
       <DashboardTabBarSkeleton />
-      <EarningsDashboardSkeleton />
+      <DashboardTabContentSkeleton activeTab={activeTab} />
     </>
   )
 }

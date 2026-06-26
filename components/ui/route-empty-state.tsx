@@ -2,11 +2,21 @@ import Link from 'next/link'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
-type RouteEmptyStateAction = {
+type RouteEmptyStateLinkAction = {
   label: string
-  href?: string
-  onClick?: () => void
+  href: string
+  onClick?: never
 }
+
+type RouteEmptyStateButtonAction = {
+  label: string
+  onClick: () => void
+  href?: never
+}
+
+type RouteEmptyStateAction =
+  | RouteEmptyStateLinkAction
+  | RouteEmptyStateButtonAction
 
 type RouteEmptyStateProps = {
   icon: LucideIcon
@@ -15,6 +25,12 @@ type RouteEmptyStateProps = {
   action?: RouteEmptyStateAction
   secondaryAction?: { label: string; href: string }
   className?: string
+}
+
+function isLinkAction(
+  action: RouteEmptyStateAction
+): action is RouteEmptyStateLinkAction {
+  return typeof action.href === 'string'
 }
 
 export function RouteEmptyState({
@@ -40,13 +56,13 @@ export function RouteEmptyState({
       <p className="text-muted-foreground max-w-md mx-auto">{description}</p>
       {(action || secondaryAction) && (
         <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-          {action?.onClick ? (
-            <Button type="button" onClick={action.onClick}>
-              {action.label}
-            </Button>
-          ) : action?.href ? (
+          {action && isLinkAction(action) ? (
             <Button asChild>
               <Link href={action.href}>{action.label}</Link>
+            </Button>
+          ) : action ? (
+            <Button type="button" onClick={action.onClick}>
+              {action.label}
             </Button>
           ) : null}
           {secondaryAction && (

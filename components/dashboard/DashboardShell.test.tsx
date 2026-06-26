@@ -4,6 +4,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { DashboardShell } from '@/components/dashboard/DashboardShell'
 
 const mockUseAuth = vi.fn()
+const mockUsePathname = vi.fn()
 const mockUseRedirectWhenUnauthenticated = vi.fn()
 
 vi.mock('@/components/providers/AuthContext', () => ({
@@ -16,7 +17,7 @@ vi.mock('@/hooks/useRedirectWhenUnauthenticated', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/dashboard/earnings',
+  usePathname: () => mockUsePathname(),
 }))
 
 vi.mock('@/components/layout/AppNavigation', () => ({
@@ -31,8 +32,15 @@ vi.mock('@/components/dashboard/DashboardTabBar', () => ({
   DashboardTabBar: () => <nav data-testid="dashboard-tab-bar" />,
 }))
 
+vi.mock('@/components/dashboard/DashboardShellSkeleton', () => ({
+  DashboardShellSkeleton: ({ activeTab }: { activeTab: string }) => (
+    <div data-testid="dashboard-shell-skeleton">{activeTab}</div>
+  ),
+}))
+
 describe('DashboardShell', () => {
   beforeEach(() => {
+    mockUsePathname.mockReturnValue('/dashboard/earnings')
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
@@ -54,6 +62,24 @@ describe('DashboardShell', () => {
     expect(screen.getByTestId('app-navigation')).toBeInTheDocument()
     expect(screen.queryByText('Creator Dashboard')).not.toBeInTheDocument()
     expect(screen.queryByText('Dashboard content')).not.toBeInTheDocument()
+  })
+
+  it('passes the active dashboard tab into the loading skeleton', () => {
+    mockUsePathname.mockReturnValue('/dashboard/wallet')
+    mockUseAuth.mockReturnValue({
+      isAuthenticated: false,
+      isLoading: true,
+    })
+
+    render(
+      <DashboardShell>
+        <div>Dashboard content</div>
+      </DashboardShell>
+    )
+
+    expect(screen.getByTestId('dashboard-shell-skeleton')).toHaveTextContent(
+      'wallet'
+    )
   })
 
   it('renders dashboard chrome when authenticated', () => {

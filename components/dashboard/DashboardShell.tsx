@@ -45,7 +45,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <AppNavigation />
 
         <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 w-full min-w-0">
-          <DashboardShellSkeleton />
+          <DashboardShellSkeleton activeTab={activeTab} />
         </main>
         <SiteFooter variant="default" />
       </div>
