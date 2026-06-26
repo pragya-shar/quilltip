@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/sheet'
 import { Logo } from '@/components/ui/Logo'
 import { NAV_SIGN_IN, NAV_TRY_ON_TESTNET } from '@/lib/copy/nav-cta'
+import { isProtectedPath } from '@/lib/navigation/protectedRoutes'
 
 function AuthActionsSkeleton() {
   return (
@@ -112,6 +113,10 @@ export default function AppNavigation() {
       )
     }
 
+    if (isProtectedPath(pathname)) {
+      return <AuthActionsSkeleton />
+    }
+
     return (
       <>
         <Link
@@ -189,6 +194,14 @@ export default function AppNavigation() {
             <span>Sign Out</span>
           </button>
         </>
+      )
+    }
+
+    if (isProtectedPath(pathname)) {
+      return (
+        <div className="pt-2 mt-2 border-t border-border">
+          <AuthActionsSkeleton />
+        </div>
       )
     }
 

@@ -93,7 +93,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     return <AuthorNotFoundPage username={username} />
   }
 
-  if (user === undefined) {
+  if (authLoading || user === undefined) {
     return (
       <div className="min-h-screen bg-background">
         <AppNavigation />

@@ -119,6 +119,9 @@ export function ArticlesBrowseContent({
         emptyState={{
           hasSearch,
           hasFilters,
+          searchTerm: urlSearch?.trim() || undefined,
+          activeTag: tag,
+          activeAuthor: author,
           onClearSearch: handleClearSearch,
           onClearAll: handleClearAll,
         }}

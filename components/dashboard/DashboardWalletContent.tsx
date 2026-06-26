@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useUserByUsername } from '@/hooks/convex'
 import { WalletSettings } from '@/components/stellar'
+import { DashboardWalletSkeleton } from '@/components/dashboard/DashboardWalletSkeleton'
 
 export function DashboardWalletContent() {
   const { user: currentUser } = useAuth()
@@ -19,7 +20,7 @@ export function DashboardWalletContent() {
   }, [user?.stellarAddress, localWalletAddress])
 
   if (!currentUser?.username || user === undefined) {
-    return null
+    return <DashboardWalletSkeleton />
   }
 
   const profileDisplayName = user?.name || currentUser.username
