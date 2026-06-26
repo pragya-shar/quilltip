@@ -11,8 +11,10 @@ export function EditorialSurface({
 }: EditorialSurfaceProps) {
   return (
     <div
-      className={cn('mx-auto w-full max-w-4xl px-4 py-8', className)}
-      style={{ maxWidth: 'var(--surface-editorial-max)' }}
+      className={cn(
+        'mx-auto w-full max-w-[var(--surface-editorial-max)] px-4 py-8',
+        className
+      )}
     >
       {children}
     </div>

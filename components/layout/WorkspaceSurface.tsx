@@ -11,8 +11,10 @@ export function WorkspaceSurface({
 }: WorkspaceSurfaceProps) {
   return (
     <div
-      className={cn('mx-auto w-full max-w-5xl px-4 pt-24 pb-8', className)}
-      style={{ maxWidth: 'var(--surface-workspace-max)' }}
+      className={cn(
+        'mx-auto w-full max-w-[var(--surface-workspace-max)] px-4 pt-24 pb-8',
+        className
+      )}
     >
       {children}
     </div>

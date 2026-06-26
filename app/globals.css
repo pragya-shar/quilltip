@@ -147,6 +147,7 @@
   --surface-editorial-max: 56rem;
   --surface-workspace-max: 64rem;
   --surface-settings-max: 42rem;
+  --surface-guide-max: 48rem;
   --chrome-quiet: none;
   --chrome-raised: var(--card-shadow);
   --workspace-row-padding: 1rem;

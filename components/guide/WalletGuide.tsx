@@ -66,11 +66,11 @@ export function WalletGuide() {
       </div>
 
       <Tabs defaultValue="what-is-wallet" className="w-full">
-        <div
-          className="min-w-0 w-full overflow-hidden border-b border-border mb-8"
-          aria-label="Wallet setup steps"
-        >
-          <TabsList className="h-auto w-full justify-start gap-4 sm:gap-8 rounded-none bg-transparent p-0">
+        <div className="min-w-0 w-full overflow-hidden border-b border-border mb-8">
+          <TabsList
+            aria-label="Wallet setup steps"
+            className="h-auto w-full justify-start gap-4 sm:gap-8 rounded-none bg-transparent p-0"
+          >
             {WALLET_GUIDE_TABS.map((tab) => (
               <TabsTrigger
                 key={tab.value}
