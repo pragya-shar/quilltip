@@ -55,23 +55,31 @@ describe('EditorFloatingInsert', () => {
       />
     )
 
-    const handler = vi.mocked(editor.on).mock.calls.find(
-      ([event]) => event === 'selectionUpdate'
-    )?.[1]
+    const handler = vi
+      .mocked(editor.on)
+      .mock.calls.find(([event]) => event === 'selectionUpdate')?.[1]
     act(() => {
       handler?.()
     })
 
-    await user.click(await screen.findByRole('button', { name: 'Insert block' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Insert block' })
+    )
 
     expect(screen.getByRole('group', { name: 'Format' })).toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Media' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Bullet list' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Bullet list' })
+    ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Numbered list' })
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Insert image' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Embed YouTube' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Insert image' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Embed YouTube' })
+    ).toBeInTheDocument()
   })
 
   it('calls media callbacks from the insert menu', async () => {
@@ -88,14 +96,16 @@ describe('EditorFloatingInsert', () => {
       />
     )
 
-    const handler = vi.mocked(editor.on).mock.calls.find(
-      ([event]) => event === 'selectionUpdate'
-    )?.[1]
+    const handler = vi
+      .mocked(editor.on)
+      .mock.calls.find(([event]) => event === 'selectionUpdate')?.[1]
     act(() => {
       handler?.()
     })
 
-    await user.click(await screen.findByRole('button', { name: 'Insert block' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Insert block' })
+    )
     await user.click(screen.getByRole('button', { name: 'Insert image' }))
     await user.click(screen.getByRole('button', { name: 'Insert block' }))
     await user.click(screen.getByRole('button', { name: 'Embed YouTube' }))

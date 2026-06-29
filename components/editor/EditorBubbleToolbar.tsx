@@ -1,6 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, useLayoutEffect } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useLayoutEffect,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { type Editor } from '@tiptap/react'
 import {
@@ -279,9 +285,7 @@ export function EditorBubbleToolbar({ editor }: Props) {
                     Underline
                   </DropdownMenu.Item>
                   <DropdownMenu.Item
-                    onSelect={() =>
-                      editor.chain().focus().toggleStrike().run()
-                    }
+                    onSelect={() => editor.chain().focus().toggleStrike().run()}
                     className={overflowItemClass(editor.isActive('strike'))}
                   >
                     <Strikethrough className="h-4 w-4 shrink-0" />
@@ -298,9 +302,7 @@ export function EditorBubbleToolbar({ editor }: Props) {
                     onSelect={() =>
                       editor.chain().focus().toggleBlockquote().run()
                     }
-                    className={overflowItemClass(
-                      editor.isActive('blockquote')
-                    )}
+                    className={overflowItemClass(editor.isActive('blockquote'))}
                   >
                     <Quote className="h-4 w-4 shrink-0" />
                     Blockquote

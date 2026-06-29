@@ -69,14 +69,16 @@ describe('EditorBubbleToolbar', () => {
     const editor = makeStubEditor()
     render(<EditorBubbleToolbar editor={editor} />)
 
-    const handler = vi.mocked(editor.on).mock.calls.find(
-      ([event]) => event === 'selectionUpdate'
-    )?.[1]
+    const handler = vi
+      .mocked(editor.on)
+      .mock.calls.find(([event]) => event === 'selectionUpdate')?.[1]
     act(() => {
       handler?.()
     })
 
-    expect(await screen.findByRole('button', { name: 'Bold' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: 'Bold' })
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Italic' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add link' })).toBeInTheDocument()
     expect(
@@ -89,9 +91,9 @@ describe('EditorBubbleToolbar', () => {
     const editor = makeStubEditor()
     render(<EditorBubbleToolbar editor={editor} />)
 
-    const handler = vi.mocked(editor.on).mock.calls.find(
-      ([event]) => event === 'selectionUpdate'
-    )?.[1]
+    const handler = vi
+      .mocked(editor.on)
+      .mock.calls.find(([event]) => event === 'selectionUpdate')?.[1]
     act(() => {
       handler?.()
     })

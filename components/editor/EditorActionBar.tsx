@@ -170,7 +170,9 @@ function NotesMenuSection({
             <DrawerHeader className="space-y-0 px-4 pb-2 text-left">
               <div className="flex items-start justify-between gap-3 pr-8">
                 <div className="min-w-0 space-y-1">
-                  <DrawerTitle className="text-base">Personal Notes</DrawerTitle>
+                  <DrawerTitle className="text-base">
+                    Personal Notes
+                  </DrawerTitle>
                   <DrawerDescription className="text-left text-xs leading-snug">
                     {WRITER_NOTES_HELPER_TEXT}
                   </DrawerDescription>
