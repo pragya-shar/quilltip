@@ -141,10 +141,9 @@ describe('HomePage creator workspace', () => {
 
     render(<HomePage />)
 
-    expect(screen.getByRole('link', { name: /Continue writing/i })).toHaveAttribute(
-      'href',
-      '/write?id=draft1'
-    )
+    expect(
+      screen.getByRole('link', { name: /Continue writing/i })
+    ).toHaveAttribute('href', '/write?id=draft1')
     expect(screen.getByText('My draft')).toBeInTheDocument()
   })
 
