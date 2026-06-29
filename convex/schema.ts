@@ -100,6 +100,7 @@ export default defineSchema({
   })
     .index('by_slug', ['slug'])
     .index('by_author', ['authorId'])
+    .index('by_author_updated_at', ['authorId', 'updatedAt'])
     .index('by_published', ['published'])
     .index('by_author_published', ['authorId', 'published']) // Composite for author's published articles
     .index('by_published_date', ['published', 'publishedAt']) // For listing by date
