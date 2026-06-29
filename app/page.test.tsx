@@ -145,6 +145,10 @@ describe('HomePage creator workspace', () => {
       screen.getByRole('link', { name: /Continue writing/i })
     ).toHaveAttribute('href', '/write?id=draft1')
     expect(screen.getByText('My draft')).toBeInTheDocument()
+    expect(
+      screen.getByText('Your latest writing is ready when you are')
+    ).toBeInTheDocument()
+    expect(screen.getAllByText('Pick up where you left off')).toHaveLength(1)
   })
 
   it('shows Start a new article when the user has no drafts', () => {
@@ -161,5 +165,29 @@ describe('HomePage creator workspace', () => {
       screen.getByRole('link', { name: /Start a new article/i })
     ).toHaveAttribute('href', '/write')
     expect(screen.queryByText(/Continue writing/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Start your first article anytime')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Pick up where you left off')
+    ).not.toBeInTheDocument()
+  })
+
+  it('uses neutral creator workspace copy while drafts are loading', () => {
+    useAuthMock.mockReturnValue({
+      user: baseUser,
+      isAuthenticated: true,
+      isLoading: false,
+    })
+    useUserDraftsMock.mockReturnValue(undefined)
+
+    render(<HomePage />)
+
+    expect(
+      screen.getByText('Loading your writing workspace')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Pick up where you left off')
+    ).not.toBeInTheDocument()
   })
 })

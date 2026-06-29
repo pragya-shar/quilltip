@@ -47,7 +47,9 @@ export function CreatorWorkspace({ user }: CreatorWorkspaceProps) {
           <h1 className="mb-2 text-3xl font-bold text-foreground">
             Welcome back, {displayName}
           </h1>
-          <p className="text-muted-foreground">Pick up where you left off</p>
+          <p className="text-muted-foreground">
+            Loading your writing workspace
+          </p>
         </div>
         <CreatorWorkspaceSkeleton />
       </>
@@ -56,6 +58,9 @@ export function CreatorWorkspace({ user }: CreatorWorkspaceProps) {
 
   const mostRecentDraft = getMostRecentDraft(draftsQuery)
   const hasDrafts = draftsQuery.length > 0
+  const workspaceSubtitle = hasDrafts
+    ? 'Your latest writing is ready when you are'
+    : 'Start your first article anytime'
 
   return (
     <>
@@ -63,7 +68,7 @@ export function CreatorWorkspace({ user }: CreatorWorkspaceProps) {
         <h1 className="mb-2 text-3xl font-bold text-foreground">
           Welcome back, {displayName}
         </h1>
-        <p className="text-muted-foreground">Pick up where you left off</p>
+        <p className="text-muted-foreground">{workspaceSubtitle}</p>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_280px]">
