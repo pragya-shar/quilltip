@@ -46,3 +46,11 @@ export function useArticleById(articleId: Id<'articles'> | undefined) {
 export function useUserDrafts() {
   return useQuery(api.articles.getUserDrafts)
 }
+
+export type CreatorRecentWorkArgs = {
+  limit?: number
+}
+
+export function useCreatorRecentWork(args: CreatorRecentWorkArgs = {}) {
+  return useQuery(api.articles.getCreatorRecentWork, args)
+}

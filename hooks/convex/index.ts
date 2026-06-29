@@ -6,7 +6,9 @@ export {
   useArticleBySlug,
   useArticleById,
   useUserDrafts,
+  useCreatorRecentWork,
   type ListArticlesArgs,
+  type CreatorRecentWorkArgs,
 } from './useArticles'
 export {
   useArticleTipStats,

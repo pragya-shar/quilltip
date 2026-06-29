@@ -1,10 +1,12 @@
 /** @vitest-environment jsdom */
-import type { ReactNode } from 'react'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import HomePage from './page'
 
 const useAuthMock = vi.fn()
+const useUserDraftsMock = vi.fn()
+const useCreatorRecentWorkMock = vi.fn()
+const useAuthorEarningsMock = vi.fn()
 
 vi.mock('@/components/providers/AuthContext', () => ({
   useAuth: () => useAuthMock(),
@@ -30,21 +32,24 @@ vi.mock('@/components/landing/useLandingHashScroll', () => ({
   useLandingHashScroll: () => {},
 }))
 
-vi.mock('@/components/onboarding/OnboardingDialog', () => ({
-  OnboardingDialog: () => null,
+vi.mock('@/components/onboarding/OnboardingIntentHome', () => ({
+  OnboardingIntentHome: () => null,
 }))
 
-vi.mock('@/components/articles/HomeRecentArticlesSection', () => ({
-  HomeRecentArticlesSection: () => null,
-}))
-
-vi.mock('@/components/error/ErrorBoundary', () => ({
-  ErrorBoundary: ({ children }: { children: ReactNode }) => children,
+vi.mock('@/hooks/convex', () => ({
+  useUserDrafts: () => useUserDraftsMock(),
+  useCreatorRecentWork: () => useCreatorRecentWorkMock(),
+  useAuthorEarnings: () => useAuthorEarningsMock(),
 }))
 
 describe('HomePage loading states', () => {
   beforeEach(() => {
     useAuthMock.mockReset()
+    useUserDraftsMock.mockReset()
+    useCreatorRecentWorkMock.mockReset()
+    useAuthorEarningsMock.mockReset()
+    useCreatorRecentWorkMock.mockReturnValue([])
+    useAuthorEarningsMock.mockReturnValue(null)
   })
 
   it('shows the public landing while auth is bootstrapping for guests', () => {
@@ -84,5 +89,105 @@ describe('HomePage loading states', () => {
 
     expect(screen.getByTestId('public-navigation')).toBeInTheDocument()
     expect(screen.queryByTestId('app-navigation')).not.toBeInTheDocument()
+  })
+})
+
+describe('HomePage creator workspace', () => {
+  const baseUser = {
+    _id: 'user1',
+    email: 'writer@example.com',
+    username: 'writer',
+    name: 'Writer',
+    onboardingCompleted: true,
+    stellarAddress: 'GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX1',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  }
+
+  beforeEach(() => {
+    useAuthMock.mockReset()
+    useUserDraftsMock.mockReset()
+    useCreatorRecentWorkMock.mockReset()
+    useAuthorEarningsMock.mockReset()
+    useCreatorRecentWorkMock.mockReturnValue([])
+    useAuthorEarningsMock.mockReturnValue({
+      totalEarnedUsd: 0,
+      tipCount: 0,
+    })
+  })
+
+  it('shows Continue writing when the user has drafts', () => {
+    useAuthMock.mockReturnValue({
+      user: baseUser,
+      isAuthenticated: true,
+      isLoading: false,
+    })
+    useUserDraftsMock.mockReturnValue([
+      {
+        _id: 'draft1',
+        title: 'My draft',
+        updatedAt: 2000,
+        _creationTime: 1000,
+        published: false,
+      },
+      {
+        _id: 'draft2',
+        title: 'Older draft',
+        updatedAt: 1000,
+        _creationTime: 500,
+        published: false,
+      },
+    ])
+
+    render(<HomePage />)
+
+    expect(
+      screen.getByRole('link', { name: /Continue writing/i })
+    ).toHaveAttribute('href', '/write?id=draft1')
+    expect(screen.getByText('My draft')).toBeInTheDocument()
+    expect(
+      screen.getByText('Your latest writing is ready when you are')
+    ).toBeInTheDocument()
+    expect(screen.getAllByText('Pick up where you left off')).toHaveLength(1)
+  })
+
+  it('shows Start a new article when the user has no drafts', () => {
+    useAuthMock.mockReturnValue({
+      user: baseUser,
+      isAuthenticated: true,
+      isLoading: false,
+    })
+    useUserDraftsMock.mockReturnValue([])
+
+    render(<HomePage />)
+
+    expect(
+      screen.getByRole('link', { name: /Start a new article/i })
+    ).toHaveAttribute('href', '/write')
+    expect(screen.queryByText(/Continue writing/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByText('Start your first article anytime')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Pick up where you left off')
+    ).not.toBeInTheDocument()
+  })
+
+  it('uses neutral creator workspace copy while drafts are loading', () => {
+    useAuthMock.mockReturnValue({
+      user: baseUser,
+      isAuthenticated: true,
+      isLoading: false,
+    })
+    useUserDraftsMock.mockReturnValue(undefined)
+
+    render(<HomePage />)
+
+    expect(
+      screen.getByText('Loading your writing workspace')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText('Pick up where you left off')
+    ).not.toBeInTheDocument()
   })
 })

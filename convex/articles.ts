@@ -428,6 +428,31 @@ export const getUserDrafts = query({
   },
 })
 
+export const getCreatorRecentWork = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return []
+
+    const limit = args.limit ?? 8
+    const articles = await ctx.db
+      .query('articles')
+      .withIndex('by_author_updated_at', (q) => q.eq('authorId', userId))
+      .order('desc')
+      .take(limit)
+
+    return articles.map((article) => ({
+      _id: article._id,
+      title: article.title,
+      excerpt: article.excerpt,
+      published: article.published,
+      updatedAt: article.updatedAt,
+      slug: article.slug,
+      authorUsername: article.authorUsername,
+    }))
+  },
+})
+
 // Create article
 export const createArticle = mutation({
   args: {
