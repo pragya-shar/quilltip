@@ -254,6 +254,30 @@ describe('EditorActionBar excerpt menu', () => {
   })
 })
 
+describe('EditorActionBar notes menu', () => {
+  it('shows personal notes inside the more menu instead of the top bar', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <EditorActionBar
+        {...baseProps}
+        notes=""
+        onNotesChange={vi.fn()}
+        moreMenuOpen
+        onMoreMenuOpenChange={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'Notes' })
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByText('Personal notes'))
+
+    expect(screen.getByLabelText('Personal notes')).toBeInTheDocument()
+  })
+})
+
 describe('EditorActionBar cover image menu', () => {
   it('shows Add cover image when onAddCoverImage is provided and no cover is set', async () => {
     const user = userEvent.setup()
