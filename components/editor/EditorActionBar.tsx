@@ -127,80 +127,34 @@ function NotesMenuSection({
   notesOpen,
   onNotesOpenChange,
   notesTextareaRef,
-  onRequestCloseMenu,
+  onOpenMobileNotes,
 }: {
   notes: string
   onNotesChange: (value: string) => void
   notesOpen: boolean
   onNotesOpenChange: (open: boolean) => void
   notesTextareaRef: RefObject<HTMLTextAreaElement | null>
-  onRequestCloseMenu?: () => void
+  onOpenMobileNotes: () => void
 }) {
   const isMobile = useIsMobile()
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const notesTriggerRef = useRef<HTMLButtonElement>(null)
 
   if (isMobile) {
     return (
-      <>
-        <DropdownMenu.Item
-          className="px-4 py-2.5 text-sm text-foreground outline-none flex cursor-pointer flex-col items-start gap-0.5 hover:bg-muted focus:bg-muted"
-          onSelect={(event) => {
-            event.preventDefault()
-            onRequestCloseMenu?.()
-            setDrawerOpen(true)
-          }}
-        >
-          <span className="flex items-center gap-2">
-            <FileText className="h-4 w-4 shrink-0" />
-            <span>Personal notes</span>
-          </span>
-          <span className="pl-6 text-[11px] leading-snug text-muted-foreground">
-            Private, not published
-          </span>
-        </DropdownMenu.Item>
-        <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-          <DrawerContent
-            className="max-h-[min(70dvh,32rem)] gap-0 overflow-y-auto px-0 pb-6"
-            onOpenAutoFocus={(e) => {
-              e.preventDefault()
-              notesTextareaRef.current?.focus()
-            }}
-          >
-            <DrawerHeader className="space-y-0 px-4 pb-2 text-left">
-              <div className="flex items-start justify-between gap-3 pr-8">
-                <div className="min-w-0 space-y-1">
-                  <DrawerTitle className="text-base">
-                    Personal Notes
-                  </DrawerTitle>
-                  <DrawerDescription className="text-left text-xs leading-snug">
-                    {WRITER_NOTES_HELPER_TEXT}
-                  </DrawerDescription>
-                </div>
-                <DrawerClose asChild>
-                  <button
-                    ref={notesTriggerRef}
-                    type="button"
-                    className={cn(
-                      'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-primary hover:bg-muted',
-                      focusRing
-                    )}
-                  >
-                    Done
-                  </button>
-                </DrawerClose>
-              </div>
-            </DrawerHeader>
-            <WriterNotesPanel
-              ref={notesTextareaRef}
-              notes={notes}
-              onNotesChange={onNotesChange}
-              showHeader={false}
-              textareaClassName="min-h-[8rem] rounded-none border-0 bg-background"
-            />
-          </DrawerContent>
-        </Drawer>
-      </>
+      <DropdownMenu.Item
+        className="px-4 py-2.5 text-sm text-foreground outline-none flex cursor-pointer flex-col items-start gap-0.5 hover:bg-muted focus:bg-muted"
+        onSelect={(event) => {
+          event.preventDefault()
+          onOpenMobileNotes()
+        }}
+      >
+        <span className="flex items-center gap-2">
+          <FileText className="h-4 w-4 shrink-0" />
+          <span>Personal notes</span>
+        </span>
+        <span className="pl-6 text-[11px] leading-snug text-muted-foreground">
+          Private, not published
+        </span>
+      </DropdownMenu.Item>
     )
   }
 
@@ -251,6 +205,67 @@ function NotesMenuSection({
   )
 }
 
+function MobileNotesDrawer({
+  open,
+  onOpenChange,
+  notes,
+  onNotesChange,
+  notesTextareaRef,
+  returnFocusRef,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  notes: string
+  onNotesChange: (value: string) => void
+  notesTextareaRef: RefObject<HTMLTextAreaElement | null>
+  returnFocusRef: RefObject<HTMLButtonElement | null>
+}) {
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent
+        className="max-h-[min(70dvh,32rem)] gap-0 overflow-y-auto px-0 pb-6"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault()
+          notesTextareaRef.current?.focus()
+        }}
+        onCloseAutoFocus={(e) => {
+          e.preventDefault()
+          returnFocusRef.current?.focus()
+        }}
+      >
+        <DrawerHeader className="space-y-0 px-4 pb-2 text-left">
+          <div className="flex items-start justify-between gap-3 pr-8">
+            <div className="min-w-0 space-y-1">
+              <DrawerTitle className="text-base">Personal Notes</DrawerTitle>
+              <DrawerDescription className="text-left text-xs leading-snug">
+                {WRITER_NOTES_HELPER_TEXT}
+              </DrawerDescription>
+            </div>
+            <DrawerClose asChild>
+              <button
+                type="button"
+                className={cn(
+                  'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-primary hover:bg-muted',
+                  focusRing
+                )}
+              >
+                Done
+              </button>
+            </DrawerClose>
+          </div>
+        </DrawerHeader>
+        <WriterNotesPanel
+          ref={notesTextareaRef}
+          notes={notes}
+          onNotesChange={onNotesChange}
+          showHeader={false}
+          textareaClassName="min-h-[8rem] rounded-none border-0 bg-background"
+        />
+      </DrawerContent>
+    </Drawer>
+  )
+}
+
 function MoreMenu({
   editor,
   onDelete,
@@ -296,6 +311,8 @@ function MoreMenu({
   const canRedo = editor?.can().redo() ?? false
   const shortcuts = useUndoRedoShortcuts()
   const [internalOpen, setInternalOpen] = useState(false)
+  const [mobileNotesOpen, setMobileNotesOpen] = useState(false)
+  const moreTriggerRef = useRef<HTMLButtonElement>(null)
   const menuOpen = isActive && (moreMenuOpen ?? internalOpen)
   const excerptLabel = excerpt.trim() ? 'Edit excerpt' : 'Add excerpt'
 
@@ -316,203 +333,223 @@ function MoreMenu({
     handleOpenChange(false)
   }
 
+  const openMobileNotes = () => {
+    closeMenu()
+    setMobileNotesOpen(true)
+  }
+
   return (
-    <DropdownMenu.Root open={menuOpen} onOpenChange={handleOpenChange}>
-      <DropdownMenu.Trigger asChild>
-        <button
-          type="button"
-          aria-label="More options"
-          aria-hidden={!isActive}
-          disabled={!isActive}
-          tabIndex={isActive ? undefined : -1}
-          className={`p-2 rounded-full border border-border text-muted-foreground hover:bg-muted hover:border-border transition-colors shrink-0 ${focusRing}`}
-          title="More options"
-        >
-          <MoreHorizontal className="h-4 w-4" />
-        </button>
-      </DropdownMenu.Trigger>
-      <DropdownMenu.Portal>
-        <DropdownMenu.Content
-          className={cn(
-            'bg-card rounded-lg shadow-lg border border-border py-1 z-50',
-            excerptOpen || notesOpen ? 'min-w-[280px]' : 'min-w-[180px]'
-          )}
-          sideOffset={4}
-          align="end"
-        >
-          <DropdownMenu.Item
-            disabled={!canUndo}
-            onSelect={(e) => {
-              e.preventDefault()
-              editor?.chain().focus().undo().run()
-            }}
-            className={cn(
-              'px-4 py-2.5 text-sm cursor-pointer outline-none flex items-center gap-2',
-              canUndo
-                ? 'text-foreground hover:bg-muted focus:bg-muted'
-                : 'opacity-40 cursor-not-allowed'
-            )}
+    <>
+      <DropdownMenu.Root open={menuOpen} onOpenChange={handleOpenChange}>
+        <DropdownMenu.Trigger asChild>
+          <button
+            ref={moreTriggerRef}
+            type="button"
+            aria-label="More options"
+            aria-hidden={!isActive}
+            disabled={!isActive}
+            tabIndex={isActive ? undefined : -1}
+            className={`p-2 rounded-full border border-border text-muted-foreground hover:bg-muted hover:border-border transition-colors shrink-0 ${focusRing}`}
+            title="More options"
           >
-            <Undo2 className="w-4 h-4 shrink-0" />
-            <span>Undo</span>
-            <span className="ml-auto text-xs text-muted-foreground">
-              {shortcuts.undo}
-            </span>
-          </DropdownMenu.Item>
-          <DropdownMenu.Item
-            disabled={!canRedo}
-            onSelect={(e) => {
-              e.preventDefault()
-              editor?.chain().focus().redo().run()
-            }}
+            <MoreHorizontal className="h-4 w-4" />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
             className={cn(
-              'px-4 py-2.5 text-sm cursor-pointer outline-none flex items-center gap-2',
-              canRedo
-                ? 'text-foreground hover:bg-muted focus:bg-muted'
-                : 'opacity-40 cursor-not-allowed'
+              'bg-card rounded-lg shadow-lg border border-border py-1 z-50',
+              excerptOpen || notesOpen ? 'min-w-[280px]' : 'min-w-[180px]'
             )}
+            sideOffset={4}
+            align="end"
           >
-            <Redo2 className="w-4 h-4 shrink-0" />
-            <span>Redo</span>
-            <span className="ml-auto text-xs text-muted-foreground">
-              {shortcuts.redo}
-            </span>
-          </DropdownMenu.Item>
-          {onAddCoverImage && !hasCoverImage ? (
-            <>
-              <DropdownMenu.Separator className="h-px bg-border my-1" />
-              <DropdownMenu.Item
-                onSelect={() => {
-                  onAddCoverImage()
-                }}
-                className="px-4 py-2.5 text-sm text-foreground hover:bg-muted focus:bg-muted cursor-pointer outline-none flex items-center gap-2"
-              >
-                <ImageIcon className="w-4 h-4 shrink-0" />
-                <span>Add cover image</span>
-              </DropdownMenu.Item>
-            </>
-          ) : null}
-          {onExcerptChange && onExcerptOpenChange ? (
-            <>
-              <DropdownMenu.Separator className="h-px bg-border my-1" />
-              <Collapsible
-                open={excerptOpen}
-                onOpenChange={onExcerptOpenChange}
-              >
+            <DropdownMenu.Item
+              disabled={!canUndo}
+              onSelect={(e) => {
+                e.preventDefault()
+                editor?.chain().focus().undo().run()
+              }}
+              className={cn(
+                'px-4 py-2.5 text-sm cursor-pointer outline-none flex items-center gap-2',
+                canUndo
+                  ? 'text-foreground hover:bg-muted focus:bg-muted'
+                  : 'opacity-40 cursor-not-allowed'
+              )}
+            >
+              <Undo2 className="w-4 h-4 shrink-0" />
+              <span>Undo</span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {shortcuts.undo}
+              </span>
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              disabled={!canRedo}
+              onSelect={(e) => {
+                e.preventDefault()
+                editor?.chain().focus().redo().run()
+              }}
+              className={cn(
+                'px-4 py-2.5 text-sm cursor-pointer outline-none flex items-center gap-2',
+                canRedo
+                  ? 'text-foreground hover:bg-muted focus:bg-muted'
+                  : 'opacity-40 cursor-not-allowed'
+              )}
+            >
+              <Redo2 className="w-4 h-4 shrink-0" />
+              <span>Redo</span>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {shortcuts.redo}
+              </span>
+            </DropdownMenu.Item>
+            {onAddCoverImage && !hasCoverImage ? (
+              <>
+                <DropdownMenu.Separator className="h-px bg-border my-1" />
                 <DropdownMenu.Item
-                  className="px-4 py-2.5 text-sm text-foreground outline-none flex cursor-pointer items-center justify-between gap-2 hover:bg-muted focus:bg-muted data-[highlighted]:bg-muted"
-                  onSelect={(event) => {
-                    event.preventDefault()
-                    const nextOpen = !excerptOpen
-                    onExcerptOpenChange(nextOpen)
-                    if (nextOpen) {
-                      window.setTimeout(
-                        () => excerptTextareaRef?.current?.focus(),
-                        0
-                      )
-                    }
+                  onSelect={() => {
+                    onAddCoverImage()
                   }}
+                  className="px-4 py-2.5 text-sm text-foreground hover:bg-muted focus:bg-muted cursor-pointer outline-none flex items-center gap-2"
                 >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <AlignLeft className="w-4 h-4 shrink-0" />
-                    <span>{excerptLabel}</span>
-                  </span>
-                  <ChevronDown
-                    className={cn(
-                      'h-3.5 w-3.5 shrink-0 transition-transform',
-                      excerptOpen && 'rotate-180'
-                    )}
-                  />
+                  <ImageIcon className="w-4 h-4 shrink-0" />
+                  <span>Add cover image</span>
                 </DropdownMenu.Item>
-                <CollapsibleContent>
-                  <div
-                    id="field-excerpt"
-                    className="space-y-2 border-t border-border px-3 pb-3 pt-2"
-                    onPointerDown={(event) => event.stopPropagation()}
+              </>
+            ) : null}
+            {onExcerptChange && onExcerptOpenChange ? (
+              <>
+                <DropdownMenu.Separator className="h-px bg-border my-1" />
+                <Collapsible
+                  open={excerptOpen}
+                  onOpenChange={onExcerptOpenChange}
+                >
+                  <DropdownMenu.Item
+                    className="px-4 py-2.5 text-sm text-foreground outline-none flex cursor-pointer items-center justify-between gap-2 hover:bg-muted focus:bg-muted data-[highlighted]:bg-muted"
+                    onSelect={(event) => {
+                      event.preventDefault()
+                      const nextOpen = !excerptOpen
+                      onExcerptOpenChange(nextOpen)
+                      if (nextOpen) {
+                        window.setTimeout(
+                          () => excerptTextareaRef?.current?.focus(),
+                          0
+                        )
+                      }
+                    }}
                   >
-                    <p className="text-[11px] leading-snug text-muted-foreground">
-                      Required for publishing. Shown on article cards and in the
-                      publish preview (at least {MIN_LISTING_EXCERPT_CHARS}{' '}
-                      characters).
-                    </p>
-                    <Textarea
-                      ref={excerptTextareaRef}
-                      id="article-excerpt"
-                      value={excerpt}
-                      onChange={(event) => onExcerptChange(event.target.value)}
-                      placeholder="Brief description of your article"
-                      rows={3}
-                      maxLength={excerptMaxChars}
-                      className="resize-none text-sm"
+                    <span className="flex min-w-0 items-center gap-2">
+                      <AlignLeft className="w-4 h-4 shrink-0" />
+                      <span>{excerptLabel}</span>
+                    </span>
+                    <ChevronDown
+                      className={cn(
+                        'h-3.5 w-3.5 shrink-0 transition-transform',
+                        excerptOpen && 'rotate-180'
+                      )}
                     />
-                    <p className="text-[11px] tabular-nums text-muted-foreground">
-                      {Math.min(excerpt.length, excerptMaxChars)}/
-                      {excerptMaxChars}
-                    </p>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            </>
-          ) : null}
-          {onNotesChange && onNotesOpenChange && notesTextareaRef ? (
-            <>
-              <DropdownMenu.Separator className="h-px bg-border my-1" />
-              <NotesMenuSection
-                notes={notes}
-                onNotesChange={onNotesChange}
-                notesOpen={notesOpen}
-                onNotesOpenChange={onNotesOpenChange}
-                notesTextareaRef={notesTextareaRef}
-                onRequestCloseMenu={closeMenu}
-              />
-            </>
-          ) : null}
-          <DropdownMenu.Separator className="h-px bg-border my-1" />
-          <DropdownMenu.Item
-            className="px-4 py-2.5 text-sm text-muted-foreground outline-none flex items-center gap-2"
-            onSelect={(e) => e.preventDefault()}
-          >
-            <LetterText className="w-4 h-4 shrink-0" />
-            {editor?.getText().split(/\s+/).filter(Boolean).length ?? 0} words
-          </DropdownMenu.Item>
-          <DropdownMenu.Item
-            className="px-4 py-2.5 text-sm text-muted-foreground outline-none flex items-center gap-2"
-            onSelect={(e) => e.preventDefault()}
-          >
-            <Clock className="w-4 h-4 shrink-0" />~
-            {estimateReadingMinutes(editor?.getText() ?? '')} min read
-          </DropdownMenu.Item>
-          {onDelete && (
-            <>
-              <DropdownMenu.Separator className="h-px bg-border my-1" />
-              <DropdownMenu.Item
-                disabled={isDeleting}
-                onSelect={(e) => {
-                  if (isDeleting) {
-                    e.preventDefault()
-                    return
-                  }
-                  onDelete?.()
-                }}
-                className="px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer outline-none flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4 shrink-0" />
-                    Delete draft
-                  </>
-                )}
-              </DropdownMenu.Item>
-            </>
-          )}
-        </DropdownMenu.Content>
-      </DropdownMenu.Portal>
-    </DropdownMenu.Root>
+                  </DropdownMenu.Item>
+                  <CollapsibleContent>
+                    <div
+                      id="field-excerpt"
+                      className="space-y-2 border-t border-border px-3 pb-3 pt-2"
+                      onPointerDown={(event) => event.stopPropagation()}
+                    >
+                      <p className="text-[11px] leading-snug text-muted-foreground">
+                        Required for publishing. Shown on article cards and in
+                        the publish preview (at least{' '}
+                        {MIN_LISTING_EXCERPT_CHARS} characters).
+                      </p>
+                      <Textarea
+                        ref={excerptTextareaRef}
+                        id="article-excerpt"
+                        value={excerpt}
+                        onChange={(event) =>
+                          onExcerptChange(event.target.value)
+                        }
+                        placeholder="Brief description of your article"
+                        rows={3}
+                        maxLength={excerptMaxChars}
+                        className="resize-none text-sm"
+                      />
+                      <p className="text-[11px] tabular-nums text-muted-foreground">
+                        {Math.min(excerpt.length, excerptMaxChars)}/
+                        {excerptMaxChars}
+                      </p>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </>
+            ) : null}
+            {onNotesChange && onNotesOpenChange && notesTextareaRef ? (
+              <>
+                <DropdownMenu.Separator className="h-px bg-border my-1" />
+                <NotesMenuSection
+                  notes={notes}
+                  onNotesChange={onNotesChange}
+                  notesOpen={notesOpen}
+                  onNotesOpenChange={onNotesOpenChange}
+                  notesTextareaRef={notesTextareaRef}
+                  onOpenMobileNotes={openMobileNotes}
+                />
+              </>
+            ) : null}
+            <DropdownMenu.Separator className="h-px bg-border my-1" />
+            <DropdownMenu.Item
+              className="px-4 py-2.5 text-sm text-muted-foreground outline-none flex items-center gap-2"
+              onSelect={(e) => e.preventDefault()}
+            >
+              <LetterText className="w-4 h-4 shrink-0" />
+              {editor?.getText().split(/\s+/).filter(Boolean).length ?? 0} words
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              className="px-4 py-2.5 text-sm text-muted-foreground outline-none flex items-center gap-2"
+              onSelect={(e) => e.preventDefault()}
+            >
+              <Clock className="w-4 h-4 shrink-0" />~
+              {estimateReadingMinutes(editor?.getText() ?? '')} min read
+            </DropdownMenu.Item>
+            {onDelete && (
+              <>
+                <DropdownMenu.Separator className="h-px bg-border my-1" />
+                <DropdownMenu.Item
+                  disabled={isDeleting}
+                  onSelect={(e) => {
+                    if (isDeleting) {
+                      e.preventDefault()
+                      return
+                    }
+                    onDelete?.()
+                  }}
+                  className="px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer outline-none flex items-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4 shrink-0" />
+                      Delete draft
+                    </>
+                  )}
+                </DropdownMenu.Item>
+              </>
+            )}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
+      {onNotesChange && notesTextareaRef ? (
+        <MobileNotesDrawer
+          open={mobileNotesOpen}
+          onOpenChange={setMobileNotesOpen}
+          notes={notes}
+          onNotesChange={onNotesChange}
+          notesTextareaRef={notesTextareaRef}
+          returnFocusRef={moreTriggerRef}
+        />
+      ) : null}
+    </>
   )
 }
 

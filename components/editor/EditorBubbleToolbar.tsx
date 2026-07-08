@@ -16,6 +16,8 @@ import {
   AlignRight,
   Bold,
   Code,
+  Heading2,
+  Heading3,
   Italic,
   Link2,
   MoreHorizontal,
@@ -37,6 +39,7 @@ interface Props {
 }
 
 type TextAlignValue = 'left' | 'center' | 'right' | 'justify'
+type HeadingLevel = 2 | 3
 
 function canSetTextAlign(editor: Editor, align: TextAlignValue): boolean {
   const chain = editor.can().chain().focus() as {
@@ -51,6 +54,13 @@ function setTextAlign(editor: Editor, align: TextAlignValue): void {
     setTextAlign?: (a: string) => { run: () => boolean }
   }
   chain.setTextAlign?.(align).run()
+}
+
+function toggleHeading(editor: Editor, level: HeadingLevel): void {
+  const chain = editor.chain().focus() as {
+    toggleHeading?: (options: { level: HeadingLevel }) => { run: () => boolean }
+  }
+  chain.toggleHeading?.({ level }).run()
 }
 
 export function EditorBubbleToolbar({ editor }: Props) {
@@ -275,6 +285,25 @@ export function EditorBubbleToolbar({ editor }: Props) {
                   sideOffset={6}
                   align="center"
                 >
+                  <DropdownMenu.Item
+                    onSelect={() => toggleHeading(editor, 2)}
+                    className={overflowItemClass(
+                      editor.isActive('heading', { level: 2 })
+                    )}
+                  >
+                    <Heading2 className="h-4 w-4 shrink-0" />
+                    Heading 2
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Item
+                    onSelect={() => toggleHeading(editor, 3)}
+                    className={overflowItemClass(
+                      editor.isActive('heading', { level: 3 })
+                    )}
+                  >
+                    <Heading3 className="h-4 w-4 shrink-0" />
+                    Heading 3
+                  </DropdownMenu.Item>
+                  <DropdownMenu.Separator className="my-1 h-px bg-border" />
                   <DropdownMenu.Item
                     onSelect={() =>
                       editor.chain().focus().toggleUnderline().run()
