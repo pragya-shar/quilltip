@@ -1,12 +1,17 @@
 /** @vitest-environment jsdom */
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WalletSettings } from '@/components/stellar/WalletSettings'
 
 const mockDisconnect = vi.fn()
+const mockUpdateProfile = vi.fn()
+
+const savedAddress = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
+const nextAddress = 'GC2BKLYOOYPDEFJKLKY6FNNRQMGFLVHJKQRGNSSRRGSMPGF32LHCQVGF'
 
 vi.mock('convex/react', () => ({
-  useMutation: () => vi.fn(),
+  useMutation: () => mockUpdateProfile,
 }))
 
 vi.mock('@/components/providers/WalletProvider', () => ({
@@ -55,6 +60,8 @@ vi.mock('@/components/stellar/ContextualWalletSetup', () => ({
 describe('WalletSettings', () => {
   beforeEach(() => {
     mockDisconnect.mockReset()
+    mockUpdateProfile.mockReset()
+    mockUpdateProfile.mockResolvedValue(undefined)
   })
 
   it('shows visitor empty alert with profile display name', () => {
@@ -107,5 +114,37 @@ describe('WalletSettings', () => {
       screen.getByRole('button', { name: /Connect wallet/i })
     ).toBeInTheDocument()
     expect(screen.queryByText(/undefined/i)).not.toBeInTheDocument()
+  })
+
+  it('lets owners type and save a different receiving wallet address', async () => {
+    const onAddressChange = vi.fn()
+    const user = userEvent.setup({ delay: null })
+
+    render(
+      <WalletSettings
+        isOwnProfile
+        walletAddress={savedAddress}
+        onAddressChange={onAddressChange}
+      />
+    )
+
+    const addressInput = screen.getByLabelText(/Receiving wallet address/i)
+    expect(addressInput).not.toHaveAttribute('readonly')
+
+    await user.clear(addressInput)
+    await user.type(addressInput, nextAddress)
+
+    expect(addressInput).toHaveValue(nextAddress)
+
+    await user.click(
+      screen.getByRole('button', { name: /Save receiving wallet/i })
+    )
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith({
+        stellarAddress: nextAddress,
+      })
+      expect(onAddressChange).toHaveBeenCalledWith(nextAddress)
+    })
   })
 })
