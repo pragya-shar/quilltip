@@ -12,6 +12,7 @@ import {
   parseBrowseSort,
   parseBrowseView,
 } from '@/lib/articles/browseDiscovery'
+import { parseArticlesPageParam } from '@/lib/articles/parseArticlesPageParam'
 import {
   buildArticlesBrowseScrollStorageKey,
   writeBrowseScrollY,
@@ -55,7 +56,7 @@ export default function ArticlesPage() {
     writeBrowseScrollY(scrollStorageKey, window.scrollY)
   }, [scrollStorageKey])
 
-  const currentPage = parseInt(searchParams?.get('page') || '1')
+  const currentPage = parseArticlesPageParam(searchParams?.get('page'))
   const tag = searchParams?.get('tag') || undefined
   const author = searchParams?.get('author') || undefined
   const urlSearch = searchParams?.get('search') || undefined

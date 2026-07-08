@@ -66,11 +66,13 @@ export function useAutoSave({
   // Convex mutation for saving drafts
   const saveDraftMutation = useMutation(api.articles.saveDraft)
 
-  const saveDraft = useCallback(async () => {
+  const saveDraft = useCallback(async (): Promise<
+    DraftResponse | undefined
+  > => {
     // Allow save when we have content OR (title or coverImage) for metadata-only drafts
     const hasContent = !!content
     const hasMetadata = !!(title?.trim() || coverImage || writerNotes?.trim())
-    if (!hasContent && !hasMetadata) return
+    if (!hasContent && !hasMetadata) return undefined
 
     setState((prev) => {
       if (prev.isSaving) return prev
@@ -117,6 +119,7 @@ export function useAutoSave({
       }
 
       onSaveSuccess?.(response)
+      return response
     } catch (error) {
       if (timeoutId !== undefined) clearTimeout(timeoutId)
       void mutationPromise.catch(() => {})
@@ -131,6 +134,7 @@ export function useAutoSave({
       }))
 
       onSaveError?.(err)
+      return undefined
     }
   }, [
     content,
@@ -214,7 +218,7 @@ export function useAutoSave({
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
     }
-    await saveDraft()
+    return await saveDraft()
   }, [saveDraft])
 
   return {

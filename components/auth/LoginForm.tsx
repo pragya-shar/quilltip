@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
 import { getLoginCopy } from '@/lib/copy/auth-intent'
 import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
+import { shouldUseFullPageAuthNavigation } from '@/lib/auth/postAuthNavigation'
 import { getSafeRedirectPath } from '@/lib/navigation/walletProfileDestination'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -79,10 +80,7 @@ export default function LoginForm() {
       // Full navigation for tip-resume flows so auth + URL params are stable
       // before the article page mounts (avoids inconsistent client-side resume).
       const pendingTipIntent = readPendingTipIntent()
-      if (
-        postLoginPath.includes('resumeArticleTip=1') ||
-        pendingTipIntent?.kind === 'highlight'
-      ) {
+      if (shouldUseFullPageAuthNavigation(postLoginPath, pendingTipIntent)) {
         window.location.assign(postLoginPath)
         return
       }

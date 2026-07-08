@@ -105,7 +105,7 @@ describe('EarningsStats', () => {
       />
     )
 
-    expect(screen.getByText('Connect to receive tips')).toBeInTheDocument()
+    expect(screen.getByText('Set up your receiving wallet')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /Connect wallet/i })
     ).toBeInTheDocument()
@@ -129,5 +129,22 @@ describe('EarningsStats', () => {
       screen.getByText(/minimum available balance of \$10\.00/i)
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /withdraw/i })).toBeDisabled()
+  })
+
+  it('keeps wallet setup enabled even when balance is below withdrawal minimum', () => {
+    const earnings = makeEarnings({
+      availableBalanceUsd: 0,
+      availableBalanceCents: 0,
+    })
+    render(
+      <EarningsStats
+        earnings={earnings}
+        userProfile={{ stellarAddress: null }}
+        minWithdrawalUsd={10}
+        onOpenWithdrawModal={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /Set Up Wallet/i })).toBeEnabled()
   })
 })

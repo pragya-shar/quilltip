@@ -103,6 +103,11 @@ export default defineSchema({
     .index('by_author_updated_at', ['authorId', 'updatedAt'])
     .index('by_published', ['published'])
     .index('by_author_published', ['authorId', 'published']) // Composite for author's published articles
+    .index('by_author_published_updated_at', [
+      'authorId',
+      'published',
+      'updatedAt',
+    ])
     .index('by_published_date', ['published', 'publishedAt']) // For listing by date
     .searchIndex('search_listing', {
       searchField: 'searchContent',

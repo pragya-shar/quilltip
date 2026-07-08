@@ -14,8 +14,11 @@ export function DashboardWalletContent() {
   >()
 
   useEffect(() => {
-    if (user?.stellarAddress !== localWalletAddress) {
-      setLocalWalletAddress(user?.stellarAddress)
+    if (
+      localWalletAddress !== undefined &&
+      user?.stellarAddress === localWalletAddress
+    ) {
+      setLocalWalletAddress(undefined)
     }
   }, [user?.stellarAddress, localWalletAddress])
 
@@ -24,6 +27,8 @@ export function DashboardWalletContent() {
   }
 
   const profileDisplayName = user?.name || currentUser.username
+  const walletAddress =
+    localWalletAddress === undefined ? user?.stellarAddress : localWalletAddress
 
   return (
     <div className="space-y-8">
@@ -38,13 +43,11 @@ export function DashboardWalletContent() {
 
       <div className="max-w-2xl">
         <WalletSettings
-          walletAddress={localWalletAddress ?? user?.stellarAddress}
+          walletAddress={walletAddress}
           profileUsername={currentUser.username}
           isOwnProfile
           profileDisplayName={profileDisplayName}
-          onAddressChange={(address) => {
-            setLocalWalletAddress(address || undefined)
-          }}
+          onAddressChange={setLocalWalletAddress}
         />
       </div>
     </div>

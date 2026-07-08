@@ -5,8 +5,10 @@ import { PenSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Doc } from '@/types/convex'
 
+type PrimaryWritingDraft = Pick<Doc<'articles'>, '_id' | 'title'>
+
 type PrimaryWritingActionProps = {
-  mostRecentDraft: Doc<'articles'> | null
+  mostRecentDraft: PrimaryWritingDraft | null
 }
 
 export function PrimaryWritingAction({

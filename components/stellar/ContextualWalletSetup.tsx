@@ -33,14 +33,14 @@ function getHeadline(mode: WalletSetupMode, recipientLabel?: string): string {
       ? `Connect to tip ${recipientLabel}`
       : 'Connect to send a tip'
   }
-  return 'Connect to receive tips'
+  return 'Set up your receiving wallet'
 }
 
 function getBody(mode: WalletSetupMode): string {
   if (mode === 'send') {
     return "You'll sign the tip in your Stellar wallet."
   }
-  return 'When readers tip your articles, payments go to this wallet.'
+  return 'Published articles can receive tips after this Stellar testnet wallet is saved.'
 }
 
 export function ContextualWalletSetup({

@@ -19,13 +19,18 @@ const docWithBody = {
 const listingExcerpt = 'a'.repeat(MIN_LISTING_EXCERPT_CHARS)
 
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
+const authorWallet = 'GAUTHORRECEIVINGWALLET'
 
-async function seedAuthor(t: ReturnType<typeof convexTest>) {
+async function seedAuthor(
+  t: ReturnType<typeof convexTest>,
+  stellarAddress: string | null = authorWallet
+) {
   return await t.run(async (ctx) => {
     const now = Date.now()
     const userId = await ctx.db.insert('users', {
       email: 'pub@x.test',
       username: 'pubwriter',
+      ...(stellarAddress ? { stellarAddress } : {}),
       createdAt: now,
       updatedAt: now,
     })
@@ -132,6 +137,37 @@ describe('publish listing readiness', () => {
     expect(row?.published).toBe(true)
   })
 
+  it('rejects publishArticle when the author has no receiving wallet', async () => {
+    const t = convexTest(schema, modules)
+    const { userId, now } = await seedAuthor(t, null)
+    const asAuthor = t.withIdentity({ subject: userId })
+
+    const articleId = await t.run(async (ctx) => {
+      return await ctx.db.insert('articles', {
+        slug: 'ready-walletless-draft',
+        title: 'Real Title',
+        excerpt: listingExcerpt,
+        content: docWithBody,
+        published: false,
+        authorId: userId,
+        authorUsername: 'pubwriter',
+        tags: [],
+        viewCount: 0,
+        highlightCount: 0,
+        tipCount: 0,
+        totalTipsUsd: 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    await expect(
+      asAuthor.mutation(api.articles.publishArticle, {
+        id: articleId as Id<'articles'>,
+      })
+    ).rejects.toThrow(/receiving wallet/)
+  })
+
   it('rejects createArticle with published when not listing-ready', async () => {
     const t = convexTest(schema, modules)
     const { userId } = await seedAuthor(t)
@@ -171,5 +207,20 @@ describe('publish listing readiness', () => {
 
     const row = await t.run(async (ctx) => ctx.db.get(id as Id<'articles'>))
     expect(row?.published).toBe(true)
+  })
+
+  it('rejects createArticle published when the author has no receiving wallet', async () => {
+    const t = convexTest(schema, modules)
+    const { userId } = await seedAuthor(t, null)
+    const asAuthor = t.withIdentity({ subject: userId })
+
+    await expect(
+      asAuthor.mutation(api.articles.createArticle, {
+        title: 'Good Title',
+        content: docWithBody,
+        excerpt: listingExcerpt,
+        published: true,
+      })
+    ).rejects.toThrow(/receiving wallet/)
   })
 })

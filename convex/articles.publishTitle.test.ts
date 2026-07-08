@@ -18,6 +18,7 @@ const docWithText = {
 
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
 const listingExcerpt = 'a'.repeat(MIN_LISTING_EXCERPT_CHARS)
+const authorWallet = 'GTITLEAUTHORRECEIVINGWALLET'
 
 async function drainScheduler(t: ReturnType<typeof convexTest>) {
   await new Promise((resolve) => setTimeout(resolve, 50))
@@ -32,6 +33,7 @@ async function seedAuthor(t: ReturnType<typeof convexTest>) {
     const userId = await ctx.db.insert('users', {
       email: 'writer@x.test',
       username: 'writer',
+      stellarAddress: authorWallet,
       createdAt: now,
       updatedAt: now,
     })
