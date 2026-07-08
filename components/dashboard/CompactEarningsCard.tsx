@@ -34,15 +34,23 @@ export function CompactEarningsCard({ user }: CompactEarningsCardProps) {
           Wallet
         </div>
         <p className="mb-4 text-sm text-muted-foreground">
-          Set up a Stellar {networkLabelLowercase()} wallet to receive tips from
-          readers.
+          Add a Stellar {networkLabelLowercase()} receiving wallet so published
+          articles are ready to earn tips.
         </p>
-        <Link
-          href="/guide"
-          className="text-sm font-medium text-brand-blue hover:text-brand-accent"
-        >
-          Set up wallet
-        </Link>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Link
+            href="/dashboard/wallet"
+            className="text-sm font-medium text-brand-blue hover:text-brand-accent"
+          >
+            Set up wallet
+          </Link>
+          <Link
+            href="/guide"
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Wallet guide
+          </Link>
+        </div>
       </div>
     )
   }

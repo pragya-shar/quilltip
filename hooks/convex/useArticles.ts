@@ -54,3 +54,7 @@ export type CreatorRecentWorkArgs = {
 export function useCreatorRecentWork(args: CreatorRecentWorkArgs = {}) {
   return useQuery(api.articles.getCreatorRecentWork, args)
 }
+
+export function useCreatorWorkspaceSummary() {
+  return useQuery(api.articles.getCreatorWorkspaceSummary)
+}

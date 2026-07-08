@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TipButton } from '@/components/tipping/TipButton'
@@ -8,13 +8,19 @@ const mockRedirectToLoginForTip = vi.hoisted(() => vi.fn())
 const mockIsAuthenticated = vi.hoisted(() => vi.fn(() => false))
 const mockIsConnected = vi.hoisted(() => vi.fn(() => false))
 const mockUseArticleTipResume = vi.hoisted(() => vi.fn())
+const mockCanTipQuery = vi.hoisted(() => vi.fn())
+const mockSendTipMutation = vi.hoisted(() => vi.fn())
+const mockSignTransaction = vi.hoisted(() => vi.fn())
+const mockConnect = vi.hoisted(() => vi.fn())
+const mockBuildTipTransaction = vi.hoisted(() => vi.fn())
+const mockSubmitTipTransaction = vi.hoisted(() => vi.fn())
 const mockTipDialogFooterNote = vi.hoisted(() =>
   vi.fn(() => 'Review footer note from copy helper')
 )
 
 vi.mock('convex/react', () => ({
-  useConvex: () => ({ query: vi.fn() }),
-  useMutation: () => vi.fn(),
+  useConvex: () => ({ query: mockCanTipQuery }),
+  useMutation: () => mockSendTipMutation,
 }))
 
 vi.mock('@/components/providers/AuthContext', () => ({
@@ -26,8 +32,8 @@ vi.mock('@/components/providers/WalletProvider', () => ({
     isConnected: mockIsConnected(),
     isLoading: false,
     publicKey: mockIsConnected() ? 'GABCDEF123456789' : null,
-    signTransaction: vi.fn(),
-    connect: vi.fn(),
+    signTransaction: mockSignTransaction,
+    connect: mockConnect,
   }),
 }))
 
@@ -42,6 +48,15 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('@/hooks/useTipDialogXlmUsdRate', () => ({
   useTipDialogXlmUsdRate: () => ({ priceUsd: null }),
+}))
+
+vi.mock('@/lib/stellar/client', () => ({
+  stellarClient: {
+    buildTipTransaction: (...args: unknown[]) =>
+      mockBuildTipTransaction(...args),
+    submitTipTransaction: (...args: unknown[]) =>
+      mockSubmitTipTransaction(...args),
+  },
 }))
 
 vi.mock('@/lib/copy/network-status', async () => {
@@ -70,7 +85,7 @@ vi.mock('@/hooks/useArticleTipResume', () => ({
 }))
 
 vi.mock('@/lib/stellar/stellar-flow-emitter', () => ({
-  stellarFlowEmitter: { subscribe: () => () => {} },
+  stellarFlowEmitter: { subscribe: () => () => {}, emit: vi.fn() },
   tipFlowProgressLabel: () => 'Processing',
 }))
 
@@ -101,6 +116,25 @@ describe('TipButton two-stage flow', () => {
     mockUseArticleTipResume.mockClear()
     mockIsAuthenticated.mockReturnValue(false)
     mockIsConnected.mockReturnValue(false)
+    mockCanTipQuery.mockReset()
+    mockCanTipQuery.mockResolvedValue({ allowed: true })
+    mockSendTipMutation.mockReset()
+    mockSendTipMutation.mockResolvedValue('tip-id')
+    mockSignTransaction.mockReset()
+    mockSignTransaction.mockResolvedValue('signed-xdr')
+    mockConnect.mockReset()
+    mockBuildTipTransaction.mockReset()
+    mockBuildTipTransaction.mockResolvedValue({
+      xdr: 'unsigned-xdr',
+      stroops: 10_000_000,
+      platformFee: 0.01,
+      authorReceived: 0.99,
+    })
+    mockSubmitTipTransaction.mockReset()
+    mockSubmitTipTransaction.mockResolvedValue({
+      transactionHash: 'tx-article-123456789',
+      tipId: 'contract-tip-article',
+    })
     mockTipDialogFooterNote.mockClear()
   })
 
@@ -307,5 +341,44 @@ describe('TipButton two-stage flow', () => {
     expect(
       screen.queryByRole('button', { name: 'Continue' })
     ).not.toBeInTheDocument()
+  })
+
+  it('retries Convex sync for a submitted tip without resubmitting Stellar tx', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    mockSendTipMutation
+      .mockRejectedValueOnce(new Error('Convex unavailable'))
+      .mockResolvedValueOnce('tip-id')
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(
+      await screen.findByText('Tip sent, app sync failed')
+    ).toBeInTheDocument()
+    expect(mockSignTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => {
+      expect(mockSendTipMutation).toHaveBeenCalledTimes(2)
+    })
+    expect(mockSendTipMutation).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        stellarTxId: 'tx-article-123456789',
+      })
+    )
+    expect(mockSignTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
   })
 })

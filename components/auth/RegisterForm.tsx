@@ -6,8 +6,10 @@ import { useForm, type FieldErrors } from 'react-hook-form'
 import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { parseRegisterSignInError } from '@/lib/auth/map-register-error'
+import { shouldUseFullPageAuthNavigation } from '@/lib/auth/postAuthNavigation'
 import { getFirstRegisterFieldError } from '@/lib/auth/register-form-a11y'
 import { getRegisterCopy } from '@/lib/copy/auth-intent'
+import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import { registerSchema, type RegisterFormData } from '@/lib/validations/auth'
 import { allPasswordRulesMet } from '@/lib/validations/password-rules'
 import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
@@ -106,6 +108,12 @@ export default function RegisterForm() {
       })
 
       setSuccess(true)
+      const pendingTipIntent = readPendingTipIntent()
+      if (shouldUseFullPageAuthNavigation(returnPath, pendingTipIntent)) {
+        window.location.assign(returnPath)
+        return
+      }
+
       // Use replace to prevent back button returning to register
       router.replace(returnPath)
     } catch (error) {

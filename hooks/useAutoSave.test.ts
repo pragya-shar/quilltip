@@ -51,7 +51,7 @@ describe('useAutoSave', () => {
     expect(result.current.isSaving).toBe(false)
     expect(result.current.lastSavedAt).toBeNull()
 
-    let savePromise: Promise<void>
+    let savePromise: Promise<unknown>
     act(() => {
       savePromise = result.current.saveNow()
     })
@@ -113,7 +113,7 @@ describe('useAutoSave', () => {
       })
     )
 
-    let savePromise: Promise<void>
+    let savePromise: Promise<unknown>
     act(() => {
       savePromise = result.current.saveNow()
     })
@@ -128,6 +128,32 @@ describe('useAutoSave', () => {
       'Save timed out. Check your connection.'
     )
     expect(result.current.lastSavedAt).toBeNull()
+  })
+
+  it('returns the saved draft response from saveNow', async () => {
+    mockSaveDraft.mockResolvedValue('article-789')
+
+    const { result } = renderHook(() =>
+      useAutoSave({
+        content: sampleContent,
+        title: 'Returned draft',
+        enabled: false,
+      })
+    )
+
+    let response:
+      | Awaited<ReturnType<typeof result.current.saveNow>>
+      | undefined = undefined
+    await act(async () => {
+      response = await result.current.saveNow()
+    })
+
+    expect(response).toEqual(
+      expect.objectContaining({
+        id: 'article-789',
+        title: 'Returned draft',
+      })
+    )
   })
 
   it('calls onSaveSuccess only after a successful save', async () => {

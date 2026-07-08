@@ -33,6 +33,8 @@ import {
 } from './lib/tiptapContent'
 
 const WRITER_NOTES_MAX_LENGTH = 5000
+const PUBLISH_RECEIVING_WALLET_ERROR =
+  'Connect a receiving wallet before publishing so readers can tip this article'
 
 function stripWriterNotes<T extends { writerNotes?: string }>(
   article: T
@@ -71,6 +73,12 @@ function validateArticleInput(args: {
     throw new Error(
       `Writer notes must be ${WRITER_NOTES_MAX_LENGTH} characters or less`
     )
+  }
+}
+
+function assertAuthorCanReceiveTips(user: { stellarAddress?: string | null }) {
+  if (!user.stellarAddress) {
+    throw new Error(PUBLISH_RECEIVING_WALLET_ERROR)
   }
 }
 
@@ -434,7 +442,7 @@ export const getCreatorRecentWork = query({
     const userId = await getAuthUserId(ctx)
     if (!userId) return []
 
-    const limit = args.limit ?? 8
+    const limit = Math.min(Math.max(args.limit ?? 8, 1), 20)
     const articles = await ctx.db
       .query('articles')
       .withIndex('by_author_updated_at', (q) => q.eq('authorId', userId))
@@ -450,6 +458,39 @@ export const getCreatorRecentWork = query({
       slug: article.slug,
       authorUsername: article.authorUsername,
     }))
+  },
+})
+
+export const getCreatorWorkspaceSummary = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) {
+      return {
+        hasDrafts: false,
+        mostRecentDraft: null,
+      }
+    }
+
+    const mostRecentDraft = await ctx.db
+      .query('articles')
+      .withIndex('by_author_published_updated_at', (q) =>
+        q.eq('authorId', userId).eq('published', false)
+      )
+      .order('desc')
+      .first()
+
+    return {
+      hasDrafts: Boolean(mostRecentDraft),
+      mostRecentDraft: mostRecentDraft
+        ? {
+            _id: mostRecentDraft._id,
+            _creationTime: mostRecentDraft._creationTime,
+            title: mostRecentDraft.title,
+            updatedAt: mostRecentDraft.updatedAt,
+          }
+        : null,
+    }
   },
 })
 
@@ -481,6 +522,7 @@ export const createArticle = mutation({
     if (!user) throw new Error('User not found')
 
     if (args.published) {
+      assertAuthorCanReceiveTips(user)
       assertArticleListingReady({
         title: args.title,
         excerpt: args.excerpt,
@@ -647,6 +689,10 @@ export const publishArticle = mutation({
     if (article.authorId !== userId) throw new Error('Not authorized')
     if (article.published) throw new Error('Already published')
 
+    const user = await ctx.db.get(userId)
+    if (!user) throw new Error('User not found')
+    assertAuthorCanReceiveTips(user)
+
     // Validate article has required content before publishing
     assertPublishableArticleTitle(article.title)
     if (!article.content) {
@@ -703,13 +749,10 @@ export const publishArticle = mutation({
     }
 
     // Update user's article count
-    const user = await ctx.db.get(userId)
-    if (user) {
-      await ctx.db.patch(userId, {
-        articleCount: (user.articleCount || 0) + 1,
-        updatedAt: now,
-      })
-    }
+    await ctx.db.patch(userId, {
+      articleCount: (user.articleCount || 0) + 1,
+      updatedAt: now,
+    })
 
     return { id: args.id, slug }
   },

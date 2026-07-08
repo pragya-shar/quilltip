@@ -63,10 +63,10 @@ describe('ContextualWalletSetup', () => {
   it('renders receive mode copy', () => {
     render(<ContextualWalletSetup mode="receive" />)
 
-    expect(screen.getByText('Connect to receive tips')).toBeInTheDocument()
+    expect(screen.getByText('Set up your receiving wallet')).toBeInTheDocument()
     expect(
       screen.getByText(
-        'When readers tip your articles, payments go to this wallet.'
+        'Published articles can receive tips after this Stellar testnet wallet is saved.'
       )
     ).toBeInTheDocument()
   })

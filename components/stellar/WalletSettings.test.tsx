@@ -46,7 +46,7 @@ vi.mock('@/components/stellar/ContextualWalletSetup', () => ({
     <div>
       {mode === 'send'
         ? `Connect to tip ${recipientLabel}`
-        : 'Connect to receive tips'}
+        : 'Set up your receiving wallet'}
       <button type="button">Connect wallet</button>
     </div>
   ),
@@ -102,7 +102,7 @@ describe('WalletSettings', () => {
   it('shows owner contextual wallet setup when wallet address is missing', () => {
     render(<WalletSettings isOwnProfile walletAddress={null} />)
 
-    expect(screen.getByText('Connect to receive tips')).toBeInTheDocument()
+    expect(screen.getByText('Set up your receiving wallet')).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /Connect wallet/i })
     ).toBeInTheDocument()

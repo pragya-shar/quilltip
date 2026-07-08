@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,6 +24,12 @@ const mockAuth = vi.hoisted(() => ({
   isAuthenticated: false,
 }))
 const mockIsConnected = vi.hoisted(() => vi.fn(() => false))
+const mockCanTipQuery = vi.hoisted(() => vi.fn())
+const mockCreateHighlightTip = vi.hoisted(() => vi.fn())
+const mockSignTransaction = vi.hoisted(() => vi.fn())
+const mockConnect = vi.hoisted(() => vi.fn())
+const mockBuildHighlightTipTransaction = vi.hoisted(() => vi.fn())
+const mockSubmitTipTransaction = vi.hoisted(() => vi.fn())
 
 vi.mock('@/components/providers/AuthContext', () => ({
   useAuth: () => ({ isAuthenticated: mockAuth.isAuthenticated }),
@@ -34,8 +40,8 @@ vi.mock('@/components/providers/WalletProvider', () => ({
     isConnected: mockIsConnected(),
     isLoading: false,
     publicKey: mockIsConnected() ? 'GABCDEF123456789' : null,
-    signTransaction: vi.fn(),
-    connect: vi.fn(),
+    signTransaction: mockSignTransaction,
+    connect: mockConnect,
   }),
 }))
 
@@ -49,8 +55,8 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('convex/react', () => ({
-  useConvex: () => ({ query: vi.fn() }),
-  useMutation: () => vi.fn(),
+  useConvex: () => ({ query: mockCanTipQuery }),
+  useMutation: () => mockCreateHighlightTip,
 }))
 
 vi.mock('@/hooks/useTipDialogXlmUsdRate', () => ({
@@ -58,11 +64,16 @@ vi.mock('@/hooks/useTipDialogXlmUsdRate', () => ({
 }))
 
 vi.mock('@/lib/stellar/client', () => ({
-  stellarClient: {},
+  stellarClient: {
+    buildHighlightTipTransaction: (...args: unknown[]) =>
+      mockBuildHighlightTipTransaction(...args),
+    submitTipTransaction: (...args: unknown[]) =>
+      mockSubmitTipTransaction(...args),
+  },
 }))
 
 vi.mock('@/lib/stellar/stellar-flow-emitter', () => ({
-  stellarFlowEmitter: { subscribe: () => () => {} },
+  stellarFlowEmitter: { subscribe: () => () => {}, emit: vi.fn() },
   tipFlowProgressLabel: () => '',
 }))
 
@@ -104,6 +115,25 @@ describe('HighlightTipButton two-stage flow', () => {
     mockIsConnected.mockReturnValue(false)
     writePendingHighlightSelection.mockClear()
     signInToTip.mockClear()
+    mockCanTipQuery.mockReset()
+    mockCanTipQuery.mockResolvedValue({ allowed: true })
+    mockCreateHighlightTip.mockReset()
+    mockCreateHighlightTip.mockResolvedValue('highlight-tip-id')
+    mockSignTransaction.mockReset()
+    mockSignTransaction.mockResolvedValue('signed-xdr')
+    mockConnect.mockReset()
+    mockBuildHighlightTipTransaction.mockReset()
+    mockBuildHighlightTipTransaction.mockResolvedValue({
+      xdr: 'unsigned-xdr',
+      stroops: 10_000_000,
+      platformFee: 0.01,
+      authorReceived: 0.99,
+    })
+    mockSubmitTipTransaction.mockReset()
+    mockSubmitTipTransaction.mockResolvedValue({
+      transactionHash: 'tx-highlight-123456789',
+      tipId: 'contract-tip-highlight',
+    })
     clearPendingTipIntent.mockClear()
     readPendingTipIntent.mockReturnValue(null)
   })
@@ -247,5 +277,48 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(
       screen.getByRole('button', { name: 'Connect Wallet' })
     ).toBeInTheDocument()
+  })
+
+  it('retries Convex sync for a submitted highlight tip without resubmitting Stellar tx', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    mockCreateHighlightTip
+      .mockRejectedValueOnce(new Error('Convex unavailable'))
+      .mockResolvedValueOnce('highlight-tip-id')
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await openHighlightTipAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(
+      await screen.findByText('Tip sent, app sync failed')
+    ).toBeInTheDocument()
+    expect(mockSignTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => {
+      expect(mockCreateHighlightTip).toHaveBeenCalledTimes(2)
+    })
+    expect(mockCreateHighlightTip).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        stellarTxId: 'tx-highlight-123456789',
+      })
+    )
+    expect(mockSignTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
   })
 })

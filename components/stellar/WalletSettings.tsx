@@ -36,7 +36,7 @@ import { networkLabelLowercase } from '@/lib/copy/network-status'
 interface WalletSettingsProps {
   walletAddress?: string | null
   profileUsername?: string
-  onAddressChange?: (address: string) => void
+  onAddressChange?: (address: string | null) => void
   isOwnProfile: boolean
   profileDisplayName?: string
   className?: string
@@ -95,7 +95,7 @@ export function WalletSettings({
       disconnect()
 
       // Step 3: Notify parent component for immediate UI update
-      onAddressChange?.('')
+      onAddressChange?.(null)
       setWalletFeedback(null)
 
       toast.success('Wallet disconnected successfully')

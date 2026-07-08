@@ -4,7 +4,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import HomePage from './page'
 
 const useAuthMock = vi.fn()
-const useUserDraftsMock = vi.fn()
+const useCreatorWorkspaceSummaryMock = vi.fn()
 const useCreatorRecentWorkMock = vi.fn()
 const useAuthorEarningsMock = vi.fn()
 
@@ -37,7 +37,7 @@ vi.mock('@/components/onboarding/OnboardingIntentHome', () => ({
 }))
 
 vi.mock('@/hooks/convex', () => ({
-  useUserDrafts: () => useUserDraftsMock(),
+  useCreatorWorkspaceSummary: () => useCreatorWorkspaceSummaryMock(),
   useCreatorRecentWork: () => useCreatorRecentWorkMock(),
   useAuthorEarnings: () => useAuthorEarningsMock(),
 }))
@@ -45,9 +45,13 @@ vi.mock('@/hooks/convex', () => ({
 describe('HomePage loading states', () => {
   beforeEach(() => {
     useAuthMock.mockReset()
-    useUserDraftsMock.mockReset()
+    useCreatorWorkspaceSummaryMock.mockReset()
     useCreatorRecentWorkMock.mockReset()
     useAuthorEarningsMock.mockReset()
+    useCreatorWorkspaceSummaryMock.mockReturnValue({
+      hasDrafts: false,
+      mostRecentDraft: null,
+    })
     useCreatorRecentWorkMock.mockReturnValue([])
     useAuthorEarningsMock.mockReturnValue(null)
   })
@@ -106,9 +110,13 @@ describe('HomePage creator workspace', () => {
 
   beforeEach(() => {
     useAuthMock.mockReset()
-    useUserDraftsMock.mockReset()
+    useCreatorWorkspaceSummaryMock.mockReset()
     useCreatorRecentWorkMock.mockReset()
     useAuthorEarningsMock.mockReset()
+    useCreatorWorkspaceSummaryMock.mockReturnValue({
+      hasDrafts: false,
+      mostRecentDraft: null,
+    })
     useCreatorRecentWorkMock.mockReturnValue([])
     useAuthorEarningsMock.mockReturnValue({
       totalEarnedUsd: 0,
@@ -122,22 +130,16 @@ describe('HomePage creator workspace', () => {
       isAuthenticated: true,
       isLoading: false,
     })
-    useUserDraftsMock.mockReturnValue([
-      {
+    useCreatorWorkspaceSummaryMock.mockReturnValue({
+      hasDrafts: true,
+      mostRecentDraft: {
         _id: 'draft1',
         title: 'My draft',
         updatedAt: 2000,
         _creationTime: 1000,
         published: false,
       },
-      {
-        _id: 'draft2',
-        title: 'Older draft',
-        updatedAt: 1000,
-        _creationTime: 500,
-        published: false,
-      },
-    ])
+    })
 
     render(<HomePage />)
 
@@ -157,7 +159,10 @@ describe('HomePage creator workspace', () => {
       isAuthenticated: true,
       isLoading: false,
     })
-    useUserDraftsMock.mockReturnValue([])
+    useCreatorWorkspaceSummaryMock.mockReturnValue({
+      hasDrafts: false,
+      mostRecentDraft: null,
+    })
 
     render(<HomePage />)
 
@@ -179,7 +184,7 @@ describe('HomePage creator workspace', () => {
       isAuthenticated: true,
       isLoading: false,
     })
-    useUserDraftsMock.mockReturnValue(undefined)
+    useCreatorWorkspaceSummaryMock.mockReturnValue(undefined)
 
     render(<HomePage />)
 
@@ -189,5 +194,31 @@ describe('HomePage creator workspace', () => {
     expect(
       screen.queryByText('Pick up where you left off')
     ).not.toBeInTheDocument()
+  })
+
+  it('keeps the primary writing action when recent work fails', () => {
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined)
+    useAuthMock.mockReturnValue({
+      user: baseUser,
+      isAuthenticated: true,
+      isLoading: false,
+    })
+    useCreatorWorkspaceSummaryMock.mockReturnValue({
+      hasDrafts: false,
+      mostRecentDraft: null,
+    })
+    useCreatorRecentWorkMock.mockImplementation(() => {
+      throw new Error('Recent work failed')
+    })
+
+    render(<HomePage />)
+
+    expect(
+      screen.getByRole('link', { name: /Start a new article/i })
+    ).toHaveAttribute('href', '/write')
+    expect(screen.getByText('Workspace panel unavailable.')).toBeInTheDocument()
+    consoleError.mockRestore()
   })
 })
