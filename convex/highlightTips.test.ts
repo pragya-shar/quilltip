@@ -478,6 +478,80 @@ describe('highlightTips.create', () => {
     expect(stats.totalAmountCents).toBe(0)
   })
 
+  it('returns aggregate-only public highlight tip data', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const tipId = await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-public-projection')
+    )
+    await confirmPending(t, tipId)
+
+    const byHighlight = await t.query(api.highlightTips.getByHighlight, {
+      highlightId: 'hash-abc',
+    })
+    const byArticle = await t.query(api.highlightTips.getByArticle, {
+      articleId,
+    })
+
+    expect(byHighlight).toEqual({
+      tipCount: 1,
+      totalAmountCents: 100,
+      totalAmountUsd: 1,
+    })
+    expect(byArticle).toEqual([
+      {
+        highlightId: 'hash-abc',
+        highlightText: 'some highlighted text',
+        startOffset: 0,
+        endOffset: 10,
+        totalAmountCents: 100,
+        tipCount: 1,
+      },
+    ])
+
+    const publicPayload = JSON.stringify({ byHighlight, byArticle })
+    expect(publicPayload).not.toContain(TIPPER_STELLAR)
+    expect(publicPayload).not.toContain(AUTHOR_STELLAR)
+    expect(publicPayload).not.toContain('stellar-tx-public-projection')
+    expect(publicPayload).not.toContain(tipperId)
+  })
+
+  it('derives private tip history from the authenticated user', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, authorId, articleId } = await seed(t)
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const tipId = await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-private-history')
+    )
+    await confirmPending(t, tipId)
+
+    const signedOutTipperHistory = await t.query(
+      api.highlightTips.getByTipper,
+      {}
+    )
+    const tipperHistory = await asTipper.query(
+      api.highlightTips.getByTipper,
+      {}
+    )
+    const authorHistory = await t
+      .withIdentity({ subject: authorId })
+      .query(api.highlightTips.getByAuthor, {})
+    const unrelatedAuthorHistory = await asTipper.query(
+      api.highlightTips.getByAuthor,
+      {}
+    )
+
+    expect(signedOutTipperHistory).toEqual([])
+    expect(tipperHistory.map((tip) => tip._id)).toEqual([tipId])
+    expect(authorHistory.map((tip) => tip._id)).toEqual([tipId])
+    expect(unrelatedAuthorHistory).toEqual([])
+  })
+
   it('filters heatmap stats by sinceMs', async () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)

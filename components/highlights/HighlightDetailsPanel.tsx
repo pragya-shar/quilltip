@@ -111,15 +111,10 @@ export function HighlightDetailsPanel({
   const tipStats = useMemo(() => {
     if (!highlightTips) return { count: 0, totalCents: 0, totalUsd: 0 }
 
-    const totalCents = highlightTips.reduce(
-      (sum, tip) => sum + tip.amountCents,
-      0
-    )
-
     return {
-      count: highlightTips.length,
-      totalCents,
-      totalUsd: totalCents / 100,
+      count: highlightTips.tipCount,
+      totalCents: highlightTips.totalAmountCents,
+      totalUsd: highlightTips.totalAmountUsd,
     }
   }, [highlightTips])
 

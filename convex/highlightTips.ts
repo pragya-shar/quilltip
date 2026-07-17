@@ -161,37 +161,74 @@ export const create = mutation({
 })
 
 /**
- * Get all tips for a specific highlight. Only CONFIRMED tips are returned;
- * PENDING tips (awaiting Horizon verification) and FAILED tips are excluded.
+ * Get public aggregate stats for a specific highlight. Raw tipper and Stellar
+ * data stays in the authenticated history queries below.
  */
 export const getByHighlight = query({
   args: {
     highlightId: v.string(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const tips = await ctx.db
       .query('highlightTips')
       .withIndex('by_highlight', (q) => q.eq('highlightId', args.highlightId))
       .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .collect()
+
+    const totalAmountCents = tips.reduce((sum, tip) => sum + tip.amountCents, 0)
+    return {
+      tipCount: tips.length,
+      totalAmountCents,
+      totalAmountUsd: totalAmountCents / 100,
+    }
   },
 })
 
 /**
- * Get all highlight tips for an article (for heatmap). Only CONFIRMED tips
- * are returned so the heatmap never shows tips that ultimately failed
- * verification.
+ * Get aggregate highlight groups for an article heatmap. Only CONFIRMED tips
+ * contribute, and raw tipper or Stellar data is never returned publicly.
  */
 export const getByArticle = query({
   args: {
     articleId: v.id('articles'),
   },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const tips = await ctx.db
       .query('highlightTips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
       .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .collect()
+
+    const groups = new Map<
+      string,
+      {
+        highlightId: string
+        highlightText: string
+        startOffset: number
+        endOffset: number
+        totalAmountCents: number
+        tipCount: number
+      }
+    >()
+
+    for (const tip of tips) {
+      const group = groups.get(tip.highlightId)
+      if (group) {
+        group.totalAmountCents += tip.amountCents
+        group.tipCount += 1
+      } else {
+        groups.set(tip.highlightId, {
+          highlightId: tip.highlightId,
+          highlightText: tip.highlightText,
+          startOffset: tip.startOffset,
+          endOffset: tip.endOffset,
+          totalAmountCents: tip.amountCents,
+          tipCount: 1,
+        })
+      }
+    }
+
+    return [...groups.values()]
   },
 })
 
@@ -203,13 +240,14 @@ export const getByArticle = query({
  * author earnings) have their own CONFIRMED-only filters.
  */
 export const getByTipper = query({
-  args: {
-    tipperId: v.id('users'),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const tipperId = await getAuthUserId(ctx)
+    if (!tipperId) return []
+
     return await ctx.db
       .query('highlightTips')
-      .withIndex('by_tipper', (q) => q.eq('tipperId', args.tipperId))
+      .withIndex('by_tipper', (q) => q.eq('tipperId', tipperId))
       .order('desc')
       .collect()
   },
@@ -220,13 +258,14 @@ export const getByTipper = query({
  * mirrors tips.getUserReceivedTips so authors only see verified earnings.
  */
 export const getByAuthor = query({
-  args: {
-    authorId: v.id('users'),
-  },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const authorId = await getAuthUserId(ctx)
+    if (!authorId) return []
+
     return await ctx.db
       .query('highlightTips')
-      .withIndex('by_author', (q) => q.eq('authorId', args.authorId))
+      .withIndex('by_author', (q) => q.eq('authorId', authorId))
       .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .order('desc')
       .collect()
