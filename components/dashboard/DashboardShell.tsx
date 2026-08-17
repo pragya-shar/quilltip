@@ -9,13 +9,13 @@ import { DashboardTabBar } from '@/components/dashboard/DashboardTabBar'
 import { DashboardShellSkeleton } from '@/components/dashboard/DashboardShellSkeleton'
 import {
   DASHBOARD_TAB_IDS,
+  DEFAULT_DASHBOARD_TAB,
   type DashboardTabId,
 } from '@/lib/dashboard/dashboardTab'
-import { ChartBar, DollarSign, Wallet } from 'lucide-react'
+import { ChartBar, Wallet } from 'lucide-react'
 
 const DASHBOARD_TABS = [
   { id: 'wallet' as const, label: 'Wallet', icon: Wallet },
-  { id: 'earnings' as const, label: 'Earnings', icon: DollarSign },
   { id: 'stats' as const, label: 'Stats', icon: ChartBar },
 ]
 
@@ -24,7 +24,7 @@ function activeTabFromPathname(pathname: string): DashboardTabId {
   if (segment && DASHBOARD_TAB_IDS.includes(segment as DashboardTabId)) {
     return segment as DashboardTabId
   }
-  return 'earnings'
+  return DEFAULT_DASHBOARD_TAB
 }
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -62,7 +62,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             Creator Dashboard
           </h1>
           <p className="text-muted-foreground">
-            Manage your wallet, earnings, and creator stats.
+            Manage your wallet and creator stats.
           </p>
         </div>
 

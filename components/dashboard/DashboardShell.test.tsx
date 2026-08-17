@@ -28,10 +28,6 @@ vi.mock('@/components/layout/SiteFooter', () => ({
   SiteFooter: () => <footer data-testid="site-footer" />,
 }))
 
-vi.mock('@/components/dashboard/DashboardTabBar', () => ({
-  DashboardTabBar: () => <nav data-testid="dashboard-tab-bar" />,
-}))
-
 vi.mock('@/components/dashboard/DashboardShellSkeleton', () => ({
   DashboardShellSkeleton: ({ activeTab }: { activeTab: string }) => (
     <div data-testid="dashboard-shell-skeleton">{activeTab}</div>
@@ -40,10 +36,14 @@ vi.mock('@/components/dashboard/DashboardShellSkeleton', () => ({
 
 describe('DashboardShell', () => {
   beforeEach(() => {
-    mockUsePathname.mockReturnValue('/dashboard/earnings')
+    mockUsePathname.mockReturnValue('/dashboard/stats')
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
+    })
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
     })
   })
 
@@ -91,6 +91,22 @@ describe('DashboardShell', () => {
 
     expect(screen.getByText('Creator Dashboard')).toBeInTheDocument()
     expect(screen.getByText('Dashboard content')).toBeInTheDocument()
+  })
+
+  it('offers wallet and stats without an earnings tab', () => {
+    mockUsePathname.mockReturnValue('/dashboard/stats')
+
+    render(
+      <DashboardShell>
+        <div>Dashboard content</div>
+      </DashboardShell>
+    )
+
+    expect(screen.getByRole('link', { name: 'Wallet' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Stats' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Earnings' })
+    ).not.toBeInTheDocument()
   })
 
   it('returns null when unauthenticated and auth resolved', () => {

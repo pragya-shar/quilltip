@@ -14,7 +14,6 @@ type CompactEarningsCardProps = {
 export function CompactEarningsCard({ user }: CompactEarningsCardProps) {
   const earnings = useAuthorEarnings()
   const hasWallet = Boolean(user.stellarAddress)
-  const username = user.username
 
   if (earnings === undefined) {
     return (
@@ -57,13 +56,12 @@ export function CompactEarningsCard({ user }: CompactEarningsCardProps) {
 
   const totalEarned = earnings?.totalEarnedUsd ?? 0
   const tipCount = earnings?.tipCount ?? 0
-  const earningsHref = `/${username}?tab=earnings`
 
   return (
     <div className="rounded-[var(--card-radius)] border border-border bg-card p-[var(--card-padding)] shadow-[var(--card-shadow)]">
       <div className="mb-3 flex items-center justify-between">
         <span className="text-sm font-medium text-muted-foreground">
-          Earnings
+          Total tips received
         </span>
         <DollarSign className="h-4 w-4 text-success-foreground" />
       </div>
@@ -74,12 +72,6 @@ export function CompactEarningsCard({ user }: CompactEarningsCardProps) {
         {tipCount} {networkLabelLowercase()} tip{tipCount === 1 ? '' : 's'}{' '}
         received
       </p>
-      <Link
-        href={earningsHref}
-        className="mt-4 inline-block text-sm font-medium text-brand-blue hover:text-brand-accent"
-      >
-        View earnings
-      </Link>
     </div>
   )
 }
