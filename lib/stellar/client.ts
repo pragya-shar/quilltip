@@ -271,12 +271,18 @@ export class StellarClient {
     platformFee: number
   }> {
     const { StellarSdk, server, sorobanServer } = await this.getSdkContext()
-    const stroops = await this.convertCentsToStroops(params.amountCents)
+    if (
+      !Number.isSafeInteger(params.amountStroops) ||
+      params.amountStroops < STELLAR_CONFIG.MINIMUM_TIP_STROOPS
+    ) {
+      throw new Error('Invalid trusted article tip amount')
+    }
+    const stroops = params.amountStroops
     const { authorReceived, platformFee } = calculateTipSplit(stroops)
 
     const account = await server.loadAccount(tipperPublicKey)
 
-    const contract = new StellarSdk.Contract(STELLAR_CONFIG.TIPPING_CONTRACT_ID)
+    const contract = new StellarSdk.Contract(params.contractId)
 
     const stroopsBigInt = BigInt(stroops)
 
@@ -288,13 +294,14 @@ export class StellarClient {
         contract.call(
           'tip_article',
           StellarSdk.nativeToScVal(tipperPublicKey, { type: 'address' }),
-          StellarSdk.nativeToScVal(shortArticleId(params.articleId), {
+          StellarSdk.nativeToScVal(params.articleSymbol, {
             type: 'symbol',
           }),
           StellarSdk.nativeToScVal(params.authorAddress, { type: 'address' }),
           StellarSdk.nativeToScVal(stroopsBigInt, { type: 'i128' })
         )
       )
+      .addMemo(StellarSdk.Memo.text(params.memo))
       .setTimeout(180)
       .build()
 

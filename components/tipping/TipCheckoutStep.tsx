@@ -25,7 +25,9 @@ interface TipCheckoutStepProps {
   isLoading: boolean
   tipSuccess: string | null
   tipFailure: TipFailureMessage | null
+  failureActionLabel?: string
   tipFlowStep: TipFlowStep | null
+  canGoBack?: boolean
   onBack: () => void
   onSignIn: () => void
   onConnectWallet: () => void
@@ -44,7 +46,9 @@ export function TipCheckoutStep({
   isLoading,
   tipSuccess,
   tipFailure,
+  failureActionLabel = 'Retry',
   tipFlowStep,
+  canGoBack = true,
   onBack,
   onSignIn,
   onConnectWallet,
@@ -105,7 +109,7 @@ export function TipCheckoutStep({
         ) : (
           <>
             <Heart className="w-4 h-4" />
-            {tipFailure ? 'Retry' : 'Send Tip'}
+            {tipFailure ? failureActionLabel : 'Send Tip'}
           </>
         )}
       </Button>
@@ -149,7 +153,7 @@ export function TipCheckoutStep({
           type="button"
           variant="outline"
           onClick={onBack}
-          disabled={isLoading}
+          disabled={isLoading || !canGoBack}
           className="flex-1"
         >
           Back

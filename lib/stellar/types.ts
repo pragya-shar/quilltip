@@ -24,9 +24,11 @@ export interface AuthorBalance {
 
 export interface TipParams {
   tipper: string
-  articleId: string
+  articleSymbol: string
   authorAddress: string
-  amountCents: number
+  amountStroops: number
+  contractId: string
+  memo: string
   signerFn?: (txXDR: string) => Promise<string>
 }
 
