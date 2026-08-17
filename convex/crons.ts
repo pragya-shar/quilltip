@@ -23,6 +23,15 @@ crons.interval(
   internal.reconcileTips.recoverStuckPendingHighlightTips
 )
 
+// Whole-article tips use the same recovery principle, but run more frequently
+// so a reader does not need to keep the confirmation dialog open for a stuck
+// verification attempt to be recovered.
+crons.interval(
+  'recover stuck pending article tips',
+  { minutes: 10 },
+  internal.reconcileTips.recoverStuckPendingArticleTips
+)
+
 // Refresh the XLM/USD price cache. The browser reads the cached value via
 // xlmPrice.getCachedXlmPrice rather than calling Coingecko/Coincap/Binance/
 // Kraken directly, which collapses the CSP allowlist and amortises oracle
