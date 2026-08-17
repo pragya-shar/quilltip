@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { api, internal } from './_generated/api'
 import schema from './schema'
 import type { Id } from './_generated/dataModel'
@@ -12,6 +12,14 @@ const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
 // Valid testnet-format Stellar address (G + 55 base32 chars)
 const VALID_STELLAR_ADDRESS =
   'GABCDEFGHIJKLMNOPQRSTUVWXYZ234567ABCDEFGHIJKLMNOPQRSTUV'.padEnd(56, 'A')
+const TIPPER_STELLAR_ADDRESS = `G${'A'.repeat(55)}`
+const AUTHOR_STELLAR_ADDRESS = `G${'B'.repeat(55)}`
+const TIPPING_CONTRACT_ID =
+  'CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY'
+
+beforeAll(() => {
+  process.env.TIPPING_CONTRACT_ID = TIPPING_CONTRACT_ID
+})
 
 async function seedTipperAndArticle(t: ReturnType<typeof convexTest>) {
   return await t.run(async (ctx) => {
@@ -76,6 +84,205 @@ async function seedAuthorWithBalance(t: ReturnType<typeof convexTest>) {
     return { userId }
   })
 }
+
+describe('prepareArticleTip', () => {
+  it('prepares a server-owned article tip expectation without crediting it', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)
+    const fetchedAt = Date.now()
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(authorId, {
+        stellarAddress: AUTHOR_STELLAR_ADDRESS,
+      })
+      await ctx.db.insert('xlmPriceCache', {
+        priceUsd: 0.25,
+        source: 'TestOracle',
+        fetchedAt,
+      })
+    })
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const quote = await asTipper.mutation(api.tips.prepareArticleTip, {
+      articleId,
+      amountCents: 500,
+      message: 'Great article',
+      stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+    })
+
+    expect(quote).toEqual({
+      intentId: expect.any(String),
+      articleSymbol: '2ede2c6a40',
+      authorAddress: AUTHOR_STELLAR_ADDRESS,
+      amountStroops: 200_000_000,
+      stellarNetwork: 'TESTNET',
+      contractId: TIPPING_CONTRACT_ID,
+      memo: expect.stringMatching(/^qt[0-9a-f]{24}$/),
+    })
+
+    const intent = await t.run(async (ctx) => ctx.db.get(quote.intentId))
+    expect(intent).toMatchObject({
+      articleId,
+      tipperId,
+      authorId,
+      amountCents: 500,
+      message: 'Great article',
+      expectedSourceAccount: TIPPER_STELLAR_ADDRESS,
+      expectedDestinationAccount: AUTHOR_STELLAR_ADDRESS,
+      expectedArticleSymbol: '2ede2c6a40',
+      expectedAmountStroops: '200000000',
+      expectedContractId: TIPPING_CONTRACT_ID,
+      expectedMemo: quote.memo,
+      quotePriceUsd: 0.25,
+      quoteSource: 'TestOracle',
+      quoteFetchedAt: fetchedAt,
+    })
+
+    const unchanged = await t.run(async (ctx) => ({
+      article: await ctx.db.get(articleId),
+      tips: await ctx.db.query('tips').collect(),
+      earnings: await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .first(),
+    }))
+    expect(unchanged.article?.tipCount).toBe(0)
+    expect(unchanged.article?.totalTipsUsd).toBe(0)
+    expect(unchanged.tips).toHaveLength(0)
+    expect(unchanged.earnings).toBeNull()
+    await expect(asTipper.query(api.tips.canTip, {})).resolves.toEqual({
+      allowed: true,
+    })
+  })
+
+  it('uses the server fallback when the cached rate is stale', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(authorId, {
+        stellarAddress: AUTHOR_STELLAR_ADDRESS,
+      })
+      await ctx.db.insert('xlmPriceCache', {
+        priceUsd: 0.5,
+        source: 'StaleOracle',
+        fetchedAt: Date.now() - 31 * 60 * 1000,
+      })
+    })
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const quote = await asTipper.mutation(api.tips.prepareArticleTip, {
+      articleId,
+      amountCents: 100,
+      stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+    })
+
+    expect(quote.amountStroops).toBe(45_454_545)
+    const intent = await t.run(async (ctx) => ctx.db.get(quote.intentId))
+    expect(intent?.quotePriceUsd).toBe(0.22)
+    expect(intent?.quoteSource).toBe('Fallback')
+  })
+
+  it('keeps the prepared quote immutable after the price cache changes', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)
+    const rateId = await t.run(async (ctx) => {
+      await ctx.db.patch(authorId, { stellarAddress: AUTHOR_STELLAR_ADDRESS })
+      return await ctx.db.insert('xlmPriceCache', {
+        priceUsd: 0.25,
+        source: 'InitialOracle',
+        fetchedAt: Date.now(),
+      })
+    })
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const quote = await asTipper.mutation(api.tips.prepareArticleTip, {
+      articleId,
+      amountCents: 500,
+      stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+    })
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(rateId, {
+        priceUsd: 0.5,
+        source: 'UpdatedOracle',
+        fetchedAt: Date.now(),
+      })
+      expect(await ctx.db.get(quote.intentId)).toMatchObject({
+        expectedAmountStroops: '200000000',
+        quotePriceUsd: 0.25,
+        quoteSource: 'InitialOracle',
+      })
+    })
+  })
+
+  it('rejects invalid preparation fields before creating an intent', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(authorId, { stellarAddress: AUTHOR_STELLAR_ADDRESS })
+    })
+    const asTipper = t.withIdentity({ subject: tipperId })
+
+    for (const amountCents of [0, 10_001, 1.5, Number.NaN]) {
+      await expect(
+        asTipper.mutation(api.tips.prepareArticleTip, {
+          articleId,
+          amountCents,
+          stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+        })
+      ).rejects.toThrow('Invalid tip amount')
+    }
+    await expect(
+      asTipper.mutation(api.tips.prepareArticleTip, {
+        articleId,
+        amountCents: 100,
+        message: 'x'.repeat(501),
+        stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+      })
+    ).rejects.toThrow('Message must be 500 characters or less')
+    await expect(
+      asTipper.mutation(api.tips.prepareArticleTip, {
+        articleId,
+        amountCents: 100,
+        stellarSourceAccount: 'not-a-stellar-account',
+      })
+    ).rejects.toThrow('Invalid Stellar source account')
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('articleTipIntents').collect()).toHaveLength(0)
+    })
+  })
+
+  it('rejects preparation when the author has no receiving wallet', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seedTipperAndArticle(t)
+    const asTipper = t.withIdentity({ subject: tipperId })
+
+    await expect(
+      asTipper.mutation(api.tips.prepareArticleTip, {
+        articleId,
+        amountCents: 100,
+        stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+      })
+    ).rejects.toThrow('Author has not configured a receiving wallet')
+  })
+
+  it('rejects unauthenticated preparation', async () => {
+    const t = convexTest(schema, modules)
+    const { authorId, articleId } = await seedTipperAndArticle(t)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(authorId, { stellarAddress: AUTHOR_STELLAR_ADDRESS })
+    })
+
+    await expect(
+      t.mutation(api.tips.prepareArticleTip, {
+        articleId,
+        amountCents: 100,
+        stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+      })
+    ).rejects.toThrow('Not authenticated')
+  })
+})
 
 describe('withdrawEarnings', () => {
   it('rejects NaN amount', async () => {

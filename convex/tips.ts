@@ -3,8 +3,24 @@ import { query, mutation, internalMutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import { enrichWithUser } from './lib/enrich'
-import { TIP_MIN_USD, TIP_MAX_USD, MIN_WITHDRAWAL_USD } from './lib/constants'
+import {
+  TIP_MIN_CENTS,
+  TIP_MAX_CENTS,
+  TIP_MIN_USD,
+  TIP_MAX_USD,
+  MIN_WITHDRAWAL_USD,
+  getStellarNetwork,
+  getTippingContractId,
+} from './lib/constants'
 import { checkTipCooldown, enforceTipCooldown } from './lib/rateLimit'
+import {
+  ARTICLE_TIP_FALLBACK_XLM_USD_RATE,
+  ARTICLE_TIP_INTENT_TTL_MS,
+  articleTipIntentMemoServer,
+  calculateTipStroops,
+  shortArticleIdServer,
+} from './lib/articleTipExpectation'
+import { MAX_PRICE_AGE_MS } from './xlmPrice'
 
 // Get tips for an article
 export const getArticleTips = query({
@@ -144,6 +160,113 @@ export const canTip = query({
     const userId = await getAuthUserId(ctx)
     if (!userId) return { allowed: true as const }
     return await checkTipCooldown(ctx, userId)
+  },
+})
+
+export const prepareArticleTip = mutation({
+  args: {
+    articleId: v.id('articles'),
+    amountCents: v.number(),
+    message: v.optional(v.string()),
+    stellarSourceAccount: v.string(),
+  },
+  returns: v.object({
+    intentId: v.id('articleTipIntents'),
+    articleSymbol: v.string(),
+    authorAddress: v.string(),
+    amountStroops: v.number(),
+    stellarNetwork: v.union(v.literal('TESTNET'), v.literal('MAINNET')),
+    contractId: v.string(),
+    memo: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+
+    if (
+      !Number.isSafeInteger(args.amountCents) ||
+      args.amountCents < TIP_MIN_CENTS ||
+      args.amountCents > TIP_MAX_CENTS
+    ) {
+      throw new Error('Invalid tip amount')
+    }
+    if (args.message && args.message.length > 500) {
+      throw new Error('Message must be 500 characters or less')
+    }
+    if (!/^G[A-Z2-7]{55}$/.test(args.stellarSourceAccount)) {
+      throw new Error('Invalid Stellar source account')
+    }
+
+    const [tipper, article] = await Promise.all([
+      ctx.db.get(userId),
+      ctx.db.get(args.articleId),
+    ])
+    if (!tipper) throw new Error('User not found')
+    if (!article) throw new Error('Article not found')
+
+    const author = await ctx.db.get(article.authorId)
+    if (!author) throw new Error('Author not found')
+    if (!author.stellarAddress || typeof author.stellarAddress !== 'string') {
+      throw new Error('Author has not configured a receiving wallet')
+    }
+
+    const now = Date.now()
+    const cachedRate = await ctx.db.query('xlmPriceCache').first()
+    const useCachedRate =
+      cachedRate !== null && now - cachedRate.fetchedAt <= MAX_PRICE_AGE_MS
+    const quotePriceUsd = useCachedRate
+      ? cachedRate.priceUsd
+      : ARTICLE_TIP_FALLBACK_XLM_USD_RATE
+    const quoteSource = useCachedRate ? cachedRate.source : 'Fallback'
+    const quoteFetchedAt = useCachedRate ? cachedRate.fetchedAt : now
+    const expectedAmountStroops = calculateTipStroops(
+      args.amountCents,
+      quotePriceUsd
+    )
+    const expectedArticleSymbol = await shortArticleIdServer(
+      args.articleId.toString()
+    )
+    const expectedStellarNetwork = getStellarNetwork()
+    const expectedContractId = getTippingContractId()
+
+    const intentId = await ctx.db.insert('articleTipIntents', {
+      articleId: args.articleId,
+      tipperId: userId,
+      authorId: article.authorId,
+      articleTitle: article.title,
+      articleSlug: article.slug,
+      tipperName: tipper.name || tipper.username,
+      tipperAvatar: tipper.avatar,
+      authorName: author.name || author.username,
+      authorAvatar: author.avatar,
+      amountUsd: args.amountCents / 100,
+      amountCents: args.amountCents,
+      message: args.message,
+      expectedSourceAccount: args.stellarSourceAccount,
+      expectedDestinationAccount: author.stellarAddress,
+      expectedArticleSymbol,
+      expectedAmountStroops: expectedAmountStroops.toString(),
+      expectedStellarNetwork,
+      expectedContractId,
+      quotePriceUsd,
+      quoteSource,
+      quoteFetchedAt,
+      expiresAt: now + ARTICLE_TIP_INTENT_TTL_MS,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const expectedMemo = await articleTipIntentMemoServer(intentId)
+    await ctx.db.patch(intentId, { expectedMemo })
+
+    return {
+      intentId,
+      articleSymbol: expectedArticleSymbol,
+      authorAddress: author.stellarAddress,
+      amountStroops: expectedAmountStroops,
+      stellarNetwork: expectedStellarNetwork,
+      contractId: expectedContractId,
+      memo: expectedMemo,
+    }
   },
 })
 

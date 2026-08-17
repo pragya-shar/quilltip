@@ -8,6 +8,7 @@ export const TIP_MIN_USD = 0.01
 export const TIP_MAX_CENTS = 10_000
 export const TIP_MAX_USD = 100
 export const MIN_WITHDRAWAL_USD = 10
+export const TIP_MIN_STROOPS = 420_000
 
 // Minimum time between successive tips from the same user, across both
 // article tips and highlight tips. Prevents accidental double-submits and
@@ -21,6 +22,16 @@ export const HORIZON_URLS = {
   TESTNET: 'https://horizon-testnet.stellar.org',
   MAINNET: 'https://horizon.stellar.org',
 } as const
+
+export type StellarNetwork = keyof typeof HORIZON_URLS
+
+export function getStellarNetwork(): StellarNetwork {
+  const network = process.env.STELLAR_NETWORK ?? 'TESTNET'
+  if (network !== 'TESTNET' && network !== 'MAINNET') {
+    throw new Error('STELLAR_NETWORK must be TESTNET or MAINNET')
+  }
+  return network
+}
 
 // First verification attempt runs after this delay so Horizon has time to
 // index the transaction we just submitted. Subsequent retries use exponential

@@ -178,6 +178,41 @@ export default defineSchema({
     .index('by_highlight_id', ['highlightId'])
     .index('by_user_public', ['userId', 'isPublic']), // For user's public highlights
 
+  // Private, pre-wallet expectations for whole-article tips. These rows never
+  // contribute to public totals or histories; a normal tip row is created
+  // only after a Stellar transaction hash is available.
+  articleTipIntents: defineTable({
+    articleId: v.id('articles'),
+    tipperId: v.id('users'),
+    authorId: v.id('users'),
+    articleTitle: v.string(),
+    articleSlug: v.string(),
+    tipperName: v.optional(v.string()),
+    tipperAvatar: v.optional(v.string()),
+    authorName: v.optional(v.string()),
+    authorAvatar: v.optional(v.string()),
+    amountUsd: v.number(),
+    amountCents: v.number(),
+    message: v.optional(v.string()),
+    expectedSourceAccount: v.string(),
+    expectedDestinationAccount: v.string(),
+    expectedArticleSymbol: v.string(),
+    expectedAmountStroops: v.string(),
+    expectedContractId: v.optional(v.string()),
+    expectedMemo: v.optional(v.string()),
+    expectedStellarNetwork: v.optional(
+      v.union(v.literal('TESTNET'), v.literal('MAINNET'))
+    ),
+    quotePriceUsd: v.number(),
+    quoteSource: v.string(),
+    quoteFetchedAt: v.number(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_tipper', ['tipperId'])
+    .index('by_expiry', ['expiresAt']),
+
   // Tips table
   tips: defineTable({
     // References
