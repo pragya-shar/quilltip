@@ -10,7 +10,7 @@ import {
   TransactionBuilder,
   nativeToScVal,
 } from '@stellar/stellar-sdk'
-import { api, internal } from './_generated/api'
+import { internal } from './_generated/api'
 import schema from './schema'
 import type { Id } from './_generated/dataModel'
 
@@ -149,8 +149,9 @@ function stubHorizonThrow() {
   })
 }
 
-// Seed a CONFIRMED article tip by going through sendTip + direct confirmTip
-// invocation. Returns ids of seeded rows so tests can assert counter state.
+// Seed a historical CONFIRMED article tip directly, then run the legacy
+// internal confirmer. The retired public sendTip mutation must not be reopened
+// merely to exercise reconciliation of rows that may already exist.
 async function seedConfirmedTip(
   t: ReturnType<typeof convexTest>,
   overrides: {
@@ -200,21 +201,36 @@ async function seedConfirmedTip(
     return { tipperId, authorId, articleId }
   })
 
-  const asTipper = t.withIdentity({ subject: ids.tipperId })
-  const tipId = await asTipper.mutation(api.tips.sendTip, {
-    articleId: ids.articleId,
-    amountUsd: overrides.amountUsd ?? 1,
-    stellarTxId: overrides.stellarTxId ?? 'tx-reconcile-fixture',
-    stellarNetwork: overrides.stellarNetwork ?? 'TESTNET',
-    stellarSourceAccount:
-      overrides.stellarSourceAccount === null
-        ? undefined
-        : (overrides.stellarSourceAccount ?? TIPPER_STELLAR),
-    stellarDestinationAccount:
-      overrides.stellarDestinationAccount === null
-        ? undefined
-        : (overrides.stellarDestinationAccount ?? AUTHOR_STELLAR),
-    stellarAmountXlm: overrides.stellarAmountXlm ?? '1',
+  const tipId = await t.run(async (ctx) => {
+    const now = Date.now()
+    const amountUsd = overrides.amountUsd ?? 1
+    return await ctx.db.insert('tips', {
+      articleId: ids.articleId,
+      articleTitle: 'Hello',
+      articleSlug: 'hello',
+      tipperId: ids.tipperId,
+      authorId: ids.authorId,
+      amountUsd,
+      amountCents: Math.round(amountUsd * 100),
+      stellarTxId: overrides.stellarTxId ?? 'tx-reconcile-fixture',
+      stellarNetwork: overrides.stellarNetwork ?? 'TESTNET',
+      ...(overrides.stellarSourceAccount === null
+        ? {}
+        : {
+            stellarSourceAccount:
+              overrides.stellarSourceAccount ?? TIPPER_STELLAR,
+          }),
+      ...(overrides.stellarDestinationAccount === null
+        ? {}
+        : {
+            stellarDestinationAccount:
+              overrides.stellarDestinationAccount ?? AUTHOR_STELLAR,
+          }),
+      stellarAmountXlm: overrides.stellarAmountXlm ?? '1',
+      status: 'PENDING',
+      createdAt: now,
+      updatedAt: now,
+    })
   })
 
   // Skip the scheduler: directly run confirmTip so we land in CONFIRMED with

@@ -6,8 +6,6 @@ import { enrichWithUser } from './lib/enrich'
 import {
   TIP_MIN_CENTS,
   TIP_MAX_CENTS,
-  TIP_MIN_USD,
-  TIP_MAX_USD,
   MIN_WITHDRAWAL_USD,
   HORIZON_VERIFY_INITIAL_DELAY_MS,
   getStellarNetwork,
@@ -424,7 +422,9 @@ export const retryArticleTipVerification = mutation({
   },
 })
 
-// Send tip mutation
+// Compatibility stub for clients that still call the retired unverified path.
+// Keeping the public function name produces a clear migration error without
+// retaining any client-owned financial write logic.
 export const sendTip = mutation({
   args: {
     articleId: v.id('articles'),
@@ -441,109 +441,14 @@ export const sendTip = mutation({
     platformFee: v.optional(v.number()),
     authorShare: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  returns: v.id('tips'),
+  handler: async (ctx) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
-    // Dedup: Convex mutations have at-least-once delivery, so a lost ack
-    // could cause the client to retry and insert a duplicate row. Non-empty
-    // stellarTxIds are unique per Stellar transaction, so we look up by index
-    // and return the existing row if found. Empty stellarTxIds are not deduped
-    // because two unrelated tips could legitimately share that sentinel value.
-    //
-    // We additionally require articleId AND tipperId to match the existing
-    // row before short-circuiting. A txId reused across a different article
-    // or by a different user is never a legit retry — silently returning the
-    // mismatched original would tell the caller "your tip succeeded" when in
-    // fact no tip on the requested article was created. Reject explicitly.
-    if (args.stellarTxId !== '') {
-      const existing = await ctx.db
-        .query('tips')
-        .withIndex('by_stellar_tx', (q) =>
-          q.eq('stellarTxId', args.stellarTxId)
-        )
-        .first()
-      if (existing) {
-        if (
-          existing.articleId === args.articleId &&
-          existing.tipperId === userId
-        ) {
-          return existing._id
-        }
-        throw new ConvexError(
-          'This Stellar transaction is already linked to a different tip.'
-        )
-      }
-    }
-
-    // Cooldown check runs after the dedup short-circuit so that at-least-once
-    // retries of the same Stellar tx are not mistaken for spam.
-    await enforceTipCooldown(ctx, userId)
-
-    const user = await ctx.db.get(userId)
-    if (!user) throw new Error('User not found')
-
-    const article = await ctx.db.get(args.articleId)
-    if (!article) throw new Error('Article not found')
-
-    const author = await ctx.db.get(article.authorId)
-    if (!author) throw new Error('Author not found')
-
-    // Validate message length
-    if (args.message && args.message.length > 500) {
-      throw new Error('Message must be 500 characters or less')
-    }
-
-    // Validate amount (check for NaN, Infinity, and bounds)
-    if (
-      !Number.isFinite(args.amountUsd) ||
-      args.amountUsd < TIP_MIN_USD ||
-      args.amountUsd > TIP_MAX_USD
-    ) {
-      throw new Error('Invalid tip amount')
-    }
-
-    // Convert USD to cents for storage (use EPSILON to avoid floating-point precision loss)
-    const amountCents = Math.round(args.amountUsd * 100 + Number.EPSILON)
-
-    const now = Date.now()
-
-    // Create tip record (initially pending). Stellar metadata is persisted
-    // at insert time so the reconciliation job can verify the on-chain tx
-    // later without relying on confirmTip to stamp a placeholder.
-    const tipId = await ctx.db.insert('tips', {
-      articleId: args.articleId,
-      articleTitle: article.title,
-      articleSlug: article.slug,
-      tipperId: userId,
-      tipperName: user.name || user.username,
-      tipperAvatar: user.avatar,
-      authorId: article.authorId,
-      authorName: author.name || author.username,
-      authorAvatar: author.avatar,
-      amountUsd: args.amountUsd,
-      amountCents,
-      message: args.message,
-      stellarTxId: args.stellarTxId,
-      stellarNetwork: args.stellarNetwork || 'TESTNET',
-      stellarLedger: args.stellarLedger,
-      stellarFeeCharged: args.stellarFeeCharged,
-      stellarSourceAccount: args.stellarSourceAccount,
-      stellarDestinationAccount: args.stellarDestinationAccount,
-      stellarAmountXlm: args.stellarAmountXlm,
-      contractTipId: args.contractTipId,
-      platformFee: args.platformFee,
-      authorShare: args.authorShare,
-      status: 'PENDING',
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    // In a real implementation, this would trigger a Stellar transaction
-    // For now, we'll simulate success after a short delay
-    await ctx.scheduler.runAfter(1000, internal.tips.confirmTip, { tipId })
-
-    return tipId
+    throw new Error(
+      'Legacy article tip submission is disabled; prepare and submit a verified article tip instead.'
+    )
   },
 })
 

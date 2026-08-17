@@ -85,6 +85,36 @@ async function seedAuthorWithBalance(t: ReturnType<typeof convexTest>) {
   })
 }
 
+async function submitTrustedArticleTip(
+  t: ReturnType<typeof convexTest>,
+  seeded: Awaited<ReturnType<typeof seedTipperAndArticle>>,
+  stellarTxId: string,
+  amountCents = 100
+) {
+  await t.run(async (ctx) => {
+    await ctx.db.patch(seeded.authorId, {
+      stellarAddress: AUTHOR_STELLAR_ADDRESS,
+    })
+    if (!(await ctx.db.query('xlmPriceCache').first())) {
+      await ctx.db.insert('xlmPriceCache', {
+        priceUsd: 0.25,
+        source: 'TestOracle',
+        fetchedAt: Date.now(),
+      })
+    }
+  })
+  const asTipper = t.withIdentity({ subject: seeded.tipperId })
+  const intent = await asTipper.mutation(api.tips.prepareArticleTip, {
+    articleId: seeded.articleId,
+    amountCents,
+    stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+  })
+  return await asTipper.mutation(api.tips.submitArticleTip, {
+    intentId: intent.intentId,
+    stellarTxId,
+  })
+}
+
 describe('prepareArticleTip', () => {
   it('prepares a server-owned article tip expectation without crediting it', async () => {
     const t = convexTest(schema, modules)
@@ -489,6 +519,37 @@ describe('submitArticleTip', () => {
   })
 })
 
+describe('legacy article tip submission', () => {
+  it('rejects the unverified client-owned path without writing or crediting', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)
+    const asTipper = t.withIdentity({ subject: tipperId })
+
+    await expect(
+      asTipper.mutation(api.tips.sendTip, {
+        articleId,
+        amountUsd: 100,
+        stellarTxId: 'unverified-client-claim',
+      })
+    ).rejects.toThrow(
+      'Legacy article tip submission is disabled; prepare and submit a verified article tip instead.'
+    )
+
+    await t.run(async (ctx) => {
+      const article = await ctx.db.get(articleId)
+      const earnings = await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .unique()
+
+      expect(await ctx.db.query('tips').collect()).toHaveLength(0)
+      expect(article?.tipCount).toBe(0)
+      expect(article?.totalTipsUsd).toBe(0)
+      expect(earnings).toBeNull()
+    })
+  })
+})
+
 describe('withdrawEarnings', () => {
   it('rejects NaN amount', async () => {
     const t = convexTest(schema, modules)
@@ -557,10 +618,21 @@ describe('canTip pre-flight query', () => {
     const { tipperId, articleId } = await seedTipperAndArticle(t)
     const asTipper = t.withIdentity({ subject: tipperId })
 
-    await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: 'tx-canTip-inside-cooldown',
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert('tips', {
+        articleId,
+        articleTitle: 'Hello',
+        articleSlug: 'hello',
+        tipperId,
+        authorId: tipperId,
+        amountUsd: 1,
+        amountCents: 100,
+        stellarTxId: 'tx-canTip-inside-cooldown',
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      })
     })
 
     const result = await asTipper.query(api.tips.canTip, {})
@@ -617,39 +689,47 @@ describe('canTip pre-flight query', () => {
     const { tipperId, articleId } = await seedTipperAndArticle(t)
     const asTipper = t.withIdentity({ subject: tipperId })
 
-    const tipId = await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: 'tx-canTip-elapsed',
+    const tipId = await t.run(async (ctx) => {
+      const now = Date.now() - 60_000
+      return await ctx.db.insert('tips', {
+        articleId,
+        articleTitle: 'Hello',
+        articleSlug: 'hello',
+        tipperId,
+        authorId: tipperId,
+        amountUsd: 1,
+        amountCents: 100,
+        stellarTxId: 'tx-canTip-elapsed',
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      })
     })
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      if (tip) {
-        await ctx.db.patch(tipId, { createdAt: tip.createdAt - 60_000 })
-      }
-    })
+    expect(tipId).toBeTruthy()
 
     const result = await asTipper.query(api.tips.canTip, {})
     expect(result).toEqual({ allowed: true })
   })
 })
 
-describe('sendTip cooldown', () => {
+describe('article tip cooldown', () => {
   it('rejects a second tip within the cooldown window', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seedTipperAndArticle(t)
+    const seeded = await seedTipperAndArticle(t)
+    const { tipperId } = seeded
     const asTipper = t.withIdentity({ subject: tipperId })
 
-    await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: 'tx-reject-cooldown-first',
+    await submitTrustedArticleTip(t, seeded, 'tx-reject-cooldown-first')
+
+    const secondIntent = await asTipper.mutation(api.tips.prepareArticleTip, {
+      articleId: seeded.articleId,
+      amountCents: 100,
+      stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
     })
 
     await expect(
-      asTipper.mutation(api.tips.sendTip, {
-        articleId,
-        amountUsd: 1,
+      asTipper.mutation(api.tips.submitArticleTip, {
+        intentId: secondIntent.intentId,
         stellarTxId: 'tx-reject-cooldown-second',
       })
     ).rejects.toThrow(/wait .* before tipping again/i)
@@ -657,14 +737,9 @@ describe('sendTip cooldown', () => {
 
   it('allows a second tip once the cooldown has elapsed', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seedTipperAndArticle(t)
-    const asTipper = t.withIdentity({ subject: tipperId })
+    const seeded = await seedTipperAndArticle(t)
 
-    const firstId = await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: 'tx-elapsed-first',
-    })
+    const firstId = await submitTrustedArticleTip(t, seeded, 'tx-elapsed-first')
     // Backdate the first tip so the cooldown is no longer active.
     await t.run(async (ctx) => {
       const tip = await ctx.db.get(firstId)
@@ -673,11 +748,11 @@ describe('sendTip cooldown', () => {
       }
     })
 
-    const secondId = await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: 'tx-elapsed-second',
-    })
+    const secondId = await submitTrustedArticleTip(
+      t,
+      seeded,
+      'tx-elapsed-second'
+    )
     expect(secondId).not.toBe(firstId)
   })
 
@@ -711,225 +786,54 @@ describe('sendTip cooldown', () => {
     })
 
     const asTipper = t.withIdentity({ subject: tipperId })
+    await t.run(async (ctx) => {
+      await ctx.db.patch(authorId, {
+        stellarAddress: AUTHOR_STELLAR_ADDRESS,
+      })
+      await ctx.db.insert('xlmPriceCache', {
+        priceUsd: 0.25,
+        source: 'TestOracle',
+        fetchedAt: Date.now(),
+      })
+    })
+    const intent = await asTipper.mutation(api.tips.prepareArticleTip, {
+      articleId,
+      amountCents: 100,
+      stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+    })
     await expect(
-      asTipper.mutation(api.tips.sendTip, {
-        articleId,
-        amountUsd: 1,
+      asTipper.mutation(api.tips.submitArticleTip, {
+        intentId: intent.intentId,
         stellarTxId: 'tx-highlight-cooldown-crossover',
       })
     ).rejects.toThrow(/wait .* before tipping again/i)
   })
 })
 
-describe('sendTip', () => {
-  it('persists all Stellar metadata on the inserted tip row', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seedTipperAndArticle(t)
-    const asTipper = t.withIdentity({ subject: tipperId })
-
-    const tipId = await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 0.5,
-      stellarTxId: 'tx-persistence-fixture',
-      stellarNetwork: 'TESTNET',
-      stellarLedger: 12345678,
-      stellarFeeCharged: '0.0001000',
-      stellarSourceAccount: VALID_STELLAR_ADDRESS,
-      stellarDestinationAccount: VALID_STELLAR_ADDRESS,
-      stellarAmountXlm: '0.5000000',
-      contractTipId: 'contract-tip-42',
-      platformFee: 125_000,
-      authorShare: 4_875_000,
-    })
-
-    const tip = await t.run(async (ctx) => ctx.db.get(tipId))
-    expect(tip).toBeTruthy()
-    if (!tip) return
-    expect(tip.stellarTxId).toBe('tx-persistence-fixture')
-    expect(tip.stellarNetwork).toBe('TESTNET')
-    expect(tip.stellarLedger).toBe(12345678)
-    expect(tip.stellarFeeCharged).toBe('0.0001000')
-    expect(tip.stellarSourceAccount).toBe(VALID_STELLAR_ADDRESS)
-    expect(tip.stellarDestinationAccount).toBe(VALID_STELLAR_ADDRESS)
-    expect(tip.stellarAmountXlm).toBe('0.5000000')
-    expect(tip.contractTipId).toBe('contract-tip-42')
-    expect(tip.platformFee).toBe(125_000)
-    expect(tip.authorShare).toBe(4_875_000)
-    expect(tip.status).toBe('PENDING')
-  })
-
-  it('dedups concurrent retries sharing the same stellarTxId', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seedTipperAndArticle(t)
-    const asTipper = t.withIdentity({ subject: tipperId })
-
-    const firstId = await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: 'tx-dedup-same',
-    })
-
-    const secondId = await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: 'tx-dedup-same',
-    })
-
-    expect(secondId).toBe(firstId)
-
-    const rowsForTxId = await t.run(async (ctx) =>
-      ctx.db
-        .query('tips')
-        .withIndex('by_stellar_tx', (q) => q.eq('stellarTxId', 'tx-dedup-same'))
-        .collect()
-    )
-    expect(rowsForTxId).toHaveLength(1)
-  })
-
-  it('rejects when the same stellarTxId is reused for a different article', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seedTipperAndArticle(t)
-
-    // Seed a second article so we can attempt the cross-article reuse.
-    const otherArticleId: Id<'articles'> = await t.run(async (ctx) => {
-      const now = Date.now()
-      return await ctx.db.insert('articles', {
-        slug: 'goodbye',
-        title: 'Goodbye',
-        content: emptyDoc,
-        published: true,
-        publishedAt: now,
-        authorId: (await ctx.db.get(articleId))!.authorId,
-        authorUsername: 'author',
-        tags: [],
-        viewCount: 0,
-        highlightCount: 0,
-        tipCount: 0,
-        totalTipsUsd: 0,
-        createdAt: now,
-        updatedAt: now,
-      })
-    })
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-
-    await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: 'tx-cross-article',
-    })
-
-    // Backdate the first tip so the cooldown does not block the second call.
-    await t.run(async (ctx) => {
-      const row = await ctx.db
-        .query('tips')
-        .withIndex('by_stellar_tx', (q) =>
-          q.eq('stellarTxId', 'tx-cross-article')
-        )
-        .first()
-      if (row) {
-        await ctx.db.patch(row._id, { createdAt: row.createdAt - 60_000 })
-      }
-    })
-
-    await expect(
-      asTipper.mutation(api.tips.sendTip, {
-        articleId: otherArticleId,
-        amountUsd: 1,
-        stellarTxId: 'tx-cross-article',
-      })
-    ).rejects.toThrow(/already linked to a different tip/i)
-  })
-
-  it('rejects when the same stellarTxId is reused by a different tipper', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seedTipperAndArticle(t)
-
-    // Seed a second tipper.
-    const otherTipperId = await t.run(async (ctx) => {
-      const now = Date.now()
-      return await ctx.db.insert('users', {
-        email: 'tipper2@x.test',
-        username: 'tipper2',
-        tipsSentCount: 0,
-        createdAt: now,
-        updatedAt: now,
-      })
-    })
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: 'tx-cross-user',
-    })
-
-    const asOther = t.withIdentity({ subject: otherTipperId })
-    await expect(
-      asOther.mutation(api.tips.sendTip, {
-        articleId,
-        amountUsd: 1,
-        stellarTxId: 'tx-cross-user',
-      })
-    ).rejects.toThrow(/already linked to a different tip/i)
-  })
-
-  it('does not dedup when stellarTxId is the empty sentinel', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seedTipperAndArticle(t)
-    const asTipper = t.withIdentity({ subject: tipperId })
-
-    const firstId = await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: '',
-    })
-
-    // Backdate the first tip so the cooldown does not block the second call.
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(firstId)
-      if (tip) {
-        await ctx.db.patch(firstId, { createdAt: tip.createdAt - 60_000 })
-      }
-    })
-
-    const secondId = await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: '',
-    })
-
-    expect(secondId).not.toBe(firstId)
-  })
-
-  it('rejects unauthenticated callers', async () => {
-    const t = convexTest(schema, modules)
-    const { articleId } = await seedTipperAndArticle(t)
-
-    await expect(
-      t.mutation(api.tips.sendTip, {
-        articleId,
-        amountUsd: 1,
-        stellarTxId: 'tx-unauth',
-      })
-    ).rejects.toThrow(/not authenticated/i)
-  })
-})
-
 describe('markArticleTipFraudulent', () => {
-  // Send a tip, directly invoke confirmTip to credit counters, and return ids
-  // for assertions. Returns baseline (pre-tip) counter values so tests can
-  // verify the reversal returns to that exact state.
+  // Seed a historical pending row directly, then invoke the legacy internal
+  // confirmer so reversal behavior remains covered without reopening sendTip.
   async function seedConfirmedTip(
     t: ReturnType<typeof convexTest>,
     opts: { amountUsd?: number; stellarTxId?: string } = {}
   ) {
     const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: opts.amountUsd ?? 1,
-      stellarTxId: opts.stellarTxId ?? 'tx-fraud-fixture',
+    const tipId = await t.run(async (ctx) => {
+      const now = Date.now()
+      const amountUsd = opts.amountUsd ?? 1
+      return await ctx.db.insert('tips', {
+        articleId,
+        articleTitle: 'Hello',
+        articleSlug: 'hello',
+        tipperId,
+        authorId,
+        amountUsd,
+        amountCents: Math.round(amountUsd * 100),
+        stellarTxId: opts.stellarTxId ?? 'tx-fraud-fixture',
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      })
     })
     await t.mutation(internal.tips.confirmTip, { tipId })
     return { tipperId, authorId, articleId, tipId }
@@ -1013,15 +917,23 @@ describe('markArticleTipFraudulent', () => {
 
   it('does nothing on a PENDING tip (guard prevents negative counter math)', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seedTipperAndArticle(t)
-    const asTipper = t.withIdentity({ subject: tipperId })
+    const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)
 
-    // Send tip but DO NOT run confirmTip — tip stays PENDING with no counter
-    // credits applied.
-    const tipId = await asTipper.mutation(api.tips.sendTip, {
-      articleId,
-      amountUsd: 1,
-      stellarTxId: 'tx-still-pending',
+    const tipId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('tips', {
+        articleId,
+        articleTitle: 'Hello',
+        articleSlug: 'hello',
+        tipperId,
+        authorId,
+        amountUsd: 1,
+        amountCents: 100,
+        stellarTxId: 'tx-still-pending',
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      })
     })
 
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
