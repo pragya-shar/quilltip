@@ -6,7 +6,6 @@ import {
   BASE_FEE,
   Contract,
   Keypair,
-  Memo,
   Networks,
   TransactionBuilder,
   nativeToScVal,
@@ -34,7 +33,7 @@ function buildArticleEnvelope(args: {
   author?: string
   contractId?: string
   functionName?: string
-  memo?: string
+  timeBounds?: { minTime: string; maxTime: string }
 }) {
   const source = args.source ?? TIPPER
   const account = new Account(source, '1')
@@ -42,6 +41,10 @@ function buildArticleEnvelope(args: {
   const tx = new TransactionBuilder(account, {
     fee: BASE_FEE,
     networkPassphrase: Networks.TESTNET,
+    timebounds: args.timeBounds ?? {
+      minTime: '1',
+      maxTime: '2000000000',
+    },
   })
     .addOperation(
       contract.call(
@@ -52,8 +55,6 @@ function buildArticleEnvelope(args: {
         nativeToScVal(args.amountStroops, { type: 'i128' })
       )
     )
-    .addMemo(Memo.text(args.memo ?? 'missing-intent-memo'))
-    .setTimeout(30)
     .build()
   return tx.toEnvelope().toXDR('base64')
 }
@@ -61,13 +62,14 @@ function buildArticleEnvelope(args: {
 function buildArticleBatchEnvelope(args: {
   articleSymbol: string
   amountStroops: bigint
-  memo: string
+  timeBounds: { minTime: string; maxTime: string }
 }) {
   const account = new Account(TIPPER, '1')
   const contract = new Contract(CONTRACT_ID)
   const tx = new TransactionBuilder(account, {
     fee: BASE_FEE,
     networkPassphrase: Networks.TESTNET,
+    timebounds: args.timeBounds,
   })
     .addOperation(
       contract.call(
@@ -91,8 +93,6 @@ function buildArticleBatchEnvelope(args: {
         )
       )
     )
-    .addMemo(Memo.text(args.memo))
-    .setTimeout(30)
     .build()
   return tx.toEnvelope().toXDR('base64')
 }
@@ -180,7 +180,7 @@ describe('verifyArticleTip', () => {
       envelope_xdr: buildArticleEnvelope({
         articleSymbol: intent.articleSymbol,
         amountStroops: BigInt(intent.amountStroops),
-        memo: intent.memo,
+        timeBounds: intent.timeBounds,
       }),
     })
 
@@ -229,7 +229,7 @@ describe('verifyArticleTip', () => {
       envelope_xdr: buildArticleEnvelope({
         articleSymbol: intent.articleSymbol,
         amountStroops: BigInt(intent.amountStroops),
-        memo: intent.memo,
+        timeBounds: intent.timeBounds,
       }),
     })
 
@@ -260,7 +260,7 @@ describe('verifyArticleTip', () => {
       envelope_xdr: buildArticleEnvelope({
         articleSymbol: intent.articleSymbol,
         amountStroops: BigInt(intent.amountStroops) - BigInt(1),
-        memo: intent.memo,
+        timeBounds: intent.timeBounds,
       }),
     })
 
@@ -311,9 +311,11 @@ describe('verifyArticleTip', () => {
       envelope: { author: OTHER_ACCOUNT },
     },
     {
-      name: 'intent memo',
-      expectedReason: 'memo_mismatch',
-      envelope: { memo: 'qt000000000000000000000000' },
+      name: 'intent time bounds',
+      expectedReason: 'timebounds_mismatch',
+      envelope: {
+        timeBounds: { minTime: '999999999', maxTime: '2000000001' },
+      },
     },
   ])(
     'fails without credit when the on-chain $name differs',
@@ -328,7 +330,7 @@ describe('verifyArticleTip', () => {
         envelope_xdr: buildArticleEnvelope({
           articleSymbol: intent.articleSymbol,
           amountStroops: BigInt(intent.amountStroops),
-          memo: intent.memo,
+          timeBounds: intent.timeBounds,
           ...envelope,
         }),
       })
@@ -373,7 +375,7 @@ describe('verifyArticleTip', () => {
       envelope_xdr: buildArticleEnvelope({
         articleSymbol: intent.articleSymbol,
         amountStroops: BigInt(intent.amountStroops),
-        memo: intent.memo,
+        timeBounds: intent.timeBounds,
       }),
     })
 
@@ -401,7 +403,7 @@ describe('verifyArticleTip', () => {
       envelope_xdr: buildArticleBatchEnvelope({
         articleSymbol: 'another123',
         amountStroops: BigInt(intent.amountStroops),
-        memo: intent.memo,
+        timeBounds: intent.timeBounds,
       }),
     })
 
@@ -429,7 +431,7 @@ describe('verifyArticleTip', () => {
       envelope_xdr: buildArticleBatchEnvelope({
         articleSymbol: intent.articleSymbol,
         amountStroops: BigInt(intent.amountStroops) + BigInt(1),
-        memo: intent.memo,
+        timeBounds: intent.timeBounds,
       }),
     })
 

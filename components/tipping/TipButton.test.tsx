@@ -153,7 +153,10 @@ describe('TipButton two-stage flow', () => {
       amountStroops: 12_345_678,
       stellarNetwork: 'TESTNET',
       contractId: 'CSERVERCONTRACT',
-      memo: 'qt0123456789abcdef01234567',
+      timeBounds: {
+        minTime: '123456789',
+        maxTime: '2000000000',
+      },
     })
     mockSubmitArticleTip.mockReset()
     mockSubmitArticleTip.mockResolvedValue('tip-id')
@@ -692,7 +695,10 @@ describe('TipButton two-stage flow', () => {
         authorAddress: 'GABC',
         amountStroops: 12_345_678,
         contractId: 'CSERVERCONTRACT',
-        memo: 'qt0123456789abcdef01234567',
+        timeBounds: {
+          minTime: '123456789',
+          maxTime: '2000000000',
+        },
       })
     })
     expect(mockPrepareArticleTip).toHaveBeenCalledWith({

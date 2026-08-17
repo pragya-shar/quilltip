@@ -50,7 +50,8 @@ export const verifyArticleTip = internalAction({
       !tip.expectedDestinationAccount ||
       !tip.expectedArticleSymbol ||
       !tip.expectedAmountStroops ||
-      !tip.expectedMemo ||
+      !tip.expectedMinTime ||
+      !tip.expectedMaxTime ||
       !intent
     ) {
       await ctx.runMutation(internal.articleTipVerify.markArticleTipFailed, {
@@ -87,7 +88,10 @@ export const verifyArticleTip = internalAction({
         articleId: tip.expectedArticleSymbol,
         minStroops: exactStroops,
         exactStroops,
-        expectedMemo: tip.expectedMemo,
+        expectedTimeBounds: {
+          minTime: tip.expectedMinTime,
+          maxTime: tip.expectedMaxTime,
+        },
         batchTips: [
           {
             articleId: tip.expectedArticleSymbol,

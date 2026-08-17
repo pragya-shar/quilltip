@@ -6,7 +6,6 @@ import {
   BASE_FEE,
   Contract,
   Keypair,
-  Memo,
   Networks,
   TransactionBuilder,
   nativeToScVal,
@@ -61,13 +60,17 @@ function buildArticleEnvelope(opts: {
   articleId: string
   amount: bigint
   author?: string
-  memo?: string
+  timeBounds?: { minTime: string; maxTime: string }
 }) {
   const account = new Account(SOURCE, '1')
   const contract = new Contract(CONTRACT_ID)
   const tx = new TransactionBuilder(account, {
     fee: BASE_FEE,
     networkPassphrase: Networks.TESTNET,
+    timebounds: opts.timeBounds ?? {
+      minTime: '1',
+      maxTime: '2000000000',
+    },
   })
     .addOperation(
       contract.call(
@@ -78,8 +81,6 @@ function buildArticleEnvelope(opts: {
         nativeToScVal(opts.amount, { type: 'i128' })
       )
     )
-    .addMemo(Memo.text(opts.memo ?? 'article-tip'))
-    .setTimeout(30)
     .build()
 
   return tx.toEnvelope().toXDR('base64')
@@ -162,34 +163,42 @@ function buildHighlightBatchEnvelope(opts: {
 }
 
 describe('verifyTipTransaction', () => {
-  it('rejects a copied article transaction bound to another payment intent memo', async () => {
+  it('rejects a copied Soroban transaction bound to another intent time window', async () => {
     const envelopeXdr = buildArticleEnvelope({
       articleId: 'article123',
       amount: BigInt(10_000_000),
-      memo: 'qt-victim-intent',
+      timeBounds: {
+        minTime: '123456789',
+        maxTime: '2000000000',
+      },
     })
+    const invocation = {
+      contractId: CONTRACT_ID,
+      allowedFunctions: ['tip_article'],
+      authorAddress: AUTHOR_ONE,
+      articleId: 'article123',
+      minStroops: BigInt(10_000_000),
+      exactStroops: BigInt(10_000_000),
+      expectedTimeBounds: {
+        minTime: '987654321',
+        maxTime: '2000000001',
+      },
+    }
+
     const result = await verifyTipTransaction(
       makeFetch({ status: 200, body: horizonBody(envelopeXdr) }),
       {
         txId: TX,
         expectedSource: SOURCE,
         horizonUrl: HORIZON,
-        invocation: {
-          contractId: CONTRACT_ID,
-          allowedFunctions: ['tip_article'],
-          authorAddress: AUTHOR_ONE,
-          articleId: 'article123',
-          minStroops: BigInt(10_000_000),
-          exactStroops: BigInt(10_000_000),
-          expectedMemo: 'qt-attacker-intent',
-        },
+        invocation,
       }
     )
 
     expect(result).toEqual({
       ok: false,
       kind: 'permanent',
-      reason: 'memo_mismatch',
+      reason: 'timebounds_mismatch',
     })
   })
 

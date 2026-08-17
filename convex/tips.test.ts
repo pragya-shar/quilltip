@@ -147,7 +147,10 @@ describe('prepareArticleTip', () => {
       amountStroops: 200_000_000,
       stellarNetwork: 'TESTNET',
       contractId: TIPPING_CONTRACT_ID,
-      memo: expect.stringMatching(/^qt[0-9a-f]{24}$/),
+      timeBounds: {
+        minTime: expect.stringMatching(/^\d+$/),
+        maxTime: expect.stringMatching(/^\d+$/),
+      },
     })
 
     const intent = await t.run(async (ctx) => ctx.db.get(quote.intentId))
@@ -162,7 +165,8 @@ describe('prepareArticleTip', () => {
       expectedArticleSymbol: '2ede2c6a40',
       expectedAmountStroops: '200000000',
       expectedContractId: TIPPING_CONTRACT_ID,
-      expectedMemo: quote.memo,
+      expectedMinTime: quote.timeBounds.minTime,
+      expectedMaxTime: quote.timeBounds.maxTime,
       quotePriceUsd: 0.25,
       quoteSource: 'TestOracle',
       quoteFetchedAt: fetchedAt,
@@ -389,7 +393,8 @@ describe('submitArticleTip', () => {
       expectedArticleSymbol: '2ede2c6a40',
       expectedAmountStroops: '200000000',
       expectedContractId: TIPPING_CONTRACT_ID,
-      expectedMemo: quote.memo,
+      expectedMinTime: quote.timeBounds.minTime,
+      expectedMaxTime: quote.timeBounds.maxTime,
     })
     expect(state.article?.tipCount).toBe(0)
     expect(state.article?.totalTipsUsd).toBe(0)

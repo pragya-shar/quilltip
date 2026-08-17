@@ -16,10 +16,19 @@ export async function shortArticleIdServer(articleId: string): Promise<string> {
   return (await sha256Hex(articleId)).slice(0, 10)
 }
 
-export async function articleTipIntentMemoServer(
-  intentId: string
-): Promise<string> {
-  return `qt${(await sha256Hex(intentId)).slice(0, 24)}`
+export async function articleTipIntentTimeBoundsServer(
+  intentId: string,
+  expiresAtMs: number
+): Promise<{ minTime: string; maxTime: string }> {
+  const digest = await sha256Hex(intentId)
+  // Stellar time bounds are part of the signed Soroban envelope. A
+  // deterministic value in the distant past is always valid while giving
+  // each server intent its own on-chain replay binding.
+  const minTime = (Number.parseInt(digest.slice(0, 8), 16) % 1_000_000_000) + 1
+  return {
+    minTime: minTime.toString(),
+    maxTime: Math.floor(expiresAtMs / 1000).toString(),
+  }
 }
 
 async function sha256Hex(value: string): Promise<string> {

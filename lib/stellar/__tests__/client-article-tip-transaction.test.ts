@@ -59,7 +59,17 @@ describe('StellarClient single-article transaction builder', () => {
     vi.spyOn(
       StellarSdk.rpc.Server.prototype,
       'prepareTransaction'
-    ).mockImplementation(async (transaction) => transaction as never)
+    ).mockImplementation(async (transaction) => {
+      if (!(transaction instanceof StellarSdk.Transaction)) {
+        throw new Error('Expected a normal Stellar transaction')
+      }
+      if (transaction.memo.type !== 'none') {
+        throw new Error(
+          'Transaction contains a memo. Soroban transactions do not support memos.'
+        )
+      }
+      return transaction as never
+    })
 
     const client = new StellarClient()
     const priceLookup = vi.spyOn(client, 'convertCentsToStroops')
@@ -69,7 +79,10 @@ describe('StellarClient single-article transaction builder', () => {
       authorAddress: author,
       amountStroops: 12_345_678,
       contractId: SERVER_QUOTE_CONTRACT_ID,
-      memo: 'qt0123456789abcdef01234567',
+      timeBounds: {
+        minTime: '123456789',
+        maxTime: '2000000000',
+      },
     })
 
     expect(priceLookup).not.toHaveBeenCalled()
@@ -86,8 +99,11 @@ describe('StellarClient single-article transaction builder', () => {
     if (!(transaction instanceof StellarSdk.Transaction)) {
       throw new Error('Expected a normal Stellar transaction')
     }
-    expect(transaction.memo.type).toBe('text')
-    expect(String(transaction.memo.value)).toBe('qt0123456789abcdef01234567')
+    expect(transaction.memo.type).toBe('none')
+    expect(transaction.timeBounds).toEqual({
+      minTime: '123456789',
+      maxTime: '2000000000',
+    })
 
     const invocation = readInvocation(StellarSdk, result.xdr)
     expect(
@@ -121,7 +137,10 @@ describe('StellarClient single-article transaction builder', () => {
         authorAddress: StellarSdk.Keypair.random().publicKey(),
         amountStroops: MINIMUM_TIP_STROOPS - 1,
         contractId: SERVER_QUOTE_CONTRACT_ID,
-        memo: 'qt0123456789abcdef01234567',
+        timeBounds: {
+          minTime: '123456789',
+          maxTime: '2000000000',
+        },
       })
     ).rejects.toThrow('Invalid trusted article tip amount')
     expect(loadAccount).not.toHaveBeenCalled()

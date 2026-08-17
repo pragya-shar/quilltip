@@ -560,7 +560,7 @@ export function TipButton({
           authorAddress: quote.authorAddress,
           amountStroops: quote.amountStroops,
           contractId: quote.contractId,
-          memo: quote.memo,
+          timeBounds: quote.timeBounds,
         }
       )
 

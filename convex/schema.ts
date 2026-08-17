@@ -199,6 +199,8 @@ export default defineSchema({
     expectedArticleSymbol: v.string(),
     expectedAmountStroops: v.string(),
     expectedContractId: v.optional(v.string()),
+    expectedMinTime: v.optional(v.string()),
+    expectedMaxTime: v.optional(v.string()),
     expectedMemo: v.optional(v.string()),
     expectedStellarNetwork: v.optional(
       v.union(v.literal('TESTNET'), v.literal('MAINNET'))
@@ -252,6 +254,8 @@ export default defineSchema({
     expectedArticleSymbol: v.optional(v.string()),
     expectedAmountStroops: v.optional(v.string()),
     expectedContractId: v.optional(v.string()),
+    expectedMinTime: v.optional(v.string()),
+    expectedMaxTime: v.optional(v.string()),
     expectedMemo: v.optional(v.string()),
     quotePriceUsd: v.optional(v.number()),
     quoteSource: v.optional(v.string()),

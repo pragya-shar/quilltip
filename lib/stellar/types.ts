@@ -28,7 +28,10 @@ export interface TipParams {
   authorAddress: string
   amountStroops: number
   contractId: string
-  memo: string
+  timeBounds: {
+    minTime: string
+    maxTime: string
+  }
   signerFn?: (txXDR: string) => Promise<string>
 }
 

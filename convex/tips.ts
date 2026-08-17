@@ -15,7 +15,7 @@ import { checkTipCooldown, enforceTipCooldown } from './lib/rateLimit'
 import {
   ARTICLE_TIP_FALLBACK_XLM_USD_RATE,
   ARTICLE_TIP_INTENT_TTL_MS,
-  articleTipIntentMemoServer,
+  articleTipIntentTimeBoundsServer,
   calculateTipStroops,
   shortArticleIdServer,
 } from './lib/articleTipExpectation'
@@ -176,7 +176,10 @@ export const prepareArticleTip = mutation({
     amountStroops: v.number(),
     stellarNetwork: v.union(v.literal('TESTNET'), v.literal('MAINNET')),
     contractId: v.string(),
-    memo: v.string(),
+    timeBounds: v.object({
+      minTime: v.string(),
+      maxTime: v.string(),
+    }),
   }),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
@@ -227,6 +230,7 @@ export const prepareArticleTip = mutation({
     )
     const expectedStellarNetwork = getStellarNetwork()
     const expectedContractId = getTippingContractId()
+    const expiresAt = now + ARTICLE_TIP_INTENT_TTL_MS
 
     const intentId = await ctx.db.insert('articleTipIntents', {
       articleId: args.articleId,
@@ -250,12 +254,18 @@ export const prepareArticleTip = mutation({
       quotePriceUsd,
       quoteSource,
       quoteFetchedAt,
-      expiresAt: now + ARTICLE_TIP_INTENT_TTL_MS,
+      expiresAt,
       createdAt: now,
       updatedAt: now,
     })
-    const expectedMemo = await articleTipIntentMemoServer(intentId)
-    await ctx.db.patch(intentId, { expectedMemo })
+    const expectedTimeBounds = await articleTipIntentTimeBoundsServer(
+      intentId,
+      expiresAt
+    )
+    await ctx.db.patch(intentId, {
+      expectedMinTime: expectedTimeBounds.minTime,
+      expectedMaxTime: expectedTimeBounds.maxTime,
+    })
 
     return {
       intentId,
@@ -264,7 +274,7 @@ export const prepareArticleTip = mutation({
       amountStroops: expectedAmountStroops,
       stellarNetwork: expectedStellarNetwork,
       contractId: expectedContractId,
-      memo: expectedMemo,
+      timeBounds: expectedTimeBounds,
     }
   },
 })
@@ -354,7 +364,8 @@ export const submitArticleTip = mutation({
       expectedArticleSymbol: intent.expectedArticleSymbol,
       expectedAmountStroops: intent.expectedAmountStroops,
       expectedContractId: intent.expectedContractId,
-      expectedMemo: intent.expectedMemo,
+      expectedMinTime: intent.expectedMinTime,
+      expectedMaxTime: intent.expectedMaxTime,
       quotePriceUsd: intent.quotePriceUsd,
       quoteSource: intent.quoteSource,
       quoteFetchedAt: intent.quoteFetchedAt,

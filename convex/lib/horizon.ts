@@ -30,7 +30,7 @@ export type HorizonVerifyReason =
   | 'article_mismatch'
   | 'author_mismatch'
   | 'amount_mismatch'
-  | 'memo_mismatch'
+  | 'timebounds_mismatch'
   | 'transaction_before_intent'
   | 'transaction_after_intent'
 
@@ -51,7 +51,10 @@ export type TipInvocationExpectations = {
   exactStroops?: bigint
   articleId?: string
   batchTips?: readonly TipInvocationTipExpectation[]
-  expectedMemo?: string
+  expectedTimeBounds?: {
+    minTime: string
+    maxTime: string
+  }
 }
 
 export type TipInvocationTipExpectation = {
@@ -198,23 +201,19 @@ function verifyInvocation(
     return { kind: 'fail', reason: 'malformed_response' }
   }
 
-  if (args.invocation.expectedMemo !== undefined) {
-    const memo = tx.memo()
-    if (memo.switch() !== xdr.MemoType.memoText()) {
-      return { kind: 'fail', reason: 'memo_mismatch' }
+  if (args.invocation.expectedTimeBounds !== undefined) {
+    const condition = tx.cond()
+    if (condition.switch() !== xdr.PreconditionType.precondTime()) {
+      return { kind: 'fail', reason: 'timebounds_mismatch' }
     }
-    let memoText: string
-    try {
-      const rawMemo = memo.text()
-      memoText =
-        typeof rawMemo === 'string'
-          ? rawMemo
-          : new TextDecoder().decode(rawMemo)
-    } catch {
-      return { kind: 'fail', reason: 'malformed_response' }
-    }
-    if (memoText !== args.invocation.expectedMemo) {
-      return { kind: 'fail', reason: 'memo_mismatch' }
+    const timeBounds = condition.timeBounds()
+    if (
+      timeBounds.minTime().toString() !==
+        args.invocation.expectedTimeBounds.minTime ||
+      timeBounds.maxTime().toString() !==
+        args.invocation.expectedTimeBounds.maxTime
+    ) {
+      return { kind: 'fail', reason: 'timebounds_mismatch' }
     }
   }
 

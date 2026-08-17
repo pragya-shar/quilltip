@@ -4,8 +4,6 @@ import { STELLAR_CONFIG } from './config'
 import { loadStellarSdk } from './sdk-loader'
 import { api } from '@/convex/_generated/api'
 import type { Keypair } from '@stellar/stellar-sdk'
-// Note: Memos cannot be used with Soroban source account auth
-// (Stellar protocol restriction: "non-source auth Soroban tx uses memo or muxed source account")
 import type {
   TipParams,
   TipReceipt,
@@ -289,6 +287,7 @@ export class StellarClient {
     const transaction = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
       networkPassphrase: this.networkPassphrase,
+      timebounds: params.timeBounds,
     })
       .addOperation(
         contract.call(
@@ -301,8 +300,6 @@ export class StellarClient {
           StellarSdk.nativeToScVal(stroopsBigInt, { type: 'i128' })
         )
       )
-      .addMemo(StellarSdk.Memo.text(params.memo))
-      .setTimeout(180)
       .build()
 
     const preparedTransaction =
