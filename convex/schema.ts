@@ -206,6 +206,7 @@ export default defineSchema({
     quotePriceUsd: v.number(),
     quoteSource: v.string(),
     quoteFetchedAt: v.number(),
+    tipId: v.optional(v.id('tips')),
     expiresAt: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -244,6 +245,19 @@ export default defineSchema({
     stellarAmountXlm: v.optional(v.string()), // Amount in XLM
     contractTipId: v.optional(v.string()),
 
+    // Immutable server-owned expectation copied from articleTipIntents.
+    articleTipIntentId: v.optional(v.id('articleTipIntents')),
+    expectedSourceAccount: v.optional(v.string()),
+    expectedDestinationAccount: v.optional(v.string()),
+    expectedArticleSymbol: v.optional(v.string()),
+    expectedAmountStroops: v.optional(v.string()),
+    expectedContractId: v.optional(v.string()),
+    expectedMemo: v.optional(v.string()),
+    quotePriceUsd: v.optional(v.number()),
+    quoteSource: v.optional(v.string()),
+    quoteFetchedAt: v.optional(v.number()),
+    verifiedAt: v.optional(v.number()),
+
     // Status
     status: v.string(), // PENDING, CONFIRMING, CONFIRMED, FAILED, FRAUDULENT
     failureReason: v.optional(v.string()), // Error message if failed
@@ -260,6 +274,7 @@ export default defineSchema({
     .index('by_author', ['authorId'])
     .index('by_status', ['status'])
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
+    .index('by_article_tip_intent', ['articleTipIntentId'])
     .index('by_stellar_tx', ['stellarTxId']), // For dedup on at-least-once retries
 
   // Highlight Tips table (NEW - granular tipping)

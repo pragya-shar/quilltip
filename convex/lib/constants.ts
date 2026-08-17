@@ -41,6 +41,13 @@ export const HORIZON_VERIFY_INITIAL_DELAY_MS = 2_000
 export const HORIZON_VERIFY_RETRY_DELAY_MS = 5_000
 export const HORIZON_VERIFY_MAX_ATTEMPTS = 3
 
+// Horizon ledger timestamps can trail the app server clock slightly, and a
+// wallet approval can finish just after the quote expires. These narrow grace
+// windows bind a transaction to its prepared intent without rejecting a valid
+// payment because of normal clock/ledger delay.
+export const ARTICLE_TIP_TX_EARLY_GRACE_MS = 60_000
+export const ARTICLE_TIP_TX_LATE_GRACE_MS = 2 * 60_000
+
 // Delay before the (attempt+1)th verification fires, given that `attempt`
 // just returned a transient failure. Tripling backoff: 5s, 15s, 45s. Only
 // 5s and 15s are reachable today (MAX_ATTEMPTS=3 → at most two reschedules),

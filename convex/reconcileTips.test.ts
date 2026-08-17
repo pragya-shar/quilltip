@@ -291,6 +291,62 @@ describe('reconcileArticleTips', () => {
     expect(tip?.status).toBe('CONFIRMED')
   })
 
+  it('skips an intent-backed tip that already passed exact verification', async () => {
+    process.env.RECONCILE_TIPS_ENABLED = 'true'
+    const t = convexTest(schema, modules)
+    const { tipId, articleId, tipperId, authorId } = await seedConfirmedTip(t)
+
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const intentId = await ctx.db.insert('articleTipIntents', {
+        articleId,
+        tipperId,
+        authorId,
+        articleTitle: 'Hello',
+        articleSlug: 'hello',
+        amountUsd: 1,
+        amountCents: 100,
+        expectedSourceAccount: TIPPER_STELLAR,
+        expectedDestinationAccount: AUTHOR_STELLAR,
+        expectedArticleSymbol: 'article1',
+        expectedAmountStroops: '10000000',
+        expectedStellarNetwork: 'TESTNET',
+        expectedContractId: TIPPING_CONTRACT_ID,
+        quotePriceUsd: 1,
+        quoteSource: 'TestOracle',
+        quoteFetchedAt: now,
+        tipId,
+        expiresAt: now + 60_000,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.patch(tipId, {
+        articleTipIntentId: intentId,
+        verifiedAt: now,
+      })
+      await ctx.db.patch(authorId, { stellarAddress: ATTACKER_STELLAR })
+    })
+
+    const fetchSpy = vi.fn(async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({}),
+    }))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const summary = await t.action(
+      internal.reconcileTips.reconcileArticleTips,
+      {}
+    )
+
+    expect(summary).toMatchObject({ checked: 1, skipped: 1, flagged: 0 })
+    expect(fetchSpy).not.toHaveBeenCalled()
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(tipId)).toMatchObject({ status: 'CONFIRMED' })
+      expect((await ctx.db.get(articleId))?.tipCount).toBe(1)
+    })
+  })
+
   it('marks FRAUDULENT and reverses counters on contract_mismatch when flag is on', async () => {
     process.env.RECONCILE_TIPS_ENABLED = 'true'
     const t = convexTest(schema, modules)

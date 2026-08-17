@@ -9,6 +9,7 @@ import {
   TIP_MIN_USD,
   TIP_MAX_USD,
   MIN_WITHDRAWAL_USD,
+  HORIZON_VERIFY_INITIAL_DELAY_MS,
   getStellarNetwork,
   getTippingContractId,
 } from './lib/constants'
@@ -267,6 +268,159 @@ export const prepareArticleTip = mutation({
       contractId: expectedContractId,
       memo: expectedMemo,
     }
+  },
+})
+
+export const submitArticleTip = mutation({
+  args: {
+    intentId: v.id('articleTipIntents'),
+    stellarTxId: v.string(),
+    stellarLedger: v.optional(v.number()),
+    stellarFeeCharged: v.optional(v.string()),
+    contractTipId: v.optional(v.string()),
+  },
+  returns: v.id('tips'),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+    if (!args.stellarTxId.trim()) {
+      throw new Error('A Stellar transaction hash is required')
+    }
+
+    const intent = await ctx.db.get(args.intentId)
+    if (!intent || intent.tipperId !== userId) {
+      throw new Error('Article tip intent not found')
+    }
+
+    if (intent.tipId) {
+      const existingForIntent = await ctx.db.get(intent.tipId)
+      if (
+        existingForIntent &&
+        existingForIntent.stellarTxId === args.stellarTxId
+      ) {
+        return existingForIntent._id
+      }
+      throw new ConvexError(
+        'This article tip intent is already linked to a different transaction.'
+      )
+    }
+    const existingForHash = await ctx.db
+      .query('tips')
+      .withIndex('by_stellar_tx', (q) => q.eq('stellarTxId', args.stellarTxId))
+      .first()
+    if (existingForHash) {
+      if (
+        existingForHash.articleTipIntentId === args.intentId &&
+        existingForHash.tipperId === userId
+      ) {
+        await ctx.db.patch(args.intentId, {
+          tipId: existingForHash._id,
+          updatedAt: Date.now(),
+        })
+        return existingForHash._id
+      }
+      throw new ConvexError(
+        'This Stellar transaction is already linked to a different tip.'
+      )
+    }
+
+    await enforceTipCooldown(ctx, userId)
+
+    const now = Date.now()
+    const tipId = await ctx.db.insert('tips', {
+      articleId: intent.articleId,
+      articleTitle: intent.articleTitle,
+      articleSlug: intent.articleSlug,
+      tipperId: intent.tipperId,
+      tipperName: intent.tipperName,
+      tipperAvatar: intent.tipperAvatar,
+      authorId: intent.authorId,
+      authorName: intent.authorName,
+      authorAvatar: intent.authorAvatar,
+      amountUsd: intent.amountUsd,
+      amountCents: intent.amountCents,
+      message: intent.message,
+      stellarTxId: args.stellarTxId,
+      stellarNetwork: intent.expectedStellarNetwork ?? getStellarNetwork(),
+      stellarLedger: args.stellarLedger,
+      stellarFeeCharged: args.stellarFeeCharged,
+      stellarSourceAccount: intent.expectedSourceAccount,
+      stellarDestinationAccount: intent.expectedDestinationAccount,
+      stellarAmountXlm: (
+        Number(intent.expectedAmountStroops) / 10_000_000
+      ).toString(),
+      contractTipId: args.contractTipId,
+      articleTipIntentId: intent._id,
+      expectedSourceAccount: intent.expectedSourceAccount,
+      expectedDestinationAccount: intent.expectedDestinationAccount,
+      expectedArticleSymbol: intent.expectedArticleSymbol,
+      expectedAmountStroops: intent.expectedAmountStroops,
+      expectedContractId: intent.expectedContractId,
+      expectedMemo: intent.expectedMemo,
+      quotePriceUsd: intent.quotePriceUsd,
+      quoteSource: intent.quoteSource,
+      quoteFetchedAt: intent.quoteFetchedAt,
+      status: 'PENDING',
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await ctx.db.patch(args.intentId, { tipId, updatedAt: now })
+    await ctx.scheduler.runAfter(
+      HORIZON_VERIFY_INITIAL_DELAY_MS,
+      internal.articleTipVerify.verifyArticleTip,
+      { tipId, attempt: 1 }
+    )
+    return tipId
+  },
+})
+
+export const getArticleTipStatus = query({
+  args: { tipId: v.id('tips') },
+  returns: v.object({
+    status: v.string(),
+    failureReason: v.optional(v.string()),
+    verifiedAt: v.optional(v.number()),
+  }),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+    const tip = await ctx.db.get(args.tipId)
+    if (!tip || tip.tipperId !== userId || !tip.articleTipIntentId) {
+      throw new Error('Article tip not found')
+    }
+    return {
+      status: tip.status,
+      failureReason: tip.failureReason,
+      verifiedAt: tip.verifiedAt,
+    }
+  },
+})
+
+export const retryArticleTipVerification = mutation({
+  args: { tipId: v.id('tips') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+    const tip = await ctx.db.get(args.tipId)
+    if (!tip || tip.tipperId !== userId || !tip.articleTipIntentId) {
+      throw new Error('Article tip not found')
+    }
+    if (tip.status !== 'PENDING') {
+      throw new Error('Only pending article tips can be retried')
+    }
+
+    await ctx.db.patch(args.tipId, {
+      failureReason: undefined,
+      updatedAt: Date.now(),
+    })
+    await ctx.scheduler.runAfter(
+      0,
+      internal.articleTipVerify.verifyArticleTip,
+      { tipId: args.tipId, attempt: 1 }
+    )
+    return null
   },
 })
 

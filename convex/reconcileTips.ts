@@ -87,6 +87,15 @@ export const reconcileArticleTips = internalAction({
     for (const { tip, authorStellarAddress } of rows) {
       checked++
 
+      // Intent-backed rows with verifiedAt already passed the stricter exact
+      // verifier using immutable source, recipient, article, amount, network,
+      // and contract expectations. Rechecking them against today's author
+      // wallet or deployment contract could falsely reverse a valid payment.
+      if (tip.articleTipIntentId && tip.verifiedAt) {
+        skipped++
+        continue
+      }
+
       // Legacy placeholders (pre-C2'.1) or explicit empty sentinel — nothing
       // to verify against Horizon.
       if (!tip.stellarTxId || tip.stellarTxId.startsWith('pending_')) {
