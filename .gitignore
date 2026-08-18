@@ -68,6 +68,7 @@ docs/eng-235-batch-evidence.local.*
 docs/eng-236-batch-evidence.local.*
 docs/tipping-verification-plan.md
 docs/final-gtm-plan.md
+docs/superpowers/
 
 # local operator inputs
 scripts/eng-235-batch-input.local.json
