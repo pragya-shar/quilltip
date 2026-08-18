@@ -62,7 +62,7 @@ export const getRecentConfirmedArticleTipsForReconcile = internalQuery({
  * minus the actual mutation. This lets us watch the output in production for
  * a few days and confirm the logic looks right before flipping to enforcement.
  *
- * PENDING tips are NOT scanned here. Stuck-PENDING recovery is I-series work.
+ * PENDING tips are handled by a separate, non-destructive recovery action below.
  */
 export const reconcileArticleTips = internalAction({
   args: {},
@@ -86,6 +86,15 @@ export const reconcileArticleTips = internalAction({
 
     for (const { tip, authorStellarAddress } of rows) {
       checked++
+
+      // Intent-backed rows with verifiedAt already passed the stricter exact
+      // verifier using immutable source, recipient, article, amount, network,
+      // and contract expectations. Rechecking them against today's author
+      // wallet or deployment contract could falsely reverse a valid payment.
+      if (tip.articleTipIntentId && tip.verifiedAt) {
+        skipped++
+        continue
+      }
 
       // Legacy placeholders (pre-C2'.1) or explicit empty sentinel — nothing
       // to verify against Horizon.
@@ -229,6 +238,56 @@ export const recoverStuckPendingHighlightTips = internalAction({
 
     const summary = { rescheduled: ids.length }
     console.log('[reconcileTips] stuck-PENDING highlight sweep', summary)
+    return summary
+  },
+})
+
+/**
+ * Find article tips whose normal verification retry chain appears to have
+ * stopped. The bounded take prevents one recovery tick from growing without
+ * limit; later ticks continue draining any backlog.
+ */
+export const getStuckPendingArticleTipIds = internalQuery({
+  args: { cutoffMs: v.number() },
+  returns: v.array(v.id('tips')),
+  handler: async (ctx, args): Promise<Id<'tips'>[]> => {
+    const tips = await ctx.db
+      .query('tips')
+      .withIndex('by_status_updated', (q) =>
+        q.eq('status', 'PENDING').lt('updatedAt', args.cutoffMs)
+      )
+      .filter((q) => q.neq(q.field('articleTipIntentId'), undefined))
+      .take(100)
+
+    return tips.map((tip) => tip._id)
+  },
+})
+
+/**
+ * Restart verification for whole-article tips that remained PENDING after the
+ * reader left or a scheduled action was interrupted. The verifier is
+ * idempotent and only credits a still-PENDING tip after rechecking Stellar.
+ */
+export const recoverStuckPendingArticleTips = internalAction({
+  args: {},
+  returns: v.object({ rescheduled: v.number() }),
+  handler: async (ctx): Promise<{ rescheduled: number }> => {
+    const cutoff = Date.now() - STUCK_PENDING_THRESHOLD_MS
+    const ids: Id<'tips'>[] = await ctx.runQuery(
+      internal.reconcileTips.getStuckPendingArticleTipIds,
+      { cutoffMs: cutoff }
+    )
+
+    for (const tipId of ids) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.articleTipVerify.verifyArticleTip,
+        { tipId, attempt: 1 }
+      )
+    }
+
+    const summary = { rescheduled: ids.length }
+    console.log('[reconcileTips] stuck-PENDING article sweep', summary)
     return summary
   },
 })

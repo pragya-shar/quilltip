@@ -178,6 +178,26 @@ describe('HomePage creator workspace', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('shows the writer private total without an earnings destination', () => {
+    useAuthMock.mockReturnValue({
+      user: baseUser,
+      isAuthenticated: true,
+      isLoading: false,
+    })
+    useAuthorEarningsMock.mockReturnValue({
+      totalEarnedUsd: 12.34,
+      tipCount: 3,
+    })
+
+    render(<HomePage />)
+
+    expect(screen.getByText('Total tips received')).toBeInTheDocument()
+    expect(screen.getByText('$12.34')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'View earnings' })
+    ).not.toBeInTheDocument()
+  })
+
   it('uses neutral creator workspace copy while drafts are loading', () => {
     useAuthMock.mockReturnValue({
       user: baseUser,

@@ -1,5 +1,4 @@
 import { Skeleton } from '@/components/ui/skeleton'
-import { EarningsDashboardSkeleton } from '@/components/dashboard/EarningsDashboardSkeleton'
 import { DashboardStatsSkeleton } from '@/components/dashboard/DashboardStatsSkeleton'
 import { DashboardWalletSkeleton } from '@/components/dashboard/DashboardWalletSkeleton'
 import type { DashboardTabId } from '@/lib/dashboard/dashboardTab'
@@ -17,7 +16,7 @@ function DashboardTabBarSkeleton() {
   return (
     <div className="min-w-0 w-full overflow-hidden border-b border-border mb-8">
       <div className="-mb-px flex flex-nowrap gap-4 sm:gap-8 pb-0.5">
-        {[1, 2, 3].map((i) => (
+        {[1, 2].map((i) => (
           <Skeleton key={i} className="h-10 w-24 shrink-0" />
         ))}
       </div>
@@ -40,7 +39,7 @@ function DashboardTabContentSkeleton({
     return <DashboardStatsSkeleton />
   }
 
-  return <EarningsDashboardSkeleton />
+  return <DashboardStatsSkeleton />
 }
 
 export function DashboardShellSkeleton({

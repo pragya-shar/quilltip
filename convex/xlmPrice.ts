@@ -8,7 +8,7 @@ import { fetchXlmPriceUsd } from './lib/xlmPrice'
 // runs every 5 minutes, so this only triggers if the cron has been failing
 // for ~30+ min — a real outage signal worth surfacing rather than silently
 // serving very old prices.
-const MAX_PRICE_AGE_MS = 30 * 60 * 1000
+export const MAX_PRICE_AGE_MS = 30 * 60 * 1000
 
 export type CachedXlmPrice = {
   priceUsd: number

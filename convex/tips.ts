@@ -3,8 +3,23 @@ import { query, mutation, internalMutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import { enrichWithUser } from './lib/enrich'
-import { TIP_MIN_USD, TIP_MAX_USD, MIN_WITHDRAWAL_USD } from './lib/constants'
+import {
+  TIP_MIN_CENTS,
+  TIP_MAX_CENTS,
+  MIN_WITHDRAWAL_USD,
+  HORIZON_VERIFY_INITIAL_DELAY_MS,
+  getStellarNetwork,
+  getTippingContractId,
+} from './lib/constants'
 import { checkTipCooldown, enforceTipCooldown } from './lib/rateLimit'
+import {
+  ARTICLE_TIP_FALLBACK_XLM_USD_RATE,
+  ARTICLE_TIP_INTENT_TTL_MS,
+  articleTipIntentTimeBoundsServer,
+  calculateTipStroops,
+  shortArticleIdServer,
+} from './lib/articleTipExpectation'
+import { MAX_PRICE_AGE_MS } from './xlmPrice'
 
 // Get tips for an article
 export const getArticleTips = query({
@@ -147,7 +162,280 @@ export const canTip = query({
   },
 })
 
-// Send tip mutation
+export const prepareArticleTip = mutation({
+  args: {
+    articleId: v.id('articles'),
+    amountCents: v.number(),
+    message: v.optional(v.string()),
+    stellarSourceAccount: v.string(),
+  },
+  returns: v.object({
+    intentId: v.id('articleTipIntents'),
+    articleSymbol: v.string(),
+    authorAddress: v.string(),
+    amountStroops: v.number(),
+    stellarNetwork: v.union(v.literal('TESTNET'), v.literal('MAINNET')),
+    contractId: v.string(),
+    timeBounds: v.object({
+      minTime: v.string(),
+      maxTime: v.string(),
+    }),
+  }),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+
+    if (
+      !Number.isSafeInteger(args.amountCents) ||
+      args.amountCents < TIP_MIN_CENTS ||
+      args.amountCents > TIP_MAX_CENTS
+    ) {
+      throw new Error('Invalid tip amount')
+    }
+    if (args.message && args.message.length > 500) {
+      throw new Error('Message must be 500 characters or less')
+    }
+    if (!/^G[A-Z2-7]{55}$/.test(args.stellarSourceAccount)) {
+      throw new Error('Invalid Stellar source account')
+    }
+
+    const [tipper, article] = await Promise.all([
+      ctx.db.get(userId),
+      ctx.db.get(args.articleId),
+    ])
+    if (!tipper) throw new Error('User not found')
+    if (!article) throw new Error('Article not found')
+
+    const author = await ctx.db.get(article.authorId)
+    if (!author) throw new Error('Author not found')
+    if (!author.stellarAddress || typeof author.stellarAddress !== 'string') {
+      throw new Error('Author has not configured a receiving wallet')
+    }
+
+    const now = Date.now()
+    const cachedRate = await ctx.db.query('xlmPriceCache').first()
+    const useCachedRate =
+      cachedRate !== null && now - cachedRate.fetchedAt <= MAX_PRICE_AGE_MS
+    const quotePriceUsd = useCachedRate
+      ? cachedRate.priceUsd
+      : ARTICLE_TIP_FALLBACK_XLM_USD_RATE
+    const quoteSource = useCachedRate ? cachedRate.source : 'Fallback'
+    const quoteFetchedAt = useCachedRate ? cachedRate.fetchedAt : now
+    const expectedAmountStroops = calculateTipStroops(
+      args.amountCents,
+      quotePriceUsd
+    )
+    const expectedArticleSymbol = await shortArticleIdServer(
+      args.articleId.toString()
+    )
+    const expectedStellarNetwork = getStellarNetwork()
+    const expectedContractId = getTippingContractId()
+    const expiresAt = now + ARTICLE_TIP_INTENT_TTL_MS
+
+    const intentId = await ctx.db.insert('articleTipIntents', {
+      articleId: args.articleId,
+      tipperId: userId,
+      authorId: article.authorId,
+      articleTitle: article.title,
+      articleSlug: article.slug,
+      tipperName: tipper.name || tipper.username,
+      tipperAvatar: tipper.avatar,
+      authorName: author.name || author.username,
+      authorAvatar: author.avatar,
+      amountUsd: args.amountCents / 100,
+      amountCents: args.amountCents,
+      message: args.message,
+      expectedSourceAccount: args.stellarSourceAccount,
+      expectedDestinationAccount: author.stellarAddress,
+      expectedArticleSymbol,
+      expectedAmountStroops: expectedAmountStroops.toString(),
+      expectedStellarNetwork,
+      expectedContractId,
+      quotePriceUsd,
+      quoteSource,
+      quoteFetchedAt,
+      expiresAt,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const expectedTimeBounds = await articleTipIntentTimeBoundsServer(
+      intentId,
+      expiresAt
+    )
+    await ctx.db.patch(intentId, {
+      expectedMinTime: expectedTimeBounds.minTime,
+      expectedMaxTime: expectedTimeBounds.maxTime,
+    })
+
+    return {
+      intentId,
+      articleSymbol: expectedArticleSymbol,
+      authorAddress: author.stellarAddress,
+      amountStroops: expectedAmountStroops,
+      stellarNetwork: expectedStellarNetwork,
+      contractId: expectedContractId,
+      timeBounds: expectedTimeBounds,
+    }
+  },
+})
+
+export const submitArticleTip = mutation({
+  args: {
+    intentId: v.id('articleTipIntents'),
+    stellarTxId: v.string(),
+    stellarLedger: v.optional(v.number()),
+    stellarFeeCharged: v.optional(v.string()),
+    contractTipId: v.optional(v.string()),
+  },
+  returns: v.id('tips'),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+    if (!args.stellarTxId.trim()) {
+      throw new Error('A Stellar transaction hash is required')
+    }
+
+    const intent = await ctx.db.get(args.intentId)
+    if (!intent || intent.tipperId !== userId) {
+      throw new Error('Article tip intent not found')
+    }
+
+    if (intent.tipId) {
+      const existingForIntent = await ctx.db.get(intent.tipId)
+      if (
+        existingForIntent &&
+        existingForIntent.stellarTxId === args.stellarTxId
+      ) {
+        return existingForIntent._id
+      }
+      throw new ConvexError(
+        'This article tip intent is already linked to a different transaction.'
+      )
+    }
+    const existingForHash = await ctx.db
+      .query('tips')
+      .withIndex('by_stellar_tx', (q) => q.eq('stellarTxId', args.stellarTxId))
+      .first()
+    if (existingForHash) {
+      if (
+        existingForHash.articleTipIntentId === args.intentId &&
+        existingForHash.tipperId === userId
+      ) {
+        await ctx.db.patch(args.intentId, {
+          tipId: existingForHash._id,
+          updatedAt: Date.now(),
+        })
+        return existingForHash._id
+      }
+      throw new ConvexError(
+        'This Stellar transaction is already linked to a different tip.'
+      )
+    }
+
+    await enforceTipCooldown(ctx, userId)
+
+    const now = Date.now()
+    const tipId = await ctx.db.insert('tips', {
+      articleId: intent.articleId,
+      articleTitle: intent.articleTitle,
+      articleSlug: intent.articleSlug,
+      tipperId: intent.tipperId,
+      tipperName: intent.tipperName,
+      tipperAvatar: intent.tipperAvatar,
+      authorId: intent.authorId,
+      authorName: intent.authorName,
+      authorAvatar: intent.authorAvatar,
+      amountUsd: intent.amountUsd,
+      amountCents: intent.amountCents,
+      message: intent.message,
+      stellarTxId: args.stellarTxId,
+      stellarNetwork: intent.expectedStellarNetwork ?? getStellarNetwork(),
+      stellarLedger: args.stellarLedger,
+      stellarFeeCharged: args.stellarFeeCharged,
+      stellarSourceAccount: intent.expectedSourceAccount,
+      stellarDestinationAccount: intent.expectedDestinationAccount,
+      stellarAmountXlm: (
+        Number(intent.expectedAmountStroops) / 10_000_000
+      ).toString(),
+      contractTipId: args.contractTipId,
+      articleTipIntentId: intent._id,
+      expectedSourceAccount: intent.expectedSourceAccount,
+      expectedDestinationAccount: intent.expectedDestinationAccount,
+      expectedArticleSymbol: intent.expectedArticleSymbol,
+      expectedAmountStroops: intent.expectedAmountStroops,
+      expectedContractId: intent.expectedContractId,
+      expectedMinTime: intent.expectedMinTime,
+      expectedMaxTime: intent.expectedMaxTime,
+      quotePriceUsd: intent.quotePriceUsd,
+      quoteSource: intent.quoteSource,
+      quoteFetchedAt: intent.quoteFetchedAt,
+      status: 'PENDING',
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    await ctx.db.patch(args.intentId, { tipId, updatedAt: now })
+    await ctx.scheduler.runAfter(
+      HORIZON_VERIFY_INITIAL_DELAY_MS,
+      internal.articleTipVerify.verifyArticleTip,
+      { tipId, attempt: 1 }
+    )
+    return tipId
+  },
+})
+
+export const getArticleTipStatus = query({
+  args: { tipId: v.id('tips') },
+  returns: v.object({
+    status: v.string(),
+    failureReason: v.optional(v.string()),
+    verifiedAt: v.optional(v.number()),
+  }),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+    const tip = await ctx.db.get(args.tipId)
+    if (!tip || tip.tipperId !== userId || !tip.articleTipIntentId) {
+      throw new Error('Article tip not found')
+    }
+    return {
+      status: tip.status,
+      failureReason: tip.failureReason,
+      verifiedAt: tip.verifiedAt,
+    }
+  },
+})
+
+export const retryArticleTipVerification = mutation({
+  args: { tipId: v.id('tips') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+    const tip = await ctx.db.get(args.tipId)
+    if (!tip || tip.tipperId !== userId || !tip.articleTipIntentId) {
+      throw new Error('Article tip not found')
+    }
+    if (tip.status !== 'PENDING') {
+      throw new Error('Only pending article tips can be retried')
+    }
+
+    await ctx.db.patch(args.tipId, {
+      failureReason: undefined,
+      updatedAt: Date.now(),
+    })
+    await ctx.scheduler.runAfter(
+      0,
+      internal.articleTipVerify.verifyArticleTip,
+      { tipId: args.tipId, attempt: 1 }
+    )
+    return null
+  },
+})
+
+// Compatibility stub for clients that still call the retired unverified path.
+// Keeping the public function name produces a clear migration error without
+// retaining any client-owned financial write logic.
 export const sendTip = mutation({
   args: {
     articleId: v.id('articles'),
@@ -164,109 +452,14 @@ export const sendTip = mutation({
     platformFee: v.optional(v.number()),
     authorShare: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  returns: v.id('tips'),
+  handler: async (ctx) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
-    // Dedup: Convex mutations have at-least-once delivery, so a lost ack
-    // could cause the client to retry and insert a duplicate row. Non-empty
-    // stellarTxIds are unique per Stellar transaction, so we look up by index
-    // and return the existing row if found. Empty stellarTxIds are not deduped
-    // because two unrelated tips could legitimately share that sentinel value.
-    //
-    // We additionally require articleId AND tipperId to match the existing
-    // row before short-circuiting. A txId reused across a different article
-    // or by a different user is never a legit retry — silently returning the
-    // mismatched original would tell the caller "your tip succeeded" when in
-    // fact no tip on the requested article was created. Reject explicitly.
-    if (args.stellarTxId !== '') {
-      const existing = await ctx.db
-        .query('tips')
-        .withIndex('by_stellar_tx', (q) =>
-          q.eq('stellarTxId', args.stellarTxId)
-        )
-        .first()
-      if (existing) {
-        if (
-          existing.articleId === args.articleId &&
-          existing.tipperId === userId
-        ) {
-          return existing._id
-        }
-        throw new ConvexError(
-          'This Stellar transaction is already linked to a different tip.'
-        )
-      }
-    }
-
-    // Cooldown check runs after the dedup short-circuit so that at-least-once
-    // retries of the same Stellar tx are not mistaken for spam.
-    await enforceTipCooldown(ctx, userId)
-
-    const user = await ctx.db.get(userId)
-    if (!user) throw new Error('User not found')
-
-    const article = await ctx.db.get(args.articleId)
-    if (!article) throw new Error('Article not found')
-
-    const author = await ctx.db.get(article.authorId)
-    if (!author) throw new Error('Author not found')
-
-    // Validate message length
-    if (args.message && args.message.length > 500) {
-      throw new Error('Message must be 500 characters or less')
-    }
-
-    // Validate amount (check for NaN, Infinity, and bounds)
-    if (
-      !Number.isFinite(args.amountUsd) ||
-      args.amountUsd < TIP_MIN_USD ||
-      args.amountUsd > TIP_MAX_USD
-    ) {
-      throw new Error('Invalid tip amount')
-    }
-
-    // Convert USD to cents for storage (use EPSILON to avoid floating-point precision loss)
-    const amountCents = Math.round(args.amountUsd * 100 + Number.EPSILON)
-
-    const now = Date.now()
-
-    // Create tip record (initially pending). Stellar metadata is persisted
-    // at insert time so the reconciliation job can verify the on-chain tx
-    // later without relying on confirmTip to stamp a placeholder.
-    const tipId = await ctx.db.insert('tips', {
-      articleId: args.articleId,
-      articleTitle: article.title,
-      articleSlug: article.slug,
-      tipperId: userId,
-      tipperName: user.name || user.username,
-      tipperAvatar: user.avatar,
-      authorId: article.authorId,
-      authorName: author.name || author.username,
-      authorAvatar: author.avatar,
-      amountUsd: args.amountUsd,
-      amountCents,
-      message: args.message,
-      stellarTxId: args.stellarTxId,
-      stellarNetwork: args.stellarNetwork || 'TESTNET',
-      stellarLedger: args.stellarLedger,
-      stellarFeeCharged: args.stellarFeeCharged,
-      stellarSourceAccount: args.stellarSourceAccount,
-      stellarDestinationAccount: args.stellarDestinationAccount,
-      stellarAmountXlm: args.stellarAmountXlm,
-      contractTipId: args.contractTipId,
-      platformFee: args.platformFee,
-      authorShare: args.authorShare,
-      status: 'PENDING',
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    // In a real implementation, this would trigger a Stellar transaction
-    // For now, we'll simulate success after a short delay
-    await ctx.scheduler.runAfter(1000, internal.tips.confirmTip, { tipId })
-
-    return tipId
+    throw new Error(
+      'Legacy article tip submission is disabled; prepare and submit a verified article tip instead.'
+    )
   },
 })
 

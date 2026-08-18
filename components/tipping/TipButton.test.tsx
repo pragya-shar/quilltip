@@ -6,10 +6,23 @@ import { TipButton } from '@/components/tipping/TipButton'
 
 const mockRedirectToLoginForTip = vi.hoisted(() => vi.fn())
 const mockIsAuthenticated = vi.hoisted(() => vi.fn(() => false))
+const mockIsAuthLoading = vi.hoisted(() => vi.fn(() => false))
+const mockAuthUserId = vi.hoisted(() => vi.fn(() => 'users:one'))
 const mockIsConnected = vi.hoisted(() => vi.fn(() => false))
 const mockUseArticleTipResume = vi.hoisted(() => vi.fn())
 const mockCanTipQuery = vi.hoisted(() => vi.fn())
-const mockSendTipMutation = vi.hoisted(() => vi.fn())
+const mockPrepareArticleTip = vi.hoisted(() => vi.fn())
+const mockSubmitArticleTip = vi.hoisted(() => vi.fn())
+const mockRetryArticleTipVerification = vi.hoisted(() => vi.fn())
+const mockVerificationStatus = vi.hoisted(() => vi.fn())
+const mockStatusQueryArgs = vi.hoisted(() => vi.fn())
+const mockMutation = vi.hoisted(() =>
+  vi.fn((args: Record<string, unknown>) => {
+    if ('intentId' in args) return mockSubmitArticleTip(args)
+    if ('tipId' in args) return mockRetryArticleTipVerification(args)
+    return mockPrepareArticleTip(args)
+  })
+)
 const mockSignTransaction = vi.hoisted(() => vi.fn())
 const mockConnect = vi.hoisted(() => vi.fn())
 const mockBuildTipTransaction = vi.hoisted(() => vi.fn())
@@ -20,11 +33,21 @@ const mockTipDialogFooterNote = vi.hoisted(() =>
 
 vi.mock('convex/react', () => ({
   useConvex: () => ({ query: mockCanTipQuery }),
-  useMutation: () => mockSendTipMutation,
+  useMutation: () => mockMutation,
+  useQuery: (_query: unknown, args: unknown) => {
+    mockStatusQueryArgs(args)
+    return args === 'skip' ? undefined : mockVerificationStatus()
+  },
 }))
 
 vi.mock('@/components/providers/AuthContext', () => ({
-  useAuth: () => ({ isAuthenticated: mockIsAuthenticated() }),
+  useAuth: () => ({
+    isAuthenticated: mockIsAuthenticated(),
+    isLoading: mockIsAuthLoading(),
+    user: mockIsAuthenticated()
+      ? { _id: mockAuthUserId(), username: 'reader' }
+      : null,
+  }),
 }))
 
 vi.mock('@/components/providers/WalletProvider', () => ({
@@ -112,14 +135,40 @@ async function selectPresetAndContinue(
 
 describe('TipButton two-stage flow', () => {
   beforeEach(() => {
+    window.localStorage.clear()
     mockRedirectToLoginForTip.mockClear()
     mockUseArticleTipResume.mockClear()
     mockIsAuthenticated.mockReturnValue(false)
+    mockIsAuthLoading.mockReturnValue(false)
+    mockAuthUserId.mockReturnValue('users:one')
     mockIsConnected.mockReturnValue(false)
     mockCanTipQuery.mockReset()
     mockCanTipQuery.mockResolvedValue({ allowed: true })
-    mockSendTipMutation.mockReset()
-    mockSendTipMutation.mockResolvedValue('tip-id')
+    mockMutation.mockClear()
+    mockPrepareArticleTip.mockReset()
+    mockPrepareArticleTip.mockResolvedValue({
+      intentId: 'intent-id',
+      articleSymbol: 'server1234',
+      authorAddress: 'GABC',
+      amountStroops: 12_345_678,
+      stellarNetwork: 'TESTNET',
+      contractId: 'CSERVERCONTRACT',
+      timeBounds: {
+        minTime: '123456789',
+        maxTime: '2000000000',
+      },
+    })
+    mockSubmitArticleTip.mockReset()
+    mockSubmitArticleTip.mockResolvedValue('tip-id')
+    mockRetryArticleTipVerification.mockReset()
+    mockRetryArticleTipVerification.mockResolvedValue(null)
+    mockVerificationStatus.mockReset()
+    mockStatusQueryArgs.mockClear()
+    mockVerificationStatus.mockReturnValue({
+      status: 'PENDING',
+      failureReason: undefined,
+      verifiedAt: undefined,
+    })
     mockSignTransaction.mockReset()
     mockSignTransaction.mockResolvedValue('signed-xdr')
     mockConnect.mockReset()
@@ -346,7 +395,7 @@ describe('TipButton two-stage flow', () => {
   it('retries Convex sync for a submitted tip without resubmitting Stellar tx', async () => {
     mockIsAuthenticated.mockReturnValue(true)
     mockIsConnected.mockReturnValue(true)
-    mockSendTipMutation
+    mockSubmitArticleTip
       .mockRejectedValueOnce(new Error('Convex unavailable'))
       .mockResolvedValueOnce('tip-id')
     const user = userEvent.setup({ delay: null })
@@ -370,14 +419,440 @@ describe('TipButton two-stage flow', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
     await waitFor(() => {
-      expect(mockSendTipMutation).toHaveBeenCalledTimes(2)
+      expect(mockSubmitArticleTip).toHaveBeenCalledTimes(2)
     })
-    expect(mockSendTipMutation).toHaveBeenNthCalledWith(
+    expect(mockSubmitArticleTip).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         stellarTxId: 'tx-article-123456789',
       })
     )
+    expect(mockSignTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
+  })
+
+  it('restores a paid receipt after remount and never opens the wallet again', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    mockSubmitArticleTip
+      .mockRejectedValueOnce(new Error('Convex unavailable'))
+      .mockResolvedValueOnce('tip-id')
+    const user = userEvent.setup({ delay: null })
+    const props = {
+      articleId: 'articles:abc' as never,
+      authorName: 'Author',
+      authorStellarAddress: 'GABC',
+    }
+    const firstRender = render(<TipButton {...props} />)
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(
+      await screen.findByText('Tip sent, app sync failed')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
+
+    firstRender.unmount()
+    render(<TipButton {...props} />)
+
+    expect(
+      await screen.findByText('Tip sent, app sync failed')
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => {
+      expect(mockSubmitArticleTip).toHaveBeenCalledTimes(2)
+    })
+    expect(mockSubmitArticleTip).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        intentId: 'intent-id',
+        stellarTxId: 'tx-article-123456789',
+      })
+    )
+    expect(mockPrepareArticleTip).toHaveBeenCalledTimes(1)
+    expect(mockBuildTipTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSignTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for auth and restores only the matching tipper receipt', async () => {
+    const { writePendingArticleTipReceipt } =
+      await import('@/lib/tip/pendingArticleTipReceipt')
+    writePendingArticleTipReceipt({
+      articleId: 'articles:abc',
+      tipperId: 'users:one' as never,
+      amountCents: 100,
+      message: 'Original message',
+      stellarNetwork: 'TESTNET',
+      stellarSourceAccount: 'GABCDEF123456789',
+      intentId: 'intent-id' as never,
+      stellarTxId: 'tx-auth-scoped',
+      submittedTipId: 'tip-id' as never,
+    })
+    mockIsAuthLoading.mockReturnValue(true)
+    const props = {
+      articleId: 'articles:abc' as never,
+      authorName: 'Author',
+      authorStellarAddress: 'GABC',
+    }
+    const view = render(<TipButton {...props} />)
+
+    expect(mockVerificationStatus).not.toHaveBeenCalled()
+    expect(screen.queryByText(/verification delayed/i)).not.toBeInTheDocument()
+
+    mockIsAuthLoading.mockReturnValue(false)
+    mockIsAuthenticated.mockReturnValue(true)
+    view.rerender(<TipButton {...props} />)
+
+    expect(await screen.findByText(/verification delayed/i)).toBeInTheDocument()
+    expect(mockVerificationStatus).toHaveBeenCalledTimes(1)
+
+    view.unmount()
+    mockVerificationStatus.mockClear()
+    mockAuthUserId.mockReturnValue('users:two')
+    render(<TipButton {...props} />)
+
+    expect(mockVerificationStatus).not.toHaveBeenCalled()
+    expect(screen.queryByText(/verification delayed/i)).not.toBeInTheDocument()
+  })
+
+  it('reopens an unresolved paid receipt at checkout with its original values', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    mockSubmitArticleTip.mockRejectedValueOnce(new Error('Convex unavailable'))
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await openArticleTipModal(user)
+    await user.click(screen.getByRole('button', { name: '$1' }))
+    await user.type(screen.getByLabelText(/Message to author/i), 'Original')
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+    expect(
+      await screen.findByText('Tip sent, app sync failed')
+    ).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Tip sent, app sync failed')
+      ).not.toBeInTheDocument()
+    })
+    await openArticleTipModal(user)
+
+    expect(screen.getByText(/Tip amount: \$1\.00/)).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        (_text, element) => element?.textContent === 'Message: “Original”'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back' })).toBeDisabled()
+  })
+
+  it('does not carry a recovered receipt to a different article', async () => {
+    const { writePendingArticleTipReceipt } =
+      await import('@/lib/tip/pendingArticleTipReceipt')
+    writePendingArticleTipReceipt({
+      articleId: 'articles:abc',
+      tipperId: 'users:one' as never,
+      amountCents: 100,
+      stellarNetwork: 'TESTNET',
+      stellarSourceAccount: 'GABCDEF123456789',
+      intentId: 'intent-id' as never,
+      stellarTxId: 'tx-article-a',
+    })
+    mockIsAuthenticated.mockReturnValue(true)
+    const view = render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author A"
+        authorStellarAddress="GABC"
+      />
+    )
+    expect(
+      await screen.findByText('Tip sent, app sync failed')
+    ).toBeInTheDocument()
+
+    view.rerender(
+      <TipButton
+        articleId={'articles:def' as never}
+        authorName="Author B"
+        authorStellarAddress="GDEF"
+      />
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Tip sent, app sync failed')
+      ).not.toBeInTheDocument()
+    })
+    expect(
+      screen.getByRole('button', { name: /Tip Author/i })
+    ).toBeInTheDocument()
+  })
+
+  it('clears an in-session receipt when the article changes without deleting its recovery record', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    mockSubmitArticleTip.mockRejectedValueOnce(new Error('Convex unavailable'))
+    const user = userEvent.setup({ delay: null })
+    const view = render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author A"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+    expect(
+      await screen.findByText('Tip sent, app sync failed')
+    ).toBeInTheDocument()
+
+    view.rerender(
+      <TipButton
+        articleId={'articles:def' as never}
+        authorName="Author B"
+        authorStellarAddress="GDEF"
+      />
+    )
+
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Tip sent, app sync failed')
+      ).not.toBeInTheDocument()
+    })
+    const { readPendingArticleTipReceipt } =
+      await import('@/lib/tip/pendingArticleTipReceipt')
+    expect(
+      readPendingArticleTipReceipt('articles:abc', 'TESTNET', 'users:one')
+    ).toMatchObject({ stellarTxId: 'tx-article-123456789' })
+  })
+
+  it('stops querying an in-session receipt immediately when the account changes', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    const user = userEvent.setup({ delay: null })
+    const props = {
+      articleId: 'articles:abc' as never,
+      authorName: 'Author',
+      authorStellarAddress: 'GABC',
+    }
+    const view = render(<TipButton {...props} />)
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+    await waitFor(() => {
+      expect(mockSubmitArticleTip).toHaveBeenCalledTimes(1)
+    })
+    expect(mockStatusQueryArgs).toHaveBeenCalledWith({ tipId: 'tip-id' })
+
+    mockAuthUserId.mockReturnValue('users:two')
+    view.rerender(<TipButton {...props} />)
+
+    await waitFor(() => {
+      expect(mockStatusQueryArgs).toHaveBeenLastCalledWith('skip')
+      expect(
+        screen.queryByText(/verification delayed/i)
+      ).not.toBeInTheDocument()
+    })
+  })
+
+  it('maps Stellar networks to the correct Stellar Expert explorer path', async () => {
+    const { stellarExpertNetworkPath } =
+      await import('@/components/tipping/TipButton')
+    expect(stellarExpertNetworkPath('TESTNET')).toBe('testnet')
+    expect(stellarExpertNetworkPath('MAINNET')).toBe('public')
+  })
+
+  it('builds from the server quote and waits for verified confirmation', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    const user = userEvent.setup({ delay: null })
+    const props = {
+      articleId: 'articles:abc' as never,
+      authorName: 'Author',
+      authorStellarAddress: 'GABC',
+    }
+    const { rerender } = render(<TipButton {...props} />)
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    await waitFor(() => {
+      expect(mockBuildTipTransaction).toHaveBeenCalledWith('GABCDEF123456789', {
+        tipper: 'GABCDEF123456789',
+        articleSymbol: 'server1234',
+        authorAddress: 'GABC',
+        amountStroops: 12_345_678,
+        contractId: 'CSERVERCONTRACT',
+        timeBounds: {
+          minTime: '123456789',
+          maxTime: '2000000000',
+        },
+      })
+    })
+    expect(mockPrepareArticleTip).toHaveBeenCalledWith({
+      articleId: 'articles:abc',
+      amountCents: 100,
+      message: undefined,
+      stellarSourceAccount: 'GABCDEF123456789',
+    })
+    expect(mockSubmitArticleTip).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intentId: 'intent-id',
+        stellarTxId: 'tx-article-123456789',
+      })
+    )
+    expect(mockPrepareArticleTip.mock.invocationCallOrder[0]).toBeLessThan(
+      mockBuildTipTransaction.mock.invocationCallOrder[0]!
+    )
+    expect(mockBuildTipTransaction.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSignTransaction.mock.invocationCallOrder[0]!
+    )
+    expect(mockSignTransaction.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSubmitTipTransaction.mock.invocationCallOrder[0]!
+    )
+    expect(mockSubmitTipTransaction.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSubmitArticleTip.mock.invocationCallOrder[0]!
+    )
+    expect(screen.queryByText(/Successfully tipped/)).not.toBeInTheDocument()
+
+    mockVerificationStatus.mockReturnValue({
+      status: 'CONFIRMED',
+      failureReason: undefined,
+      verifiedAt: Date.now(),
+    })
+    rerender(<TipButton {...props} />)
+
+    expect(await screen.findByText(/Successfully tipped/)).toBeInTheDocument()
+  })
+
+  it('does not synchronize or persist a tip when wallet signing is cancelled', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    mockSignTransaction.mockRejectedValueOnce(new Error('User declined'))
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Wallet prompt was dismissed/i
+    )
+    expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
+    expect(mockSubmitArticleTip).not.toHaveBeenCalled()
+    expect(window.localStorage.length).toBe(0)
+    expect(screen.queryByText(/Successfully tipped/)).not.toBeInTheDocument()
+  })
+
+  it('does not open the wallet when the server and browser Stellar networks differ', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    mockPrepareArticleTip.mockResolvedValueOnce({
+      intentId: 'intent-mainnet',
+      articleSymbol: 'server1234',
+      authorAddress: 'GABC',
+      amountStroops: 12_345_678,
+      stellarNetwork: 'MAINNET',
+      contractId: 'CSERVERCONTRACT',
+    })
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(
+      await screen.findByText(/Stellar network configuration does not match/i)
+    ).toBeInTheDocument()
+    expect(mockBuildTipTransaction).not.toHaveBeenCalled()
+    expect(mockSignTransaction).not.toHaveBeenCalled()
+  })
+
+  it('retries delayed verification without signing or submitting Stellar again', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    mockVerificationStatus.mockReturnValue({
+      status: 'PENDING',
+      failureReason: 'verification_temporarily_unavailable',
+      verifiedAt: undefined,
+    })
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+    expect(
+      await screen.findByText('Tip sent, verification delayed')
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => {
+      expect(mockRetryArticleTipVerification).toHaveBeenCalledWith({
+        tipId: 'tip-id',
+      })
+    })
+    expect(mockSignTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSubmitArticleTip).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers Start over after permanent verification failure without retrying or paying again', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    const user = userEvent.setup({ delay: null })
+    const props = {
+      articleId: 'articles:abc' as never,
+      authorName: 'Author',
+      authorStellarAddress: 'GABC',
+    }
+    const { rerender } = render(<TipButton {...props} />)
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    mockVerificationStatus.mockReturnValue({
+      status: 'FAILED',
+      failureReason: 'article_mismatch',
+      verifiedAt: undefined,
+    })
+    rerender(<TipButton {...props} />)
+
+    const startOver = await screen.findByRole('button', { name: 'Start over' })
+    await user.click(startOver)
+
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
+    expect(mockRetryArticleTipVerification).not.toHaveBeenCalled()
     expect(mockSignTransaction).toHaveBeenCalledTimes(1)
     expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
   })

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as articleTipVerify from "../articleTipVerify.js";
 import type * as articles from "../articles.js";
 import type * as arweave from "../arweave.js";
 import type * as arweaveHelpers from "../arweaveHelpers.js";
@@ -21,6 +22,7 @@ import type * as lib_articleListing from "../lib/articleListing.js";
 import type * as lib_articleListingReady from "../lib/articleListingReady.js";
 import type * as lib_articleSearch from "../lib/articleSearch.js";
 import type * as lib_articleSlug from "../lib/articleSlug.js";
+import type * as lib_articleTipExpectation from "../lib/articleTipExpectation.js";
 import type * as lib_articleTitle from "../lib/articleTitle.js";
 import type * as lib_constants from "../lib/constants.js";
 import type * as lib_enrich from "../lib/enrich.js";
@@ -48,6 +50,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  articleTipVerify: typeof articleTipVerify;
   articles: typeof articles;
   arweave: typeof arweave;
   arweaveHelpers: typeof arweaveHelpers;
@@ -61,6 +64,7 @@ declare const fullApi: ApiFromModules<{
   "lib/articleListingReady": typeof lib_articleListingReady;
   "lib/articleSearch": typeof lib_articleSearch;
   "lib/articleSlug": typeof lib_articleSlug;
+  "lib/articleTipExpectation": typeof lib_articleTipExpectation;
   "lib/articleTitle": typeof lib_articleTitle;
   "lib/constants": typeof lib_constants;
   "lib/enrich": typeof lib_enrich;

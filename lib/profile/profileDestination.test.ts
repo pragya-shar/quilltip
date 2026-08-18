@@ -20,7 +20,7 @@ describe('buildGenericProfilePath', () => {
 
   it('routes legacy creator tabs to dashboard', () => {
     expect(buildGenericProfilePath('wallet')).toBe('/dashboard/wallet')
-    expect(buildGenericProfilePath('earnings')).toBe('/dashboard/earnings')
+    expect(buildGenericProfilePath('earnings')).toBe('/dashboard/stats')
     expect(buildGenericProfilePath('stats')).toBe('/dashboard/stats')
   })
 })
@@ -38,10 +38,10 @@ describe('resolveSignedInProfilePath', () => {
     ).toBe('/dashboard/wallet')
   })
 
-  it('maps legacy earnings tab to dashboard', () => {
+  it('maps legacy earnings tab to dashboard stats', () => {
     expect(
       resolveSignedInProfilePath('alice', new URLSearchParams('tab=earnings'))
-    ).toBe('/dashboard/earnings')
+    ).toBe('/dashboard/stats')
   })
 
   it('preserves other query params for profile tabs', () => {

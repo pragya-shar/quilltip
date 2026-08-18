@@ -8,6 +8,7 @@ export const TIP_MIN_USD = 0.01
 export const TIP_MAX_CENTS = 10_000
 export const TIP_MAX_USD = 100
 export const MIN_WITHDRAWAL_USD = 10
+export const TIP_MIN_STROOPS = 420_000
 
 // Minimum time between successive tips from the same user, across both
 // article tips and highlight tips. Prevents accidental double-submits and
@@ -22,6 +23,16 @@ export const HORIZON_URLS = {
   MAINNET: 'https://horizon.stellar.org',
 } as const
 
+export type StellarNetwork = keyof typeof HORIZON_URLS
+
+export function getStellarNetwork(): StellarNetwork {
+  const network = process.env.STELLAR_NETWORK ?? 'TESTNET'
+  if (network !== 'TESTNET' && network !== 'MAINNET') {
+    throw new Error('STELLAR_NETWORK must be TESTNET or MAINNET')
+  }
+  return network
+}
+
 // First verification attempt runs after this delay so Horizon has time to
 // index the transaction we just submitted. Subsequent retries use exponential
 // backoff via verifyDelayMs() — long-horizon recovery for stuck PENDING tips
@@ -29,6 +40,13 @@ export const HORIZON_URLS = {
 export const HORIZON_VERIFY_INITIAL_DELAY_MS = 2_000
 export const HORIZON_VERIFY_RETRY_DELAY_MS = 5_000
 export const HORIZON_VERIFY_MAX_ATTEMPTS = 3
+
+// Horizon ledger timestamps can trail the app server clock slightly, and a
+// wallet approval can finish just after the quote expires. These narrow grace
+// windows bind a transaction to its prepared intent without rejecting a valid
+// payment because of normal clock/ledger delay.
+export const ARTICLE_TIP_TX_EARLY_GRACE_MS = 60_000
+export const ARTICLE_TIP_TX_LATE_GRACE_MS = 2 * 60_000
 
 // Delay before the (attempt+1)th verification fires, given that `attempt`
 // just returned a transient failure. Tripling backoff: 5s, 15s, 45s. Only
