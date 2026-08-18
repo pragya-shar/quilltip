@@ -595,6 +595,26 @@ describe('highlightTips.create', () => {
 })
 
 describe('markHighlightTipConfirmed', () => {
+  it('defers author earnings until highlight cents have a server-owned expectation', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, authorId, articleId } = await seed(t)
+
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const tipId = await asTipper.mutation(
+      api.highlightTips.create,
+      tipArgs(articleId, 'stellar-tx-deferred-highlight-earning')
+    )
+    await confirmPending(t, tipId)
+
+    await t.run(async (ctx) => {
+      const earnings = await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .unique()
+      expect(earnings).toBeNull()
+    })
+  })
+
   it('flips PENDING to CONFIRMED and applies counter updates', async () => {
     const t = convexTest(schema, modules)
     const { tipperId, authorId, articleId } = await seed(t)
@@ -979,7 +999,7 @@ describe('verifyHighlightTip action', () => {
 
   it('flags cents-vs-XLM inconsistency as suspicious but still confirms (warn-only)', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
+    const { tipperId, authorId, articleId } = await seed(t)
 
     // Attacker: claim amountCents=10000 ($100) but set stellarAmountXlm="0.01"
     // (paid only 100k stroops on-chain). Both fields internally consistent
@@ -1015,6 +1035,12 @@ describe('verifyHighlightTip action', () => {
       expect(tip?.status).toBe('CONFIRMED')
       expect(tip?.amountUsdSuspicious).toBe(true)
       expect(tip?.amountUsdSuspicionReason).toMatch(/^amount_usd_mismatch:/)
+
+      const earnings = await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .unique()
+      expect(earnings).toBeNull()
     })
   })
 
@@ -1062,7 +1088,7 @@ describe('verifyHighlightTip action', () => {
 
   it('confirms with oracle-down suspicion flag when all XLM oracles are unavailable', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
+    const { tipperId, authorId, articleId } = await seed(t)
 
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
@@ -1098,6 +1124,12 @@ describe('verifyHighlightTip action', () => {
       expect(tip?.amountUsdSuspicionReason).toBe(
         'price_oracle_unavailable:all_oracles_failed'
       )
+
+      const earnings = await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .unique()
+      expect(earnings).toBeNull()
     })
   })
 
