@@ -497,39 +497,9 @@ export class StellarClient {
     stellarFlowEmitter.emit({ flow: 'tip', step: 'submitting' })
     const result = await sorobanServer.sendTransaction(transaction)
 
-    if (result.status === 'PENDING') {
+    if (result.status === 'PENDING' || result.status === 'DUPLICATE') {
       stellarFlowEmitter.emit({ flow: 'tip', step: 'confirming' })
-      let txResult = await sorobanServer.getTransaction(result.hash)
-      let retries = 0
-      const maxRetries = 30
-
-      while (txResult.status === 'NOT_FOUND' && retries < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        txResult = await sorobanServer.getTransaction(result.hash)
-        retries++
-      }
-
-      if (txResult.status === 'SUCCESS') {
-        const returnValue = txResult.returnValue
-        if (returnValue) {
-          const receipt = StellarSdk.scValToNative(returnValue)
-
-          return {
-            tipId: receipt.tip_id.toString(),
-            amountSent: receipt.amount_sent,
-            authorReceived: receipt.author_received,
-            platformFee: receipt.platform_fee,
-            timestamp: new Date(Number(receipt.timestamp) * 1000),
-            transactionHash: result.hash,
-          }
-        }
-      } else if (txResult.status === 'FAILED') {
-        throw new Error('Transaction failed on the network')
-      } else if (txResult.status === 'NOT_FOUND' && retries >= maxRetries) {
-        throw new Error(
-          'Transaction timeout: Could not confirm transaction after 30 seconds'
-        )
-      }
+      return { transactionHash: result.hash }
     }
 
     const errorMessage = result.errorResult

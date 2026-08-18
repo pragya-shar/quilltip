@@ -145,4 +145,48 @@ describe('StellarClient single-article transaction builder', () => {
     ).rejects.toThrow('Invalid trusted article tip amount')
     expect(loadAccount).not.toHaveBeenCalled()
   })
+
+  it.each(['PENDING', 'DUPLICATE'] as const)(
+    'returns the transaction hash immediately when Soroban reports %s',
+    async (status) => {
+      const StellarSdk = await import('@stellar/stellar-sdk')
+      const { StellarClient } = await import('@/lib/stellar/client')
+      const source = StellarSdk.Keypair.random().publicKey()
+      const signedXdr = new StellarSdk.TransactionBuilder(
+        new StellarSdk.Account(source, '0'),
+        {
+          fee: StellarSdk.BASE_FEE,
+          networkPassphrase: StellarSdk.Networks.TESTNET,
+        }
+      )
+        .addOperation(
+          StellarSdk.Operation.manageData({
+            name: 'quilltip-test',
+            value: 'submitted',
+          })
+        )
+        .setTimeout(30)
+        .build()
+        .toXDR()
+      const sendTransaction = vi
+        .spyOn(StellarSdk.rpc.Server.prototype, 'sendTransaction')
+        .mockResolvedValue({
+          status,
+          hash: 'accepted-transaction-hash',
+          latestLedger: 123,
+          latestLedgerCloseTime: 456,
+        } as never)
+      const getTransaction = vi
+        .spyOn(StellarSdk.rpc.Server.prototype, 'getTransaction')
+        .mockRejectedValue(
+          new Error('accepted transactions must not be polled')
+        )
+
+      const receipt = await new StellarClient().submitTipTransaction(signedXdr)
+
+      expect(receipt.transactionHash).toBe('accepted-transaction-hash')
+      expect(sendTransaction).toHaveBeenCalledOnce()
+      expect(getTransaction).not.toHaveBeenCalled()
+    }
+  )
 })

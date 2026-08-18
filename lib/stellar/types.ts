@@ -6,12 +6,12 @@ export interface TipData {
 }
 
 export interface TipReceipt {
-  tipId: string
-  amountSent: number // in stroops
-  authorReceived: number // in stroops
-  platformFee: number // in stroops
-  timestamp: Date
-  transactionHash?: string
+  tipId?: string
+  amountSent?: number // in stroops
+  authorReceived?: number // in stroops
+  platformFee?: number // in stroops
+  timestamp?: Date
+  transactionHash: string
 }
 
 export interface AuthorBalance {
