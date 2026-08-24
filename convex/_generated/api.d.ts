@@ -30,6 +30,7 @@ import type * as lib_highlightHash from "../lib/highlightHash.js";
 import type * as lib_horizon from "../lib/horizon.js";
 import type * as lib_nftMetadata from "../lib/nftMetadata.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
+import type * as lib_stellarTransactionHash from "../lib/stellarTransactionHash.js";
 import type * as lib_tiptapContent from "../lib/tiptapContent.js";
 import type * as lib_wikimediaFileUrl from "../lib/wikimediaFileUrl.js";
 import type * as lib_xlmPrice from "../lib/xlmPrice.js";
@@ -72,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   "lib/horizon": typeof lib_horizon;
   "lib/nftMetadata": typeof lib_nftMetadata;
   "lib/rateLimit": typeof lib_rateLimit;
+  "lib/stellarTransactionHash": typeof lib_stellarTransactionHash;
   "lib/tiptapContent": typeof lib_tiptapContent;
   "lib/wikimediaFileUrl": typeof lib_wikimediaFileUrl;
   "lib/xlmPrice": typeof lib_xlmPrice;
