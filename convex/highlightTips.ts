@@ -6,8 +6,380 @@ import {
   TIP_MIN_CENTS,
   TIP_MAX_CENTS,
   HORIZON_VERIFY_INITIAL_DELAY_MS,
+  getStellarNetwork,
+  getTippingContractId,
 } from './lib/constants'
 import { enforceTipCooldown } from './lib/rateLimit'
+import {
+  ARTICLE_TIP_FALLBACK_XLM_USD_RATE,
+  ARTICLE_TIP_INTENT_TTL_MS,
+  articleTipIntentTimeBoundsServer,
+  calculateTipStroops,
+  shortArticleIdServer,
+} from './lib/articleTipExpectation'
+import { generateHighlightIdServer } from './lib/highlightHash'
+import { MAX_PRICE_AGE_MS } from './xlmPrice'
+
+const MAX_OUTSTANDING_HIGHLIGHT_TIP_INTENTS = 5
+
+function stroopsToXlm(stroops: string): string {
+  const padded = stroops.padStart(8, '0')
+  const whole = padded.slice(0, -7)
+  const fraction = padded.slice(-7).replace(/0+$/, '')
+  return fraction ? `${whole}.${fraction}` : whole
+}
+
+export const prepareHighlightTip = mutation({
+  args: {
+    articleId: v.id('articles'),
+    highlightText: v.string(),
+    startOffset: v.number(),
+    endOffset: v.number(),
+    startContainerPath: v.optional(v.string()),
+    endContainerPath: v.optional(v.string()),
+    amountCents: v.number(),
+    message: v.optional(v.string()),
+    stellarSourceAccount: v.string(),
+  },
+  returns: v.object({
+    intentId: v.id('highlightTipIntents'),
+    highlightId: v.string(),
+    articleSymbol: v.string(),
+    authorAddress: v.string(),
+    amountStroops: v.number(),
+    stellarNetwork: v.union(v.literal('TESTNET'), v.literal('MAINNET')),
+    contractId: v.string(),
+    timeBounds: v.object({
+      minTime: v.string(),
+      maxTime: v.string(),
+    }),
+  }),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+
+    if (
+      !Number.isSafeInteger(args.amountCents) ||
+      args.amountCents < TIP_MIN_CENTS ||
+      args.amountCents > TIP_MAX_CENTS
+    ) {
+      throw new Error('Invalid tip amount')
+    }
+    if (!args.highlightText.trim() || args.highlightText.length > 5000) {
+      throw new Error('Invalid highlight text')
+    }
+    if (
+      !Number.isSafeInteger(args.startOffset) ||
+      !Number.isSafeInteger(args.endOffset) ||
+      args.startOffset < 0 ||
+      args.endOffset <= args.startOffset
+    ) {
+      throw new Error('Invalid highlight selection bounds')
+    }
+    if (args.message && args.message.length > 500) {
+      throw new Error('Message must be 500 characters or less')
+    }
+    if (!/^G[A-Z2-7]{55}$/.test(args.stellarSourceAccount)) {
+      throw new Error('Invalid Stellar source account')
+    }
+
+    const [tipper, article] = await Promise.all([
+      ctx.db.get(userId),
+      ctx.db.get(args.articleId),
+    ])
+    if (!tipper) throw new Error('User not found')
+    if (!article) throw new Error('Article not found')
+
+    const author = await ctx.db.get(article.authorId)
+    if (!author) throw new Error('Author not found')
+    if (!author.stellarAddress || typeof author.stellarAddress !== 'string') {
+      throw new Error('Author has not configured a receiving wallet')
+    }
+
+    const now = Date.now()
+    const expectedHighlightId = await generateHighlightIdServer(
+      article.slug,
+      args.highlightText,
+      args.startOffset,
+      args.endOffset
+    )
+    const expectedArticleSymbol = await shortArticleIdServer(
+      args.articleId.toString()
+    )
+    const expectedStellarNetwork = getStellarNetwork()
+    const expectedContractId = getTippingContractId()
+    const outstanding = await ctx.db
+      .query('highlightTipIntents')
+      .withIndex('by_tipper_expiry', (q) =>
+        q.eq('tipperId', userId).gt('expiresAt', now)
+      )
+      .collect()
+    const unlinked = outstanding.filter((intent) => !intent.tipId)
+    const reusable = unlinked.find(
+      (intent) =>
+        intent.articleId === args.articleId &&
+        intent.authorId === article.authorId &&
+        intent.articleTitle === article.title &&
+        intent.articleSlug === article.slug &&
+        intent.highlightText === args.highlightText &&
+        intent.startOffset === args.startOffset &&
+        intent.endOffset === args.endOffset &&
+        intent.startContainerPath === args.startContainerPath &&
+        intent.endContainerPath === args.endContainerPath &&
+        intent.amountCents === args.amountCents &&
+        intent.message === args.message &&
+        intent.expectedSourceAccount === args.stellarSourceAccount &&
+        intent.expectedDestinationAccount === author.stellarAddress &&
+        intent.expectedHighlightId === expectedHighlightId &&
+        intent.expectedArticleSymbol === expectedArticleSymbol &&
+        intent.expectedStellarNetwork === expectedStellarNetwork &&
+        intent.expectedContractId === expectedContractId
+    )
+    if (reusable) {
+      return {
+        intentId: reusable._id,
+        highlightId: reusable.expectedHighlightId,
+        articleSymbol: reusable.expectedArticleSymbol,
+        authorAddress: reusable.expectedDestinationAccount,
+        amountStroops: Number(reusable.expectedAmountStroops),
+        stellarNetwork: reusable.expectedStellarNetwork,
+        contractId: reusable.expectedContractId,
+        timeBounds: {
+          minTime: reusable.expectedMinTime,
+          maxTime: reusable.expectedMaxTime,
+        },
+      }
+    }
+    if (unlinked.length >= MAX_OUTSTANDING_HIGHLIGHT_TIP_INTENTS) {
+      throw new ConvexError('Too many outstanding highlight tip intents')
+    }
+
+    const cachedRate = await ctx.db.query('xlmPriceCache').first()
+    const useCachedRate =
+      cachedRate !== null && now - cachedRate.fetchedAt <= MAX_PRICE_AGE_MS
+    const quotePriceUsd = useCachedRate
+      ? cachedRate.priceUsd
+      : ARTICLE_TIP_FALLBACK_XLM_USD_RATE
+    const quoteSource = useCachedRate ? cachedRate.source : 'Fallback'
+    const quoteFetchedAt = useCachedRate ? cachedRate.fetchedAt : now
+    const expectedAmountStroops = calculateTipStroops(
+      args.amountCents,
+      quotePriceUsd
+    )
+    const expiresAt = now + ARTICLE_TIP_INTENT_TTL_MS
+    const intentId = await ctx.db.insert('highlightTipIntents', {
+      articleId: args.articleId,
+      tipperId: userId,
+      authorId: article.authorId,
+      articleTitle: article.title,
+      articleSlug: article.slug,
+      tipperName: tipper.name || tipper.username,
+      tipperAvatar: tipper.avatar,
+      authorName: author.name || author.username,
+      authorAvatar: author.avatar,
+      highlightText: args.highlightText,
+      startOffset: args.startOffset,
+      endOffset: args.endOffset,
+      startContainerPath: args.startContainerPath,
+      endContainerPath: args.endContainerPath,
+      amountUsd: args.amountCents / 100,
+      amountCents: args.amountCents,
+      message: args.message,
+      expectedSourceAccount: args.stellarSourceAccount,
+      expectedDestinationAccount: author.stellarAddress,
+      expectedHighlightId,
+      expectedArticleSymbol,
+      expectedAmountStroops: expectedAmountStroops.toString(),
+      expectedContractId,
+      expectedMinTime: '',
+      expectedMaxTime: '',
+      expectedStellarNetwork,
+      quotePriceUsd,
+      quoteSource,
+      quoteFetchedAt,
+      expiresAt,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const expectedTimeBounds = await articleTipIntentTimeBoundsServer(
+      intentId,
+      expiresAt
+    )
+    await ctx.db.patch(intentId, {
+      expectedMinTime: expectedTimeBounds.minTime,
+      expectedMaxTime: expectedTimeBounds.maxTime,
+    })
+
+    return {
+      intentId,
+      highlightId: expectedHighlightId,
+      articleSymbol: expectedArticleSymbol,
+      authorAddress: author.stellarAddress,
+      amountStroops: expectedAmountStroops,
+      stellarNetwork: expectedStellarNetwork,
+      contractId: expectedContractId,
+      timeBounds: expectedTimeBounds,
+    }
+  },
+})
+
+export const submitHighlightTip = mutation({
+  args: {
+    intentId: v.id('highlightTipIntents'),
+    stellarTxId: v.string(),
+    stellarLedger: v.optional(v.number()),
+    stellarFeeCharged: v.optional(v.string()),
+    contractTipId: v.optional(v.string()),
+  },
+  returns: v.id('highlightTips'),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+    if (!args.stellarTxId.trim()) {
+      throw new Error('A Stellar transaction hash is required')
+    }
+
+    const intent = await ctx.db.get(args.intentId)
+    if (!intent || intent.tipperId !== userId) {
+      throw new Error('Highlight tip intent not found')
+    }
+    if (intent.tipId) {
+      const existingForIntent = await ctx.db.get(intent.tipId)
+      if (
+        existingForIntent &&
+        existingForIntent.stellarTxId === args.stellarTxId
+      ) {
+        return existingForIntent._id
+      }
+      throw new ConvexError(
+        'This highlight tip intent is already linked to a different transaction.'
+      )
+    }
+
+    const existingForHash = await ctx.db
+      .query('highlightTips')
+      .withIndex('by_stellar_tx', (q) => q.eq('stellarTxId', args.stellarTxId))
+      .first()
+    if (existingForHash) {
+      if (
+        existingForHash.highlightTipIntentId === args.intentId &&
+        existingForHash.tipperId === userId
+      ) {
+        await ctx.db.patch(args.intentId, {
+          tipId: existingForHash._id,
+          updatedAt: Date.now(),
+        })
+        return existingForHash._id
+      }
+      throw new ConvexError(
+        'This Stellar transaction is already linked to a different tip.'
+      )
+    }
+
+    await enforceTipCooldown(ctx, userId)
+    const now = Date.now()
+    const tipId = await ctx.db.insert('highlightTips', {
+      highlightId: intent.expectedHighlightId,
+      articleId: intent.articleId,
+      tipperId: intent.tipperId,
+      authorId: intent.authorId,
+      highlightText: intent.highlightText,
+      articleTitle: intent.articleTitle,
+      articleSlug: intent.articleSlug,
+      tipperName: intent.tipperName,
+      tipperAvatar: intent.tipperAvatar,
+      authorName: intent.authorName,
+      authorAvatar: intent.authorAvatar,
+      amountUsd: intent.amountUsd,
+      amountCents: intent.amountCents,
+      message: intent.message,
+      stellarTxId: args.stellarTxId,
+      stellarNetwork: intent.expectedStellarNetwork,
+      stellarMemo: intent.expectedHighlightId,
+      stellarLedger: args.stellarLedger,
+      stellarFeeCharged: args.stellarFeeCharged,
+      stellarSourceAccount: intent.expectedSourceAccount,
+      stellarDestinationAccount: intent.expectedDestinationAccount,
+      stellarAmountXlm: stroopsToXlm(intent.expectedAmountStroops),
+      contractTipId: args.contractTipId,
+      highlightTipIntentId: intent._id,
+      expectedSourceAccount: intent.expectedSourceAccount,
+      expectedDestinationAccount: intent.expectedDestinationAccount,
+      expectedHighlightId: intent.expectedHighlightId,
+      expectedArticleSymbol: intent.expectedArticleSymbol,
+      expectedAmountStroops: intent.expectedAmountStroops,
+      expectedContractId: intent.expectedContractId,
+      expectedMinTime: intent.expectedMinTime,
+      expectedMaxTime: intent.expectedMaxTime,
+      quotePriceUsd: intent.quotePriceUsd,
+      quoteSource: intent.quoteSource,
+      quoteFetchedAt: intent.quoteFetchedAt,
+      startOffset: intent.startOffset,
+      endOffset: intent.endOffset,
+      startContainerPath: intent.startContainerPath,
+      endContainerPath: intent.endContainerPath,
+      status: 'PENDING',
+      createdAt: now,
+      processedAt: now,
+      updatedAt: now,
+    })
+    await ctx.db.patch(args.intentId, { tipId, updatedAt: now })
+    await ctx.scheduler.runAfter(
+      HORIZON_VERIFY_INITIAL_DELAY_MS,
+      internal.stellarVerify.verifyHighlightTip,
+      { highlightTipId: tipId, attempt: 1 }
+    )
+    return tipId
+  },
+})
+
+export const getHighlightTipStatus = query({
+  args: { tipId: v.id('highlightTips') },
+  returns: v.object({
+    status: v.string(),
+    failureReason: v.optional(v.string()),
+    verifiedAt: v.optional(v.number()),
+  }),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+    const tip = await ctx.db.get(args.tipId)
+    if (!tip || tip.tipperId !== userId || !tip.highlightTipIntentId) {
+      throw new Error('Highlight tip not found')
+    }
+    return {
+      status: tip.status,
+      failureReason: tip.failureReason,
+      verifiedAt: tip.verifiedAt,
+    }
+  },
+})
+
+export const retryHighlightTipVerification = mutation({
+  args: { tipId: v.id('highlightTips') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+    const tip = await ctx.db.get(args.tipId)
+    if (!tip || tip.tipperId !== userId || !tip.highlightTipIntentId) {
+      throw new Error('Highlight tip not found')
+    }
+    if (tip.status !== 'PENDING') {
+      throw new Error('Only pending highlight tips can be retried')
+    }
+
+    await ctx.db.patch(args.tipId, {
+      failureReason: undefined,
+      updatedAt: Date.now(),
+    })
+    await ctx.scheduler.runAfter(0, internal.stellarVerify.verifyHighlightTip, {
+      highlightTipId: args.tipId,
+      attempt: 1,
+    })
+    return null
+  },
+})
 
 /**
  * Create a new highlight tip after Stellar transaction
