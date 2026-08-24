@@ -451,44 +451,21 @@ describe('submitHighlightTip', () => {
     }
   }
 
-  it('rejects lowercase exact submission after uppercase legacy creation of the same transaction', async () => {
+  it('rejects the legacy public create path with an intent-flow compatibility error', async () => {
     const t = convexTest(schema, modules)
     const { asTipper, articleId, quote } = await prepare(t)
-    const uppercaseHash = 'AB'.repeat(32)
-
-    await asTipper.mutation(
-      api.highlightTips.create,
-      legacyCreateArgs(articleId, quote, uppercaseHash)
-    )
-
-    await expect(
-      asTipper.mutation(api.highlightTips.submitHighlightTip, {
-        intentId: quote.intentId,
-        stellarTxId: uppercaseHash.toLowerCase(),
-      })
-    ).rejects.toThrow(
-      'This Stellar transaction is already linked to a different tip.'
-    )
-  })
-
-  it('deduplicates uppercase legacy creation after lowercase exact submission', async () => {
-    const t = convexTest(schema, modules)
-    const { asTipper, articleId, quote } = await prepare(t)
-    const uppercaseHash = 'CD'.repeat(32)
-    const exactTipId = await asTipper.mutation(
-      api.highlightTips.submitHighlightTip,
-      {
-        intentId: quote.intentId,
-        stellarTxId: uppercaseHash.toLowerCase(),
-      }
-    )
 
     await expect(
       asTipper.mutation(
         api.highlightTips.create,
-        legacyCreateArgs(articleId, quote, uppercaseHash)
+        legacyCreateArgs(articleId, quote, 'ab'.repeat(32))
       )
-    ).resolves.toBe(exactTipId)
+    ).rejects.toThrow(
+      'Legacy highlight tip submission is no longer supported. Prepare and submit a highlight tip intent instead.'
+    )
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('highlightTips').collect()).toEqual([])
+    })
   })
 
   it('creates one pending tip entirely from the intent plus receipt metadata', async () => {

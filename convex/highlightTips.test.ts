@@ -174,11 +174,52 @@ function tipArgs(articleId: Id<'articles'>, stellarTxId: string) {
     stellarAmountXlm: '1',
   }
 }
+
+async function insertLegacyHighlightTip(
+  t: ReturnType<typeof convexTest>,
+  tipperId: Id<'users'>,
+  args: ReturnType<typeof tipArgs>
+) {
+  return await t.run(async (ctx) => {
+    const [tipper, article] = await Promise.all([
+      ctx.db.get(tipperId),
+      ctx.db.get(args.articleId),
+    ])
+    if (!tipper || !article) throw new Error('Missing legacy tip fixture')
+    const author = await ctx.db.get(article.authorId)
+    if (!author) throw new Error('Missing legacy author fixture')
+    const now = Date.now()
+    return await ctx.db.insert('highlightTips', {
+      highlightId: args.highlightId,
+      articleId: args.articleId,
+      tipperId,
+      authorId: article.authorId,
+      highlightText: args.highlightText,
+      articleTitle: article.title,
+      articleSlug: article.slug,
+      tipperName: tipper.name || tipper.username,
+      tipperAvatar: tipper.avatar,
+      authorName: author.name || author.username,
+      authorAvatar: author.avatar,
+      amountUsd: args.amountCents / 100,
+      amountCents: args.amountCents,
+      stellarTxId: args.stellarTxId,
+      stellarNetwork: 'TESTNET',
+      stellarMemo: args.stellarMemo,
+      stellarSourceAccount: args.stellarSourceAccount,
+      stellarDestinationAccount: args.stellarDestinationAccount,
+      stellarAmountXlm: args.stellarAmountXlm,
+      startOffset: args.startOffset,
+      endOffset: args.endOffset,
+      status: 'PENDING',
+      createdAt: now,
+      processedAt: now,
+      updatedAt: now,
+    })
+  })
+}
 const TIP_STROOPS = BigInt(10_000_000)
 const TX_ONE = '1'.repeat(64)
-const TX_TWO = '2'.repeat(64)
-const TX_CROSS_HIGHLIGHT = '3'.repeat(64)
-const TX_CROSS_USER = '4'.repeat(64)
 const TX_PUBLIC_PROJECTION = '5'.repeat(64)
 const TX_PRIVATE_HISTORY = '6'.repeat(64)
 const TX_OLD = '7'.repeat(64)
@@ -231,231 +272,27 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('highlightTips.create', () => {
-  it.each([
-    '',
-    'f'.repeat(63),
-    'f'.repeat(65),
-    'g'.repeat(64),
-    ` ${'f'.repeat(64)}`,
-  ])('rejects invalid Stellar transaction hash %j', async (stellarTxId) => {
+describe('legacy highlight tip compatibility and history', () => {
+  it('rejects authenticated legacy writes without altering existing history', async () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
     const asTipper = t.withIdentity({ subject: tipperId })
 
     await expect(
-      asTipper.mutation(
-        api.highlightTips.create,
-        tipArgs(articleId, stellarTxId)
-      )
-    ).rejects.toThrow('Invalid Stellar transaction hash')
-  })
-
-  it('inserts the tip as PENDING with counters untouched', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_ONE)
+      asTipper.mutation(api.highlightTips.create, tipArgs(articleId, TX_ONE))
+    ).rejects.toThrow(
+      'Legacy highlight tip submission is no longer supported. Prepare and submit a highlight tip intent instead.'
     )
-
     await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('PENDING')
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount ?? 0).toBe(0)
-      expect(article?.totalTipsUsd ?? 0).toBe(0)
-
-      const tipper = await ctx.db.get(tipperId)
-      expect(tipper?.tipsSentCount ?? 0).toBe(0)
+      expect(await ctx.db.query('highlightTips').collect()).toEqual([])
     })
-  })
-
-  it('dedups on non-empty stellarTxId', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const first = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_ONE)
-    )
-    const second = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_ONE)
-    )
-
-    expect(second).toBe(first)
-
-    // Counters bump only after verification; confirm the original to prove
-    // dedup didn't accidentally double-credit the tip.
-    await confirmPending(t, first)
-
-    await t.run(async (ctx) => {
-      const rows = await ctx.db.query('highlightTips').collect()
-      expect(rows).toHaveLength(1)
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount).toBe(1)
-      expect(article?.totalTipsUsd).toBe(1)
-
-      const tipper = await ctx.db.get(tipperId)
-      expect(tipper?.tipsSentCount).toBe(1)
-    })
-  })
-
-  it('rejects when the same stellarTxId is reused for a different highlight', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_CROSS_HIGHLIGHT)
-    )
-
-    // Same txId, different highlightId — should be rejected.
-    await expect(
-      asTipper.mutation(api.highlightTips.create, {
-        ...tipArgs(articleId, TX_CROSS_HIGHLIGHT),
-        highlightId: 'hash-other',
-      })
-    ).rejects.toThrow(/already linked to a different tip/i)
-  })
-
-  it('rejects when the same stellarTxId is reused by a different tipper', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const otherTipperId = await t.run(async (ctx) => {
-      const now = Date.now()
-      return await ctx.db.insert('users', {
-        email: 'tipper2@x.test',
-        username: 'tipper2',
-        stellarAddress: TIPPER_STELLAR,
-        tipsSentCount: 0,
-        createdAt: now,
-        updatedAt: now,
-      })
-    })
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_CROSS_USER)
-    )
-
-    const asOther = t.withIdentity({ subject: otherTipperId })
-    await expect(
-      asOther.mutation(
-        api.highlightTips.create,
-        tipArgs(articleId, TX_CROSS_USER)
-      )
-    ).rejects.toThrow(/already linked to a different tip/i)
-  })
-
-  it('does not dedup distinct non-empty stellarTxIds', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const first = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_ONE)
-    )
-    // Backdate the first tip so the cooldown does not block the second insert.
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(first)
-      if (tip) {
-        await ctx.db.patch(first, { createdAt: tip.createdAt - 60_000 })
-      }
-    })
-    const second = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_TWO)
-    )
-
-    expect(second).not.toBe(first)
-
-    await confirmPending(t, first)
-    await confirmPending(t, second)
-
-    await t.run(async (ctx) => {
-      const rows = await ctx.db.query('highlightTips').collect()
-      expect(rows).toHaveLength(2)
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount).toBe(2)
-    })
-  })
-
-  it('rejects a second distinct-tx tip within the cooldown window', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_ONE)
-    )
-
-    await expect(
-      asTipper.mutation(api.highlightTips.create, tipArgs(articleId, TX_TWO))
-    ).rejects.toThrow(/wait .* before tipping again/i)
-  })
-
-  it('allows a second tip once the cooldown has elapsed', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const first = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_ONE)
-    )
-    // Backdate the first tip so its createdAt is older than TIP_COOLDOWN_MS.
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(first)
-      if (tip) {
-        await ctx.db.patch(first, { createdAt: tip.createdAt - 60_000 })
-      }
-    })
-
-    const second = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_TWO)
-    )
-    expect(second).not.toBe(first)
-  })
-
-  it('still dedups a retried stellarTxId even within the cooldown', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const first = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_ONE)
-    )
-    const retried = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_ONE)
-    )
-    expect(retried).toBe(first)
   })
 
   it('hides PENDING tips from the public heatmap queries', async () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, TX_ONE)
-    )
+    await insertLegacyHighlightTip(t, tipperId, tipArgs(articleId, TX_ONE))
 
     const byArticle = await t.query(api.highlightTips.getByArticle, {
       articleId,
@@ -473,9 +310,9 @@ describe('highlightTips.create', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_PUBLIC_PROJECTION)
     )
     await confirmPending(t, tipId)
@@ -515,8 +352,9 @@ describe('highlightTips.create', () => {
     const { tipperId, authorId, articleId } = await seed(t)
 
     const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_PRIVATE_HISTORY)
     )
     await confirmPending(t, tipId)
@@ -547,9 +385,9 @@ describe('highlightTips.create', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const oldTipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const oldTipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_OLD)
     )
     // Backdate so it falls outside the time window.
@@ -561,16 +399,9 @@ describe('highlightTips.create', () => {
     })
     await confirmPending(t, oldTipId)
 
-    // Avoid cooldown: make the first tip older so the second insert is allowed.
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(oldTipId)
-      if (tip) {
-        await ctx.db.patch(oldTipId, { createdAt: tip.createdAt - 60_000 })
-      }
-    })
-
-    const newTipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const newTipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_NEW)
     )
     await confirmPending(t, newTipId)
@@ -590,9 +421,9 @@ describe('markHighlightTipConfirmed', () => {
     const t = convexTest(schema, modules)
     const { tipperId, authorId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_DEFERRED_EARNING)
     )
     await confirmPending(t, tipId)
@@ -610,9 +441,9 @@ describe('markHighlightTipConfirmed', () => {
     const t = convexTest(schema, modules)
     const { tipperId, authorId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -639,9 +470,9 @@ describe('markHighlightTipConfirmed', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -661,9 +492,9 @@ describe('markHighlightTipFailed', () => {
     const t = convexTest(schema, modules)
     const { tipperId, authorId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -689,9 +520,9 @@ describe('markHighlightTipFailed', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
     await confirmPending(t, tipId)
@@ -713,9 +544,9 @@ describe('verifyHighlightTip action', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -750,9 +581,9 @@ describe('verifyHighlightTip action', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_BATCH)
     )
 
@@ -784,9 +615,9 @@ describe('verifyHighlightTip action', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -815,9 +646,9 @@ describe('verifyHighlightTip action', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -849,9 +680,9 @@ describe('verifyHighlightTip action', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -884,9 +715,9 @@ describe('verifyHighlightTip action', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -921,9 +752,9 @@ describe('verifyHighlightTip action', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -957,9 +788,9 @@ describe('verifyHighlightTip action', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -997,8 +828,7 @@ describe('verifyHighlightTip action', () => {
     // with each other against the on-chain tx, but inconsistent with the
     // claimed USD given the real XLM price. The USD cross-check catches it
     // but — at this stage — only flags it, never fails.
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(api.highlightTips.create, {
+    const tipId = await insertLegacyHighlightTip(t, tipperId, {
       ...tipArgs(articleId, TX_ONE),
       amountCents: 10_000, // claims $100
       stellarAmountXlm: '0.01', // but only says 0.01 XLM paid
@@ -1043,9 +873,9 @@ describe('verifyHighlightTip action', () => {
     // price has dropped from $1 to $0.80, on-chain computes to $0.80, which
     // is 20% below the claimed $1 — still inside the 25% tolerance, so it
     // should confirm cleanly without a suspicion flag.
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -1081,9 +911,9 @@ describe('verifyHighlightTip action', () => {
     const t = convexTest(schema, modules)
     const { tipperId, authorId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
@@ -1134,32 +964,17 @@ describe('verifyHighlightTip action', () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
+    const tipId = await insertLegacyHighlightTip(
+      t,
+      tipperId,
       tipArgs(articleId, TX_ONE)
     )
 
-    // Drain the auto-scheduled verify chain that .create kicked off — we
-    // want a clean slate before driving the chain ourselves with attempt=3.
     vi.stubGlobal('fetch', async () => ({
       status: 500,
       ok: false,
       json: async () => ({}),
     }))
-    await new Promise((r) => setTimeout(r, 50))
-    await t.finishAllScheduledFunctions(() => {})
-
-    // Reset the tip to PENDING so we can drive the final attempt explicitly.
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      if (tip?.status !== 'PENDING') {
-        await ctx.db.patch(tipId, {
-          status: 'PENDING',
-          failureReason: undefined,
-        })
-      }
-    })
 
     const { HORIZON_VERIFY_MAX_ATTEMPTS } = await import('./lib/constants')
     await t.action(internal.stellarVerify.verifyHighlightTip, {
