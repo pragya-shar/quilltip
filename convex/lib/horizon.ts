@@ -47,6 +47,7 @@ export type HorizonVerifyResult =
 export type TipInvocationExpectations = {
   contractId: string
   allowedFunctions: readonly string[]
+  expectedFunction?: string
   authorAddress: string
   minStroops: bigint
   exactStroops?: bigint
@@ -256,7 +257,11 @@ function verifyInvocation(
   }
 
   const fnName = ic.functionName().toString()
-  if (!args.invocation.allowedFunctions.includes(fnName)) {
+  if (
+    !args.invocation.allowedFunctions.includes(fnName) ||
+    (args.invocation.expectedFunction !== undefined &&
+      fnName !== args.invocation.expectedFunction)
+  ) {
     return { kind: 'fail', reason: 'function_mismatch' }
   }
 
@@ -275,6 +280,20 @@ function verifyInvocation(
   const articleIdx = isHighlightFn ? 2 : 1
   const authorIdx = isHighlightFn ? 3 : 2
   const amountIdx = isHighlightFn ? 4 : 3
+
+  const exactArgumentCounts: Readonly<Record<string, number>> = {
+    tip_article: 4,
+    tip_article_with_arweave: 5,
+    tip_highlight_direct: 5,
+    tip_highlight_with_arweave: 6,
+  }
+  const exactArgumentCount = exactArgumentCounts[fnName]
+  if (
+    args.invocation.expectedFunction !== undefined &&
+    (exactArgumentCount === undefined || fnArgs.length !== exactArgumentCount)
+  ) {
+    return { kind: 'fail', reason: 'malformed_response' }
+  }
 
   if (fnArgs.length <= amountIdx) {
     return { kind: 'fail', reason: 'malformed_response' }

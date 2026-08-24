@@ -7,6 +7,7 @@ import {
   TIP_MIN_CENTS,
   TIP_MAX_CENTS,
   HORIZON_VERIFY_INITIAL_DELAY_MS,
+  TIP_HIGHLIGHT_DIRECT_FUNCTION,
   getStellarNetwork,
   getTippingContractId,
 } from './lib/constants'
@@ -19,7 +20,7 @@ import {
   shortArticleIdServer,
 } from './lib/articleTipExpectation'
 import { generateHighlightIdServer } from './lib/highlightHash'
-import { extractTextFromTiptapJson } from './lib/tiptapContent'
+import { resolveCanonicalHighlightPassage } from './lib/tiptapContent'
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
 import {
   normalizeStellarTransactionHash,
@@ -36,15 +37,11 @@ function stroopsToXlm(stroops: string): string {
   return fraction ? `${whole}.${fraction}` : whole
 }
 
-function normalizePlainText(text: string): string {
-  return text.trim().replace(/\s+/g, ' ')
-}
-
 function isValidHighlightContainerPath(path: string | undefined): boolean {
   return (
     path === undefined ||
     (path.length <= MAX_HIGHLIGHT_CONTAINER_PATH_LENGTH &&
-      /^\d+(?:\.\d+)*$/.test(path))
+      /^text\.\d+$/.test(path))
   )
 }
 
@@ -115,17 +112,10 @@ export const prepareHighlightTip = mutation({
     if (!tipper) throw new Error('User not found')
     if (!article) throw new Error('Article not found')
 
-    const articlePlainText = extractTextFromTiptapJson(article.content)
-    if (args.endOffset > articlePlainText.length) {
-      throw new Error('Invalid highlight selection bounds')
-    }
-    if (
-      !normalizePlainText(articlePlainText).includes(
-        normalizePlainText(args.highlightText)
-      )
-    ) {
-      throw new Error('Highlight text does not match article content')
-    }
+    const canonicalPassage = resolveCanonicalHighlightPassage(
+      article.content,
+      args
+    )
 
     const author = await ctx.db.get(article.authorId)
     if (!author) throw new Error('Author not found')
@@ -140,9 +130,9 @@ export const prepareHighlightTip = mutation({
     const now = Date.now()
     const expectedHighlightId = await generateHighlightIdServer(
       article.slug,
-      args.highlightText,
-      args.startOffset,
-      args.endOffset
+      canonicalPassage.highlightText,
+      canonicalPassage.startOffset,
+      canonicalPassage.endOffset
     )
     const expectedArticleSymbol = await shortArticleIdServer(
       args.articleId.toString()
@@ -162,17 +152,18 @@ export const prepareHighlightTip = mutation({
         intent.authorId === article.authorId &&
         intent.articleTitle === article.title &&
         intent.articleSlug === article.slug &&
-        intent.highlightText === args.highlightText &&
-        intent.startOffset === args.startOffset &&
-        intent.endOffset === args.endOffset &&
-        intent.startContainerPath === args.startContainerPath &&
-        intent.endContainerPath === args.endContainerPath &&
+        intent.highlightText === canonicalPassage.highlightText &&
+        intent.startOffset === canonicalPassage.startOffset &&
+        intent.endOffset === canonicalPassage.endOffset &&
+        intent.startContainerPath === canonicalPassage.startContainerPath &&
+        intent.endContainerPath === canonicalPassage.endContainerPath &&
         intent.amountCents === args.amountCents &&
         intent.message === args.message &&
         intent.expectedSourceAccount === args.stellarSourceAccount &&
         intent.expectedDestinationAccount === author.stellarAddress &&
         intent.expectedHighlightId === expectedHighlightId &&
         intent.expectedArticleSymbol === expectedArticleSymbol &&
+        intent.expectedFunction === TIP_HIGHLIGHT_DIRECT_FUNCTION &&
         intent.expectedStellarNetwork === expectedStellarNetwork &&
         intent.expectedContractId === expectedContractId
     )
@@ -218,11 +209,11 @@ export const prepareHighlightTip = mutation({
       tipperAvatar: tipper.avatar,
       authorName: author.name || author.username,
       authorAvatar: author.avatar,
-      highlightText: args.highlightText,
-      startOffset: args.startOffset,
-      endOffset: args.endOffset,
-      startContainerPath: args.startContainerPath,
-      endContainerPath: args.endContainerPath,
+      highlightText: canonicalPassage.highlightText,
+      startOffset: canonicalPassage.startOffset,
+      endOffset: canonicalPassage.endOffset,
+      startContainerPath: canonicalPassage.startContainerPath,
+      endContainerPath: canonicalPassage.endContainerPath,
       amountUsd: args.amountCents / 100,
       amountCents: args.amountCents,
       message: args.message,
@@ -232,6 +223,7 @@ export const prepareHighlightTip = mutation({
       expectedArticleSymbol,
       expectedAmountStroops: expectedAmountStroops.toString(),
       expectedContractId,
+      expectedFunction: TIP_HIGHLIGHT_DIRECT_FUNCTION,
       expectedMinTime: '',
       expectedMaxTime: '',
       expectedStellarNetwork,
@@ -360,6 +352,7 @@ export const submitHighlightTip = mutation({
       expectedArticleSymbol: intent.expectedArticleSymbol,
       expectedAmountStroops: intent.expectedAmountStroops,
       expectedContractId: intent.expectedContractId,
+      expectedFunction: intent.expectedFunction,
       expectedMinTime: intent.expectedMinTime,
       expectedMaxTime: intent.expectedMaxTime,
       quotePriceUsd: intent.quotePriceUsd,

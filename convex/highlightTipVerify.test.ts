@@ -54,6 +54,7 @@ function buildHighlightEnvelope(args: {
   author?: string
   contractId?: string
   functionName?: string
+  extraArgument?: boolean
   timeBounds: { minTime: string; maxTime: string }
 }) {
   const source = args.source ?? TIPPER
@@ -71,7 +72,10 @@ function buildHighlightEnvelope(args: {
         nativeToScVal(args.highlightId, { type: 'string' }),
         nativeToScVal(args.articleSymbol, { type: 'symbol' }),
         nativeToScVal(args.author ?? AUTHOR, { type: 'address' }),
-        nativeToScVal(args.amountStroops, { type: 'i128' })
+        nativeToScVal(args.amountStroops, { type: 'i128' }),
+        ...(args.extraArgument
+          ? [nativeToScVal('unexpected', { type: 'string' })]
+          : [])
       )
     )
     .build()
@@ -162,8 +166,8 @@ async function createPendingTip(
     highlightText: 'authoritative passage',
     startOffset: 5,
     endOffset: 26,
-    startContainerPath: '0.0',
-    endContainerPath: '0.0',
+    startContainerPath: 'text.6',
+    endContainerPath: 'text.27',
     amountCents: 500,
     message: 'This exact passage mattered.',
     stellarSourceAccount: TIPPER,
@@ -378,9 +382,19 @@ describe('exact highlight tip verification', () => {
       envelope: { contractId: ROTATED_CONTRACT_ID },
     },
     {
-      name: 'function',
+      name: 'unrecognized function',
       reason: 'function_mismatch',
       envelope: { functionName: 'unexpected_tip_function' },
+    },
+    {
+      name: 'alternate allowed highlight function',
+      reason: 'function_mismatch',
+      envelope: { functionName: 'tip_highlight_with_arweave' },
+    },
+    {
+      name: 'argument count',
+      reason: 'malformed_response',
+      envelope: { extraArgument: true },
     },
     {
       name: 'intent time bounds',
@@ -669,6 +683,10 @@ describe('exact highlight tip verification', () => {
       {
         name: 'expectedContractId',
         patch: () => ({ expectedContractId: ROTATED_CONTRACT_ID }),
+      },
+      {
+        name: 'expectedFunction',
+        patch: () => ({ expectedFunction: 'tip_highlight_with_arweave' }),
       },
       {
         name: 'expectedMinTime',

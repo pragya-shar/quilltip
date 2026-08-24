@@ -76,14 +76,18 @@ async function seed(t: ReturnType<typeof convexTest>) {
   })
 }
 
-function prepareArgs(articleId: Id<'articles'>, startOffset = 4) {
+function prepareArgs(articleId: Id<'articles'>, startOffset = 6) {
+  const highlightText =
+    startOffset === 6
+      ? 'authoritative passage'
+      : ARTICLE_TEXT.slice(startOffset, startOffset + 15)
   return {
     articleId,
-    highlightText: 'authoritative passage',
+    highlightText,
     startOffset,
-    endOffset: startOffset + 15,
-    startContainerPath: '0.0',
-    endContainerPath: '0.0',
+    endOffset: startOffset + highlightText.length,
+    startContainerPath: `text.${startOffset + 1}`,
+    endContainerPath: `text.${startOffset + highlightText.length + 1}`,
     amountCents: 500,
     message: 'This line stayed with me.',
     stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
@@ -114,7 +118,7 @@ describe('prepareHighlightTip', () => {
 
     expect(quote).toEqual({
       intentId: expect.any(String),
-      highlightId: 'a8c43973f58687260eb4de09f96b',
+      highlightId: expect.stringMatching(/^[a-f0-9]{28}$/),
       articleSymbol: '2ede2c6a40',
       authorAddress: AUTHOR_STELLAR_ADDRESS,
       amountStroops: 200_000_000,
@@ -140,16 +144,17 @@ describe('prepareHighlightTip', () => {
       tipperId,
       authorId,
       highlightText: 'authoritative passage',
-      startOffset: 4,
-      endOffset: 19,
-      startContainerPath: '0.0',
-      endContainerPath: '0.0',
+      startOffset: 6,
+      endOffset: 27,
+      startContainerPath: 'text.7',
+      endContainerPath: 'text.28',
       amountCents: 500,
       amountUsd: 5,
       message: 'This line stayed with me.',
       expectedSourceAccount: TIPPER_STELLAR_ADDRESS,
       expectedDestinationAccount: AUTHOR_STELLAR_ADDRESS,
-      expectedHighlightId: 'a8c43973f58687260eb4de09f96b',
+      expectedHighlightId: quote.highlightId,
+      expectedFunction: 'tip_highlight_direct',
       expectedArticleSymbol: '2ede2c6a40',
       expectedAmountStroops: '200000000',
       expectedStellarNetwork: 'TESTNET',
@@ -310,7 +315,7 @@ describe('prepareHighlightTip', () => {
     })
   })
 
-  it('requires the normalized passage to occur in stored article content', async () => {
+  it('requires the exact passage to occur at the supplied canonical coordinates', async () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
     const asTipper = t.withIdentity({ subject: tipperId })
@@ -320,17 +325,89 @@ describe('prepareHighlightTip', () => {
         ...prepareArgs(articleId),
         highlightText: 'passage fabricated by caller',
       })
-    ).rejects.toThrow('Highlight text does not match article content')
+    ).rejects.toThrow(
+      'Highlight text does not match the selected article passage'
+    )
 
     await expect(
       asTipper.mutation(api.highlightTips.prepareHighlightTip, {
         ...prepareArgs(articleId),
-        highlightText: 'authoritative   \n  passage',
+        startOffset: 7,
+        endOffset: 28,
+        startContainerPath: undefined,
+        endContainerPath: undefined,
+      })
+    ).rejects.toThrow(
+      'Highlight text does not match the selected article passage'
+    )
+  })
+
+  it('rejects an ambiguous duplicate passage when coordinates point elsewhere', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+    const asTipper = t.withIdentity({ subject: tipperId })
+    await t.run(async (ctx) => {
+      await ctx.db.patch(articleId, {
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [
+                {
+                  type: 'text',
+                  text: 'repeat this once, repeat this twice',
+                },
+              ],
+            },
+          ],
+        },
+      })
+    })
+
+    await expect(
+      asTipper.mutation(api.highlightTips.prepareHighlightTip, {
+        ...prepareArgs(articleId),
+        highlightText: 'repeat this',
+        startOffset: 6,
+        endOffset: 17,
+        startContainerPath: 'text.7',
+        endContainerPath: 'text.18',
+      })
+    ).rejects.toThrow(
+      'Highlight text does not match the selected article passage'
+    )
+  })
+
+  it('accepts a canonical selection spanning stored TipTap block nodes', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+    const asTipper = t.withIdentity({ subject: tipperId })
+    await t.run(async (ctx) => {
+      await ctx.db.patch(articleId, {
+        content: {
+          type: 'doc',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'Alpha' }] },
+            { type: 'paragraph', content: [{ type: 'text', text: 'Beta' }] },
+          ],
+        },
+      })
+    })
+
+    await expect(
+      asTipper.mutation(api.highlightTips.prepareHighlightTip, {
+        ...prepareArgs(articleId),
+        highlightText: 'pha Bet',
+        startOffset: 2,
+        endOffset: 8,
+        startContainerPath: 'text.3',
+        endContainerPath: 'text.11',
       })
     ).resolves.toMatchObject({ intentId: expect.any(String) })
   })
 
-  it('bounds offsets against stored article text and validates optional DOM paths', async () => {
+  it('bounds offsets against stored article text and rejects unrelated coordinate hints', async () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
     const asTipper = t.withIdentity({ subject: tipperId })
@@ -357,14 +434,21 @@ describe('prepareHighlightTip', () => {
           ...prepareArgs(articleId),
           startContainerPath,
         })
-      ).rejects.toThrow('Invalid highlight container path')
+      ).rejects.toThrow(/Invalid highlight container path|coordinate hints/)
     }
     await expect(
       asTipper.mutation(api.highlightTips.prepareHighlightTip, {
         ...prepareArgs(articleId),
         endContainerPath: '1..2',
       })
-    ).rejects.toThrow('Invalid highlight container path')
+    ).rejects.toThrow(/Invalid highlight container path|coordinate hints/)
+
+    await expect(
+      asTipper.mutation(api.highlightTips.prepareHighlightTip, {
+        ...prepareArgs(articleId),
+        startContainerPath: 'text.1',
+      })
+    ).rejects.toThrow('Highlight coordinate hints do not match article content')
   })
 
   it('requires authentication and a receiving wallet', async () => {
@@ -437,10 +521,10 @@ describe('submitHighlightTip', () => {
       highlightId: quote.highlightId,
       articleId,
       highlightText: 'authoritative passage',
-      startOffset: 4,
-      endOffset: 19,
-      startContainerPath: '0.0',
-      endContainerPath: '0.0',
+      startOffset: 6,
+      endOffset: 27,
+      startContainerPath: 'text.7',
+      endContainerPath: 'text.28',
       amountCents: 500,
       stellarTxId,
       stellarMemo: quote.highlightId,
@@ -496,10 +580,10 @@ describe('submitHighlightTip', () => {
       highlightTipIntentId: quote.intentId,
       highlightId: quote.highlightId,
       highlightText: 'authoritative passage',
-      startOffset: 4,
-      endOffset: 19,
-      startContainerPath: '0.0',
-      endContainerPath: '0.0',
+      startOffset: 6,
+      endOffset: 27,
+      startContainerPath: 'text.7',
+      endContainerPath: 'text.28',
       amountCents: 500,
       amountUsd: 5,
       message: 'This line stayed with me.',
@@ -516,6 +600,7 @@ describe('submitHighlightTip', () => {
       expectedArticleSymbol: quote.articleSymbol,
       expectedAmountStroops: '200000000',
       expectedContractId: TIPPING_CONTRACT_ID,
+      expectedFunction: 'tip_highlight_direct',
       expectedMinTime: quote.timeBounds.minTime,
       expectedMaxTime: quote.timeBounds.maxTime,
       status: 'PENDING',

@@ -75,6 +75,8 @@ interface HighlightTipButtonProps {
   endOffset: number
   startContainerPath?: string
   endContainerPath?: string
+  selectionStartPosition?: number
+  selectionEndPosition?: number
   className?: string
   onSuccess?: () => void
   resumeOpen?: boolean
@@ -197,6 +199,8 @@ export function HighlightTipButton({
   endOffset,
   startContainerPath,
   endContainerPath,
+  selectionStartPosition,
+  selectionEndPosition,
   className = '',
   onSuccess,
   resumeOpen = false,
@@ -639,8 +643,8 @@ export function HighlightTipButton({
     writePendingHighlightSelection({
       articleId: String(articleId),
       highlightText,
-      startOffset,
-      endOffset,
+      startOffset: selectionStartPosition ?? startOffset,
+      endOffset: selectionEndPosition ?? endOffset,
     })
     signInToTip(
       router,

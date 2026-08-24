@@ -264,6 +264,10 @@ describe('HighlightTipButton two-stage flow', () => {
         highlightText="Some highlighted text"
         startOffset={10}
         endOffset={20}
+        startContainerPath="text.12"
+        endContainerPath="text.22"
+        selectionStartPosition={12}
+        selectionEndPosition={22}
       />
     )
 
@@ -273,10 +277,20 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(writePendingHighlightSelection).toHaveBeenCalledWith({
       articleId: 'articles:123',
       highlightText: 'Some highlighted text',
-      startOffset: 10,
-      endOffset: 20,
+      startOffset: 12,
+      endOffset: 22,
     })
-    expect(signInToTip).toHaveBeenCalled()
+    expect(signInToTip).toHaveBeenCalledWith(
+      expect.anything(),
+      '/author/my-article',
+      expect.anything(),
+      expect.objectContaining({
+        startOffset: 10,
+        endOffset: 20,
+        startContainerPath: 'text.12',
+        endContainerPath: 'text.22',
+      })
+    )
   })
 
   it('opens at checkout on resume with Sign in to tip visible', async () => {

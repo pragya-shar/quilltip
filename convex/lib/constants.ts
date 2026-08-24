@@ -98,6 +98,7 @@ export const TIP_HIGHLIGHT_FUNCTIONS = [
   'tip_highlight_with_arweave',
   'batch_tip_highlights',
 ] as const
+export const TIP_HIGHLIGHT_DIRECT_FUNCTION = 'tip_highlight_direct' as const
 
 // Tipping contract ID is deployment-specific, so it is read from env at
 // call time rather than baked in. Must match NEXT_PUBLIC_TIPPING_CONTRACT_ID

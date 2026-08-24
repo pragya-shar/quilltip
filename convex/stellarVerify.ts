@@ -116,6 +116,7 @@ function matchesHighlightTipIntentSnapshot(
     tip.expectedArticleSymbol === intent.expectedArticleSymbol &&
     tip.expectedAmountStroops === intent.expectedAmountStroops &&
     tip.expectedContractId === intent.expectedContractId &&
+    tip.expectedFunction === intent.expectedFunction &&
     tip.expectedMinTime === intent.expectedMinTime &&
     tip.expectedMaxTime === intent.expectedMaxTime &&
     tip.quotePriceUsd === intent.quotePriceUsd &&
@@ -161,6 +162,7 @@ export const verifyHighlightTip = internalAction({
         !tip.expectedArticleSymbol ||
         !tip.expectedAmountStroops ||
         !tip.expectedContractId ||
+        !tip.expectedFunction ||
         !tip.expectedMinTime ||
         !tip.expectedMaxTime
       ) {
@@ -206,6 +208,7 @@ export const verifyHighlightTip = internalAction({
         invocation: {
           contractId: tip.expectedContractId,
           allowedFunctions: TIP_HIGHLIGHT_FUNCTIONS,
+          expectedFunction: tip.expectedFunction,
           authorAddress: tip.expectedDestinationAccount,
           highlightId: tip.expectedHighlightId,
           articleId: tip.expectedArticleSymbol,
