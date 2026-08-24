@@ -8,6 +8,10 @@ const SERVER_QUOTE_CONTRACT_ID =
   'CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY'
 const TEST_PASSPHRASE = 'Test SDF Network ; September 2015'
 const MINIMUM_TIP_STROOPS = 420_000
+const SIGNED_XDR =
+  'AAAAAgAAAADqSmxj4pxSCr71UHsTLsX5lUd2rr6+e5JCHuppFEbSLAAAAGQAAAAAAAAAAQAAAAEAAAAAB1vNFQAAAAB3NZQAAAAAAAAAAAEAAAAAAAAACgAAAA1xdWlsbHRpcC1oYXNoAAAAAAAAAQAAAAZzaWduZWQAAAAAAAAAAAABFEbSLAAAAEBuhftuewiagdc4PlrYnICsjbJzL/63iooqOyH6fsMqRM6Ih35YiJK+1lo9FtPGUThbPbDHiM56/3TojZ6f2AsG'
+const TESTNET_TRANSACTION_HASH =
+  '49cf1e201e95bf3c088a834b30e71592bec59491bb4e01f48d61707fdb95cc79'
 
 vi.mock('@/lib/stellar/config', () => ({
   STELLAR_CONFIG: {
@@ -147,5 +151,38 @@ describe('StellarClient highlight transaction builder', () => {
       )
     ).rejects.toThrow('Invalid trusted highlight tip amount')
     expect(loadAccount).not.toHaveBeenCalled()
+  })
+
+  it('derives the deterministic transaction hash from the exact signed XDR on the configured network', async () => {
+    const { StellarClient } = await import('@/lib/stellar/client')
+
+    await expect(
+      new StellarClient().deriveTipTransactionHash(SIGNED_XDR)
+    ).resolves.toBe(TESTNET_TRANSACTION_HASH)
+  })
+
+  it('rebroadcasts the same signed XDR after an ambiguous response and accepts DUPLICATE idempotently', async () => {
+    const StellarSdk = await import('@stellar/stellar-sdk')
+    const { StellarClient } = await import('@/lib/stellar/client')
+    const sendTransaction = vi
+      .spyOn(StellarSdk.rpc.Server.prototype, 'sendTransaction')
+      .mockRejectedValueOnce(new Error('RPC response lost'))
+      .mockResolvedValueOnce({
+        status: 'DUPLICATE',
+        hash: TESTNET_TRANSACTION_HASH,
+        latestLedger: 123,
+        latestLedgerCloseTime: 456,
+      } as never)
+    const client = new StellarClient()
+
+    await expect(client.submitTipTransaction(SIGNED_XDR)).rejects.toThrow(
+      'RPC response lost'
+    )
+    await expect(client.submitTipTransaction(SIGNED_XDR)).resolves.toEqual({
+      transactionHash: TESTNET_TRANSACTION_HASH,
+    })
+    expect(sendTransaction).toHaveBeenCalledTimes(2)
+    expect(sendTransaction.mock.calls[0]?.[0].toXDR()).toBe(SIGNED_XDR)
+    expect(sendTransaction.mock.calls[1]?.[0].toXDR()).toBe(SIGNED_XDR)
   })
 })

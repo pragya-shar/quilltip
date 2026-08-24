@@ -1,8 +1,12 @@
 import { z } from 'zod'
 import type { Id } from '@/convex/_generated/dataModel'
 
-export const PENDING_HIGHLIGHT_TIP_RECEIPTS_STORAGE_KEY =
-  'quilltip:pendingHighlightTipReceipts'
+export const PENDING_HIGHLIGHT_TIP_RECEIPT_STORAGE_PREFIX =
+  'quilltip:pendingHighlightTipReceipt:v2:'
+
+const MAX_PENDING_HIGHLIGHT_TIP_RECEIPTS = 20
+const STORAGE_FAILURE_MESSAGE =
+  'Your signed tip could not be saved for safe recovery. No transaction was sent. Free browser storage or allow site storage, then retry.'
 
 const pendingHighlightTipReceiptSchema = z.object({
   articleId: z.string().min(1),
@@ -12,6 +16,7 @@ const pendingHighlightTipReceiptSchema = z.object({
   stellarNetwork: z.union([z.literal('TESTNET'), z.literal('MAINNET')]),
   stellarSourceAccount: z.string().min(1),
   intentId: z.string().min(1),
+  signedXdr: z.string().min(1),
   stellarTxId: z.string().min(1),
   stellarLedger: z.number().int().positive().optional(),
   stellarFeeCharged: z.string().optional(),
@@ -25,15 +30,48 @@ type StoredPendingHighlightTipReceipt = z.infer<
 
 export type PendingHighlightTipReceipt = Omit<
   StoredPendingHighlightTipReceipt,
-  'tipperId' | 'intentId' | 'submittedTipId'
+  'tipperId' | 'intentId'
 > & {
   tipperId: Id<'users'>
   intentId: Id<'highlightTipIntents'>
-  submittedTipId?: Id<'highlightTips'>
 }
 
-let memoryReceipts: PendingHighlightTipReceipt[] = []
-let storageWriteUnavailable = false
+type StoredReceiptEntry = {
+  key: string
+  receipt: PendingHighlightTipReceipt
+}
+
+function normalizeReceipt(
+  receipt: PendingHighlightTipReceipt
+): PendingHighlightTipReceipt {
+  const parsed = pendingHighlightTipReceiptSchema.safeParse({
+    ...receipt,
+    articleId: String(receipt.articleId),
+    highlightId: String(receipt.highlightId),
+    tipperId: String(receipt.tipperId),
+    intentId: String(receipt.intentId),
+    submittedTipId:
+      receipt.submittedTipId === undefined
+        ? undefined
+        : String(receipt.submittedTipId),
+  })
+  if (!parsed.success) {
+    throw new Error(STORAGE_FAILURE_MESSAGE)
+  }
+  return parsed.data as PendingHighlightTipReceipt
+}
+
+function receiptStorageKey(receipt: PendingHighlightTipReceipt): string {
+  return `${PENDING_HIGHLIGHT_TIP_RECEIPT_STORAGE_PREFIX}${[
+    receipt.stellarNetwork,
+    receipt.tipperId,
+    receipt.articleId,
+    receipt.highlightId,
+    receipt.intentId,
+  ]
+    .map((part) => encodeURIComponent(String(part)))
+    .join(':')}`
+}
 
 function sameReceiptIdentity(
   left: PendingHighlightTipReceipt,
@@ -63,83 +101,101 @@ function matchesContext(
   )
 }
 
-function persistReceipts(receipts: PendingHighlightTipReceipt[]): void {
-  memoryReceipts = receipts.slice(-20)
-  if (typeof window === 'undefined' || storageWriteUnavailable) return
-
+function discardMalformedKey(key: string): void {
   try {
-    window.localStorage.setItem(
-      PENDING_HIGHLIGHT_TIP_RECEIPTS_STORAGE_KEY,
-      JSON.stringify(memoryReceipts)
-    )
+    window.localStorage.removeItem(key)
   } catch {
-    storageWriteUnavailable = true
+    // A read must remain safe even when browser storage is unavailable.
   }
 }
 
-function readReceipts(): PendingHighlightTipReceipt[] {
-  if (typeof window === 'undefined' || storageWriteUnavailable) {
-    return memoryReceipts
-  }
+function readStoredEntries(): StoredReceiptEntry[] | null {
+  if (typeof window === 'undefined') return []
 
-  let raw: string | null
+  const entries: StoredReceiptEntry[] = []
   try {
-    raw = window.localStorage.getItem(
-      PENDING_HIGHLIGHT_TIP_RECEIPTS_STORAGE_KEY
-    )
-  } catch {
-    return memoryReceipts
-  }
-
-  if (raw === null) {
-    memoryReceipts = []
-    return memoryReceipts
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) {
-      persistReceipts([])
-      return memoryReceipts
+    const keys: string[] = []
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index)
+      if (!key?.startsWith(PENDING_HIGHLIGHT_TIP_RECEIPT_STORAGE_PREFIX)) {
+        continue
+      }
+      keys.push(key)
     }
 
-    const validReceipts = parsed
-      .map((entry) => pendingHighlightTipReceiptSchema.safeParse(entry))
-      .filter((result) => result.success)
-      .map((result) => result.data as PendingHighlightTipReceipt)
-      .slice(-20)
-    memoryReceipts = validReceipts
-    if (validReceipts.length !== parsed.length) {
-      persistReceipts(validReceipts)
+    for (const key of keys) {
+      const raw = window.localStorage.getItem(key)
+      if (raw === null) continue
+      try {
+        const parsed = pendingHighlightTipReceiptSchema.safeParse(
+          JSON.parse(raw) as unknown
+        )
+        if (!parsed.success) {
+          discardMalformedKey(key)
+          continue
+        }
+        entries.push({
+          key,
+          receipt: parsed.data as PendingHighlightTipReceipt,
+        })
+      } catch {
+        discardMalformedKey(key)
+      }
     }
   } catch {
-    persistReceipts([])
+    return null
   }
 
-  return memoryReceipts
+  return entries.sort((left, right) => left.key.localeCompare(right.key))
 }
 
 export function writePendingHighlightTipReceipt(
   receipt: PendingHighlightTipReceipt
 ): void {
-  const normalized = {
-    ...receipt,
-    articleId: String(receipt.articleId),
-    highlightId: String(receipt.highlightId),
-    tipperId: String(receipt.tipperId),
-    intentId: String(receipt.intentId),
-    submittedTipId:
-      receipt.submittedTipId === undefined
-        ? undefined
-        : String(receipt.submittedTipId),
+  if (typeof window === 'undefined') {
+    throw new Error(STORAGE_FAILURE_MESSAGE)
   }
-  const parsed = pendingHighlightTipReceiptSchema.safeParse(normalized)
-  if (!parsed.success) return
-  const validReceipt = parsed.data as PendingHighlightTipReceipt
-  const remaining = readReceipts().filter(
-    (candidate) => !sameReceiptIdentity(candidate, validReceipt)
-  )
-  persistReceipts([...remaining, validReceipt])
+
+  const normalized = normalizeReceipt(receipt)
+  const key = receiptStorageKey(normalized)
+  const storedEntries = readStoredEntries()
+  if (storedEntries === null) {
+    throw new Error(STORAGE_FAILURE_MESSAGE)
+  }
+  const replacesExisting = storedEntries.some((entry) => entry.key === key)
+  if (
+    !replacesExisting &&
+    storedEntries.length >= MAX_PENDING_HIGHLIGHT_TIP_RECEIPTS
+  ) {
+    throw new Error(
+      'You already have 20 pending highlight tips. Retry or finish one before starting another payment.'
+    )
+  }
+
+  const serialized = JSON.stringify(normalized)
+  try {
+    window.localStorage.setItem(key, serialized)
+    if (window.localStorage.getItem(key) !== serialized) {
+      throw new Error('durability check failed')
+    }
+  } catch {
+    throw new Error(STORAGE_FAILURE_MESSAGE)
+  }
+
+  const entriesAfterWrite = readStoredEntries()
+  if (entriesAfterWrite === null) {
+    if (!replacesExisting) discardMalformedKey(key)
+    throw new Error(STORAGE_FAILURE_MESSAGE)
+  }
+  if (
+    !replacesExisting &&
+    entriesAfterWrite.length > MAX_PENDING_HIGHLIGHT_TIP_RECEIPTS
+  ) {
+    discardMalformedKey(key)
+    throw new Error(
+      'You already have 20 pending highlight tips. Retry or finish one before starting another payment.'
+    )
+  }
 }
 
 export function readPendingHighlightTipReceipt(
@@ -148,24 +204,22 @@ export function readPendingHighlightTipReceipt(
   stellarNetwork: 'TESTNET' | 'MAINNET',
   tipperId: Id<'users'> | string
 ): PendingHighlightTipReceipt | null {
-  const receipts = readReceipts()
-  for (let index = receipts.length - 1; index >= 0; index -= 1) {
-    const receipt = receipts[index]!
-    if (
-      matchesContext(receipt, articleId, highlightId, stellarNetwork, tipperId)
-    ) {
-      return receipt
-    }
-  }
-  return null
+  const matches = (readStoredEntries() ?? []).filter(({ receipt }) =>
+    matchesContext(receipt, articleId, highlightId, stellarNetwork, tipperId)
+  )
+  return matches.at(-1)?.receipt ?? null
 }
 
 export function clearPendingHighlightTipReceipt(
   receipt: PendingHighlightTipReceipt
 ): void {
-  persistReceipts(
-    readReceipts().filter(
-      (candidate) => !sameReceiptIdentity(candidate, receipt)
-    )
-  )
+  if (typeof window === 'undefined') return
+  for (const entry of readStoredEntries() ?? []) {
+    if (!sameReceiptIdentity(entry.receipt, receipt)) continue
+    try {
+      window.localStorage.removeItem(entry.key)
+    } catch {
+      // A terminal UI transition must not crash if storage cleanup is blocked.
+    }
+  }
 }

@@ -22,6 +22,7 @@ interface TipCheckoutStepProps {
   isConnected: boolean
   isWalletLoading: boolean
   publicKey: string | null
+  recoverySourcePublicKey?: string | null
   isLoading: boolean
   tipSuccess: string | null
   tipFailure: TipFailureMessage | null
@@ -43,6 +44,7 @@ export function TipCheckoutStep({
   isConnected,
   isWalletLoading,
   publicKey,
+  recoverySourcePublicKey,
   isLoading,
   tipSuccess,
   tipFailure,
@@ -54,6 +56,8 @@ export function TipCheckoutStep({
   onConnectWallet,
   onSendTip,
 }: TipCheckoutStepProps) {
+  const hasRecoverablePayment = Boolean(recoverySourcePublicKey)
+
   const renderPrimaryButton = () => {
     if (!isAuthenticated) {
       return (
@@ -69,7 +73,7 @@ export function TipCheckoutStep({
       )
     }
 
-    if (!isConnected) {
+    if (!isConnected && !hasRecoverablePayment) {
       return (
         <Button
           type="button"
@@ -126,7 +130,7 @@ export function TipCheckoutStep({
             Sign in to send your {formatTipLabel(variant)} to {authorName}.
           </p>
         </div>
-      ) : !isConnected ? (
+      ) : !isConnected && !hasRecoverablePayment ? (
         <div className="p-3 bg-info/10 border border-info/50 rounded-lg text-sm text-info-foreground">
           <p>
             Connect your Stellar wallet to send your {formatTipLabel(variant)}{' '}
@@ -161,7 +165,15 @@ export function TipCheckoutStep({
         {renderPrimaryButton()}
       </div>
 
-      {isConnected && publicKey ? (
+      {recoverySourcePublicKey ? (
+        <div className="text-xs text-muted-foreground text-center">
+          <p className="flex items-center justify-center gap-1">
+            <Wallet className="w-3 h-3" />
+            Transaction source: {recoverySourcePublicKey.slice(0, 6)}...
+            {recoverySourcePublicKey.slice(-6)}
+          </p>
+        </div>
+      ) : isConnected && publicKey ? (
         <div className="text-xs text-success-foreground text-center">
           <p className="flex items-center justify-center gap-1">
             <Wallet className="w-3 h-3" />

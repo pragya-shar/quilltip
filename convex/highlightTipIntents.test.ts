@@ -592,6 +592,50 @@ describe('submitHighlightTip', () => {
     ).resolves.toMatchObject({ status: 'PENDING' })
   })
 
+  it('safely discards structurally complete invalid recovery IDs before reading status', async () => {
+    const t = convexTest(schema, modules)
+    const { asTipper, quote, articleId } = await prepare(t)
+    const otherId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('users', {
+        email: 'recovery-other@x.test',
+        username: 'recovery-other',
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+    const asOther = t.withIdentity({ subject: otherId })
+    const tipId = await asTipper.mutation(
+      api.highlightTips.submitHighlightTip,
+      {
+        intentId: quote.intentId,
+        stellarTxId: TX_OWNED,
+      }
+    )
+    const alteredTipId = `${tipId.slice(0, -1)}${tipId.endsWith('0') ? '1' : '0'}`
+
+    await expect(
+      asTipper.query(api.highlightTips.getHighlightTipRecoveryStatus, {
+        tipId: String(articleId),
+      })
+    ).resolves.toBeNull()
+    await expect(
+      asTipper.query(api.highlightTips.getHighlightTipRecoveryStatus, {
+        tipId: alteredTipId,
+      })
+    ).resolves.toBeNull()
+    await expect(
+      asTipper.query(api.highlightTips.getHighlightTipRecoveryStatus, {
+        tipId: String(tipId),
+      })
+    ).resolves.toMatchObject({ status: 'PENDING' })
+    await expect(
+      asOther.query(api.highlightTips.getHighlightTipRecoveryStatus, {
+        tipId: String(tipId),
+      })
+    ).resolves.toBeNull()
+  })
+
   it('rejects transaction hash reuse by a different intent', async () => {
     const t = convexTest(schema, modules)
     const { asTipper, quote, articleId } = await prepare(t)

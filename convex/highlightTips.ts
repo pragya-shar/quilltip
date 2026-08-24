@@ -406,6 +406,33 @@ export const getHighlightTipStatus = query({
   },
 })
 
+export const getHighlightTipRecoveryStatus = query({
+  args: { tipId: v.string() },
+  returns: v.union(
+    v.null(),
+    v.object({
+      status: v.string(),
+      failureReason: v.optional(v.string()),
+      verifiedAt: v.optional(v.number()),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+    const tipId = ctx.db.normalizeId('highlightTips', args.tipId)
+    if (!tipId) return null
+    const tip = await ctx.db.get(tipId)
+    if (!tip || tip.tipperId !== userId || !tip.highlightTipIntentId) {
+      return null
+    }
+    return {
+      status: tip.status,
+      failureReason: tip.failureReason,
+      verifiedAt: tip.verifiedAt,
+    }
+  },
+})
+
 export const retryHighlightTipVerification = mutation({
   args: { tipId: v.id('highlightTips') },
   returns: v.null(),

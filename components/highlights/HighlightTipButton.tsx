@@ -112,6 +112,12 @@ const HIGHLIGHT_TIP_SYNC_FAILURE_MESSAGE: TipFailureMessage = {
     'Your Stellar transaction was submitted. Retry will record that same transaction without sending another payment.',
 }
 
+const HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE: TipFailureMessage = {
+  title: 'Tip transaction saved for recovery',
+  detail:
+    'The network response was unclear. Retry will rebroadcast and check the exact same signed transaction without creating another payment.',
+}
+
 const HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE: TipFailureMessage = {
   title: 'Tip sent, verification delayed',
   detail:
@@ -180,8 +186,7 @@ export function HighlightTipButton({
   const [requiresStartOver, setRequiresStartOver] = useState(false)
   const [pendingTipRecord, setPendingTipRecord] =
     useState<PendingHighlightTipRecord | null>(null)
-  const [submittedTipId, setSubmittedTipId] =
-    useState<Id<'highlightTips'> | null>(null)
+  const [submittedTipId, setSubmittedTipId] = useState<string | null>(null)
   const [currentHighlightId, setCurrentHighlightId] = useState<string | null>(
     null
   )
@@ -203,7 +208,7 @@ export function HighlightTipButton({
     api.highlightTips.retryHighlightTipVerification
   )
   const verificationStatus = useQuery(
-    api.highlightTips.getHighlightTipStatus,
+    api.highlightTips.getHighlightTipRecoveryStatus,
     submittedTipId &&
       isAuthenticated &&
       !isAuthLoading &&
@@ -212,6 +217,8 @@ export function HighlightTipButton({
       ? { tipId: submittedTipId }
       : 'skip'
   )
+  const verificationStatusRef = useRef(verificationStatus)
+  verificationStatusRef.current = verificationStatus
   const { priceUsd: displayXlmUsdRate } = useTipDialogXlmUsdRate(isOpen)
 
   useEffect(() => {
@@ -352,7 +359,7 @@ export function HighlightTipButton({
     setTipFailure(
       restored.submittedTipId
         ? HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE
-        : HIGHLIGHT_TIP_SYNC_FAILURE_MESSAGE
+        : HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE
     )
     setIsOpen(true)
   }, [
@@ -411,10 +418,28 @@ export function HighlightTipButton({
   useEffect(() => {
     if (
       !submittedTipId ||
-      !verificationStatus ||
+      verificationStatus === undefined ||
       !pendingTipRecord ||
       !receiptMatchesCurrentContext
     ) {
+      return
+    }
+
+    if (verificationStatus === null) {
+      const recoverableRecord = {
+        ...pendingTipRecord,
+        submittedTipId: undefined,
+      }
+      try {
+        writePendingHighlightTipReceipt(recoverableRecord)
+      } catch (error) {
+        console.error('Highlight tip recovery receipt update error:', error)
+      }
+      setSubmittedTipId(null)
+      setPendingTipRecord(recoverableRecord)
+      setIsLoading(false)
+      setTipFlowStep(null)
+      setTipFailure(HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE)
       return
     }
 
@@ -456,28 +481,54 @@ export function HighlightTipButton({
   ])
 
   const retryPendingTipRecord = async (pending: PendingHighlightTipRecord) => {
-    setTipFailure(null)
     setTipFormError(null)
     setTipSuccess(null)
     setIsLoading(true)
-    setTipFlowStep('confirming')
+    setTipFlowStep('submitting')
 
-    let verificationStarted = false
+    let broadcastAccepted = false
     try {
-      const tipId = await submitHighlightTip(toHighlightTipRecordArgs(pending))
-      const syncedPending = { ...pending, submittedTipId: tipId }
-      writePendingHighlightTipReceipt(syncedPending)
+      const receipt = await stellarClient.submitTipTransaction(
+        pending.signedXdr
+      )
+      if (
+        receipt.transactionHash &&
+        receipt.transactionHash.toLowerCase() !==
+          pending.stellarTxId.toLowerCase()
+      ) {
+        throw new Error(
+          'Stellar returned a different transaction hash for the saved signed transaction.'
+        )
+      }
+      broadcastAccepted = true
+      const acceptedPending = {
+        ...pending,
+        contractTipId: receipt.tipId ?? pending.contractTipId,
+      }
+      setPendingTipRecord(acceptedPending)
+      setTipFlowStep('confirming')
+      const tipId = await submitHighlightTip(
+        toHighlightTipRecordArgs(acceptedPending)
+      )
+      const syncedPending = { ...acceptedPending, submittedTipId: tipId }
+      try {
+        writePendingHighlightTipReceipt(syncedPending)
+      } catch (error) {
+        console.error('Highlight tip submitted receipt update error:', error)
+      }
       setPendingTipRecord(syncedPending)
       setSubmittedTipId(tipId)
-      verificationStarted = true
+      setTipFailure(HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE)
     } catch (error) {
       console.error('Highlight tip sync retry error:', error)
-      setTipFailure(HIGHLIGHT_TIP_SYNC_FAILURE_MESSAGE)
+      setTipFailure(
+        broadcastAccepted
+          ? HIGHLIGHT_TIP_SYNC_FAILURE_MESSAGE
+          : HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE
+      )
     } finally {
-      if (!verificationStarted) {
-        setIsLoading(false)
-        setTipFlowStep(null)
-      }
+      setIsLoading(false)
+      setTipFlowStep(null)
     }
   }
 
@@ -501,7 +552,7 @@ export function HighlightTipButton({
         pendingTipRecord
           ? pendingTipRecord.submittedTipId
             ? HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE
-            : HIGHLIGHT_TIP_SYNC_FAILURE_MESSAGE
+            : HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE
           : null
       )
       setTipFormError(null)
@@ -571,25 +622,54 @@ export function HighlightTipButton({
     }
 
     if (submittedTipId) {
-      setTipFailure(null)
+      if (verificationStatusRef.current?.status !== 'PENDING') {
+        return
+      }
       setIsLoading(true)
       setTipFlowStep('confirming')
       try {
-        await retryHighlightTipVerification({ tipId: submittedTipId })
-        setIsLoading(false)
-        setTipFlowStep(null)
-        setTipFailure(HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE)
+        await retryHighlightTipVerification({
+          tipId: submittedTipId as Id<'highlightTips'>,
+        })
       } catch (error) {
         console.error('Highlight tip verification retry error:', error)
+        const liveStatus = verificationStatusRef.current
+        if (
+          liveStatus?.status !== 'CONFIRMED' &&
+          liveStatus?.status !== 'FAILED'
+        ) {
+          setTipFailure(formatTipFailureMessage(error))
+        }
+      } finally {
         setIsLoading(false)
         setTipFlowStep(null)
-        setTipFailure(formatTipFailureMessage(error))
       }
       return
     }
 
     if (pendingTipRecord) {
       await retryPendingTipRecord(pendingTipRecord)
+      return
+    }
+
+    const durableReceipt =
+      currentHighlightId && stellarNetwork && authUserId
+        ? readPendingHighlightTipReceipt(
+            articleId,
+            currentHighlightId,
+            stellarNetwork,
+            authUserId
+          )
+        : null
+    if (durableReceipt) {
+      setPendingTipRecord(durableReceipt)
+      setSelectedAmount(durableReceipt.amountCents)
+      if (durableReceipt.submittedTipId) {
+        setSubmittedTipId(durableReceipt.submittedTipId)
+        setTipFailure(HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE)
+      } else {
+        await retryPendingTipRecord(durableReceipt)
+      }
       return
     }
 
@@ -642,8 +722,8 @@ export function HighlightTipButton({
     setTipSuccess(null)
     setIsLoading(true)
 
-    let submittedTipRecord: PendingHighlightTipRecord | null = null
-    let verificationStarted = false
+    let durableTipRecord: PendingHighlightTipRecord | null = null
+    let broadcastAccepted = false
     try {
       stellarFlowEmitter.emit({ flow: 'tip', step: 'awaiting_signature' })
       const quote = await prepareHighlightTip({
@@ -675,11 +755,8 @@ export function HighlightTipButton({
       )
 
       const signedXDR = await signTransaction(transactionData.xdr)
-
-      const receipt = await stellarClient.submitTipTransaction(signedXDR)
-      if (!receipt.transactionHash) {
-        throw new Error('Stellar did not return a transaction hash')
-      }
+      const deterministicHash =
+        await stellarClient.deriveTipTransactionHash(signedXDR)
 
       const tipRecord: PendingHighlightTipRecord = {
         articleId: String(articleId),
@@ -689,36 +766,61 @@ export function HighlightTipButton({
         stellarNetwork: quote.stellarNetwork,
         stellarSourceAccount: publicKey,
         intentId: quote.intentId,
-        stellarTxId: receipt.transactionHash,
+        signedXdr: signedXDR,
+        stellarTxId: deterministicHash,
         stellarLedger: undefined,
         stellarFeeCharged: undefined,
+      }
+      writePendingHighlightTipReceipt(tipRecord)
+      durableTipRecord = tipRecord
+      setPendingTipRecord(tipRecord)
+      setTipFlowStep('submitting')
+
+      const receipt = await stellarClient.submitTipTransaction(signedXDR)
+      if (
+        receipt.transactionHash &&
+        receipt.transactionHash.toLowerCase() !==
+          deterministicHash.toLowerCase()
+      ) {
+        throw new Error(
+          'Stellar returned a different transaction hash for the saved signed transaction.'
+        )
+      }
+      broadcastAccepted = true
+      const acceptedTipRecord = {
+        ...tipRecord,
         contractTipId: receipt.tipId,
       }
-      submittedTipRecord = tipRecord
-      writePendingHighlightTipReceipt(tipRecord)
-      setPendingTipRecord(tipRecord)
+      writePendingHighlightTipReceipt(acceptedTipRecord)
+      setPendingTipRecord(acceptedTipRecord)
       setTipFlowStep('confirming')
 
       const tipId = await submitHighlightTip(
-        toHighlightTipRecordArgs(tipRecord)
+        toHighlightTipRecordArgs(acceptedTipRecord)
       )
-      const syncedTipRecord = { ...tipRecord, submittedTipId: tipId }
-      writePendingHighlightTipReceipt(syncedTipRecord)
+      const syncedTipRecord = { ...acceptedTipRecord, submittedTipId: tipId }
+      try {
+        writePendingHighlightTipReceipt(syncedTipRecord)
+      } catch (error) {
+        console.error('Highlight tip submitted receipt update error:', error)
+      }
       setPendingTipRecord(syncedTipRecord)
       setSubmittedTipId(tipId)
-      verificationStarted = true
+      setTipFailure(HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE)
     } catch (error) {
       console.error('Highlight tip error:', error)
-      if (submittedTipRecord || pendingTipRecord) {
-        setTipFailure(HIGHLIGHT_TIP_SYNC_FAILURE_MESSAGE)
+      if (durableTipRecord) {
+        setTipFailure(
+          broadcastAccepted
+            ? HIGHLIGHT_TIP_SYNC_FAILURE_MESSAGE
+            : HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE
+        )
       } else {
         setTipFailure(formatTipFailureMessage(error))
       }
     } finally {
-      if (!verificationStarted) {
-        setIsLoading(false)
-        setTipFlowStep(null)
-      }
+      setIsLoading(false)
+      setTipFlowStep(null)
     }
   }
 
@@ -852,10 +954,11 @@ export function HighlightTipButton({
               authorName={authorName}
               amountCents={checkoutAmountCents}
               isAuthenticated={isAuthenticated}
-              isConnected={isConnected || Boolean(pendingTipRecord)}
+              isConnected={isConnected}
               isWalletLoading={isWalletLoading}
-              publicKey={
-                publicKey ?? pendingTipRecord?.stellarSourceAccount ?? null
+              publicKey={publicKey}
+              recoverySourcePublicKey={
+                pendingTipRecord?.stellarSourceAccount ?? null
               }
               isLoading={isLoading}
               tipSuccess={tipSuccess}

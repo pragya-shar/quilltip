@@ -42,6 +42,7 @@ const mockMutation = vi.hoisted(() =>
 const mockSignTransaction = vi.hoisted(() => vi.fn())
 const mockConnect = vi.hoisted(() => vi.fn())
 const mockBuildHighlightTipTransaction = vi.hoisted(() => vi.fn())
+const mockDeriveTipTransactionHash = vi.hoisted(() => vi.fn())
 const mockSubmitTipTransaction = vi.hoisted(() => vi.fn())
 
 vi.mock('@/components/providers/AuthContext', () => ({
@@ -90,6 +91,8 @@ vi.mock('@/lib/stellar/client', () => ({
   stellarClient: {
     buildHighlightTipTransaction: (...args: unknown[]) =>
       mockBuildHighlightTipTransaction(...args),
+    deriveTipTransactionHash: (...args: unknown[]) =>
+      mockDeriveTipTransactionHash(...args),
     submitTipTransaction: (...args: unknown[]) =>
       mockSubmitTipTransaction(...args),
   },
@@ -136,6 +139,16 @@ vi.mock('@/components/guide/WalletTooltip', () => ({
 }))
 
 import { HighlightTipButton } from '@/components/highlights/HighlightTipButton'
+
+function getStoredHighlightReceipts(): unknown[] {
+  const values: unknown[] = []
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index)
+    if (!key?.startsWith('quilltip:pendingHighlightTipReceipt:')) continue
+    values.push(JSON.parse(window.localStorage.getItem(key) ?? 'null'))
+  }
+  return values
+}
 
 async function openHighlightTipAndContinue(
   user: ReturnType<typeof userEvent.setup>,
@@ -193,6 +206,8 @@ describe('HighlightTipButton two-stage flow', () => {
       platformFee: 0.01,
       authorReceived: 0.99,
     })
+    mockDeriveTipTransactionHash.mockReset()
+    mockDeriveTipTransactionHash.mockResolvedValue('tx-highlight-123456789')
     mockSubmitTipTransaction.mockReset()
     mockSubmitTipTransaction.mockResolvedValue({
       transactionHash: 'tx-highlight-123456789',
@@ -348,22 +363,23 @@ describe('HighlightTipButton two-stage flow', () => {
   it('prepares trusted wallet fields, persists before submit, and keeps PENDING out of success', async () => {
     mockAuth.isAuthenticated = true
     mockIsConnected.mockReturnValue(true)
-    mockSubmitHighlightTip.mockImplementation(async () => {
-      const stored = JSON.parse(
-        window.localStorage.getItem('quilltip:pendingHighlightTipReceipts') ??
-          '[]'
-      )
+    mockSubmitTipTransaction.mockImplementation(async () => {
+      const stored = getStoredHighlightReceipts()
       expect(stored).toEqual([
         expect.objectContaining({
           articleId: 'articles:123',
           highlightId: 'server-highlight-id',
           tipperId: 'users:one',
           intentId: 'intent-id',
+          signedXdr: 'signed-xdr',
           stellarTxId: 'tx-highlight-123456789',
           stellarNetwork: 'TESTNET',
         }),
       ])
-      return 'highlight-tip-id'
+      return {
+        transactionHash: 'tx-highlight-123456789',
+        tipId: 'contract-tip-highlight',
+      }
     })
     const user = userEvent.setup({ delay: null })
     render(
@@ -407,6 +423,8 @@ describe('HighlightTipButton two-stage flow', () => {
         },
       }
     )
+    expect(mockDeriveTipTransactionHash).toHaveBeenCalledWith('signed-xdr')
+    expect(mockSubmitTipTransaction).toHaveBeenCalledWith('signed-xdr')
     expect(mockSubmitHighlightTip).toHaveBeenCalledWith({
       intentId: 'intent-id',
       stellarTxId: 'tx-highlight-123456789',
@@ -421,8 +439,11 @@ describe('HighlightTipButton two-stage flow', () => {
       mockBuildHighlightTipTransaction.mock.invocationCallOrder[0]
     ).toBeLessThan(mockSignTransaction.mock.invocationCallOrder[0]!)
     expect(mockSignTransaction.mock.invocationCallOrder[0]).toBeLessThan(
-      mockSubmitTipTransaction.mock.invocationCallOrder[0]!
+      mockDeriveTipTransactionHash.mock.invocationCallOrder[0]!
     )
+    expect(
+      mockDeriveTipTransactionHash.mock.invocationCallOrder[0]
+    ).toBeLessThan(mockSubmitTipTransaction.mock.invocationCallOrder[0]!)
     expect(mockSubmitTipTransaction.mock.invocationCallOrder[0]).toBeLessThan(
       mockSubmitHighlightTip.mock.invocationCallOrder[0]!
     )
@@ -473,7 +494,7 @@ describe('HighlightTipButton two-stage flow', () => {
     render(<HighlightTipButton {...props} />)
 
     expect(
-      await screen.findByText('Tip sent, app sync failed')
+      await screen.findByText('Tip transaction saved for recovery')
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Retry' }))
 
@@ -490,8 +511,247 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(mockPrepareHighlightTip).toHaveBeenCalledTimes(1)
     expect(mockBuildHighlightTipTransaction).toHaveBeenCalledTimes(1)
     expect(mockSignTransaction).toHaveBeenCalledTimes(1)
-    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(2)
+    expect(mockSubmitTipTransaction).toHaveBeenNthCalledWith(2, 'signed-xdr')
     expect(await screen.findByText(/verification delayed/i)).toBeInTheDocument()
+  })
+
+  it('aborts before broadcast when the signed receipt cannot be durably stored', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementationOnce(() => {
+      throw new Error('quota exceeded')
+    })
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await openHighlightTipAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /could not be saved/i
+    )
+    expect(mockDeriveTipTransactionHash).toHaveBeenCalledWith('signed-xdr')
+    expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
+    expect(mockSubmitHighlightTip).not.toHaveBeenCalled()
+  })
+
+  it('restores an ambiguous broadcast and retries only the exact stored signed transaction', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    mockSubmitTipTransaction
+      .mockRejectedValueOnce(new Error('RPC response lost'))
+      .mockResolvedValueOnce({
+        transactionHash: 'tx-highlight-123456789',
+      })
+    const user = userEvent.setup({ delay: null })
+    const props = {
+      articleId: 'articles:123' as never,
+      articleSlug: 'my-article',
+      authorName: 'Author',
+      authorStellarAddress: 'GABC',
+      highlightText: 'Some highlighted text',
+      startOffset: 10,
+      endOffset: 20,
+    }
+    const firstRender = render(<HighlightTipButton {...props} />)
+
+    await openHighlightTipAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/retry/i)
+    expect(getStoredHighlightReceipts()).toEqual([
+      expect.objectContaining({
+        signedXdr: 'signed-xdr',
+        stellarTxId: 'tx-highlight-123456789',
+      }),
+    ])
+
+    firstRender.unmount()
+    mockIsConnected.mockReturnValue(false)
+    render(<HighlightTipButton {...props} />)
+
+    expect(await screen.findByRole('button', { name: 'Retry' })).toBeEnabled()
+    expect(
+      screen.getByText('Transaction source: GABCDE...456789')
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/Connected:/)).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => {
+      expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(2)
+      expect(mockSubmitHighlightTip).toHaveBeenCalledTimes(1)
+    })
+    expect(mockSubmitTipTransaction).toHaveBeenNthCalledWith(1, 'signed-xdr')
+    expect(mockSubmitTipTransaction).toHaveBeenNthCalledWith(2, 'signed-xdr')
+    expect(mockPrepareHighlightTip).toHaveBeenCalledTimes(1)
+    expect(mockBuildHighlightTipTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSignTransaction).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not prepare a second payment when another tab stores a receipt after the dialog opens', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await openHighlightTipAndContinue(user)
+    const { writePendingHighlightTipReceipt } =
+      await import('@/lib/tip/pendingHighlightTipReceipt')
+    writePendingHighlightTipReceipt({
+      articleId: 'articles:123',
+      highlightId: 'server-highlight-id',
+      tipperId: 'users:one' as never,
+      amountCents: 100,
+      stellarNetwork: 'TESTNET',
+      stellarSourceAccount: 'GABCDEF123456789',
+      intentId: 'stored-intent-id' as never,
+      signedXdr: 'stored-signed-xdr',
+      stellarTxId: 'tx-highlight-123456789',
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    await waitFor(() => {
+      expect(mockSubmitTipTransaction).toHaveBeenCalledWith('stored-signed-xdr')
+    })
+    expect(mockPrepareHighlightTip).not.toHaveBeenCalled()
+    expect(mockBuildHighlightTipTransaction).not.toHaveBeenCalled()
+    expect(mockSignTransaction).not.toHaveBeenCalled()
+    expect(mockSubmitHighlightTip).toHaveBeenCalledWith(
+      expect.objectContaining({ intentId: 'stored-intent-id' })
+    )
+  })
+
+  it('stops loading and shows verification delayed when live status is unavailable', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    mockHighlightTipStatus.mockReturnValue(undefined)
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await openHighlightTipAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(await screen.findByText(/verification delayed/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+  })
+
+  it('never passes an unnormalized recovered ID into the typed retry mutation', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(false)
+    mockHighlightTipStatus.mockReturnValue(undefined)
+    const corruptSubmittedTipId = 'jh76g37y1p9vr3v4z5w6x7y8z9a0bcde'
+    const { writePendingHighlightTipReceipt } =
+      await import('@/lib/tip/pendingHighlightTipReceipt')
+    writePendingHighlightTipReceipt({
+      articleId: 'articles:123',
+      highlightId: 'server-highlight-id',
+      tipperId: 'users:one' as never,
+      amountCents: 100,
+      stellarNetwork: 'TESTNET',
+      stellarSourceAccount: 'GABCDEF123456789',
+      intentId: 'stored-intent-id' as never,
+      signedXdr: 'stored-signed-xdr',
+      stellarTxId: 'tx-highlight-123456789',
+      submittedTipId: corruptSubmittedTipId,
+    })
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await user.click(await screen.findByRole('button', { name: 'Retry' }))
+
+    expect(mockStatusQueryArgs).toHaveBeenCalledWith({
+      tipId: corruptSubmittedTipId,
+    })
+    expect(mockRetryHighlightTipVerification).not.toHaveBeenCalled()
+  })
+
+  it('keeps a live FAILED reason when it arrives before retry resolves', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    let resolveRetry: (() => void) | undefined
+    mockRetryHighlightTipVerification.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRetry = resolve
+        })
+    )
+    const user = userEvent.setup({ delay: null })
+    const props = {
+      articleId: 'articles:123' as never,
+      articleSlug: 'my-article',
+      authorName: 'Author',
+      authorStellarAddress: 'GABC',
+      highlightText: 'Some highlighted text',
+      startOffset: 10,
+      endOffset: 20,
+    }
+    const view = render(<HighlightTipButton {...props} />)
+
+    await openHighlightTipAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+    await user.click(await screen.findByRole('button', { name: 'Retry' }))
+
+    mockHighlightTipStatus.mockReturnValue({
+      status: 'FAILED',
+      failureReason: 'amount_mismatch',
+      verifiedAt: undefined,
+    })
+    view.rerender(<HighlightTipButton {...props} />)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'amount_mismatch'
+    )
+
+    await act(async () => {
+      resolveRetry?.()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('amount_mismatch')
+    })
+    expect(screen.getByRole('alert')).not.toHaveTextContent(
+      'verification delayed'
+    )
   })
 
   it('restores only the authenticated tipper receipt on a shared browser', async () => {
@@ -529,9 +789,9 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(
       screen.queryByText('Tip sent, app sync failed')
     ).not.toBeInTheDocument()
-    expect(
-      window.localStorage.getItem('quilltip:pendingHighlightTipReceipts')
-    ).toContain('users:one')
+    expect(getStoredHighlightReceipts()).toEqual([
+      expect.objectContaining({ tipperId: 'users:one' }),
+    ])
   })
 
   it('shows success and clears recovery only after caller-scoped CONFIRMED', async () => {
@@ -552,9 +812,9 @@ describe('HighlightTipButton two-stage flow', () => {
     await openHighlightTipAndContinue(user)
     await user.click(screen.getByRole('button', { name: 'Send Tip' }))
     expect(await screen.findByText(/verification delayed/i)).toBeInTheDocument()
-    expect(
-      window.localStorage.getItem('quilltip:pendingHighlightTipReceipts')
-    ).toContain('tx-highlight-123456789')
+    expect(getStoredHighlightReceipts()).toEqual([
+      expect.objectContaining({ stellarTxId: 'tx-highlight-123456789' }),
+    ])
 
     mockHighlightTipStatus.mockReturnValue({
       status: 'CONFIRMED',
@@ -564,9 +824,7 @@ describe('HighlightTipButton two-stage flow', () => {
     view.rerender(<HighlightTipButton {...props} />)
 
     expect(await screen.findByText(/Successfully tipped/i)).toBeInTheDocument()
-    expect(
-      window.localStorage.getItem('quilltip:pendingHighlightTipReceipts')
-    ).toBe('[]')
+    expect(getStoredHighlightReceipts()).toEqual([])
   })
 
   it('shows the caller-scoped FAILED reason without claiming writer credit', async () => {
@@ -627,9 +885,7 @@ describe('HighlightTipButton two-stage flow', () => {
     )
     expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
     expect(mockSubmitHighlightTip).not.toHaveBeenCalled()
-    expect(
-      window.localStorage.getItem('quilltip:pendingHighlightTipReceipts')
-    ).toBeNull()
+    expect(getStoredHighlightReceipts()).toEqual([])
   })
 
   it('does not open the wallet when the server and browser networks differ', async () => {

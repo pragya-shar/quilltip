@@ -520,6 +520,15 @@ export class StellarClient {
     throw new Error(errorMessage)
   }
 
+  async deriveTipTransactionHash(signedXDR: string): Promise<string> {
+    const { StellarSdk } = await this.getSdkContext()
+    const transaction = StellarSdk.TransactionBuilder.fromXDR(
+      signedXDR,
+      this.networkPassphrase
+    )
+    return transaction.hash().toString('hex')
+  }
+
   async getArticleTips(articleId: string): Promise<TipData[]> {
     const { StellarSdk, sorobanServer } = await this.getSdkContext()
     try {
