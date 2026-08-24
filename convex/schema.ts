@@ -215,7 +215,8 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_tipper', ['tipperId'])
-    .index('by_expiry', ['expiresAt']),
+    .index('by_expiry', ['expiresAt'])
+    .index('by_tip_expiry', ['tipId', 'expiresAt']),
 
   // Private, server-owned expectations for passage-level tips. Wallet clients
   // receive only the trusted transaction-build fields and cannot overwrite
@@ -257,7 +258,8 @@ export default defineSchema({
   })
     .index('by_tipper_expiry', ['tipperId', 'expiresAt'])
     .index('by_expiry', ['expiresAt'])
-    .index('by_tip', ['tipId']),
+    .index('by_tip', ['tipId'])
+    .index('by_tip_expiry', ['tipId', 'expiresAt']),
 
   // Tips table
   tips: defineTable({

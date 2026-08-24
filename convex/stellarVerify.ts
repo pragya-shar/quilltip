@@ -17,10 +17,12 @@ import {
   ARTICLE_TIP_TX_EARLY_GRACE_MS,
   ARTICLE_TIP_TX_LATE_GRACE_MS,
   HORIZON_VERIFY_MAX_ATTEMPTS,
+  HORIZON_NOT_FOUND_TERMINAL_REASON,
   STROOPS_PER_XLM,
   TIP_AMOUNT_USD_TOLERANCE,
   TIP_HIGHLIGHT_FUNCTIONS,
   getTippingContractId,
+  isPastHorizonNotFoundIndexingGrace,
   verifyDelayMs,
 } from './lib/constants'
 
@@ -227,6 +229,19 @@ export const verifyHighlightTip = internalAction({
 
       if (!exactResult.ok) {
         if (exactResult.kind === 'transient') {
+          if (
+            exactResult.reason === 'not_found' &&
+            isPastHorizonNotFoundIndexingGrace(tip.expectedMaxTime)
+          ) {
+            await ctx.runMutation(
+              internal.stellarVerify.markHighlightTipFailed,
+              {
+                id: args.highlightTipId,
+                reason: HORIZON_NOT_FOUND_TERMINAL_REASON,
+              }
+            )
+            return
+          }
           if (args.attempt < HORIZON_VERIFY_MAX_ATTEMPTS) {
             await ctx.scheduler.runAfter(
               verifyDelayMs(args.attempt),

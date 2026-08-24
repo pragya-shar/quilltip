@@ -48,6 +48,27 @@ export const HORIZON_VERIFY_MAX_ATTEMPTS = 3
 export const ARTICLE_TIP_TX_EARLY_GRACE_MS = 60_000
 export const ARTICLE_TIP_TX_LATE_GRACE_MS = 2 * 60_000
 
+// Horizon can briefly return 404 while it indexes a transaction accepted by
+// the network. Once the signed transaction's maximum time has passed plus
+// this grace, however, that specific receipt can no longer become valid.
+export const HORIZON_NOT_FOUND_INDEXING_GRACE_MS = 10 * 60_000
+export const HORIZON_NOT_FOUND_TERMINAL_REASON =
+  'transaction_not_found_after_indexing_grace'
+
+export function isPastHorizonNotFoundIndexingGrace(
+  expectedMaxTime: string,
+  nowMs = Date.now()
+): boolean {
+  const maxTimeSeconds = Number(expectedMaxTime)
+  const deadlineMs = maxTimeSeconds * 1000 + HORIZON_NOT_FOUND_INDEXING_GRACE_MS
+  return (
+    Number.isSafeInteger(maxTimeSeconds) &&
+    maxTimeSeconds > 0 &&
+    Number.isSafeInteger(deadlineMs) &&
+    nowMs > deadlineMs
+  )
+}
+
 // Delay before the (attempt+1)th verification fires, given that `attempt`
 // just returned a transient failure. Tripling backoff: 5s, 15s, 45s. Only
 // 5s and 15s are reachable today (MAX_ATTEMPTS=3 → at most two reschedules),

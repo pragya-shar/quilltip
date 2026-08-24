@@ -1,5 +1,9 @@
 import { v } from 'convex/values'
-import { internalAction, internalQuery } from './_generated/server'
+import {
+  internalAction,
+  internalMutation,
+  internalQuery,
+} from './_generated/server'
 import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { verifyTipTransaction } from './lib/horizon'
@@ -18,6 +22,120 @@ const RECONCILE_WINDOW_MS = 7 * 60 * 60 * 1000
 // chain. Reconciliation runs every 6h, so a tip can sit stuck for at most
 // one cycle before being re-kicked.
 const STUCK_PENDING_THRESHOLD_MS = 10 * 60 * 1000
+const EXPIRED_INTENT_CLEANUP_LIMIT = 100
+
+export const getExpiredUnlinkedArticleTipIntentIds = internalQuery({
+  args: { nowMs: v.number() },
+  returns: v.array(v.id('articleTipIntents')),
+  handler: async (ctx, args): Promise<Id<'articleTipIntents'>[]> => {
+    const intents = await ctx.db
+      .query('articleTipIntents')
+      .withIndex('by_tip_expiry', (q) =>
+        q.eq('tipId', undefined).lt('expiresAt', args.nowMs)
+      )
+      .take(EXPIRED_INTENT_CLEANUP_LIMIT)
+    return intents.map((intent) => intent._id)
+  },
+})
+
+export const getExpiredUnlinkedHighlightTipIntentIds = internalQuery({
+  args: { nowMs: v.number() },
+  returns: v.array(v.id('highlightTipIntents')),
+  handler: async (ctx, args): Promise<Id<'highlightTipIntents'>[]> => {
+    const intents = await ctx.db
+      .query('highlightTipIntents')
+      .withIndex('by_tip_expiry', (q) =>
+        q.eq('tipId', undefined).lt('expiresAt', args.nowMs)
+      )
+      .take(EXPIRED_INTENT_CLEANUP_LIMIT)
+    return intents.map((intent) => intent._id)
+  },
+})
+
+export const deleteExpiredUnlinkedArticleTipIntents = internalMutation({
+  args: {
+    intentIds: v.array(v.id('articleTipIntents')),
+    nowMs: v.number(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let deleted = 0
+    for (const intentId of args.intentIds) {
+      const intent = await ctx.db.get(intentId)
+      if (!intent || intent.tipId || intent.expiresAt >= args.nowMs) continue
+      await ctx.db.delete(intentId)
+      deleted++
+    }
+    return deleted
+  },
+})
+
+export const deleteExpiredUnlinkedHighlightTipIntents = internalMutation({
+  args: {
+    intentIds: v.array(v.id('highlightTipIntents')),
+    nowMs: v.number(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let deleted = 0
+    for (const intentId of args.intentIds) {
+      const intent = await ctx.db.get(intentId)
+      if (!intent || intent.tipId || intent.expiresAt >= args.nowMs) continue
+      await ctx.db.delete(intentId)
+      deleted++
+    }
+    return deleted
+  },
+})
+
+/**
+ * Drain expired pre-wallet intent rows in bounded batches. Linked intents are
+ * immutable audit records and are checked again in the delete mutation to
+ * protect a concurrent submission between the query and mutation.
+ */
+export const cleanupExpiredTipIntents = internalAction({
+  args: {},
+  returns: v.object({
+    articleIntentsDeleted: v.number(),
+    highlightIntentsDeleted: v.number(),
+  }),
+  handler: async (
+    ctx
+  ): Promise<{
+    articleIntentsDeleted: number
+    highlightIntentsDeleted: number
+  }> => {
+    const nowMs = Date.now()
+    const [articleIntentIds, highlightIntentIds]: [
+      Id<'articleTipIntents'>[],
+      Id<'highlightTipIntents'>[],
+    ] = await Promise.all([
+      ctx.runQuery(
+        internal.reconcileTips.getExpiredUnlinkedArticleTipIntentIds,
+        {
+          nowMs,
+        }
+      ),
+      ctx.runQuery(
+        internal.reconcileTips.getExpiredUnlinkedHighlightTipIntentIds,
+        { nowMs }
+      ),
+    ])
+    const [articleIntentsDeleted, highlightIntentsDeleted] = await Promise.all([
+      ctx.runMutation(
+        internal.reconcileTips.deleteExpiredUnlinkedArticleTipIntents,
+        { intentIds: articleIntentIds, nowMs }
+      ),
+      ctx.runMutation(
+        internal.reconcileTips.deleteExpiredUnlinkedHighlightTipIntents,
+        { intentIds: highlightIntentIds, nowMs }
+      ),
+    ])
+    const summary = { articleIntentsDeleted, highlightIntentsDeleted }
+    console.log('[reconcileTips] expired intent cleanup', summary)
+    return summary
+  },
+})
 
 /**
  * Internal read used by the reconciliation action to hydrate recent

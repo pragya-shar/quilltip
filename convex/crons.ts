@@ -32,6 +32,14 @@ crons.interval(
   internal.reconcileTips.recoverStuckPendingArticleTips
 )
 
+// Expired unsigned intents have no accounting value. Linked intent rows stay
+// as an audit trail; the action deletes only a bounded unlinked batch.
+crons.interval(
+  'cleanup expired tip intents',
+  { hours: 1 },
+  internal.reconcileTips.cleanupExpiredTipIntents
+)
+
 // Refresh the XLM/USD price cache. The browser reads the cached value via
 // xlmPrice.getCachedXlmPrice rather than calling Coingecko/Coincap/Binance/
 // Kraken directly, which collapses the CSP allowlist and amortises oracle
