@@ -1,17 +1,34 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { Keypair } from '@stellar/stellar-sdk'
 import { api } from './_generated/api'
 import schema from './schema'
 import type { Id } from './_generated/dataModel'
 
-const emptyDoc = { type: 'doc', content: [] }
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
 
-const TIPPER_STELLAR_ADDRESS = `G${'A'.repeat(55)}`
-const AUTHOR_STELLAR_ADDRESS = `G${'B'.repeat(55)}`
+const ARTICLE_TEXT =
+  'Intro authoritative passage ' + 'supporting article text '.repeat(10)
+const articleContent = {
+  type: 'doc',
+  content: [
+    {
+      type: 'paragraph',
+      content: [{ type: 'text', text: ARTICLE_TEXT }],
+    },
+  ],
+}
+const TIPPER_STELLAR_ADDRESS = Keypair.random().publicKey()
+const AUTHOR_STELLAR_ADDRESS = Keypair.random().publicKey()
+const CHECKSUM_INVALID_STELLAR_ADDRESS = `G${'A'.repeat(55)}`
 const TIPPING_CONTRACT_ID =
   'CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY'
+const TX_PRIMARY = 'a'.repeat(64)
+const TX_EXPIRED = 'b'.repeat(64)
+const TX_CROSS_USER = 'c'.repeat(64)
+const TX_OWNED = 'd'.repeat(64)
+const TX_REUSED = 'e'.repeat(64)
 
 beforeAll(() => {
   process.env.TIPPING_CONTRACT_ID = TIPPING_CONTRACT_ID
@@ -39,7 +56,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
     const articleId: Id<'articles'> = await ctx.db.insert('articles', {
       slug: 'hello',
       title: 'Hello',
-      content: emptyDoc,
+      content: articleContent,
       published: true,
       publishedAt: now,
       authorId,
@@ -279,12 +296,75 @@ describe('prepareHighlightTip', () => {
         stellarSourceAccount: 'not-a-stellar-account',
       })
     ).rejects.toThrow('Invalid Stellar source account')
+    await expect(
+      asTipper.mutation(api.highlightTips.prepareHighlightTip, {
+        ...prepareArgs(articleId),
+        stellarSourceAccount: CHECKSUM_INVALID_STELLAR_ADDRESS,
+      })
+    ).rejects.toThrow('Invalid Stellar source account')
 
     await t.run(async (ctx) => {
       expect(await ctx.db.query('highlightTipIntents').collect()).toHaveLength(
         0
       )
     })
+  })
+
+  it('requires the normalized passage to occur in stored article content', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+    const asTipper = t.withIdentity({ subject: tipperId })
+
+    await expect(
+      asTipper.mutation(api.highlightTips.prepareHighlightTip, {
+        ...prepareArgs(articleId),
+        highlightText: 'passage fabricated by caller',
+      })
+    ).rejects.toThrow('Highlight text does not match article content')
+
+    await expect(
+      asTipper.mutation(api.highlightTips.prepareHighlightTip, {
+        ...prepareArgs(articleId),
+        highlightText: 'authoritative   \n  passage',
+      })
+    ).resolves.toMatchObject({ intentId: expect.any(String) })
+  })
+
+  it('bounds offsets against stored article text and validates optional DOM paths', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+    const asTipper = t.withIdentity({ subject: tipperId })
+
+    await expect(
+      asTipper.mutation(api.highlightTips.prepareHighlightTip, {
+        ...prepareArgs(articleId),
+        startOffset: ARTICLE_TEXT.length,
+        endOffset: ARTICLE_TEXT.length + 1,
+      })
+    ).rejects.toThrow('Invalid highlight selection bounds')
+
+    for (const startContainerPath of [
+      '',
+      '.0',
+      '0.',
+      '0..1',
+      '0.-1',
+      '0.a',
+      `${'0.'.repeat(128)}0`,
+    ]) {
+      await expect(
+        asTipper.mutation(api.highlightTips.prepareHighlightTip, {
+          ...prepareArgs(articleId),
+          startContainerPath,
+        })
+      ).rejects.toThrow('Invalid highlight container path')
+    }
+    await expect(
+      asTipper.mutation(api.highlightTips.prepareHighlightTip, {
+        ...prepareArgs(articleId),
+        endContainerPath: '1..2',
+      })
+    ).rejects.toThrow('Invalid highlight container path')
   })
 
   it('requires authentication and a receiving wallet', async () => {
@@ -296,13 +376,24 @@ describe('prepareHighlightTip', () => {
     ).rejects.toThrow('Not authenticated')
 
     await t.run(async (ctx) => {
+      await ctx.db.patch(authorId, {
+        stellarAddress: CHECKSUM_INVALID_STELLAR_ADDRESS,
+      })
+    })
+    await expect(
+      t
+        .withIdentity({ subject: tipperId })
+        .mutation(api.highlightTips.prepareHighlightTip, prepareArgs(articleId))
+    ).rejects.toThrow('Author has not configured a valid receiving wallet')
+
+    await t.run(async (ctx) => {
       await ctx.db.patch(authorId, { stellarAddress: undefined })
     })
     await expect(
       t
         .withIdentity({ subject: tipperId })
         .mutation(api.highlightTips.prepareHighlightTip, prepareArgs(articleId))
-    ).rejects.toThrow('Author has not configured a receiving wallet')
+    ).rejects.toThrow('Author has not configured a valid receiving wallet')
   })
 
   it('rejects missing articles and authors with explicit errors', async () => {
@@ -345,7 +436,7 @@ describe('submitHighlightTip', () => {
       api.highlightTips.submitHighlightTip,
       {
         intentId: quote.intentId,
-        stellarTxId: 'tx-highlight-intent',
+        stellarTxId: TX_PRIMARY,
         stellarLedger: 123,
         stellarFeeCharged: '0.00001',
         contractTipId: 'contract-tip-1',
@@ -372,7 +463,7 @@ describe('submitHighlightTip', () => {
       amountCents: 500,
       amountUsd: 5,
       message: 'This line stayed with me.',
-      stellarTxId: 'tx-highlight-intent',
+      stellarTxId: TX_PRIMARY,
       stellarNetwork: 'TESTNET',
       stellarMemo: quote.highlightId,
       stellarLedger: 123,
@@ -403,7 +494,7 @@ describe('submitHighlightTip', () => {
     })
     const receipt = {
       intentId: quote.intentId,
-      stellarTxId: 'tx-expired-highlight-intent',
+      stellarTxId: TX_EXPIRED,
     }
 
     const first = await asTipper.mutation(
@@ -437,7 +528,7 @@ describe('submitHighlightTip', () => {
     await expect(
       asOther.mutation(api.highlightTips.submitHighlightTip, {
         intentId: quote.intentId,
-        stellarTxId: 'tx-cross-user',
+        stellarTxId: TX_CROSS_USER,
       })
     ).rejects.toThrow('Highlight tip intent not found')
 
@@ -445,7 +536,7 @@ describe('submitHighlightTip', () => {
       api.highlightTips.submitHighlightTip,
       {
         intentId: quote.intentId,
-        stellarTxId: 'tx-owned-highlight',
+        stellarTxId: TX_OWNED,
       }
     )
     await expect(
@@ -466,7 +557,7 @@ describe('submitHighlightTip', () => {
     const { asTipper, quote, articleId } = await prepare(t)
     await asTipper.mutation(api.highlightTips.submitHighlightTip, {
       intentId: quote.intentId,
-      stellarTxId: 'tx-reused-highlight',
+      stellarTxId: TX_REUSED,
     })
     const second = await asTipper.mutation(
       api.highlightTips.prepareHighlightTip,
@@ -476,10 +567,58 @@ describe('submitHighlightTip', () => {
     await expect(
       asTipper.mutation(api.highlightTips.submitHighlightTip, {
         intentId: second.intentId,
-        stellarTxId: 'tx-reused-highlight',
+        stellarTxId: TX_REUSED,
       })
     ).rejects.toThrow(
       'This Stellar transaction is already linked to a different tip.'
     )
+  })
+
+  it('normalizes a valid transaction hash once for idempotent lookup and storage', async () => {
+    const t = convexTest(schema, modules)
+    const { asTipper, quote } = await prepare(t)
+    const uppercaseHash = 'AB'.repeat(32)
+    const lowercaseHash = uppercaseHash.toLowerCase()
+
+    const first = await asTipper.mutation(
+      api.highlightTips.submitHighlightTip,
+      {
+        intentId: quote.intentId,
+        stellarTxId: uppercaseHash,
+      }
+    )
+    const second = await asTipper.mutation(
+      api.highlightTips.submitHighlightTip,
+      {
+        intentId: quote.intentId,
+        stellarTxId: lowercaseHash,
+      }
+    )
+
+    expect(second).toBe(first)
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(first)).toMatchObject({
+        stellarTxId: lowercaseHash,
+      })
+    })
+  })
+
+  it('rejects transaction hashes that are not exactly 64 hexadecimal characters', async () => {
+    const t = convexTest(schema, modules)
+    const { asTipper, quote } = await prepare(t)
+
+    for (const stellarTxId of [
+      'f'.repeat(63),
+      'f'.repeat(65),
+      'g'.repeat(64),
+      ` ${'f'.repeat(64)}`,
+    ]) {
+      await expect(
+        asTipper.mutation(api.highlightTips.submitHighlightTip, {
+          intentId: quote.intentId,
+          stellarTxId,
+        })
+      ).rejects.toThrow('Invalid Stellar transaction hash')
+    }
   })
 })

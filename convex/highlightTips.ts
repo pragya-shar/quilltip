@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server'
 import { ConvexError, v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
+import { StrKey } from '@stellar/stellar-sdk'
 import { internal } from './_generated/api'
 import {
   TIP_MIN_CENTS,
@@ -18,15 +19,29 @@ import {
   shortArticleIdServer,
 } from './lib/articleTipExpectation'
 import { generateHighlightIdServer } from './lib/highlightHash'
+import { extractTextFromTiptapJson } from './lib/tiptapContent'
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
 
 const MAX_OUTSTANDING_HIGHLIGHT_TIP_INTENTS = 5
+const MAX_HIGHLIGHT_CONTAINER_PATH_LENGTH = 256
 
 function stroopsToXlm(stroops: string): string {
   const padded = stroops.padStart(8, '0')
   const whole = padded.slice(0, -7)
   const fraction = padded.slice(-7).replace(/0+$/, '')
   return fraction ? `${whole}.${fraction}` : whole
+}
+
+function normalizePlainText(text: string): string {
+  return text.trim().replace(/\s+/g, ' ')
+}
+
+function isValidHighlightContainerPath(path: string | undefined): boolean {
+  return (
+    path === undefined ||
+    (path.length <= MAX_HIGHLIGHT_CONTAINER_PATH_LENGTH &&
+      /^\d+(?:\.\d+)*$/.test(path))
+  )
 }
 
 export const prepareHighlightTip = mutation({
@@ -76,10 +91,16 @@ export const prepareHighlightTip = mutation({
     ) {
       throw new Error('Invalid highlight selection bounds')
     }
+    if (
+      !isValidHighlightContainerPath(args.startContainerPath) ||
+      !isValidHighlightContainerPath(args.endContainerPath)
+    ) {
+      throw new Error('Invalid highlight container path')
+    }
     if (args.message && args.message.length > 500) {
       throw new Error('Message must be 500 characters or less')
     }
-    if (!/^G[A-Z2-7]{55}$/.test(args.stellarSourceAccount)) {
+    if (!StrKey.isValidEd25519PublicKey(args.stellarSourceAccount)) {
       throw new Error('Invalid Stellar source account')
     }
 
@@ -90,10 +111,26 @@ export const prepareHighlightTip = mutation({
     if (!tipper) throw new Error('User not found')
     if (!article) throw new Error('Article not found')
 
+    const articlePlainText = extractTextFromTiptapJson(article.content)
+    if (args.endOffset > articlePlainText.length) {
+      throw new Error('Invalid highlight selection bounds')
+    }
+    if (
+      !normalizePlainText(articlePlainText).includes(
+        normalizePlainText(args.highlightText)
+      )
+    ) {
+      throw new Error('Highlight text does not match article content')
+    }
+
     const author = await ctx.db.get(article.authorId)
     if (!author) throw new Error('Author not found')
-    if (!author.stellarAddress || typeof author.stellarAddress !== 'string') {
-      throw new Error('Author has not configured a receiving wallet')
+    if (
+      !author.stellarAddress ||
+      typeof author.stellarAddress !== 'string' ||
+      !StrKey.isValidEd25519PublicKey(author.stellarAddress)
+    ) {
+      throw new Error('Author has not configured a valid receiving wallet')
     }
 
     const now = Date.now()
@@ -235,9 +272,10 @@ export const submitHighlightTip = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
-    if (!args.stellarTxId.trim()) {
-      throw new Error('A Stellar transaction hash is required')
+    if (!/^[0-9a-fA-F]{64}$/.test(args.stellarTxId)) {
+      throw new Error('Invalid Stellar transaction hash')
     }
+    const stellarTxId = args.stellarTxId.toLowerCase()
 
     const intent = await ctx.db.get(args.intentId)
     if (!intent || intent.tipperId !== userId) {
@@ -245,10 +283,7 @@ export const submitHighlightTip = mutation({
     }
     if (intent.tipId) {
       const existingForIntent = await ctx.db.get(intent.tipId)
-      if (
-        existingForIntent &&
-        existingForIntent.stellarTxId === args.stellarTxId
-      ) {
+      if (existingForIntent && existingForIntent.stellarTxId === stellarTxId) {
         return existingForIntent._id
       }
       throw new ConvexError(
@@ -258,7 +293,7 @@ export const submitHighlightTip = mutation({
 
     const existingForHash = await ctx.db
       .query('highlightTips')
-      .withIndex('by_stellar_tx', (q) => q.eq('stellarTxId', args.stellarTxId))
+      .withIndex('by_stellar_tx', (q) => q.eq('stellarTxId', stellarTxId))
       .first()
     if (existingForHash) {
       if (
@@ -293,7 +328,7 @@ export const submitHighlightTip = mutation({
       amountUsd: intent.amountUsd,
       amountCents: intent.amountCents,
       message: intent.message,
-      stellarTxId: args.stellarTxId,
+      stellarTxId,
       stellarNetwork: intent.expectedStellarNetwork,
       stellarMemo: intent.expectedHighlightId,
       stellarLedger: args.stellarLedger,
