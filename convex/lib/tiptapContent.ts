@@ -131,7 +131,7 @@ export function resolveCanonicalHighlightPassage(
   }
 ): CanonicalHighlightPassage {
   const segments = collectTextSegments(content)
-  const totalTextLength = segments.at(-1)?.textEnd ?? 0
+  const totalTextLength = segments[segments.length - 1]?.textEnd ?? 0
   if (
     !Number.isSafeInteger(selection.startOffset) ||
     !Number.isSafeInteger(selection.endOffset) ||
