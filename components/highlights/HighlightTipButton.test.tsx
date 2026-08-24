@@ -44,6 +44,7 @@ const mockConnect = vi.hoisted(() => vi.fn())
 const mockBuildHighlightTipTransaction = vi.hoisted(() => vi.fn())
 const mockDeriveTipTransactionHash = vi.hoisted(() => vi.fn())
 const mockSubmitTipTransaction = vi.hoisted(() => vi.fn())
+const mockPaymentLockRequest = vi.hoisted(() => vi.fn())
 
 vi.mock('@/components/providers/AuthContext', () => ({
   useAuth: () => ({
@@ -162,6 +163,18 @@ async function openHighlightTipAndContinue(
 describe('HighlightTipButton two-stage flow', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    mockPaymentLockRequest.mockReset()
+    mockPaymentLockRequest.mockImplementation(
+      (
+        name: string,
+        _options: unknown,
+        callback: (lock: { name: string; mode: 'exclusive' }) => unknown
+      ) => Promise.resolve(callback({ name, mode: 'exclusive' }))
+    )
+    Object.defineProperty(window.navigator, 'locks', {
+      configurable: true,
+      value: { request: mockPaymentLockRequest },
+    })
     mockAuth.isAuthenticated = false
     mockAuth.isLoading = false
     mockAuth.userId = 'users:one'
@@ -640,6 +653,297 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(mockSubmitHighlightTip).toHaveBeenCalledWith(
       expect.objectContaining({ intentId: 'stored-intent-id' })
     )
+  })
+
+  it('waits for the exclusive context lock and does not create or broadcast when another flow persists the matching receipt first', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    let grantLock: (() => void) | undefined
+    mockPaymentLockRequest.mockImplementationOnce(
+      (
+        name: string,
+        _options: unknown,
+        callback: (lock: { name: string; mode: 'exclusive' }) => unknown
+      ) =>
+        new Promise((resolve, reject) => {
+          grantLock = () => {
+            void Promise.resolve(callback({ name, mode: 'exclusive' })).then(
+              resolve,
+              reject
+            )
+          }
+        })
+    )
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await openHighlightTipAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    await waitFor(() => {
+      expect(mockPaymentLockRequest).toHaveBeenCalledWith(
+        'quilltip:highlight-tip-payment:v1:users%3Aone:articles%3A123:server-highlight-id:TESTNET',
+        { mode: 'exclusive' },
+        expect.any(Function)
+      )
+    })
+    const { writePendingHighlightTipReceipt } =
+      await import('@/lib/tip/pendingHighlightTipReceipt')
+    writePendingHighlightTipReceipt({
+      articleId: 'articles:123',
+      highlightId: 'server-highlight-id',
+      tipperId: 'users:one' as never,
+      amountCents: 100,
+      stellarNetwork: 'TESTNET',
+      stellarSourceAccount: 'GABCDEF123456789',
+      intentId: 'competing-intent-id' as never,
+      signedXdr: 'competing-signed-xdr',
+      stellarTxId: 'competing-transaction-hash',
+    })
+
+    await act(async () => {
+      grantLock?.()
+      await Promise.resolve()
+    })
+
+    expect(
+      await screen.findByText('Tip transaction saved for recovery')
+    ).toBeInTheDocument()
+    expect(mockPrepareHighlightTip).not.toHaveBeenCalled()
+    expect(mockBuildHighlightTipTransaction).not.toHaveBeenCalled()
+    expect(mockSignTransaction).not.toHaveBeenCalled()
+    expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
+  })
+
+  it('fails closed before preparing when the browser does not support payment locks', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    Object.defineProperty(window.navigator, 'locks', {
+      configurable: true,
+      value: undefined,
+    })
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await openHighlightTipAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /could not safely reserve this highlight payment/i
+    )
+    expect(mockPrepareHighlightTip).not.toHaveBeenCalled()
+    expect(mockBuildHighlightTipTransaction).not.toHaveBeenCalled()
+    expect(mockSignTransaction).not.toHaveBeenCalled()
+    expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
+  })
+
+  it('fails closed before preparing when the exclusive payment lock is unavailable', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    mockPaymentLockRequest.mockRejectedValueOnce(
+      new Error('Lock request unavailable')
+    )
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await openHighlightTipAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /could not safely reserve this highlight payment/i
+    )
+    expect(mockPrepareHighlightTip).not.toHaveBeenCalled()
+    expect(mockBuildHighlightTipTransaction).not.toHaveBeenCalled()
+    expect(mockSignTransaction).not.toHaveBeenCalled()
+    expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
+  })
+
+  it('releases the exclusive payment lock after wallet cancellation so retry can acquire it', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    mockSignTransaction.mockRejectedValueOnce(new Error('User declined'))
+    let activeLocks = 0
+    let releasedLocks = 0
+    mockPaymentLockRequest.mockImplementation(
+      async (
+        name: string,
+        _options: unknown,
+        callback: (lock: { name: string; mode: 'exclusive' }) => unknown
+      ) => {
+        expect(activeLocks).toBe(0)
+        activeLocks += 1
+        try {
+          return await callback({ name, mode: 'exclusive' })
+        } finally {
+          activeLocks -= 1
+          releasedLocks += 1
+        }
+      }
+    )
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await openHighlightTipAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Wallet prompt was dismissed/i
+    )
+    expect(activeLocks).toBe(0)
+    expect(releasedLocks).toBe(1)
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => {
+      expect(mockSubmitTipTransaction).toHaveBeenCalledWith('signed-xdr')
+    })
+    expect(mockPaymentLockRequest).toHaveBeenCalledTimes(2)
+    expect(activeLocks).toBe(0)
+    expect(releasedLocks).toBe(2)
+  })
+
+  it('releases the exclusive payment lock after a preparation error so retry can acquire it', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    mockPrepareHighlightTip.mockRejectedValueOnce(
+      new Error('Preparation unavailable')
+    )
+    let activeLocks = 0
+    let releasedLocks = 0
+    mockPaymentLockRequest.mockImplementation(
+      async (
+        name: string,
+        _options: unknown,
+        callback: (lock: { name: string; mode: 'exclusive' }) => unknown
+      ) => {
+        expect(activeLocks).toBe(0)
+        activeLocks += 1
+        try {
+          return await callback({ name, mode: 'exclusive' })
+        } finally {
+          activeLocks -= 1
+          releasedLocks += 1
+        }
+      }
+    )
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    await openHighlightTipAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Preparation unavailable/i
+    )
+    expect(activeLocks).toBe(0)
+    expect(releasedLocks).toBe(1)
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => {
+      expect(mockSubmitTipTransaction).toHaveBeenCalledWith('signed-xdr')
+    })
+    expect(mockPaymentLockRequest).toHaveBeenCalledTimes(2)
+    expect(activeLocks).toBe(0)
+    expect(releasedLocks).toBe(2)
+  })
+
+  it('recovers an existing receipt without requiring payment-lock support', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(false)
+    Object.defineProperty(window.navigator, 'locks', {
+      configurable: true,
+      value: undefined,
+    })
+    const { writePendingHighlightTipReceipt } =
+      await import('@/lib/tip/pendingHighlightTipReceipt')
+    writePendingHighlightTipReceipt({
+      articleId: 'articles:123',
+      highlightId: 'server-highlight-id',
+      tipperId: 'users:one' as never,
+      amountCents: 100,
+      stellarNetwork: 'TESTNET',
+      stellarSourceAccount: 'GRECOVEREDSOURCE',
+      intentId: 'stored-intent-id' as never,
+      signedXdr: 'stored-signed-xdr',
+      stellarTxId: 'stored-transaction-hash',
+    })
+    mockSubmitTipTransaction.mockResolvedValueOnce({
+      transactionHash: 'stored-transaction-hash',
+    })
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GABC"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    expect(
+      await screen.findByText('Tip transaction saved for recovery')
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => {
+      expect(mockSubmitTipTransaction).toHaveBeenCalledWith('stored-signed-xdr')
+    })
+    expect(mockPrepareHighlightTip).not.toHaveBeenCalled()
+    expect(mockBuildHighlightTipTransaction).not.toHaveBeenCalled()
+    expect(mockSignTransaction).not.toHaveBeenCalled()
+    expect(mockPaymentLockRequest).not.toHaveBeenCalled()
   })
 
   it('stops loading and shows verification delayed when live status is unavailable', async () => {

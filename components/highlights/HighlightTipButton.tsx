@@ -124,6 +124,62 @@ const HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE: TipFailureMessage = {
     'Your Stellar transaction was submitted. Retry will check that same transaction without sending another payment.',
 }
 
+const HIGHLIGHT_TIP_PAYMENT_LOCK_PREFIX = 'quilltip:highlight-tip-payment:v1'
+const HIGHLIGHT_TIP_PAYMENT_LOCK_FAILURE_MESSAGE =
+  'This browser could not safely reserve this highlight payment. No transaction was sent. Use a browser with Web Locks support, then retry.'
+
+type HighlightTipPaymentLockContext = {
+  tipperId: string
+  articleId: string
+  highlightId: string
+  stellarNetwork: 'TESTNET' | 'MAINNET'
+}
+
+function highlightTipPaymentLockName({
+  tipperId,
+  articleId,
+  highlightId,
+  stellarNetwork,
+}: HighlightTipPaymentLockContext): string {
+  return `${HIGHLIGHT_TIP_PAYMENT_LOCK_PREFIX}:${[
+    tipperId,
+    articleId,
+    highlightId,
+    stellarNetwork,
+  ]
+    .map((part) => encodeURIComponent(part))
+    .join(':')}`
+}
+
+async function withHighlightTipPaymentLock<T>(
+  context: HighlightTipPaymentLockContext,
+  operation: () => Promise<T>
+): Promise<T> {
+  const lockManager =
+    typeof navigator === 'undefined' ? undefined : navigator.locks
+  if (!lockManager?.request) {
+    throw new Error(HIGHLIGHT_TIP_PAYMENT_LOCK_FAILURE_MESSAGE)
+  }
+
+  let acquired = false
+  try {
+    return await lockManager.request(
+      highlightTipPaymentLockName(context),
+      { mode: 'exclusive' },
+      async (lock: Lock | null) => {
+        if (!lock) {
+          throw new Error(HIGHLIGHT_TIP_PAYMENT_LOCK_FAILURE_MESSAGE)
+        }
+        acquired = true
+        return await operation()
+      }
+    )
+  } catch (error) {
+    if (acquired) throw error
+    throw new Error(HIGHLIGHT_TIP_PAYMENT_LOCK_FAILURE_MESSAGE)
+  }
+}
+
 function configuredStellarNetwork(): 'TESTNET' | 'MAINNET' | null {
   return STELLAR_CONFIG.NETWORK === 'TESTNET' ||
     STELLAR_CONFIG.NETWORK === 'MAINNET'
@@ -698,6 +754,14 @@ export function HighlightTipButton({
       return
     }
 
+    if (!currentHighlightId || !stellarNetwork) {
+      const message =
+        'The highlight payment context is not ready. No transaction was sent. Please retry.'
+      setTipFormError({ title: message })
+      toast.error(message)
+      return
+    }
+
     if (!authorStellarAddress) {
       const message = 'Author has not set up their Stellar wallet yet'
       setTipFormError({ title: message })
@@ -725,80 +789,122 @@ export function HighlightTipButton({
     let durableTipRecord: PendingHighlightTipRecord | null = null
     let broadcastAccepted = false
     try {
-      stellarFlowEmitter.emit({ flow: 'tip', step: 'awaiting_signature' })
-      const quote = await prepareHighlightTip({
-        articleId,
-        highlightText,
-        startOffset,
-        endOffset,
-        startContainerPath,
-        endContainerPath,
-        amountCents,
-        stellarSourceAccount: publicKey,
-      })
-      if (quote.stellarNetwork !== STELLAR_CONFIG.NETWORK) {
-        throw new Error(
-          'Stellar network configuration does not match the payment server. No transaction was submitted.'
-        )
-      }
-
-      const transactionData = await stellarClient.buildHighlightTipTransaction(
-        publicKey,
+      const lockedResult = await withHighlightTipPaymentLock(
         {
-          highlightId: quote.highlightId,
-          articleSymbol: quote.articleSymbol,
-          authorAddress: quote.authorAddress,
-          amountStroops: quote.amountStroops,
-          contractId: quote.contractId,
-          timeBounds: quote.timeBounds,
+          tipperId: String(user._id),
+          articleId: String(articleId),
+          highlightId: currentHighlightId,
+          stellarNetwork,
+        },
+        async () => {
+          const competingReceipt = readPendingHighlightTipReceipt(
+            articleId,
+            currentHighlightId,
+            stellarNetwork,
+            user._id
+          )
+          if (competingReceipt) {
+            return {
+              kind: 'existing' as const,
+              tipRecord: competingReceipt,
+            }
+          }
+
+          stellarFlowEmitter.emit({ flow: 'tip', step: 'awaiting_signature' })
+          const quote = await prepareHighlightTip({
+            articleId,
+            highlightText,
+            startOffset,
+            endOffset,
+            startContainerPath,
+            endContainerPath,
+            amountCents,
+            stellarSourceAccount: publicKey,
+          })
+          if (quote.stellarNetwork !== STELLAR_CONFIG.NETWORK) {
+            throw new Error(
+              'Stellar network configuration does not match the payment server. No transaction was submitted.'
+            )
+          }
+
+          const transactionData =
+            await stellarClient.buildHighlightTipTransaction(publicKey, {
+              highlightId: quote.highlightId,
+              articleSymbol: quote.articleSymbol,
+              authorAddress: quote.authorAddress,
+              amountStroops: quote.amountStroops,
+              contractId: quote.contractId,
+              timeBounds: quote.timeBounds,
+            })
+
+          const signedXDR = await signTransaction(transactionData.xdr)
+          const deterministicHash =
+            await stellarClient.deriveTipTransactionHash(signedXDR)
+
+          const tipRecord: PendingHighlightTipRecord = {
+            articleId: String(articleId),
+            highlightId: quote.highlightId,
+            tipperId: user._id,
+            amountCents,
+            stellarNetwork: quote.stellarNetwork,
+            stellarSourceAccount: publicKey,
+            intentId: quote.intentId,
+            signedXdr: signedXDR,
+            stellarTxId: deterministicHash,
+            stellarLedger: undefined,
+            stellarFeeCharged: undefined,
+          }
+          writePendingHighlightTipReceipt(tipRecord)
+          durableTipRecord = tipRecord
+          setPendingTipRecord(tipRecord)
+          setTipFlowStep('submitting')
+
+          const receipt = await stellarClient.submitTipTransaction(signedXDR)
+          if (
+            receipt.transactionHash &&
+            receipt.transactionHash.toLowerCase() !==
+              deterministicHash.toLowerCase()
+          ) {
+            throw new Error(
+              'Stellar returned a different transaction hash for the saved signed transaction.'
+            )
+          }
+          broadcastAccepted = true
+          const acceptedTipRecord = {
+            ...tipRecord,
+            contractTipId: receipt.tipId,
+          }
+          writePendingHighlightTipReceipt(acceptedTipRecord)
+          setPendingTipRecord(acceptedTipRecord)
+
+          return {
+            kind: 'broadcast' as const,
+            tipRecord: acceptedTipRecord,
+          }
         }
       )
 
-      const signedXDR = await signTransaction(transactionData.xdr)
-      const deterministicHash =
-        await stellarClient.deriveTipTransactionHash(signedXDR)
+      if (lockedResult.kind === 'existing') {
+        setPendingTipRecord(lockedResult.tipRecord)
+        setSelectedAmount(lockedResult.tipRecord.amountCents)
+        if (lockedResult.tipRecord.submittedTipId) {
+          setSubmittedTipId(lockedResult.tipRecord.submittedTipId)
+          setTipFailure(HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE)
+        } else {
+          setTipFailure(HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE)
+        }
+        return
+      }
 
-      const tipRecord: PendingHighlightTipRecord = {
-        articleId: String(articleId),
-        highlightId: quote.highlightId,
-        tipperId: user._id,
-        amountCents,
-        stellarNetwork: quote.stellarNetwork,
-        stellarSourceAccount: publicKey,
-        intentId: quote.intentId,
-        signedXdr: signedXDR,
-        stellarTxId: deterministicHash,
-        stellarLedger: undefined,
-        stellarFeeCharged: undefined,
-      }
-      writePendingHighlightTipReceipt(tipRecord)
-      durableTipRecord = tipRecord
-      setPendingTipRecord(tipRecord)
-      setTipFlowStep('submitting')
-
-      const receipt = await stellarClient.submitTipTransaction(signedXDR)
-      if (
-        receipt.transactionHash &&
-        receipt.transactionHash.toLowerCase() !==
-          deterministicHash.toLowerCase()
-      ) {
-        throw new Error(
-          'Stellar returned a different transaction hash for the saved signed transaction.'
-        )
-      }
-      broadcastAccepted = true
-      const acceptedTipRecord = {
-        ...tipRecord,
-        contractTipId: receipt.tipId,
-      }
-      writePendingHighlightTipReceipt(acceptedTipRecord)
-      setPendingTipRecord(acceptedTipRecord)
       setTipFlowStep('confirming')
 
       const tipId = await submitHighlightTip(
-        toHighlightTipRecordArgs(acceptedTipRecord)
+        toHighlightTipRecordArgs(lockedResult.tipRecord)
       )
-      const syncedTipRecord = { ...acceptedTipRecord, submittedTipId: tipId }
+      const syncedTipRecord = {
+        ...lockedResult.tipRecord,
+        submittedTipId: tipId,
+      }
       try {
         writePendingHighlightTipReceipt(syncedTipRecord)
       } catch (error) {
