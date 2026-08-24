@@ -376,7 +376,7 @@ describe('HighlightTipButton two-stage flow', () => {
   it('prepares trusted wallet fields, persists before submit, and keeps PENDING out of success', async () => {
     mockAuth.isAuthenticated = true
     mockIsConnected.mockReturnValue(true)
-    mockSubmitTipTransaction.mockImplementation(async () => {
+    mockSubmitHighlightTip.mockImplementationOnce(async () => {
       const stored = getStoredHighlightReceipts()
       expect(stored).toEqual([
         expect.objectContaining({
@@ -389,10 +389,7 @@ describe('HighlightTipButton two-stage flow', () => {
           stellarNetwork: 'TESTNET',
         }),
       ])
-      return {
-        transactionHash: 'tx-highlight-123456789',
-        tipId: 'contract-tip-highlight',
-      }
+      return 'highlight-tip-id'
     })
     const user = userEvent.setup({ delay: null })
     render(
@@ -443,7 +440,7 @@ describe('HighlightTipButton two-stage flow', () => {
       stellarTxId: 'tx-highlight-123456789',
       stellarLedger: undefined,
       stellarFeeCharged: undefined,
-      contractTipId: 'contract-tip-highlight',
+      contractTipId: undefined,
     })
     expect(mockPrepareHighlightTip.mock.invocationCallOrder[0]).toBeLessThan(
       mockBuildHighlightTipTransaction.mock.invocationCallOrder[0]!
@@ -456,9 +453,9 @@ describe('HighlightTipButton two-stage flow', () => {
     )
     expect(
       mockDeriveTipTransactionHash.mock.invocationCallOrder[0]
-    ).toBeLessThan(mockSubmitTipTransaction.mock.invocationCallOrder[0]!)
-    expect(mockSubmitTipTransaction.mock.invocationCallOrder[0]).toBeLessThan(
-      mockSubmitHighlightTip.mock.invocationCallOrder[0]!
+    ).toBeLessThan(mockSubmitHighlightTip.mock.invocationCallOrder[0]!)
+    expect(mockSubmitHighlightTip.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSubmitTipTransaction.mock.invocationCallOrder[0]!
     )
     expect(mockStatusQueryArgs).toHaveBeenCalledWith({
       tipId: 'highlight-tip-id',
@@ -473,7 +470,8 @@ describe('HighlightTipButton two-stage flow', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
     })
-    expect(mockSubmitHighlightTip).toHaveBeenCalledTimes(1)
+    expect(mockSubmitHighlightTip).toHaveBeenCalledTimes(2)
+    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(2)
   })
 
   it('retries Convex submission after reload without reopening the wallet', async () => {
@@ -498,10 +496,10 @@ describe('HighlightTipButton two-stage flow', () => {
     await user.click(screen.getByRole('button', { name: 'Send Tip' }))
 
     expect(
-      await screen.findByText('Tip sent, app sync failed')
+      await screen.findByText('Tip transaction saved for recovery')
     ).toBeInTheDocument()
     expect(mockSignTransaction).toHaveBeenCalledTimes(1)
-    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
 
     firstRender.unmount()
     render(<HighlightTipButton {...props} />)
@@ -524,8 +522,8 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(mockPrepareHighlightTip).toHaveBeenCalledTimes(1)
     expect(mockBuildHighlightTipTransaction).toHaveBeenCalledTimes(1)
     expect(mockSignTransaction).toHaveBeenCalledTimes(1)
-    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(2)
-    expect(mockSubmitTipTransaction).toHaveBeenNthCalledWith(2, 'signed-xdr')
+    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTipTransaction).toHaveBeenCalledWith('signed-xdr')
     expect(await screen.findByText(/verification delayed/i)).toBeInTheDocument()
   })
 
@@ -602,10 +600,17 @@ describe('HighlightTipButton two-stage flow', () => {
 
     await waitFor(() => {
       expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(2)
-      expect(mockSubmitHighlightTip).toHaveBeenCalledTimes(1)
+      expect(mockSubmitHighlightTip).toHaveBeenCalledTimes(2)
     })
     expect(mockSubmitTipTransaction).toHaveBeenNthCalledWith(1, 'signed-xdr')
     expect(mockSubmitTipTransaction).toHaveBeenNthCalledWith(2, 'signed-xdr')
+    expect(mockSubmitHighlightTip).toHaveBeenCalledTimes(2)
+    expect(mockSubmitHighlightTip.mock.invocationCallOrder[0]).toBeLessThan(
+      mockSubmitTipTransaction.mock.invocationCallOrder[0]!
+    )
+    expect(mockSubmitHighlightTip.mock.invocationCallOrder[1]).toBeLessThan(
+      mockSubmitTipTransaction.mock.invocationCallOrder[1]!
+    )
     expect(mockPrepareHighlightTip).toHaveBeenCalledTimes(1)
     expect(mockBuildHighlightTipTransaction).toHaveBeenCalledTimes(1)
     expect(mockSignTransaction).toHaveBeenCalledTimes(1)
@@ -970,7 +975,7 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
   })
 
-  it('never passes an unnormalized recovered ID into the typed retry mutation', async () => {
+  it('re-registers an unnormalized recovered ID before typed verification retry', async () => {
     mockAuth.isAuthenticated = true
     mockIsConnected.mockReturnValue(false)
     mockHighlightTipStatus.mockReturnValue(undefined)
@@ -1007,7 +1012,12 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(mockStatusQueryArgs).toHaveBeenCalledWith({
       tipId: corruptSubmittedTipId,
     })
-    expect(mockRetryHighlightTipVerification).not.toHaveBeenCalled()
+    expect(mockRetryHighlightTipVerification).toHaveBeenCalledWith({
+      tipId: 'highlight-tip-id',
+    })
+    expect(mockRetryHighlightTipVerification).not.toHaveBeenCalledWith({
+      tipId: corruptSubmittedTipId,
+    })
   })
 
   it('keeps a live FAILED reason when it arrives before retry resolves', async () => {
@@ -1079,7 +1089,7 @@ describe('HighlightTipButton two-stage flow', () => {
     await openHighlightTipAndContinue(user)
     await user.click(screen.getByRole('button', { name: 'Send Tip' }))
     expect(
-      await screen.findByText('Tip sent, app sync failed')
+      await screen.findByText('Tip transaction saved for recovery')
     ).toBeInTheDocument()
 
     firstRender.unmount()
@@ -1091,7 +1101,7 @@ describe('HighlightTipButton two-stage flow', () => {
       expect(mockStatusQueryArgs).toHaveBeenLastCalledWith('skip')
     })
     expect(
-      screen.queryByText('Tip sent, app sync failed')
+      screen.queryByText('Tip transaction saved for recovery')
     ).not.toBeInTheDocument()
     expect(getStoredHighlightReceipts()).toEqual([
       expect.objectContaining({ tipperId: 'users:one' }),

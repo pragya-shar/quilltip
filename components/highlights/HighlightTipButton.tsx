@@ -106,16 +106,10 @@ function toHighlightTipRecordArgs(
   }
 }
 
-const HIGHLIGHT_TIP_SYNC_FAILURE_MESSAGE: TipFailureMessage = {
-  title: 'Tip sent, app sync failed',
-  detail:
-    'Your Stellar transaction was submitted. Retry will record that same transaction without sending another payment.',
-}
-
 const HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE: TipFailureMessage = {
   title: 'Tip transaction saved for recovery',
   detail:
-    'The network response was unclear. Retry will rebroadcast and check the exact same signed transaction without creating another payment.',
+    'Retry will register idempotently and rebroadcast the exact same signed transaction without creating another payment.',
 }
 
 const HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE: TipFailureMessage = {
@@ -542,46 +536,47 @@ export function HighlightTipButton({
     setIsLoading(true)
     setTipFlowStep('submitting')
 
-    let broadcastAccepted = false
+    let registered = false
     try {
+      const tipId = await submitHighlightTip(toHighlightTipRecordArgs(pending))
+      registered = true
+      const syncedPending = { ...pending, submittedTipId: tipId }
+      try {
+        writePendingHighlightTipReceipt(syncedPending)
+      } catch (error) {
+        console.error('Highlight tip registered receipt update error:', error)
+      }
+      setPendingTipRecord(syncedPending)
+      setSubmittedTipId(tipId)
+
       const receipt = await stellarClient.submitTipTransaction(
-        pending.signedXdr
+        syncedPending.signedXdr
       )
       if (
         receipt.transactionHash &&
         receipt.transactionHash.toLowerCase() !==
-          pending.stellarTxId.toLowerCase()
+          syncedPending.stellarTxId.toLowerCase()
       ) {
         throw new Error(
           'Stellar returned a different transaction hash for the saved signed transaction.'
         )
       }
-      broadcastAccepted = true
       const acceptedPending = {
-        ...pending,
-        contractTipId: receipt.tipId ?? pending.contractTipId,
+        ...syncedPending,
+        contractTipId: receipt.tipId ?? syncedPending.contractTipId,
+      }
+      try {
+        writePendingHighlightTipReceipt(acceptedPending)
+      } catch (error) {
+        console.error('Highlight tip broadcast receipt update error:', error)
       }
       setPendingTipRecord(acceptedPending)
       setTipFlowStep('confirming')
-      const tipId = await submitHighlightTip(
-        toHighlightTipRecordArgs(acceptedPending)
-      )
-      const syncedPending = { ...acceptedPending, submittedTipId: tipId }
-      try {
-        writePendingHighlightTipReceipt(syncedPending)
-      } catch (error) {
-        console.error('Highlight tip submitted receipt update error:', error)
-      }
-      setPendingTipRecord(syncedPending)
-      setSubmittedTipId(tipId)
-      setTipFailure(HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE)
+      await retryHighlightTipVerification({ tipId })
     } catch (error) {
       console.error('Highlight tip sync retry error:', error)
-      setTipFailure(
-        broadcastAccepted
-          ? HIGHLIGHT_TIP_SYNC_FAILURE_MESSAGE
-          : HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE
-      )
+      setTipFailure(HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE)
+      if (!registered) setSubmittedTipId(null)
     } finally {
       setIsLoading(false)
       setTipFlowStep(null)
@@ -674,6 +669,11 @@ export function HighlightTipButton({
       setTipFailure(null)
       setTipFormError(null)
       setModalStep('appreciation')
+      return
+    }
+
+    if (submittedTipId && pendingTipRecord) {
+      await retryPendingTipRecord(pendingTipRecord)
       return
     }
 
@@ -787,7 +787,6 @@ export function HighlightTipButton({
     setIsLoading(true)
 
     let durableTipRecord: PendingHighlightTipRecord | null = null
-    let broadcastAccepted = false
     try {
       const lockedResult = await withHighlightTipPaymentLock(
         {
@@ -857,6 +856,21 @@ export function HighlightTipButton({
           writePendingHighlightTipReceipt(tipRecord)
           durableTipRecord = tipRecord
           setPendingTipRecord(tipRecord)
+
+          const tipId = await submitHighlightTip(
+            toHighlightTipRecordArgs(tipRecord)
+          )
+          const syncedTipRecord = { ...tipRecord, submittedTipId: tipId }
+          try {
+            writePendingHighlightTipReceipt(syncedTipRecord)
+          } catch (error) {
+            console.error(
+              'Highlight tip registered receipt update error:',
+              error
+            )
+          }
+          setPendingTipRecord(syncedTipRecord)
+          setSubmittedTipId(tipId)
           setTipFlowStep('submitting')
 
           const receipt = await stellarClient.submitTipTransaction(signedXDR)
@@ -869,9 +883,8 @@ export function HighlightTipButton({
               'Stellar returned a different transaction hash for the saved signed transaction.'
             )
           }
-          broadcastAccepted = true
           const acceptedTipRecord = {
-            ...tipRecord,
+            ...syncedTipRecord,
             contractTipId: receipt.tipId,
           }
           writePendingHighlightTipReceipt(acceptedTipRecord)
@@ -897,30 +910,11 @@ export function HighlightTipButton({
       }
 
       setTipFlowStep('confirming')
-
-      const tipId = await submitHighlightTip(
-        toHighlightTipRecordArgs(lockedResult.tipRecord)
-      )
-      const syncedTipRecord = {
-        ...lockedResult.tipRecord,
-        submittedTipId: tipId,
-      }
-      try {
-        writePendingHighlightTipReceipt(syncedTipRecord)
-      } catch (error) {
-        console.error('Highlight tip submitted receipt update error:', error)
-      }
-      setPendingTipRecord(syncedTipRecord)
-      setSubmittedTipId(tipId)
       setTipFailure(HIGHLIGHT_TIP_VERIFICATION_DELAYED_MESSAGE)
     } catch (error) {
       console.error('Highlight tip error:', error)
       if (durableTipRecord) {
-        setTipFailure(
-          broadcastAccepted
-            ? HIGHLIGHT_TIP_SYNC_FAILURE_MESSAGE
-            : HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE
-        )
+        setTipFailure(HIGHLIGHT_TIP_BROADCAST_RECOVERY_MESSAGE)
       } else {
         setTipFailure(formatTipFailureMessage(error))
       }

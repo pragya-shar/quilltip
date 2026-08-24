@@ -10,6 +10,7 @@ const RECEIPT_ONE = {
   stellarNetwork: 'TESTNET' as const,
   stellarSourceAccount: 'GTIPPERONE',
   intentId: 'intent-one' as Id<'articleTipIntents'>,
+  signedXdr: 'signed-xdr-one',
   stellarTxId: 'transaction-one',
   contractTipId: 'contract-tip-one',
 }
@@ -49,6 +50,7 @@ describe('pendingArticleTipReceipt storage', () => {
       ...RECEIPT_ONE,
       articleId: 'articles:two',
       intentId: 'intent-two' as Id<'articleTipIntents'>,
+      signedXdr: 'signed-xdr-two',
       stellarTxId: 'transaction-two',
     })
 
@@ -63,6 +65,7 @@ describe('pendingArticleTipReceipt storage', () => {
       ...RECEIPT_ONE,
       articleId: 'articles:two',
       intentId: 'intent-two' as Id<'articleTipIntents'>,
+      signedXdr: 'signed-xdr-two',
       stellarTxId: 'transaction-two',
     })
   })
@@ -85,5 +88,18 @@ describe('pendingArticleTipReceipt storage', () => {
     expect(
       readPendingArticleTipReceipt('articles:one', 'TESTNET', 'users:one')
     ).toEqual(RECEIPT_ONE)
+  })
+
+  it('fails closed when the exact signed transaction cannot be durably stored', async () => {
+    const { writePendingArticleTipReceipt } =
+      await import('./pendingArticleTipReceipt')
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementationOnce(() => {
+      throw new Error('quota exceeded')
+    })
+
+    expect(() => writePendingArticleTipReceipt(RECEIPT_ONE)).toThrow(
+      /could not be saved for safe recovery/i
+    )
+    expect(window.localStorage.length).toBe(0)
   })
 })

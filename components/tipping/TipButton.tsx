@@ -84,10 +84,16 @@ function toArticleTipRecordArgs(
   }
 }
 
-const TIP_SYNC_FAILURE_MESSAGE: TipFailureMessage = {
-  title: 'Tip sent, app sync failed',
+const TIP_REGISTRATION_FAILURE_MESSAGE: TipFailureMessage = {
+  title: 'Tip transaction saved for recovery',
   detail:
-    'Your Stellar transaction was submitted. Retry will record that same transaction without sending another payment.',
+    'The payment server could not register the saved transaction, so nothing was broadcast. Retry will register and then broadcast this exact signed transaction.',
+}
+
+const TIP_BROADCAST_RECOVERY_MESSAGE: TipFailureMessage = {
+  title: 'Tip registration saved for recovery',
+  detail:
+    'The network response was unclear. Retry will register idempotently and rebroadcast the exact same signed transaction.',
 }
 
 function configuredStellarNetwork(): 'TESTNET' | 'MAINNET' | null {
@@ -236,7 +242,7 @@ export function TipButton({
             detail:
               'Your Stellar transaction was submitted. Retry will check that same transaction without sending another payment.',
           }
-        : TIP_SYNC_FAILURE_MESSAGE
+        : TIP_REGISTRATION_FAILURE_MESSAGE
     )
     setIsOpen(true)
   }, [
@@ -359,22 +365,58 @@ export function TipButton({
     setIsLoading(true)
     setTipFlowStep('confirming')
 
-    let verificationStarted = false
+    let registered = false
     try {
       const tipId = await submitArticleTip(toArticleTipRecordArgs(pending))
+      registered = true
       const syncedPending = { ...pending, submittedTipId: tipId }
-      writePendingArticleTipReceipt(syncedPending)
+      try {
+        writePendingArticleTipReceipt(syncedPending)
+      } catch (error) {
+        console.error('Article tip registered receipt update error:', error)
+      }
       setPendingTipRecord(syncedPending)
       setSubmittedTipId(tipId)
-      verificationStarted = true
+      setTipFlowStep('submitting')
+
+      const receipt = await stellarClient.submitTipTransaction(
+        syncedPending.signedXdr
+      )
+      if (
+        receipt.transactionHash &&
+        receipt.transactionHash.toLowerCase() !==
+          syncedPending.stellarTxId.toLowerCase()
+      ) {
+        throw new Error(
+          'Stellar returned a different transaction hash for the saved signed transaction.'
+        )
+      }
+      const acceptedPending = {
+        ...syncedPending,
+        contractTipId: receipt.tipId ?? syncedPending.contractTipId,
+      }
+      try {
+        writePendingArticleTipReceipt(acceptedPending)
+      } catch (error) {
+        console.error('Article tip broadcast receipt update error:', error)
+      }
+      setPendingTipRecord(acceptedPending)
+      await retryArticleTipVerification({ tipId })
+      setTipFailure({
+        title: 'Tip sent, verification delayed',
+        detail:
+          'Your Stellar transaction was submitted. Retry will rebroadcast and check that exact transaction.',
+      })
     } catch (error) {
       console.error('Tip sync retry error:', error)
-      setTipFailure(TIP_SYNC_FAILURE_MESSAGE)
+      setTipFailure(
+        registered
+          ? TIP_BROADCAST_RECOVERY_MESSAGE
+          : TIP_REGISTRATION_FAILURE_MESSAGE
+      )
     } finally {
-      if (!verificationStarted) {
-        setIsLoading(false)
-        setTipFlowStep(null)
-      }
+      setIsLoading(false)
+      setTipFlowStep(null)
     }
   }
 
@@ -400,7 +442,7 @@ export function TipButton({
                 detail:
                   'Your Stellar transaction was submitted. Retry will check that same transaction without sending another payment.',
               }
-            : TIP_SYNC_FAILURE_MESSAGE
+            : TIP_REGISTRATION_FAILURE_MESSAGE
           : null
       )
       setTipFormError(null)
@@ -463,6 +505,11 @@ export function TipButton({
       setTipFailure(null)
       setTipFormError(null)
       setModalStep('appreciation')
+      return
+    }
+
+    if (submittedTipId && pendingTipRecord) {
+      await retryPendingTipRecord(pendingTipRecord)
       return
     }
 
@@ -537,7 +584,8 @@ export function TipButton({
     setTipSuccess(null)
     setIsLoading(true)
 
-    let submittedTipRecord: PendingArticleTipRecord | null = null
+    let durableTipRecord: PendingArticleTipRecord | null = null
+    let registered = false
     let verificationStarted = false
     try {
       stellarFlowEmitter.emit({ flow: 'tip', step: 'awaiting_signature' })
@@ -565,10 +613,8 @@ export function TipButton({
       )
 
       const signedXDR = await signTransaction(transactionData.xdr)
-      const receipt = await stellarClient.submitTipTransaction(signedXDR)
-      if (!receipt.transactionHash) {
-        throw new Error('Stellar did not return a transaction hash')
-      }
+      const deterministicHash =
+        await stellarClient.deriveTipTransactionHash(signedXDR)
 
       const tipRecord: PendingArticleTipRecord = {
         articleId: String(articleId),
@@ -578,26 +624,57 @@ export function TipButton({
         stellarNetwork: quote.stellarNetwork,
         stellarSourceAccount: publicKey,
         intentId: quote.intentId,
-        stellarTxId: receipt.transactionHash,
+        signedXdr: signedXDR,
+        stellarTxId: deterministicHash,
         stellarLedger: undefined,
         stellarFeeCharged: undefined,
-        contractTipId: receipt.tipId,
       }
-      submittedTipRecord = tipRecord
       writePendingArticleTipReceipt(tipRecord)
+      durableTipRecord = tipRecord
       setPendingTipRecord(tipRecord)
-      setTipFlowStep('confirming')
 
       const tipId = await submitArticleTip(toArticleTipRecordArgs(tipRecord))
+      registered = true
       const syncedTipRecord = { ...tipRecord, submittedTipId: tipId }
-      writePendingArticleTipReceipt(syncedTipRecord)
+      try {
+        writePendingArticleTipReceipt(syncedTipRecord)
+      } catch (error) {
+        console.error('Article tip registered receipt update error:', error)
+      }
       setPendingTipRecord(syncedTipRecord)
       setSubmittedTipId(tipId)
+      setTipFlowStep('submitting')
+
+      const receipt = await stellarClient.submitTipTransaction(signedXDR)
+      if (
+        receipt.transactionHash &&
+        receipt.transactionHash.toLowerCase() !==
+          deterministicHash.toLowerCase()
+      ) {
+        throw new Error(
+          'Stellar returned a different transaction hash for the saved signed transaction.'
+        )
+      }
+      const acceptedTipRecord = {
+        ...syncedTipRecord,
+        contractTipId: receipt.tipId,
+      }
+      try {
+        writePendingArticleTipReceipt(acceptedTipRecord)
+      } catch (error) {
+        console.error('Article tip broadcast receipt update error:', error)
+      }
+      setPendingTipRecord(acceptedTipRecord)
+      setTipFlowStep('confirming')
       verificationStarted = true
     } catch (error) {
       console.error('Stellar tip error:', error)
-      if (submittedTipRecord || pendingTipRecord) {
-        setTipFailure(TIP_SYNC_FAILURE_MESSAGE)
+      if (durableTipRecord) {
+        setTipFailure(
+          registered
+            ? TIP_BROADCAST_RECOVERY_MESSAGE
+            : TIP_REGISTRATION_FAILURE_MESSAGE
+        )
       } else {
         setTipFailure(formatTipFailureMessage(error))
       }

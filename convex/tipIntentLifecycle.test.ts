@@ -142,7 +142,7 @@ async function linkArticleIntent(
     authorId: base.authorId,
     amountUsd: 1,
     amountCents: 100,
-    stellarTxId: 'article-lifecycle-tx',
+    stellarTxId: 'a'.repeat(64),
     stellarNetwork: 'TESTNET',
     articleTipIntentId: intentId,
     expectedSourceAccount: SOURCE,
@@ -179,7 +179,7 @@ async function linkHighlightIntent(
     articleSlug: 'intent-lifecycle',
     amountUsd: 1,
     amountCents: 100,
-    stellarTxId: 'highlight-lifecycle-tx',
+    stellarTxId: 'b'.repeat(64),
     stellarNetwork: 'TESTNET',
     stellarMemo: 'highlight-lifecycle',
     stellarSourceAccount: SOURCE,
@@ -290,6 +290,82 @@ describe('tip intent lifecycle cleanup', () => {
       t.action(internal.reconcileTips.cleanupExpiredTipIntents, {})
     ).resolves.toEqual({ articleIntentsDeleted: 0, highlightIntentsDeleted: 0 })
   })
+
+  it.each(['article', 'highlight'] as const)(
+    'retains an expired registered %s receipt and credits exactly once after recovery',
+    async (kind) => {
+      const t = convexTest(schema, modules)
+      const base = await seedBase(t)
+      const ids = await t.run(async (ctx) => {
+        if (kind === 'article') {
+          const intentId = await insertArticleIntent(ctx, base, {
+            expiresAt: Date.now() - 1,
+          })
+          const tipId = await linkArticleIntent(ctx, base, intentId)
+          return { intentId, tipId }
+        }
+        const intentId = await insertHighlightIntent(ctx, base, {
+          expiresAt: Date.now() - 1,
+        })
+        const tipId = await linkHighlightIntent(ctx, base, intentId)
+        return { intentId, tipId }
+      })
+
+      await expect(
+        t.action(internal.reconcileTips.cleanupExpiredTipIntents, {})
+      ).resolves.toEqual({
+        articleIntentsDeleted: 0,
+        highlightIntentsDeleted: 0,
+      })
+
+      if (kind === 'article') {
+        await t.mutation(internal.articleTipVerify.confirmVerifiedArticleTip, {
+          tipId: ids.tipId as Id<'tips'>,
+          stellarLedger: 123,
+        })
+        await t.mutation(internal.articleTipVerify.confirmVerifiedArticleTip, {
+          tipId: ids.tipId as Id<'tips'>,
+          stellarLedger: 123,
+        })
+      } else {
+        await t.mutation(internal.stellarVerify.confirmVerifiedHighlightTip, {
+          id: ids.tipId as Id<'highlightTips'>,
+          stellarLedger: 123,
+        })
+        await t.mutation(internal.stellarVerify.confirmVerifiedHighlightTip, {
+          id: ids.tipId as Id<'highlightTips'>,
+          stellarLedger: 123,
+        })
+      }
+
+      await t.run(async (ctx) => {
+        expect(await ctx.db.get(ids.intentId)).not.toBeNull()
+        expect(await ctx.db.get(ids.tipId)).toMatchObject({
+          status: 'CONFIRMED',
+          stellarLedger: 123,
+        })
+        expect(await ctx.db.get(base.articleId)).toMatchObject({
+          tipCount: 1,
+          totalTipsUsd: 1,
+        })
+        expect(await ctx.db.get(base.tipperId)).toMatchObject({
+          tipsSentCount: 1,
+        })
+        expect(await ctx.db.get(base.authorId)).toMatchObject({
+          tipsReceivedCount: 1,
+        })
+        const earnings = await ctx.db
+          .query('authorEarnings')
+          .withIndex('by_user', (q) => q.eq('userId', base.authorId))
+          .unique()
+        expect(earnings).toMatchObject({
+          totalEarnedCents: 100,
+          availableBalanceCents: 100,
+          tipCount: 1,
+        })
+      })
+    }
+  )
 })
 
 describe('post-window Horizon recovery', () => {

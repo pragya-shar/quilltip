@@ -3,6 +3,8 @@ import type { Id } from '@/convex/_generated/dataModel'
 
 export const PENDING_ARTICLE_TIP_RECEIPTS_STORAGE_KEY =
   'quilltip:pendingArticleTipReceipts'
+const STORAGE_FAILURE_MESSAGE =
+  'Your signed tip could not be saved for safe recovery. No transaction was sent. Free browser storage or allow site storage, then retry.'
 
 const pendingArticleTipReceiptSchema = z.object({
   articleId: z.string().min(1),
@@ -12,6 +14,7 @@ const pendingArticleTipReceiptSchema = z.object({
   stellarNetwork: z.union([z.literal('TESTNET'), z.literal('MAINNET')]),
   stellarSourceAccount: z.string().min(1),
   intentId: z.string().min(1),
+  signedXdr: z.string().min(1),
   stellarTxId: z.string().min(1),
   stellarLedger: z.number().int().positive().optional(),
   stellarFeeCharged: z.string().optional(),
@@ -75,18 +78,34 @@ function readReceipts(): PendingArticleTipReceipt[] {
   return memoryReceipts
 }
 
-function persistReceipts(receipts: PendingArticleTipReceipt[]): void {
-  memoryReceipts = receipts
-  if (typeof window === 'undefined') return
+function persistReceipts(
+  receipts: PendingArticleTipReceipt[],
+  requireDurableWrite: boolean
+): void {
+  if (typeof window === 'undefined') {
+    if (requireDurableWrite) throw new Error(STORAGE_FAILURE_MESSAGE)
+    memoryReceipts = receipts
+    return
+  }
 
+  const serialized = JSON.stringify(receipts)
   try {
     window.localStorage.setItem(
       PENDING_ARTICLE_TIP_RECEIPTS_STORAGE_KEY,
-      JSON.stringify(receipts)
+      serialized
     )
+    if (
+      requireDurableWrite &&
+      window.localStorage.getItem(PENDING_ARTICLE_TIP_RECEIPTS_STORAGE_KEY) !==
+        serialized
+    ) {
+      throw new Error('durability check failed')
+    }
   } catch {
-    // The in-memory copy still protects against React remounts in this tab.
+    if (requireDurableWrite) throw new Error(STORAGE_FAILURE_MESSAGE)
+    return
   }
+  memoryReceipts = receipts
 }
 
 export function writePendingArticleTipReceipt(
@@ -105,7 +124,7 @@ export function writePendingArticleTipReceipt(
         normalized.tipperId
       )
   )
-  persistReceipts([...remaining, normalized].slice(-20))
+  persistReceipts([...remaining, normalized].slice(-20), true)
 }
 
 export function readPendingArticleTipReceipt(
@@ -128,6 +147,7 @@ export function clearPendingArticleTipReceipt(
   persistReceipts(
     readReceipts().filter(
       (receipt) => !receiptMatches(receipt, articleId, stellarNetwork, tipperId)
-    )
+    ),
+    false
   )
 }
