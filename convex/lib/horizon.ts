@@ -27,6 +27,7 @@ export type HorizonVerifyReason =
   | 'contract_mismatch'
   | 'function_mismatch'
   | 'tipper_mismatch'
+  | 'highlight_mismatch'
   | 'article_mismatch'
   | 'author_mismatch'
   | 'amount_mismatch'
@@ -49,6 +50,7 @@ export type TipInvocationExpectations = {
   authorAddress: string
   minStroops: bigint
   exactStroops?: bigint
+  highlightId?: string
   articleId?: string
   batchTips?: readonly TipInvocationTipExpectation[]
   expectedTimeBounds?: {
@@ -58,6 +60,7 @@ export type TipInvocationExpectations = {
 }
 
 export type TipInvocationTipExpectation = {
+  highlightId?: string
   articleId?: string
   authorAddress: string
   minStroops: bigint
@@ -264,6 +267,7 @@ function verifyInvocation(
   const isHighlightFn =
     fnName === 'tip_highlight_direct' || fnName === 'tip_highlight_with_arweave'
   const tipperIdx = 0
+  const highlightIdx = isHighlightFn ? 1 : undefined
   const articleIdx = isHighlightFn ? 2 : 1
   const authorIdx = isHighlightFn ? 3 : 2
   const amountIdx = isHighlightFn ? 4 : 3
@@ -273,6 +277,8 @@ function verifyInvocation(
   }
 
   const tipperArg = fnArgs[tipperIdx]
+  const highlightArg =
+    highlightIdx === undefined ? undefined : fnArgs[highlightIdx]
   const articleArg = fnArgs[articleIdx]
   const authorArg = fnArgs[authorIdx]
   const amountArg = fnArgs[amountIdx]
@@ -281,11 +287,13 @@ function verifyInvocation(
   }
 
   let nativeTipper: unknown
+  let nativeHighlight: unknown
   let nativeArticle: unknown
   let nativeAuthor: unknown
   let nativeAmount: unknown
   try {
     nativeTipper = scValToNative(tipperArg)
+    nativeHighlight = highlightArg ? scValToNative(highlightArg) : undefined
     nativeArticle = scValToNative(articleArg)
     nativeAuthor = scValToNative(authorArg)
     nativeAmount = scValToNative(amountArg)
@@ -302,6 +310,12 @@ function verifyInvocation(
 
   if (nativeTipper !== args.expectedSource) {
     return { kind: 'fail', reason: 'tipper_mismatch' }
+  }
+  if (
+    args.invocation.highlightId !== undefined &&
+    nativeHighlight !== args.invocation.highlightId
+  ) {
+    return { kind: 'fail', reason: 'highlight_mismatch' }
   }
   if (
     args.invocation.articleId !== undefined &&
@@ -379,6 +393,12 @@ function verifyBatchInvocation(
 
     if (tip.author !== expected.authorAddress) {
       return { kind: 'fail', reason: 'author_mismatch' }
+    }
+    if (
+      expected.highlightId !== undefined &&
+      tip.highlight_id !== expected.highlightId
+    ) {
+      return { kind: 'fail', reason: 'highlight_mismatch' }
     }
     if (
       expected.articleId !== undefined &&

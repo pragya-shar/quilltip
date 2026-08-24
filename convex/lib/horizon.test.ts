@@ -86,6 +86,33 @@ function buildArticleEnvelope(opts: {
   return tx.toEnvelope().toXDR('base64')
 }
 
+function buildHighlightEnvelope(opts: {
+  highlightId: string
+  articleId: string
+  amount: bigint
+}) {
+  const account = new Account(SOURCE, '1')
+  const contract = new Contract(CONTRACT_ID)
+  const tx = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks.TESTNET,
+  })
+    .addOperation(
+      contract.call(
+        'tip_highlight_direct',
+        nativeToScVal(SOURCE, { type: 'address' }),
+        nativeToScVal(opts.highlightId, { type: 'string' }),
+        nativeToScVal(opts.articleId, { type: 'symbol' }),
+        nativeToScVal(AUTHOR_ONE, { type: 'address' }),
+        nativeToScVal(opts.amount, { type: 'i128' })
+      )
+    )
+    .setTimeout(30)
+    .build()
+
+  return tx.toEnvelope().toXDR('base64')
+}
+
 function buildArticleBatchEnvelope(opts: {
   contractId?: string
   tips: Array<{ articleId: string; author: string; amount: bigint }>
@@ -502,6 +529,36 @@ describe('verifyTipTransaction', () => {
     })
   })
 
+  it('rejects a single highlight tip for a different exact highlight id', async () => {
+    const envelopeXdr = buildHighlightEnvelope({
+      highlightId: 'wrong-highlight',
+      articleId: 'article-one',
+      amount: BigInt(20_000_000),
+    })
+    const fetchImpl = makeFetch({ status: 200, body: horizonBody(envelopeXdr) })
+
+    const result = await verifyTipTransaction(fetchImpl, {
+      txId: TX,
+      expectedSource: SOURCE,
+      horizonUrl: HORIZON,
+      invocation: {
+        contractId: CONTRACT_ID,
+        allowedFunctions: ['tip_highlight_direct'],
+        authorAddress: AUTHOR_ONE,
+        highlightId: 'right-highlight',
+        articleId: 'article-one',
+        minStroops: BigInt(20_000_000),
+        exactStroops: BigInt(20_000_000),
+      },
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      kind: 'permanent',
+      reason: 'highlight_mismatch',
+    })
+  })
+
   it('accepts batch_tip when every article tip matches expected batch items', async () => {
     const envelopeXdr = buildArticleBatchEnvelope({
       tips: [
@@ -571,8 +628,20 @@ describe('verifyTipTransaction', () => {
         authorAddress: AUTHOR_ONE,
         minStroops: BigInt(100_000_000),
         batchTips: [
-          { authorAddress: AUTHOR_ONE, minStroops: BigInt(100_000_000) },
-          { authorAddress: AUTHOR_TWO, minStroops: BigInt(150_000_000) },
+          {
+            highlightId: 'highlight-1',
+            articleId: 'article-one',
+            authorAddress: AUTHOR_ONE,
+            minStroops: BigInt(100_000_000),
+            exactStroops: BigInt(125_000_000),
+          },
+          {
+            highlightId: 'highlight-2',
+            articleId: 'article-two',
+            authorAddress: AUTHOR_TWO,
+            minStroops: BigInt(150_000_000),
+            exactStroops: BigInt(175_000_000),
+          },
         ],
       },
     })
@@ -738,6 +807,47 @@ describe('verifyTipTransaction', () => {
       ok: false,
       kind: 'permanent',
       reason: 'amount_mismatch',
+    })
+  })
+
+  it('rejects batch_tip_highlights when an exact highlight id differs', async () => {
+    const envelopeXdr = buildHighlightBatchEnvelope({
+      tips: [
+        {
+          highlightId: 'wrong-highlight',
+          articleId: 'article-one',
+          author: AUTHOR_ONE,
+          amount: BigInt(125_000_000),
+        },
+      ],
+    })
+    const fetchImpl = makeFetch({ status: 200, body: horizonBody(envelopeXdr) })
+
+    const result = await verifyTipTransaction(fetchImpl, {
+      txId: TX,
+      expectedSource: SOURCE,
+      horizonUrl: HORIZON,
+      invocation: {
+        contractId: CONTRACT_ID,
+        allowedFunctions: ['batch_tip_highlights'],
+        authorAddress: AUTHOR_ONE,
+        minStroops: BigInt(125_000_000),
+        batchTips: [
+          {
+            highlightId: 'right-highlight',
+            articleId: 'article-one',
+            authorAddress: AUTHOR_ONE,
+            minStroops: BigInt(125_000_000),
+            exactStroops: BigInt(125_000_000),
+          },
+        ],
+      },
+    })
+
+    expect(result).toEqual({
+      ok: false,
+      kind: 'permanent',
+      reason: 'highlight_mismatch',
     })
   })
 })
