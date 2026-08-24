@@ -9,6 +9,10 @@ import type { Doc } from './_generated/dataModel'
 import { verifyTipTransaction } from './lib/horizon'
 import { fetchXlmPriceUsd } from './lib/xlmPrice'
 import {
+  normalizeStellarTransactionHash,
+  stellarTransactionHashLookupValues,
+} from './lib/stellarTransactionHash'
+import {
   HORIZON_URLS,
   ARTICLE_TIP_TX_EARLY_GRACE_MS,
   ARTICLE_TIP_TX_LATE_GRACE_MS,
@@ -49,6 +53,11 @@ export const getHighlightTipForVerify = internalQuery({
 export function resolveHorizonUrl(network: string | undefined): string {
   const override = process.env.HORIZON_URL
   if (override) return override
+  if (network === 'MAINNET') return HORIZON_URLS.MAINNET
+  return HORIZON_URLS.TESTNET
+}
+
+export function resolveIntentHorizonUrl(network: string): string {
   if (network === 'MAINNET') return HORIZON_URLS.MAINNET
   return HORIZON_URLS.TESTNET
 }
@@ -189,7 +198,7 @@ export const verifyHighlightTip = internalAction({
       const exactResult = await verifyTipTransaction(fetch, {
         txId: tip.stellarTxId,
         expectedSource: tip.expectedSourceAccount,
-        horizonUrl: resolveHorizonUrl(tip.stellarNetwork),
+        horizonUrl: resolveIntentHorizonUrl(tip.stellarNetwork),
         minCreatedAtMs: intent.createdAt - ARTICLE_TIP_TX_EARLY_GRACE_MS,
         maxCreatedAtMs: intent.expiresAt + ARTICLE_TIP_TX_LATE_GRACE_MS,
         invocation: {
@@ -391,10 +400,26 @@ export const confirmVerifiedHighlightTip = internalMutation({
       return
     }
 
-    const matchingHashes = await ctx.db
-      .query('highlightTips')
-      .withIndex('by_stellar_tx', (q) => q.eq('stellarTxId', tip.stellarTxId))
-      .collect()
+    const normalizedTxId = normalizeStellarTransactionHash(tip.stellarTxId)
+    if (!normalizedTxId) {
+      await ctx.db.patch(args.id, {
+        status: 'FAILED',
+        failureReason: 'missing_verification_expectation',
+        processedAt: now,
+        updatedAt: now,
+      })
+      return
+    }
+    const matchingHashes = (
+      await Promise.all(
+        stellarTransactionHashLookupValues(normalizedTxId).map((lookupValue) =>
+          ctx.db
+            .query('highlightTips')
+            .withIndex('by_stellar_tx', (q) => q.eq('stellarTxId', lookupValue))
+            .collect()
+        )
+      )
+    ).flat()
     if (matchingHashes.some((row) => row._id !== tip._id)) {
       await ctx.db.patch(args.id, {
         status: 'FAILED',
@@ -566,8 +591,7 @@ export const markHighlightTipConfirmed = internalMutation({
   },
   handler: async (ctx, args) => {
     const tip = await ctx.db.get(args.id)
-    if (!tip) return
-    if (tip.status !== 'PENDING') return
+    if (!tip || tip.status !== 'PENDING' || tip.highlightTipIntentId) return
 
     const now = Date.now()
 

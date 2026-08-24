@@ -329,6 +329,23 @@ describe('verifyTipTransaction', () => {
     })
   })
 
+  it.each([408, 429])(
+    'returns transient server_error on retryable HTTP %i',
+    async (status) => {
+      const fetchImpl = makeFetch({ status })
+      const result = await verifyTipTransaction(fetchImpl, {
+        txId: TX,
+        expectedSource: SOURCE,
+        horizonUrl: HORIZON,
+      })
+      expect(result).toEqual({
+        ok: false,
+        kind: 'transient',
+        reason: 'server_error',
+      })
+    }
+  )
+
   it('returns transient network_error when fetch throws', async () => {
     const fetchImpl = makeFetch({ throws: true })
     const result = await verifyTipTransaction(fetchImpl, {

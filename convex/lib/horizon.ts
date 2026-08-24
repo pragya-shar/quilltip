@@ -104,7 +104,11 @@ export async function verifyTipTransaction(
   if (response.status === 404) {
     return { ok: false, kind: 'transient', reason: 'not_found' }
   }
-  if (response.status >= 500) {
+  if (
+    response.status === 408 ||
+    response.status === 429 ||
+    response.status >= 500
+  ) {
     return { ok: false, kind: 'transient', reason: 'server_error' }
   }
   if (!response.ok) {

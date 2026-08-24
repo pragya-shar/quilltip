@@ -21,6 +21,10 @@ import {
 import { generateHighlightIdServer } from './lib/highlightHash'
 import { extractTextFromTiptapJson } from './lib/tiptapContent'
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
+import {
+  normalizeStellarTransactionHash,
+  stellarTransactionHashLookupValues,
+} from './lib/stellarTransactionHash'
 
 const MAX_OUTSTANDING_HIGHLIGHT_TIP_INTENTS = 5
 const MAX_HIGHLIGHT_CONTAINER_PATH_LENGTH = 256
@@ -272,10 +276,10 @@ export const submitHighlightTip = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
-    if (!/^[0-9a-fA-F]{64}$/.test(args.stellarTxId)) {
+    const stellarTxId = normalizeStellarTransactionHash(args.stellarTxId)
+    if (!stellarTxId) {
       throw new Error('Invalid Stellar transaction hash')
     }
-    const stellarTxId = args.stellarTxId.toLowerCase()
 
     const intent = await ctx.db.get(args.intentId)
     if (!intent || intent.tipperId !== userId) {
@@ -283,7 +287,11 @@ export const submitHighlightTip = mutation({
     }
     if (intent.tipId) {
       const existingForIntent = await ctx.db.get(intent.tipId)
-      if (existingForIntent && existingForIntent.stellarTxId === stellarTxId) {
+      if (
+        existingForIntent &&
+        normalizeStellarTransactionHash(existingForIntent.stellarTxId) ===
+          stellarTxId
+      ) {
         return existingForIntent._id
       }
       throw new ConvexError(
@@ -291,12 +299,20 @@ export const submitHighlightTip = mutation({
       )
     }
 
-    const existingForHash = await ctx.db
-      .query('highlightTips')
-      .withIndex('by_stellar_tx', (q) => q.eq('stellarTxId', stellarTxId))
-      .first()
-    if (existingForHash) {
+    const existingForHashes = (
+      await Promise.all(
+        stellarTransactionHashLookupValues(stellarTxId).map((lookupValue) =>
+          ctx.db
+            .query('highlightTips')
+            .withIndex('by_stellar_tx', (q) => q.eq('stellarTxId', lookupValue))
+            .collect()
+        )
+      )
+    ).flat()
+    if (existingForHashes.length > 0) {
+      const existingForHash = existingForHashes[0]!
       if (
+        existingForHashes.length === 1 &&
         existingForHash.highlightTipIntentId === args.intentId &&
         existingForHash.tipperId === userId
       ) {
@@ -444,6 +460,10 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
+    const stellarTxId = normalizeStellarTransactionHash(args.stellarTxId)
+    if (!stellarTxId) {
+      throw new Error('Invalid Stellar transaction hash')
+    }
 
     // Get user data
     const user = await ctx.db.get(userId)
@@ -474,10 +494,9 @@ export const create = mutation({
     }
 
     // Dedup: Convex mutations have at-least-once delivery, so a lost ack
-    // could cause the client to retry and insert a duplicate row. Non-empty
-    // stellarTxIds are unique per Stellar transaction, so we look up by index
-    // and return the existing row if found. Empty stellarTxIds are not deduped
-    // because two unrelated tips could legitimately share that sentinel value.
+    // could cause the client to retry and insert a duplicate row. Stellar
+    // transaction hashes are normalized before lookup and storage so casing
+    // cannot create a second durable credit for the same transaction.
     //
     // We additionally require highlightId, articleId, and tipperId to match
     // the existing row before short-circuiting. A txId reused across a
@@ -485,25 +504,29 @@ export const create = mutation({
     // silently returning the mismatched original would tell the caller "your
     // tip succeeded" when in fact no tip on the requested highlight was
     // created. Reject explicitly.
-    if (args.stellarTxId !== '') {
-      const existing = await ctx.db
-        .query('highlightTips')
-        .withIndex('by_stellar_tx', (q) =>
-          q.eq('stellarTxId', args.stellarTxId)
+    const existingForHashes = (
+      await Promise.all(
+        stellarTransactionHashLookupValues(stellarTxId).map((lookupValue) =>
+          ctx.db
+            .query('highlightTips')
+            .withIndex('by_stellar_tx', (q) => q.eq('stellarTxId', lookupValue))
+            .collect()
         )
-        .first()
-      if (existing) {
-        if (
-          existing.highlightId === args.highlightId &&
-          existing.articleId === args.articleId &&
-          existing.tipperId === userId
-        ) {
-          return existing._id
-        }
-        throw new ConvexError(
-          'This Stellar transaction is already linked to a different tip.'
-        )
+      )
+    ).flat()
+    if (existingForHashes.length > 0) {
+      const existing = existingForHashes[0]!
+      if (
+        existingForHashes.length === 1 &&
+        existing.highlightId === args.highlightId &&
+        existing.articleId === args.articleId &&
+        existing.tipperId === userId
+      ) {
+        return existing._id
       }
+      throw new ConvexError(
+        'This Stellar transaction is already linked to a different tip.'
+      )
     }
 
     // Cooldown check runs after the dedup short-circuit so that at-least-once
@@ -533,7 +556,7 @@ export const create = mutation({
       amountUsd,
       amountCents: args.amountCents,
 
-      stellarTxId: args.stellarTxId,
+      stellarTxId,
       stellarNetwork: args.stellarNetwork || 'TESTNET',
       stellarMemo: args.stellarMemo,
       stellarLedger: args.stellarLedger,

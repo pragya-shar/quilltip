@@ -233,7 +233,7 @@ describe('prepareHighlightTip', () => {
         articleSlug: 'hello',
         amountUsd: 1,
         amountCents: 100,
-        stellarTxId: 'linked-placeholder',
+        stellarTxId: 'f'.repeat(64),
         stellarNetwork: 'TESTNET',
         stellarMemo: 'legacy-linked-placeholder',
         startOffset: 0,
@@ -428,6 +428,69 @@ describe('prepareHighlightTip', () => {
 })
 
 describe('submitHighlightTip', () => {
+  function legacyCreateArgs(
+    articleId: Id<'articles'>,
+    quote: Awaited<ReturnType<typeof prepare>>['quote'],
+    stellarTxId: string
+  ) {
+    return {
+      highlightId: quote.highlightId,
+      articleId,
+      highlightText: 'authoritative passage',
+      startOffset: 4,
+      endOffset: 19,
+      startContainerPath: '0.0',
+      endContainerPath: '0.0',
+      amountCents: 500,
+      stellarTxId,
+      stellarMemo: quote.highlightId,
+      stellarNetwork: 'TESTNET',
+      stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+      stellarDestinationAccount: AUTHOR_STELLAR_ADDRESS,
+      stellarAmountXlm: '20',
+    }
+  }
+
+  it('rejects lowercase exact submission after uppercase legacy creation of the same transaction', async () => {
+    const t = convexTest(schema, modules)
+    const { asTipper, articleId, quote } = await prepare(t)
+    const uppercaseHash = 'AB'.repeat(32)
+
+    await asTipper.mutation(
+      api.highlightTips.create,
+      legacyCreateArgs(articleId, quote, uppercaseHash)
+    )
+
+    await expect(
+      asTipper.mutation(api.highlightTips.submitHighlightTip, {
+        intentId: quote.intentId,
+        stellarTxId: uppercaseHash.toLowerCase(),
+      })
+    ).rejects.toThrow(
+      'This Stellar transaction is already linked to a different tip.'
+    )
+  })
+
+  it('deduplicates uppercase legacy creation after lowercase exact submission', async () => {
+    const t = convexTest(schema, modules)
+    const { asTipper, articleId, quote } = await prepare(t)
+    const uppercaseHash = 'CD'.repeat(32)
+    const exactTipId = await asTipper.mutation(
+      api.highlightTips.submitHighlightTip,
+      {
+        intentId: quote.intentId,
+        stellarTxId: uppercaseHash.toLowerCase(),
+      }
+    )
+
+    await expect(
+      asTipper.mutation(
+        api.highlightTips.create,
+        legacyCreateArgs(articleId, quote, uppercaseHash)
+      )
+    ).resolves.toBe(exactTipId)
+  })
+
   it('creates one pending tip entirely from the intent plus receipt metadata', async () => {
     const t = convexTest(schema, modules)
     const { asTipper, quote, articleId, authorId } = await prepare(t)

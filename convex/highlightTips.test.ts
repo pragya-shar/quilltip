@@ -175,6 +175,16 @@ function tipArgs(articleId: Id<'articles'>, stellarTxId: string) {
   }
 }
 const TIP_STROOPS = BigInt(10_000_000)
+const TX_ONE = '1'.repeat(64)
+const TX_TWO = '2'.repeat(64)
+const TX_CROSS_HIGHLIGHT = '3'.repeat(64)
+const TX_CROSS_USER = '4'.repeat(64)
+const TX_PUBLIC_PROJECTION = '5'.repeat(64)
+const TX_PRIVATE_HISTORY = '6'.repeat(64)
+const TX_OLD = '7'.repeat(64)
+const TX_NEW = '8'.repeat(64)
+const TX_DEFERRED_EARNING = '9'.repeat(64)
+const TX_BATCH = 'a'.repeat(64)
 
 // Skips the Horizon round-trip by directly invoking the internal mutation
 // that verification would have called on success. Used by tests that want
@@ -222,6 +232,25 @@ afterEach(() => {
 })
 
 describe('highlightTips.create', () => {
+  it.each([
+    '',
+    'f'.repeat(63),
+    'f'.repeat(65),
+    'g'.repeat(64),
+    ` ${'f'.repeat(64)}`,
+  ])('rejects invalid Stellar transaction hash %j', async (stellarTxId) => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+    const asTipper = t.withIdentity({ subject: tipperId })
+
+    await expect(
+      asTipper.mutation(
+        api.highlightTips.create,
+        tipArgs(articleId, stellarTxId)
+      )
+    ).rejects.toThrow('Invalid Stellar transaction hash')
+  })
+
   it('inserts the tip as PENDING with counters untouched', async () => {
     const t = convexTest(schema, modules)
     const { tipperId, articleId } = await seed(t)
@@ -229,7 +258,7 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     await t.run(async (ctx) => {
@@ -252,11 +281,11 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const first = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
     const second = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     expect(second).toBe(first)
@@ -285,13 +314,13 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-cross-highlight')
+      tipArgs(articleId, TX_CROSS_HIGHLIGHT)
     )
 
     // Same txId, different highlightId — should be rejected.
     await expect(
       asTipper.mutation(api.highlightTips.create, {
-        ...tipArgs(articleId, 'stellar-tx-cross-highlight'),
+        ...tipArgs(articleId, TX_CROSS_HIGHLIGHT),
         highlightId: 'hash-other',
       })
     ).rejects.toThrow(/already linked to a different tip/i)
@@ -316,51 +345,16 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-cross-user')
+      tipArgs(articleId, TX_CROSS_USER)
     )
 
     const asOther = t.withIdentity({ subject: otherTipperId })
     await expect(
       asOther.mutation(
         api.highlightTips.create,
-        tipArgs(articleId, 'stellar-tx-cross-user')
+        tipArgs(articleId, TX_CROSS_USER)
       )
     ).rejects.toThrow(/already linked to a different tip/i)
-  })
-
-  it('does not dedup when stellarTxId is empty', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const first = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, '')
-    )
-    // Backdate so the cooldown does not block the second empty-tx insert.
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(first)
-      if (tip) {
-        await ctx.db.patch(first, { createdAt: tip.createdAt - 60_000 })
-      }
-    })
-    const second = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, '')
-    )
-
-    expect(second).not.toBe(first)
-
-    await confirmPending(t, first)
-    await confirmPending(t, second)
-
-    await t.run(async (ctx) => {
-      const rows = await ctx.db.query('highlightTips').collect()
-      expect(rows).toHaveLength(2)
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount).toBe(2)
-    })
   })
 
   it('does not dedup distinct non-empty stellarTxIds', async () => {
@@ -370,7 +364,7 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const first = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
     // Backdate the first tip so the cooldown does not block the second insert.
     await t.run(async (ctx) => {
@@ -381,7 +375,7 @@ describe('highlightTips.create', () => {
     })
     const second = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-2')
+      tipArgs(articleId, TX_TWO)
     )
 
     expect(second).not.toBe(first)
@@ -405,14 +399,11 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     await expect(
-      asTipper.mutation(
-        api.highlightTips.create,
-        tipArgs(articleId, 'stellar-tx-2')
-      )
+      asTipper.mutation(api.highlightTips.create, tipArgs(articleId, TX_TWO))
     ).rejects.toThrow(/wait .* before tipping again/i)
   })
 
@@ -423,7 +414,7 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const first = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
     // Backdate the first tip so its createdAt is older than TIP_COOLDOWN_MS.
     await t.run(async (ctx) => {
@@ -435,7 +426,7 @@ describe('highlightTips.create', () => {
 
     const second = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-2')
+      tipArgs(articleId, TX_TWO)
     )
     expect(second).not.toBe(first)
   })
@@ -447,11 +438,11 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const first = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
     const retried = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
     expect(retried).toBe(first)
   })
@@ -463,7 +454,7 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     const byArticle = await t.query(api.highlightTips.getByArticle, {
@@ -485,7 +476,7 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-public-projection')
+      tipArgs(articleId, TX_PUBLIC_PROJECTION)
     )
     await confirmPending(t, tipId)
 
@@ -515,7 +506,7 @@ describe('highlightTips.create', () => {
     const publicPayload = JSON.stringify({ byHighlight, byArticle })
     expect(publicPayload).not.toContain(TIPPER_STELLAR)
     expect(publicPayload).not.toContain(AUTHOR_STELLAR)
-    expect(publicPayload).not.toContain('stellar-tx-public-projection')
+    expect(publicPayload).not.toContain(TX_PUBLIC_PROJECTION)
     expect(publicPayload).not.toContain(tipperId)
   })
 
@@ -526,7 +517,7 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-private-history')
+      tipArgs(articleId, TX_PRIVATE_HISTORY)
     )
     await confirmPending(t, tipId)
 
@@ -559,7 +550,7 @@ describe('highlightTips.create', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const oldTipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-old')
+      tipArgs(articleId, TX_OLD)
     )
     // Backdate so it falls outside the time window.
     await t.run(async (ctx) => {
@@ -580,7 +571,7 @@ describe('highlightTips.create', () => {
 
     const newTipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-new')
+      tipArgs(articleId, TX_NEW)
     )
     await confirmPending(t, newTipId)
 
@@ -602,7 +593,7 @@ describe('markHighlightTipConfirmed', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-deferred-highlight-earning')
+      tipArgs(articleId, TX_DEFERRED_EARNING)
     )
     await confirmPending(t, tipId)
 
@@ -622,7 +613,7 @@ describe('markHighlightTipConfirmed', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     await confirmPending(t, tipId)
@@ -651,7 +642,7 @@ describe('markHighlightTipConfirmed', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     await confirmPending(t, tipId)
@@ -673,7 +664,7 @@ describe('markHighlightTipFailed', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     await t.mutation(internal.stellarVerify.markHighlightTipFailed, {
@@ -701,7 +692,7 @@ describe('markHighlightTipFailed', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
     await confirmPending(t, tipId)
 
@@ -725,7 +716,7 @@ describe('verifyHighlightTip action', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     stubHorizonResponse({
@@ -762,7 +753,7 @@ describe('verifyHighlightTip action', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-batch-tx-1')
+      tipArgs(articleId, TX_BATCH)
     )
 
     stubHorizonResponse({
@@ -796,7 +787,7 @@ describe('verifyHighlightTip action', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     stubHorizonResponse({
@@ -827,7 +818,7 @@ describe('verifyHighlightTip action', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     stubHorizonResponse({
@@ -861,7 +852,7 @@ describe('verifyHighlightTip action', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     stubHorizonResponse({
@@ -896,7 +887,7 @@ describe('verifyHighlightTip action', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     // Attacker pays themselves on-chain and submits that tx hash for a tip to
@@ -933,7 +924,7 @@ describe('verifyHighlightTip action', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     // Declared 0.1 XLM (1,000,000 stroops) but on-chain is 100,000 stroops
@@ -969,7 +960,7 @@ describe('verifyHighlightTip action', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     // User paid slightly more than declared (e.g. price drifted up mid-build).
@@ -1008,7 +999,7 @@ describe('verifyHighlightTip action', () => {
     // but — at this stage — only flags it, never fails.
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(api.highlightTips.create, {
-      ...tipArgs(articleId, 'stellar-tx-1'),
+      ...tipArgs(articleId, TX_ONE),
       amountCents: 10_000, // claims $100
       stellarAmountXlm: '0.01', // but only says 0.01 XLM paid
     })
@@ -1055,7 +1046,7 @@ describe('verifyHighlightTip action', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     stubHorizonResponse(
@@ -1093,7 +1084,7 @@ describe('verifyHighlightTip action', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     stubHorizonResponse(
@@ -1146,7 +1137,7 @@ describe('verifyHighlightTip action', () => {
     const asTipper = t.withIdentity({ subject: tipperId })
     const tipId = await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      tipArgs(articleId, TX_ONE)
     )
 
     // Drain the auto-scheduled verify chain that .create kicked off — we

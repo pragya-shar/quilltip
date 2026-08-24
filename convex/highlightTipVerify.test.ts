@@ -212,6 +212,32 @@ function stubMatchingHorizon(
 }
 
 describe('exact highlight tip verification', () => {
+  it('does not let the legacy confirmer settle an intent-backed pending tip', async () => {
+    const t = convexTest(schema, modules)
+    const { tipId, articleId, authorId, tipperId } = await createPendingTip(t)
+
+    await t.mutation(internal.stellarVerify.markHighlightTipConfirmed, {
+      id: tipId,
+      stellarLedger: 1234,
+    })
+
+    await t.run(async (ctx) => {
+      const tip = await ctx.db.get(tipId)
+      expect(tip).toMatchObject({ status: 'PENDING' })
+      expect(tip?.verifiedAt).toBeUndefined()
+      expect((await ctx.db.get(articleId))?.tipCount).toBe(0)
+      expect((await ctx.db.get(articleId))?.totalTipsUsd).toBe(0)
+      expect((await ctx.db.get(tipperId))?.tipsSentCount).toBe(0)
+      expect((await ctx.db.get(authorId))?.tipsReceivedCount).toBe(0)
+      expect(
+        await ctx.db
+          .query('authorEarnings')
+          .withIndex('by_user', (q) => q.eq('userId', authorId))
+          .first()
+      ).toBeNull()
+    })
+  })
+
   it('confirms and credits the exact intent-backed transaction once', async () => {
     const t = convexTest(schema, modules)
     const { tipId, quote, articleId, authorId, tipperId } =
@@ -505,6 +531,7 @@ describe('exact highlight tip verification', () => {
     const { tipId, quote } = await createPendingTip(t)
     process.env.STELLAR_NETWORK = 'TESTNET'
     process.env.TIPPING_CONTRACT_ID = ROTATED_CONTRACT_ID
+    process.env.HORIZON_URL = 'https://untrusted-horizon.example'
     let requestedUrl = ''
     const envelopeXdr = buildHighlightEnvelope({
       highlightId: quote.highlightId,
@@ -731,6 +758,7 @@ describe('exact highlight tip verification', () => {
       void _creationTime
       await ctx.db.insert('highlightTips', {
         ...clone,
+        stellarTxId: tip.stellarTxId.toUpperCase(),
         highlightTipIntentId: undefined,
         verifiedAt: undefined,
         status: 'CONFIRMED',
@@ -754,23 +782,26 @@ describe('exact highlight tip verification', () => {
     })
   })
 
-  it('keeps the tip pending after the transient retry budget is exhausted', async () => {
-    const t = convexTest(schema, modules)
-    const { tipId } = await createPendingTip(t)
-    stubHorizon({}, 503)
+  it.each([408, 429, 503])(
+    'keeps the tip pending after the transient retry budget is exhausted for HTTP %i',
+    async (status) => {
+      const t = convexTest(schema, modules)
+      const { tipId } = await createPendingTip(t)
+      stubHorizon({}, status)
 
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 3,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip).toMatchObject({
-        status: 'PENDING',
-        failureReason: 'verification_temporarily_unavailable',
+      await t.action(internal.stellarVerify.verifyHighlightTip, {
+        highlightTipId: tipId,
+        attempt: 3,
       })
-      expect(tip?.verifiedAt).toBeUndefined()
-    })
-  })
+
+      await t.run(async (ctx) => {
+        const tip = await ctx.db.get(tipId)
+        expect(tip).toMatchObject({
+          status: 'PENDING',
+          failureReason: 'verification_temporarily_unavailable',
+        })
+        expect(tip?.verifiedAt).toBeUndefined()
+      })
+    }
+  )
 })
