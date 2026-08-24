@@ -20,14 +20,15 @@ export const getArticleHighlights = query({
       .collect()
 
     const privateHighlights = userId
-      ? (
-          await ctx.db
-            .query('highlights')
-            .withIndex('by_user_public', (q) =>
-              q.eq('userId', userId).eq('isPublic', false)
-            )
-            .collect()
-        ).filter((highlight) => highlight.articleId === args.articleId)
+      ? await ctx.db
+          .query('highlights')
+          .withIndex('by_article_user_public', (q) =>
+            q
+              .eq('articleId', args.articleId)
+              .eq('userId', userId)
+              .eq('isPublic', false)
+          )
+          .collect()
       : []
 
     const highlights =

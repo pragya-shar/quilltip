@@ -175,6 +175,7 @@ export default defineSchema({
     .index('by_article', ['articleId'])
     .index('by_user', ['userId'])
     .index('by_article_public', ['articleId', 'isPublic'])
+    .index('by_article_user_public', ['articleId', 'userId', 'isPublic'])
     .index('by_highlight_id', ['highlightId'])
     .index('by_user_public', ['userId', 'isPublic']), // For user's public highlights
 
