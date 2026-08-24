@@ -134,6 +134,8 @@ async function linkArticleIntent(
   base: LifecycleBase,
   intentId: Id<'articleTipIntents'>
 ): Promise<Id<'tips'>> {
+  const intent = await ctx.db.get(intentId)
+  if (!intent) throw new Error('article intent fixture missing')
   const now = Date.now()
   const tipId = await ctx.db.insert('tips', {
     articleId: base.articleId,
@@ -152,10 +154,10 @@ async function linkArticleIntent(
     expectedAmountStroops: '10000000',
     expectedContractId: CONTRACT,
     expectedMinTime: '1',
-    expectedMaxTime: '2000000000',
+    expectedMaxTime: intent.expectedMaxTime,
     quotePriceUsd: 0.1,
     quoteSource: 'test',
-    quoteFetchedAt: now,
+    quoteFetchedAt: intent.quoteFetchedAt,
     status: 'PENDING',
     createdAt: now,
     updatedAt: now,
@@ -169,6 +171,8 @@ async function linkHighlightIntent(
   base: LifecycleBase,
   intentId: Id<'highlightTipIntents'>
 ): Promise<Id<'highlightTips'>> {
+  const intent = await ctx.db.get(intentId)
+  if (!intent) throw new Error('highlight intent fixture missing')
   const now = Date.now()
   const tipId = await ctx.db.insert('highlightTips', {
     highlightId: 'highlight-lifecycle',
@@ -195,10 +199,10 @@ async function linkHighlightIntent(
     expectedContractId: CONTRACT,
     expectedFunction: 'tip_highlight_direct',
     expectedMinTime: '1',
-    expectedMaxTime: '2000000000',
+    expectedMaxTime: intent.expectedMaxTime,
     quotePriceUsd: 0.1,
     quoteSource: 'test',
-    quoteFetchedAt: now,
+    quoteFetchedAt: intent.quoteFetchedAt,
     startOffset: 0,
     endOffset: 9,
     status: 'PENDING',

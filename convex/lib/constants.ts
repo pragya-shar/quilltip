@@ -99,6 +99,8 @@ export const TIP_HIGHLIGHT_FUNCTIONS = [
   'batch_tip_highlights',
 ] as const
 export const TIP_HIGHLIGHT_DIRECT_FUNCTION = 'tip_highlight_direct' as const
+export const LEGACY_PENDING_HIGHLIGHT_TIP_QUARANTINE_REASON =
+  'legacy_pending_highlight_tip_quarantined' as const
 
 // Tipping contract ID is deployment-specific, so it is read from env at
 // call time rather than baked in. Must match NEXT_PUBLIC_TIPPING_CONTRACT_ID

@@ -7,7 +7,11 @@ import {
 import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { verifyTipTransaction } from './lib/horizon'
-import { TIP_ARTICLE_FUNCTIONS, getTippingContractId } from './lib/constants'
+import {
+  LEGACY_PENDING_HIGHLIGHT_TIP_QUARANTINE_REASON,
+  TIP_ARTICLE_FUNCTIONS,
+  getTippingContractId,
+} from './lib/constants'
 import { resolveHorizonUrl, xlmStringToStroops } from './stellarVerify'
 
 // 7-hour lookback with 1-hour overlap vs the 6-hour cron interval, so a
@@ -308,9 +312,9 @@ export const reconcileArticleTips = internalAction({
 
 /**
  * Internal read for the stuck-PENDING highlight tip sweep. Returns ids of
- * highlightTips rows that are PENDING and older than STUCK_PENDING_THRESHOLD_MS,
- * which is well past any legitimate retry window. Indexed by status + createdAt
- * so the scan stays cheap as the table grows.
+ * intent-backed highlightTips rows that are PENDING and older than
+ * STUCK_PENDING_THRESHOLD_MS, which is well past any legitimate retry window.
+ * Indexed by status + createdAt so the scan stays cheap as the table grows.
  */
 export const getStuckPendingHighlightTipIds = internalQuery({
   args: { cutoffMs: v.number() },
@@ -320,18 +324,42 @@ export const getStuckPendingHighlightTipIds = internalQuery({
       .withIndex('by_status_created', (q) =>
         q.eq('status', 'PENDING').lt('createdAt', args.cutoffMs)
       )
-      .collect()
+      .filter((q) => q.neq(q.field('highlightTipIntentId'), undefined))
+      .take(100)
     return tips.map((tip) => tip._id)
   },
 })
 
+export const quarantineLegacyPendingHighlightTips = internalMutation({
+  args: { cutoffMs: v.number() },
+  returns: v.number(),
+  handler: async (ctx, args): Promise<number> => {
+    const tips = await ctx.db
+      .query('highlightTips')
+      .withIndex('by_status_created', (q) =>
+        q.eq('status', 'PENDING').lt('createdAt', args.cutoffMs)
+      )
+      .filter((q) => q.eq(q.field('highlightTipIntentId'), undefined))
+      .take(100)
+    const now = Date.now()
+    for (const tip of tips) {
+      await ctx.db.patch(tip._id, {
+        status: 'FAILED',
+        failureReason: LEGACY_PENDING_HIGHLIGHT_TIP_QUARANTINE_REASON,
+        processedAt: now,
+        updatedAt: now,
+      })
+    }
+    return tips.length
+  },
+})
+
 /**
- * Recover highlight tips whose verification chain died. For each PENDING
- * tip older than STUCK_PENDING_THRESHOLD_MS we reschedule verifyHighlightTip
- * with attempt=1, restarting the retry budget. The verify action's status
- * guard (`if (tip.status !== 'PENDING') return`) makes this safe even if the
- * original chain happens to be alive — at worst the tip sees one extra run
- * that no-ops on the already-flipped status.
+ * Recover intent-backed highlight tips whose verification chain died. Legacy
+ * PENDING rows never cross the post-cutover trust boundary: they are
+ * terminalized without verification or counters. Each old intent-backed row
+ * is rescheduled with attempt=1, restarting the retry budget. The verify
+ * action's status guard makes this safe even if the original chain is alive.
  *
  * Not gated by RECONCILE_TIPS_ENABLED: rescheduling a verify is non-destructive
  * (it cannot mark a tip FRAUDULENT or move money), so dry-run vs enabled is
@@ -339,8 +367,15 @@ export const getStuckPendingHighlightTipIds = internalQuery({
  */
 export const recoverStuckPendingHighlightTips = internalAction({
   args: {},
-  handler: async (ctx): Promise<{ rescheduled: number }> => {
+  returns: v.object({ rescheduled: v.number(), quarantined: v.number() }),
+  handler: async (
+    ctx
+  ): Promise<{ rescheduled: number; quarantined: number }> => {
     const cutoff = Date.now() - STUCK_PENDING_THRESHOLD_MS
+    const quarantined = await ctx.runMutation(
+      internal.reconcileTips.quarantineLegacyPendingHighlightTips,
+      { cutoffMs: cutoff }
+    )
     const ids: Id<'highlightTips'>[] = await ctx.runQuery(
       internal.reconcileTips.getStuckPendingHighlightTipIds,
       { cutoffMs: cutoff }
@@ -354,7 +389,7 @@ export const recoverStuckPendingHighlightTips = internalAction({
       )
     }
 
-    const summary = { rescheduled: ids.length }
+    const summary = { rescheduled: ids.length, quarantined }
     console.log('[reconcileTips] stuck-PENDING highlight sweep', summary)
     return summary
   },

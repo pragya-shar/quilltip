@@ -7,7 +7,6 @@ import {
 import { internal } from './_generated/api'
 import type { Doc } from './_generated/dataModel'
 import { verifyTipTransaction } from './lib/horizon'
-import { fetchXlmPriceUsd } from './lib/xlmPrice'
 import {
   normalizeStellarTransactionHash,
   stellarTransactionHashLookupValues,
@@ -18,10 +17,8 @@ import {
   ARTICLE_TIP_TX_LATE_GRACE_MS,
   HORIZON_VERIFY_MAX_ATTEMPTS,
   HORIZON_NOT_FOUND_TERMINAL_REASON,
-  STROOPS_PER_XLM,
-  TIP_AMOUNT_USD_TOLERANCE,
   TIP_HIGHLIGHT_FUNCTIONS,
-  getTippingContractId,
+  LEGACY_PENDING_HIGHLIGHT_TIP_QUARANTINE_REASON,
   isPastHorizonNotFoundIndexingGrace,
   verifyDelayMs,
 } from './lib/constants'
@@ -36,18 +33,12 @@ export const getHighlightTipForVerify = internalQuery({
   handler: async (ctx, args) => {
     const tip = await ctx.db.get(args.id)
     if (!tip) return null
-    const [author, intent] = await Promise.all([
-      tip.highlightTipIntentId
-        ? Promise.resolve(null)
-        : ctx.db.get(tip.authorId),
-      tip.highlightTipIntentId
-        ? ctx.db.get(tip.highlightTipIntentId)
-        : Promise.resolve(null),
-    ])
+    const intent = tip.highlightTipIntentId
+      ? await ctx.db.get(tip.highlightTipIntentId)
+      : null
     return {
       tip,
       intent,
-      authorStellarAddress: author?.stellarAddress ?? null,
     }
   },
 })
@@ -149,225 +140,136 @@ export const verifyHighlightTip = internalAction({
       { id: args.highlightTipId }
     )
     if (!hydrated) return
-    const { tip, intent, authorStellarAddress } = hydrated
+    const { tip, intent } = hydrated
     if (tip.status !== 'PENDING') return
 
-    if (tip.highlightTipIntentId) {
-      if (
-        !intent ||
-        !tip.stellarTxId ||
-        !tip.expectedSourceAccount ||
-        !tip.expectedDestinationAccount ||
-        !tip.expectedHighlightId ||
-        !tip.expectedArticleSymbol ||
-        !tip.expectedAmountStroops ||
-        !tip.expectedContractId ||
-        !tip.expectedFunction ||
-        !tip.expectedMinTime ||
-        !tip.expectedMaxTime
-      ) {
-        await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
-          id: args.highlightTipId,
-          reason: 'missing_verification_expectation',
-        })
-        return
-      }
-
-      if (!matchesHighlightTipIntentSnapshot(tip, intent)) {
-        await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
-          id: args.highlightTipId,
-          reason: 'verification_expectation_mismatch',
-        })
-        return
-      }
-
-      let exactStroops: bigint
-      try {
-        exactStroops = BigInt(tip.expectedAmountStroops)
-      } catch {
-        await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
-          id: args.highlightTipId,
-          reason: 'malformed_expected_amount',
-        })
-        return
-      }
-      if (exactStroops <= BigInt(0)) {
-        await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
-          id: args.highlightTipId,
-          reason: 'malformed_expected_amount',
-        })
-        return
-      }
-
-      const exactResult = await verifyTipTransaction(fetch, {
-        txId: tip.stellarTxId,
-        expectedSource: tip.expectedSourceAccount,
-        horizonUrl: resolveIntentHorizonUrl(tip.stellarNetwork),
-        minCreatedAtMs: intent.createdAt - ARTICLE_TIP_TX_EARLY_GRACE_MS,
-        maxCreatedAtMs: intent.expiresAt + ARTICLE_TIP_TX_LATE_GRACE_MS,
-        invocation: {
-          contractId: tip.expectedContractId,
-          allowedFunctions: TIP_HIGHLIGHT_FUNCTIONS,
-          expectedFunction: tip.expectedFunction,
-          authorAddress: tip.expectedDestinationAccount,
-          highlightId: tip.expectedHighlightId,
-          articleId: tip.expectedArticleSymbol,
-          minStroops: exactStroops,
-          exactStroops,
-          expectedTimeBounds: {
-            minTime: tip.expectedMinTime,
-            maxTime: tip.expectedMaxTime,
-          },
-          batchTips: [
-            {
-              highlightId: tip.expectedHighlightId,
-              articleId: tip.expectedArticleSymbol,
-              authorAddress: tip.expectedDestinationAccount,
-              minStroops: exactStroops,
-              exactStroops,
-            },
-          ],
-        },
+    if (!tip.highlightTipIntentId) {
+      await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
+        id: args.highlightTipId,
+        reason: LEGACY_PENDING_HIGHLIGHT_TIP_QUARANTINE_REASON,
       })
-
-      if (!exactResult.ok) {
-        if (exactResult.kind === 'transient') {
-          if (
-            exactResult.reason === 'not_found' &&
-            isPastHorizonNotFoundIndexingGrace(tip.expectedMaxTime)
-          ) {
-            await ctx.runMutation(
-              internal.stellarVerify.markHighlightTipFailed,
-              {
-                id: args.highlightTipId,
-                reason: HORIZON_NOT_FOUND_TERMINAL_REASON,
-              }
-            )
-            return
-          }
-          if (args.attempt < HORIZON_VERIFY_MAX_ATTEMPTS) {
-            await ctx.scheduler.runAfter(
-              verifyDelayMs(args.attempt),
-              internal.stellarVerify.verifyHighlightTip,
-              {
-                highlightTipId: args.highlightTipId,
-                attempt: args.attempt + 1,
-              }
-            )
-          } else {
-            await ctx.runMutation(
-              internal.stellarVerify.markHighlightTipTemporarilyUnavailable,
-              { id: args.highlightTipId }
-            )
-          }
-          return
-        }
-
-        await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
-          id: args.highlightTipId,
-          reason: exactResult.reason,
-        })
-        return
-      }
-
-      await ctx.runMutation(
-        internal.stellarVerify.confirmVerifiedHighlightTip,
-        {
-          id: args.highlightTipId,
-          stellarLedger: exactResult.ledger,
-        }
-      )
       return
     }
 
     if (
-      !tip.stellarSourceAccount ||
+      !intent ||
       !tip.stellarTxId ||
-      !tip.stellarAmountXlm
+      !tip.expectedSourceAccount ||
+      !tip.expectedDestinationAccount ||
+      !tip.expectedHighlightId ||
+      !tip.expectedArticleSymbol ||
+      !tip.expectedAmountStroops ||
+      !tip.expectedContractId ||
+      !tip.expectedFunction ||
+      !tip.expectedMinTime ||
+      !tip.expectedMaxTime
     ) {
       await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
         id: args.highlightTipId,
-        reason: 'missing_stellar_metadata',
+        reason: 'missing_verification_expectation',
       })
       return
     }
 
-    if (!authorStellarAddress) {
+    if (!matchesHighlightTipIntentSnapshot(tip, intent)) {
       await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
         id: args.highlightTipId,
-        reason: 'missing_author_stellar_address',
+        reason: 'verification_expectation_mismatch',
       })
       return
     }
 
-    const minStroops = xlmStringToStroops(tip.stellarAmountXlm)
-    if (minStroops === null) {
+    let exactStroops: bigint
+    try {
+      exactStroops = BigInt(tip.expectedAmountStroops)
+    } catch {
       await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
         id: args.highlightTipId,
-        reason: 'malformed_stellar_amount',
+        reason: 'malformed_expected_amount',
+      })
+      return
+    }
+    if (exactStroops <= BigInt(0)) {
+      await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
+        id: args.highlightTipId,
+        reason: 'malformed_expected_amount',
       })
       return
     }
 
-    const horizonUrl = resolveHorizonUrl(tip.stellarNetwork)
-    const result = await verifyTipTransaction(fetch, {
+    const exactResult = await verifyTipTransaction(fetch, {
       txId: tip.stellarTxId,
-      expectedSource: tip.stellarSourceAccount,
-      horizonUrl,
+      expectedSource: tip.expectedSourceAccount,
+      horizonUrl: resolveIntentHorizonUrl(tip.stellarNetwork),
+      minCreatedAtMs: intent.createdAt - ARTICLE_TIP_TX_EARLY_GRACE_MS,
+      maxCreatedAtMs: intent.expiresAt + ARTICLE_TIP_TX_LATE_GRACE_MS,
       invocation: {
-        contractId: getTippingContractId(),
+        contractId: tip.expectedContractId,
         allowedFunctions: TIP_HIGHLIGHT_FUNCTIONS,
-        authorAddress: authorStellarAddress,
-        minStroops,
+        expectedFunction: tip.expectedFunction,
+        authorAddress: tip.expectedDestinationAccount,
+        highlightId: tip.expectedHighlightId,
+        articleId: tip.expectedArticleSymbol,
+        minStroops: exactStroops,
+        exactStroops,
+        expectedTimeBounds: {
+          minTime: tip.expectedMinTime,
+          maxTime: tip.expectedMaxTime,
+        },
+        batchTips: [
+          {
+            highlightId: tip.expectedHighlightId,
+            articleId: tip.expectedArticleSymbol,
+            authorAddress: tip.expectedDestinationAccount,
+            minStroops: exactStroops,
+            exactStroops,
+          },
+        ],
       },
     })
 
-    if (!result.ok) {
-      if (
-        result.kind === 'transient' &&
-        args.attempt < HORIZON_VERIFY_MAX_ATTEMPTS
-      ) {
-        await ctx.scheduler.runAfter(
-          verifyDelayMs(args.attempt),
-          internal.stellarVerify.verifyHighlightTip,
-          { highlightTipId: args.highlightTipId, attempt: args.attempt + 1 }
-        )
+    if (!exactResult.ok) {
+      if (exactResult.kind === 'transient') {
+        if (
+          exactResult.reason === 'not_found' &&
+          isPastHorizonNotFoundIndexingGrace(tip.expectedMaxTime)
+        ) {
+          await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
+            id: args.highlightTipId,
+            reason: HORIZON_NOT_FOUND_TERMINAL_REASON,
+          })
+          return
+        }
+        if (args.attempt < HORIZON_VERIFY_MAX_ATTEMPTS) {
+          await ctx.scheduler.runAfter(
+            verifyDelayMs(args.attempt),
+            internal.stellarVerify.verifyHighlightTip,
+            {
+              highlightTipId: args.highlightTipId,
+              attempt: args.attempt + 1,
+            }
+          )
+        } else {
+          await ctx.runMutation(
+            internal.stellarVerify.markHighlightTipTemporarilyUnavailable,
+            { id: args.highlightTipId }
+          )
+        }
         return
       }
 
-      const reason =
-        result.kind === 'transient'
-          ? `verification_unreachable:${result.reason}`
-          : result.reason
-
       await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
         id: args.highlightTipId,
-        reason,
+        reason: exactResult.reason,
       })
       return
     }
 
-    // USD cross-check runs in warn-only mode: we never block a tip that
-    // already passed contract / function / author / amount-stroops checks,
-    // because the price oracle or real XLM volatility could legitimately
-    // disagree with the claim. Instead we flag suspicious tips so they
-    // can be audited. Flip to hard-fail once we see the real-world
-    // divergence distribution in production.
-    const suspicion = await computeAmountSuspicion({
-      onChainStroops: result.onChainStroops,
-      claimedAmountUsd: tip.amountUsd,
-    })
-    if (suspicion) {
-      console.warn(
-        `[highlightTip ${args.highlightTipId}] amount-usd check flagged: ${suspicion}`
-      )
-    }
-
-    await ctx.runMutation(internal.stellarVerify.markHighlightTipConfirmed, {
+    await ctx.runMutation(internal.stellarVerify.confirmVerifiedHighlightTip, {
       id: args.highlightTipId,
-      stellarLedger: result.ledger,
-      amountUsdSuspicionReason: suspicion ?? undefined,
+      stellarLedger: exactResult.ledger,
     })
+    return
   },
 })
 
@@ -395,7 +297,18 @@ export const confirmVerifiedHighlightTip = internalMutation({
   },
   handler: async (ctx, args) => {
     const tip = await ctx.db.get(args.id)
-    if (!tip || tip.status !== 'PENDING' || !tip.highlightTipIntentId) return
+    if (!tip || tip.status !== 'PENDING') return
+
+    if (!tip.highlightTipIntentId) {
+      const now = Date.now()
+      await ctx.db.patch(args.id, {
+        status: 'FAILED',
+        failureReason: LEGACY_PENDING_HIGHLIGHT_TIP_QUARANTINE_REASON,
+        processedAt: now,
+        updatedAt: now,
+      })
+      return
+    }
 
     const intent = await ctx.db.get(tip.highlightTipIntentId)
     const now = Date.now()
@@ -565,41 +478,8 @@ function getMonthKey(timestamp: number): string {
 }
 
 /**
- * Returns a short reason string if the on-chain paid amount disagrees with
- * the tip's claimed USD beyond tolerance, or null if the claim looks fine.
- * Returns `price_oracle_unavailable` when the oracle cannot be reached — we
- * still confirm the tip, but the caller should flag it for audit.
- */
-async function computeAmountSuspicion(args: {
-  onChainStroops: bigint | null
-  claimedAmountUsd: number
-}): Promise<string | null> {
-  if (args.onChainStroops === null) {
-    // Invocation checks were skipped (should not happen in this flow, but
-    // defensive). Treat as suspicious rather than silently trusting.
-    return 'missing_onchain_amount'
-  }
-
-  const price = await fetchXlmPriceUsd(fetch)
-  if (!price.ok) {
-    return `price_oracle_unavailable:${price.reason}`
-  }
-
-  const onChainXlm = Number(args.onChainStroops) / STROOPS_PER_XLM
-  const onChainUsd = onChainXlm * price.priceUsd
-  const minAcceptableUsd =
-    args.claimedAmountUsd * (1 - TIP_AMOUNT_USD_TOLERANCE)
-  if (onChainUsd < minAcceptableUsd) {
-    return `amount_usd_mismatch:onchain_usd=${onChainUsd.toFixed(4)},claimed_usd=${args.claimedAmountUsd}`
-  }
-  return null
-}
-
-/**
- * Flips a PENDING highlight tip to CONFIRMED and applies the counter updates
- * that `highlightTips.create` intentionally deferred. Idempotent: a second
- * call on an already-settled tip is a no-op. This is what makes the Convex
- * at-least-once scheduler safe.
+ * Historical entrypoint retained only to terminalize a legacy PENDING row.
+ * Already-CONFIRMED history remains untouched and readable.
  */
 export const markHighlightTipConfirmed = internalMutation({
   args: {
@@ -612,41 +492,12 @@ export const markHighlightTipConfirmed = internalMutation({
     if (!tip || tip.status !== 'PENDING' || tip.highlightTipIntentId) return
 
     const now = Date.now()
-
-    const suspicious = Boolean(args.amountUsdSuspicionReason)
     await ctx.db.patch(args.id, {
-      status: 'CONFIRMED',
-      stellarLedger: args.stellarLedger,
-      amountUsdSuspicious: suspicious || undefined,
-      amountUsdSuspicionReason: args.amountUsdSuspicionReason,
+      status: 'FAILED',
+      failureReason: LEGACY_PENDING_HIGHLIGHT_TIP_QUARANTINE_REASON,
       processedAt: now,
       updatedAt: now,
     })
-
-    const article = await ctx.db.get(tip.articleId)
-    if (article) {
-      await ctx.db.patch(tip.articleId, {
-        tipCount: (article.tipCount || 0) + 1,
-        totalTipsUsd: (article.totalTipsUsd || 0) + tip.amountUsd,
-        updatedAt: now,
-      })
-    }
-
-    const tipper = await ctx.db.get(tip.tipperId)
-    if (tipper) {
-      await ctx.db.patch(tip.tipperId, {
-        tipsSentCount: (tipper.tipsSentCount || 0) + 1,
-        updatedAt: now,
-      })
-    }
-
-    const author = await ctx.db.get(tip.authorId)
-    if (author) {
-      await ctx.db.patch(tip.authorId, {
-        tipsReceivedCount: (author.tipsReceivedCount || 0) + 1,
-        updatedAt: now,
-      })
-    }
   },
 })
 
