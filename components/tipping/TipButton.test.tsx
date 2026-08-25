@@ -25,6 +25,7 @@ const mockMutation = vi.hoisted(() =>
 )
 const mockSignTransaction = vi.hoisted(() => vi.fn())
 const mockConnect = vi.hoisted(() => vi.fn())
+const mockActivateWallet = vi.hoisted(() => vi.fn())
 const mockBuildTipTransaction = vi.hoisted(() => vi.fn())
 const mockDeriveTipTransactionHash = vi.hoisted(() => vi.fn())
 const mockSubmitTipTransaction = vi.hoisted(() => vi.fn())
@@ -62,7 +63,7 @@ vi.mock('@/components/providers/WalletProvider', () => ({
 }))
 
 vi.mock('@/components/providers/WalletActivationContext', () => ({
-  useWalletActivation: () => ({ activateWallet: vi.fn() }),
+  useWalletActivation: () => ({ activateWallet: mockActivateWallet }),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -175,6 +176,7 @@ describe('TipButton two-stage flow', () => {
     mockSignTransaction.mockReset()
     mockSignTransaction.mockResolvedValue('signed-xdr')
     mockConnect.mockReset()
+    mockActivateWallet.mockReset()
     mockBuildTipTransaction.mockReset()
     mockBuildTipTransaction.mockResolvedValue({
       xdr: 'unsigned-xdr',
@@ -482,6 +484,123 @@ describe('TipButton two-stage flow', () => {
     expect(mockSignTransaction).toHaveBeenCalledTimes(1)
     expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
     expect(mockSubmitTipTransaction).toHaveBeenCalledWith('signed-xdr')
+  })
+
+  it('restores a legacy broadcast receipt and only registers and checks its saved hash', async () => {
+    window.localStorage.setItem(
+      'quilltip:pendingArticleTipReceipts',
+      JSON.stringify([
+        {
+          articleId: 'articles:abc',
+          tipperId: 'users:one',
+          amountCents: 100,
+          message: 'Legacy tip',
+          stellarNetwork: 'TESTNET',
+          stellarSourceAccount: 'GABCDEF123456789',
+          intentId: 'intent-legacy',
+          stellarTxId: 'b'.repeat(64),
+        },
+      ])
+    )
+    mockIsAuthenticated.mockReturnValue(true)
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    expect(
+      await screen.findByText('Earlier tip saved for recovery')
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Check transaction' }))
+
+    await waitFor(() => {
+      expect(mockSubmitArticleTip).toHaveBeenCalledWith({
+        intentId: 'intent-legacy',
+        stellarTxId: 'b'.repeat(64),
+        stellarLedger: undefined,
+        stellarFeeCharged: undefined,
+        contractTipId: undefined,
+      })
+      expect(mockRetryArticleTipVerification).toHaveBeenCalledWith({
+        tipId: 'tip-id',
+      })
+    })
+    expect(mockPrepareArticleTip).not.toHaveBeenCalled()
+    expect(mockBuildTipTransaction).not.toHaveBeenCalled()
+    expect(mockSignTransaction).not.toHaveBeenCalled()
+    expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
+    expect(mockActivateWallet).not.toHaveBeenCalled()
+    expect(mockConnect).not.toHaveBeenCalled()
+  })
+
+  it('never creates a replacement payment for a legacy transaction absent from Stellar', async () => {
+    window.localStorage.setItem(
+      'quilltip:pendingArticleTipReceipts',
+      JSON.stringify([
+        {
+          articleId: 'articles:abc',
+          tipperId: 'users:one',
+          amountCents: 100,
+          stellarNetwork: 'TESTNET',
+          stellarSourceAccount: 'GABCDEF123456789',
+          intentId: 'intent-legacy',
+          stellarTxId: 'c'.repeat(64),
+          submittedTipId: 'tip-id',
+        },
+      ])
+    )
+    mockIsAuthenticated.mockReturnValue(true)
+    mockVerificationStatus.mockReturnValue({
+      status: 'FAILED',
+      failureReason: 'transaction_not_found_after_indexing_grace',
+      verifiedAt: undefined,
+    })
+    mockRetryArticleTipVerification.mockRejectedValueOnce(
+      new Error('Only pending article tips can be retried')
+    )
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    expect(
+      await screen.findByText('Earlier tip could not be verified')
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Start over' })
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Check transaction' }))
+
+    await waitFor(() => {
+      expect(mockRetryArticleTipVerification).toHaveBeenCalledWith({
+        tipId: 'tip-id',
+      })
+    })
+    expect(mockPrepareArticleTip).not.toHaveBeenCalled()
+    expect(mockBuildTipTransaction).not.toHaveBeenCalled()
+    expect(mockSignTransaction).not.toHaveBeenCalled()
+    expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
+    expect(mockActivateWallet).not.toHaveBeenCalled()
+    expect(mockConnect).not.toHaveBeenCalled()
+    expect(
+      JSON.parse(
+        window.localStorage.getItem('quilltip:pendingArticleTipReceipts') ??
+          '[]'
+      )
+    ).toEqual([
+      expect.objectContaining({
+        stellarTxId: 'c'.repeat(64),
+        submittedTipId: 'tip-id',
+      }),
+    ])
   })
 
   it('waits for auth and restores only the matching tipper receipt', async () => {

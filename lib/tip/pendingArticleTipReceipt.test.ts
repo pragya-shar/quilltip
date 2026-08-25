@@ -15,6 +15,17 @@ const RECEIPT_ONE = {
   contractTipId: 'contract-tip-one',
 }
 
+const LEGACY_RECEIPT = {
+  articleId: 'articles:legacy',
+  tipperId: 'users:one' as Id<'users'>,
+  amountCents: 250,
+  message: 'Already sent',
+  stellarNetwork: 'TESTNET' as const,
+  stellarSourceAccount: 'GTIPPERONE',
+  intentId: 'intent-legacy' as Id<'articleTipIntents'>,
+  stellarTxId: 'transaction-legacy',
+}
+
 describe('pendingArticleTipReceipt storage', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -36,6 +47,27 @@ describe('pendingArticleTipReceipt storage', () => {
     expect(
       readPendingArticleTipReceipt('articles:one', 'TESTNET', 'users:one')
     ).toEqual(RECEIPT_ONE)
+  })
+
+  it('restores current and legacy receipts independently when a stored row is malformed', async () => {
+    window.localStorage.setItem(
+      'quilltip:pendingArticleTipReceipts',
+      JSON.stringify([
+        RECEIPT_ONE,
+        { articleId: 'articles:broken', stellarTxId: 123 },
+        LEGACY_RECEIPT,
+      ])
+    )
+
+    const { readPendingArticleTipReceipt } =
+      await import('./pendingArticleTipReceipt')
+
+    expect(
+      readPendingArticleTipReceipt('articles:one', 'TESTNET', 'users:one')
+    ).toEqual(RECEIPT_ONE)
+    expect(
+      readPendingArticleTipReceipt('articles:legacy', 'TESTNET', 'users:one')
+    ).toEqual(LEGACY_RECEIPT)
   })
 
   it('keeps independent receipts and clears only the confirmed article', async () => {
@@ -88,6 +120,38 @@ describe('pendingArticleTipReceipt storage', () => {
     expect(
       readPendingArticleTipReceipt('articles:one', 'TESTNET', 'users:one')
     ).toEqual(RECEIPT_ONE)
+  })
+
+  it('keeps a legacy receipt isolated by article, tipper, and network', async () => {
+    window.localStorage.setItem(
+      'quilltip:pendingArticleTipReceipts',
+      JSON.stringify([LEGACY_RECEIPT])
+    )
+    const { readPendingArticleTipReceipt } =
+      await import('./pendingArticleTipReceipt')
+
+    expect(
+      readPendingArticleTipReceipt('articles:other', 'TESTNET', 'users:one')
+    ).toBeNull()
+    expect(
+      readPendingArticleTipReceipt('articles:legacy', 'MAINNET', 'users:one')
+    ).toBeNull()
+    expect(
+      readPendingArticleTipReceipt('articles:legacy', 'TESTNET', 'users:two')
+    ).toBeNull()
+    expect(
+      readPendingArticleTipReceipt('articles:legacy', 'TESTNET', 'users:one')
+    ).toEqual(LEGACY_RECEIPT)
+  })
+
+  it('rejects attempts to write a new hash-only receipt', async () => {
+    const { writePendingArticleTipReceipt } =
+      await import('./pendingArticleTipReceipt')
+
+    expect(() =>
+      writePendingArticleTipReceipt(LEGACY_RECEIPT as never)
+    ).toThrow(/signed xdr/i)
+    expect(window.localStorage.length).toBe(0)
   })
 
   it('fails closed when the exact signed transaction cannot be durably stored', async () => {

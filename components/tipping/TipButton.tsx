@@ -44,6 +44,7 @@ import { clearPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import type { ArticlePendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import {
   clearPendingArticleTipReceipt,
+  hasExactSignedArticleTipXdr,
   readPendingArticleTipReceipt,
   writePendingArticleTipReceipt,
   type PendingArticleTipReceipt,
@@ -94,6 +95,30 @@ const TIP_BROADCAST_RECOVERY_MESSAGE: TipFailureMessage = {
   title: 'Tip registration saved for recovery',
   detail:
     'The network response was unclear. Retry will register idempotently and rebroadcast the exact same signed transaction.',
+}
+
+const LEGACY_TIP_RECOVERY_MESSAGE: TipFailureMessage = {
+  title: 'Earlier tip saved for recovery',
+  detail:
+    'An earlier QuillTip version saved this transaction hash after sending. Check transaction will only register and verify that hash. It cannot resend the payment or open your wallet without the exact signed transaction.',
+}
+
+const LEGACY_TIP_CHECKING_MESSAGE: TipFailureMessage = {
+  title: 'Earlier tip is being checked',
+  detail:
+    'QuillTip is checking the saved transaction hash. This recovery path cannot resend the payment or create a replacement transaction.',
+}
+
+const LEGACY_TIP_FAILED_MESSAGE: TipFailureMessage = {
+  title: 'Earlier tip could not be verified',
+  detail:
+    'The payment server could not verify the saved transaction hash. QuillTip cannot safely resend or replace it because the earlier version did not save the exact signed transaction.',
+}
+
+const LEGACY_TIP_RECOVERY_UNAVAILABLE_MESSAGE: TipFailureMessage = {
+  title: 'Earlier tip recovery is still unresolved',
+  detail:
+    'QuillTip could not check the saved transaction hash right now. No transaction was built, signed, resent, or replaced.',
 }
 
 function configuredStellarNetwork(): 'TESTNET' | 'MAINNET' | null {
@@ -236,13 +261,17 @@ export function TipButton({
     setModalStep('checkout')
     setRequiresStartOver(false)
     setTipFailure(
-      restored.submittedTipId
-        ? {
-            title: 'Tip sent, verification delayed',
-            detail:
-              'Your Stellar transaction was submitted. Retry will check that same transaction without sending another payment.',
-          }
-        : TIP_REGISTRATION_FAILURE_MESSAGE
+      !hasExactSignedArticleTipXdr(restored)
+        ? restored.submittedTipId
+          ? LEGACY_TIP_CHECKING_MESSAGE
+          : LEGACY_TIP_RECOVERY_MESSAGE
+        : restored.submittedTipId
+          ? {
+              title: 'Tip sent, verification delayed',
+              detail:
+                'Your Stellar transaction was submitted. Retry will check that same transaction without sending another payment.',
+            }
+          : TIP_REGISTRATION_FAILURE_MESSAGE
     )
     setIsOpen(true)
   }, [
@@ -320,6 +349,11 @@ export function TipButton({
     if (verificationStatus.status === 'FAILED') {
       setIsLoading(false)
       setTipFlowStep(null)
+      if (!hasExactSignedArticleTipXdr(pendingTipRecord)) {
+        setRequiresStartOver(false)
+        setTipFailure(LEGACY_TIP_FAILED_MESSAGE)
+        return
+      }
       setSubmittedTipId(null)
       setPendingTipRecord(null)
       clearPendingArticleTipReceipt(
@@ -370,13 +404,21 @@ export function TipButton({
       const tipId = await submitArticleTip(toArticleTipRecordArgs(pending))
       registered = true
       const syncedPending = { ...pending, submittedTipId: tipId }
+      setPendingTipRecord(syncedPending)
+      setSubmittedTipId(tipId)
+
+      if (!hasExactSignedArticleTipXdr(syncedPending)) {
+        setTipFlowStep('confirming')
+        await retryArticleTipVerification({ tipId })
+        setTipFailure(LEGACY_TIP_CHECKING_MESSAGE)
+        return
+      }
+
       try {
         writePendingArticleTipReceipt(syncedPending)
       } catch (error) {
         console.error('Article tip registered receipt update error:', error)
       }
-      setPendingTipRecord(syncedPending)
-      setSubmittedTipId(tipId)
       setTipFlowStep('submitting')
 
       const receipt = await stellarClient.submitTipTransaction(
@@ -410,9 +452,11 @@ export function TipButton({
     } catch (error) {
       console.error('Tip sync retry error:', error)
       setTipFailure(
-        registered
-          ? TIP_BROADCAST_RECOVERY_MESSAGE
-          : TIP_REGISTRATION_FAILURE_MESSAGE
+        hasExactSignedArticleTipXdr(pending)
+          ? registered
+            ? TIP_BROADCAST_RECOVERY_MESSAGE
+            : TIP_REGISTRATION_FAILURE_MESSAGE
+          : LEGACY_TIP_RECOVERY_UNAVAILABLE_MESSAGE
       )
     } finally {
       setIsLoading(false)
@@ -436,13 +480,17 @@ export function TipButton({
       }
       setTipFailure(
         pendingTipRecord
-          ? pendingTipRecord.submittedTipId
-            ? {
-                title: 'Tip sent, verification delayed',
-                detail:
-                  'Your Stellar transaction was submitted. Retry will check that same transaction without sending another payment.',
-              }
-            : TIP_REGISTRATION_FAILURE_MESSAGE
+          ? !hasExactSignedArticleTipXdr(pendingTipRecord)
+            ? pendingTipRecord.submittedTipId
+              ? LEGACY_TIP_CHECKING_MESSAGE
+              : LEGACY_TIP_RECOVERY_MESSAGE
+            : pendingTipRecord.submittedTipId
+              ? {
+                  title: 'Tip sent, verification delayed',
+                  detail:
+                    'Your Stellar transaction was submitted. Retry will check that same transaction without sending another payment.',
+                }
+              : TIP_REGISTRATION_FAILURE_MESSAGE
           : null
       )
       setTipFormError(null)
@@ -819,7 +867,14 @@ export function TipButton({
               isLoading={isLoading}
               tipSuccess={tipSuccess}
               tipFailure={tipFailure}
-              failureActionLabel={requiresStartOver ? 'Start over' : 'Retry'}
+              failureActionLabel={
+                pendingTipRecord &&
+                !hasExactSignedArticleTipXdr(pendingTipRecord)
+                  ? 'Check transaction'
+                  : requiresStartOver
+                    ? 'Start over'
+                    : 'Retry'
+              }
               tipFlowStep={tipFlowStep}
               canGoBack={!pendingTipRecord}
               onBack={handleBackToAppreciation}
