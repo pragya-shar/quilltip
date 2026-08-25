@@ -136,7 +136,6 @@ export const cleanupExpiredTipIntents = internalAction({
       ),
     ])
     const summary = { articleIntentsDeleted, highlightIntentsDeleted }
-    console.log('[reconcileTips] expired intent cleanup', summary)
     return summary
   },
 })
