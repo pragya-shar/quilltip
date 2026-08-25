@@ -207,4 +207,63 @@ describe('highlight query privacy', () => {
       publicHistoryWithTips.map((highlight) => highlight.highlightId)
     ).toEqual(['public-highlight'])
   })
+
+  it('excludes unverified tips from public highlight statistics', async () => {
+    const t = convexTest(schema, modules)
+    const { articleId, ownerId, otherUserId } = await seedHighlights(t)
+
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const baseTip = {
+        highlightId: 'public-highlight',
+        articleId,
+        tipperId: otherUserId,
+        authorId: otherUserId,
+        highlightText: 'Selected passage',
+        articleTitle: 'Privacy test',
+        articleSlug: 'privacy-test',
+        stellarNetwork: 'TESTNET',
+        stellarMemo: 'public-highlight',
+        startOffset: 0,
+        endOffset: 16,
+        createdAt: now,
+        processedAt: now,
+        updatedAt: now,
+      }
+
+      await ctx.db.insert('highlightTips', {
+        ...baseTip,
+        amountUsd: 2.5,
+        amountCents: 250,
+        stellarTxId: 'confirmed-transaction',
+        status: 'CONFIRMED',
+      })
+      await ctx.db.insert('highlightTips', {
+        ...baseTip,
+        amountUsd: 99,
+        amountCents: 9900,
+        stellarTxId: 'pending-transaction',
+        status: 'PENDING',
+      })
+      await ctx.db.insert('highlightTips', {
+        ...baseTip,
+        amountUsd: 88,
+        amountCents: 8800,
+        stellarTxId: 'failed-transaction',
+        status: 'FAILED',
+      })
+    })
+
+    const publicHistory = await t.query(
+      api.highlights.getUserHighlightsWithTips,
+      { userId: ownerId }
+    )
+
+    expect(publicHistory).toHaveLength(1)
+    expect(publicHistory[0]?.tipStats).toEqual({
+      count: 1,
+      totalUsd: 2.5,
+      hasTips: true,
+    })
+  })
 })

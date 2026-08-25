@@ -142,6 +142,7 @@ export const getUserHighlightsWithTips = query({
           .withIndex('by_highlight', (q) =>
             q.eq('highlightId', highlight.highlightId)
           )
+          .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
           .collect()
 
         const tipCount = tips.length
