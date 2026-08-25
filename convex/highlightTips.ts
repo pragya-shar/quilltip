@@ -7,6 +7,7 @@ import {
   TIP_MIN_CENTS,
   TIP_MAX_CENTS,
   HIGHLIGHT_TIP_VERIFY_FALLBACK_DELAY_MS,
+  HIGHLIGHT_TIP_VERIFY_REQUEST_COOLDOWN_MS,
   TIP_HIGHLIGHT_DIRECT_FUNCTION,
   getStellarNetwork,
   getTippingContractId,
@@ -363,6 +364,7 @@ export const submitHighlightTip = mutation({
       startContainerPath: intent.startContainerPath,
       endContainerPath: intent.endContainerPath,
       status: 'PENDING',
+      verificationGeneration: 0,
       createdAt: now,
       processedAt: now,
       updatedAt: now,
@@ -371,7 +373,7 @@ export const submitHighlightTip = mutation({
     await ctx.scheduler.runAfter(
       HIGHLIGHT_TIP_VERIFY_FALLBACK_DELAY_MS,
       internal.stellarVerify.verifyHighlightTip,
-      { highlightTipId: tipId, attempt: 1 }
+      { highlightTipId: tipId, attempt: 1, generation: 0 }
     )
     return tipId
   },
@@ -440,13 +442,25 @@ export const retryHighlightTipVerification = mutation({
       throw new Error('Only pending highlight tips can be retried')
     }
 
+    const now = Date.now()
+    if (
+      tip.verificationRequestedAt !== undefined &&
+      now - tip.verificationRequestedAt <
+        HIGHLIGHT_TIP_VERIFY_REQUEST_COOLDOWN_MS
+    ) {
+      return null
+    }
+    const generation = (tip.verificationGeneration ?? 0) + 1
     await ctx.db.patch(args.tipId, {
+      verificationGeneration: generation,
+      verificationRequestedAt: now,
       failureReason: undefined,
-      updatedAt: Date.now(),
+      updatedAt: now,
     })
     await ctx.scheduler.runAfter(0, internal.stellarVerify.verifyHighlightTip, {
       highlightTipId: args.tipId,
       attempt: 1,
+      generation,
     })
     return null
   },

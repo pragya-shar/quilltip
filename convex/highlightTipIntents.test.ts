@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { Keypair } from '@stellar/stellar-sdk'
 import { api } from './_generated/api'
 import schema from './schema'
@@ -102,6 +102,15 @@ async function prepare(t: ReturnType<typeof convexTest>) {
     prepareArgs(seeded.articleId)
   )
   return { ...seeded, asTipper, quote }
+}
+
+async function drainScheduledHighlightVerification(
+  t: ReturnType<typeof convexTest>
+) {
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  await t.finishAllScheduledFunctions(() => {})
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  await t.finishAllScheduledFunctions(() => {})
 }
 
 describe('prepareHighlightTip', () => {
@@ -675,6 +684,41 @@ describe('submitHighlightTip', () => {
     await expect(
       asTipper.query(api.highlightTips.getHighlightTipStatus, { tipId })
     ).resolves.toMatchObject({ status: 'PENDING' })
+  })
+
+  it('coalesces a burst of owner retries into one active verification chain', async () => {
+    const t = convexTest(schema, modules)
+    const { asTipper, quote } = await prepare(t)
+    const tipId = await asTipper.mutation(
+      api.highlightTips.submitHighlightTip,
+      {
+        intentId: quote.intentId,
+        stellarTxId: TX_OWNED,
+      }
+    )
+    const fetchMock = vi.fn(async () => ({
+      status: 503,
+      ok: false,
+      json: async () => ({}),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await Promise.all(
+      Array.from({ length: 5 }, () =>
+        asTipper.mutation(api.highlightTips.retryHighlightTipVerification, {
+          tipId,
+        })
+      )
+    )
+    await drainScheduledHighlightVerification(t)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(tipId)).toMatchObject({
+        verificationGeneration: 1,
+        verificationRequestedAt: expect.any(Number),
+      })
+    })
   })
 
   it('safely discards structurally complete invalid recovery IDs before reading status', async () => {

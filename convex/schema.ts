@@ -377,6 +377,8 @@ export default defineSchema({
     quoteSource: v.optional(v.string()),
     quoteFetchedAt: v.optional(v.number()),
     verifiedAt: v.optional(v.number()),
+    verificationGeneration: v.optional(v.number()),
+    verificationRequestedAt: v.optional(v.number()),
 
     // Position data (for heatmap visualization)
     startOffset: v.number(),

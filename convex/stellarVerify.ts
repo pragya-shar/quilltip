@@ -133,6 +133,7 @@ export const verifyHighlightTip = internalAction({
   args: {
     highlightTipId: v.id('highlightTips'),
     attempt: v.number(),
+    generation: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const hydrated = await ctx.runQuery(
@@ -142,11 +143,14 @@ export const verifyHighlightTip = internalAction({
     if (!hydrated) return
     const { tip, intent } = hydrated
     if (tip.status !== 'PENDING') return
+    const generation = args.generation ?? tip.verificationGeneration ?? 0
+    if ((tip.verificationGeneration ?? 0) !== generation) return
 
     if (!tip.highlightTipIntentId) {
       await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
         id: args.highlightTipId,
         reason: LEGACY_PENDING_HIGHLIGHT_TIP_QUARANTINE_REASON,
+        generation,
       })
       return
     }
@@ -167,6 +171,7 @@ export const verifyHighlightTip = internalAction({
       await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
         id: args.highlightTipId,
         reason: 'missing_verification_expectation',
+        generation,
       })
       return
     }
@@ -175,6 +180,7 @@ export const verifyHighlightTip = internalAction({
       await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
         id: args.highlightTipId,
         reason: 'verification_expectation_mismatch',
+        generation,
       })
       return
     }
@@ -186,6 +192,7 @@ export const verifyHighlightTip = internalAction({
       await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
         id: args.highlightTipId,
         reason: 'malformed_expected_amount',
+        generation,
       })
       return
     }
@@ -193,6 +200,7 @@ export const verifyHighlightTip = internalAction({
       await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
         id: args.highlightTipId,
         reason: 'malformed_expected_amount',
+        generation,
       })
       return
     }
@@ -237,6 +245,7 @@ export const verifyHighlightTip = internalAction({
           await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
             id: args.highlightTipId,
             reason: HORIZON_NOT_FOUND_TERMINAL_REASON,
+            generation,
           })
           return
         }
@@ -247,12 +256,13 @@ export const verifyHighlightTip = internalAction({
             {
               highlightTipId: args.highlightTipId,
               attempt: args.attempt + 1,
+              generation,
             }
           )
         } else {
           await ctx.runMutation(
             internal.stellarVerify.markHighlightTipTemporarilyUnavailable,
-            { id: args.highlightTipId }
+            { id: args.highlightTipId, generation }
           )
         }
         return
@@ -261,6 +271,7 @@ export const verifyHighlightTip = internalAction({
       await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
         id: args.highlightTipId,
         reason: exactResult.reason,
+        generation,
       })
       return
     }
@@ -268,16 +279,26 @@ export const verifyHighlightTip = internalAction({
     await ctx.runMutation(internal.stellarVerify.confirmVerifiedHighlightTip, {
       id: args.highlightTipId,
       stellarLedger: exactResult.ledger,
+      generation,
     })
     return
   },
 })
 
 export const markHighlightTipTemporarilyUnavailable = internalMutation({
-  args: { id: v.id('highlightTips') },
+  args: {
+    id: v.id('highlightTips'),
+    generation: v.optional(v.number()),
+  },
   handler: async (ctx, args) => {
     const tip = await ctx.db.get(args.id)
     if (!tip || tip.status !== 'PENDING' || !tip.highlightTipIntentId) return
+    if (
+      args.generation !== undefined &&
+      (tip.verificationGeneration ?? 0) !== args.generation
+    ) {
+      return
+    }
     await ctx.db.patch(args.id, {
       failureReason: 'verification_temporarily_unavailable',
       updatedAt: Date.now(),
@@ -294,10 +315,17 @@ export const confirmVerifiedHighlightTip = internalMutation({
   args: {
     id: v.id('highlightTips'),
     stellarLedger: v.optional(v.number()),
+    generation: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const tip = await ctx.db.get(args.id)
     if (!tip || tip.status !== 'PENDING') return
+    if (
+      args.generation !== undefined &&
+      (tip.verificationGeneration ?? 0) !== args.generation
+    ) {
+      return
+    }
 
     if (!tip.highlightTipIntentId) {
       const now = Date.now()
@@ -510,11 +538,18 @@ export const markHighlightTipFailed = internalMutation({
   args: {
     id: v.id('highlightTips'),
     reason: v.string(),
+    generation: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const tip = await ctx.db.get(args.id)
     if (!tip) return
     if (tip.status !== 'PENDING') return
+    if (
+      args.generation !== undefined &&
+      (tip.verificationGeneration ?? 0) !== args.generation
+    ) {
+      return
+    }
 
     const now = Date.now()
     await ctx.db.patch(args.id, {
