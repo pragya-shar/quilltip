@@ -264,7 +264,8 @@ export function HighlightTipButton({
       isAuthenticated &&
       !isAuthLoading &&
       authUserId &&
-      receiptMatchesCurrentContext
+      receiptMatchesCurrentContext &&
+      pendingTipRecord?.broadcastAcceptedAt
       ? { tipId: submittedTipId }
       : 'skip'
   )

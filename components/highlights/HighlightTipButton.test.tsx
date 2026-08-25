@@ -490,6 +490,54 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
   })
 
+  it('does not flash a recovery warning between registration and broadcast acceptance', async () => {
+    mockAuth.isAuthenticated = true
+    mockIsConnected.mockReturnValue(true)
+    let resolveBroadcast:
+      | ((receipt: { transactionHash: string; tipId: string }) => void)
+      | undefined
+    mockSubmitTipTransaction.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveBroadcast = resolve
+        })
+    )
+    const user = userEvent.setup({ delay: null })
+    render(
+      <HighlightTipButton
+        articleId={'articles:123' as never}
+        articleSlug="my-article"
+        authorName="Author"
+        authorStellarAddress="GCLIENTAUTHOR"
+        highlightText="Some highlighted text"
+        startOffset={10}
+        endOffset={20}
+      />
+    )
+
+    try {
+      await openHighlightTipAndContinue(user)
+      fireEvent.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+      await waitFor(() => {
+        expect(mockSubmitTipTransaction).toHaveBeenCalledWith('signed-xdr')
+      })
+
+      expect(mockStatusQueryArgs).toHaveBeenLastCalledWith('skip')
+      expect(
+        screen.queryByText('Tip transaction saved for recovery')
+      ).not.toBeInTheDocument()
+    } finally {
+      await act(async () => {
+        resolveBroadcast?.({
+          transactionHash: 'tx-highlight-123456789',
+          tipId: 'contract-tip-highlight',
+        })
+        await Promise.resolve()
+      })
+    }
+  })
+
   it('shows a warning and enables a status check only after verification stays pending', async () => {
     try {
       mockAuth.isAuthenticated = true
@@ -1082,7 +1130,7 @@ describe('HighlightTipButton two-stage flow', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Retry' }))
 
-    expect(mockStatusQueryArgs).toHaveBeenCalledWith({
+    expect(mockStatusQueryArgs).not.toHaveBeenCalledWith({
       tipId: corruptSubmittedTipId,
     })
     expect(mockRetryHighlightTipVerification).toHaveBeenCalledWith({
