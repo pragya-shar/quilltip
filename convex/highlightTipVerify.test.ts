@@ -180,6 +180,31 @@ async function createPendingTip(
   return { ...seeded, asTipper, quote, tipId }
 }
 
+async function createCompatibilityTip(
+  t: ReturnType<typeof convexTest>,
+  txId = 'b'.repeat(64)
+) {
+  const seeded = await seed(t)
+  const asTipper = t.withIdentity({ subject: seeded.tipperId })
+  const tipId = await asTipper.mutation(api.highlightTips.create, {
+    highlightId: 'c450b68fda794876a45fa85dd3f7',
+    articleId: seeded.articleId,
+    highlightText: 'authoritative passage',
+    startOffset: 5,
+    endOffset: 26,
+    startContainerPath: 'text.6',
+    endContainerPath: 'text.27',
+    amountCents: 500,
+    stellarTxId: txId,
+    stellarMemo: 'c450b68fda794876a45fa85dd3f7',
+    stellarNetwork: 'TESTNET',
+    stellarSourceAccount: TIPPER,
+    stellarDestinationAccount: AUTHOR,
+    stellarAmountXlm: '20',
+  })
+  return { ...seeded, asTipper, tipId }
+}
+
 function stubHorizon(
   body: Record<string, unknown>,
   status = 200,
@@ -309,6 +334,62 @@ describe('exact highlight tip verification', () => {
           tipCount: 1,
         },
       ])
+    })
+  })
+
+  it('confirms an old-client receipt against exact on-chain fields without requiring new intent time bounds', async () => {
+    const t = convexTest(schema, modules)
+    const { tipId, articleId, authorId } = await createCompatibilityTip(t)
+    stubHorizon({
+      successful: true,
+      source_account: TIPPER,
+      ledger: 4321,
+      envelope_xdr: buildHighlightEnvelope({
+        highlightId: 'c450b68fda794876a45fa85dd3f7',
+        articleSymbol: '2ede2c6a40',
+        amountStroops: BigInt(200_000_000),
+        timeBounds: { minTime: '0', maxTime: '2000000000' },
+      }),
+    })
+
+    await t.action(internal.stellarVerify.verifyHighlightTip, {
+      highlightTipId: tipId,
+      attempt: 1,
+    })
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(tipId)).toMatchObject({
+        status: 'CONFIRMED',
+        stellarLedger: 4321,
+        verifiedAt: expect.any(Number),
+      })
+      expect((await ctx.db.get(articleId))?.totalTipsUsd).toBe(5)
+      const earnings = await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', authorId))
+        .unique()
+      expect(earnings?.totalEarnedCents).toBe(500)
+    })
+  })
+
+  it('terminalizes an old-client receipt that remains absent after its indexing grace', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-25T10:00:00.000Z'))
+    const t = convexTest(schema, modules)
+    const { tipId } = await createCompatibilityTip(t)
+    vi.setSystemTime(new Date('2026-08-25T10:16:00.000Z'))
+    stubHorizon({}, 404)
+
+    await t.action(internal.stellarVerify.verifyHighlightTip, {
+      highlightTipId: tipId,
+      attempt: 1,
+    })
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(tipId)).toMatchObject({
+        status: 'FAILED',
+        failureReason: 'transaction_not_found_after_indexing_grace',
+      })
     })
   })
 

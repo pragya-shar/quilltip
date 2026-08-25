@@ -7,7 +7,16 @@ import schema from './schema'
 import type { Id } from './_generated/dataModel'
 
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
-const emptyDoc = { type: 'doc', content: [] }
+const ARTICLE_TEXT = 'some highlighted text'
+const articleContent = {
+  type: 'doc',
+  content: [
+    {
+      type: 'paragraph',
+      content: [{ type: 'text', text: ARTICLE_TEXT }],
+    },
+  ],
+}
 const TIPPER_STELLAR = Keypair.random().publicKey()
 const AUTHOR_STELLAR = Keypair.random().publicKey()
 const TIPPING_CONTRACT_ID =
@@ -43,7 +52,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
     const articleId = await ctx.db.insert('articles', {
       slug: 'hello',
       title: 'Hello',
-      content: emptyDoc,
+      content: articleContent,
       published: true,
       publishedAt: now,
       authorId,
@@ -56,26 +65,31 @@ async function seed(t: ReturnType<typeof convexTest>) {
       createdAt: now,
       updatedAt: now,
     })
+    await ctx.db.insert('xlmPriceCache', {
+      priceUsd: 0.25,
+      source: 'TestOracle',
+      fetchedAt: now,
+    })
     return { tipperId, authorId, articleId }
   })
 }
 
 function legacyCreateArgs(articleId: Id<'articles'>, stellarTxId: string) {
   return {
-    highlightId: 'hash-abc',
+    highlightId: '856e15955152b6e33aa0f72fca51',
     articleId,
-    highlightText: 'some highlighted text',
+    highlightText: ARTICLE_TEXT,
     startOffset: 0,
-    endOffset: 10,
+    endOffset: ARTICLE_TEXT.length,
     startContainerPath: 'text.1',
-    endContainerPath: 'text.11',
+    endContainerPath: `text.${ARTICLE_TEXT.length + 1}`,
     amountCents: 100,
     stellarTxId,
-    stellarMemo: 'hash-abc',
+    stellarMemo: '856e15955152b6e33aa0f72fca51',
     stellarNetwork: 'TESTNET',
     stellarSourceAccount: TIPPER_STELLAR,
     stellarDestinationAccount: AUTHOR_STELLAR,
-    stellarAmountXlm: '1',
+    stellarAmountXlm: '4',
   }
 }
 
@@ -130,22 +144,50 @@ async function expectNoCredit(
 }
 
 describe('legacy highlight tip cutover', () => {
-  it('rejects new legacy writes', async () => {
+  it('registers an already-broadcast old-client receipt with server-owned expectations', async () => {
     const t = convexTest(schema, modules)
     const ids = await seed(t)
-    await expect(
-      t
-        .withIdentity({ subject: ids.tipperId })
-        .mutation(
-          api.highlightTips.create,
-          legacyCreateArgs(ids.articleId, '1'.repeat(64))
-        )
-    ).rejects.toThrow(
-      'Legacy highlight tip submission is no longer supported. Prepare and submit a highlight tip intent instead.'
-    )
+    const tipId = await t
+      .withIdentity({ subject: ids.tipperId })
+      .mutation(api.highlightTips.create, {
+        ...legacyCreateArgs(ids.articleId, '1'.repeat(64)),
+        amountCents: 10_000,
+      })
+
     await t.run(async (ctx) => {
-      expect(await ctx.db.query('highlightTips').collect()).toEqual([])
+      const tip = await ctx.db.get(tipId)
+      expect(tip).toMatchObject({
+        highlightId: '856e15955152b6e33aa0f72fca51',
+        highlightText: ARTICLE_TEXT,
+        startOffset: 0,
+        endOffset: ARTICLE_TEXT.length,
+        amountCents: 100,
+        stellarSourceAccount: TIPPER_STELLAR,
+        stellarDestinationAccount: AUTHOR_STELLAR,
+        stellarAmountXlm: '4',
+        status: 'PENDING',
+        highlightTipIntentId: expect.any(String),
+      })
+      const intent = tip?.highlightTipIntentId
+        ? await ctx.db.get(tip.highlightTipIntentId)
+        : null
+      expect(intent).toMatchObject({
+        articleId: ids.articleId,
+        tipperId: ids.tipperId,
+        authorId: ids.authorId,
+        amountCents: 100,
+        expectedHighlightId: '856e15955152b6e33aa0f72fca51',
+        expectedArticleSymbol: '2ede2c6a40',
+        expectedAmountStroops: '40000000',
+        expectedSourceAccount: TIPPER_STELLAR,
+        expectedDestinationAccount: AUTHOR_STELLAR,
+        expectedContractId: TIPPING_CONTRACT_ID,
+        expectedFunction: 'tip_highlight_direct',
+        legacyCompatibility: true,
+        tipId,
+      })
     })
+    await expectNoCredit(t, ids)
   })
 
   it('quarantines a legacy PENDING verifier call without Horizon or credit', async () => {

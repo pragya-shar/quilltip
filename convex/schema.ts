@@ -252,6 +252,7 @@ export default defineSchema({
     quotePriceUsd: v.number(),
     quoteSource: v.string(),
     quoteFetchedAt: v.number(),
+    legacyCompatibility: v.optional(v.boolean()),
     tipId: v.optional(v.id('highlightTips')),
     expiresAt: v.number(),
     createdAt: v.number(),

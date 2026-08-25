@@ -17,11 +17,14 @@ import {
   ARTICLE_TIP_TX_LATE_GRACE_MS,
   HORIZON_VERIFY_MAX_ATTEMPTS,
   HORIZON_NOT_FOUND_TERMINAL_REASON,
+  HORIZON_NOT_FOUND_INDEXING_GRACE_MS,
   TIP_HIGHLIGHT_FUNCTIONS,
   LEGACY_PENDING_HIGHLIGHT_TIP_QUARANTINE_REASON,
   isPastHorizonNotFoundIndexingGrace,
   verifyDelayMs,
 } from './lib/constants'
+
+const LEGACY_HIGHLIGHT_TIP_TX_EARLY_GRACE_MS = 5 * 60 * 1000
 
 /**
  * Internal read used by the verify action to hydrate the tip row (actions
@@ -165,8 +168,8 @@ export const verifyHighlightTip = internalAction({
       !tip.expectedAmountStroops ||
       !tip.expectedContractId ||
       !tip.expectedFunction ||
-      !tip.expectedMinTime ||
-      !tip.expectedMaxTime
+      (!intent.legacyCompatibility &&
+        (!tip.expectedMinTime || !tip.expectedMaxTime))
     ) {
       await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
         id: args.highlightTipId,
@@ -205,12 +208,19 @@ export const verifyHighlightTip = internalAction({
       return
     }
 
+    const isLegacyCompatibility = intent.legacyCompatibility === true
     const exactResult = await verifyTipTransaction(fetch, {
       txId: tip.stellarTxId,
       expectedSource: tip.expectedSourceAccount,
       horizonUrl: resolveIntentHorizonUrl(tip.stellarNetwork),
-      minCreatedAtMs: intent.createdAt - ARTICLE_TIP_TX_EARLY_GRACE_MS,
-      maxCreatedAtMs: intent.expiresAt + ARTICLE_TIP_TX_LATE_GRACE_MS,
+      minCreatedAtMs:
+        intent.createdAt -
+        (isLegacyCompatibility
+          ? LEGACY_HIGHLIGHT_TIP_TX_EARLY_GRACE_MS
+          : ARTICLE_TIP_TX_EARLY_GRACE_MS),
+      maxCreatedAtMs: isLegacyCompatibility
+        ? intent.createdAt + ARTICLE_TIP_TX_LATE_GRACE_MS
+        : intent.expiresAt + ARTICLE_TIP_TX_LATE_GRACE_MS,
       invocation: {
         contractId: tip.expectedContractId,
         allowedFunctions: TIP_HIGHLIGHT_FUNCTIONS,
@@ -220,10 +230,14 @@ export const verifyHighlightTip = internalAction({
         articleId: tip.expectedArticleSymbol,
         minStroops: exactStroops,
         exactStroops,
-        expectedTimeBounds: {
-          minTime: tip.expectedMinTime,
-          maxTime: tip.expectedMaxTime,
-        },
+        ...(isLegacyCompatibility
+          ? {}
+          : {
+              expectedTimeBounds: {
+                minTime: tip.expectedMinTime!,
+                maxTime: tip.expectedMaxTime!,
+              },
+            }),
         batchTips: [
           {
             highlightId: tip.expectedHighlightId,
@@ -240,7 +254,10 @@ export const verifyHighlightTip = internalAction({
       if (exactResult.kind === 'transient') {
         if (
           exactResult.reason === 'not_found' &&
-          isPastHorizonNotFoundIndexingGrace(tip.expectedMaxTime)
+          (isLegacyCompatibility
+            ? Date.now() >
+              intent.createdAt + HORIZON_NOT_FOUND_INDEXING_GRACE_MS
+            : isPastHorizonNotFoundIndexingGrace(tip.expectedMaxTime!))
         ) {
           await ctx.runMutation(internal.stellarVerify.markHighlightTipFailed, {
             id: args.highlightTipId,

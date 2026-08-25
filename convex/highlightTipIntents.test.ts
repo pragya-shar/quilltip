@@ -127,10 +127,7 @@ describe('prepareHighlightTip', () => {
     await expect(
       t
         .withIdentity({ subject: tipperId })
-        .mutation(
-          api.highlightTips.prepareHighlightTip,
-          prepareArgs(articleId)
-        )
+        .mutation(api.highlightTips.prepareHighlightTip, prepareArgs(articleId))
     ).rejects.toThrow('Article not found')
 
     await t.run(async (ctx) => {
@@ -545,46 +542,6 @@ describe('prepareHighlightTip', () => {
 })
 
 describe('submitHighlightTip', () => {
-  function legacyCreateArgs(
-    articleId: Id<'articles'>,
-    quote: Awaited<ReturnType<typeof prepare>>['quote'],
-    stellarTxId: string
-  ) {
-    return {
-      highlightId: quote.highlightId,
-      articleId,
-      highlightText: 'authoritative passage',
-      startOffset: 6,
-      endOffset: 27,
-      startContainerPath: 'text.7',
-      endContainerPath: 'text.28',
-      amountCents: 500,
-      stellarTxId,
-      stellarMemo: quote.highlightId,
-      stellarNetwork: 'TESTNET',
-      stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
-      stellarDestinationAccount: AUTHOR_STELLAR_ADDRESS,
-      stellarAmountXlm: '20',
-    }
-  }
-
-  it('rejects the legacy public create path with an intent-flow compatibility error', async () => {
-    const t = convexTest(schema, modules)
-    const { asTipper, articleId, quote } = await prepare(t)
-
-    await expect(
-      asTipper.mutation(
-        api.highlightTips.create,
-        legacyCreateArgs(articleId, quote, 'ab'.repeat(32))
-      )
-    ).rejects.toThrow(
-      'Legacy highlight tip submission is no longer supported. Prepare and submit a highlight tip intent instead.'
-    )
-    await t.run(async (ctx) => {
-      expect(await ctx.db.query('highlightTips').collect()).toEqual([])
-    })
-  })
-
   it('creates one pending tip entirely from the intent plus receipt metadata', async () => {
     const t = convexTest(schema, modules)
     const { asTipper, quote, articleId, authorId } = await prepare(t)
