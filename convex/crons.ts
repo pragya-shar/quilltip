@@ -15,8 +15,8 @@ crons.interval(
 
 // Re-kick highlight tip verification for rows stuck in PENDING past the
 // retry window — covers process crashes mid-chain and indexing delays
-// beyond the in-action retry budget. Non-destructive (only reschedules
-// the verify action), so this runs unconditionally.
+// beyond the in-action retry budget. Exact verification can confirm or fail
+// the tip and update accounting, so this recovery runs unconditionally.
 crons.interval(
   'recover stuck pending highlight tips',
   { hours: 6 },

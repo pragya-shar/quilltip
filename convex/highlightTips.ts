@@ -471,9 +471,10 @@ export const retryHighlightTipVerification = mutation({
 
 /**
  * Compatibility registration for clients that broadcast before the
- * server-owned intent flow was deployed. Reconstructs every authoritative
- * field server-side and leaves accounting untouched until Horizon verifies
- * the exact on-chain payment.
+ * server-owned intent flow was deployed. Reconstructs canonical article,
+ * passage, author, network, contract, and accounting data server-side. Client
+ * transaction facts remain untrusted claims until Horizon proves the exact
+ * on-chain payment.
  */
 export const create = mutation({
   args: {
@@ -622,10 +623,11 @@ export const create = mutation({
       : ARTICLE_TIP_FALLBACK_XLM_USD_RATE
     const quoteSource = useCachedRate ? cachedRate.source : 'Fallback'
     const quoteFetchedAt = useCachedRate ? cachedRate.fetchedAt : now
-    const amountCents = Math.floor(
-      (Number(paidStroops) * quotePriceUsd * 100) / 10_000_000
+    const amountCents = Math.max(
+      TIP_MIN_CENTS,
+      Math.floor((Number(paidStroops) * quotePriceUsd * 100) / 10_000_000)
     )
-    if (amountCents < TIP_MIN_CENTS || amountCents > TIP_MAX_CENTS) {
+    if (amountCents > TIP_MAX_CENTS) {
       throw new Error('Paid Stellar amount is outside the supported tip range')
     }
     const expectedContractId = getTippingContractId()

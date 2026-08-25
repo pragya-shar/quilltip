@@ -368,9 +368,9 @@ export const quarantineLegacyPendingHighlightTips = internalMutation({
  * is rescheduled with attempt=1, restarting the retry budget. The verify
  * action's status guard makes this safe even if the original chain is alive.
  *
- * Not gated by RECONCILE_TIPS_ENABLED: rescheduling a verify is non-destructive
- * (it cannot mark a tip FRAUDULENT or move money), so dry-run vs enabled is
- * not meaningful here.
+ * Not gated by RECONCILE_TIPS_ENABLED: this is live recovery, not a dry-run
+ * audit. The scheduled verifier can confirm or fail a tip and update accounting
+ * only after exact on-chain verification.
  */
 export const recoverStuckPendingHighlightTips = internalAction({
   args: {},

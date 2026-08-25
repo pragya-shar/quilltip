@@ -190,6 +190,32 @@ describe('legacy highlight tip cutover', () => {
     await expectNoCredit(t, ids)
   })
 
+  it('preserves a minimum one-cent old-client receipt when the fallback quote rounds below one cent', async () => {
+    const t = convexTest(schema, modules)
+    const ids = await seed(t)
+    await t.run(async (ctx) => {
+      const cached = await ctx.db.query('xlmPriceCache').first()
+      if (cached) await ctx.db.delete(cached._id)
+    })
+
+    const tipId = await t
+      .withIdentity({ subject: ids.tipperId })
+      .mutation(api.highlightTips.create, {
+        ...legacyCreateArgs(ids.articleId, '5'.repeat(64)),
+        amountCents: 1,
+        stellarAmountXlm: '0.042',
+      })
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(tipId)).toMatchObject({
+        amountCents: 1,
+        amountUsd: 0.01,
+        expectedAmountStroops: '420000',
+        quoteSource: 'Fallback',
+      })
+    })
+  })
+
   it('quarantines a legacy PENDING verifier call without Horizon or credit', async () => {
     const t = convexTest(schema, modules)
     const ids = await seed(t)
