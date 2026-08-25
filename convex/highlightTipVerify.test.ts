@@ -44,6 +44,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 function buildHighlightEnvelope(args: {
@@ -216,6 +217,27 @@ function stubMatchingHorizon(
 }
 
 describe('exact highlight tip verification', () => {
+  it('keeps a delayed verifier fallback instead of checking before broadcast can settle', async () => {
+    vi.useFakeTimers()
+    const t = convexTest(schema, modules)
+    const state = await createPendingTip(t)
+    stubMatchingHorizon(state.quote)
+
+    await vi.advanceTimersByTimeAsync(2_000)
+    await t.finishInProgressScheduledFunctions()
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(state.tipId)).toMatchObject({ status: 'PENDING' })
+    })
+
+    await vi.advanceTimersByTimeAsync(8_000)
+    await t.finishInProgressScheduledFunctions()
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(state.tipId)).toMatchObject({
+        status: 'CONFIRMED',
+      })
+    })
+  })
+
   it('does not let the legacy confirmer settle an intent-backed pending tip', async () => {
     const t = convexTest(schema, modules)
     const { tipId, articleId, authorId, tipperId } = await createPendingTip(t)

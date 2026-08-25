@@ -13,6 +13,7 @@ const RECEIPT_ONE = {
   signedXdr: 'signed-xdr-one',
   stellarTxId: 'transaction-one',
   contractTipId: 'contract-tip-one',
+  broadcastAcceptedAt: 1_700_000_000_000,
 }
 
 describe('pendingHighlightTipReceipt storage', () => {

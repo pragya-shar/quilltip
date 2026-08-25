@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -387,7 +387,7 @@ describe('HighlightTipButton two-stage flow', () => {
     ).toBeInTheDocument()
   })
 
-  it('prepares trusted wallet fields, persists before submit, and keeps PENDING out of success', async () => {
+  it('prepares trusted wallet fields, starts verification after broadcast, and presents PENDING as progress', async () => {
     mockAuth.isAuthenticated = true
     mockIsConnected.mockReturnValue(true)
     mockSubmitHighlightTip.mockImplementationOnce(async () => {
@@ -421,8 +421,12 @@ describe('HighlightTipButton two-stage flow', () => {
     await openHighlightTipAndContinue(user)
     await user.click(screen.getByRole('button', { name: 'Send Tip' }))
 
-    expect(await screen.findByText(/verification delayed/i)).toBeInTheDocument()
+    expect(await screen.findByText('Confirming on Stellar')).toBeInTheDocument()
+    expect(screen.queryByText(/verification delayed/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/Successfully tipped/i)).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Confirming on-chain' })
+    ).toBeDisabled()
     expect(mockPrepareHighlightTip).toHaveBeenCalledWith({
       articleId: 'articles:123',
       highlightText: 'Some highlighted text',
@@ -471,21 +475,74 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(mockSubmitHighlightTip.mock.invocationCallOrder[0]).toBeLessThan(
       mockSubmitTipTransaction.mock.invocationCallOrder[0]!
     )
-    expect(mockStatusQueryArgs).toHaveBeenCalledWith({
-      tipId: 'highlight-tip-id',
-    })
-
-    await user.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => {
       expect(mockRetryHighlightTipVerification).toHaveBeenCalledWith({
         tipId: 'highlight-tip-id',
       })
     })
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+    expect(mockSubmitTipTransaction.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRetryHighlightTipVerification.mock.invocationCallOrder[0]!
+    )
+    expect(mockStatusQueryArgs).toHaveBeenCalledWith({
+      tipId: 'highlight-tip-id',
     })
-    expect(mockSubmitHighlightTip).toHaveBeenCalledTimes(2)
-    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(2)
+    expect(mockSubmitHighlightTip).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows a warning and enables a status check only after verification stays pending', async () => {
+    try {
+      mockAuth.isAuthenticated = true
+      mockIsConnected.mockReturnValue(true)
+      const user = userEvent.setup({ delay: null })
+      render(
+        <HighlightTipButton
+          articleId={'articles:123' as never}
+          articleSlug="my-article"
+          authorName="Author"
+          authorStellarAddress="GCLIENTAUTHOR"
+          highlightText="Some highlighted text"
+          startOffset={10}
+          endOffset={20}
+        />
+      )
+
+      await openHighlightTipAndContinue(user)
+      vi.useFakeTimers()
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Send Tip' }))
+        await Promise.resolve()
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(screen.getByText('Confirming on Stellar')).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Confirming on-chain' })
+      ).toBeDisabled()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000)
+      })
+
+      expect(screen.getByText('Still confirming')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Check again' })).toBeEnabled()
+
+      const verificationChecksBeforeClick =
+        mockRetryHighlightTipVerification.mock.calls.length
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Check again' }))
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(mockRetryHighlightTipVerification).toHaveBeenCalledTimes(
+        verificationChecksBeforeClick + 1
+      )
+      expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('retries Convex submission after reload without reopening the wallet', async () => {
@@ -538,7 +595,7 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(mockSignTransaction).toHaveBeenCalledTimes(1)
     expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
     expect(mockSubmitTipTransaction).toHaveBeenCalledWith('signed-xdr')
-    expect(await screen.findByText(/verification delayed/i)).toBeInTheDocument()
+    expect(await screen.findByText('Confirming on Stellar')).toBeInTheDocument()
   })
 
   it('aborts before broadcast when the signed receipt cannot be durably stored', async () => {
@@ -965,7 +1022,7 @@ describe('HighlightTipButton two-stage flow', () => {
     expect(mockPaymentLockRequest).not.toHaveBeenCalled()
   })
 
-  it('stops loading and shows verification delayed when live status is unavailable', async () => {
+  it('shows neutral confirmation progress when live status is unavailable', async () => {
     mockAuth.isAuthenticated = true
     mockIsConnected.mockReturnValue(true)
     mockHighlightTipStatus.mockReturnValue(undefined)
@@ -985,8 +1042,10 @@ describe('HighlightTipButton two-stage flow', () => {
     await openHighlightTipAndContinue(user)
     await user.click(screen.getByRole('button', { name: 'Send Tip' }))
 
-    expect(await screen.findByText(/verification delayed/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled()
+    expect(await screen.findByText('Confirming on Stellar')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Confirming on-chain' })
+    ).toBeDisabled()
   })
 
   it('re-registers an unnormalized recovered ID before typed verification retry', async () => {
@@ -1058,7 +1117,7 @@ describe('HighlightTipButton two-stage flow', () => {
 
     await openHighlightTipAndContinue(user)
     await user.click(screen.getByRole('button', { name: 'Send Tip' }))
-    await user.click(await screen.findByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('Confirming on Stellar')).toBeInTheDocument()
 
     mockHighlightTipStatus.mockReturnValue({
       status: 'FAILED',
@@ -1139,7 +1198,7 @@ describe('HighlightTipButton two-stage flow', () => {
 
     await openHighlightTipAndContinue(user)
     await user.click(screen.getByRole('button', { name: 'Send Tip' }))
-    expect(await screen.findByText(/verification delayed/i)).toBeInTheDocument()
+    expect(await screen.findByText('Confirming on Stellar')).toBeInTheDocument()
     expect(getStoredHighlightReceipts()).toEqual([
       expect.objectContaining({ stellarTxId: 'tx-highlight-123456789' }),
     ])
@@ -1172,7 +1231,7 @@ describe('HighlightTipButton two-stage flow', () => {
 
     await openHighlightTipAndContinue(user)
     await user.click(screen.getByRole('button', { name: 'Send Tip' }))
-    expect(await screen.findByText(/verification delayed/i)).toBeInTheDocument()
+    expect(await screen.findByText('Confirming on Stellar')).toBeInTheDocument()
 
     mockHighlightTipStatus.mockReturnValue({
       status: 'FAILED',

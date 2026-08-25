@@ -22,6 +22,7 @@ const pendingHighlightTipReceiptSchema = z.object({
   stellarFeeCharged: z.string().optional(),
   contractTipId: z.string().optional(),
   submittedTipId: z.string().min(1).optional(),
+  broadcastAcceptedAt: z.number().int().positive().optional(),
 })
 
 type StoredPendingHighlightTipReceipt = z.infer<

@@ -41,6 +41,12 @@ export const HORIZON_VERIFY_INITIAL_DELAY_MS = 2_000
 export const HORIZON_VERIFY_RETRY_DELAY_MS = 5_000
 export const HORIZON_VERIFY_MAX_ATTEMPTS = 3
 
+// A highlight-tip receipt is registered before the browser broadcasts the
+// signed transaction. The browser starts verification as soon as Stellar
+// accepts that broadcast; this longer server fallback covers browser crashes
+// without making the normal path check Horizon before a transaction exists.
+export const HIGHLIGHT_TIP_VERIFY_FALLBACK_DELAY_MS = 10_000
+
 // Horizon ledger timestamps can trail the app server clock slightly, and a
 // wallet approval can finish just after the quote expires. These narrow grace
 // windows bind a transaction to its prepared intent without rejecting a valid

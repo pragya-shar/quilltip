@@ -6,7 +6,7 @@ import { internal } from './_generated/api'
 import {
   TIP_MIN_CENTS,
   TIP_MAX_CENTS,
-  HORIZON_VERIFY_INITIAL_DELAY_MS,
+  HIGHLIGHT_TIP_VERIFY_FALLBACK_DELAY_MS,
   TIP_HIGHLIGHT_DIRECT_FUNCTION,
   getStellarNetwork,
   getTippingContractId,
@@ -369,7 +369,7 @@ export const submitHighlightTip = mutation({
     })
     await ctx.db.patch(args.intentId, { tipId, updatedAt: now })
     await ctx.scheduler.runAfter(
-      HORIZON_VERIFY_INITIAL_DELAY_MS,
+      HIGHLIGHT_TIP_VERIFY_FALLBACK_DELAY_MS,
       internal.stellarVerify.verifyHighlightTip,
       { highlightTipId: tipId, attempt: 1 }
     )

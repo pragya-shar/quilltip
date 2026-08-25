@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Heart, Loader2, Wallet } from 'lucide-react'
+import { Heart, Loader2, RefreshCw, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TipAmountSummary } from '@/components/tipping/TipAmountSummary'
 import { WalletTooltip } from '@/components/guide/WalletTooltip'
@@ -27,6 +27,8 @@ interface TipCheckoutStepProps {
   tipSuccess: string | null
   tipFailure: TipFailureMessage | null
   failureActionLabel?: string
+  isVerificationPending?: boolean
+  verificationDelayed?: boolean
   tipFlowStep: TipFlowStep | null
   canGoBack?: boolean
   onBack: () => void
@@ -49,6 +51,8 @@ export function TipCheckoutStep({
   tipSuccess,
   tipFailure,
   failureActionLabel = 'Retry',
+  isVerificationPending = false,
+  verificationDelayed = false,
   tipFlowStep,
   canGoBack = true,
   onBack,
@@ -92,6 +96,24 @@ export function TipCheckoutStep({
               Connect Wallet
             </>
           )}
+        </Button>
+      )
+    }
+
+    if (isVerificationPending) {
+      return (
+        <Button
+          type="button"
+          onClick={onSendTip}
+          disabled={isLoading || !verificationDelayed}
+          className="flex-1 gap-2"
+        >
+          {isLoading || !verificationDelayed ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4" />
+          )}
+          {verificationDelayed ? 'Check again' : 'Confirming on-chain'}
         </Button>
       )
     }
