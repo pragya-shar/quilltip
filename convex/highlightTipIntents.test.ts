@@ -38,6 +38,7 @@ beforeAll(() => {
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 async function seed(t: ReturnType<typeof convexTest>) {
@@ -112,10 +113,7 @@ async function prepare(t: ReturnType<typeof convexTest>) {
 async function drainScheduledHighlightVerification(
   t: ReturnType<typeof convexTest>
 ) {
-  await new Promise((resolve) => setTimeout(resolve, 50))
-  await t.finishAllScheduledFunctions(() => {})
-  await new Promise((resolve) => setTimeout(resolve, 50))
-  await t.finishAllScheduledFunctions(() => {})
+  await t.finishAllScheduledFunctions(() => vi.runAllTimers())
 }
 
 describe('prepareHighlightTip', () => {
@@ -673,6 +671,7 @@ describe('submitHighlightTip', () => {
   })
 
   it('coalesces a burst of owner retries into one active verification chain', async () => {
+    vi.useFakeTimers()
     const t = convexTest(schema, modules)
     const { asTipper, quote } = await prepare(t)
     const tipId = await asTipper.mutation(
@@ -709,7 +708,8 @@ describe('submitHighlightTip', () => {
 
   it('opens a new verification generation only at the retry cooldown boundary', async () => {
     const startedAt = Date.now()
-    const now = vi.spyOn(Date, 'now').mockReturnValue(startedAt)
+    vi.useFakeTimers()
+    vi.setSystemTime(startedAt)
     vi.stubGlobal('fetch', async () => ({
       status: 200,
       ok: true,
@@ -728,7 +728,7 @@ describe('submitHighlightTip', () => {
     await asTipper.mutation(api.highlightTips.retryHighlightTipVerification, {
       tipId,
     })
-    now.mockReturnValue(startedAt + 9_999)
+    vi.setSystemTime(startedAt + 9_999)
     await asTipper.mutation(api.highlightTips.retryHighlightTipVerification, {
       tipId,
     })
@@ -739,7 +739,7 @@ describe('submitHighlightTip', () => {
       })
     })
 
-    now.mockReturnValue(startedAt + 10_000)
+    vi.setSystemTime(startedAt + 10_000)
     await asTipper.mutation(api.highlightTips.retryHighlightTipVerification, {
       tipId,
     })
@@ -754,7 +754,8 @@ describe('submitHighlightTip', () => {
 
   it('ignores a settlement result from an older verification generation', async () => {
     const startedAt = Date.now()
-    vi.spyOn(Date, 'now').mockReturnValue(startedAt)
+    vi.useFakeTimers()
+    vi.setSystemTime(startedAt)
     vi.stubGlobal('fetch', async () => ({
       status: 200,
       ok: true,
@@ -772,7 +773,7 @@ describe('submitHighlightTip', () => {
     await asTipper.mutation(api.highlightTips.retryHighlightTipVerification, {
       tipId,
     })
-    vi.mocked(Date.now).mockReturnValue(startedAt + 10_000)
+    vi.setSystemTime(startedAt + 10_000)
     await asTipper.mutation(api.highlightTips.retryHighlightTipVerification, {
       tipId,
     })

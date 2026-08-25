@@ -19,6 +19,7 @@ const articleContent = {
 }
 const TIPPER_STELLAR = Keypair.random().publicKey()
 const AUTHOR_STELLAR = Keypair.random().publicKey()
+const OTHER_STELLAR = Keypair.random().publicKey()
 const TIPPING_CONTRACT_ID =
   'CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY'
 
@@ -214,6 +215,144 @@ describe('legacy highlight tip cutover', () => {
         quoteSource: 'Fallback',
       })
     })
+  })
+
+  it.each([
+    { name: 'unauthenticated caller', authenticated: false, patch: {} },
+    {
+      name: 'invalid transaction hash',
+      authenticated: true,
+      patch: { stellarTxId: 'not-a-hash' },
+    },
+    {
+      name: 'invalid source account',
+      authenticated: true,
+      patch: { stellarSourceAccount: 'not-an-account' },
+    },
+    {
+      name: 'amount below the contract minimum',
+      authenticated: true,
+      patch: { stellarAmountXlm: '0.0000001' },
+    },
+    {
+      name: 'invalid requested cents',
+      authenticated: true,
+      patch: { amountCents: 0 },
+    },
+    {
+      name: 'spoofed passage',
+      authenticated: true,
+      patch: { highlightText: 'not the stored passage' },
+    },
+    {
+      name: 'spoofed memo',
+      authenticated: true,
+      patch: { stellarMemo: 'spoofed-highlight' },
+    },
+    {
+      name: 'wrong destination account',
+      authenticated: true,
+      patch: { stellarDestinationAccount: OTHER_STELLAR },
+    },
+    {
+      name: 'wrong Stellar network',
+      authenticated: true,
+      patch: { stellarNetwork: 'MAINNET' },
+    },
+  ])('rejects a $name without creating payment state', async (testCase) => {
+    const t = convexTest(schema, modules)
+    const ids = await seed(t)
+    const caller = testCase.authenticated
+      ? t.withIdentity({ subject: ids.tipperId })
+      : t
+
+    await expect(
+      caller.mutation(api.highlightTips.create, {
+        ...legacyCreateArgs(ids.articleId, '6'.repeat(64)),
+        ...testCase.patch,
+      })
+    ).rejects.toThrow()
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('highlightTipIntents').collect()).toEqual([])
+      expect(await ctx.db.query('highlightTips').collect()).toEqual([])
+    })
+    await expectNoCredit(t, ids)
+  })
+
+  it('returns the same compatibility row for a same-owner transaction retry', async () => {
+    const t = convexTest(schema, modules)
+    const ids = await seed(t)
+    const asTipper = t.withIdentity({ subject: ids.tipperId })
+    const args = legacyCreateArgs(ids.articleId, '7'.repeat(64))
+
+    const first = await asTipper.mutation(api.highlightTips.create, args)
+    const second = await asTipper.mutation(api.highlightTips.create, args)
+
+    expect(second).toBe(first)
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('highlightTipIntents').collect()).toHaveLength(
+        1
+      )
+      expect(await ctx.db.query('highlightTips').collect()).toHaveLength(1)
+    })
+    await expectNoCredit(t, ids)
+  })
+
+  it('rejects cross-owner transaction reuse without creating a second row', async () => {
+    const t = convexTest(schema, modules)
+    const ids = await seed(t)
+    const asTipper = t.withIdentity({ subject: ids.tipperId })
+    const args = legacyCreateArgs(ids.articleId, '8'.repeat(64))
+    await asTipper.mutation(api.highlightTips.create, args)
+    const otherId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return await ctx.db.insert('users', {
+        email: 'other@x.test',
+        username: 'other',
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+
+    await expect(
+      t
+        .withIdentity({ subject: otherId })
+        .mutation(api.highlightTips.create, args)
+    ).rejects.toThrow(
+      'This Stellar transaction is already linked to a different tip.'
+    )
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('highlightTipIntents').collect()).toHaveLength(
+        1
+      )
+      expect(await ctx.db.query('highlightTips').collect()).toHaveLength(1)
+    })
+    await expectNoCredit(t, ids)
+  })
+
+  it('enforces the payment cooldown before creating a second compatibility row', async () => {
+    const t = convexTest(schema, modules)
+    const ids = await seed(t)
+    const asTipper = t.withIdentity({ subject: ids.tipperId })
+    await asTipper.mutation(
+      api.highlightTips.create,
+      legacyCreateArgs(ids.articleId, '9'.repeat(64))
+    )
+
+    await expect(
+      asTipper.mutation(
+        api.highlightTips.create,
+        legacyCreateArgs(ids.articleId, 'a'.repeat(64))
+      )
+    ).rejects.toThrow(/Please wait \d+s before tipping again/)
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('highlightTipIntents').collect()).toHaveLength(
+        1
+      )
+      expect(await ctx.db.query('highlightTips').collect()).toHaveLength(1)
+    })
+    await expectNoCredit(t, ids)
   })
 
   it('quarantines a legacy PENDING verifier call without Horizon or credit', async () => {

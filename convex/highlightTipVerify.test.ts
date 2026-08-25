@@ -372,6 +372,81 @@ describe('exact highlight tip verification', () => {
     })
   })
 
+  it.each([
+    {
+      name: 'one millisecond before the early boundary',
+      offsetMs: -5 * 60 * 1000 - 1,
+      status: 'FAILED',
+      failureReason: 'transaction_before_intent',
+    },
+    {
+      name: 'at the early boundary',
+      offsetMs: -5 * 60 * 1000,
+      status: 'CONFIRMED',
+      failureReason: undefined,
+    },
+    {
+      name: 'at the late boundary',
+      offsetMs: 2 * 60 * 1000,
+      status: 'CONFIRMED',
+      failureReason: undefined,
+    },
+    {
+      name: 'one millisecond after the late boundary',
+      offsetMs: 2 * 60 * 1000 + 1,
+      status: 'FAILED',
+      failureReason: 'transaction_after_intent',
+    },
+  ])(
+    'enforces the old-client transaction window $name',
+    async ({ offsetMs, status, failureReason }) => {
+      const t = convexTest(schema, modules)
+      const state = await createCompatibilityTip(t)
+      const intentCreatedAt = await t.run(async (ctx) => {
+        const tip = await ctx.db.get(state.tipId)
+        const intent = tip?.highlightTipIntentId
+          ? await ctx.db.get(tip.highlightTipIntentId)
+          : null
+        if (!intent) throw new Error('Expected compatibility intent')
+        return intent.createdAt
+      })
+      stubHorizon({
+        successful: true,
+        source_account: TIPPER,
+        ledger: 4321,
+        created_at: new Date(intentCreatedAt + offsetMs).toISOString(),
+        envelope_xdr: buildHighlightEnvelope({
+          highlightId: 'c450b68fda794876a45fa85dd3f7',
+          articleSymbol: '2ede2c6a40',
+          amountStroops: BigInt(200_000_000),
+          timeBounds: { minTime: '0', maxTime: '2000000000' },
+        }),
+      })
+
+      await t.action(internal.stellarVerify.verifyHighlightTip, {
+        highlightTipId: state.tipId,
+        attempt: 1,
+      })
+
+      await t.run(async (ctx) => {
+        expect(await ctx.db.get(state.tipId)).toMatchObject({
+          status,
+          ...(failureReason ? { failureReason } : {}),
+        })
+        expect((await ctx.db.get(state.articleId))?.tipCount).toBe(
+          status === 'CONFIRMED' ? 1 : 0
+        )
+        const earnings = await ctx.db
+          .query('authorEarnings')
+          .withIndex('by_user', (q) => q.eq('userId', state.authorId))
+          .unique()
+        expect(earnings?.totalEarnedCents ?? 0).toBe(
+          status === 'CONFIRMED' ? 500 : 0
+        )
+      })
+    }
+  )
+
   it('terminalizes an old-client receipt that remains absent after its indexing grace', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-25T10:00:00.000Z'))
