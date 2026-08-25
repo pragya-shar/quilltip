@@ -218,6 +218,137 @@ describe('pendingArticleTipReceipt storage', () => {
     ).toEqual(concurrentReceipt)
   })
 
+  it('rolls back its own new receipt if an interleaved writer fills the twentieth slot', async () => {
+    const {
+      PENDING_ARTICLE_TIP_RECEIPT_STORAGE_PREFIX,
+      readPendingArticleTipReceipt,
+      writePendingArticleTipReceipt,
+    } = await import('./pendingArticleTipReceipt')
+    for (let index = 0; index < 19; index += 1) {
+      writePendingArticleTipReceipt({
+        ...RECEIPT_ONE,
+        articleId: `articles:existing-${index}`,
+        intentId: `intent-existing-${index}` as Id<'articleTipIntents'>,
+        signedXdr: `signed-xdr-existing-${index}`,
+        stellarTxId: `transaction-existing-${index}`,
+      })
+    }
+    const interleavedReceipt = {
+      ...RECEIPT_ONE,
+      articleId: 'articles:b',
+      intentId: 'intent-b' as Id<'articleTipIntents'>,
+      signedXdr: 'signed-xdr-b',
+      stellarTxId: 'transaction-b',
+    }
+    const originalSetItem = Storage.prototype.setItem
+    let interleaved = false
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string
+    ) {
+      if (!interleaved && value.includes('intent-a')) {
+        interleaved = true
+        originalSetItem.call(
+          this,
+          `${PENDING_ARTICLE_TIP_RECEIPT_STORAGE_PREFIX}writer-b`,
+          JSON.stringify(interleavedReceipt)
+        )
+      }
+      originalSetItem.call(this, key, value)
+    })
+
+    expect(() =>
+      writePendingArticleTipReceipt({
+        ...RECEIPT_ONE,
+        articleId: 'articles:a',
+        intentId: 'intent-a' as Id<'articleTipIntents'>,
+        signedXdr: 'signed-xdr-a',
+        stellarTxId: 'transaction-a',
+      })
+    ).toThrow(/20 pending article tips/i)
+    expect(
+      readPendingArticleTipReceipt('articles:a', 'TESTNET', 'users:one')
+    ).toBeNull()
+    expect(
+      readPendingArticleTipReceipt('articles:b', 'TESTNET', 'users:one')
+    ).toEqual(interleavedReceipt)
+  })
+
+  it('discards a malformed per-receipt entry without disturbing a valid receipt', async () => {
+    const {
+      PENDING_ARTICLE_TIP_RECEIPT_STORAGE_PREFIX,
+      readPendingArticleTipReceipt,
+      writePendingArticleTipReceipt,
+    } = await import('./pendingArticleTipReceipt')
+    writePendingArticleTipReceipt(RECEIPT_ONE)
+    const malformedKey = `${PENDING_ARTICLE_TIP_RECEIPT_STORAGE_PREFIX}broken`
+    window.localStorage.setItem(malformedKey, '{not-json')
+
+    expect(
+      readPendingArticleTipReceipt('articles:one', 'TESTNET', 'users:one')
+    ).toEqual(RECEIPT_ONE)
+    expect(window.localStorage.getItem(malformedKey)).toBeNull()
+  })
+
+  it('does not repeatedly process a malformed key when cleanup is blocked', async () => {
+    const {
+      PENDING_ARTICLE_TIP_RECEIPT_STORAGE_PREFIX,
+      readPendingArticleTipReceipt,
+    } = await import('./pendingArticleTipReceipt')
+    const malformedKey = `${PENDING_ARTICLE_TIP_RECEIPT_STORAGE_PREFIX}blocked-cleanup`
+    window.localStorage.setItem(malformedKey, '{not-json')
+    const originalRemoveItem = Storage.prototype.removeItem
+    const removeItem = vi
+      .spyOn(Storage.prototype, 'removeItem')
+      .mockImplementationOnce(() => {
+        throw new Error('cleanup blocked')
+      })
+      .mockImplementation(function (this: Storage, key: string) {
+        originalRemoveItem.call(this, key)
+      })
+
+    expect(
+      readPendingArticleTipReceipt('articles:one', 'TESTNET', 'users:one')
+    ).toBeNull()
+    expect(removeItem).toHaveBeenCalledOnce()
+    expect(window.localStorage.getItem(malformedKey)).toBe('{not-json')
+  })
+
+  it('rejects a write that cannot be read back durably', async () => {
+    const {
+      PENDING_ARTICLE_TIP_RECEIPT_STORAGE_PREFIX,
+      writePendingArticleTipReceipt,
+    } = await import('./pendingArticleTipReceipt')
+    const originalGetItem = Storage.prototype.getItem
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (
+      this: Storage,
+      key: string
+    ) {
+      if (key.startsWith(PENDING_ARTICLE_TIP_RECEIPT_STORAGE_PREFIX)) {
+        return null
+      }
+      return originalGetItem.call(this, key)
+    })
+
+    expect(() => writePendingArticleTipReceipt(RECEIPT_ONE)).toThrow(
+      /could not be saved for safe recovery/i
+    )
+  })
+
+  it('rolls back a new receipt when storage cannot be enumerated after the write', async () => {
+    const { writePendingArticleTipReceipt } =
+      await import('./pendingArticleTipReceipt')
+    vi.spyOn(Storage.prototype, 'key').mockImplementationOnce(() => {
+      throw new Error('enumeration blocked')
+    })
+
+    expect(() => writePendingArticleTipReceipt(RECEIPT_ONE)).toThrow(
+      /could not be saved for safe recovery/i
+    )
+    expect(window.localStorage.length).toBe(0)
+  })
+
   it('refuses a twenty-first unresolved receipt without evicting the oldest', async () => {
     const { readPendingArticleTipReceipt, writePendingArticleTipReceipt } =
       await import('./pendingArticleTipReceipt')

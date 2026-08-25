@@ -518,6 +518,110 @@ describe('TipButton two-stage flow', () => {
     expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
   })
 
+  it('fails closed before preparing when the browser does not support payment locks', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    Object.defineProperty(window.navigator, 'locks', {
+      configurable: true,
+      value: undefined,
+    })
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /could not safely reserve this article payment/i
+    )
+    expect(mockPrepareArticleTip).not.toHaveBeenCalled()
+    expect(mockBuildTipTransaction).not.toHaveBeenCalled()
+    expect(mockSignTransaction).not.toHaveBeenCalled()
+    expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
+  })
+
+  it('fails closed before preparing when the exclusive payment lock is unavailable', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    mockPaymentLockRequest.mockRejectedValueOnce(
+      new Error('Lock request unavailable')
+    )
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /could not safely reserve this article payment/i
+    )
+    expect(mockPrepareArticleTip).not.toHaveBeenCalled()
+    expect(mockBuildTipTransaction).not.toHaveBeenCalled()
+    expect(mockSignTransaction).not.toHaveBeenCalled()
+    expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
+  })
+
+  it('releases the article payment lock after wallet cancellation so retry can acquire it', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    mockSignTransaction.mockRejectedValueOnce(new Error('User declined'))
+    let activeLocks = 0
+    let releasedLocks = 0
+    mockPaymentLockRequest.mockImplementation(
+      async (
+        name: string,
+        _options: unknown,
+        callback: (lock: { name: string; mode: 'exclusive' }) => unknown
+      ) => {
+        expect(activeLocks).toBe(0)
+        activeLocks += 1
+        try {
+          return await callback({ name, mode: 'exclusive' })
+        } finally {
+          activeLocks -= 1
+          releasedLocks += 1
+        }
+      }
+    )
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Wallet prompt was dismissed/i
+    )
+    expect(activeLocks).toBe(0)
+    expect(releasedLocks).toBe(1)
+
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => {
+      expect(mockSubmitTipTransaction).toHaveBeenCalledWith('signed-xdr')
+    })
+    expect(mockPaymentLockRequest).toHaveBeenCalledTimes(2)
+    expect(activeLocks).toBe(0)
+    expect(releasedLocks).toBe(2)
+  })
+
   it('restores a paid receipt after remount and never opens the wallet again', async () => {
     mockIsAuthenticated.mockReturnValue(true)
     mockIsConnected.mockReturnValue(true)
