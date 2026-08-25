@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org/).
 
+## [1.2.0](https://github.com/pragya-shar/quilltip/compare/v1.1.0...v1.2.0) (2026-08-25)
+
+
+### Features
+
+* promote development updates to main ([#230](https://github.com/pragya-shar/quilltip/issues/230)) ([553901b](https://github.com/pragya-shar/quilltip/commit/553901be8102c2eb0fb2341cc291364dd7fecf63))
+
 ## [1.1.0](https://github.com/pragya-shar/quilltip/compare/v1.0.0...v1.1.0) (2026-06-22)
 
 ### Features
