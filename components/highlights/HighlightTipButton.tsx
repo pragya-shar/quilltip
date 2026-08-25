@@ -1053,7 +1053,11 @@ export function HighlightTipButton({
       <AlertDescription>{tipSuccess}</AlertDescription>
     </Alert>
   ) : isVerificationPending ? (
-    <Alert variant={verificationWarningVisible ? 'warning' : 'info'}>
+    <Alert
+      variant={verificationWarningVisible ? 'warning' : 'info'}
+      role="status"
+      aria-live="polite"
+    >
       <Loader2 className="h-4 w-4 animate-spin" />
       <AlertTitle>
         {verificationWarningVisible

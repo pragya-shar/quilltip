@@ -565,6 +565,10 @@ describe('HighlightTipButton two-stage flow', () => {
       })
 
       expect(screen.getByText('Confirming on Stellar')).toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Confirming on Stellar'
+      )
       expect(
         screen.getByRole('button', { name: 'Confirming on-chain' })
       ).toBeDisabled()
@@ -574,6 +578,8 @@ describe('HighlightTipButton two-stage flow', () => {
       })
 
       expect(screen.getByText('Still confirming')).toBeInTheDocument()
+      expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+      expect(screen.getByRole('status')).toHaveTextContent('Still confirming')
       expect(screen.getByRole('button', { name: 'Check again' })).toBeEnabled()
 
       const verificationChecksBeforeClick =
