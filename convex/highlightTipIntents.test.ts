@@ -114,6 +114,30 @@ async function drainScheduledHighlightVerification(
 }
 
 describe('prepareHighlightTip', () => {
+  it('does not expose canonical passage matches from an unpublished article', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, articleId } = await seed(t)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(articleId, {
+        published: false,
+        publishedAt: undefined,
+      })
+    })
+
+    await expect(
+      t
+        .withIdentity({ subject: tipperId })
+        .mutation(
+          api.highlightTips.prepareHighlightTip,
+          prepareArgs(articleId)
+        )
+    ).rejects.toThrow('Article not found')
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('highlightTipIntents').collect()).toEqual([])
+    })
+  })
+
   it('freezes canonical selection and payment fields without crediting the author', async () => {
     const t = convexTest(schema, modules)
     const startedAt = Date.now()

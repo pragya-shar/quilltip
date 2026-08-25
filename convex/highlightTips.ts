@@ -111,7 +111,7 @@ export const prepareHighlightTip = mutation({
       ctx.db.get(args.articleId),
     ])
     if (!tipper) throw new Error('User not found')
-    if (!article) throw new Error('Article not found')
+    if (!article || !article.published) throw new Error('Article not found')
 
     const canonicalPassage = resolveCanonicalHighlightPassage(
       article.content,
