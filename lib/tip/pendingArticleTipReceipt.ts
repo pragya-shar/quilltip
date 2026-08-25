@@ -102,10 +102,12 @@ function readReceipts(): PendingArticleTipReceipt[] {
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return memoryReceipts
 
-    memoryReceipts = parsed.slice(-20).flatMap((entry) => {
-      const result = pendingArticleTipReceiptSchema.safeParse(entry)
-      return result.success ? [result.data as PendingArticleTipReceipt] : []
-    })
+    memoryReceipts = parsed
+      .flatMap((entry) => {
+        const result = pendingArticleTipReceiptSchema.safeParse(entry)
+        return result.success ? [result.data as PendingArticleTipReceipt] : []
+      })
+      .slice(-20)
   } catch {
     // localStorage can be unavailable in private browsing or restricted frames.
   }

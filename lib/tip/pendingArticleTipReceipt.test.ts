@@ -26,6 +26,18 @@ const LEGACY_RECEIPT = {
   stellarTxId: 'transaction-legacy',
 }
 
+function storedReceipt(index: number) {
+  const base = {
+    ...RECEIPT_ONE,
+    articleId: `articles:bounded-${index}`,
+    intentId: `intent-bounded-${index}` as Id<'articleTipIntents'>,
+    stellarTxId: `transaction-bounded-${index}`,
+  }
+  if (index % 2 === 0) return base
+  const { signedXdr: _signedXdr, ...legacy } = base
+  return legacy
+}
+
 describe('pendingArticleTipReceipt storage', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -68,6 +80,67 @@ describe('pendingArticleTipReceipt storage', () => {
     expect(
       readPendingArticleTipReceipt('articles:legacy', 'TESTNET', 'users:one')
     ).toEqual(LEGACY_RECEIPT)
+  })
+
+  it('does not let malformed head, interleaved, or tail rows crowd out 20 valid receipts', async () => {
+    const validReceipts = Array.from({ length: 20 }, (_, index) =>
+      storedReceipt(index)
+    )
+    window.localStorage.setItem(
+      'quilltip:pendingArticleTipReceipts',
+      JSON.stringify([
+        { malformed: 'head' },
+        ...validReceipts.slice(0, 10),
+        { malformed: 'middle' },
+        ...validReceipts.slice(10),
+        { malformed: 'tail' },
+      ])
+    )
+
+    const { readPendingArticleTipReceipt } =
+      await import('./pendingArticleTipReceipt')
+
+    for (const [index, receipt] of validReceipts.entries()) {
+      expect(
+        readPendingArticleTipReceipt(
+          `articles:bounded-${index}`,
+          'TESTNET',
+          'users:one'
+        )
+      ).toEqual(receipt)
+    }
+  })
+
+  it('caps restored storage at the newest 20 valid receipts after discarding malformed rows', async () => {
+    const validReceipts = Array.from({ length: 21 }, (_, index) =>
+      storedReceipt(index)
+    )
+    window.localStorage.setItem(
+      'quilltip:pendingArticleTipReceipts',
+      JSON.stringify([
+        { malformed: 'head' },
+        ...validReceipts.slice(0, 7),
+        { malformed: 'middle' },
+        ...validReceipts.slice(7),
+        { malformed: 'tail' },
+      ])
+    )
+
+    const { readPendingArticleTipReceipt } =
+      await import('./pendingArticleTipReceipt')
+
+    expect(
+      readPendingArticleTipReceipt('articles:bounded-0', 'TESTNET', 'users:one')
+    ).toBeNull()
+    for (const [index, receipt] of validReceipts.slice(1).entries()) {
+      expect(
+        readPendingArticleTipReceipt(
+          `articles:bounded-${index + 1}`,
+          'TESTNET',
+          'users:one'
+        )
+      ).toEqual(receipt)
+    }
   })
 
   it('keeps independent receipts and clears only the confirmed article', async () => {
