@@ -23,6 +23,7 @@ const pendingHighlightTipReceiptSchema = z.object({
   contractTipId: z.string().optional(),
   submittedTipId: z.string().min(1).optional(),
   broadcastAcceptedAt: z.number().int().positive().optional(),
+  savedAt: z.number().int().positive().optional(),
 })
 
 type StoredPendingHighlightTipReceipt = z.infer<
@@ -157,7 +158,7 @@ export function writePendingHighlightTipReceipt(
     throw new Error(STORAGE_FAILURE_MESSAGE)
   }
 
-  const normalized = normalizeReceipt(receipt)
+  const normalized = normalizeReceipt({ ...receipt, savedAt: Date.now() })
   const key = receiptStorageKey(normalized)
   const storedEntries = readStoredEntries()
   if (storedEntries === null) {
@@ -207,6 +208,11 @@ export function readPendingHighlightTipReceipt(
 ): PendingHighlightTipReceipt | null {
   const matches = (readStoredEntries() ?? []).filter(({ receipt }) =>
     matchesContext(receipt, articleId, highlightId, stellarNetwork, tipperId)
+  )
+  matches.sort(
+    (left, right) =>
+      (left.receipt.savedAt ?? 0) - (right.receipt.savedAt ?? 0) ||
+      left.key.localeCompare(right.key)
   )
   return matches.at(-1)?.receipt ?? null
 }

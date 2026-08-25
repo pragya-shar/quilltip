@@ -42,7 +42,49 @@ describe('pendingHighlightTipReceipt storage', () => {
         'TESTNET',
         'users:one'
       )
-    ).toEqual(RECEIPT_ONE)
+    ).toEqual({ ...RECEIPT_ONE, savedAt: expect.any(Number) })
+  })
+
+  it('restores the newest receipt even when its intent ID sorts first', async () => {
+    const {
+      PENDING_HIGHLIGHT_TIP_RECEIPT_STORAGE_PREFIX,
+      readPendingHighlightTipReceipt,
+    } = await import('./pendingHighlightTipReceipt')
+    const olderReceipt = {
+      ...RECEIPT_ONE,
+      intentId: 'intent-z' as Id<'highlightTipIntents'>,
+      signedXdr: 'signed-xdr-older',
+      stellarTxId: 'transaction-older',
+      savedAt: 1_700_000_000_000,
+    }
+    const newerReceipt = {
+      ...RECEIPT_ONE,
+      intentId: 'intent-a' as Id<'highlightTipIntents'>,
+      signedXdr: 'signed-xdr-newer',
+      stellarTxId: 'transaction-newer',
+      savedAt: 1_700_000_001_000,
+    }
+    window.localStorage.setItem(
+      `${PENDING_HIGHLIGHT_TIP_RECEIPT_STORAGE_PREFIX}intent-z`,
+      JSON.stringify(olderReceipt)
+    )
+    window.localStorage.setItem(
+      `${PENDING_HIGHLIGHT_TIP_RECEIPT_STORAGE_PREFIX}intent-a`,
+      JSON.stringify(newerReceipt)
+    )
+
+    expect(
+      readPendingHighlightTipReceipt(
+        'articles:one',
+        'highlight-one',
+        'TESTNET',
+        'users:one'
+      )
+    ).toMatchObject({
+      intentId: 'intent-a',
+      stellarTxId: 'transaction-newer',
+      savedAt: 1_700_000_001_000,
+    })
   })
 
   it('stores each receipt under its own key so interleaved writers cannot overwrite one another', async () => {
@@ -86,7 +128,7 @@ describe('pendingHighlightTipReceipt storage', () => {
         'TESTNET',
         'users:one'
       )
-    ).toEqual(RECEIPT_ONE)
+    ).toEqual({ ...RECEIPT_ONE, savedAt: expect.any(Number) })
     expect(
       readPendingHighlightTipReceipt(
         'articles:two',
@@ -204,7 +246,7 @@ describe('pendingHighlightTipReceipt storage', () => {
         'TESTNET',
         'users:two'
       )
-    ).toEqual(otherTipperReceipt)
+    ).toEqual({ ...otherTipperReceipt, savedAt: expect.any(Number) })
     expect(
       readPendingHighlightTipReceipt(
         'articles:two',
@@ -240,7 +282,7 @@ describe('pendingHighlightTipReceipt storage', () => {
         'TESTNET',
         'users:one'
       )
-    ).toEqual(RECEIPT_ONE)
+    ).toEqual({ ...RECEIPT_ONE, savedAt: expect.any(Number) })
     expect(window.localStorage.getItem(malformedKey)).toBeNull()
   })
 
