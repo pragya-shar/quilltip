@@ -498,6 +498,14 @@ describe('article tip verification status', () => {
   })
 
   it('clears a transient reason and reschedules verification without a new payment', async () => {
+    const startedAt = Date.now()
+    vi.useFakeTimers()
+    vi.setSystemTime(startedAt)
+    vi.stubGlobal('fetch', async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({}),
+    }))
     const t = convexTest(schema, modules)
     const { tipId, tipperId } = await createPendingTip(t)
     await t.mutation(
@@ -510,9 +518,40 @@ describe('article tip verification status', () => {
     await asTipper.mutation(api.tips.retryArticleTipVerification, { tipId })
 
     const after = await t.run(async (ctx) => await ctx.db.get(tipId))
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers())
+    vi.clearAllTimers()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+
     expect(after?.status).toBe('PENDING')
     expect(after?.failureReason).toBeUndefined()
     expect(after?.stellarTxId).toBe(before?.stellarTxId)
     expect(after?.articleTipIntentId).toBe(before?.articleTipIntentId)
+  })
+
+  it('coalesces owner retry requests during the cooldown window', async () => {
+    const startedAt = Date.now()
+    vi.useFakeTimers()
+    vi.setSystemTime(startedAt)
+    vi.stubGlobal('fetch', async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({}),
+    }))
+    const t = convexTest(schema, modules)
+    const { tipId, tipperId } = await createPendingTip(t)
+    const asTipper = t.withIdentity({ subject: tipperId })
+
+    await asTipper.mutation(api.tips.retryArticleTipVerification, { tipId })
+    vi.setSystemTime(startedAt + 1)
+    await asTipper.mutation(api.tips.retryArticleTipVerification, { tipId })
+
+    const tip = await t.run(async (ctx) => await ctx.db.get(tipId))
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers())
+    vi.clearAllTimers()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+
+    expect(tip).toMatchObject({ verificationRequestedAt: startedAt })
   })
 })

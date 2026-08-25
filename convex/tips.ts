@@ -8,6 +8,7 @@ import {
   TIP_MAX_CENTS,
   MIN_WITHDRAWAL_USD,
   HORIZON_VERIFY_INITIAL_DELAY_MS,
+  ARTICLE_TIP_VERIFY_REQUEST_COOLDOWN_MS,
   getStellarNetwork,
   getTippingContractId,
 } from './lib/constants'
@@ -20,6 +21,8 @@ import {
   shortArticleIdServer,
 } from './lib/articleTipExpectation'
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
+
+const MAX_OUTSTANDING_ARTICLE_TIP_INTENTS = 5
 
 // Get tips for an article
 export const getArticleTips = query({
@@ -204,7 +207,7 @@ export const prepareArticleTip = mutation({
       ctx.db.get(args.articleId),
     ])
     if (!tipper) throw new Error('User not found')
-    if (!article) throw new Error('Article not found')
+    if (!article || !article.published) throw new Error('Article not found')
 
     const author = await ctx.db.get(article.authorId)
     if (!author) throw new Error('Author not found')
@@ -213,6 +216,52 @@ export const prepareArticleTip = mutation({
     }
 
     const now = Date.now()
+    const expectedArticleSymbol = await shortArticleIdServer(
+      args.articleId.toString()
+    )
+    const expectedStellarNetwork = getStellarNetwork()
+    const expectedContractId = getTippingContractId()
+    const outstanding = await ctx.db
+      .query('articleTipIntents')
+      .withIndex('by_tipper_expiry', (q) =>
+        q.eq('tipperId', userId).gt('expiresAt', now)
+      )
+      .collect()
+    const unlinked = outstanding.filter((intent) => !intent.tipId)
+    const reusable = unlinked.find(
+      (intent) =>
+        intent.articleId === args.articleId &&
+        intent.authorId === article.authorId &&
+        intent.articleTitle === article.title &&
+        intent.articleSlug === article.slug &&
+        intent.amountCents === args.amountCents &&
+        intent.message === args.message &&
+        intent.expectedSourceAccount === args.stellarSourceAccount &&
+        intent.expectedDestinationAccount === author.stellarAddress &&
+        intent.expectedArticleSymbol === expectedArticleSymbol &&
+        intent.expectedStellarNetwork === expectedStellarNetwork &&
+        intent.expectedContractId === expectedContractId &&
+        typeof intent.expectedMinTime === 'string' &&
+        typeof intent.expectedMaxTime === 'string'
+    )
+    if (reusable) {
+      return {
+        intentId: reusable._id,
+        articleSymbol: reusable.expectedArticleSymbol,
+        authorAddress: reusable.expectedDestinationAccount,
+        amountStroops: Number(reusable.expectedAmountStroops),
+        stellarNetwork: expectedStellarNetwork,
+        contractId: expectedContractId,
+        timeBounds: {
+          minTime: reusable.expectedMinTime!,
+          maxTime: reusable.expectedMaxTime!,
+        },
+      }
+    }
+    if (unlinked.length >= MAX_OUTSTANDING_ARTICLE_TIP_INTENTS) {
+      throw new ConvexError('Too many outstanding article tip intents')
+    }
+
     const cachedRate = await ctx.db.query('xlmPriceCache').first()
     const useCachedRate =
       cachedRate !== null && now - cachedRate.fetchedAt <= MAX_PRICE_AGE_MS
@@ -225,11 +274,6 @@ export const prepareArticleTip = mutation({
       args.amountCents,
       quotePriceUsd
     )
-    const expectedArticleSymbol = await shortArticleIdServer(
-      args.articleId.toString()
-    )
-    const expectedStellarNetwork = getStellarNetwork()
-    const expectedContractId = getTippingContractId()
     const expiresAt = now + ARTICLE_TIP_INTENT_TTL_MS
 
     const intentId = await ctx.db.insert('articleTipIntents', {
@@ -420,9 +464,18 @@ export const retryArticleTipVerification = mutation({
       throw new Error('Only pending article tips can be retried')
     }
 
+    const now = Date.now()
+    if (
+      tip.verificationRequestedAt !== undefined &&
+      now - tip.verificationRequestedAt < ARTICLE_TIP_VERIFY_REQUEST_COOLDOWN_MS
+    ) {
+      return null
+    }
+
     await ctx.db.patch(args.tipId, {
+      verificationRequestedAt: now,
       failureReason: undefined,
-      updatedAt: Date.now(),
+      updatedAt: now,
     })
     await ctx.scheduler.runAfter(
       0,

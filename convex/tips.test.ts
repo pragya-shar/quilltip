@@ -116,6 +116,82 @@ async function submitTrustedArticleTip(
 }
 
 describe('prepareArticleTip', () => {
+  it('rejects preparation for an unpublished article', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(authorId, { stellarAddress: AUTHOR_STELLAR_ADDRESS })
+      await ctx.db.patch(articleId, {
+        published: false,
+        publishedAt: undefined,
+      })
+    })
+
+    await expect(
+      t
+        .withIdentity({ subject: tipperId })
+        .mutation(api.tips.prepareArticleTip, {
+          articleId,
+          amountCents: 100,
+          stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+        })
+    ).rejects.toThrow('Article not found')
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('articleTipIntents').collect()).toHaveLength(0)
+    })
+  })
+
+  it('reuses an identical outstanding intent', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(authorId, { stellarAddress: AUTHOR_STELLAR_ADDRESS })
+    })
+    const asTipper = t.withIdentity({ subject: tipperId })
+    const args = {
+      articleId,
+      amountCents: 100,
+      message: 'One intent only',
+      stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+    }
+
+    const first = await asTipper.mutation(api.tips.prepareArticleTip, args)
+    const second = await asTipper.mutation(api.tips.prepareArticleTip, args)
+
+    expect(second).toEqual(first)
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('articleTipIntents').collect()).toHaveLength(1)
+    })
+  })
+
+  it('rejects a sixth outstanding intent', async () => {
+    const t = convexTest(schema, modules)
+    const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(authorId, { stellarAddress: AUTHOR_STELLAR_ADDRESS })
+    })
+    const asTipper = t.withIdentity({ subject: tipperId })
+
+    for (let index = 0; index < 5; index += 1) {
+      await asTipper.mutation(api.tips.prepareArticleTip, {
+        articleId,
+        amountCents: 100,
+        message: `Intent ${index}`,
+        stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+      })
+    }
+
+    await expect(
+      asTipper.mutation(api.tips.prepareArticleTip, {
+        articleId,
+        amountCents: 100,
+        message: 'Intent 6',
+        stellarSourceAccount: TIPPER_STELLAR_ADDRESS,
+      })
+    ).rejects.toThrow('Too many outstanding article tip intents')
+  })
+
   it('prepares a server-owned article tip expectation without crediting it', async () => {
     const t = convexTest(schema, modules)
     const { tipperId, authorId, articleId } = await seedTipperAndArticle(t)

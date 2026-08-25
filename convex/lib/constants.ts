@@ -47,6 +47,7 @@ export const HORIZON_VERIFY_MAX_ATTEMPTS = 3
 // without making the normal path check Horizon before a transaction exists.
 export const HIGHLIGHT_TIP_VERIFY_FALLBACK_DELAY_MS = 10_000
 export const HIGHLIGHT_TIP_VERIFY_REQUEST_COOLDOWN_MS = 10_000
+export const ARTICLE_TIP_VERIFY_REQUEST_COOLDOWN_MS = 10_000
 
 // Horizon ledger timestamps can trail the app server clock slightly, and a
 // wallet approval can finish just after the quote expires. These narrow grace

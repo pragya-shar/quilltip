@@ -215,6 +215,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_tipper', ['tipperId'])
+    .index('by_tipper_expiry', ['tipperId', 'expiresAt'])
     .index('by_expiry', ['expiresAt'])
     .index('by_tip_expiry', ['tipId', 'expiresAt']),
 
@@ -308,6 +309,7 @@ export default defineSchema({
     quoteSource: v.optional(v.string()),
     quoteFetchedAt: v.optional(v.number()),
     verifiedAt: v.optional(v.number()),
+    verificationRequestedAt: v.optional(v.number()),
 
     // Status
     status: v.string(), // PENDING, CONFIRMING, CONFIRMED, FAILED, FRAUDULENT
