@@ -44,6 +44,7 @@ describe('pendingArticleTipReceipt storage', () => {
   })
 
   afterEach(() => {
+    vi.restoreAllMocks()
     vi.resetModules()
   })
 
@@ -173,6 +174,78 @@ describe('pendingArticleTipReceipt storage', () => {
       signedXdr: 'signed-xdr-two',
       stellarTxId: 'transaction-two',
     })
+  })
+
+  it('keeps an unrelated receipt written by another tab during persistence', async () => {
+    const { readPendingArticleTipReceipt, writePendingArticleTipReceipt } =
+      await import('./pendingArticleTipReceipt')
+    const concurrentReceipt = {
+      ...RECEIPT_ONE,
+      articleId: 'articles:concurrent',
+      intentId: 'intent-concurrent' as Id<'articleTipIntents'>,
+      signedXdr: 'signed-xdr-concurrent',
+      stellarTxId: 'transaction-concurrent',
+    }
+    const originalSetItem = Storage.prototype.setItem
+    let interleaved = false
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string
+    ) {
+      if (!interleaved && value.includes('intent-one')) {
+        interleaved = true
+        originalSetItem.call(
+          this,
+          'quilltip:pendingArticleTipReceipt:v2:concurrent-writer',
+          JSON.stringify(concurrentReceipt)
+        )
+      }
+      originalSetItem.call(this, key, value)
+    })
+
+    writePendingArticleTipReceipt(RECEIPT_ONE)
+
+    expect(
+      readPendingArticleTipReceipt('articles:one', 'TESTNET', 'users:one')
+    ).toEqual(RECEIPT_ONE)
+    expect(
+      readPendingArticleTipReceipt(
+        'articles:concurrent',
+        'TESTNET',
+        'users:one'
+      )
+    ).toEqual(concurrentReceipt)
+  })
+
+  it('refuses a twenty-first unresolved receipt without evicting the oldest', async () => {
+    const { readPendingArticleTipReceipt, writePendingArticleTipReceipt } =
+      await import('./pendingArticleTipReceipt')
+    for (let index = 0; index < 20; index += 1) {
+      writePendingArticleTipReceipt({
+        ...RECEIPT_ONE,
+        articleId: `articles:limit-${index}`,
+        intentId: `intent-limit-${index}` as Id<'articleTipIntents'>,
+        signedXdr: `signed-xdr-limit-${index}`,
+        stellarTxId: `transaction-limit-${index}`,
+      })
+    }
+
+    expect(() =>
+      writePendingArticleTipReceipt({
+        ...RECEIPT_ONE,
+        articleId: 'articles:limit-20',
+        intentId: 'intent-limit-20' as Id<'articleTipIntents'>,
+        signedXdr: 'signed-xdr-limit-20',
+        stellarTxId: 'transaction-limit-20',
+      })
+    ).toThrow(/20 pending article tips/i)
+    expect(
+      readPendingArticleTipReceipt('articles:limit-0', 'TESTNET', 'users:one')
+    ).toMatchObject({ intentId: 'intent-limit-0' })
+    expect(
+      readPendingArticleTipReceipt('articles:limit-20', 'TESTNET', 'users:one')
+    ).toBeNull()
   })
 
   it('does not expose or clear another tipper receipt on a shared browser', async () => {

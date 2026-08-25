@@ -29,6 +29,7 @@ const mockActivateWallet = vi.hoisted(() => vi.fn())
 const mockBuildTipTransaction = vi.hoisted(() => vi.fn())
 const mockDeriveTipTransactionHash = vi.hoisted(() => vi.fn())
 const mockSubmitTipTransaction = vi.hoisted(() => vi.fn())
+const mockPaymentLockRequest = vi.hoisted(() => vi.fn())
 const mockTipDialogFooterNote = vi.hoisted(() =>
   vi.fn(() => 'Review footer note from copy helper')
 )
@@ -140,6 +141,18 @@ async function selectPresetAndContinue(
 describe('TipButton two-stage flow', () => {
   beforeEach(() => {
     window.localStorage.clear()
+    mockPaymentLockRequest.mockReset()
+    mockPaymentLockRequest.mockImplementation(
+      (
+        name: string,
+        _options: unknown,
+        callback: (lock: { name: string; mode: 'exclusive' }) => unknown
+      ) => Promise.resolve(callback({ name, mode: 'exclusive' }))
+    )
+    Object.defineProperty(window.navigator, 'locks', {
+      configurable: true,
+      value: { request: mockPaymentLockRequest },
+    })
     mockRedirectToLoginForTip.mockClear()
     mockUseArticleTipResume.mockClear()
     mockIsAuthenticated.mockReturnValue(false)
@@ -437,6 +450,72 @@ describe('TipButton two-stage flow', () => {
     expect(mockSignTransaction).toHaveBeenCalledTimes(1)
     expect(mockSubmitTipTransaction).toHaveBeenCalledTimes(1)
     expect(mockSubmitTipTransaction).toHaveBeenCalledWith('signed-xdr')
+  })
+
+  it('waits for the article payment lock and resumes a receipt created by another tab', async () => {
+    mockIsAuthenticated.mockReturnValue(true)
+    mockIsConnected.mockReturnValue(true)
+    let grantLock: (() => void) | undefined
+    mockPaymentLockRequest.mockImplementationOnce(
+      (
+        name: string,
+        _options: unknown,
+        callback: (lock: { name: string; mode: 'exclusive' }) => unknown
+      ) =>
+        new Promise((resolve, reject) => {
+          grantLock = () => {
+            void Promise.resolve(callback({ name, mode: 'exclusive' })).then(
+              resolve,
+              reject
+            )
+          }
+        })
+    )
+    const user = userEvent.setup({ delay: null })
+    render(
+      <TipButton
+        articleId={'articles:abc' as never}
+        authorName="Author"
+        authorStellarAddress="GABC"
+      />
+    )
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
+    await waitFor(() => {
+      expect(mockPaymentLockRequest).toHaveBeenCalledWith(
+        'quilltip:article-tip-payment:v1:users%3Aone:articles%3Aabc:TESTNET',
+        { mode: 'exclusive' },
+        expect.any(Function)
+      )
+    })
+
+    const { writePendingArticleTipReceipt } =
+      await import('@/lib/tip/pendingArticleTipReceipt')
+    writePendingArticleTipReceipt({
+      articleId: 'articles:abc',
+      tipperId: 'users:one' as never,
+      amountCents: 100,
+      stellarNetwork: 'TESTNET',
+      stellarSourceAccount: 'GABCDEF123456789',
+      intentId: 'competing-intent-id' as never,
+      signedXdr: 'competing-signed-xdr',
+      stellarTxId: 'competing-transaction-hash',
+    })
+
+    await act(async () => {
+      grantLock?.()
+      await Promise.resolve()
+    })
+
+    expect(
+      await screen.findByText('Tip transaction saved for recovery')
+    ).toBeInTheDocument()
+    expect(mockPrepareArticleTip).not.toHaveBeenCalled()
+    expect(mockBuildTipTransaction).not.toHaveBeenCalled()
+    expect(mockSignTransaction).not.toHaveBeenCalled()
+    expect(mockSubmitArticleTip).not.toHaveBeenCalled()
+    expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
   })
 
   it('restores a paid receipt after remount and never opens the wallet again', async () => {
@@ -813,23 +892,21 @@ describe('TipButton two-stage flow', () => {
     }
     const { rerender } = render(<TipButton {...props} />)
 
-    await selectPresetAndContinue(user)
-    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
-
     mockSubmitArticleTip.mockImplementationOnce(async () => {
-      const stored = JSON.parse(
-        window.localStorage.getItem('quilltip:pendingArticleTipReceipts') ??
-          '[]'
-      ) as Array<Record<string, unknown>>
-      expect(stored).toEqual([
-        expect.objectContaining({
-          signedXdr: 'signed-xdr',
-          stellarTxId: 'a'.repeat(64),
-          intentId: 'intent-id',
-        }),
-      ])
+      const { readPendingArticleTipReceipt } =
+        await import('@/lib/tip/pendingArticleTipReceipt')
+      expect(
+        readPendingArticleTipReceipt('articles:abc', 'TESTNET', 'users:one')
+      ).toMatchObject({
+        signedXdr: 'signed-xdr',
+        stellarTxId: 'a'.repeat(64),
+        intentId: 'intent-id',
+      })
       return 'tip-id'
     })
+
+    await selectPresetAndContinue(user)
+    await user.click(screen.getByRole('button', { name: 'Send Tip' }))
 
     await waitFor(() => {
       expect(mockBuildTipTransaction).toHaveBeenCalledWith('GABCDEF123456789', {
@@ -911,17 +988,14 @@ describe('TipButton two-stage flow', () => {
       expect.objectContaining({ stellarTxId: 'a'.repeat(64) })
     )
     expect(mockSubmitTipTransaction).not.toHaveBeenCalled()
+    const { readPendingArticleTipReceipt } =
+      await import('@/lib/tip/pendingArticleTipReceipt')
     expect(
-      JSON.parse(
-        window.localStorage.getItem('quilltip:pendingArticleTipReceipts') ??
-          '[]'
-      )
-    ).toEqual([
-      expect.objectContaining({
-        signedXdr: 'signed-xdr',
-        stellarTxId: 'a'.repeat(64),
-      }),
-    ])
+      readPendingArticleTipReceipt('articles:abc', 'TESTNET', 'users:one')
+    ).toMatchObject({
+      signedXdr: 'signed-xdr',
+      stellarTxId: 'a'.repeat(64),
+    })
   })
 
   it('does not synchronize or persist a tip when wallet signing is cancelled', async () => {
