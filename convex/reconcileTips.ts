@@ -1,9 +1,17 @@
 import { v } from 'convex/values'
-import { internalAction, internalQuery } from './_generated/server'
+import {
+  internalAction,
+  internalMutation,
+  internalQuery,
+} from './_generated/server'
 import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { verifyTipTransaction } from './lib/horizon'
-import { TIP_ARTICLE_FUNCTIONS, getTippingContractId } from './lib/constants'
+import {
+  LEGACY_PENDING_HIGHLIGHT_TIP_QUARANTINE_REASON,
+  TIP_ARTICLE_FUNCTIONS,
+  getTippingContractId,
+} from './lib/constants'
 import { resolveHorizonUrl, xlmStringToStroops } from './stellarVerify'
 
 // 7-hour lookback with 1-hour overlap vs the 6-hour cron interval, so a
@@ -13,11 +21,124 @@ const RECONCILE_WINDOW_MS = 7 * 60 * 60 * 1000
 
 // A highlight tip whose verification chain died (process crash, indexing
 // delay beyond the retry budget) sits in PENDING forever otherwise. 10
-// minutes is well past the longest legitimate verify window (initial 2s
-// + 5s + 15s = 22s under the current schedule) so we won't race a healthy
+// minutes is well past the longest legitimate verify window (10s fallback
+// + 5s + 15s = 30s under the current schedule) so we won't race a healthy
 // chain. Reconciliation runs every 6h, so a tip can sit stuck for at most
 // one cycle before being re-kicked.
 const STUCK_PENDING_THRESHOLD_MS = 10 * 60 * 1000
+const EXPIRED_INTENT_CLEANUP_LIMIT = 100
+
+export const getExpiredUnlinkedArticleTipIntentIds = internalQuery({
+  args: { nowMs: v.number() },
+  returns: v.array(v.id('articleTipIntents')),
+  handler: async (ctx, args): Promise<Id<'articleTipIntents'>[]> => {
+    const intents = await ctx.db
+      .query('articleTipIntents')
+      .withIndex('by_tip_expiry', (q) =>
+        q.eq('tipId', undefined).lt('expiresAt', args.nowMs)
+      )
+      .take(EXPIRED_INTENT_CLEANUP_LIMIT)
+    return intents.map((intent) => intent._id)
+  },
+})
+
+export const getExpiredUnlinkedHighlightTipIntentIds = internalQuery({
+  args: { nowMs: v.number() },
+  returns: v.array(v.id('highlightTipIntents')),
+  handler: async (ctx, args): Promise<Id<'highlightTipIntents'>[]> => {
+    const intents = await ctx.db
+      .query('highlightTipIntents')
+      .withIndex('by_tip_expiry', (q) =>
+        q.eq('tipId', undefined).lt('expiresAt', args.nowMs)
+      )
+      .take(EXPIRED_INTENT_CLEANUP_LIMIT)
+    return intents.map((intent) => intent._id)
+  },
+})
+
+export const deleteExpiredUnlinkedArticleTipIntents = internalMutation({
+  args: {
+    intentIds: v.array(v.id('articleTipIntents')),
+    nowMs: v.number(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let deleted = 0
+    for (const intentId of args.intentIds) {
+      const intent = await ctx.db.get(intentId)
+      if (!intent || intent.tipId || intent.expiresAt >= args.nowMs) continue
+      await ctx.db.delete(intentId)
+      deleted++
+    }
+    return deleted
+  },
+})
+
+export const deleteExpiredUnlinkedHighlightTipIntents = internalMutation({
+  args: {
+    intentIds: v.array(v.id('highlightTipIntents')),
+    nowMs: v.number(),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    let deleted = 0
+    for (const intentId of args.intentIds) {
+      const intent = await ctx.db.get(intentId)
+      if (!intent || intent.tipId || intent.expiresAt >= args.nowMs) continue
+      await ctx.db.delete(intentId)
+      deleted++
+    }
+    return deleted
+  },
+})
+
+/**
+ * Drain expired pre-wallet intent rows in bounded batches. Linked intents are
+ * immutable audit records and are checked again in the delete mutation to
+ * protect a concurrent submission between the query and mutation.
+ */
+export const cleanupExpiredTipIntents = internalAction({
+  args: {},
+  returns: v.object({
+    articleIntentsDeleted: v.number(),
+    highlightIntentsDeleted: v.number(),
+  }),
+  handler: async (
+    ctx
+  ): Promise<{
+    articleIntentsDeleted: number
+    highlightIntentsDeleted: number
+  }> => {
+    const nowMs = Date.now()
+    const [articleIntentIds, highlightIntentIds]: [
+      Id<'articleTipIntents'>[],
+      Id<'highlightTipIntents'>[],
+    ] = await Promise.all([
+      ctx.runQuery(
+        internal.reconcileTips.getExpiredUnlinkedArticleTipIntentIds,
+        {
+          nowMs,
+        }
+      ),
+      ctx.runQuery(
+        internal.reconcileTips.getExpiredUnlinkedHighlightTipIntentIds,
+        { nowMs }
+      ),
+    ])
+    const [articleIntentsDeleted, highlightIntentsDeleted] = await Promise.all([
+      ctx.runMutation(
+        internal.reconcileTips.deleteExpiredUnlinkedArticleTipIntents,
+        { intentIds: articleIntentIds, nowMs }
+      ),
+      ctx.runMutation(
+        internal.reconcileTips.deleteExpiredUnlinkedHighlightTipIntents,
+        { intentIds: highlightIntentIds, nowMs }
+      ),
+    ])
+    const summary = { articleIntentsDeleted, highlightIntentsDeleted }
+    return summary
+  },
+})
 
 /**
  * Internal read used by the reconciliation action to hydrate recent
@@ -188,55 +309,101 @@ export const reconcileArticleTips = internalAction({
   },
 })
 
-/**
- * Internal read for the stuck-PENDING highlight tip sweep. Returns ids of
- * highlightTips rows that are PENDING and older than STUCK_PENDING_THRESHOLD_MS,
- * which is well past any legitimate retry window. Indexed by status + createdAt
- * so the scan stays cheap as the table grows.
- */
-export const getStuckPendingHighlightTipIds = internalQuery({
+export const claimStuckPendingHighlightTips = internalMutation({
+  args: { cutoffMs: v.number(), nowMs: v.number() },
+  returns: v.array(
+    v.object({
+      tipId: v.id('highlightTips'),
+      generation: v.number(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const tips = await ctx.db
+      .query('highlightTips')
+      .withIndex('by_status_updated', (q) =>
+        q.eq('status', 'PENDING').lt('updatedAt', args.cutoffMs)
+      )
+      .filter((q) => q.neq(q.field('highlightTipIntentId'), undefined))
+      .take(100)
+
+    for (const tip of tips) {
+      await ctx.db.patch(tip._id, { updatedAt: args.nowMs })
+    }
+    return tips.map((tip) => ({
+      tipId: tip._id,
+      generation: tip.verificationGeneration ?? 0,
+    }))
+  },
+})
+
+export const quarantineLegacyPendingHighlightTips = internalMutation({
   args: { cutoffMs: v.number() },
-  handler: async (ctx, args): Promise<Id<'highlightTips'>[]> => {
+  returns: v.number(),
+  handler: async (ctx, args): Promise<number> => {
     const tips = await ctx.db
       .query('highlightTips')
       .withIndex('by_status_created', (q) =>
         q.eq('status', 'PENDING').lt('createdAt', args.cutoffMs)
       )
-      .collect()
-    return tips.map((tip) => tip._id)
+      .filter((q) => q.eq(q.field('highlightTipIntentId'), undefined))
+      .take(100)
+    const now = Date.now()
+    for (const tip of tips) {
+      await ctx.db.patch(tip._id, {
+        status: 'FAILED',
+        failureReason: LEGACY_PENDING_HIGHLIGHT_TIP_QUARANTINE_REASON,
+        processedAt: now,
+        updatedAt: now,
+      })
+    }
+    return tips.length
   },
 })
 
 /**
- * Recover highlight tips whose verification chain died. For each PENDING
- * tip older than STUCK_PENDING_THRESHOLD_MS we reschedule verifyHighlightTip
- * with attempt=1, restarting the retry budget. The verify action's status
- * guard (`if (tip.status !== 'PENDING') return`) makes this safe even if the
- * original chain happens to be alive — at worst the tip sees one extra run
- * that no-ops on the already-flipped status.
+ * Recover intent-backed highlight tips whose verification chain died. Legacy
+ * PENDING rows never cross the post-cutover trust boundary: they are
+ * terminalized without verification or counters. Each old intent-backed row
+ * is rescheduled with attempt=1, restarting the retry budget. The verify
+ * action's status guard makes this safe even if the original chain is alive.
  *
- * Not gated by RECONCILE_TIPS_ENABLED: rescheduling a verify is non-destructive
- * (it cannot mark a tip FRAUDULENT or move money), so dry-run vs enabled is
- * not meaningful here.
+ * Not gated by RECONCILE_TIPS_ENABLED: this is live recovery, not a dry-run
+ * audit. The scheduled verifier can confirm or fail a tip and update accounting
+ * only after exact on-chain verification.
  */
 export const recoverStuckPendingHighlightTips = internalAction({
   args: {},
-  handler: async (ctx): Promise<{ rescheduled: number }> => {
-    const cutoff = Date.now() - STUCK_PENDING_THRESHOLD_MS
-    const ids: Id<'highlightTips'>[] = await ctx.runQuery(
-      internal.reconcileTips.getStuckPendingHighlightTipIds,
+  returns: v.object({ rescheduled: v.number(), quarantined: v.number() }),
+  handler: async (
+    ctx
+  ): Promise<{ rescheduled: number; quarantined: number }> => {
+    const now = Date.now()
+    const cutoff = now - STUCK_PENDING_THRESHOLD_MS
+    const quarantined = await ctx.runMutation(
+      internal.reconcileTips.quarantineLegacyPendingHighlightTips,
       { cutoffMs: cutoff }
     )
+    const claims: Array<{
+      tipId: Id<'highlightTips'>
+      generation: number
+    }> = await ctx.runMutation(
+      internal.reconcileTips.claimStuckPendingHighlightTips,
+      { cutoffMs: cutoff, nowMs: now }
+    )
 
-    for (const id of ids) {
+    for (const claim of claims) {
       await ctx.scheduler.runAfter(
         0,
         internal.stellarVerify.verifyHighlightTip,
-        { highlightTipId: id, attempt: 1 }
+        {
+          highlightTipId: claim.tipId,
+          attempt: 1,
+          generation: claim.generation,
+        }
       )
     }
 
-    const summary = { rescheduled: ids.length }
+    const summary = { rescheduled: claims.length, quarantined }
     console.log('[reconcileTips] stuck-PENDING highlight sweep', summary)
     return summary
   },

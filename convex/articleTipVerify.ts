@@ -10,8 +10,10 @@ import {
   ARTICLE_TIP_TX_EARLY_GRACE_MS,
   ARTICLE_TIP_TX_LATE_GRACE_MS,
   HORIZON_VERIFY_MAX_ATTEMPTS,
+  HORIZON_NOT_FOUND_TERMINAL_REASON,
   TIP_ARTICLE_FUNCTIONS,
   getTippingContractId,
+  isPastHorizonNotFoundIndexingGrace,
   verifyDelayMs,
 } from './lib/constants'
 import { resolveHorizonUrl } from './stellarVerify'
@@ -105,6 +107,19 @@ export const verifyArticleTip = internalAction({
 
     if (!result.ok) {
       if (result.kind === 'transient') {
+        if (
+          result.reason === 'not_found' &&
+          isPastHorizonNotFoundIndexingGrace(tip.expectedMaxTime)
+        ) {
+          await ctx.runMutation(
+            internal.articleTipVerify.markArticleTipFailed,
+            {
+              tipId: args.tipId,
+              reason: HORIZON_NOT_FOUND_TERMINAL_REASON,
+            }
+          )
+          return null
+        }
         if (args.attempt < HORIZON_VERIFY_MAX_ATTEMPTS) {
           await ctx.scheduler.runAfter(
             verifyDelayMs(args.attempt),

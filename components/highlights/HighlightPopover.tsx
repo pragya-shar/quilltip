@@ -23,6 +23,10 @@ interface HighlightPopoverProps {
   authorStellarAddress?: string | null
   startOffset?: number
   endOffset?: number
+  startContainerPath?: string
+  endContainerPath?: string
+  selectionStartPosition?: number
+  selectionEndPosition?: number
   resumeHighlightTip?: {
     amountCents?: number
     customAmount?: string
@@ -80,6 +84,10 @@ export function HighlightPopover({
   authorStellarAddress,
   startOffset,
   endOffset,
+  startContainerPath,
+  endContainerPath,
+  selectionStartPosition,
+  selectionEndPosition,
   resumeHighlightTip,
   onHighlightTipResumeOpened,
 }: HighlightPopoverProps) {
@@ -257,6 +265,10 @@ export function HighlightPopover({
                   highlightText={selectedText}
                   startOffset={startOffset}
                   endOffset={endOffset}
+                  startContainerPath={startContainerPath}
+                  endContainerPath={endContainerPath}
+                  selectionStartPosition={selectionStartPosition}
+                  selectionEndPosition={selectionEndPosition}
                   className="min-w-0 flex-1"
                   resumeOpen={Boolean(resumeHighlightTip)}
                   resumeAmountCents={resumeHighlightTip?.amountCents}

@@ -317,9 +317,14 @@ export class StellarClient {
     tipperPublicKey: string,
     params: {
       highlightId: string
-      articleId: string
+      articleSymbol: string
       authorAddress: string
-      amountCents: number
+      amountStroops: number
+      contractId: string
+      timeBounds: {
+        minTime: string
+        maxTime: string
+      }
     }
   ): Promise<{
     xdr: string
@@ -328,32 +333,38 @@ export class StellarClient {
     platformFee: number
   }> {
     const { StellarSdk, server, sorobanServer } = await this.getSdkContext()
-    const stroops = await this.convertCentsToStroops(params.amountCents)
+    if (
+      !Number.isSafeInteger(params.amountStroops) ||
+      params.amountStroops < STELLAR_CONFIG.MINIMUM_TIP_STROOPS
+    ) {
+      throw new Error('Invalid trusted highlight tip amount')
+    }
+    const stroops = params.amountStroops
     const { authorReceived, platformFee } = calculateTipSplit(stroops)
 
     const account = await server.loadAccount(tipperPublicKey)
 
-    const contract = new StellarSdk.Contract(STELLAR_CONFIG.TIPPING_CONTRACT_ID)
+    const contract = new StellarSdk.Contract(params.contractId)
 
     const stroopsBigInt = BigInt(stroops)
 
     const transaction = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
       networkPassphrase: this.networkPassphrase,
+      timebounds: params.timeBounds,
     })
       .addOperation(
         contract.call(
           'tip_highlight_direct',
           StellarSdk.nativeToScVal(tipperPublicKey, { type: 'address' }),
           StellarSdk.nativeToScVal(params.highlightId, { type: 'string' }),
-          StellarSdk.nativeToScVal(shortArticleId(params.articleId), {
+          StellarSdk.nativeToScVal(params.articleSymbol, {
             type: 'symbol',
           }),
           StellarSdk.nativeToScVal(params.authorAddress, { type: 'address' }),
           StellarSdk.nativeToScVal(stroopsBigInt, { type: 'i128' })
         )
       )
-      .setTimeout(180)
       .build()
 
     const preparedTransaction =
@@ -507,6 +518,15 @@ export class StellarClient {
       : `Transaction failed with status: ${result.status}`
 
     throw new Error(errorMessage)
+  }
+
+  async deriveTipTransactionHash(signedXDR: string): Promise<string> {
+    const { StellarSdk } = await this.getSdkContext()
+    const transaction = StellarSdk.TransactionBuilder.fromXDR(
+      signedXDR,
+      this.networkPassphrase
+    )
+    return transaction.hash().toString('hex')
   }
 
   async getArticleTips(articleId: string): Promise<TipData[]> {

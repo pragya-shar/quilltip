@@ -2,6 +2,7 @@
 import { convexTest } from 'convex-test'
 import { describe, expect, it } from 'vitest'
 import { api } from './_generated/api'
+import { getArticleHighlights } from './highlights'
 import schema from './schema'
 
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
@@ -74,6 +75,72 @@ async function seedHighlights(t: ReturnType<typeof convexTest>) {
 }
 
 describe('highlight query privacy', () => {
+  it('uses an article-scoped index for the signed-in readers private highlights', async () => {
+    const indexUses: Array<{
+      index: string
+      clauses: Array<[field: string, value: unknown]>
+    }> = []
+    const articleId = 'articles:article-1'
+    const ownerId = 'users:owner-1'
+    const db = {
+      query: () => ({
+        withIndex: (
+          index: string,
+          buildRange: (range: {
+            eq: (field: string, value: unknown) => unknown
+          }) => unknown
+        ) => {
+          const clauses: Array<[string, unknown]> = []
+          const range = {
+            eq(field: string, value: unknown) {
+              clauses.push([field, value])
+              return range
+            },
+          }
+          buildRange(range)
+          indexUses.push({ index, clauses })
+          return { collect: async () => [] }
+        },
+      }),
+    }
+    const handler = (
+      getArticleHighlights as unknown as {
+        _handler: (
+          ctx: unknown,
+          args: { articleId: string }
+        ) => Promise<unknown>
+      }
+    )._handler
+
+    await handler(
+      {
+        auth: {
+          getUserIdentity: async () => ({ subject: ownerId }),
+        },
+        db,
+      },
+      { articleId }
+    )
+
+    expect(indexUses).toEqual([
+      {
+        index: 'by_article_public',
+        clauses: [
+          ['articleId', articleId],
+          ['isPublic', true],
+        ],
+      },
+      {
+        index: 'by_article_user_public',
+        clauses: [
+          ['articleId', articleId],
+          ['userId', ownerId],
+          ['isPublic', false],
+        ],
+      },
+    ])
+  })
+
   it('returns only public article highlights to signed-out and unrelated readers', async () => {
     const t = convexTest(schema, modules)
     const { articleId, otherUserId } = await seedHighlights(t)
@@ -139,5 +206,64 @@ describe('highlight query privacy', () => {
     expect(
       publicHistoryWithTips.map((highlight) => highlight.highlightId)
     ).toEqual(['public-highlight'])
+  })
+
+  it('excludes unverified tips from public highlight statistics', async () => {
+    const t = convexTest(schema, modules)
+    const { articleId, ownerId, otherUserId } = await seedHighlights(t)
+
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const baseTip = {
+        highlightId: 'public-highlight',
+        articleId,
+        tipperId: otherUserId,
+        authorId: otherUserId,
+        highlightText: 'Selected passage',
+        articleTitle: 'Privacy test',
+        articleSlug: 'privacy-test',
+        stellarNetwork: 'TESTNET',
+        stellarMemo: 'public-highlight',
+        startOffset: 0,
+        endOffset: 16,
+        createdAt: now,
+        processedAt: now,
+        updatedAt: now,
+      }
+
+      await ctx.db.insert('highlightTips', {
+        ...baseTip,
+        amountUsd: 2.5,
+        amountCents: 250,
+        stellarTxId: 'confirmed-transaction',
+        status: 'CONFIRMED',
+      })
+      await ctx.db.insert('highlightTips', {
+        ...baseTip,
+        amountUsd: 99,
+        amountCents: 9900,
+        stellarTxId: 'pending-transaction',
+        status: 'PENDING',
+      })
+      await ctx.db.insert('highlightTips', {
+        ...baseTip,
+        amountUsd: 88,
+        amountCents: 8800,
+        stellarTxId: 'failed-transaction',
+        status: 'FAILED',
+      })
+    })
+
+    const publicHistory = await t.query(
+      api.highlights.getUserHighlightsWithTips,
+      { userId: ownerId }
+    )
+
+    expect(publicHistory).toHaveLength(1)
+    expect(publicHistory[0]?.tipStats).toEqual({
+      count: 1,
+      totalUsd: 2.5,
+      hasTips: true,
+    })
   })
 })

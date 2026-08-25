@@ -27,6 +27,7 @@ export type HorizonVerifyReason =
   | 'contract_mismatch'
   | 'function_mismatch'
   | 'tipper_mismatch'
+  | 'highlight_mismatch'
   | 'article_mismatch'
   | 'author_mismatch'
   | 'amount_mismatch'
@@ -46,9 +47,11 @@ export type HorizonVerifyResult =
 export type TipInvocationExpectations = {
   contractId: string
   allowedFunctions: readonly string[]
+  expectedFunction?: string
   authorAddress: string
   minStroops: bigint
   exactStroops?: bigint
+  highlightId?: string
   articleId?: string
   batchTips?: readonly TipInvocationTipExpectation[]
   expectedTimeBounds?: {
@@ -58,6 +61,7 @@ export type TipInvocationExpectations = {
 }
 
 export type TipInvocationTipExpectation = {
+  highlightId?: string
   articleId?: string
   authorAddress: string
   minStroops: bigint
@@ -101,7 +105,11 @@ export async function verifyTipTransaction(
   if (response.status === 404) {
     return { ok: false, kind: 'transient', reason: 'not_found' }
   }
-  if (response.status >= 500) {
+  if (
+    response.status === 408 ||
+    response.status === 429 ||
+    response.status >= 500
+  ) {
     return { ok: false, kind: 'transient', reason: 'server_error' }
   }
   if (!response.ok) {
@@ -249,7 +257,11 @@ function verifyInvocation(
   }
 
   const fnName = ic.functionName().toString()
-  if (!args.invocation.allowedFunctions.includes(fnName)) {
+  if (
+    !args.invocation.allowedFunctions.includes(fnName) ||
+    (args.invocation.expectedFunction !== undefined &&
+      fnName !== args.invocation.expectedFunction)
+  ) {
     return { kind: 'fail', reason: 'function_mismatch' }
   }
 
@@ -264,15 +276,32 @@ function verifyInvocation(
   const isHighlightFn =
     fnName === 'tip_highlight_direct' || fnName === 'tip_highlight_with_arweave'
   const tipperIdx = 0
+  const highlightIdx = isHighlightFn ? 1 : undefined
   const articleIdx = isHighlightFn ? 2 : 1
   const authorIdx = isHighlightFn ? 3 : 2
   const amountIdx = isHighlightFn ? 4 : 3
+
+  const exactArgumentCounts: Readonly<Record<string, number>> = {
+    tip_article: 4,
+    tip_article_with_arweave: 5,
+    tip_highlight_direct: 5,
+    tip_highlight_with_arweave: 6,
+  }
+  const exactArgumentCount = exactArgumentCounts[fnName]
+  if (
+    args.invocation.expectedFunction !== undefined &&
+    (exactArgumentCount === undefined || fnArgs.length !== exactArgumentCount)
+  ) {
+    return { kind: 'fail', reason: 'malformed_response' }
+  }
 
   if (fnArgs.length <= amountIdx) {
     return { kind: 'fail', reason: 'malformed_response' }
   }
 
   const tipperArg = fnArgs[tipperIdx]
+  const highlightArg =
+    highlightIdx === undefined ? undefined : fnArgs[highlightIdx]
   const articleArg = fnArgs[articleIdx]
   const authorArg = fnArgs[authorIdx]
   const amountArg = fnArgs[amountIdx]
@@ -281,11 +310,13 @@ function verifyInvocation(
   }
 
   let nativeTipper: unknown
+  let nativeHighlight: unknown
   let nativeArticle: unknown
   let nativeAuthor: unknown
   let nativeAmount: unknown
   try {
     nativeTipper = scValToNative(tipperArg)
+    nativeHighlight = highlightArg ? scValToNative(highlightArg) : undefined
     nativeArticle = scValToNative(articleArg)
     nativeAuthor = scValToNative(authorArg)
     nativeAmount = scValToNative(amountArg)
@@ -302,6 +333,12 @@ function verifyInvocation(
 
   if (nativeTipper !== args.expectedSource) {
     return { kind: 'fail', reason: 'tipper_mismatch' }
+  }
+  if (
+    args.invocation.highlightId !== undefined &&
+    nativeHighlight !== args.invocation.highlightId
+  ) {
+    return { kind: 'fail', reason: 'highlight_mismatch' }
   }
   if (
     args.invocation.articleId !== undefined &&
@@ -379,6 +416,12 @@ function verifyBatchInvocation(
 
     if (tip.author !== expected.authorAddress) {
       return { kind: 'fail', reason: 'author_mismatch' }
+    }
+    if (
+      expected.highlightId !== undefined &&
+      tip.highlight_id !== expected.highlightId
+    ) {
+      return { kind: 'fail', reason: 'highlight_mismatch' }
     }
     if (
       expected.articleId !== undefined &&

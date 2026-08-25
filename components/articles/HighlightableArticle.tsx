@@ -574,6 +574,7 @@ export function HighlightableArticle({
         {popoverPosition &&
           selectedText &&
           article &&
+          editor &&
           (highlightsActive || (signInPromptActive && canTipHighlight)) && (
             <HighlightPopover
               position={popoverPosition}
@@ -586,8 +587,18 @@ export function HighlightableArticle({
                 article.author?.name || article.authorName || 'Author'
               }
               authorStellarAddress={article.author?.stellarAddress}
-              startOffset={selectedText.from}
-              endOffset={selectedText.to}
+              startOffset={HighlightConverter.getTextOffset(
+                editor.state.doc,
+                selectedText.from
+              )}
+              endOffset={HighlightConverter.getTextOffset(
+                editor.state.doc,
+                selectedText.to
+              )}
+              startContainerPath={`text.${selectedText.from}`}
+              endContainerPath={`text.${selectedText.to}`}
+              selectionStartPosition={selectedText.from}
+              selectionEndPosition={selectedText.to}
               resumeHighlightTip={resumeHighlightTip}
               onHighlightTipResumeOpened={() => {
                 setResumeHighlightTip(null)
