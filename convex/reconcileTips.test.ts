@@ -643,6 +643,7 @@ async function seedPendingHighlightTip(
   t: ReturnType<typeof convexTest>,
   overrides: {
     createdAt?: number
+    updatedAt?: number
     status?: 'PENDING' | 'CONFIRMED' | 'FAILED'
     stellarTxId?: string
     intentBacked?: boolean
@@ -683,6 +684,7 @@ async function seedPendingHighlightTip(
       updatedAt: now,
     })
     const createdAt = overrides.createdAt ?? now
+    const updatedAt = overrides.updatedAt ?? createdAt
     const intentId = overrides.intentBacked
       ? await ctx.db.insert('highlightTipIntents', {
           articleId,
@@ -747,7 +749,7 @@ async function seedPendingHighlightTip(
       status: overrides.status ?? 'PENDING',
       createdAt,
       processedAt: now,
-      updatedAt: now,
+      updatedAt,
     })
     if (intentId) await ctx.db.patch(intentId, { tipId })
     return { tipId, articleId, tipperId, authorId, intentId }
@@ -967,6 +969,36 @@ describe('recoverStuckPendingHighlightTips', () => {
     expect(summary.quarantined).toBe(1)
 
     await drainScheduler(t)
+  })
+
+  it('advances a claimed batch so the next sweep can reach tip 101', async () => {
+    const t = convexTest(schema, modules)
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000
+    for (let index = 0; index < 101; index += 1) {
+      await seedPendingHighlightTip(t, {
+        createdAt: twoHoursAgo + index,
+        updatedAt: twoHoursAgo + index,
+        stellarTxId: `stuck-batch-${index}`,
+        intentBacked: true,
+      })
+    }
+
+    stubMalformedHorizonResponse()
+    try {
+      const first = await t.action(
+        internal.reconcileTips.recoverStuckPendingHighlightTips,
+        {}
+      )
+      const nextIds = await t.query(
+        internal.reconcileTips.getStuckPendingHighlightTipIds,
+        { cutoffMs: Date.now() - 10 * 60 * 1000 }
+      )
+
+      expect(first).toEqual({ rescheduled: 100, quarantined: 0 })
+      expect(nextIds).toHaveLength(1)
+    } finally {
+      await drainScheduler(t)
+    }
   })
 
   it('quarantines a legacy PENDING row without Horizon or counter changes', async () => {

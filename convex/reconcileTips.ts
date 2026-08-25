@@ -312,21 +312,48 @@ export const reconcileArticleTips = internalAction({
 
 /**
  * Internal read for the stuck-PENDING highlight tip sweep. Returns ids of
- * intent-backed highlightTips rows that are PENDING and older than
- * STUCK_PENDING_THRESHOLD_MS, which is well past any legitimate retry window.
- * Indexed by status + createdAt so the scan stays cheap as the table grows.
+ * intent-backed highlightTips rows whose verification activity is older than
+ * STUCK_PENDING_THRESHOLD_MS, well past any legitimate retry window.
+ * Indexed by status + updatedAt so a claimed batch can advance fairly.
  */
 export const getStuckPendingHighlightTipIds = internalQuery({
   args: { cutoffMs: v.number() },
   handler: async (ctx, args): Promise<Id<'highlightTips'>[]> => {
     const tips = await ctx.db
       .query('highlightTips')
-      .withIndex('by_status_created', (q) =>
-        q.eq('status', 'PENDING').lt('createdAt', args.cutoffMs)
+      .withIndex('by_status_updated', (q) =>
+        q.eq('status', 'PENDING').lt('updatedAt', args.cutoffMs)
       )
       .filter((q) => q.neq(q.field('highlightTipIntentId'), undefined))
       .take(100)
     return tips.map((tip) => tip._id)
+  },
+})
+
+export const claimStuckPendingHighlightTips = internalMutation({
+  args: { cutoffMs: v.number(), nowMs: v.number() },
+  returns: v.array(
+    v.object({
+      tipId: v.id('highlightTips'),
+      generation: v.number(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const tips = await ctx.db
+      .query('highlightTips')
+      .withIndex('by_status_updated', (q) =>
+        q.eq('status', 'PENDING').lt('updatedAt', args.cutoffMs)
+      )
+      .filter((q) => q.neq(q.field('highlightTipIntentId'), undefined))
+      .take(100)
+
+    for (const tip of tips) {
+      await ctx.db.patch(tip._id, { updatedAt: args.nowMs })
+    }
+    return tips.map((tip) => ({
+      tipId: tip._id,
+      generation: tip.verificationGeneration ?? 0,
+    }))
   },
 })
 
@@ -371,25 +398,33 @@ export const recoverStuckPendingHighlightTips = internalAction({
   handler: async (
     ctx
   ): Promise<{ rescheduled: number; quarantined: number }> => {
-    const cutoff = Date.now() - STUCK_PENDING_THRESHOLD_MS
+    const now = Date.now()
+    const cutoff = now - STUCK_PENDING_THRESHOLD_MS
     const quarantined = await ctx.runMutation(
       internal.reconcileTips.quarantineLegacyPendingHighlightTips,
       { cutoffMs: cutoff }
     )
-    const ids: Id<'highlightTips'>[] = await ctx.runQuery(
-      internal.reconcileTips.getStuckPendingHighlightTipIds,
-      { cutoffMs: cutoff }
+    const claims: Array<{
+      tipId: Id<'highlightTips'>
+      generation: number
+    }> = await ctx.runMutation(
+      internal.reconcileTips.claimStuckPendingHighlightTips,
+      { cutoffMs: cutoff, nowMs: now }
     )
 
-    for (const id of ids) {
+    for (const claim of claims) {
       await ctx.scheduler.runAfter(
         0,
         internal.stellarVerify.verifyHighlightTip,
-        { highlightTipId: id, attempt: 1 }
+        {
+          highlightTipId: claim.tipId,
+          attempt: 1,
+          generation: claim.generation,
+        }
       )
     }
 
-    const summary = { rescheduled: ids.length, quarantined }
+    const summary = { rescheduled: claims.length, quarantined }
     console.log('[reconcileTips] stuck-PENDING highlight sweep', summary)
     return summary
   },

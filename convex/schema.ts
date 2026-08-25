@@ -410,6 +410,7 @@ export default defineSchema({
     .index('by_author', ['authorId'])
     .index('by_status', ['status'])
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
+    .index('by_status_updated', ['status', 'updatedAt']) // For stuck verification recovery
     .index('by_highlight_tip_intent', ['highlightTipIntentId'])
     .index('by_stellar_tx', ['stellarTxId']),
 
