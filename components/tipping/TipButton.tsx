@@ -246,6 +246,12 @@ export function TipButton({
       ? { tipId: submittedTipId }
       : 'skip'
   )
+  const verificationSettled = Boolean(
+    pendingTipRecord &&
+    hasExactSignedArticleTipXdr(pendingTipRecord) &&
+    (verificationStatus?.status === 'CONFIRMED' ||
+      verificationStatus?.status === 'FAILED')
+  )
   const { priceUsd: displayXlmUsdRate } = useTipDialogXlmUsdRate(isOpen)
 
   useEffect(() => {
@@ -597,6 +603,8 @@ export function TipButton({
   }
 
   const handleTip = async () => {
+    if (verificationSettled) return
+
     if (requiresStartOver) {
       setRequiresStartOver(false)
       setSubmittedTipId(null)
@@ -977,6 +985,7 @@ export function TipButton({
                     ? 'Start over'
                     : 'Retry'
               }
+              verificationSettled={verificationSettled}
               tipFlowStep={tipFlowStep}
               canGoBack={!pendingTipRecord}
               onBack={handleBackToAppreciation}

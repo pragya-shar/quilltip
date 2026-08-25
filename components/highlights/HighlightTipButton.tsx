@@ -271,6 +271,9 @@ export function HighlightTipButton({
   )
   const verificationStatusRef = useRef(verificationStatus)
   verificationStatusRef.current = verificationStatus
+  const verificationSettled =
+    verificationStatus?.status === 'CONFIRMED' ||
+    verificationStatus?.status === 'FAILED'
   const isVerificationPending = Boolean(
     submittedTipId &&
     pendingTipRecord?.broadcastAcceptedAt &&
@@ -693,6 +696,13 @@ export function HighlightTipButton({
   }
 
   const handleTip = async () => {
+    if (
+      verificationStatusRef.current?.status === 'CONFIRMED' ||
+      verificationStatusRef.current?.status === 'FAILED'
+    ) {
+      return
+    }
+
     if (requiresStartOver) {
       setRequiresStartOver(false)
       setSubmittedTipId(null)
@@ -1148,6 +1158,7 @@ export function HighlightTipButton({
               failureActionLabel={requiresStartOver ? 'Start over' : 'Retry'}
               isVerificationPending={isVerificationPending}
               verificationDelayed={verificationWarningVisible}
+              verificationSettled={verificationSettled}
               tipFlowStep={tipFlowStep}
               canGoBack={!pendingTipRecord}
               onBack={handleBackToAppreciation}

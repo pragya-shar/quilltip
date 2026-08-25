@@ -29,6 +29,7 @@ interface TipCheckoutStepProps {
   failureActionLabel?: string
   isVerificationPending?: boolean
   verificationDelayed?: boolean
+  verificationSettled?: boolean
   tipFlowStep: TipFlowStep | null
   canGoBack?: boolean
   onBack: () => void
@@ -53,6 +54,7 @@ export function TipCheckoutStep({
   failureActionLabel = 'Retry',
   isVerificationPending = false,
   verificationDelayed = false,
+  verificationSettled = false,
   tipFlowStep,
   canGoBack = true,
   onBack,
@@ -96,6 +98,15 @@ export function TipCheckoutStep({
               Connect Wallet
             </>
           )}
+        </Button>
+      )
+    }
+
+    if (verificationSettled) {
+      return (
+        <Button type="button" disabled className="flex-1 gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Finalizing tip
         </Button>
       )
     }
