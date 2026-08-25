@@ -989,13 +989,13 @@ describe('recoverStuckPendingHighlightTips', () => {
         internal.reconcileTips.recoverStuckPendingHighlightTips,
         {}
       )
-      const nextIds = await t.query(
-        internal.reconcileTips.getStuckPendingHighlightTipIds,
-        { cutoffMs: Date.now() - 10 * 60 * 1000 }
+      const second = await t.action(
+        internal.reconcileTips.recoverStuckPendingHighlightTips,
+        {}
       )
 
       expect(first).toEqual({ rescheduled: 100, quarantined: 0 })
-      expect(nextIds).toHaveLength(1)
+      expect(second).toEqual({ rescheduled: 1, quarantined: 0 })
     } finally {
       await drainScheduler(t)
     }

@@ -21,8 +21,8 @@ const RECONCILE_WINDOW_MS = 7 * 60 * 60 * 1000
 
 // A highlight tip whose verification chain died (process crash, indexing
 // delay beyond the retry budget) sits in PENDING forever otherwise. 10
-// minutes is well past the longest legitimate verify window (initial 2s
-// + 5s + 15s = 22s under the current schedule) so we won't race a healthy
+// minutes is well past the longest legitimate verify window (10s fallback
+// + 5s + 15s = 30s under the current schedule) so we won't race a healthy
 // chain. Reconciliation runs every 6h, so a tip can sit stuck for at most
 // one cycle before being re-kicked.
 const STUCK_PENDING_THRESHOLD_MS = 10 * 60 * 1000
@@ -307,26 +307,6 @@ export const reconcileArticleTips = internalAction({
     }
     console.log('[reconcileTips] summary', summary)
     return summary
-  },
-})
-
-/**
- * Internal read for the stuck-PENDING highlight tip sweep. Returns ids of
- * intent-backed highlightTips rows whose verification activity is older than
- * STUCK_PENDING_THRESHOLD_MS, well past any legitimate retry window.
- * Indexed by status + updatedAt so a claimed batch can advance fairly.
- */
-export const getStuckPendingHighlightTipIds = internalQuery({
-  args: { cutoffMs: v.number() },
-  handler: async (ctx, args): Promise<Id<'highlightTips'>[]> => {
-    const tips = await ctx.db
-      .query('highlightTips')
-      .withIndex('by_status_updated', (q) =>
-        q.eq('status', 'PENDING').lt('updatedAt', args.cutoffMs)
-      )
-      .filter((q) => q.neq(q.field('highlightTipIntentId'), undefined))
-      .take(100)
-    return tips.map((tip) => tip._id)
   },
 })
 
