@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { Keypair } from '@stellar/stellar-sdk'
-import { api } from './_generated/api'
+import { api, internal } from './_generated/api'
 import schema from './schema'
 import type { Id } from './_generated/dataModel'
 
@@ -33,6 +33,11 @@ const TX_REUSED = 'e'.repeat(64)
 beforeAll(() => {
   process.env.TIPPING_CONTRACT_ID = TIPPING_CONTRACT_ID
   process.env.STELLAR_NETWORK = 'TESTNET'
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 async function seed(t: ReturnType<typeof convexTest>) {
@@ -678,8 +683,8 @@ describe('submitHighlightTip', () => {
       }
     )
     const fetchMock = vi.fn(async () => ({
-      status: 503,
-      ok: false,
+      status: 200,
+      ok: true,
       json: async () => ({}),
     }))
     vi.stubGlobal('fetch', fetchMock)
@@ -700,6 +705,103 @@ describe('submitHighlightTip', () => {
         verificationRequestedAt: expect.any(Number),
       })
     })
+  })
+
+  it('opens a new verification generation only at the retry cooldown boundary', async () => {
+    const startedAt = Date.now()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(startedAt)
+    vi.stubGlobal('fetch', async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({}),
+    }))
+    const t = convexTest(schema, modules)
+    const { asTipper, quote } = await prepare(t)
+    const tipId = await asTipper.mutation(
+      api.highlightTips.submitHighlightTip,
+      {
+        intentId: quote.intentId,
+        stellarTxId: TX_OWNED,
+      }
+    )
+
+    await asTipper.mutation(api.highlightTips.retryHighlightTipVerification, {
+      tipId,
+    })
+    now.mockReturnValue(startedAt + 9_999)
+    await asTipper.mutation(api.highlightTips.retryHighlightTipVerification, {
+      tipId,
+    })
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(tipId)).toMatchObject({
+        verificationGeneration: 1,
+        verificationRequestedAt: startedAt,
+      })
+    })
+
+    now.mockReturnValue(startedAt + 10_000)
+    await asTipper.mutation(api.highlightTips.retryHighlightTipVerification, {
+      tipId,
+    })
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(tipId)).toMatchObject({
+        verificationGeneration: 2,
+        verificationRequestedAt: startedAt + 10_000,
+      })
+    })
+    await drainScheduledHighlightVerification(t)
+  })
+
+  it('ignores a settlement result from an older verification generation', async () => {
+    const startedAt = Date.now()
+    vi.spyOn(Date, 'now').mockReturnValue(startedAt)
+    vi.stubGlobal('fetch', async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({}),
+    }))
+    const t = convexTest(schema, modules)
+    const { asTipper, quote, articleId, authorId } = await prepare(t)
+    const tipId = await asTipper.mutation(
+      api.highlightTips.submitHighlightTip,
+      {
+        intentId: quote.intentId,
+        stellarTxId: TX_OWNED,
+      }
+    )
+    await asTipper.mutation(api.highlightTips.retryHighlightTipVerification, {
+      tipId,
+    })
+    vi.mocked(Date.now).mockReturnValue(startedAt + 10_000)
+    await asTipper.mutation(api.highlightTips.retryHighlightTipVerification, {
+      tipId,
+    })
+
+    await t.mutation(internal.stellarVerify.markHighlightTipFailed, {
+      id: tipId,
+      reason: 'stale_failure',
+      generation: 1,
+    })
+    await t.mutation(internal.stellarVerify.confirmVerifiedHighlightTip, {
+      id: tipId,
+      stellarLedger: 999,
+      generation: 1,
+    })
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(tipId)).toMatchObject({
+        status: 'PENDING',
+        verificationGeneration: 2,
+      })
+      expect((await ctx.db.get(articleId))?.tipCount).toBe(0)
+      expect(
+        await ctx.db
+          .query('authorEarnings')
+          .withIndex('by_user', (q) => q.eq('userId', authorId))
+          .first()
+      ).toBeNull()
+    })
+    await drainScheduledHighlightVerification(t)
   })
 
   it('safely discards structurally complete invalid recovery IDs before reading status', async () => {
