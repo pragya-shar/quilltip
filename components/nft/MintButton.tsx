@@ -244,7 +244,8 @@ export function MintButton({
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          ${(threshold - totalTips).toFixed(2)} more to mint NFT
+          ${(threshold - totalTips).toFixed(2)} more in support to become
+          eligible
         </p>
       </div>
     )
@@ -287,8 +288,8 @@ export function MintButton({
 
           <div className="space-y-4">
             {!wallet.isConnected && (
-              <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
-                <p className="text-sm text-amber-900 dark:text-amber-100">
+              <div className="bg-warning/10 border border-warning/50 rounded-lg p-3">
+                <p className="text-sm text-warning-foreground">
                   Connect your wallet to mint this article as an NFT.
                 </p>
               </div>
@@ -302,24 +303,24 @@ export function MintButton({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Threshold Met:</span>
-                  <span className="font-medium text-green-800 dark:text-green-300">
+                  <span className="font-medium text-success-foreground">
                     ✓ Yes
                   </span>
                 </div>
                 {wallet.isConnected && wallet.publicKey ? (
-                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2">
+                  <div className="bg-success/10 border border-success/50 rounded p-2">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-green-900 dark:text-green-200 font-medium">
+                      <span className="text-success-foreground font-medium">
                         ✓ Wallet Connected
                       </span>
-                      <span className="font-mono text-green-700 dark:text-green-300">
+                      <span className="font-mono text-success-foreground">
                         {`${wallet.publicKey.slice(0, 4)}...${wallet.publicKey.slice(-4)}`}
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded p-2">
-                    <span className="text-xs text-amber-900 dark:text-amber-100">
+                  <div className="bg-warning/10 border border-warning/50 rounded p-2">
+                    <span className="text-xs text-warning-foreground">
                       Wallet not connected
                     </span>
                   </div>
@@ -329,7 +330,7 @@ export function MintButton({
 
             {isLoading && (
               <div
-                className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-950/30"
+                className="rounded-lg border border-info/50 bg-info/10 p-4"
                 aria-busy="true"
                 aria-live="polite"
               >
@@ -351,7 +352,7 @@ export function MintButton({
                           className={cn(
                             'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors',
                             isComplete &&
-                              'border-green-600 bg-green-100 text-green-800 dark:border-green-500 dark:bg-green-950/50 dark:text-green-300',
+                              'border-success bg-success text-success-foreground',
                             isCurrent &&
                               !isComplete &&
                               'border-primary bg-primary/10 text-primary',
@@ -380,7 +381,7 @@ export function MintButton({
                           className={cn(
                             'text-center text-[10px] font-medium leading-tight sm:text-xs',
                             isCurrent && 'text-foreground',
-                            isComplete && 'text-green-800 dark:text-green-300',
+                            isComplete && 'text-success-foreground',
                             !isCurrent && !isComplete && 'text-muted-foreground'
                           )}
                         >

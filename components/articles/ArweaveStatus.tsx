@@ -11,6 +11,8 @@ import {
   Clock,
 } from 'lucide-react'
 import type { ArweaveStatus as ArweaveStatusType } from '@/lib/arweave/types'
+import { statusVariants } from '@/lib/ui/status-config'
+import { cn } from '@/lib/utils'
 
 interface ArweaveStatusProps {
   status?: string
@@ -21,27 +23,25 @@ interface ArweaveStatusProps {
 
 const statusConfig: Record<
   ArweaveStatusType,
-  { color: string; icon: React.ReactNode; label: string }
+  { className: string; icon: React.ReactNode; label: string }
 > = {
   pending: {
-    color:
-      'text-yellow-900 bg-yellow-50 dark:text-yellow-200 dark:bg-yellow-950/50',
+    className: statusVariants.pending,
     icon: <Clock className="w-4 h-4" />,
     label: 'Uploading to Arweave',
   },
   uploaded: {
-    color: 'text-blue-900 bg-blue-50 dark:text-blue-200 dark:bg-blue-950/50',
+    className: statusVariants.info,
     icon: <Loader2 className="w-4 h-4 animate-spin" />,
     label: 'Confirming on Arweave',
   },
   verified: {
-    color:
-      'text-green-900 bg-green-50 dark:text-green-200 dark:bg-green-950/50',
+    className: statusVariants.success,
     icon: <CheckCircle className="w-4 h-4" />,
     label: 'Permanently stored',
   },
   failed: {
-    color: 'text-red-900 bg-red-50 dark:text-red-200 dark:bg-red-950/50',
+    className: statusVariants.error,
     icon: <XCircle className="w-4 h-4" />,
     label: 'Upload failed',
   },
@@ -61,7 +61,7 @@ export function ArweaveStatus({
     statusConfig[status as ArweaveStatusType] || statusConfig.pending
 
   return (
-    <div className={`rounded-lg p-3 ${config.color}`}>
+    <div className={cn('rounded-lg p-3', config.className)}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center justify-between w-full text-left"

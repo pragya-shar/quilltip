@@ -149,8 +149,9 @@ function stubHorizonThrow() {
   })
 }
 
-// Seed a CONFIRMED article tip by going through sendTip + direct confirmTip
-// invocation. Returns ids of seeded rows so tests can assert counter state.
+// Seed a historical CONFIRMED article tip directly, then run the legacy
+// internal confirmer. The retired public sendTip mutation must not be reopened
+// merely to exercise reconciliation of rows that may already exist.
 async function seedConfirmedTip(
   t: ReturnType<typeof convexTest>,
   overrides: {
@@ -200,21 +201,36 @@ async function seedConfirmedTip(
     return { tipperId, authorId, articleId }
   })
 
-  const asTipper = t.withIdentity({ subject: ids.tipperId })
-  const tipId = await asTipper.mutation(api.tips.sendTip, {
-    articleId: ids.articleId,
-    amountUsd: overrides.amountUsd ?? 1,
-    stellarTxId: overrides.stellarTxId ?? 'tx-reconcile-fixture',
-    stellarNetwork: overrides.stellarNetwork ?? 'TESTNET',
-    stellarSourceAccount:
-      overrides.stellarSourceAccount === null
-        ? undefined
-        : (overrides.stellarSourceAccount ?? TIPPER_STELLAR),
-    stellarDestinationAccount:
-      overrides.stellarDestinationAccount === null
-        ? undefined
-        : (overrides.stellarDestinationAccount ?? AUTHOR_STELLAR),
-    stellarAmountXlm: overrides.stellarAmountXlm ?? '1',
+  const tipId = await t.run(async (ctx) => {
+    const now = Date.now()
+    const amountUsd = overrides.amountUsd ?? 1
+    return await ctx.db.insert('tips', {
+      articleId: ids.articleId,
+      articleTitle: 'Hello',
+      articleSlug: 'hello',
+      tipperId: ids.tipperId,
+      authorId: ids.authorId,
+      amountUsd,
+      amountCents: Math.round(amountUsd * 100),
+      stellarTxId: overrides.stellarTxId ?? 'tx-reconcile-fixture',
+      stellarNetwork: overrides.stellarNetwork ?? 'TESTNET',
+      ...(overrides.stellarSourceAccount === null
+        ? {}
+        : {
+            stellarSourceAccount:
+              overrides.stellarSourceAccount ?? TIPPER_STELLAR,
+          }),
+      ...(overrides.stellarDestinationAccount === null
+        ? {}
+        : {
+            stellarDestinationAccount:
+              overrides.stellarDestinationAccount ?? AUTHOR_STELLAR,
+          }),
+      stellarAmountXlm: overrides.stellarAmountXlm ?? '1',
+      status: 'PENDING',
+      createdAt: now,
+      updatedAt: now,
+    })
   })
 
   // Skip the scheduler: directly run confirmTip so we land in CONFIRMED with
@@ -289,6 +305,62 @@ describe('reconcileArticleTips', () => {
 
     const tip = await t.run(async (ctx) => await ctx.db.get(tipId))
     expect(tip?.status).toBe('CONFIRMED')
+  })
+
+  it('skips an intent-backed tip that already passed exact verification', async () => {
+    process.env.RECONCILE_TIPS_ENABLED = 'true'
+    const t = convexTest(schema, modules)
+    const { tipId, articleId, tipperId, authorId } = await seedConfirmedTip(t)
+
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      const intentId = await ctx.db.insert('articleTipIntents', {
+        articleId,
+        tipperId,
+        authorId,
+        articleTitle: 'Hello',
+        articleSlug: 'hello',
+        amountUsd: 1,
+        amountCents: 100,
+        expectedSourceAccount: TIPPER_STELLAR,
+        expectedDestinationAccount: AUTHOR_STELLAR,
+        expectedArticleSymbol: 'article1',
+        expectedAmountStroops: '10000000',
+        expectedStellarNetwork: 'TESTNET',
+        expectedContractId: TIPPING_CONTRACT_ID,
+        quotePriceUsd: 1,
+        quoteSource: 'TestOracle',
+        quoteFetchedAt: now,
+        tipId,
+        expiresAt: now + 60_000,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await ctx.db.patch(tipId, {
+        articleTipIntentId: intentId,
+        verifiedAt: now,
+      })
+      await ctx.db.patch(authorId, { stellarAddress: ATTACKER_STELLAR })
+    })
+
+    const fetchSpy = vi.fn(async () => ({
+      status: 200,
+      ok: true,
+      json: async () => ({}),
+    }))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const summary = await t.action(
+      internal.reconcileTips.reconcileArticleTips,
+      {}
+    )
+
+    expect(summary).toMatchObject({ checked: 1, skipped: 1, flagged: 0 })
+    expect(fetchSpy).not.toHaveBeenCalled()
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(tipId)).toMatchObject({ status: 'CONFIRMED' })
+      expect((await ctx.db.get(articleId))?.tipCount).toBe(1)
+    })
   })
 
   it('marks FRAUDULENT and reverses counters on contract_mismatch when flag is on', async () => {
@@ -571,8 +643,10 @@ async function seedPendingHighlightTip(
   t: ReturnType<typeof convexTest>,
   overrides: {
     createdAt?: number
+    updatedAt?: number
     status?: 'PENDING' | 'CONFIRMED' | 'FAILED'
     stellarTxId?: string
+    intentBacked?: boolean
   } = {}
 ) {
   return await t.run(async (ctx) => {
@@ -609,6 +683,38 @@ async function seedPendingHighlightTip(
       createdAt: now,
       updatedAt: now,
     })
+    const createdAt = overrides.createdAt ?? now
+    const updatedAt = overrides.updatedAt ?? createdAt
+    const intentId = overrides.intentBacked
+      ? await ctx.db.insert('highlightTipIntents', {
+          articleId,
+          tipperId,
+          authorId,
+          articleTitle: 'Hello',
+          articleSlug: 'h-hello',
+          highlightText: 'stuck text',
+          startOffset: 0,
+          endOffset: 10,
+          amountUsd: 1,
+          amountCents: 100,
+          expectedSourceAccount: TIPPER_STELLAR,
+          expectedDestinationAccount: AUTHOR_STELLAR,
+          expectedHighlightId: 'hash-stuck',
+          expectedArticleSymbol: 'article1',
+          expectedAmountStroops: '10000000',
+          expectedContractId: TIPPING_CONTRACT_ID,
+          expectedFunction: 'tip_highlight_direct',
+          expectedMinTime: '123456789',
+          expectedMaxTime: '2000000000',
+          expectedStellarNetwork: 'TESTNET',
+          quotePriceUsd: 1,
+          quoteSource: 'Test',
+          quoteFetchedAt: createdAt,
+          expiresAt: createdAt + 15 * 60 * 1000,
+          createdAt,
+          updatedAt: createdAt,
+        })
+      : undefined
     const tipId = await ctx.db.insert('highlightTips', {
       highlightId: 'hash-stuck',
       articleId,
@@ -625,14 +731,128 @@ async function seedPendingHighlightTip(
       stellarSourceAccount: TIPPER_STELLAR,
       stellarDestinationAccount: AUTHOR_STELLAR,
       stellarAmountXlm: '1',
+      highlightTipIntentId: intentId,
+      expectedSourceAccount: intentId ? TIPPER_STELLAR : undefined,
+      expectedDestinationAccount: intentId ? AUTHOR_STELLAR : undefined,
+      expectedHighlightId: intentId ? 'hash-stuck' : undefined,
+      expectedArticleSymbol: intentId ? 'article1' : undefined,
+      expectedAmountStroops: intentId ? '10000000' : undefined,
+      expectedContractId: intentId ? TIPPING_CONTRACT_ID : undefined,
+      expectedFunction: intentId ? 'tip_highlight_direct' : undefined,
+      expectedMinTime: intentId ? '123456789' : undefined,
+      expectedMaxTime: intentId ? '2000000000' : undefined,
+      quotePriceUsd: intentId ? 1 : undefined,
+      quoteSource: intentId ? 'Test' : undefined,
+      quoteFetchedAt: intentId ? createdAt : undefined,
       startOffset: 0,
       endOffset: 10,
       status: overrides.status ?? 'PENDING',
-      createdAt: overrides.createdAt ?? now,
+      createdAt,
       processedAt: now,
+      updatedAt,
+    })
+    if (intentId) await ctx.db.patch(intentId, { tipId })
+    return { tipId, articleId, tipperId, authorId, intentId }
+  })
+}
+
+async function seedPendingArticleTip(
+  t: ReturnType<typeof convexTest>,
+  overrides: {
+    createdAt?: number
+    updatedAt?: number
+    status?: 'PENDING' | 'CONFIRMED' | 'FAILED'
+  } = {}
+) {
+  return await t.run(async (ctx) => {
+    const now = Date.now()
+    const createdAt = overrides.createdAt ?? now
+    const updatedAt = overrides.updatedAt ?? createdAt
+    const tipperId = await ctx.db.insert('users', {
+      email: 'a-tipper@x.test',
+      username: 'a-tipper',
+      stellarAddress: TIPPER_STELLAR,
+      tipsSentCount: 0,
+      createdAt: now,
       updatedAt: now,
     })
-    return { tipId, articleId, tipperId, authorId }
+    const authorId = await ctx.db.insert('users', {
+      email: 'a-author@x.test',
+      username: 'a-author',
+      stellarAddress: AUTHOR_STELLAR,
+      tipsReceivedCount: 0,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const articleId = await ctx.db.insert('articles', {
+      slug: 'a-hello',
+      title: 'Article Hello',
+      content: emptyDoc,
+      published: true,
+      publishedAt: now,
+      authorId,
+      authorUsername: 'a-author',
+      tags: [],
+      viewCount: 0,
+      highlightCount: 0,
+      tipCount: 0,
+      totalTipsUsd: 0,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const intentId = await ctx.db.insert('articleTipIntents', {
+      articleId,
+      tipperId,
+      authorId,
+      articleTitle: 'Article Hello',
+      articleSlug: 'a-hello',
+      amountUsd: 1,
+      amountCents: 100,
+      expectedSourceAccount: TIPPER_STELLAR,
+      expectedDestinationAccount: AUTHOR_STELLAR,
+      expectedArticleSymbol: 'article1',
+      expectedAmountStroops: '10000000',
+      expectedContractId: TIPPING_CONTRACT_ID,
+      expectedMinTime: '123456789',
+      expectedMaxTime: '2000000000',
+      expectedStellarNetwork: 'TESTNET',
+      quotePriceUsd: 1,
+      quoteSource: 'Test',
+      quoteFetchedAt: createdAt,
+      expiresAt: createdAt + 15 * 60 * 1000,
+      createdAt,
+      updatedAt,
+    })
+    const tipId = await ctx.db.insert('tips', {
+      articleId,
+      articleTitle: 'Article Hello',
+      articleSlug: 'a-hello',
+      tipperId,
+      authorId,
+      amountUsd: 1,
+      amountCents: 100,
+      stellarTxId: 'stuck-article-tx',
+      stellarNetwork: 'TESTNET',
+      stellarSourceAccount: TIPPER_STELLAR,
+      stellarDestinationAccount: AUTHOR_STELLAR,
+      stellarAmountXlm: '1',
+      articleTipIntentId: intentId,
+      expectedSourceAccount: TIPPER_STELLAR,
+      expectedDestinationAccount: AUTHOR_STELLAR,
+      expectedArticleSymbol: 'article1',
+      expectedAmountStroops: '10000000',
+      expectedContractId: TIPPING_CONTRACT_ID,
+      expectedMinTime: '123456789',
+      expectedMaxTime: '2000000000',
+      quotePriceUsd: 1,
+      quoteSource: 'Test',
+      quoteFetchedAt: createdAt,
+      status: overrides.status ?? 'PENDING',
+      createdAt,
+      updatedAt,
+    })
+    await ctx.db.patch(intentId, { tipId })
+    return { tipId }
   })
 }
 
@@ -667,7 +887,10 @@ describe('recoverStuckPendingHighlightTips', () => {
   it('reschedules a PENDING tip older than the stuck threshold', async () => {
     const t = convexTest(schema, modules)
     const elevenMinutesAgo = Date.now() - 11 * 60 * 1000
-    await seedPendingHighlightTip(t, { createdAt: elevenMinutesAgo })
+    await seedPendingHighlightTip(t, {
+      createdAt: elevenMinutesAgo,
+      intentBacked: true,
+    })
     stubMalformedHorizonResponse()
 
     const summary = await t.action(
@@ -675,6 +898,7 @@ describe('recoverStuckPendingHighlightTips', () => {
       {}
     )
     expect(summary.rescheduled).toBe(1)
+    expect(summary.quarantined).toBe(0)
 
     await drainScheduler(t)
   })
@@ -691,6 +915,7 @@ describe('recoverStuckPendingHighlightTips', () => {
       {}
     )
     expect(summary.rescheduled).toBe(0)
+    expect(summary.quarantined).toBe(0)
 
     const tip = await t.run(async (ctx) => ctx.db.get(tipId))
     expect(tip?.status).toBe('PENDING')
@@ -723,10 +948,12 @@ describe('recoverStuckPendingHighlightTips', () => {
     await seedPendingHighlightTip(t, {
       createdAt: twoHoursAgo,
       stellarTxId: 'stuck-1',
+      intentBacked: true,
     })
     await seedPendingHighlightTip(t, {
       createdAt: twoHoursAgo,
       stellarTxId: 'stuck-2',
+      intentBacked: true,
     })
     await seedPendingHighlightTip(t, {
       createdAt: twoHoursAgo,
@@ -738,8 +965,193 @@ describe('recoverStuckPendingHighlightTips', () => {
       internal.reconcileTips.recoverStuckPendingHighlightTips,
       {}
     )
-    expect(summary.rescheduled).toBe(3)
+    expect(summary.rescheduled).toBe(2)
+    expect(summary.quarantined).toBe(1)
 
     await drainScheduler(t)
+  })
+
+  it('advances a claimed batch so the next sweep can reach tip 101', async () => {
+    const t = convexTest(schema, modules)
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000
+    for (let index = 0; index < 101; index += 1) {
+      await seedPendingHighlightTip(t, {
+        createdAt: twoHoursAgo + index,
+        updatedAt: twoHoursAgo + index,
+        stellarTxId: `stuck-batch-${index}`,
+        intentBacked: true,
+      })
+    }
+
+    stubMalformedHorizonResponse()
+    try {
+      const first = await t.action(
+        internal.reconcileTips.recoverStuckPendingHighlightTips,
+        {}
+      )
+      const second = await t.action(
+        internal.reconcileTips.recoverStuckPendingHighlightTips,
+        {}
+      )
+
+      expect(first).toEqual({ rescheduled: 100, quarantined: 0 })
+      expect(second).toEqual({ rescheduled: 1, quarantined: 0 })
+    } finally {
+      await drainScheduler(t)
+    }
+  })
+
+  it('quarantines a legacy PENDING row without Horizon or counter changes', async () => {
+    const t = convexTest(schema, modules)
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000
+    const seeded = await seedPendingHighlightTip(t, {
+      createdAt: twoHoursAgo,
+    })
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const summary = await t.action(
+      internal.reconcileTips.recoverStuckPendingHighlightTips,
+      {}
+    )
+    await drainScheduler(t)
+
+    expect(summary).toEqual({ rescheduled: 0, quarantined: 1 })
+    expect(fetchMock).not.toHaveBeenCalled()
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(seeded.tipId)).toMatchObject({
+        status: 'FAILED',
+        failureReason: 'legacy_pending_highlight_tip_quarantined',
+      })
+      expect((await ctx.db.get(seeded.articleId))?.tipCount).toBe(0)
+      expect((await ctx.db.get(seeded.articleId))?.totalTipsUsd).toBe(0)
+      expect((await ctx.db.get(seeded.tipperId))?.tipsSentCount).toBe(0)
+      expect((await ctx.db.get(seeded.authorId))?.tipsReceivedCount).toBe(0)
+      expect(
+        await ctx.db
+          .query('authorEarnings')
+          .withIndex('by_user', (q) => q.eq('userId', seeded.authorId))
+          .first()
+      ).toBeNull()
+    })
+  })
+
+  it('quarantines legacy PENDING rows reached by direct verifier or confirmer calls', async () => {
+    for (const path of [
+      'verifier',
+      'historicalConfirmer',
+      'intentConfirmer',
+    ] as const) {
+      const t = convexTest(schema, modules)
+      const seeded = await seedPendingHighlightTip(t)
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+
+      if (path === 'verifier') {
+        await t.action(internal.stellarVerify.verifyHighlightTip, {
+          highlightTipId: seeded.tipId,
+          attempt: 1,
+        })
+      } else if (path === 'historicalConfirmer') {
+        await t.mutation(internal.stellarVerify.markHighlightTipConfirmed, {
+          id: seeded.tipId,
+          stellarLedger: 123,
+        })
+      } else {
+        await t.mutation(internal.stellarVerify.confirmVerifiedHighlightTip, {
+          id: seeded.tipId,
+          stellarLedger: 123,
+        })
+      }
+
+      expect(fetchMock).not.toHaveBeenCalled()
+      await t.run(async (ctx) => {
+        expect(await ctx.db.get(seeded.tipId), path).toMatchObject({
+          status: 'FAILED',
+          failureReason: 'legacy_pending_highlight_tip_quarantined',
+        })
+        expect((await ctx.db.get(seeded.articleId))?.tipCount).toBe(0)
+        expect((await ctx.db.get(seeded.tipperId))?.tipsSentCount).toBe(0)
+        expect((await ctx.db.get(seeded.authorId))?.tipsReceivedCount).toBe(0)
+      })
+    }
+  })
+
+  it('keeps already CONFIRMED legacy rows readable to the tipper and author', async () => {
+    const t = convexTest(schema, modules)
+    const seeded = await seedPendingHighlightTip(t, { status: 'CONFIRMED' })
+
+    await expect(
+      t
+        .withIdentity({ subject: seeded.tipperId })
+        .query(api.highlightTips.getByTipper, {})
+    ).resolves.toEqual([
+      expect.objectContaining({ _id: seeded.tipId, status: 'CONFIRMED' }),
+    ])
+    await expect(
+      t
+        .withIdentity({ subject: seeded.authorId })
+        .query(api.highlightTips.getByAuthor, {})
+    ).resolves.toEqual([
+      expect.objectContaining({ _id: seeded.tipId, status: 'CONFIRMED' }),
+    ])
+  })
+})
+
+describe('recoverStuckPendingArticleTips', () => {
+  it('selects tips by latest verification activity instead of original creation time', async () => {
+    const t = convexTest(schema, modules)
+    const elevenMinutesAgo = Date.now() - 11 * 60 * 1000
+    const recentlyRetried = await seedPendingArticleTip(t, {
+      createdAt: elevenMinutesAgo,
+      updatedAt: Date.now(),
+    })
+    const untouched = await seedPendingArticleTip(t, {
+      createdAt: elevenMinutesAgo,
+      updatedAt: elevenMinutesAgo,
+    })
+
+    const ids = await t.query(
+      internal.reconcileTips.getStuckPendingArticleTipIds,
+      { cutoffMs: Date.now() - 10 * 60 * 1000 }
+    )
+
+    expect(ids).toEqual([untouched.tipId])
+    expect(ids).not.toContain(recentlyRetried.tipId)
+  })
+
+  it('reschedules a stale PENDING article tip after the reader has left', async () => {
+    const t = convexTest(schema, modules)
+    const elevenMinutesAgo = Date.now() - 11 * 60 * 1000
+    const { tipId } = await seedPendingArticleTip(t, {
+      createdAt: elevenMinutesAgo,
+    })
+    stubMalformedHorizonResponse()
+
+    const summary = await t.action(
+      internal.reconcileTips.recoverStuckPendingArticleTips,
+      {}
+    )
+
+    expect(summary).toEqual({ rescheduled: 1 })
+    await drainScheduler(t)
+    const tip = await t.run(async (ctx) => await ctx.db.get(tipId))
+    expect(tip?.status).not.toBe('PENDING')
+  })
+
+  it('leaves a fresh PENDING article tip for its active retry chain', async () => {
+    const t = convexTest(schema, modules)
+    const { tipId } = await seedPendingArticleTip(t, {
+      createdAt: Date.now() - 60 * 1000,
+    })
+
+    const summary = await t.action(
+      internal.reconcileTips.recoverStuckPendingArticleTips,
+      {}
+    )
+
+    expect(summary).toEqual({ rescheduled: 0 })
+    const tip = await t.run(async (ctx) => await ctx.db.get(tipId))
+    expect(tip?.status).toBe('PENDING')
   })
 })

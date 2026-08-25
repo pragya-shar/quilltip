@@ -12,10 +12,10 @@ interface HighlightPhrase {
 }
 
 const HIGHLIGHT_PHRASES: HighlightPhrase[] = [
-  { text: 'Writers pour their hearts', tip: '+0.25 XLM' },
-  { text: 'stories that shape how we think', tip: '+0.50 XLM' },
-  { text: 'the quiet revolution of open knowledge', tip: '+0.75 XLM' },
-  { text: 'reward the exact words that moved them', tip: '+1.00 XLM' },
+  { text: 'Writers pour their hearts', tip: '+$0.25' },
+  { text: 'stories that shape how we think', tip: '+$0.50' },
+  { text: 'the quiet revolution of open knowledge', tip: '+$0.75' },
+  { text: 'reward the exact words that moved them', tip: '+$1.00' },
 ]
 
 type AnimationStep = 'idle' | 'selecting' | 'highlighted' | 'tipped'

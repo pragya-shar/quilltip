@@ -27,8 +27,13 @@ export type HorizonVerifyReason =
   | 'contract_mismatch'
   | 'function_mismatch'
   | 'tipper_mismatch'
+  | 'highlight_mismatch'
+  | 'article_mismatch'
   | 'author_mismatch'
   | 'amount_mismatch'
+  | 'timebounds_mismatch'
+  | 'transaction_before_intent'
+  | 'transaction_after_intent'
 
 export type HorizonVerifyResult =
   | { ok: true; ledger: number; onChainStroops: bigint | null }
@@ -42,14 +47,25 @@ export type HorizonVerifyResult =
 export type TipInvocationExpectations = {
   contractId: string
   allowedFunctions: readonly string[]
+  expectedFunction?: string
   authorAddress: string
   minStroops: bigint
+  exactStroops?: bigint
+  highlightId?: string
+  articleId?: string
   batchTips?: readonly TipInvocationTipExpectation[]
+  expectedTimeBounds?: {
+    minTime: string
+    maxTime: string
+  }
 }
 
 export type TipInvocationTipExpectation = {
+  highlightId?: string
+  articleId?: string
   authorAddress: string
   minStroops: bigint
+  exactStroops?: bigint
 }
 
 type MinimalFetch = (
@@ -69,6 +85,8 @@ export async function verifyTipTransaction(
     txId: string
     expectedSource: string
     horizonUrl: string
+    minCreatedAtMs?: number
+    maxCreatedAtMs?: number
     invocation?: TipInvocationExpectations
   }
 ): Promise<HorizonVerifyResult> {
@@ -87,7 +105,11 @@ export async function verifyTipTransaction(
   if (response.status === 404) {
     return { ok: false, kind: 'transient', reason: 'not_found' }
   }
-  if (response.status >= 500) {
+  if (
+    response.status === 408 ||
+    response.status === 429 ||
+    response.status >= 500
+  ) {
     return { ok: false, kind: 'transient', reason: 'server_error' }
   }
   if (!response.ok) {
@@ -112,6 +134,36 @@ export async function verifyTipTransaction(
   }
   if (typeof body.ledger !== 'number') {
     return { ok: false, kind: 'permanent', reason: 'not_in_ledger' }
+  }
+
+  if (args.minCreatedAtMs !== undefined || args.maxCreatedAtMs !== undefined) {
+    if (typeof body.created_at !== 'string') {
+      return { ok: false, kind: 'permanent', reason: 'malformed_response' }
+    }
+    const createdAtMs = Date.parse(body.created_at)
+    if (!Number.isFinite(createdAtMs)) {
+      return { ok: false, kind: 'permanent', reason: 'malformed_response' }
+    }
+    if (
+      args.minCreatedAtMs !== undefined &&
+      createdAtMs < args.minCreatedAtMs
+    ) {
+      return {
+        ok: false,
+        kind: 'permanent',
+        reason: 'transaction_before_intent',
+      }
+    }
+    if (
+      args.maxCreatedAtMs !== undefined &&
+      createdAtMs > args.maxCreatedAtMs
+    ) {
+      return {
+        ok: false,
+        kind: 'permanent',
+        reason: 'transaction_after_intent',
+      }
+    }
   }
 
   if (!args.invocation) {
@@ -157,6 +209,22 @@ function verifyInvocation(
     return { kind: 'fail', reason: 'malformed_response' }
   }
 
+  if (args.invocation.expectedTimeBounds !== undefined) {
+    const condition = tx.cond()
+    if (condition.switch() !== xdr.PreconditionType.precondTime()) {
+      return { kind: 'fail', reason: 'timebounds_mismatch' }
+    }
+    const timeBounds = condition.timeBounds()
+    if (
+      timeBounds.minTime().toString() !==
+        args.invocation.expectedTimeBounds.minTime ||
+      timeBounds.maxTime().toString() !==
+        args.invocation.expectedTimeBounds.maxTime
+    ) {
+      return { kind: 'fail', reason: 'timebounds_mismatch' }
+    }
+  }
+
   const ops = tx.operations()
   if (ops.length === 0) return { kind: 'fail', reason: 'not_soroban' }
 
@@ -189,7 +257,11 @@ function verifyInvocation(
   }
 
   const fnName = ic.functionName().toString()
-  if (!args.invocation.allowedFunctions.includes(fnName)) {
+  if (
+    !args.invocation.allowedFunctions.includes(fnName) ||
+    (args.invocation.expectedFunction !== undefined &&
+      fnName !== args.invocation.expectedFunction)
+  ) {
     return { kind: 'fail', reason: 'function_mismatch' }
   }
 
@@ -204,25 +276,48 @@ function verifyInvocation(
   const isHighlightFn =
     fnName === 'tip_highlight_direct' || fnName === 'tip_highlight_with_arweave'
   const tipperIdx = 0
+  const highlightIdx = isHighlightFn ? 1 : undefined
+  const articleIdx = isHighlightFn ? 2 : 1
   const authorIdx = isHighlightFn ? 3 : 2
   const amountIdx = isHighlightFn ? 4 : 3
+
+  const exactArgumentCounts: Readonly<Record<string, number>> = {
+    tip_article: 4,
+    tip_article_with_arweave: 5,
+    tip_highlight_direct: 5,
+    tip_highlight_with_arweave: 6,
+  }
+  const exactArgumentCount = exactArgumentCounts[fnName]
+  if (
+    args.invocation.expectedFunction !== undefined &&
+    (exactArgumentCount === undefined || fnArgs.length !== exactArgumentCount)
+  ) {
+    return { kind: 'fail', reason: 'malformed_response' }
+  }
 
   if (fnArgs.length <= amountIdx) {
     return { kind: 'fail', reason: 'malformed_response' }
   }
 
   const tipperArg = fnArgs[tipperIdx]
+  const highlightArg =
+    highlightIdx === undefined ? undefined : fnArgs[highlightIdx]
+  const articleArg = fnArgs[articleIdx]
   const authorArg = fnArgs[authorIdx]
   const amountArg = fnArgs[amountIdx]
-  if (!tipperArg || !authorArg || !amountArg) {
+  if (!tipperArg || !articleArg || !authorArg || !amountArg) {
     return { kind: 'fail', reason: 'malformed_response' }
   }
 
   let nativeTipper: unknown
+  let nativeHighlight: unknown
+  let nativeArticle: unknown
   let nativeAuthor: unknown
   let nativeAmount: unknown
   try {
     nativeTipper = scValToNative(tipperArg)
+    nativeHighlight = highlightArg ? scValToNative(highlightArg) : undefined
+    nativeArticle = scValToNative(articleArg)
     nativeAuthor = scValToNative(authorArg)
     nativeAmount = scValToNative(amountArg)
   } catch {
@@ -239,10 +334,26 @@ function verifyInvocation(
   if (nativeTipper !== args.expectedSource) {
     return { kind: 'fail', reason: 'tipper_mismatch' }
   }
+  if (
+    args.invocation.highlightId !== undefined &&
+    nativeHighlight !== args.invocation.highlightId
+  ) {
+    return { kind: 'fail', reason: 'highlight_mismatch' }
+  }
+  if (
+    args.invocation.articleId !== undefined &&
+    nativeArticle !== args.invocation.articleId
+  ) {
+    return { kind: 'fail', reason: 'article_mismatch' }
+  }
   if (nativeAuthor !== args.invocation.authorAddress) {
     return { kind: 'fail', reason: 'author_mismatch' }
   }
-  if (nativeAmount < args.invocation.minStroops) {
+  if (
+    args.invocation.exactStroops !== undefined
+      ? nativeAmount !== args.invocation.exactStroops
+      : nativeAmount < args.invocation.minStroops
+  ) {
     return { kind: 'fail', reason: 'amount_mismatch' }
   }
 
@@ -306,7 +417,23 @@ function verifyBatchInvocation(
     if (tip.author !== expected.authorAddress) {
       return { kind: 'fail', reason: 'author_mismatch' }
     }
-    if (tip.amount < expected.minStroops) {
+    if (
+      expected.highlightId !== undefined &&
+      tip.highlight_id !== expected.highlightId
+    ) {
+      return { kind: 'fail', reason: 'highlight_mismatch' }
+    }
+    if (
+      expected.articleId !== undefined &&
+      tip.article_id !== expected.articleId
+    ) {
+      return { kind: 'fail', reason: 'article_mismatch' }
+    }
+    if (
+      expected.exactStroops !== undefined
+        ? tip.amount !== expected.exactStroops
+        : tip.amount < expected.minStroops
+    ) {
       return { kind: 'fail', reason: 'amount_mismatch' }
     }
 
@@ -364,6 +491,7 @@ type HorizonTxResponse = {
   successful: boolean
   source_account: string
   ledger: number
+  created_at?: string
   envelope_xdr?: string
 }
 

@@ -4,8 +4,6 @@ import { STELLAR_CONFIG } from './config'
 import { loadStellarSdk } from './sdk-loader'
 import { api } from '@/convex/_generated/api'
 import type { Keypair } from '@stellar/stellar-sdk'
-// Note: Memos cannot be used with Soroban source account auth
-// (Stellar protocol restriction: "non-source auth Soroban tx uses memo or muxed source account")
 import type {
   TipParams,
   TipReceipt,
@@ -271,31 +269,37 @@ export class StellarClient {
     platformFee: number
   }> {
     const { StellarSdk, server, sorobanServer } = await this.getSdkContext()
-    const stroops = await this.convertCentsToStroops(params.amountCents)
+    if (
+      !Number.isSafeInteger(params.amountStroops) ||
+      params.amountStroops < STELLAR_CONFIG.MINIMUM_TIP_STROOPS
+    ) {
+      throw new Error('Invalid trusted article tip amount')
+    }
+    const stroops = params.amountStroops
     const { authorReceived, platformFee } = calculateTipSplit(stroops)
 
     const account = await server.loadAccount(tipperPublicKey)
 
-    const contract = new StellarSdk.Contract(STELLAR_CONFIG.TIPPING_CONTRACT_ID)
+    const contract = new StellarSdk.Contract(params.contractId)
 
     const stroopsBigInt = BigInt(stroops)
 
     const transaction = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
       networkPassphrase: this.networkPassphrase,
+      timebounds: params.timeBounds,
     })
       .addOperation(
         contract.call(
           'tip_article',
           StellarSdk.nativeToScVal(tipperPublicKey, { type: 'address' }),
-          StellarSdk.nativeToScVal(shortArticleId(params.articleId), {
+          StellarSdk.nativeToScVal(params.articleSymbol, {
             type: 'symbol',
           }),
           StellarSdk.nativeToScVal(params.authorAddress, { type: 'address' }),
           StellarSdk.nativeToScVal(stroopsBigInt, { type: 'i128' })
         )
       )
-      .setTimeout(180)
       .build()
 
     const preparedTransaction =
@@ -313,9 +317,14 @@ export class StellarClient {
     tipperPublicKey: string,
     params: {
       highlightId: string
-      articleId: string
+      articleSymbol: string
       authorAddress: string
-      amountCents: number
+      amountStroops: number
+      contractId: string
+      timeBounds: {
+        minTime: string
+        maxTime: string
+      }
     }
   ): Promise<{
     xdr: string
@@ -324,32 +333,38 @@ export class StellarClient {
     platformFee: number
   }> {
     const { StellarSdk, server, sorobanServer } = await this.getSdkContext()
-    const stroops = await this.convertCentsToStroops(params.amountCents)
+    if (
+      !Number.isSafeInteger(params.amountStroops) ||
+      params.amountStroops < STELLAR_CONFIG.MINIMUM_TIP_STROOPS
+    ) {
+      throw new Error('Invalid trusted highlight tip amount')
+    }
+    const stroops = params.amountStroops
     const { authorReceived, platformFee } = calculateTipSplit(stroops)
 
     const account = await server.loadAccount(tipperPublicKey)
 
-    const contract = new StellarSdk.Contract(STELLAR_CONFIG.TIPPING_CONTRACT_ID)
+    const contract = new StellarSdk.Contract(params.contractId)
 
     const stroopsBigInt = BigInt(stroops)
 
     const transaction = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
       networkPassphrase: this.networkPassphrase,
+      timebounds: params.timeBounds,
     })
       .addOperation(
         contract.call(
           'tip_highlight_direct',
           StellarSdk.nativeToScVal(tipperPublicKey, { type: 'address' }),
           StellarSdk.nativeToScVal(params.highlightId, { type: 'string' }),
-          StellarSdk.nativeToScVal(shortArticleId(params.articleId), {
+          StellarSdk.nativeToScVal(params.articleSymbol, {
             type: 'symbol',
           }),
           StellarSdk.nativeToScVal(params.authorAddress, { type: 'address' }),
           StellarSdk.nativeToScVal(stroopsBigInt, { type: 'i128' })
         )
       )
-      .setTimeout(180)
       .build()
 
     const preparedTransaction =
@@ -493,39 +508,9 @@ export class StellarClient {
     stellarFlowEmitter.emit({ flow: 'tip', step: 'submitting' })
     const result = await sorobanServer.sendTransaction(transaction)
 
-    if (result.status === 'PENDING') {
+    if (result.status === 'PENDING' || result.status === 'DUPLICATE') {
       stellarFlowEmitter.emit({ flow: 'tip', step: 'confirming' })
-      let txResult = await sorobanServer.getTransaction(result.hash)
-      let retries = 0
-      const maxRetries = 30
-
-      while (txResult.status === 'NOT_FOUND' && retries < maxRetries) {
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        txResult = await sorobanServer.getTransaction(result.hash)
-        retries++
-      }
-
-      if (txResult.status === 'SUCCESS') {
-        const returnValue = txResult.returnValue
-        if (returnValue) {
-          const receipt = StellarSdk.scValToNative(returnValue)
-
-          return {
-            tipId: receipt.tip_id.toString(),
-            amountSent: receipt.amount_sent,
-            authorReceived: receipt.author_received,
-            platformFee: receipt.platform_fee,
-            timestamp: new Date(Number(receipt.timestamp) * 1000),
-            transactionHash: result.hash,
-          }
-        }
-      } else if (txResult.status === 'FAILED') {
-        throw new Error('Transaction failed on the network')
-      } else if (txResult.status === 'NOT_FOUND' && retries >= maxRetries) {
-        throw new Error(
-          'Transaction timeout: Could not confirm transaction after 30 seconds'
-        )
-      }
+      return { transactionHash: result.hash }
     }
 
     const errorMessage = result.errorResult
@@ -533,6 +518,15 @@ export class StellarClient {
       : `Transaction failed with status: ${result.status}`
 
     throw new Error(errorMessage)
+  }
+
+  async deriveTipTransactionHash(signedXDR: string): Promise<string> {
+    const { StellarSdk } = await this.getSdkContext()
+    const transaction = StellarSdk.TransactionBuilder.fromXDR(
+      signedXDR,
+      this.networkPassphrase
+    )
+    return transaction.hash().toString('hex')
   }
 
   async getArticleTips(articleId: string): Promise<TipData[]> {

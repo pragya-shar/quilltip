@@ -86,6 +86,12 @@ import { PublishSuccessPanel } from '@/components/editor/PublishSuccessPanel'
 const ARTICLE_TITLE_ERROR_ID = 'article-title-error'
 const TITLE_PUBLISH_ERROR = 'Add a title before publishing'
 const EXCERPT_MAX_CHARS = 500
+const PUBLISH_WALLET_REQUIRED_FEEDBACK: FlowFeedback = {
+  variant: 'default',
+  title: 'Set up a receiving wallet before publishing',
+  detail:
+    'This makes the article tip-ready as soon as it goes live. Readers can still read for free.',
+}
 
 function editorTitleFromStored(storedTitle: string): string {
   return isPlaceholderArticleTitle(storedTitle) ? '' : storedTitle
@@ -240,7 +246,6 @@ export function WriteEditorWorkspace() {
     hasUnsavedRef.current = hasUnsavedChanges
   }, [hasUnsavedChanges])
 
-  const createArticleMutation = useMutation(api.articles.createArticle)
   const publishArticleMutation = useMutation(api.articles.publishArticle)
   const deleteArticleMutation = useMutation(api.articles.deleteArticle)
 
@@ -643,34 +648,30 @@ export function WriteEditorWorkspace() {
       toast.warning(listingError)
       return
     }
+    if (!receivingWalletAddress) {
+      setPublishFeedback(PUBLISH_WALLET_REQUIRED_FEEDBACK)
+      toast.warning(PUBLISH_WALLET_REQUIRED_FEEDBACK.title)
+      return
+    }
 
     setPublishFeedback(null)
     setIsPublishing(true)
     try {
-      await saveNow()
-
-      let resultId: string
-      let publishedSlug: string | undefined
-
-      if (articleId) {
-        const published = await publishArticleMutation({
-          id: articleId as Id<'articles'>,
-        })
-        resultId = published.id
-        publishedSlug = published.slug
-      } else {
-        resultId = await createArticleMutation({
-          title: title.trim(),
-          content: editorContent,
-          excerpt: excerpt.trim(),
-          coverImage: coverImage || undefined,
-          tags: tags
-            .split(',')
-            .map((t) => t.trim())
-            .filter(Boolean),
-          published: true,
-        })
+      const savedDraft = await saveNow()
+      if (hasUnsavedChanges && !savedDraft) {
+        throw new Error('Save your latest changes before publishing')
       }
+
+      const targetArticleId = savedDraft?.id ?? articleId
+      if (!targetArticleId) {
+        throw new Error('Save your draft before publishing')
+      }
+
+      const published = await publishArticleMutation({
+        id: targetArticleId as Id<'articles'>,
+      })
+      const resultId = published.id
+      const publishedSlug = published.slug
 
       if (!articleId) {
         setArticleId(resultId)
@@ -707,16 +708,15 @@ export function WriteEditorWorkspace() {
     title,
     editorContent,
     excerpt,
-    coverImage,
-    tags,
     saveNow,
+    hasUnsavedChanges,
     articleId,
     publishArticleMutation,
-    createArticleMutation,
     editor,
     syncDraftIdInUrl,
     blockPublishForPlaceholderTitle,
     focusTitleField,
+    receivingWalletAddress,
   ])
 
   const handleRequestDelete = useCallback(() => {
@@ -912,6 +912,9 @@ export function WriteEditorWorkspace() {
     savedArticleForLink?.author?.username ??
     null
   const publishSlug = publishedSlugOverride ?? savedArticleForLink?.slug ?? null
+  const walletStatusLoading = receivingWalletAddress === undefined
+  const walletSetupRequired = receivingWalletAddress === null
+  const publishDialogBlocked = walletStatusLoading || walletSetupRequired
 
   return (
     <div className="flex flex-col pt-16">
@@ -1370,11 +1373,16 @@ export function WriteEditorWorkspace() {
                   }
                 />
                 <p className="text-sm text-muted-foreground">
-                  Readers cannot tip this article until a receiving wallet is
-                  connected.
+                  This is required before publishing so the article can receive
+                  Stellar TESTNET tips immediately.
                 </p>
               </div>
             )}
+            {walletStatusLoading ? (
+              <p className="text-sm text-muted-foreground">
+                Checking receiving wallet setup...
+              </p>
+            ) : null}
           </div>
 
           <DialogFooter>
@@ -1387,12 +1395,13 @@ export function WriteEditorWorkspace() {
             </Button>
             <Button
               type="button"
+              disabled={publishDialogBlocked || isPublishing}
               onClick={() => {
                 setPublishConfirmOpen(false)
                 void handlePublish()
               }}
             >
-              Publish
+              {walletSetupRequired ? 'Set up wallet to publish' : 'Publish'}
             </Button>
           </DialogFooter>
         </DialogContent>

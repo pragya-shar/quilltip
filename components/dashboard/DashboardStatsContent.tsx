@@ -1,16 +1,26 @@
 'use client'
 
 import { useAuth } from '@/components/providers/AuthContext'
-import { useUserByUsername, useUserStats } from '@/hooks/convex'
+import {
+  useAuthorEarnings,
+  useUserByUsername,
+  useUserStats,
+} from '@/hooks/convex'
 import { CreatorStatsPanel } from '@/components/dashboard/CreatorStatsPanel'
+import { DashboardStatsSkeleton } from '@/components/dashboard/DashboardStatsSkeleton'
 
 export function DashboardStatsContent() {
   const { user: currentUser } = useAuth()
   const user = useUserByUsername(currentUser?.username)
   const userStats = useUserStats(user?._id)
+  const earnings = useAuthorEarnings()
 
-  if (!currentUser || user === undefined) {
+  if (!currentUser || user === null) {
     return null
+  }
+
+  if (user === undefined || userStats === undefined || earnings === undefined) {
+    return <DashboardStatsSkeleton />
   }
 
   return (
@@ -27,6 +37,7 @@ export function DashboardStatsContent() {
       <CreatorStatsPanel
         articleCount={userStats?.articleCount ?? 0}
         tipsReceivedCount={userStats?.tipsReceivedCount ?? 0}
+        totalEarnedUsd={earnings?.totalEarnedUsd ?? 0}
         nftsOwned={user?.nftsOwned ?? 0}
       />
     </div>

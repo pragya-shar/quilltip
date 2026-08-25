@@ -135,7 +135,7 @@ export function NFTIntegration({
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
                       <div
-                        className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500"
+                        className="bg-collectible h-2 rounded-full transition-all duration-500"
                         style={{
                           width: `${Math.min(progressPercentage, 100)}%`,
                         }}
@@ -144,7 +144,7 @@ export function NFTIntegration({
                     <p className="text-xs text-muted-foreground mt-2">
                       {progressPercentage >= 100
                         ? 'Eligible for minting!'
-                        : `${(100 - progressPercentage).toFixed(0)}% more tips needed to unlock NFT minting`}
+                        : `$${((nftStatus.tipThreshold - nftStatus.totalTips) / 100).toFixed(2)} more in reader support to become eligible`}
                     </p>
                   </div>
 

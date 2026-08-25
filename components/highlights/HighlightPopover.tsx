@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter, MessageSquare, Lock, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { HighlightTipButton } from './HighlightTipButton'
 import { Id } from '@/convex/_generated/dataModel'
 import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
@@ -22,6 +23,10 @@ interface HighlightPopoverProps {
   authorStellarAddress?: string | null
   startOffset?: number
   endOffset?: number
+  startContainerPath?: string
+  endContainerPath?: string
+  selectionStartPosition?: number
+  selectionEndPosition?: number
   resumeHighlightTip?: {
     amountCents?: number
     customAmount?: string
@@ -79,6 +84,10 @@ export function HighlightPopover({
   authorStellarAddress,
   startOffset,
   endOffset,
+  startContainerPath,
+  endContainerPath,
+  selectionStartPosition,
+  selectionEndPosition,
   resumeHighlightTip,
   onHighlightTipResumeOpened,
 }: HighlightPopoverProps) {
@@ -186,7 +195,7 @@ export function HighlightPopover({
               >
                 {isPublic ? (
                   <>
-                    <Globe className="w-4 h-4 text-green-800 dark:text-green-300" />
+                    <Globe className="w-4 h-4 text-success-foreground" />
                     <span className="text-sm text-foreground">Public</span>
                   </>
                 ) : (
@@ -232,13 +241,15 @@ export function HighlightPopover({
 
           <div className="flex gap-2 mb-3">
             {isAuthenticated && (
-              <button
+              <Button
+                type="button"
+                size="sm"
                 onClick={handleSaveHighlight}
-                className="highlight-action-button flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 flex items-center justify-center"
+                className="min-w-0 flex-1 gap-2 shadow-md"
               >
-                <Highlighter className="w-4 h-4 mr-2" />
-                <span>Save</span>
-              </button>
+                <Highlighter className="w-4 h-4" />
+                <span className="font-medium">Save</span>
+              </Button>
             )}
 
             {articleId &&
@@ -254,7 +265,11 @@ export function HighlightPopover({
                   highlightText={selectedText}
                   startOffset={startOffset}
                   endOffset={endOffset}
-                  className="flex-1"
+                  startContainerPath={startContainerPath}
+                  endContainerPath={endContainerPath}
+                  selectionStartPosition={selectionStartPosition}
+                  selectionEndPosition={selectionEndPosition}
+                  className="min-w-0 flex-1"
                   resumeOpen={Boolean(resumeHighlightTip)}
                   resumeAmountCents={resumeHighlightTip?.amountCents}
                   resumeCustomAmount={resumeHighlightTip?.customAmount}

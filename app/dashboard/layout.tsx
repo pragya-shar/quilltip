@@ -6,8 +6,7 @@ export const metadata: Metadata = {
     template: '%s | Dashboard | Quilltip',
     default: 'Dashboard | Quilltip',
   },
-  description:
-    'Manage your Stellar wallet, testnet earnings, and creator stats on Quilltip.',
+  description: 'Manage your Stellar wallet and creator stats on Quilltip.',
 }
 
 export default function DashboardLayout({

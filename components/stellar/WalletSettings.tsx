@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import Link from 'next/link'
@@ -15,13 +15,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { ActionableNotice } from '@/components/ui/ActionableNotice'
 import type { FlowFeedback } from '@/lib/feedback/flow-feedback'
 import {
   Wallet,
   Copy,
   Check,
   AlertCircle,
-  DollarSign,
   ArrowUpRight,
   Loader2,
   Power,
@@ -32,11 +32,12 @@ import { useWallet } from '@/components/providers/WalletProvider'
 import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
 import { LegalLinks } from '@/components/legal/LegalLinks'
 import { networkLabelLowercase } from '@/lib/copy/network-status'
+import { isValidStellarAccountId } from '@/lib/stellar/is-valid-stellar-account-id'
 
 interface WalletSettingsProps {
   walletAddress?: string | null
   profileUsername?: string
-  onAddressChange?: (address: string) => void
+  onAddressChange?: (address: string | null) => void
   isOwnProfile: boolean
   profileDisplayName?: string
   className?: string
@@ -56,15 +57,24 @@ export function WalletSettings({
   })
   const [isCopied, setIsCopied] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
+  const [isSavingAddress, setIsSavingAddress] = useState(false)
+  const [walletAddressDraft, setWalletAddressDraft] = useState(
+    walletAddress ?? ''
+  )
   const [walletFeedback, setWalletFeedback] = useState<FlowFeedback | null>(
     null
   )
 
+  useEffect(() => {
+    setWalletAddressDraft(walletAddress ?? '')
+  }, [walletAddress])
+
   const handleCopy = async () => {
-    if (!walletAddress) return
+    const addressToCopy = walletAddressDraft.trim() || walletAddress
+    if (!addressToCopy) return
 
     try {
-      await navigator.clipboard.writeText(walletAddress)
+      await navigator.clipboard.writeText(addressToCopy)
       setIsCopied(true)
       setWalletFeedback(null)
       toast.success('Wallet address copied to clipboard')
@@ -76,6 +86,50 @@ export function WalletSettings({
         detail: 'Copy the address manually or try again.',
       })
       toast.error('Failed to copy address')
+    }
+  }
+
+  const handleSaveWalletAddress = async () => {
+    if (isSavingAddress) return
+
+    const nextAddress = walletAddressDraft.trim()
+    if (!isValidStellarAccountId(nextAddress)) {
+      setWalletFeedback({
+        variant: 'destructive',
+        title: 'Invalid wallet address',
+        detail:
+          'Enter a valid Stellar public key that starts with G and is 56 characters long.',
+      })
+      toast.error('Invalid Stellar wallet address')
+      return
+    }
+
+    if (nextAddress === walletAddress) return
+
+    setIsSavingAddress(true)
+    setWalletFeedback(null)
+
+    try {
+      await updateProfile({
+        stellarAddress: nextAddress,
+      })
+      onAddressChange?.(nextAddress)
+      toast.success('Receiving wallet saved')
+    } catch (error) {
+      console.error('[WalletSettings] Failed to save wallet address:', error)
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Please check the address and try again.'
+
+      setWalletFeedback({
+        variant: 'destructive',
+        title: 'Wallet save failed',
+        detail: message,
+      })
+      toast.error('Wallet save failed')
+    } finally {
+      setIsSavingAddress(false)
     }
   }
 
@@ -95,7 +149,7 @@ export function WalletSettings({
       disconnect()
 
       // Step 3: Notify parent component for immediate UI update
-      onAddressChange?.('')
+      onAddressChange?.(null)
       setWalletFeedback(null)
 
       toast.success('Wallet disconnected successfully')
@@ -147,7 +201,7 @@ export function WalletSettings({
 
   if (!isOwnProfile && !walletAddress) {
     return (
-      <Card className={className}>
+      <Card variant="quiet" className={className}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Wallet className="h-5 w-5" />
@@ -162,13 +216,10 @@ export function WalletSettings({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              You can still read their work. Once they connect a wallet, you can
-              tip from any article using &quot;Tip Author&quot;.
-            </AlertDescription>
-          </Alert>
+          <ActionableNotice intent="informational">
+            You can still read their work. Once they connect a wallet, you can
+            tip from any article using &quot;Tip Author&quot;.
+          </ActionableNotice>
 
           <div className="flex flex-col gap-2 sm:flex-row">
             {profileUsername ? (
@@ -189,7 +240,7 @@ export function WalletSettings({
 
   return (
     <>
-      <Card className={className}>
+      <Card variant="quiet" className={className}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Wallet className="h-5 w-5" />
@@ -222,15 +273,12 @@ export function WalletSettings({
             </Alert>
           )}
           {isOwnProfile && walletAddress ? (
-            <Alert className="border-info/50 bg-info">
-              <AlertCircle className="h-4 w-4 text-info-foreground" />
-              <AlertDescription className="text-info-foreground">
-                <strong>This wallet is for receiving tips.</strong> When readers
-                tip your articles, payments come here. To send tips to other
-                authors, you&apos;ll connect your wallet extension directly on
-                their articles.
-              </AlertDescription>
-            </Alert>
+            <ActionableNotice intent="informational">
+              <strong>This wallet is for receiving tips.</strong> When readers
+              tip your articles, payments come here. To send tips to other
+              authors, you&apos;ll connect your wallet extension directly on
+              their articles.
+            </ActionableNotice>
           ) : null}
 
           {isOwnProfile ? (
@@ -246,7 +294,7 @@ export function WalletSettings({
                   <div className="p-4 bg-success border border-success/50 rounded-lg space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                        <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
                         <span className="text-sm font-medium text-success-foreground">
                           Wallet Connected
                         </span>
@@ -259,8 +307,14 @@ export function WalletSettings({
                       </Label>
                       <div className="flex gap-2">
                         <Input
-                          value={walletAddress || ''}
-                          readOnly
+                          aria-label="Receiving wallet address"
+                          value={walletAddressDraft}
+                          onChange={(event) =>
+                            setWalletAddressDraft(event.target.value)
+                          }
+                          autoCapitalize="characters"
+                          autoComplete="off"
+                          spellCheck={false}
                           className="font-mono text-xs"
                         />
                         <Button
@@ -275,17 +329,48 @@ export function WalletSettings({
                           )}
                         </Button>
                       </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          type="button"
+                          onClick={() => void handleSaveWalletAddress()}
+                          disabled={
+                            isSavingAddress ||
+                            walletAddressDraft.trim() === walletAddress
+                          }
+                          className="flex-1"
+                        >
+                          {isSavingAddress ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            'Save receiving wallet'
+                          )}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() =>
+                            setWalletAddressDraft(walletAddress ?? '')
+                          }
+                          disabled={
+                            isSavingAddress ||
+                            walletAddressDraft === (walletAddress ?? '')
+                          }
+                          className="flex-1"
+                        >
+                          Reset changes
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
-                  <Alert>
-                    <DollarSign className="h-4 w-4" />
-                    <AlertDescription>
-                      You can send and receive tips with this wallet. You can
-                      change it anytime by disconnecting and connecting a
-                      different account.
-                    </AlertDescription>
-                  </Alert>
+                  <ActionableNotice intent="informational">
+                    This saved receiving wallet is editable. Paste or type a
+                    different Stellar testnet address, then save it before
+                    publishing or receiving tips.
+                  </ActionableNotice>
 
                   <div className="flex gap-2">
                     <Button
@@ -369,13 +454,10 @@ export function WalletSettings({
                 View on Stellar Explorer
               </Button>
 
-              <Alert>
-                <DollarSign className="h-4 w-4" />
-                <AlertDescription>
-                  Want to tip in-app? Open any of their articles and click
-                  &quot;Tip Author&quot;.
-                </AlertDescription>
-              </Alert>
+              <ActionableNotice intent="informational">
+                Want to tip in-app? Open any of their articles and click
+                &quot;Tip Author&quot;.
+              </ActionableNotice>
             </div>
           )}
 

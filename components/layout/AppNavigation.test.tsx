@@ -7,6 +7,7 @@ import AppNavigation from '@/components/layout/AppNavigation'
 import { NAV_SIGN_IN, NAV_TRY_ON_TESTNET } from '@/lib/copy/nav-cta'
 
 const mockUseAuth = vi.fn()
+const mockUsePathname = vi.fn(() => '/')
 
 vi.mock('next/link', () => ({
   default: (props: { href: string; children: ReactNode }) => (
@@ -15,7 +16,7 @@ vi.mock('next/link', () => ({
 }))
 
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/',
+  usePathname: () => mockUsePathname(),
 }))
 
 vi.mock('@/components/providers/AuthContext', () => ({
@@ -124,6 +125,7 @@ describe('AppNavigation mobile menu', () => {
 describe('AppNavigation auth CTAs', () => {
   beforeEach(() => {
     document.body.style.pointerEvents = ''
+    mockUsePathname.mockReturnValue('/')
   })
 
   it('hides signed-out CTAs while auth is loading', () => {
@@ -169,5 +171,40 @@ describe('AppNavigation auth CTAs', () => {
     expect(screen.getByText('Dashboard')).toBeInTheDocument()
     expect(screen.queryByText(NAV_SIGN_IN)).not.toBeInTheDocument()
     expect(screen.queryByText(NAV_TRY_ON_TESTNET)).not.toBeInTheDocument()
+  })
+
+  it('shows auth skeleton on protected routes while guest auth resolves', () => {
+    mockUsePathname.mockReturnValue('/drafts')
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      signOut: vi.fn(),
+    })
+
+    const { container } = render(<AppNavigation />)
+
+    expect(screen.queryByText(NAV_SIGN_IN)).not.toBeInTheDocument()
+    expect(screen.queryByText(NAV_TRY_ON_TESTNET)).not.toBeInTheDocument()
+    expect(container.querySelector('[aria-hidden]')).toBeInTheDocument()
+  })
+
+  it('shows auth skeleton in mobile menu on protected routes for guests', async () => {
+    mockUsePathname.mockReturnValue('/drafts')
+    mockUseAuth.mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      signOut: vi.fn(),
+    })
+
+    const user = userEvent.setup()
+    const { container } = render(<AppNavigation />)
+
+    await user.click(screen.getByRole('button', { name: 'Toggle menu' }))
+
+    expect(screen.queryByText(NAV_SIGN_IN)).not.toBeInTheDocument()
+    expect(screen.queryByText(NAV_TRY_ON_TESTNET)).not.toBeInTheDocument()
+    expect(container.querySelector('[aria-hidden]')).toBeInTheDocument()
   })
 })

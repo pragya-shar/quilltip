@@ -11,17 +11,32 @@ export const getArticleHighlights = query({
     isPublic: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    // Use by_article index to get all highlights, then filter by isPublic if specified
-    const highlightsQuery = ctx.db
+    const userId = await getAuthUserId(ctx)
+    const publicHighlights = await ctx.db
       .query('highlights')
-      .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
+      .withIndex('by_article_public', (q) =>
+        q.eq('articleId', args.articleId).eq('isPublic', true)
+      )
+      .collect()
 
-    let highlights = await highlightsQuery.collect()
+    const privateHighlights = userId
+      ? await ctx.db
+          .query('highlights')
+          .withIndex('by_article_user_public', (q) =>
+            q
+              .eq('articleId', args.articleId)
+              .eq('userId', userId)
+              .eq('isPublic', false)
+          )
+          .collect()
+      : []
 
-    // Filter by isPublic only if explicitly specified
-    if (args.isPublic !== undefined) {
-      highlights = highlights.filter((h) => h.isPublic === args.isPublic)
-    }
+    const highlights =
+      args.isPublic === true
+        ? publicHighlights
+        : args.isPublic === false
+          ? privateHighlights
+          : [...publicHighlights, ...privateHighlights]
 
     // Enrich with current user data (override denormalized userName/userAvatar
     // so avatar/name changes match the profile without stale snapshots)
@@ -50,14 +65,24 @@ export const getUserHighlights = query({
     userId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
-    const targetUserId = args.userId || (await getAuthUserId(ctx))
+    const callerId = await getAuthUserId(ctx)
+    const targetUserId = args.userId || callerId
     if (!targetUserId) return []
 
-    const highlights = await ctx.db
-      .query('highlights')
-      .withIndex('by_user', (q) => q.eq('userId', targetUserId))
-      .order('desc')
-      .collect()
+    const highlights =
+      callerId === targetUserId
+        ? await ctx.db
+            .query('highlights')
+            .withIndex('by_user', (q) => q.eq('userId', targetUserId))
+            .order('desc')
+            .collect()
+        : await ctx.db
+            .query('highlights')
+            .withIndex('by_user_public', (q) =>
+              q.eq('userId', targetUserId).eq('isPublic', true)
+            )
+            .order('desc')
+            .collect()
 
     // Enrich with article data
     const enrichedHighlights = await Promise.all(
@@ -87,14 +112,24 @@ export const getUserHighlightsWithTips = query({
     userId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
-    const targetUserId = args.userId || (await getAuthUserId(ctx))
+    const callerId = await getAuthUserId(ctx)
+    const targetUserId = args.userId || callerId
     if (!targetUserId) return []
 
-    const highlights = await ctx.db
-      .query('highlights')
-      .withIndex('by_user', (q) => q.eq('userId', targetUserId))
-      .order('desc')
-      .collect()
+    const highlights =
+      callerId === targetUserId
+        ? await ctx.db
+            .query('highlights')
+            .withIndex('by_user', (q) => q.eq('userId', targetUserId))
+            .order('desc')
+            .collect()
+        : await ctx.db
+            .query('highlights')
+            .withIndex('by_user_public', (q) =>
+              q.eq('userId', targetUserId).eq('isPublic', true)
+            )
+            .order('desc')
+            .collect()
 
     // Enrich with article data and tip statistics
     const enrichedHighlights = await Promise.all(
@@ -107,6 +142,7 @@ export const getUserHighlightsWithTips = query({
           .withIndex('by_highlight', (q) =>
             q.eq('highlightId', highlight.highlightId)
           )
+          .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
           .collect()
 
         const tipCount = tips.length

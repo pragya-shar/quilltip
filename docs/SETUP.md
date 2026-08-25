@@ -44,6 +44,7 @@ See [`.env.example`](../.env.example) for the template. Only Convex vars are req
 | `NEXT_PUBLIC_CONVEX_URL`          | Auto — `npx convex dev`        | Yes                      |
 | `NEXT_PUBLIC_PLATFORM_ADDRESS`    | `.env.example` default         | For tipping              |
 | `NEXT_PUBLIC_TIPPING_CONTRACT_ID` | Deploy contract or leave blank | For tipping              |
+| `STELLAR_NETWORK`                 | Convex deployment              | For verified tipping     |
 | `NEXT_PUBLIC_NFT_CONTRACT_ID`     | Deploy contract or leave blank | For NFTs                 |
 | `ARWEAVE_ENABLED`                 | `false` by default             | For permanent storage    |
 | `ARWEAVE_WALLET_KEY`              | Arweave JWK wallet             | Only for files > 100 KiB |
@@ -66,9 +67,13 @@ The Convex action that verifies Stellar tip transactions needs the tipping contr
 
 ```bash
 npx convex env set TIPPING_CONTRACT_ID <your-tipping-contract-id>
+npx convex env set STELLAR_NETWORK TESTNET
 ```
 
-For testnet, use the same value as `NEXT_PUBLIC_TIPPING_CONTRACT_ID` in `.env.local`. Without this, tip verification will throw and tips will remain `PENDING`.
+For testnet, use the same contract value as `NEXT_PUBLIC_TIPPING_CONTRACT_ID`
+in `.env.local`. `STELLAR_NETWORK` must match `NEXT_PUBLIC_STELLAR_NETWORK`;
+the backend defaults to `TESTNET`. Without the contract ID, quote preparation
+stops before Freighter opens, so no payment is submitted.
 
 ## Development Commands
 

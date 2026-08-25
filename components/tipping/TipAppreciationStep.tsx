@@ -66,7 +66,7 @@ export function TipAppreciationStep({
   return (
     <>
       {variant === 'highlight' && displayHighlightText ? (
-        <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+        <div className="p-3 bg-warning/10 border border-warning/50 rounded-lg">
           <p className="text-sm text-foreground italic">
             &ldquo;{displayHighlightText}&rdquo;
           </p>
@@ -75,8 +75,8 @@ export function TipAppreciationStep({
 
       <p className="text-muted-foreground text-sm">
         {variant === 'article'
-          ? `Show your appreciation for ${authorName}'s work with a micro-tip.`
-          : `Tip ${authorName} for this insight that stood out to you.`}
+          ? `Choose an amount to support ${authorName}.`
+          : `Support ${authorName} for this passage.`}
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -89,14 +89,14 @@ export function TipAppreciationStep({
               onCustomAmountChange('')
             }}
             disabled={isLoading}
-            className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border-2 transition-all disabled:opacity-50 ${
+            className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border transition-colors disabled:opacity-50 ${
               selectedAmount === amount.cents
-                ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/30'
-                : 'border-border hover:border-orange-300'
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/40'
             }`}
           >
             {amount.popular && (
-              <span className="absolute -top-2 left-1/2 transform -translate-x-1/2 px-2 py-0.5 bg-orange-500 text-white text-xs rounded-full">
+              <span className="absolute -top-2 left-1/2 transform -translate-x-1/2 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
                 Popular
               </span>
             )}

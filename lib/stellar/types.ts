@@ -6,12 +6,12 @@ export interface TipData {
 }
 
 export interface TipReceipt {
-  tipId: string
-  amountSent: number // in stroops
-  authorReceived: number // in stroops
-  platformFee: number // in stroops
-  timestamp: Date
-  transactionHash?: string
+  tipId?: string
+  amountSent?: number // in stroops
+  authorReceived?: number // in stroops
+  platformFee?: number // in stroops
+  timestamp?: Date
+  transactionHash: string
 }
 
 export interface AuthorBalance {
@@ -24,9 +24,14 @@ export interface AuthorBalance {
 
 export interface TipParams {
   tipper: string
-  articleId: string
+  articleSymbol: string
   authorAddress: string
-  amountCents: number
+  amountStroops: number
+  contractId: string
+  timeBounds: {
+    minTime: string
+    maxTime: string
+  }
   signerFn?: (txXDR: string) => Promise<string>
 }
 

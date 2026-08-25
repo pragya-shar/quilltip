@@ -100,8 +100,14 @@ export default defineSchema({
   })
     .index('by_slug', ['slug'])
     .index('by_author', ['authorId'])
+    .index('by_author_updated_at', ['authorId', 'updatedAt'])
     .index('by_published', ['published'])
     .index('by_author_published', ['authorId', 'published']) // Composite for author's published articles
+    .index('by_author_published_updated_at', [
+      'authorId',
+      'published',
+      'updatedAt',
+    ])
     .index('by_published_date', ['published', 'publishedAt']) // For listing by date
     .searchIndex('search_listing', {
       searchField: 'searchContent',
@@ -169,8 +175,94 @@ export default defineSchema({
     .index('by_article', ['articleId'])
     .index('by_user', ['userId'])
     .index('by_article_public', ['articleId', 'isPublic'])
+    .index('by_article_user_public', ['articleId', 'userId', 'isPublic'])
     .index('by_highlight_id', ['highlightId'])
     .index('by_user_public', ['userId', 'isPublic']), // For user's public highlights
+
+  // Private, pre-wallet expectations for whole-article tips. These rows never
+  // contribute to public totals or histories; a normal tip row is created
+  // only after a Stellar transaction hash is available.
+  articleTipIntents: defineTable({
+    articleId: v.id('articles'),
+    tipperId: v.id('users'),
+    authorId: v.id('users'),
+    articleTitle: v.string(),
+    articleSlug: v.string(),
+    tipperName: v.optional(v.string()),
+    tipperAvatar: v.optional(v.string()),
+    authorName: v.optional(v.string()),
+    authorAvatar: v.optional(v.string()),
+    amountUsd: v.number(),
+    amountCents: v.number(),
+    message: v.optional(v.string()),
+    expectedSourceAccount: v.string(),
+    expectedDestinationAccount: v.string(),
+    expectedArticleSymbol: v.string(),
+    expectedAmountStroops: v.string(),
+    expectedContractId: v.optional(v.string()),
+    expectedMinTime: v.optional(v.string()),
+    expectedMaxTime: v.optional(v.string()),
+    expectedMemo: v.optional(v.string()),
+    expectedStellarNetwork: v.optional(
+      v.union(v.literal('TESTNET'), v.literal('MAINNET'))
+    ),
+    quotePriceUsd: v.number(),
+    quoteSource: v.string(),
+    quoteFetchedAt: v.number(),
+    tipId: v.optional(v.id('tips')),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_tipper', ['tipperId'])
+    .index('by_tipper_expiry', ['tipperId', 'expiresAt'])
+    .index('by_expiry', ['expiresAt'])
+    .index('by_tip_expiry', ['tipId', 'expiresAt']),
+
+  // Private, server-owned expectations for passage-level tips. Wallet clients
+  // receive only the trusted transaction-build fields and cannot overwrite
+  // the selection or payment terms when they submit a transaction receipt.
+  highlightTipIntents: defineTable({
+    articleId: v.id('articles'),
+    tipperId: v.id('users'),
+    authorId: v.id('users'),
+    articleTitle: v.string(),
+    articleSlug: v.string(),
+    tipperName: v.optional(v.string()),
+    tipperAvatar: v.optional(v.string()),
+    authorName: v.optional(v.string()),
+    authorAvatar: v.optional(v.string()),
+    highlightText: v.string(),
+    startOffset: v.number(),
+    endOffset: v.number(),
+    startContainerPath: v.optional(v.string()),
+    endContainerPath: v.optional(v.string()),
+    amountUsd: v.number(),
+    amountCents: v.number(),
+    message: v.optional(v.string()),
+    expectedSourceAccount: v.string(),
+    expectedDestinationAccount: v.string(),
+    expectedHighlightId: v.string(),
+    expectedArticleSymbol: v.string(),
+    expectedAmountStroops: v.string(),
+    expectedContractId: v.string(),
+    expectedFunction: v.optional(v.string()),
+    expectedMinTime: v.string(),
+    expectedMaxTime: v.string(),
+    expectedStellarNetwork: v.union(v.literal('TESTNET'), v.literal('MAINNET')),
+    quotePriceUsd: v.number(),
+    quoteSource: v.string(),
+    quoteFetchedAt: v.number(),
+    legacyCompatibility: v.optional(v.boolean()),
+    tipId: v.optional(v.id('highlightTips')),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_tipper_expiry', ['tipperId', 'expiresAt'])
+    .index('by_expiry', ['expiresAt'])
+    .index('by_tip', ['tipId'])
+    .index('by_tip_expiry', ['tipId', 'expiresAt']),
 
   // Tips table
   tips: defineTable({
@@ -203,6 +295,22 @@ export default defineSchema({
     stellarAmountXlm: v.optional(v.string()), // Amount in XLM
     contractTipId: v.optional(v.string()),
 
+    // Immutable server-owned expectation copied from articleTipIntents.
+    articleTipIntentId: v.optional(v.id('articleTipIntents')),
+    expectedSourceAccount: v.optional(v.string()),
+    expectedDestinationAccount: v.optional(v.string()),
+    expectedArticleSymbol: v.optional(v.string()),
+    expectedAmountStroops: v.optional(v.string()),
+    expectedContractId: v.optional(v.string()),
+    expectedMinTime: v.optional(v.string()),
+    expectedMaxTime: v.optional(v.string()),
+    expectedMemo: v.optional(v.string()),
+    quotePriceUsd: v.optional(v.number()),
+    quoteSource: v.optional(v.string()),
+    quoteFetchedAt: v.optional(v.number()),
+    verifiedAt: v.optional(v.number()),
+    verificationRequestedAt: v.optional(v.number()),
+
     // Status
     status: v.string(), // PENDING, CONFIRMING, CONFIRMED, FAILED, FRAUDULENT
     failureReason: v.optional(v.string()), // Error message if failed
@@ -219,6 +327,8 @@ export default defineSchema({
     .index('by_author', ['authorId'])
     .index('by_status', ['status'])
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
+    .index('by_status_updated', ['status', 'updatedAt']) // For stuck verification recovery
+    .index('by_article_tip_intent', ['articleTipIntentId'])
     .index('by_stellar_tx', ['stellarTxId']), // For dedup on at-least-once retries
 
   // Highlight Tips table (NEW - granular tipping)
@@ -254,6 +364,25 @@ export default defineSchema({
     stellarAmountXlm: v.optional(v.string()),
     contractTipId: v.optional(v.string()),
 
+    // Immutable server-owned expectation copied from highlightTipIntents.
+    // Optional fields keep legacy create rows readable during UI migration.
+    highlightTipIntentId: v.optional(v.id('highlightTipIntents')),
+    expectedSourceAccount: v.optional(v.string()),
+    expectedDestinationAccount: v.optional(v.string()),
+    expectedHighlightId: v.optional(v.string()),
+    expectedArticleSymbol: v.optional(v.string()),
+    expectedAmountStroops: v.optional(v.string()),
+    expectedContractId: v.optional(v.string()),
+    expectedFunction: v.optional(v.string()),
+    expectedMinTime: v.optional(v.string()),
+    expectedMaxTime: v.optional(v.string()),
+    quotePriceUsd: v.optional(v.number()),
+    quoteSource: v.optional(v.string()),
+    quoteFetchedAt: v.optional(v.number()),
+    verifiedAt: v.optional(v.number()),
+    verificationGeneration: v.optional(v.number()),
+    verificationRequestedAt: v.optional(v.number()),
+
     // Position data (for heatmap visualization)
     startOffset: v.number(),
     endOffset: v.number(),
@@ -284,6 +413,8 @@ export default defineSchema({
     .index('by_author', ['authorId'])
     .index('by_status', ['status'])
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
+    .index('by_status_updated', ['status', 'updatedAt']) // For stuck verification recovery
+    .index('by_highlight_tip_intent', ['highlightTipIntentId'])
     .index('by_stellar_tx', ['stellarTxId']),
 
   // Author Earnings table

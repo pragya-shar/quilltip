@@ -1,121 +1,35 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import {
-  Account,
-  BASE_FEE,
-  Contract,
-  Keypair,
-  Networks,
-  TransactionBuilder,
-  nativeToScVal,
-} from '@stellar/stellar-sdk'
+import { Keypair } from '@stellar/stellar-sdk'
 import { api, internal } from './_generated/api'
 import schema from './schema'
 import type { Id } from './_generated/dataModel'
 
-const emptyDoc = { type: 'doc', content: [] }
-
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
-
-// Ephemeral keypairs — Keypair.random() produces StrKey-valid G... addresses
-// that pass Address.fromScAddress() but have no on-chain existence. Tests
-// build envelope XDRs, never submit or sign against a real network.
-const TIPPER_KP = Keypair.random()
-const AUTHOR_KP = Keypair.random()
-const ATTACKER_KP = Keypair.random()
-const TIPPER_STELLAR = TIPPER_KP.publicKey()
-const AUTHOR_STELLAR = AUTHOR_KP.publicKey()
-const ATTACKER_STELLAR = ATTACKER_KP.publicKey()
-// Testnet tipping contract ID used in the README. Any real C... address works;
-// the verifier just string-compares it against the envelope's contract.
+const ARTICLE_TEXT = 'some highlighted text'
+const articleContent = {
+  type: 'doc',
+  content: [
+    {
+      type: 'paragraph',
+      content: [{ type: 'text', text: ARTICLE_TEXT }],
+    },
+  ],
+}
+const TIPPER_STELLAR = Keypair.random().publicKey()
+const AUTHOR_STELLAR = Keypair.random().publicKey()
+const OTHER_STELLAR = Keypair.random().publicKey()
 const TIPPING_CONTRACT_ID =
   'CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY'
-const WRONG_CONTRACT_ID =
-  'CAS44OQK7A6W5FDRAH3K3ZN7TTQTJ5ESRVG6MB2HBVFWZ5TVH26UUB4S'
 
 beforeAll(() => {
   process.env.TIPPING_CONTRACT_ID = TIPPING_CONTRACT_ID
 })
 
-function buildHighlightTipEnvelope(opts: {
-  tipper: string
-  author: string
-  contractId: string
-  amountStroops: bigint
-  highlightId?: string
-  articleId?: string
-  fnName?: string
-}): string {
-  const account = new Account(opts.tipper, '1')
-  const contract = new Contract(opts.contractId)
-  const tx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
-    networkPassphrase: Networks.TESTNET,
-  })
-    .addOperation(
-      contract.call(
-        opts.fnName ?? 'tip_highlight_direct',
-        nativeToScVal(opts.tipper, { type: 'address' }),
-        nativeToScVal(opts.highlightId ?? 'hash-abc', { type: 'string' }),
-        nativeToScVal(opts.articleId ?? 'article1', { type: 'symbol' }),
-        nativeToScVal(opts.author, { type: 'address' }),
-        nativeToScVal(opts.amountStroops, { type: 'i128' })
-      )
-    )
-    .setTimeout(30)
-    .build()
-  return tx.toEnvelope().toXDR('base64')
-}
-
-function buildHighlightBatchTipEnvelope(opts: {
-  tipper: string
-  author: string
-  contractId: string
-  amountStroops: bigint
-  highlightId?: string
-  articleId?: string
-}): string {
-  const account = new Account(opts.tipper, '1')
-  const contract = new Contract(opts.contractId)
-  const tx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
-    networkPassphrase: Networks.TESTNET,
-  })
-    .addOperation(
-      contract.call(
-        'batch_tip_highlights',
-        nativeToScVal(opts.tipper, { type: 'address' }),
-        nativeToScVal(
-          [
-            {
-              highlight_id: opts.highlightId ?? 'hash-abc',
-              article_id: opts.articleId ?? 'article1',
-              author: opts.author,
-              amount: opts.amountStroops,
-            },
-            {
-              highlight_id: 'hash-def',
-              article_id: opts.articleId ?? 'article1',
-              author: opts.author,
-              amount: opts.amountStroops,
-            },
-          ],
-          {
-            type: {
-              highlight_id: ['symbol', 'string'],
-              article_id: ['symbol', 'symbol'],
-              author: ['symbol', 'address'],
-              amount: ['symbol', 'i128'],
-            },
-          }
-        )
-      )
-    )
-    .setTimeout(30)
-    .build()
-  return tx.toEnvelope().toXDR('base64')
-}
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 async function seed(t: ReturnType<typeof convexTest>) {
   return await t.run(async (ctx) => {
@@ -139,7 +53,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
     const articleId = await ctx.db.insert('articles', {
       slug: 'hello',
       title: 'Hello',
-      content: emptyDoc,
+      content: articleContent,
       published: true,
       publishedAt: now,
       authorId,
@@ -152,931 +66,394 @@ async function seed(t: ReturnType<typeof convexTest>) {
       createdAt: now,
       updatedAt: now,
     })
+    await ctx.db.insert('xlmPriceCache', {
+      priceUsd: 0.25,
+      source: 'TestOracle',
+      fetchedAt: now,
+    })
     return { tipperId, authorId, articleId }
   })
 }
 
-// Fixture is internally consistent at $1/XLM so the default stub (priceUsd=1)
-// confirms the tip without triggering the USD cross-check. Amounts:
-//   amountCents=100 ($1) <-> stellarAmountXlm='1' (1 XLM) <-> 10_000_000 stroops
-function tipArgs(articleId: Id<'articles'>, stellarTxId: string) {
+function legacyCreateArgs(articleId: Id<'articles'>, stellarTxId: string) {
   return {
-    highlightId: 'hash-abc',
+    highlightId: '856e15955152b6e33aa0f72fca51',
     articleId,
-    highlightText: 'some highlighted text',
+    highlightText: ARTICLE_TEXT,
     startOffset: 0,
-    endOffset: 10,
+    endOffset: ARTICLE_TEXT.length,
+    startContainerPath: 'text.1',
+    endContainerPath: `text.${ARTICLE_TEXT.length + 1}`,
     amountCents: 100,
     stellarTxId,
-    stellarMemo: 'hash-abc',
+    stellarMemo: '856e15955152b6e33aa0f72fca51',
+    stellarNetwork: 'TESTNET',
     stellarSourceAccount: TIPPER_STELLAR,
     stellarDestinationAccount: AUTHOR_STELLAR,
-    stellarAmountXlm: '1',
+    stellarAmountXlm: '4',
   }
 }
-const TIP_STROOPS = BigInt(10_000_000)
 
-// Skips the Horizon round-trip by directly invoking the internal mutation
-// that verification would have called on success. Used by tests that want
-// to exercise the final CONFIRMED state without stubbing fetch.
-async function confirmPending(
+async function insertLegacyHighlightTip(
   t: ReturnType<typeof convexTest>,
-  tipId: Id<'highlightTips'>
+  ids: Awaited<ReturnType<typeof seed>>,
+  args: {
+    status: 'PENDING' | 'CONFIRMED'
+    stellarTxId: string
+    createdAt?: number
+  }
 ) {
-  await t.mutation(internal.stellarVerify.markHighlightTipConfirmed, {
-    id: tipId,
-    stellarLedger: 1,
+  return await t.run(async (ctx) => {
+    const now = Date.now()
+    return await ctx.db.insert('highlightTips', {
+      highlightId: 'hash-abc',
+      articleId: ids.articleId,
+      tipperId: ids.tipperId,
+      authorId: ids.authorId,
+      highlightText: 'some highlighted text',
+      articleTitle: 'Hello',
+      articleSlug: 'hello',
+      amountUsd: 1,
+      amountCents: 100,
+      stellarTxId: args.stellarTxId,
+      stellarNetwork: 'TESTNET',
+      stellarMemo: 'hash-abc',
+      stellarSourceAccount: TIPPER_STELLAR,
+      stellarDestinationAccount: AUTHOR_STELLAR,
+      stellarAmountXlm: '1',
+      startOffset: 0,
+      endOffset: 10,
+      status: args.status,
+      createdAt: args.createdAt ?? now,
+      processedAt: now,
+      updatedAt: now,
+    })
   })
 }
 
-// Default stub for all tests: Horizon calls return the provided body, XLM
-// price oracles return $1/XLM (matches the tipArgs fixture so the USD check
-// cleanly passes). Tests that need specific XLM behavior (oracle down, price
-// drift) can override via opts.xlmPriceUsd.
-function stubHorizonResponse(
-  body: Record<string, unknown>,
-  opts: { xlmPriceUsd?: number | 'all_oracles_down' } = {}
+async function expectNoCredit(
+  t: ReturnType<typeof convexTest>,
+  ids: Awaited<ReturnType<typeof seed>>
 ) {
-  const xlm = opts.xlmPriceUsd ?? 1
-  vi.stubGlobal('fetch', async (url: string) => {
-    if (url.includes('horizon')) {
-      return {
-        status: 200,
-        ok: true,
-        json: async () => body,
-      }
-    }
-    if (xlm === 'all_oracles_down') {
-      return { status: 500, ok: false, json: async () => ({}) }
-    }
-    return {
-      status: 200,
-      ok: true,
-      json: async () => ({ stellar: { usd: xlm } }),
-    }
+  await t.run(async (ctx) => {
+    expect((await ctx.db.get(ids.articleId))?.tipCount).toBe(0)
+    expect((await ctx.db.get(ids.articleId))?.totalTipsUsd).toBe(0)
+    expect((await ctx.db.get(ids.tipperId))?.tipsSentCount).toBe(0)
+    expect((await ctx.db.get(ids.authorId))?.tipsReceivedCount).toBe(0)
+    expect(await ctx.db.query('authorEarnings').collect()).toEqual([])
   })
 }
 
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
-
-describe('highlightTips.create', () => {
-  it('inserts the tip as PENDING with counters untouched', async () => {
+describe('legacy highlight tip cutover', () => {
+  it('registers an already-broadcast old-client receipt with server-owned expectations', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
+    const ids = await seed(t)
+    const tipId = await t
+      .withIdentity({ subject: ids.tipperId })
+      .mutation(api.highlightTips.create, {
+        ...legacyCreateArgs(ids.articleId, '1'.repeat(64)),
+        amountCents: 10_000,
+      })
 
     await t.run(async (ctx) => {
       const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('PENDING')
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount ?? 0).toBe(0)
-      expect(article?.totalTipsUsd ?? 0).toBe(0)
-
-      const tipper = await ctx.db.get(tipperId)
-      expect(tipper?.tipsSentCount ?? 0).toBe(0)
+      expect(tip).toMatchObject({
+        highlightId: '856e15955152b6e33aa0f72fca51',
+        highlightText: ARTICLE_TEXT,
+        startOffset: 0,
+        endOffset: ARTICLE_TEXT.length,
+        amountCents: 100,
+        stellarSourceAccount: TIPPER_STELLAR,
+        stellarDestinationAccount: AUTHOR_STELLAR,
+        stellarAmountXlm: '4',
+        status: 'PENDING',
+        highlightTipIntentId: expect.any(String),
+      })
+      const intent = tip?.highlightTipIntentId
+        ? await ctx.db.get(tip.highlightTipIntentId)
+        : null
+      expect(intent).toMatchObject({
+        articleId: ids.articleId,
+        tipperId: ids.tipperId,
+        authorId: ids.authorId,
+        amountCents: 100,
+        expectedHighlightId: '856e15955152b6e33aa0f72fca51',
+        expectedArticleSymbol: '2ede2c6a40',
+        expectedAmountStroops: '40000000',
+        expectedSourceAccount: TIPPER_STELLAR,
+        expectedDestinationAccount: AUTHOR_STELLAR,
+        expectedContractId: TIPPING_CONTRACT_ID,
+        expectedFunction: 'tip_highlight_direct',
+        legacyCompatibility: true,
+        tipId,
+      })
     })
+    await expectNoCredit(t, ids)
   })
 
-  it('dedups on non-empty stellarTxId', async () => {
+  it('preserves a minimum one-cent old-client receipt when the fallback quote rounds below one cent', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
+    const ids = await seed(t)
+    await t.run(async (ctx) => {
+      const cached = await ctx.db.query('xlmPriceCache').first()
+      if (cached) await ctx.db.delete(cached._id)
+    })
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const first = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-    const second = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    expect(second).toBe(first)
-
-    // Counters bump only after verification; confirm the original to prove
-    // dedup didn't accidentally double-credit the tip.
-    await confirmPending(t, first)
+    const tipId = await t
+      .withIdentity({ subject: ids.tipperId })
+      .mutation(api.highlightTips.create, {
+        ...legacyCreateArgs(ids.articleId, '5'.repeat(64)),
+        amountCents: 1,
+        stellarAmountXlm: '0.042',
+      })
 
     await t.run(async (ctx) => {
-      const rows = await ctx.db.query('highlightTips').collect()
-      expect(rows).toHaveLength(1)
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount).toBe(1)
-      expect(article?.totalTipsUsd).toBe(1)
-
-      const tipper = await ctx.db.get(tipperId)
-      expect(tipper?.tipsSentCount).toBe(1)
+      expect(await ctx.db.get(tipId)).toMatchObject({
+        amountCents: 1,
+        amountUsd: 0.01,
+        expectedAmountStroops: '420000',
+        quoteSource: 'Fallback',
+      })
     })
   })
 
-  it('rejects when the same stellarTxId is reused for a different highlight', async () => {
+  it.each([
+    { name: 'unauthenticated caller', authenticated: false, patch: {} },
+    {
+      name: 'invalid transaction hash',
+      authenticated: true,
+      patch: { stellarTxId: 'not-a-hash' },
+    },
+    {
+      name: 'invalid source account',
+      authenticated: true,
+      patch: { stellarSourceAccount: 'not-an-account' },
+    },
+    {
+      name: 'amount below the contract minimum',
+      authenticated: true,
+      patch: { stellarAmountXlm: '0.0000001' },
+    },
+    {
+      name: 'invalid requested cents',
+      authenticated: true,
+      patch: { amountCents: 0 },
+    },
+    {
+      name: 'spoofed passage',
+      authenticated: true,
+      patch: { highlightText: 'not the stored passage' },
+    },
+    {
+      name: 'spoofed memo',
+      authenticated: true,
+      patch: { stellarMemo: 'spoofed-highlight' },
+    },
+    {
+      name: 'wrong destination account',
+      authenticated: true,
+      patch: { stellarDestinationAccount: OTHER_STELLAR },
+    },
+    {
+      name: 'wrong Stellar network',
+      authenticated: true,
+      patch: { stellarNetwork: 'MAINNET' },
+    },
+  ])('rejects a $name without creating payment state', async (testCase) => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
+    const ids = await seed(t)
+    const caller = testCase.authenticated
+      ? t.withIdentity({ subject: ids.tipperId })
+      : t
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-cross-highlight')
-    )
-
-    // Same txId, different highlightId — should be rejected.
     await expect(
-      asTipper.mutation(api.highlightTips.create, {
-        ...tipArgs(articleId, 'stellar-tx-cross-highlight'),
-        highlightId: 'hash-other',
+      caller.mutation(api.highlightTips.create, {
+        ...legacyCreateArgs(ids.articleId, '6'.repeat(64)),
+        ...testCase.patch,
       })
-    ).rejects.toThrow(/already linked to a different tip/i)
+    ).rejects.toThrow()
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('highlightTipIntents').collect()).toEqual([])
+      expect(await ctx.db.query('highlightTips').collect()).toEqual([])
+    })
+    await expectNoCredit(t, ids)
   })
 
-  it('rejects when the same stellarTxId is reused by a different tipper', async () => {
+  it('returns the same compatibility row for a same-owner transaction retry', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
+    const ids = await seed(t)
+    const asTipper = t.withIdentity({ subject: ids.tipperId })
+    const args = legacyCreateArgs(ids.articleId, '7'.repeat(64))
 
-    const otherTipperId = await t.run(async (ctx) => {
+    const first = await asTipper.mutation(api.highlightTips.create, args)
+    const second = await asTipper.mutation(api.highlightTips.create, args)
+
+    expect(second).toBe(first)
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('highlightTipIntents').collect()).toHaveLength(
+        1
+      )
+      expect(await ctx.db.query('highlightTips').collect()).toHaveLength(1)
+    })
+    await expectNoCredit(t, ids)
+  })
+
+  it('rejects cross-owner transaction reuse without creating a second row', async () => {
+    const t = convexTest(schema, modules)
+    const ids = await seed(t)
+    const asTipper = t.withIdentity({ subject: ids.tipperId })
+    const args = legacyCreateArgs(ids.articleId, '8'.repeat(64))
+    await asTipper.mutation(api.highlightTips.create, args)
+    const otherId = await t.run(async (ctx) => {
       const now = Date.now()
       return await ctx.db.insert('users', {
-        email: 'tipper2@x.test',
-        username: 'tipper2',
-        stellarAddress: TIPPER_STELLAR,
-        tipsSentCount: 0,
+        email: 'other@x.test',
+        username: 'other',
         createdAt: now,
         updatedAt: now,
       })
     })
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-cross-user')
-    )
-
-    const asOther = t.withIdentity({ subject: otherTipperId })
     await expect(
-      asOther.mutation(
-        api.highlightTips.create,
-        tipArgs(articleId, 'stellar-tx-cross-user')
+      t
+        .withIdentity({ subject: otherId })
+        .mutation(api.highlightTips.create, args)
+    ).rejects.toThrow(
+      'This Stellar transaction is already linked to a different tip.'
+    )
+    await t.run(async (ctx) => {
+      expect(await ctx.db.query('highlightTipIntents').collect()).toHaveLength(
+        1
       )
-    ).rejects.toThrow(/already linked to a different tip/i)
+      expect(await ctx.db.query('highlightTips').collect()).toHaveLength(1)
+    })
+    await expectNoCredit(t, ids)
   })
 
-  it('does not dedup when stellarTxId is empty', async () => {
+  it('enforces the payment cooldown before creating a second compatibility row', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const first = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, '')
-    )
-    // Backdate so the cooldown does not block the second empty-tx insert.
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(first)
-      if (tip) {
-        await ctx.db.patch(first, { createdAt: tip.createdAt - 60_000 })
-      }
-    })
-    const second = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, '')
-    )
-
-    expect(second).not.toBe(first)
-
-    await confirmPending(t, first)
-    await confirmPending(t, second)
-
-    await t.run(async (ctx) => {
-      const rows = await ctx.db.query('highlightTips').collect()
-      expect(rows).toHaveLength(2)
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount).toBe(2)
-    })
-  })
-
-  it('does not dedup distinct non-empty stellarTxIds', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const first = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-    // Backdate the first tip so the cooldown does not block the second insert.
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(first)
-      if (tip) {
-        await ctx.db.patch(first, { createdAt: tip.createdAt - 60_000 })
-      }
-    })
-    const second = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-2')
-    )
-
-    expect(second).not.toBe(first)
-
-    await confirmPending(t, first)
-    await confirmPending(t, second)
-
-    await t.run(async (ctx) => {
-      const rows = await ctx.db.query('highlightTips').collect()
-      expect(rows).toHaveLength(2)
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount).toBe(2)
-    })
-  })
-
-  it('rejects a second distinct-tx tip within the cooldown window', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
+    const ids = await seed(t)
+    const asTipper = t.withIdentity({ subject: ids.tipperId })
     await asTipper.mutation(
       api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
+      legacyCreateArgs(ids.articleId, '9'.repeat(64))
     )
 
     await expect(
       asTipper.mutation(
         api.highlightTips.create,
-        tipArgs(articleId, 'stellar-tx-2')
+        legacyCreateArgs(ids.articleId, 'a'.repeat(64))
       )
-    ).rejects.toThrow(/wait .* before tipping again/i)
-  })
-
-  it('allows a second tip once the cooldown has elapsed', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const first = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-    // Backdate the first tip so its createdAt is older than TIP_COOLDOWN_MS.
+    ).rejects.toThrow(/Please wait \d+s before tipping again/)
     await t.run(async (ctx) => {
-      const tip = await ctx.db.get(first)
-      if (tip) {
-        await ctx.db.patch(first, { createdAt: tip.createdAt - 60_000 })
-      }
+      expect(await ctx.db.query('highlightTipIntents').collect()).toHaveLength(
+        1
+      )
+      expect(await ctx.db.query('highlightTips').collect()).toHaveLength(1)
     })
-
-    const second = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-2')
-    )
-    expect(second).not.toBe(first)
+    await expectNoCredit(t, ids)
   })
 
-  it('still dedups a retried stellarTxId even within the cooldown', async () => {
+  it('quarantines a legacy PENDING verifier call without Horizon or credit', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const first = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-    const retried = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-    expect(retried).toBe(first)
-  })
-
-  it('hides PENDING tips from the public heatmap queries', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    const byArticle = await t.query(api.highlightTips.getByArticle, {
-      articleId,
+    const ids = await seed(t)
+    const tipId = await insertLegacyHighlightTip(t, ids, {
+      status: 'PENDING',
+      stellarTxId: '2'.repeat(64),
     })
-    expect(byArticle).toHaveLength(0)
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
 
-    const stats = await t.query(api.highlightTips.getArticleStats, {
-      articleId,
+    await t.action(internal.stellarVerify.verifyHighlightTip, {
+      highlightTipId: tipId,
+      attempt: 1,
     })
-    expect(stats.totalTips).toBe(0)
-    expect(stats.totalAmountCents).toBe(0)
-  })
 
-  it('filters heatmap stats by sinceMs', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const oldTipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-old')
-    )
-    // Backdate so it falls outside the time window.
+    expect(fetchMock).not.toHaveBeenCalled()
     await t.run(async (ctx) => {
-      const tip = await ctx.db.get(oldTipId)
-      if (tip) {
-        await ctx.db.patch(oldTipId, { createdAt: tip.createdAt - 40 * 864e5 })
-      }
+      expect(await ctx.db.get(tipId)).toMatchObject({
+        status: 'FAILED',
+        failureReason: 'legacy_pending_highlight_tip_quarantined',
+      })
     })
-    await confirmPending(t, oldTipId)
-
-    // Avoid cooldown: make the first tip older so the second insert is allowed.
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(oldTipId)
-      if (tip) {
-        await ctx.db.patch(oldTipId, { createdAt: tip.createdAt - 60_000 })
-      }
-    })
-
-    const newTipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-new')
-    )
-    await confirmPending(t, newTipId)
-
-    const sinceMs = Date.now() - 30 * 864e5
-    const stats = await t.query(api.highlightTips.getArticleStats, {
-      articleId,
-      sinceMs,
-    })
-    expect(stats.totalTips).toBe(1)
-    expect(stats.totalAmountCents).toBe(100)
-  })
-})
-
-describe('markHighlightTipConfirmed', () => {
-  it('flips PENDING to CONFIRMED and applies counter updates', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, authorId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    await confirmPending(t, tipId)
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('CONFIRMED')
-      expect(tip?.stellarLedger).toBe(1)
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount).toBe(1)
-      expect(article?.totalTipsUsd).toBe(1)
-
-      const tipper = await ctx.db.get(tipperId)
-      expect(tipper?.tipsSentCount).toBe(1)
-
-      const author = await ctx.db.get(authorId)
-      expect(author?.tipsReceivedCount).toBe(1)
-    })
+    await expectNoCredit(t, ids)
   })
 
-  it('is a no-op when called twice on the same tip', async () => {
+  it('quarantines the historical confirmer entrypoint without credit', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    await confirmPending(t, tipId)
-    await confirmPending(t, tipId)
-
-    await t.run(async (ctx) => {
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount).toBe(1)
-      expect(article?.totalTipsUsd).toBe(1)
+    const ids = await seed(t)
+    const tipId = await insertLegacyHighlightTip(t, ids, {
+      status: 'PENDING',
+      stellarTxId: '3'.repeat(64),
     })
-  })
-})
 
-describe('markHighlightTipFailed', () => {
-  it('flips PENDING to FAILED and leaves counters untouched', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, authorId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    await t.mutation(internal.stellarVerify.markHighlightTipFailed, {
+    await t.mutation(internal.stellarVerify.markHighlightTipConfirmed, {
       id: tipId,
-      reason: 'source_mismatch',
+      stellarLedger: 123,
     })
 
     await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('FAILED')
-      expect(tip?.failureReason).toBe('source_mismatch')
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount ?? 0).toBe(0)
-
-      const author = await ctx.db.get(authorId)
-      expect(author?.tipsReceivedCount ?? 0).toBe(0)
+      expect(await ctx.db.get(tipId)).toMatchObject({
+        status: 'FAILED',
+        failureReason: 'legacy_pending_highlight_tip_quarantined',
+      })
     })
+    await expectNoCredit(t, ids)
   })
 
-  it('cannot downgrade a CONFIRMED tip back to FAILED', async () => {
+  it('keeps already CONFIRMED legacy history readable and aggregate-only', async () => {
     const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
+    const ids = await seed(t)
+    const tipId = await insertLegacyHighlightTip(t, ids, {
+      status: 'CONFIRMED',
+      stellarTxId: '4'.repeat(64),
+    })
 
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-    await confirmPending(t, tipId)
-
+    await t.mutation(internal.stellarVerify.markHighlightTipConfirmed, {
+      id: tipId,
+      stellarLedger: 999,
+    })
     await t.mutation(internal.stellarVerify.markHighlightTipFailed, {
       id: tipId,
       reason: 'late_failure',
     })
 
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('CONFIRMED')
+    const byHighlight = await t.query(api.highlightTips.getByHighlight, {
+      highlightId: 'hash-abc',
     })
-  })
-})
+    const byArticle = await t.query(api.highlightTips.getByArticle, {
+      articleId: ids.articleId,
+    })
+    const tipperHistory = await t
+      .withIdentity({ subject: ids.tipperId })
+      .query(api.highlightTips.getByTipper, {})
+    const authorHistory = await t
+      .withIdentity({ subject: ids.authorId })
+      .query(api.highlightTips.getByAuthor, {})
 
-describe('verifyHighlightTip action', () => {
-  it('flips to CONFIRMED when Horizon returns a matching success', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    stubHorizonResponse({
-      successful: true,
-      source_account: TIPPER_STELLAR,
-      ledger: 999,
-      envelope_xdr: buildHighlightTipEnvelope({
-        tipper: TIPPER_STELLAR,
-        author: AUTHOR_STELLAR,
-        contractId: TIPPING_CONTRACT_ID,
-        amountStroops: TIP_STROOPS,
+    expect(byHighlight).toEqual({
+      tipCount: 1,
+      totalAmountCents: 100,
+      totalAmountUsd: 1,
+    })
+    expect(byArticle).toEqual([
+      expect.objectContaining({
+        highlightId: 'hash-abc',
+        totalAmountCents: 100,
+        tipCount: 1,
       }),
-    })
+    ])
+    expect(tipperHistory).toEqual([
+      expect.objectContaining({ _id: tipId, status: 'CONFIRMED' }),
+    ])
+    expect(authorHistory).toEqual([
+      expect.objectContaining({ _id: tipId, status: 'CONFIRMED' }),
+    ])
 
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 1,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('CONFIRMED')
-      expect(tip?.stellarLedger).toBe(999)
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount).toBe(1)
-    })
-  })
-
-  it('flips to CONFIRMED when Horizon returns a matching batch_tip_highlights', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-batch-tx-1')
-    )
-
-    stubHorizonResponse({
-      successful: true,
-      source_account: TIPPER_STELLAR,
-      ledger: 999,
-      envelope_xdr: buildHighlightBatchTipEnvelope({
-        tipper: TIPPER_STELLAR,
-        author: AUTHOR_STELLAR,
-        contractId: TIPPING_CONTRACT_ID,
-        amountStroops: TIP_STROOPS,
-      }),
-    })
-
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 1,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('CONFIRMED')
-      expect(tip?.stellarLedger).toBe(999)
-    })
-  })
-
-  it('flips to FAILED on a source-account mismatch', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    stubHorizonResponse({
-      successful: true,
-      source_account: ATTACKER_STELLAR,
-      ledger: 999,
-    })
-
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 1,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('FAILED')
-      expect(tip?.failureReason).toBe('source_mismatch')
-
-      const article = await ctx.db.get(articleId)
-      expect(article?.tipCount ?? 0).toBe(0)
-    })
-  })
-
-  it('flips to FAILED when the contract called is not the tipping contract', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    stubHorizonResponse({
-      successful: true,
-      source_account: TIPPER_STELLAR,
-      ledger: 999,
-      envelope_xdr: buildHighlightTipEnvelope({
-        tipper: TIPPER_STELLAR,
-        author: AUTHOR_STELLAR,
-        contractId: WRONG_CONTRACT_ID,
-        amountStroops: BigInt(1_000_000),
-      }),
-    })
-
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 1,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('FAILED')
-      expect(tip?.failureReason).toBe('contract_mismatch')
-    })
-  })
-
-  it('flips to FAILED when the function name is not an allowed tip function', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    stubHorizonResponse({
-      successful: true,
-      source_account: TIPPER_STELLAR,
-      ledger: 999,
-      envelope_xdr: buildHighlightTipEnvelope({
-        tipper: TIPPER_STELLAR,
-        author: AUTHOR_STELLAR,
-        contractId: TIPPING_CONTRACT_ID,
-        amountStroops: BigInt(1_000_000),
-        fnName: 'tip_article', // article function submitted for a highlight tip
-      }),
-    })
-
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 1,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('FAILED')
-      expect(tip?.failureReason).toBe('function_mismatch')
-    })
-  })
-
-  it('flips to FAILED when the on-chain author does not match the real author', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    // Attacker pays themselves on-chain and submits that tx hash for a tip to
-    // someone else. The envelope's author arg is the attacker, not the real
-    // author — this is the core attack C1 exists to block.
-    stubHorizonResponse({
-      successful: true,
-      source_account: TIPPER_STELLAR,
-      ledger: 999,
-      envelope_xdr: buildHighlightTipEnvelope({
-        tipper: TIPPER_STELLAR,
-        author: ATTACKER_STELLAR,
-        contractId: TIPPING_CONTRACT_ID,
-        amountStroops: BigInt(1_000_000),
-      }),
-    })
-
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 1,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('FAILED')
-      expect(tip?.failureReason).toBe('author_mismatch')
-    })
-  })
-
-  it('flips to FAILED when the on-chain amount is less than the declared amount', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    // Declared 0.1 XLM (1,000,000 stroops) but on-chain is 100,000 stroops
-    // (0.01 XLM, the contract minimum). This is the underpay attack.
-    stubHorizonResponse({
-      successful: true,
-      source_account: TIPPER_STELLAR,
-      ledger: 999,
-      envelope_xdr: buildHighlightTipEnvelope({
-        tipper: TIPPER_STELLAR,
-        author: AUTHOR_STELLAR,
-        contractId: TIPPING_CONTRACT_ID,
-        amountStroops: BigInt(100_000),
-      }),
-    })
-
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 1,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('FAILED')
-      expect(tip?.failureReason).toBe('amount_mismatch')
-    })
-  })
-
-  it('accepts an on-chain amount that exceeds the declared amount', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    // User paid slightly more than declared (e.g. price drifted up mid-build).
-    // This should still confirm — the author is not harmed by overpayment.
-    stubHorizonResponse({
-      successful: true,
-      source_account: TIPPER_STELLAR,
-      ledger: 999,
-      envelope_xdr: buildHighlightTipEnvelope({
-        tipper: TIPPER_STELLAR,
-        author: AUTHOR_STELLAR,
-        contractId: TIPPING_CONTRACT_ID,
-        amountStroops: TIP_STROOPS * BigInt(2), // 2x the declared
-      }),
-    })
-
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 1,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('CONFIRMED')
-    })
-  })
-
-  it('flags cents-vs-XLM inconsistency as suspicious but still confirms (warn-only)', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    // Attacker: claim amountCents=10000 ($100) but set stellarAmountXlm="0.01"
-    // (paid only 100k stroops on-chain). Both fields internally consistent
-    // with each other against the on-chain tx, but inconsistent with the
-    // claimed USD given the real XLM price. The USD cross-check catches it
-    // but — at this stage — only flags it, never fails.
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(api.highlightTips.create, {
-      ...tipArgs(articleId, 'stellar-tx-1'),
-      amountCents: 10_000, // claims $100
-      stellarAmountXlm: '0.01', // but only says 0.01 XLM paid
-    })
-
-    stubHorizonResponse({
-      successful: true,
-      source_account: TIPPER_STELLAR,
-      ledger: 999,
-      envelope_xdr: buildHighlightTipEnvelope({
-        tipper: TIPPER_STELLAR,
-        author: AUTHOR_STELLAR,
-        contractId: TIPPING_CONTRACT_ID,
-        amountStroops: BigInt(100_000), // 0.01 XLM, matches declared XLM
-      }),
-    })
-
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 1,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('CONFIRMED')
-      expect(tip?.amountUsdSuspicious).toBe(true)
-      expect(tip?.amountUsdSuspicionReason).toMatch(/^amount_usd_mismatch:/)
-    })
-  })
-
-  it('confirms without suspicion when price has drifted within the 25% tolerance', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    // Declared $1 (amountCents=100) paid as 1 XLM. If the verify-time XLM
-    // price has dropped from $1 to $0.80, on-chain computes to $0.80, which
-    // is 20% below the claimed $1 — still inside the 25% tolerance, so it
-    // should confirm cleanly without a suspicion flag.
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    stubHorizonResponse(
-      {
-        successful: true,
-        source_account: TIPPER_STELLAR,
-        ledger: 999,
-        envelope_xdr: buildHighlightTipEnvelope({
-          tipper: TIPPER_STELLAR,
-          author: AUTHOR_STELLAR,
-          contractId: TIPPING_CONTRACT_ID,
-          amountStroops: TIP_STROOPS,
-        }),
-      },
-      { xlmPriceUsd: 0.8 } // $0.80 onChainUsd vs claimed $1 → 20% below
-    )
-
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 1,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('CONFIRMED')
-      expect(tip?.amountUsdSuspicious).toBeUndefined()
-      expect(tip?.amountUsdSuspicionReason).toBeUndefined()
-    })
-  })
-
-  it('confirms with oracle-down suspicion flag when all XLM oracles are unavailable', async () => {
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    stubHorizonResponse(
-      {
-        successful: true,
-        source_account: TIPPER_STELLAR,
-        ledger: 999,
-        envelope_xdr: buildHighlightTipEnvelope({
-          tipper: TIPPER_STELLAR,
-          author: AUTHOR_STELLAR,
-          contractId: TIPPING_CONTRACT_ID,
-          amountStroops: TIP_STROOPS,
-        }),
-      },
-      { xlmPriceUsd: 'all_oracles_down' }
-    )
-
-    // Oracle failure never blocks the tip. Confirm + flag for audit.
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: 1,
-    })
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('CONFIRMED')
-      expect(tip?.amountUsdSuspicious).toBe(true)
-      expect(tip?.amountUsdSuspicionReason).toBe(
-        'price_oracle_unavailable:all_oracles_failed'
-      )
-    })
-  })
-
-  it('flips to FAILED with verification_unreachable:* when retries are exhausted on a transient outage', async () => {
-    // Horizon returns 5xx on every attempt. The first two calls reschedule
-    // (attempt < HORIZON_VERIFY_MAX_ATTEMPTS); the third gives up and marks
-    // the tip FAILED with the verification_unreachable: prefix that
-    // monitoring/dashboards can filter on. Pins the prefix format so a
-    // future refactor of the reason string surfaces here, not silently
-    // breaks the alerting path.
-    const t = convexTest(schema, modules)
-    const { tipperId, articleId } = await seed(t)
-
-    const asTipper = t.withIdentity({ subject: tipperId })
-    const tipId = await asTipper.mutation(
-      api.highlightTips.create,
-      tipArgs(articleId, 'stellar-tx-1')
-    )
-
-    // Drain the auto-scheduled verify chain that .create kicked off — we
-    // want a clean slate before driving the chain ourselves with attempt=3.
-    vi.stubGlobal('fetch', async () => ({
-      status: 500,
-      ok: false,
-      json: async () => ({}),
-    }))
-    await new Promise((r) => setTimeout(r, 50))
-    await t.finishAllScheduledFunctions(() => {})
-
-    // Reset the tip to PENDING so we can drive the final attempt explicitly.
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      if (tip?.status !== 'PENDING') {
-        await ctx.db.patch(tipId, {
-          status: 'PENDING',
-          failureReason: undefined,
-        })
-      }
-    })
-
-    const { HORIZON_VERIFY_MAX_ATTEMPTS } = await import('./lib/constants')
-    await t.action(internal.stellarVerify.verifyHighlightTip, {
-      highlightTipId: tipId,
-      attempt: HORIZON_VERIFY_MAX_ATTEMPTS, // last attempt; no reschedule after this
-    })
-    await t.finishAllScheduledFunctions(() => {})
-
-    await t.run(async (ctx) => {
-      const tip = await ctx.db.get(tipId)
-      expect(tip?.status).toBe('FAILED')
-      expect(tip?.failureReason).toMatch(/^verification_unreachable:/)
-      // 500 from Horizon → server_error transient reason on the verifier.
-      expect(tip?.failureReason).toBe('verification_unreachable:server_error')
-    })
+    const publicProjection = JSON.stringify({ byHighlight, byArticle })
+    expect(publicProjection).not.toContain(TIPPER_STELLAR)
+    expect(publicProjection).not.toContain(AUTHOR_STELLAR)
+    expect(publicProjection).not.toContain('4'.repeat(64))
   })
 })

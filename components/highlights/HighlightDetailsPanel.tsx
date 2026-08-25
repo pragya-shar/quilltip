@@ -31,8 +31,8 @@ import {
 import { HighlightTipButton } from './HighlightTipButton'
 import { formatTipAmount } from '@/lib/stellar/highlight-utils'
 import { UserAvatar } from '@/components/ui/user-avatar'
+import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
 import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
 
 interface HighlightDetailsPanelProps {
@@ -111,15 +111,10 @@ export function HighlightDetailsPanel({
   const tipStats = useMemo(() => {
     if (!highlightTips) return { count: 0, totalCents: 0, totalUsd: 0 }
 
-    const totalCents = highlightTips.reduce(
-      (sum, tip) => sum + tip.amountCents,
-      0
-    )
-
     return {
-      count: highlightTips.length,
-      totalCents,
-      totalUsd: totalCents / 100,
+      count: highlightTips.tipCount,
+      totalCents: highlightTips.totalAmountCents,
+      totalUsd: highlightTips.totalAmountUsd,
     }
   }, [highlightTips])
 
@@ -278,12 +273,14 @@ export function HighlightDetailsPanel({
                   autoFocus
                 />
                 <div className="flex gap-2">
-                  <button
+                  <Button
+                    type="button"
+                    size="sm"
                     onClick={handleSaveNote}
-                    className="flex-1 px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 transition-colors"
+                    className="flex-1"
                   >
                     Save
-                  </button>
+                  </Button>
                   <button
                     onClick={() => {
                       setEditedNote(highlight.note || '')
@@ -309,9 +306,9 @@ export function HighlightDetailsPanel({
 
         {/* Tip Statistics */}
         {tipStats.count > 0 && (
-          <div className="px-4 py-3 border-b border-border bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/30 dark:to-orange-950/30">
+          <div className="px-4 py-3 border-b border-border bg-collectible/10">
             <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-4 h-4 text-orange-500" />
+              <TrendingUp className="w-4 h-4 text-collectible-foreground" />
               <span className="text-xs font-medium text-foreground">
                 Tip Statistics
               </span>
@@ -327,7 +324,7 @@ export function HighlightDetailsPanel({
                 <div className="text-xs text-muted-foreground">
                   Total Earned
                 </div>
-                <div className="text-lg font-bold text-orange-600">
+                <div className="text-lg font-bold text-foreground">
                   {formatTipAmount(tipStats.totalCents)}
                 </div>
               </div>
@@ -342,22 +339,21 @@ export function HighlightDetailsPanel({
             <div className="space-y-2">
               {!isEditing && (
                 <>
-                  <button
+                  <Button
+                    type="button"
+                    variant="secondary"
                     onClick={() => setIsEditing(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-950/50 transition-colors text-sm font-medium"
+                    className="w-full gap-2"
                   >
                     <Edit className="w-4 h-4" />
                     <span>Edit Note</span>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
                     onClick={() => setDeleteConfirmOpen(true)}
                     disabled={isDeleting}
-                    className={cn(
-                      'w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium',
-                      isDeleting
-                        ? 'bg-muted text-muted-foreground cursor-not-allowed'
-                        : 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50'
-                    )}
+                    className="w-full gap-2"
                   >
                     {isDeleting ? (
                       <>
@@ -370,7 +366,7 @@ export function HighlightDetailsPanel({
                         <span>Delete Highlight</span>
                       </>
                     )}
-                  </button>
+                  </Button>
                 </>
               )}
             </div>
@@ -402,7 +398,7 @@ export function HighlightDetailsPanel({
                 />
                 {tipStats.count === 0 && (
                   <p className="text-xs text-center text-muted-foreground mt-2">
-                    Be the first to tip this highlight!
+                    No support for this highlight yet
                   </p>
                 )}
               </div>

@@ -3,24 +3,23 @@
 import { Shield } from 'lucide-react'
 import { Reveal } from '@/components/landing/Reveal'
 import { LandingHashLink } from '@/components/landing/LandingHashLink'
-import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
-
-const trustBullets = [
-  'Tips move wallet-to-wallet on Stellar testnet through audited Soroban contracts',
-  'Wallet apps like Freighter sign transactions locally on your device',
-  'Writers keep 97.5% of every tip — fees enforced on-chain',
-  'Published articles are stored on Arweave for long-term availability',
-] as const
+import {
+  TRUST_BULLETS,
+  TRUST_SECTION_HEADING,
+  TRUST_SECTION_SUBHEAD,
+  TRUST_SECURITY_HEADING,
+  TRUST_SECURITY_INTRO,
+} from '@/lib/copy/landing-sections'
 
 export default function TrustSection() {
   return (
     <section className="scroll-mt-20 py-20 md:py-28 px-6 bg-background border-t border-border/60">
       <div className="container mx-auto max-w-6xl">
         <h2 className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-4 leading-[1.15] text-foreground">
-          Trust and permanence
+          {TRUST_SECTION_HEADING}
         </h2>
         <p className="text-[15px] text-muted-foreground leading-relaxed mb-12 max-w-2xl">
-          How Quilltip protects writers and readers on testnet.
+          {TRUST_SECTION_SUBHEAD}
         </p>
 
         <div className="flex items-center justify-center gap-8 sm:gap-12 mb-12">
@@ -65,15 +64,14 @@ export default function TrustSection() {
                 href="#security"
                 className="focus-ring rounded-sm hover:underline underline-offset-2"
               >
-                Security on testnet
+                {TRUST_SECURITY_HEADING}
               </LandingHashLink>
             </h3>
             <p className="text-[14px] text-muted-foreground leading-relaxed mb-5">
-              Quilltip never holds your funds. You approve every transaction in
-              your own wallet app before it is sent.
+              {TRUST_SECURITY_INTRO}
             </p>
-            <ul className="space-y-2 mb-5">
-              {trustBullets.map((bullet) => (
+            <ul className="space-y-2">
+              {TRUST_BULLETS.map((bullet) => (
                 <li
                   key={bullet}
                   className="text-[13px] text-muted-foreground leading-relaxed flex gap-2"
@@ -85,9 +83,6 @@ export default function TrustSection() {
                 </li>
               ))}
             </ul>
-            <p className="text-[13px] text-muted-foreground leading-relaxed">
-              {TESTNET_PRACTICE_NOTE}
-            </p>
           </article>
         </Reveal>
       </div>

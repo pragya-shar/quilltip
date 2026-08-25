@@ -8,6 +8,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
+import { WRITER_FEE_PHRASE } from '@/lib/copy/launch-guide'
+
 const concepts: Record<string, string> = {
   stellar:
     'Stellar is a fast, low-cost blockchain network. Quilltip uses Stellar testnet to process practice tips in 3-5 seconds with fees under $0.01.',
@@ -16,8 +18,7 @@ const concepts: Record<string, string> = {
     'Testnet is a practice environment with free tokens. No real money is involved — perfect for trying things out.',
   wallet:
     'A crypto wallet is a browser extension (like Freighter) that lets you hold and send digital currency securely.',
-  'tip-fee':
-    'Quilltip takes only 2.5% — the writer receives 97.5% of every testnet tip, typically within seconds.',
+  'tip-fee': `${WRITER_FEE_PHRASE} — typically within seconds.`,
   highlight:
     'Highlight a passage you love, then tip it directly. The author sees exactly which words earned the tip.',
 }

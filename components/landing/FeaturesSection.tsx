@@ -4,7 +4,10 @@ import { motion } from 'motion/react'
 import { Reveal } from '@/components/landing/Reveal'
 import { LandingHashLink } from '@/components/landing/LandingHashLink'
 import { LANDING_FEATURES, type LandingFeature } from '@/lib/landing/features'
-import { TESTNET_PRACTICE_NOTE } from '@/lib/copy/network-status'
+import {
+  FEATURES_SECTION_BADGE,
+  FEATURES_SECTION_SUBHEAD,
+} from '@/lib/copy/landing-sections'
 
 function FeatureTitleLink({ feature }: { feature: LandingFeature }) {
   return (
@@ -45,16 +48,13 @@ export default function FeaturesSection() {
         <Reveal className="text-center mb-12">
           <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-muted/60 border border-border/60 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-4">
             <span className="w-1.5 h-1.5 bg-success rounded-full" />
-            Live on Stellar Testnet
+            {FEATURES_SECTION_BADGE}
           </span>
           <h2 className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-3 leading-[1.15]">
             <span className="text-foreground">Why Quilltip</span>
           </h2>
           <p className="text-[15px] text-muted-foreground leading-relaxed">
-            Read for free, tip what resonates, publish and earn.
-          </p>
-          <p className="text-[13px] text-muted-foreground leading-relaxed mt-2 max-w-lg mx-auto">
-            {TESTNET_PRACTICE_NOTE}
+            {FEATURES_SECTION_SUBHEAD}
           </p>
         </Reveal>
 

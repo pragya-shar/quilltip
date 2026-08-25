@@ -30,9 +30,9 @@ describe('getRegisterCopy', () => {
     expect(copy.submitLabel).toBe('Create account and start writing')
   })
 
-  it('uses concrete default messaging', () => {
+  it('uses concrete default messaging aligned with landing promise', () => {
     const copy = getRegisterCopy('/')
-    expect(copy.subtitle).toMatch(/write, publish/i)
+    expect(copy.subtitle).toMatch(/moves you/)
     expect(copy.submitLabel).toBe('Create account')
   })
 })
@@ -47,6 +47,12 @@ describe('getLoginCopy', () => {
   it('uses read-intent messaging for articles', () => {
     const copy = getLoginCopy('/articles')
     expect(copy.submitLabel).toBe('Sign in and start reading')
+  })
+
+  it('uses contextual default messaging for returning users', () => {
+    const copy = getLoginCopy('/')
+    expect(copy.subtitle).toBe('Welcome back. Sign in to continue.')
+    expect(copy.submitLabel).toBe('Sign in')
   })
 })
 

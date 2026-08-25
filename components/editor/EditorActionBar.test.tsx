@@ -4,8 +4,10 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, afterEach } from 'vitest'
 import type { Editor } from '@tiptap/react'
 
+const mobileState = vi.hoisted(() => ({ isMobile: false }))
+
 vi.mock('@/hooks/use-mobile', () => ({
-  useIsMobile: () => false,
+  useIsMobile: () => mobileState.isMobile,
 }))
 
 import { EditorActionBar } from '@/components/editor/EditorActionBar'
@@ -40,6 +42,10 @@ const baseProps = {
   isPublishing: false,
   canPublish: true,
 }
+
+afterEach(() => {
+  mobileState.isMobile = false
+})
 
 function getActiveMoreOptionsButton(): HTMLButtonElement {
   const button = screen
@@ -251,6 +257,47 @@ describe('EditorActionBar excerpt menu', () => {
     )
 
     expect(screen.getByText('Edit excerpt')).toBeInTheDocument()
+  })
+})
+
+describe('EditorActionBar notes menu', () => {
+  it('shows personal notes inside the more menu instead of the top bar', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <EditorActionBar
+        {...baseProps}
+        notes=""
+        onNotesChange={vi.fn()}
+        moreMenuOpen
+        onMoreMenuOpenChange={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByRole('button', { name: 'Notes' })
+    ).not.toBeInTheDocument()
+
+    await user.click(screen.getByText('Personal notes'))
+
+    expect(screen.getByLabelText('Personal notes')).toBeInTheDocument()
+  })
+
+  it('keeps the mobile notes drawer mounted after the more menu closes', async () => {
+    mobileState.isMobile = true
+    const user = userEvent.setup()
+
+    render(<EditorActionBar {...baseProps} notes="" onNotesChange={vi.fn()} />)
+
+    const moreButton = getActiveMoreOptionsButton()
+    await user.click(moreButton)
+    await user.click(screen.getByText('Personal notes'))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent(
+      'Personal Notes'
+    )
+    expect(screen.getByLabelText('Personal notes')).toBeInTheDocument()
+    expect(moreButton).toHaveAttribute('aria-expanded', 'false')
   })
 })
 

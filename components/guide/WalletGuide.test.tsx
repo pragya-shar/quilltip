@@ -22,7 +22,9 @@ vi.mock('@/components/stellar/WalletConnectButton', () => {
 describe('WalletGuide tabs', () => {
   it('labels the tab list for screen readers', () => {
     render(<WalletGuide />)
-    expect(screen.getByLabelText('Wallet setup steps')).toBeInTheDocument()
+    expect(
+      screen.getByRole('tablist', { name: 'Wallet setup steps' })
+    ).toBeInTheDocument()
   })
 
   it('renders all tab labels in full', () => {
@@ -39,16 +41,12 @@ describe('WalletGuide tabs', () => {
     ).toBeInTheDocument()
   })
 
-  it('uses a 2×2 grid on mobile and a single row on larger screens', () => {
+  it('uses underline tab navigation', () => {
     render(<WalletGuide />)
-    const list = screen.getByLabelText('Wallet setup steps')
-    expect(list.className).toContain('grid-cols-2')
-    expect(list.className).toContain('sm:grid-cols-4')
-  })
-
-  it('allows tab labels to wrap', () => {
-    render(<WalletGuide />)
+    const list = screen.getByRole('tablist', { name: 'Wallet setup steps' })
+    expect(list.parentElement?.className).toContain('border-b')
     const trigger = screen.getByRole('tab', { name: 'What is a Wallet?' })
+    expect(trigger.className).toContain('border-b-2')
     expect(trigger.className).toContain('whitespace-normal')
   })
 

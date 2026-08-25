@@ -107,7 +107,9 @@ export function ArticlesBrowseContent({
   return (
     <>
       {contextMessage && (
-        <p className="mb-4 text-sm text-muted-foreground">{contextMessage}</p>
+        <p className="mb-6 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          {contextMessage}
+        </p>
       )}
 
       <ArticleGrid
@@ -117,6 +119,9 @@ export function ArticlesBrowseContent({
         emptyState={{
           hasSearch,
           hasFilters,
+          searchTerm: urlSearch?.trim() || undefined,
+          activeTag: tag,
+          activeAuthor: author,
           onClearSearch: handleClearSearch,
           onClearAll: handleClearAll,
         }}

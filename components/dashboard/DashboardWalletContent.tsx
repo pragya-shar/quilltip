@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useUserByUsername } from '@/hooks/convex'
 import { WalletSettings } from '@/components/stellar'
+import { DashboardWalletSkeleton } from '@/components/dashboard/DashboardWalletSkeleton'
 
 export function DashboardWalletContent() {
   const { user: currentUser } = useAuth()
@@ -13,16 +14,21 @@ export function DashboardWalletContent() {
   >()
 
   useEffect(() => {
-    if (user?.stellarAddress !== localWalletAddress) {
-      setLocalWalletAddress(user?.stellarAddress)
+    if (
+      localWalletAddress !== undefined &&
+      user?.stellarAddress === localWalletAddress
+    ) {
+      setLocalWalletAddress(undefined)
     }
   }, [user?.stellarAddress, localWalletAddress])
 
   if (!currentUser?.username || user === undefined) {
-    return null
+    return <DashboardWalletSkeleton />
   }
 
   const profileDisplayName = user?.name || currentUser.username
+  const walletAddress =
+    localWalletAddress === undefined ? user?.stellarAddress : localWalletAddress
 
   return (
     <div className="space-y-8">
@@ -37,13 +43,11 @@ export function DashboardWalletContent() {
 
       <div className="max-w-2xl">
         <WalletSettings
-          walletAddress={localWalletAddress ?? user?.stellarAddress}
+          walletAddress={walletAddress}
           profileUsername={currentUser.username}
           isOwnProfile
           profileDisplayName={profileDisplayName}
-          onAddressChange={(address) => {
-            setLocalWalletAddress(address || undefined)
-          }}
+          onAddressChange={setLocalWalletAddress}
         />
       </div>
     </div>

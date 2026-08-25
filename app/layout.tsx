@@ -4,6 +4,7 @@ import './globals.css'
 import './highlights.css'
 import Providers from '@/components/providers/Providers'
 import { Analytics } from '@vercel/analytics/react'
+import { SITE_META_DESCRIPTION } from '@/lib/copy/landing-sections'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -22,8 +23,7 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: 'Quilltip - Decentralized Publishing Platform',
-  description:
-    'Write, share, and practice micro-tipping on Stellar testnet with free test XLM',
+  description: SITE_META_DESCRIPTION,
 }
 
 export default function RootLayout({

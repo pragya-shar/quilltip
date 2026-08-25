@@ -1,13 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { Heart, Loader2, Wallet } from 'lucide-react'
+import { Heart, Loader2, RefreshCw, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TipAmountSummary } from '@/components/tipping/TipAmountSummary'
 import { WalletTooltip } from '@/components/guide/WalletTooltip'
 import {
   networkLabelLowercase,
-  tipFlowShortNote,
+  tipDialogFooterNote,
 } from '@/lib/copy/network-status'
 import type { TipFlowStep } from '@/lib/stellar/stellar-flow-emitter'
 import { tipFlowProgressLabel } from '@/lib/stellar/stellar-flow-emitter'
@@ -22,15 +22,20 @@ interface TipCheckoutStepProps {
   isConnected: boolean
   isWalletLoading: boolean
   publicKey: string | null
+  recoverySourcePublicKey?: string | null
   isLoading: boolean
   tipSuccess: string | null
   tipFailure: TipFailureMessage | null
+  failureActionLabel?: string
+  isVerificationPending?: boolean
+  verificationDelayed?: boolean
+  verificationSettled?: boolean
   tipFlowStep: TipFlowStep | null
+  canGoBack?: boolean
   onBack: () => void
   onSignIn: () => void
   onConnectWallet: () => void
   onSendTip: () => void
-  useGradientButtons?: boolean
 }
 
 export function TipCheckoutStep({
@@ -42,20 +47,22 @@ export function TipCheckoutStep({
   isConnected,
   isWalletLoading,
   publicKey,
+  recoverySourcePublicKey,
   isLoading,
   tipSuccess,
   tipFailure,
+  failureActionLabel = 'Retry',
+  isVerificationPending = false,
+  verificationDelayed = false,
+  verificationSettled = false,
   tipFlowStep,
+  canGoBack = true,
   onBack,
   onSignIn,
   onConnectWallet,
   onSendTip,
-  useGradientButtons = false,
 }: TipCheckoutStepProps) {
-  const primaryGradientClass =
-    'bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600'
-  const connectGradientClass =
-    'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
+  const hasRecoverablePayment = Boolean(recoverySourcePublicKey)
 
   const renderPrimaryButton = () => {
     if (!isAuthenticated) {
@@ -64,7 +71,7 @@ export function TipCheckoutStep({
           type="button"
           onClick={onSignIn}
           disabled={isLoading}
-          className={`flex-1 gap-2 ${useGradientButtons ? primaryGradientClass : ''}`}
+          className="flex-1 gap-2"
         >
           <Heart className="w-4 h-4" />
           Sign in to tip
@@ -72,13 +79,13 @@ export function TipCheckoutStep({
       )
     }
 
-    if (!isConnected) {
+    if (!isConnected && !hasRecoverablePayment) {
       return (
         <Button
           type="button"
           onClick={onConnectWallet}
           disabled={isLoading || isWalletLoading}
-          className={`flex-1 gap-2 ${useGradientButtons ? connectGradientClass : ''}`}
+          className="flex-1 gap-2"
         >
           {isWalletLoading ? (
             <>
@@ -95,12 +102,39 @@ export function TipCheckoutStep({
       )
     }
 
+    if (verificationSettled) {
+      return (
+        <Button type="button" disabled className="flex-1 gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          Finalizing tip
+        </Button>
+      )
+    }
+
+    if (isVerificationPending) {
+      return (
+        <Button
+          type="button"
+          onClick={onSendTip}
+          disabled={isLoading || !verificationDelayed}
+          className="flex-1 gap-2"
+        >
+          {isLoading || !verificationDelayed ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4" />
+          )}
+          {verificationDelayed ? 'Check again' : 'Confirming on-chain'}
+        </Button>
+      )
+    }
+
     return (
       <Button
         type="button"
         onClick={onSendTip}
         disabled={isLoading || !!tipSuccess}
-        className={`flex-1 gap-2 ${useGradientButtons ? primaryGradientClass : ''}`}
+        className="flex-1 gap-2"
       >
         {isLoading ? (
           <>
@@ -112,7 +146,7 @@ export function TipCheckoutStep({
         ) : (
           <>
             <Heart className="w-4 h-4" />
-            {tipFailure ? 'Retry' : 'Send Tip'}
+            {tipFailure ? failureActionLabel : 'Send Tip'}
           </>
         )}
       </Button>
@@ -129,8 +163,8 @@ export function TipCheckoutStep({
             Sign in to send your {formatTipLabel(variant)} to {authorName}.
           </p>
         </div>
-      ) : !isConnected ? (
-        <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-900 dark:text-amber-100">
+      ) : !isConnected && !hasRecoverablePayment ? (
+        <div className="p-3 bg-info/10 border border-info/50 rounded-lg text-sm text-info-foreground">
           <p>
             Connect your Stellar wallet to send your {formatTipLabel(variant)}{' '}
             to {authorName}.
@@ -139,7 +173,7 @@ export function TipCheckoutStep({
             New to crypto?{' '}
             <Link
               href="/guide"
-              className="focus-ring rounded text-amber-700 dark:text-amber-300 underline font-medium hover:text-amber-900 dark:hover:text-amber-100"
+              className="focus-ring rounded text-info-foreground underline font-medium hover:opacity-80"
             >
               Follow our setup guide
             </Link>
@@ -156,7 +190,7 @@ export function TipCheckoutStep({
           type="button"
           variant="outline"
           onClick={onBack}
-          disabled={isLoading}
+          disabled={isLoading || !canGoBack}
           className="flex-1"
         >
           Back
@@ -164,8 +198,16 @@ export function TipCheckoutStep({
         {renderPrimaryButton()}
       </div>
 
-      {isConnected && publicKey ? (
-        <div className="text-xs text-green-800 dark:text-green-300 text-center">
+      {recoverySourcePublicKey ? (
+        <div className="text-xs text-muted-foreground text-center">
+          <p className="flex items-center justify-center gap-1">
+            <Wallet className="w-3 h-3" />
+            Transaction source: {recoverySourcePublicKey.slice(0, 6)}...
+            {recoverySourcePublicKey.slice(-6)}
+          </p>
+        </div>
+      ) : isConnected && publicKey ? (
+        <div className="text-xs text-success-foreground text-center">
           <p className="flex items-center justify-center gap-1">
             <Wallet className="w-3 h-3" />
             Connected: {publicKey.slice(0, 6)}...{publicKey.slice(-6)}
@@ -179,7 +221,7 @@ export function TipCheckoutStep({
         {networkLabelLowercase() === 'testnet' ? (
           <WalletTooltip concept="testnet" />
         ) : null}{' '}
-        • {tipFlowShortNote()}
+        • {tipDialogFooterNote()}
       </p>
     </>
   )
