@@ -1,179 +1,399 @@
 'use client'
 
-import { Zap } from 'lucide-react'
-import { motion, AnimatePresence } from 'motion/react'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import Link from 'next/link'
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  Heart,
+  UserCircle,
+  X,
+} from './LandingIcons'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { visibleTimer } from './visibleTimer'
 
-const ARTICLE_TEXT = `Writers pour their hearts into stories that shape how we think — yet most see nothing in return. The quiet revolution of open knowledge deserves better. What if readers could reward the exact words that moved them?`
+export const sampleSentences = [
+  'There are words we read, and words we carry.',
+  'A sentence can feel like a hand on your shoulder, a window left open, a small permission to begin again.',
+  'Sometimes, a stranger finds the words we could not find for ourselves.',
+] as const
+export type DemoReceipt = { words: string; amount: string | null }
 
-interface HighlightPhrase {
-  text: string
-  tip: string
-}
+export function LandingTippingDemo({
+  ready = true,
+  onReceipt,
+}: {
+  ready?: boolean
+  onReceipt?: (receipt: DemoReceipt | null) => void
+}) {
+  const [selected, setSelected] = useState(0)
+  const [receipt, setReceipt] = useState<DemoReceipt | null>(null)
+  const [paused, setPaused] = useState(false)
+  const [visible, setVisible] = useState(false)
+  const [pageVisible, setPageVisible] = useState(true)
+  const [reduced, setReduced] = useState(true)
+  const [tipOpen, setTipOpen] = useState(false)
+  const [amount, setAmount] = useState('2')
+  const paper = useRef<HTMLElement>(null)
+  const sentenceRefs = useRef<(HTMLSpanElement | null)[]>([])
+  const receiptRef = useRef<HTMLElement>(null)
+  const tipDialog = useRef<HTMLDialogElement>(null)
+  const tipTrigger = useRef<HTMLElement | null>(null)
 
-const HIGHLIGHT_PHRASES: HighlightPhrase[] = [
-  { text: 'Writers pour their hearts', tip: '+$0.25' },
-  { text: 'stories that shape how we think', tip: '+$0.50' },
-  { text: 'the quiet revolution of open knowledge', tip: '+$0.75' },
-  { text: 'reward the exact words that moved them', tip: '+$1.00' },
-]
-
-type AnimationStep = 'idle' | 'selecting' | 'highlighted' | 'tipped'
-
-type Segment =
-  | { type: 'text'; content: string }
-  | { type: 'phrase'; content: string; phraseIndex: number }
-
-function buildSegments(text: string, phrases: HighlightPhrase[]): Segment[] {
-  const ranges: { start: number; end: number; index: number }[] = []
-  phrases.forEach((p, i) => {
-    const start = text.indexOf(p.text)
-    if (start === -1) return
-    ranges.push({ start, end: start + p.text.length, index: i })
-  })
-  ranges.sort((a, b) => a.start - b.start)
-
-  const segments: Segment[] = []
-  let cursor = 0
-  for (const r of ranges) {
-    if (r.start > cursor) {
-      segments.push({ type: 'text', content: text.slice(cursor, r.start) })
-    }
-    segments.push({
-      type: 'phrase',
-      content: text.slice(r.start, r.end),
-      phraseIndex: r.index,
-    })
-    cursor = r.end
-  }
-  if (cursor < text.length) {
-    segments.push({ type: 'text', content: text.slice(cursor) })
-  }
-  return segments
-}
-
-const SEGMENTS = buildSegments(ARTICLE_TEXT, HIGHLIGHT_PHRASES)
-
-export function LandingTippingDemo() {
-  const [activeIndex, setActiveIndex] = useState(0)
-  const [animationStep, setAnimationStep] = useState<AnimationStep>('idle')
-  const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([])
-
-  const clearAllTimeouts = useCallback(() => {
-    timeoutRefs.current.forEach(clearTimeout)
-    timeoutRefs.current = []
-  }, [])
-
-  const addTimeout = useCallback((fn: () => void, delay: number) => {
-    const id = setTimeout(fn, delay)
-    timeoutRefs.current.push(id)
-    return id
+  useEffect(() => {
+    const update = () => setPageVisible(!document.hidden)
+    update()
+    document.addEventListener('visibilitychange', update)
+    return () => document.removeEventListener('visibilitychange', update)
   }, [])
 
   useEffect(() => {
-    clearAllTimeouts()
-    setAnimationStep('idle')
+    if (typeof matchMedia !== 'function') return
+    const media = matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReduced(media.matches)
+    update()
+    media.addEventListener('change', update)
+    if (typeof IntersectionObserver !== 'function')
+      return () => media.removeEventListener('change', update)
+    const observer = new IntersectionObserver(
+      ([entry]) => setVisible(entry?.isIntersecting ?? false),
+      { threshold: 0.35 }
+    )
+    if (paper.current) observer.observe(paper.current)
+    return () => {
+      media.removeEventListener('change', update)
+      observer.disconnect()
+    }
+  }, [])
 
-    addTimeout(() => setAnimationStep('selecting'), 80)
-    addTimeout(() => setAnimationStep('highlighted'), 440)
-    addTimeout(() => setAnimationStep('tipped'), 620)
-    addTimeout(() => {
-      setAnimationStep('idle')
-      addTimeout(() => {
-        setActiveIndex((prev) => (prev + 1) % HIGHLIGHT_PHRASES.length)
-      }, 80)
-    }, 1350)
+  useEffect(() => {
+    if (!ready || !visible || reduced || paused || receipt || tipOpen) return
+    const words = (sampleSentences[selected] ?? sampleSentences[0]).split(
+      /\s+/
+    ).length
+    return visibleTimer(
+      () => setSelected((index) => (index + 1) % sampleSentences.length),
+      700 + words * 35 + Math.max(4400, words * 300)
+    )
+  }, [ready, visible, reduced, paused, receipt, tipOpen, selected])
 
-    return clearAllTimeouts
-  }, [activeIndex, clearAllTimeouts, addTimeout])
+  useLayoutEffect(() => {
+    if (receipt) receiptRef.current?.focus({ preventScroll: true })
+  }, [receipt])
 
-  const renderArticleText = () => (
-    <>
-      {SEGMENTS.map((seg, i) => {
-        if (seg.type === 'text') {
-          return <span key={i}>{seg.content}</span>
-        }
-
-        const { phraseIndex } = seg
-        const isActive = phraseIndex === activeIndex
-        const isSelecting = isActive && animationStep === 'selecting'
-        const isHighlighted =
-          isActive &&
-          (animationStep === 'highlighted' || animationStep === 'tipped')
-        const showTip = isActive && animationStep === 'tipped'
-
-        return (
-          <span key={i} className="relative inline">
-            {isSelecting && (
-              <motion.span
-                className="absolute inset-y-0 left-0 bg-info/25 rounded-[2px]"
-                initial={{ width: '0%' }}
-                animate={{ width: '100%' }}
-                transition={{ duration: 0.35, ease: 'easeOut' }}
-                style={{ zIndex: 0 }}
-              />
-            )}
-            {isHighlighted && (
-              <motion.span
-                className="absolute -inset-y-0.5 -left-0.5 -right-0.5 rounded-[3px] bg-warning/30"
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                style={{ zIndex: 0 }}
-              />
-            )}
-            <span
-              className={`relative z-10 ${isHighlighted ? 'text-foreground' : ''}`}
-            >
-              {seg.content}
-            </span>
-
-            <AnimatePresence>
-              {showTip && (
-                <motion.span
-                  key="tip"
-                  className="absolute -top-9 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 bg-popover text-popover-foreground border border-border text-[11px] font-semibold px-3 py-1.5 rounded-full shadow-xl whitespace-nowrap"
-                  initial={{ opacity: 0, y: 6, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.9 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
-                >
-                  <Zap className="w-3 h-3 text-warning-foreground" />
-                  {HIGHLIGHT_PHRASES[phraseIndex]?.tip}
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </span>
-        )
-      })}
-    </>
-  )
+  function chooseSentence(index: number) {
+    setSelected(index)
+    setPaused(true)
+    setReceipt(null)
+    onReceipt?.(null)
+  }
+  function appreciate(tip: string | null = null) {
+    const next = {
+      words: sampleSentences[selected] ?? sampleSentences[0],
+      amount: tip,
+    }
+    setReceipt(next)
+    setPaused(true)
+    onReceipt?.(next)
+  }
+  function openTip(event: React.MouseEvent<HTMLButtonElement>) {
+    tipTrigger.current = event.currentTarget
+    setTipOpen(true)
+    tipDialog.current?.showModal()
+  }
 
   return (
-    <div className="w-full max-w-2xl">
-      <div className="relative bg-card rounded-xl border border-border shadow-[var(--card-shadow)] overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-muted/60">
-          <div className="flex gap-1.5">
-            <div className="w-2 h-2 bg-border rounded-full" />
-            <div className="w-2 h-2 bg-border rounded-full" />
-            <div className="w-2 h-2 bg-border rounded-full" />
+    <div className="sample-wallet-layout">
+      <div className="product-area" id="try-it">
+        <div className="paper-margin margin-left" aria-hidden>
+          <span>
+            A line worth <br />
+            coming back to.
+          </span>
+          <svg viewBox="0 0 85 60">
+            <path
+              pathLength="100"
+              d="M20 8 15 43Q34 39 69 42m-12-10 12 10-12 11"
+            />
+          </svg>
+        </div>
+        <div className="paper-margin margin-right" aria-hidden>
+          <span>
+            this stays <br />
+            with me.
+          </span>
+          <svg viewBox="0 0 100 65">
+            <path
+              pathLength="100"
+              d="M80 5Q87 48 12 49m0 0 14-10m-14 10 15 7"
+            />
+          </svg>
+        </div>
+        <article
+          ref={paper}
+          className="reading-paper"
+          aria-label="Interactive sample by Maya Sen"
+          data-held={paused}
+          data-sweep-playing={
+            ready && visible && pageVisible && !tipOpen && !paused
+          }
+        >
+          {!receipt && (
+            <button
+              type="button"
+              className="hero-card-target"
+              aria-label={
+                paused || reduced
+                  ? 'Highlight the next sentence'
+                  : 'Hold this highlighted passage'
+              }
+              aria-pressed={paused}
+              onClick={() =>
+                paused || reduced
+                  ? chooseSentence((selected + 1) % 3)
+                  : setPaused(true)
+              }
+            />
+          )}
+          <div className="sample-invitation">
+            <p className="sample-label">Interactive sample</p>
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => {
+                chooseSentence((selected + 1) % 3)
+                sentenceRefs.current[(selected + 1) % 3]?.focus({
+                  preventScroll: true,
+                })
+              }}
+            >
+              Choose a sentence <ArrowRight size={14} aria-hidden />
+            </button>
           </div>
-          <div className="flex-1 flex justify-center">
-            <div className="flex items-center gap-1.5 px-3 py-0.5 bg-card rounded-md border border-border">
-              <span className="text-[10px] text-muted-foreground font-medium">
-                quilltip.app/article/on-open-knowledge
+          <div className="article-top">
+            <span className="byline">
+              <span className="author-avatar" aria-hidden>
+                <UserCircle size={34} />
               </span>
-            </div>
+              <span>
+                Maya Sen
+                <span className="author-note">Writer of this passage</span>
+              </span>
+            </span>
+            <span className="article-kind">Notes on being human</span>
           </div>
-          <div className="w-10" />
-        </div>
-
-        <div className="px-7 sm:px-10 py-7 sm:py-8">
-          <p className="text-[14px] sm:text-[15px] leading-[1.8] text-muted-foreground text-left">
-            {renderArticleText()}
+          <h2>The words we carry</h2>
+          <p
+            className="passage"
+            aria-label="Sample passage. Choose a sentence to keep its highlight."
+          >
+            {sampleSentences.map((sentence, index) => (
+              <span key={sentence}>
+                <span
+                  role="button"
+                  ref={(element) => {
+                    sentenceRefs.current[index] = element
+                  }}
+                  tabIndex={0}
+                  aria-pressed={index === selected}
+                  className={
+                    `sample-sentence sentence-${index}` +
+                    (index === selected ? ' is-selected' : '')
+                  }
+                  onClick={() => chooseSentence(index)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      chooseSentence(index)
+                    }
+                  }}
+                >
+                  {index === selected ? (
+                    <mark
+                      key={selected}
+                      className={
+                        'animated-highlight' +
+                        (paused || reduced ? ' highlight-settled' : '')
+                      }
+                    >
+                      {sentence}
+                    </mark>
+                  ) : (
+                    sentence
+                  )}
+                </span>{' '}
+              </span>
+            ))}
           </p>
-        </div>
+          {receipt ? (
+            <section
+              className="writer-receipt"
+              ref={receiptRef}
+              tabIndex={-1}
+              aria-labelledby="sample-receipt-title"
+            >
+              <blockquote className="arrival-quote">
+                “{receipt.words}”
+              </blockquote>
+              <div className="receipt-top">
+                <span>
+                  <Heart size={17} fill="currentColor" aria-hidden />A note for
+                  Maya
+                </span>
+                <span>
+                  {receipt.amount
+                    ? `${receipt.amount} test XLM`
+                    : 'Appreciation preview'}
+                </span>
+              </div>
+              <h3 id="sample-receipt-title">
+                <Check size={18} aria-hidden />A note for Maya
+              </h3>
+              <p>
+                For the highlighted words in <em>The words we carry</em> by Maya
+                Sen.
+              </p>
+              <p className="demo-receipt-note">
+                Demo receipt · nothing sent or saved
+              </p>
+              <div className="receipt-actions">
+                <a className="text-action" href="#writer-tips">
+                  See Maya’s receipt <ArrowRight size={16} aria-hidden />
+                </a>
+                <button
+                  className="text-action"
+                  type="button"
+                  onClick={() => {
+                    const next = (selected + 1) % 3
+                    chooseSentence(next)
+                    sentenceRefs.current[next]?.focus({ preventScroll: true })
+                  }}
+                >
+                  Read another line <ArrowRight size={16} aria-hidden />
+                </button>
+                <Link className="text-action" href="/articles">
+                  Continue reading <ArrowRight size={16} aria-hidden />
+                </Link>
+              </div>
+            </section>
+          ) : (
+            <div className="reader-tools">
+              <div className="appreciation-actions">
+                <button
+                  className="button primary appreciate-button"
+                  type="button"
+                  onClick={() => appreciate()}
+                >
+                  <Heart size={19} aria-hidden />
+                  Appreciate for free
+                </button>
+                <button className="text-action" type="button" onClick={openTip}>
+                  Add a tip
+                </button>
+              </div>
+              <div className="reading-controls">
+                <Link className="text-action another-line" href="/articles">
+                  Continue reading <ArrowRight size={16} aria-hidden />
+                </Link>
+              </div>
+            </div>
+          )}
+        </article>
+        <p className="moment-footnote">
+          Interactive preview · no wallet connected · no transaction sent
+        </p>
       </div>
+      <aside
+        className="wallet-invite"
+        id="how-it-works"
+        aria-labelledby="wallet-invite-title"
+      >
+        <div className="wallet-invite-art" aria-hidden>
+          <span className="invite-receipt">
+            <i />
+            <i />
+            <b>1</b>
+          </span>
+          <svg viewBox="0 0 72 58" fill="none">
+            <path d="M12 17V11a5 5 0 0 1 5-5h39v11M12 17h45a5 5 0 0 1 5 5v27H17a5 5 0 0 1-5-5V17Z" />
+            <path d="M62 28H47a6 6 0 0 0 0 12h15" />
+            <circle cx="48" cy="34" r="1.5" />
+          </svg>
+        </div>
+        <div className="wallet-invite-copy">
+          <h2 id="wallet-invite-title">Curious how tipping works?</h2>
+          <p>Try connecting and approving with free test funds.</p>
+        </div>
+        <Link
+          className="text-action wallet-invite-cta"
+          href="/wallet/practice?returnTo=%2F%23try-it"
+        >
+          Practice a transfer <ArrowUpRight size={18} aria-hidden />
+        </Link>
+        <small>
+          1 test XLM · no monetary value · separate from article tipping
+        </small>
+      </aside>
+      <dialog
+        ref={tipDialog}
+        className="modal"
+        aria-labelledby="tip-title"
+        aria-describedby="tip-description"
+        onClose={() => {
+          setTipOpen(false)
+          if (!receipt) tipTrigger.current?.focus()
+        }}
+      >
+        <button
+          type="button"
+          className="icon-button modal-close"
+          aria-label="Close tip dialog"
+          onClick={() => tipDialog.current?.close()}
+        >
+          <X size={22} />
+        </button>
+        <h2 id="tip-title">Preview a little appreciation.</h2>
+        <p id="tip-description">
+          A little support for the words that stayed with you.
+        </p>
+        <blockquote>“{sampleSentences[selected]}”</blockquote>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            tipDialog.current?.close()
+            appreciate(amount)
+          }}
+        >
+          <fieldset>
+            <legend>
+              Choose a demo amount · test XLM has no monetary value
+            </legend>
+            <div className="amounts">
+              {['1', '2', '5'].map((value) => (
+                <label key={value} className={amount === value ? 'chosen' : ''}>
+                  <input
+                    type="radio"
+                    name="amount"
+                    value={value}
+                    checked={amount === value}
+                    onChange={() => setAmount(value)}
+                  />
+                  {value} test XLM
+                </label>
+              ))}
+            </div>
+            <button className="button primary send-tip" type="submit">
+              Preview {amount} test XLM receipt <Heart size={18} aria-hidden />
+            </button>
+          </fieldset>
+        </form>
+        <p className="modal-disclaimer">
+          Quick receipt preview · no wallet connects or payment is made.
+        </p>
+        <Link className="text-action" href="/guide">
+          Read the wallet guide <ArrowRight size={16} aria-hidden />
+        </Link>
+      </dialog>
     </div>
   )
 }

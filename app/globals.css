@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import '../components/landing/landing-blend.css';
 
 /* Tailwind v4 Theme Configuration */
 @theme {
@@ -821,4 +822,32 @@ stellar-wallets-modal {
   position: fixed;
   inset: 0;
   z-index: 200;
+}
+
+/* Bookmark action for the existing article reader; library layout loads on its route. */
+.article-title-bookmark {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.article-bookmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid #75374455;
+  border-radius: 4px;
+  color: #660033;
+  background: #eee3cf;
+  cursor: pointer;
+}
+.article-bookmark:focus-visible {
+  outline: 2px solid #660033;
+  outline-offset: 4px;
+}
+.article-bookmark[aria-pressed='true'] {
+  background: #660033;
+  color: #fff4df;
 }

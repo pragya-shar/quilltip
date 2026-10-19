@@ -16,8 +16,12 @@ vi.mock('@/components/layout/AppNavigation', () => ({
   default: () => <nav data-testid="app-navigation" />,
 }))
 
-vi.mock('@/components/landing/Navigation', () => ({
-  default: () => <nav data-testid="public-navigation" />,
+vi.mock('@/components/landing/LandingNavigation', () => ({
+  LandingNavigation: () => <nav data-testid="public-navigation" />,
+}))
+
+vi.mock('@/components/landing/LandingOrnaments', () => ({
+  LandingOrnaments: () => null,
 }))
 
 vi.mock('@/components/landing/HeroSection', () => ({
