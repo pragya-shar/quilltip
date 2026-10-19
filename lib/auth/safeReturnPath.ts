@@ -10,6 +10,13 @@ export function getSafeReturnPath(
     return fallback
   }
 
+  if (
+    Array.from(returnTo).some(
+      (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127
+    )
+  )
+    return fallback
+
   const trimmed = returnTo.trim()
   if (trimmed.length === 0) {
     return fallback

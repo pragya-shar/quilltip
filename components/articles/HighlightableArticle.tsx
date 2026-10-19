@@ -1,5 +1,7 @@
 'use client'
 
+import { focusLibraryHighlight } from '@/lib/library/focusHighlight'
+
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import {
@@ -125,6 +127,8 @@ export function HighlightableArticle({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const returnPath = getCurrentReturnPath(pathname, searchParams)
+  const libraryHighlight = searchParams.get('highlight')
+  const focusedLibraryHighlight = useRef<string | null>(null)
   const highlightsActive = showHighlights && isAuthenticated
   const signInPromptActive = showHighlights && !isAuthenticated
 
@@ -393,8 +397,20 @@ export function HighlightableArticle({
     // Clear flag after selection events from apply have fired
     requestAnimationFrame(() => {
       isApplyingHighlightsRef.current = false
+      if (
+        libraryHighlight &&
+        focusedLibraryHighlight.current !== libraryHighlight &&
+        editorRef.current &&
+        focusLibraryHighlight(
+          editorRef.current,
+          libraryHighlight,
+          matchMedia('(prefers-reduced-motion: reduce)').matches,
+          { editor, highlights }
+        )
+      )
+        focusedLibraryHighlight.current = libraryHighlight
     })
-  }, [editor, highlights, highlightsActive])
+  }, [editor, highlights, highlightsActive, libraryHighlight])
 
   // Show overlay only after the user releases a drag-select.
   useEffect(() => {

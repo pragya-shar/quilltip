@@ -1,0 +1,426 @@
+@font-face {
+  font-family: 'Library Syne';
+  src: url('/prototype/fonts/library-syne.woff2');
+  font-weight: 400 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Library Alegreya';
+  src: url('/prototype/fonts/library-alegreya.woff');
+  font-display: swap;
+}
+/* Restore the prototype's document defaults inside the landing only. */
+:where(.prototype-library) {
+  font-size: 16px;
+  line-height: normal;
+  font-family: 'Landing DM', sans-serif;
+  font-synthesis: none;
+  --headline-font: 'Library Syne', sans-serif;
+  --support-font: 'Landing Work', sans-serif;
+  --reading-font: 'Landing Work', sans-serif;
+  --ui: 'Landing DM', sans-serif;
+  --serif: 'Library Syne', sans-serif;
+  --display-weight: 700;
+  --opening-play: running;
+  --flow-play: running;
+  --paper-arrival: 1;
+  --landing-accent: #660033;
+  --landing-paper: #e4d2bd;
+  --landing-correction: #742350;
+  --landing-ink: #38000a;
+  --brand-foreground: #fff9f2;
+}
+:where(.prototype-library) p {
+  margin: 1em 0;
+}
+:where(.prototype-library) a {
+  text-decoration: underline;
+}
+:where(.prototype-library) strong,
+:where(.prototype-library) b {
+  font-weight: bolder;
+}
+:where(.prototype-library) small {
+  font-size: smaller;
+}
+:where(.prototype-library) svg {
+  display: inline;
+  vertical-align: baseline;
+}
+:where(.prototype-library) dialog {
+  margin: auto;
+}
+/* Prototype source: study.css */
+.prototype-library {
+  --ink: #410d23;
+  --accent: #660033;
+  --bg: #e5c5c4;
+  --muted: #754c58;
+  --line: #71384930;
+  --paper: #ecdfcc;
+}
+:where(.prototype-library) * {
+  box-sizing: border-box;
+}
+.prototype-library {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font:
+    15px/1.5 'Library Syne',
+    sans-serif;
+  transition: background 0.3s;
+}
+.prototype-library:before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 15% 15%, #f6dfd275, transparent 65%);
+}
+:where(.prototype-library) a {
+  color: inherit;
+  text-decoration: none;
+}
+:where(.prototype-library) a {
+  touch-action: manipulation;
+}
+:where(.prototype-library) a:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 5px;
+}
+:where(.prototype-library) header {
+  max-width: 1500px;
+  margin: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 5%;
+  border-bottom: 1px solid var(--line);
+}
+:where(.prototype-library) .brand {
+  font: 32px 'Library Syne';
+  letter-spacing: -1.5px;
+}
+:where(.prototype-library) header nav {
+  display: flex;
+  gap: 30px;
+}
+:where(.prototype-library) header nav a:first-child {
+  border-bottom: 1px solid;
+}
+:where(.prototype-library) main {
+  max-width: 1500px;
+  margin: auto;
+  padding: 40px 5% 30px;
+}
+:where(.prototype-library) h1 {
+  font:
+    clamp(44px, 5vw, 76px)/1.06 'Library Alegreya',
+    serif;
+  letter-spacing: -2px;
+  margin: 14px 0 18px;
+}
+:where(.prototype-library) .back {
+  display: inline-block;
+  padding: 10px 0;
+  margin-bottom: 28px;
+}
+@keyframes library-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.prototype-library[data-view='journal'] {
+  --bg: #e5ccc9;
+  --ink: #382c26;
+  --accent: #660033;
+  --muted: #76665c;
+  --line: #5c4a3830;
+}
+.prototype-library[data-view='journal']:before {
+  background: linear-gradient(90deg, #b6a28310 1px, transparent 1px);
+  background-size: 70px 100%;
+}
+@media (max-width: 600px) {
+  :where(.prototype-library) header {
+    padding: 18px 6%;
+  }
+  :where(.prototype-library) .brand {
+    font-size: 27px;
+  }
+  :where(.prototype-library) header nav {
+    gap: 16px;
+    font-size: 12px;
+  }
+  :where(.prototype-library) main {
+    padding: 28px 6%;
+  }
+  :where(.prototype-library) h1 {
+    font-size: 47px;
+    letter-spacing: -1.5px;
+  }
+  :where(.prototype-library) .back {
+    margin-bottom: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where(.prototype-library) * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.prototype-library {
+  position: relative;
+  isolation: isolate;
+}
+@keyframes library-discover-drift {
+  from {
+    transform: translateY(-4px) rotate(-2deg);
+  }
+  to {
+    transform: translateY(4px) rotate(2deg);
+  }
+}
+:where(.prototype-library) .brand {
+  display: inline-flex;
+  align-items: center;
+  color: #660033;
+  font:
+    600 37px/1 'Library Syne',
+    sans-serif;
+  letter-spacing: -0.055em;
+  min-height: 60px;
+}
+:where(.prototype-library) .brand svg {
+  width: 64px;
+  height: 70px;
+  margin-right: -3px;
+  flex: none;
+}
+@media (max-width: 600px) {
+  :where(.prototype-library) .brand {
+    font-size: 29px;
+  }
+  :where(.prototype-library) .brand svg {
+    width: 49px;
+    height: 55px;
+  }
+  :where(.prototype-library) header {
+    gap: 18px;
+  }
+  :where(.prototype-library) header nav {
+    gap: 14px;
+  }
+}
+/* Prototype source: journey.css */
+.prototype-library {
+  --journey-wine: #660033;
+  --journey-paper: #eee3cf;
+  --journey-ink: #382c26;
+}
+@keyframes library-tip-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes library-tip-celebration {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) rotate(var(--turn));
+  }
+}
+.prototype-library {
+  --action-paper: #f5ecdc;
+  --action-rose: #dfc3ca;
+  --action-shadow: #5b243020;
+}
+@keyframes library-paper-celebration {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0);
+  }
+  8% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--x), var(--y)) rotate(var(--turn));
+  }
+}
+:where(.prototype-library) header nav a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+:where(.prototype-library) .collection-page {
+  max-width: 850px;
+}
+:where(.prototype-library) .collection-page h1 {
+  font-size: clamp(42px, 6vw, 64px);
+}
+:where(.prototype-library) .collection-page h2 {
+  font:
+    600 24px 'Library Syne',
+    sans-serif;
+  margin-top: 40px;
+}
+:where(.prototype-library) .collection-page > p {
+  font-size: 18px;
+}
+:where(.prototype-library) .library-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 22px 0;
+  border-block-end: 1px solid var(--line);
+  min-height: 44px;
+}
+:where(.prototype-library) .library-row strong {
+  display: block;
+  font:
+    28px 'Library Alegreya',
+    serif;
+  color: var(--accent);
+  margin: 6px 0;
+}
+:where(.prototype-library) .library-row small {
+  font-size: 14px;
+  color: var(--muted);
+}
+:where(.prototype-library) .library-row blockquote {
+  font:
+    24px/1.45 'Library Alegreya',
+    serif;
+  margin: 0 0 12px;
+}
+@media (hover: hover) and (pointer: fine) {
+  :where(.prototype-library) .library-row:hover {
+    background: #dfc3ca35;
+  }
+}
+@media (max-width: 600px) {
+  :where(.prototype-library) header nav {
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  :where(.prototype-library) header {
+    gap: 14px;
+  }
+  :where(.prototype-library) header .brand {
+    flex-shrink: 0;
+  }
+  :where(.prototype-library) .collection-page {
+    padding-top: 20px;
+  }
+}
+:where(.prototype-library) header nav a:first-child {
+  border-bottom: 0;
+}
+:where(.prototype-library) header nav a[aria-current='page'] {
+  border-bottom: 1px solid currentColor;
+}
+@media (max-width: 600px) {
+  :where(.prototype-library) header nav {
+    gap: 10px;
+    font-size: 12px;
+  }
+  :where(.prototype-library) header {
+    padding-inline: 5%;
+  }
+}
+:where(.prototype-library) .collection-page h1 {
+  font:
+    600 clamp(34px, 5vw, 54px)/1.12 'Library Syne',
+    sans-serif;
+  letter-spacing: -0.035em;
+}
+:where(.prototype-library)
+  .collection-page
+  :is(p, small, .back, .library-browse) {
+  font-family: 'Library Syne', sans-serif;
+}
+:where(.prototype-library) .library-empty {
+  padding: 12px 0 20px;
+}
+:where(.prototype-library) .library-browse {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--journey-wine);
+  text-underline-offset: 5px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes library-story-open {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+.prototype-library {
+  min-height: 100dvh;
+  --headline-font: 'Library Syne', sans-serif;
+}
+.prototype-library .wordmark {
+  text-decoration: none;
+}
+.prototype-library .logo-study {
+  display: inline-flex;
+  align-items: center;
+  color: #660033;
+  font:
+    600 37px/1 'Library Syne',
+    sans-serif;
+  letter-spacing: -0.055em;
+  min-height: 60px;
+}
+.prototype-library .logo-study svg {
+  width: 64px;
+  height: 70px;
+  margin-right: -3px;
+  flex: none;
+}
+@media (max-width: 600px) {
+  .prototype-library .logo-study {
+    font-size: 29px;
+  }
+  .prototype-library .logo-study svg {
+    width: 49px;
+    height: 55px;
+  }
+}
+
+.prototype-library .wordmark {
+  display: inline-flex;
+  align-items: center;
+}
+.prototype-library .collection-page h2 {
+  margin-bottom: 0.83em;
+}

@@ -79,3 +79,10 @@ describe('buildLoginHref / buildRegisterHref', () => {
     )
   })
 })
+
+describe('browser URL normalization', () => {
+  it.each(['/\t/evil.example', '/\n/evil.example', '/\r/evil.example'])(
+    'rejects control characters in %j',
+    (path) => expect(getSafeReturnPath(path, '/#try-it')).toBe('/#try-it')
+  )
+})
