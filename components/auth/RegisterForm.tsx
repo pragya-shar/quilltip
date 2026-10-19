@@ -1,319 +1,176 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, type FieldErrors } from 'react-hook-form'
-import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useAuthReturnPath } from './useAuthReturnPath'
+import { useAuth } from '@/components/providers/AuthContext'
 import { parseRegisterSignInError } from '@/lib/auth/map-register-error'
 import { shouldUseFullPageAuthNavigation } from '@/lib/auth/postAuthNavigation'
-import { getFirstRegisterFieldError } from '@/lib/auth/register-form-a11y'
-import { getRegisterCopy } from '@/lib/copy/auth-intent'
 import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
-import { registerSchema, type RegisterFormData } from '@/lib/validations/auth'
-import { allPasswordRulesMet } from '@/lib/validations/password-rules'
-import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
-import { useAuth } from '@/components/providers/AuthContext'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
-  PasswordRequirements,
-  PASSWORD_REQUIREMENTS_ID,
-} from '@/components/auth/PasswordRequirements'
-import { RegisterFormField } from '@/components/auth/RegisterFormField'
-
-const PASSWORD_VALIDATION_MESSAGE = 'Password does not meet all requirements'
-
-/**
- * Register Form Component
- *
- * Handles user registration with email, username, and password.
- * Includes form validation, error handling, and loading states.
- */
+  createAccountHandle,
+  prototypeSignupSchema,
+  type PrototypeSignupData,
+} from '@/lib/auth/prototypeSignup'
+import { ArrowRight } from '@/components/landing/LandingIcons'
+import { AccountField } from './AccountField'
+import { AccountPasswordToggle } from './AccountPasswordToggle'
 
 export default function RegisterForm() {
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [formError, setFormError] = useState<string | null>(null)
-  const [submitAnnouncement, setSubmitAnnouncement] = useState<string | null>(
-    null
-  )
+  const [visible, setVisible] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [success, setSuccess] = useState(false)
-  const [highlightPasswordFailures, setHighlightPasswordFailures] =
-    useState(false)
-
+  const [formError, setFormError] = useState<string | null>(null)
+  const [announcement, setAnnouncement] = useState('')
+  const submitting = useRef(false)
+  const handle = useRef<string | null>(null)
   const router = useRouter()
   const returnPath = useAuthReturnPath()
-  const copy = getRegisterCopy(returnPath)
   const { signIn } = useAuth()
-
   const {
     register,
     handleSubmit,
     setError,
     clearErrors,
-    watch,
     formState: { errors },
-  } = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema),
-    reValidateMode: 'onChange',
+  } = useForm<PrototypeSignupData>({
+    resolver: zodResolver(prototypeSignupSchema),
   })
-
-  const password = watch('password') ?? ''
-
-  useEffect(() => {
-    if (highlightPasswordFailures && allPasswordRulesMet(password)) {
-      setHighlightPasswordFailures(false)
-    }
-  }, [password, highlightPasswordFailures])
-
-  const clearFieldFeedback = (name: keyof RegisterFormData) => {
-    clearErrors(name)
-    setFormError(null)
-    setSubmitAnnouncement(null)
-  }
-
-  const registerField = (name: keyof RegisterFormData) =>
+  const field = (name: keyof PrototypeSignupData) =>
     register(name, {
-      onChange: () => clearFieldFeedback(name),
-    })
-
-  const registerPasswordField = () =>
-    register('password', {
       onChange: () => {
-        clearFieldFeedback('password')
+        clearErrors(name)
+        setFormError(null)
+        setAnnouncement('')
       },
     })
-
-  const announceFirstError = (formErrors: FieldErrors<RegisterFormData>) => {
-    const first = getFirstRegisterFieldError(formErrors)
-    if (!first) return
-    setSubmitAnnouncement(first.message)
-    document.getElementById(first.field)?.focus()
-  }
-
-  const onSubmit = async (data: RegisterFormData) => {
-    setIsLoading(true)
+  const onSubmit = async (data: PrototypeSignupData) => {
+    if (submitting.current) return
+    submitting.current = true
+    setBusy(true)
     setFormError(null)
-    setSubmitAnnouncement(null)
-
+    setAnnouncement('')
     try {
+      handle.current ??= createAccountHandle()
       await signIn('password', {
-        email: data.email,
-        password: data.password,
+        ...data,
+        username: handle.current,
         flow: 'signUp',
-        username: data.username,
       })
-
       setSuccess(true)
-      const pendingTipIntent = readPendingTipIntent()
-      if (shouldUseFullPageAuthNavigation(returnPath, pendingTipIntent)) {
+      if (shouldUseFullPageAuthNavigation(returnPath, readPendingTipIntent())) {
         window.location.assign(returnPath)
-        return
+      } else {
+        router.replace(returnPath)
       }
-
-      // Use replace to prevent back button returning to register
-      router.replace(returnPath)
     } catch (error) {
       const result = parseRegisterSignInError(error)
-      setSubmitAnnouncement(result.message)
-
-      if (result.field) {
-        setError(result.field, { type: 'server', message: result.message })
-        setFormError(null)
-        document.getElementById(result.field)?.focus()
+      if (result.field === 'email') {
+        setError('email', { type: 'server', message: result.message })
+        document.getElementById('email')?.focus()
+        setAnnouncement(result.message)
       } else {
-        setFormError(result.message)
+        // A handle conflict is retried with a fresh generated handle, not a hidden field error.
+        if (result.field === 'username') handle.current = null
+        setFormError(
+          result.field === 'username'
+            ? 'We couldn’t create your account. Please try again.'
+            : result.message
+        )
       }
-
-      setIsLoading(false)
+      submitting.current = false
+      setBusy(false)
     }
   }
-
-  const onInvalid = (formErrors: FieldErrors<RegisterFormData>) => {
-    const first = getFirstRegisterFieldError(formErrors)
-
-    if (first?.field === 'password') {
-      setHighlightPasswordFailures(true)
-      setError('password', {
-        type: 'manual',
-        message: PASSWORD_VALIDATION_MESSAGE,
-      })
-      setSubmitAnnouncement(PASSWORD_VALIDATION_MESSAGE)
-      document.getElementById('password')?.focus()
-      return
-    }
-
-    announceFirstError(formErrors)
-  }
-
-  if (success) {
-    return (
-      <div className="text-center space-y-4">
-        <div className="p-4 bg-muted border border-border rounded-lg">
-          <p className="inline-flex items-center justify-center gap-2 text-sm text-foreground">
-            <CheckCircle
-              aria-hidden="true"
-              className="h-4 w-4 shrink-0 text-success-foreground"
-            />
-            <span>{copy.successMessage}</span>
-          </p>
-        </div>
-      </div>
+  const onInvalid = (invalid: FieldErrors<PrototypeSignupData>) => {
+    const first = (['name', 'email', 'password'] as const).find(
+      (key) => invalid[key]
     )
+    if (first) {
+      setAnnouncement(invalid[first]?.message ?? 'Check your details.')
+      document.getElementById(first)?.focus()
+    }
   }
-
+  if (success)
+    return (
+      <p className="account-notice" role="status">
+        Account created successfully! Continuing where you left off…
+      </p>
+    )
   return (
-    <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
-      {submitAnnouncement ? (
-        <p role="alert" className="sr-only">
-          {submitAnnouncement}
+    <form
+      noValidate
+      onSubmit={handleSubmit(onSubmit, onInvalid)}
+      aria-busy={busy}
+    >
+      {announcement && (
+        <p className="sr-only" role="alert">
+          {announcement}
         </p>
-      ) : null}
-
-      {formError ? (
-        <Alert variant="destructive" role="alert">
-          <AlertDescription>{formError}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <RegisterFormField
-        id="email"
-        label="Email address"
-        error={errors.email?.message}
-      >
-        {(control) => (
-          <Input
-            {...registerField('email')}
-            type="email"
-            id="email"
-            autoComplete="email"
-            placeholder="you@example.com"
-            aria-invalid={control['aria-invalid']}
-            aria-describedby={control['aria-describedby']}
-            className={control.inputClassName}
-          />
-        )}
-      </RegisterFormField>
-
-      <RegisterFormField
-        id="username"
-        label="Username"
-        error={errors.username?.message}
-      >
-        {(control) => (
-          <Input
-            {...registerField('username')}
-            type="text"
-            id="username"
-            autoComplete="username"
-            placeholder="Choose a unique username"
-            aria-invalid={control['aria-invalid']}
-            aria-describedby={control['aria-describedby']}
-            className={control.inputClassName}
-          />
-        )}
-      </RegisterFormField>
-
-      <RegisterFormField
+      )}
+      {formError && (
+        <p className="account-error account-error-banner" role="alert">
+          {formError}
+        </p>
+      )}
+      <AccountField id="name" label="Your name" error={errors.name?.message}>
+        <input
+          {...field('name')}
+          id="name"
+          autoComplete="nickname"
+          maxLength={80}
+          aria-invalid={!!errors.name}
+          aria-describedby={errors.name ? 'name-error' : undefined}
+        />
+      </AccountField>
+      <AccountField id="email" label="Email" error={errors.email?.message}>
+        <input
+          {...field('email')}
+          id="email"
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          aria-invalid={!!errors.email}
+          aria-describedby={errors.email ? 'email-error' : undefined}
+        />
+      </AccountField>
+      <AccountField
         id="password"
         label="Password"
         error={errors.password?.message}
-        extraDescribedBy={PASSWORD_REQUIREMENTS_ID}
       >
-        {(control) => (
-          <>
-            <div className="relative">
-              <Input
-                {...registerPasswordField()}
-                type={showPassword ? 'text' : 'password'}
-                id="password"
-                autoComplete="new-password"
-                placeholder="Create a secure password"
-                aria-invalid={control['aria-invalid']}
-                aria-describedby={control['aria-describedby']}
-                className={`pr-10 ${control.inputClassName}`}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                aria-pressed={showPassword}
-                className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Eye className="h-4 w-4" aria-hidden="true" />
-                )}
-              </Button>
-            </div>
-            <PasswordRequirements
-              password={password}
-              highlightFailures={highlightPasswordFailures}
-            />
-          </>
-        )}
-      </RegisterFormField>
-
-      <RegisterFormField
-        id="confirmPassword"
-        label="Confirm Password"
-        error={errors.confirmPassword?.message}
-      >
-        {(control) => (
-          <div className="relative">
-            <Input
-              {...registerField('confirmPassword')}
-              type={showConfirmPassword ? 'text' : 'password'}
-              id="confirmPassword"
-              autoComplete="new-password"
-              placeholder="Confirm your password"
-              aria-invalid={control['aria-invalid']}
-              aria-describedby={control['aria-describedby']}
-              className={`pr-10 ${control.inputClassName}`}
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              aria-label={
-                showConfirmPassword
-                  ? 'Hide confirm password'
-                  : 'Show confirm password'
-              }
-              aria-pressed={showConfirmPassword}
-              className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showConfirmPassword ? (
-                <EyeOff className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <Eye className="h-4 w-4" aria-hidden="true" />
-              )}
-            </Button>
-          </div>
-        )}
-      </RegisterFormField>
-
-      <Button
-        type="submit"
-        disabled={isLoading}
-        className="w-full rounded-lg shadow-sm hover:bg-brand-accent focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-blue"
-      >
-        {isLoading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            {copy.submitLoadingLabel}
-          </>
+        <div className="account-password">
+          <input
+            {...field('password')}
+            id="password"
+            type={visible ? 'text' : 'password'}
+            autoComplete="new-password"
+            aria-invalid={!!errors.password}
+            aria-describedby={
+              errors.password ? 'password-hint password-error' : 'password-hint'
+            }
+          />
+          <AccountPasswordToggle
+            visible={visible}
+            onToggle={() => setVisible(!visible)}
+          />
+        </div>
+        <p id="password-hint" className="account-hint">
+          At least 8 characters, with uppercase, lowercase, and a number.
+        </p>
+      </AccountField>
+      <button className="account-primary" type="submit" disabled={busy}>
+        {busy ? (
+          'One moment…'
         ) : (
-          copy.submitLabel
+          <>
+            Create account <ArrowRight size={20} />
+          </>
         )}
-      </Button>
+      </button>
     </form>
   )
 }

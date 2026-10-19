@@ -2,268 +2,111 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import RegisterForm from '@/components/auth/RegisterForm'
-
-const mockSignIn = vi.hoisted(() => vi.fn())
-const mockReplace = vi.hoisted(() => vi.fn())
-const mockUseAuthReturnPath = vi.hoisted(() => vi.fn())
-
+import RegisterForm from './RegisterForm'
+const { signIn, replace } = vi.hoisted(() => ({
+  signIn: vi.fn(),
+  replace: vi.fn(),
+}))
 vi.mock('@/components/providers/AuthContext', () => ({
-  useAuth: () => ({
-    signIn: mockSignIn,
-    signOut: vi.fn(),
-    user: null,
-    isLoading: false,
-    isAuthenticated: false,
-  }),
+  useAuth: () => ({ signIn }),
 }))
-
-vi.mock('@/components/auth/useAuthReturnPath', () => ({
-  useAuthReturnPath: () => mockUseAuthReturnPath(),
+vi.mock('./useAuthReturnPath', () => ({ useAuthReturnPath: () => '/library' }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }))
+vi.mock('@/lib/tip/pendingTipIntent', () => ({
+  readPendingTipIntent: () => null,
 }))
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    replace: mockReplace,
-  }),
-}))
-
-describe('RegisterForm accessibility', () => {
+async function fillForm(
+  user: ReturnType<typeof userEvent.setup>,
+  password = 'Password1'
+) {
+  await user.type(screen.getByLabelText('Your name'), 'Alex Reader')
+  await user.type(screen.getByLabelText('Email'), 'alex@example.com')
+  await user.type(screen.getByLabelText('Password'), password)
+}
+describe('prototype registration with real auth', () => {
   beforeEach(() => {
-    mockSignIn.mockReset()
-    mockReplace.mockReset()
-    mockUseAuthReturnPath.mockReset()
-    mockUseAuthReturnPath.mockReturnValue('/profile?tab=wallet')
+    signIn.mockReset()
+    replace.mockReset()
+    signIn.mockResolvedValue({ signingIn: true })
   })
-
-  it('does not show a full name field on the initial signup screen', () => {
-    render(<RegisterForm />)
-
-    expect(screen.queryByLabelText(/full name/i)).not.toBeInTheDocument()
-  })
-
-  it('uses write-intent submit label when return path is the editor', () => {
-    mockUseAuthReturnPath.mockReturnValue('/write')
-    render(<RegisterForm />)
-
-    expect(
-      screen.getByRole('button', { name: /create account and start writing/i })
-    ).toBeInTheDocument()
-    // React may invoke initial render twice; the old nested hook path exceeded this.
-    expect(mockUseAuthReturnPath.mock.calls.length).toBeLessThanOrEqual(2)
-  })
-
-  it('marks the first invalid field and associates its error on empty submit', async () => {
+  it('creates an account from the three prototype fields and returns to the library', async () => {
     const user = userEvent.setup({ delay: null })
     render(<RegisterForm />)
-
-    await user.click(screen.getByRole('button', { name: /create account/i }))
-
-    await waitFor(() => {
-      expect(document.getElementById('email-error')).toHaveTextContent(
-        'Email is required'
-      )
-    })
-
-    const emailInput = screen.getByLabelText(/email address/i)
-    expect(emailInput).toHaveAttribute('aria-invalid', 'true')
-    expect(emailInput).toHaveAttribute('aria-describedby', 'email-error')
-
-    const emailError = document.getElementById('email-error')
-    expect(emailError).toHaveTextContent('Email is required')
-
-    expect(screen.getByRole('alert', { hidden: true })).toHaveTextContent(
-      'Email is required'
-    )
-  })
-
-  it('clears email invalid state after the user enters a valid email', async () => {
-    const user = userEvent.setup({ delay: null })
-    render(<RegisterForm />)
-
-    await user.click(screen.getByRole('button', { name: /create account/i }))
-
-    await waitFor(() => {
-      expect(document.getElementById('email-error')).toHaveTextContent(
-        'Email is required'
-      )
-    })
-
-    const emailInput = screen.getByLabelText(/email address/i)
-    await user.type(emailInput, 'user@example.com')
-
-    await waitFor(() => {
-      expect(emailInput).toHaveAttribute('aria-invalid', 'false')
-      expect(emailInput).not.toHaveAttribute('aria-describedby')
-    })
-
-    expect(document.getElementById('email-error')).toBeNull()
-  })
-
-  it(
-    'shows a server email conflict on the email field',
-    { timeout: 10_000 },
-    async () => {
-      const user = userEvent.setup({ delay: null })
-      mockSignIn.mockRejectedValue(new Error('Account already exists'))
-
-      render(<RegisterForm />)
-
-      await user.type(
-        screen.getByLabelText(/email address/i),
-        'user@example.com'
-      )
-      await user.type(screen.getByLabelText(/^username$/i), 'myuser')
-      await user.type(screen.getByLabelText(/^password$/i), 'Password1')
-      await user.type(screen.getByLabelText(/^confirm password$/i), 'Password1')
-      await user.click(screen.getByRole('button', { name: /create account/i }))
-
-      await waitFor(() => {
-        expect(document.getElementById('email-error')).toHaveTextContent(
-          /an account with this email already exists/i
-        )
+    await fillForm(user)
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/library'))
+    expect(signIn).toHaveBeenCalledWith(
+      'password',
+      expect.objectContaining({
+        name: 'Alex Reader',
+        email: 'alex@example.com',
+        password: 'Password1',
+        flow: 'signUp',
+        username: expect.stringMatching(/^[a-z][a-z0-9]{19}$/),
       })
-
-      const emailInput = screen.getByLabelText(/email address/i)
-      expect(emailInput).toHaveAttribute('aria-invalid', 'true')
-      expect(emailInput).toHaveAttribute('aria-describedby', 'email-error')
-      expect(screen.queryByText(/registration failed/i)).not.toBeInTheDocument()
-    }
-  )
-
-  it('redirects to the return path after successful registration', async () => {
-    const user = userEvent.setup({ delay: null })
-    mockSignIn.mockResolvedValue(undefined)
-
-    render(<RegisterForm />)
-
-    await user.type(screen.getByLabelText(/email address/i), 'user@example.com')
-    await user.type(screen.getByLabelText(/^username$/i), 'myuser')
-    await user.type(screen.getByLabelText(/^password$/i), 'Password1')
-    await user.type(screen.getByLabelText(/^confirm password$/i), 'Password1')
-    await user.click(screen.getByRole('button', { name: /create account/i }))
-
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith('/profile?tab=wallet')
-    })
+    )
+    expect(screen.getByRole('status')).toHaveTextContent(/account created/i)
   })
-
-  it('password visibility toggle has accessible name and pressed state', async () => {
+  it('focuses the first invalid field and associates its error', async () => {
     const user = userEvent.setup({ delay: null })
     render(<RegisterForm />)
-
-    const toggle = screen.getByRole('button', { name: /show password/i })
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
-
-    await user.click(toggle)
-
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+    const name = screen.getByLabelText('Your name')
+    await waitFor(() => expect(name).toHaveFocus())
+    expect(name).toHaveAttribute('aria-invalid', 'true')
     expect(
-      screen.getByRole('button', { name: /hide password/i })
+      document.getElementById(name.getAttribute('aria-describedby')!)
+    ).toHaveTextContent(/name/i)
+    expect(signIn).not.toHaveBeenCalled()
+    await user.type(name, 'Alex')
+    expect(name).toHaveAttribute('aria-invalid', 'false')
+  })
+  it('keeps password policy and visibility usable in the single password field', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<RegisterForm />)
+    await fillForm(user, 'weak')
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+    await waitFor(() =>
+      expect(screen.getByLabelText('Password')).toHaveAttribute(
+        'aria-invalid',
+        'true'
+      )
+    )
+    expect(signIn).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Show password' }))
+    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'text')
+    expect(
+      screen.getByRole('button', { name: 'Hide password' })
     ).toHaveAttribute('aria-pressed', 'true')
   })
-
-  it('shows password requirements before submit', () => {
+  it('retains details on conflict and permits retry without changing the generated handle', async () => {
+    const user = userEvent.setup({ delay: null })
+    signIn.mockRejectedValueOnce(new Error('Account already exists'))
     render(<RegisterForm />)
-
-    expect(document.getElementById('password-requirements')).toHaveAttribute(
-      'aria-relevant',
-      'all'
+    await fillForm(user)
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+    await waitFor(() => expect(screen.getByLabelText('Email')).toHaveFocus())
+    expect(screen.getByLabelText('Email')).toHaveAttribute(
+      'aria-invalid',
+      'true'
     )
-    expect(screen.getByText(/at least 8 characters/i)).toBeInTheDocument()
-    expect(screen.getByText(/one uppercase letter/i)).toBeInTheDocument()
-    expect(screen.getByText(/one lowercase letter/i)).toBeInTheDocument()
-    expect(screen.getByText(/one number/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Your name')).toHaveValue('Alex Reader')
+    expect(replace).not.toHaveBeenCalled()
+    await user.clear(screen.getByLabelText('Email'))
+    await user.type(screen.getByLabelText('Email'), 'another@example.com')
+    await user.click(screen.getByRole('button', { name: 'Create account' }))
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/library'))
+    expect(signIn.mock.calls[1]![1].username).toBe(
+      signIn.mock.calls[0]![1].username
+    )
   })
-
-  it('removes satisfied password rules instead of turning them green', async () => {
+  it('prevents another submission while account creation is pending', async () => {
     const user = userEvent.setup({ delay: null })
+    signIn.mockReturnValue(new Promise(() => {}))
     render(<RegisterForm />)
-
-    const passwordInput = screen.getByLabelText(/^password$/i)
-    await user.type(passwordInput, 'Pass')
-
-    const requirements = document.getElementById('password-requirements')
-    expect(requirements?.querySelectorAll('li')).toHaveLength(2)
-    expect(screen.getByText(/at least 8 characters/i)).toBeInTheDocument()
-    expect(screen.getByText(/one number/i)).toBeInTheDocument()
-    expect(screen.queryByText(/one uppercase letter/i)).not.toBeInTheDocument()
-    expect(screen.queryByText(/one lowercase letter/i)).not.toBeInTheDocument()
-
-    await user.type(passwordInput, 'word1')
-
-    expect(screen.getByText(/password meets requirements/i)).toBeInTheDocument()
-    expect(
-      document.getElementById('password-requirements')?.querySelectorAll('li')
-    ).toHaveLength(0)
-  })
-
-  it('highlights unmet password rules on failed submit', async () => {
-    const user = userEvent.setup({ delay: null })
-    render(<RegisterForm />)
-
-    await user.type(screen.getByLabelText(/email address/i), 'user@example.com')
-    await user.type(screen.getByLabelText(/^username$/i), 'myuser')
-    await user.type(screen.getByLabelText(/^password$/i), 'weak')
-    await user.type(screen.getByLabelText(/^confirm password$/i), 'weak')
-    await user.click(screen.getByRole('button', { name: /create account/i }))
-
-    await waitFor(() => {
-      expect(document.getElementById('password-error')).toHaveTextContent(
-        'Password does not meet all requirements'
-      )
-    })
-
-    const requirements = document.getElementById('password-requirements')
-    const unmetItems = requirements?.querySelectorAll('.text-destructive') ?? []
-    expect(unmetItems.length).toBeGreaterThan(0)
-  })
-
-  it(
-    'clears password failure highlight when all rules are met',
-    { timeout: 10_000 },
-    async () => {
-      const user = userEvent.setup({ delay: null })
-      render(<RegisterForm />)
-
-      await user.type(
-        screen.getByLabelText(/email address/i),
-        'user@example.com'
-      )
-      await user.type(screen.getByLabelText(/^username$/i), 'myuser')
-      await user.type(screen.getByLabelText(/^password$/i), 'weak')
-      await user.type(screen.getByLabelText(/^confirm password$/i), 'weak')
-      await user.click(screen.getByRole('button', { name: /create account/i }))
-
-      await waitFor(() => {
-        expect(document.getElementById('password-error')).toBeInTheDocument()
-      })
-
-      const passwordInput = screen.getByLabelText(/^password$/i)
-      await user.clear(passwordInput)
-      await user.type(passwordInput, 'Password1')
-
-      await waitFor(() => {
-        const requirements = document.getElementById('password-requirements')
-        const unmetItems =
-          requirements?.querySelectorAll('.text-destructive') ?? []
-        expect(unmetItems).toHaveLength(0)
-      })
-    }
-  )
-
-  it('confirm password visibility toggle has accessible name and pressed state', async () => {
-    const user = userEvent.setup({ delay: null })
-    render(<RegisterForm />)
-
-    const toggle = screen.getByRole('button', {
-      name: /show confirm password/i,
-    })
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
-
-    await user.click(toggle)
-
-    expect(
-      screen.getByRole('button', { name: /hide confirm password/i })
-    ).toHaveAttribute('aria-pressed', 'true')
+    await fillForm(user)
+    await user.dblClick(screen.getByRole('button', { name: 'Create account' }))
+    expect(signIn).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'One moment…' })).toBeDisabled()
   })
 })

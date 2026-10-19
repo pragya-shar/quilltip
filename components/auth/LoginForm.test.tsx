@@ -43,12 +43,12 @@ describe('LoginForm', () => {
     mockSignIn.mockResolvedValue(undefined)
   })
 
-  it('uses write-intent submit label when return path is the editor', () => {
+  it('keeps the prototype login action for an editor return', () => {
     mockUseAuthReturnPath.mockReturnValue('/write')
     render(<LoginForm />)
 
     expect(
-      screen.getByRole('button', { name: /sign in and continue writing/i })
+      screen.getByRole('button', { name: /^log in$/i })
     ).toBeInTheDocument()
     // React may invoke initial render twice; the old nested hook path exceeded this.
     expect(mockUseAuthReturnPath.mock.calls.length).toBeLessThanOrEqual(2)
@@ -59,9 +59,9 @@ describe('LoginForm', () => {
 
     render(<LoginForm />)
 
-    await user.type(screen.getByLabelText(/email address/i), 'user@example.com')
+    await user.type(screen.getByLabelText(/^email$/i), 'user@example.com')
     await user.type(screen.getByLabelText(/^password$/i), 'password123')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await user.click(screen.getByRole('button', { name: /^log in$/i }))
 
     await waitFor(() => {
       expect(
@@ -88,9 +88,9 @@ describe('LoginForm', () => {
 
     render(<LoginForm />)
 
-    await user.type(screen.getByLabelText(/email address/i), 'you@example.com')
+    await user.type(screen.getByLabelText(/^email$/i), 'you@example.com')
     await user.type(screen.getByLabelText(/^password$/i), 'password123')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await user.click(screen.getByRole('button', { name: /^log in$/i }))
 
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/profile?tab=wallet')
@@ -105,9 +105,9 @@ describe('LoginForm', () => {
 
     render(<LoginForm />)
 
-    await user.type(screen.getByLabelText(/email address/i), 'you@example.com')
+    await user.type(screen.getByLabelText(/^email$/i), 'you@example.com')
     await user.type(screen.getByLabelText(/^password$/i), 'password123')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await user.click(screen.getByRole('button', { name: /^log in$/i }))
 
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/articles?tag=writing')
@@ -120,19 +120,19 @@ describe('LoginForm', () => {
 
     render(<LoginForm />)
 
-    await user.type(screen.getByLabelText(/email address/i), 'user@example.com')
+    await user.type(screen.getByLabelText(/^email$/i), 'user@example.com')
     await user.type(screen.getByLabelText(/^password$/i), 'wrong-password')
-    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await user.click(screen.getByRole('button', { name: /^log in$/i }))
 
     await waitFor(() => {
       expect(screen.getByText(/invalid email or password/i)).toBeInTheDocument()
     })
 
-    const submitButton = screen.getByRole('button', { name: /sign in/i })
+    const submitButton = screen.getByRole('button', { name: /^log in$/i })
     expect(submitButton).toBeEnabled()
     expect(mockReplace).not.toHaveBeenCalled()
 
-    const emailInput = screen.getByLabelText(/email address/i)
+    const emailInput = screen.getByLabelText(/^email$/i)
     const passwordInput = screen.getByLabelText(/^password$/i)
     expect(emailInput).not.toBeDisabled()
     expect(passwordInput).not.toBeDisabled()
@@ -140,6 +140,16 @@ describe('LoginForm', () => {
     await user.clear(passwordInput)
     await user.type(passwordInput, 'new-attempt')
     expect(passwordInput).toHaveValue('new-attempt')
+  })
+
+  it('explains unavailable recovery without claiming to send email', async () => {
+    const user = userEvent.setup({ delay: null })
+    render(<LoginForm />)
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /password recovery.*not.*available/i
+    )
+    expect(mockSignIn).not.toHaveBeenCalled()
   })
 
   it('password visibility toggle has accessible name and pressed state', async () => {

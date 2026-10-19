@@ -1,23 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
 import { getLoginCopy } from '@/lib/copy/auth-intent'
 import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import { shouldUseFullPageAuthNavigation } from '@/lib/auth/postAuthNavigation'
-import { getSafeRedirectPath } from '@/lib/navigation/walletProfileDestination'
+import { getSafeReturnPath } from '@/lib/auth/safeReturnPath'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { loginSchema, type LoginFormData } from '@/lib/validations/auth'
-import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-
-const authInputClassName =
-  'rounded-lg bg-background text-foreground focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:border-transparent'
+import { ArrowRight } from '@/components/landing/LandingIcons'
+import { AccountField } from './AccountField'
+import { AccountPasswordToggle } from './AccountPasswordToggle'
 
 const REDIRECT_TIMEOUT_MS = 15_000
 
@@ -33,6 +29,8 @@ export default function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [recoveryNotice, setRecoveryNotice] = useState(false)
+  const submitting = useRef(false)
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -41,7 +39,7 @@ export default function LoginForm() {
   const redirectParam = searchParams.get('redirect')
   const postLoginPath =
     redirectParam != null && redirectParam !== ''
-      ? getSafeRedirectPath(redirectParam, returnToPath)
+      ? getSafeReturnPath(redirectParam, returnToPath)
       : returnToPath
   const { signIn } = useAuthActions()
 
@@ -57,6 +55,7 @@ export default function LoginForm() {
     if (!success) return
 
     const timeout = setTimeout(() => {
+      submitting.current = false
       setSuccess(false)
       setIsLoading(false)
       setError('Redirect is taking longer than expected. Try again.')
@@ -66,6 +65,8 @@ export default function LoginForm() {
   }, [success])
 
   const onSubmit = async (data: LoginFormData) => {
+    if (submitting.current) return
+    submitting.current = true
     setIsLoading(true)
     setError(null)
 
@@ -86,116 +87,78 @@ export default function LoginForm() {
       }
 
       router.replace(postLoginPath)
-    } catch (error) {
-      console.error('Login error:', error)
+    } catch {
+      submitting.current = false
       setError('Invalid email or password. Please try again.')
       setIsLoading(false)
     }
   }
 
-  if (success) {
+  if (success)
     return (
-      <div className="text-center space-y-4">
-        <div className="p-4 bg-muted border border-border rounded-lg">
-          <p className="inline-flex items-center justify-center gap-2 text-sm text-foreground">
-            <CheckCircle
-              aria-hidden="true"
-              className="h-4 w-4 shrink-0 text-success-foreground"
-            />
-            <span>{copy.successMessage}</span>
-          </p>
-        </div>
-      </div>
+      <p className="account-notice" role="status">
+        {copy.successMessage}
+      </p>
     )
-  }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      {/* Error Message */}
+    <form noValidate onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading}>
       {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <p className="account-error account-error-banner" role="alert">
+          {error}
+        </p>
       )}
-
-      {/* Email Field */}
-      <div>
-        <label
-          htmlFor="email"
-          className="block text-sm font-medium text-foreground mb-2"
-        >
-          Email address
-        </label>
-        <Input
+      <AccountField id="email" label="Email" error={errors.email?.message}>
+        <input
           {...register('email')}
           type="email"
+          inputMode="email"
           id="email"
           autoComplete="email"
-          className={authInputClassName}
           placeholder="you@example.com"
+          aria-invalid={!!errors.email}
+          aria-describedby={errors.email ? 'email-error' : undefined}
         />
-        {errors.email && (
-          <p className="mt-1 text-sm text-destructive">
-            {errors.email.message}
-          </p>
-        )}
-      </div>
-
-      {/* Password Field */}
-      <div>
-        <label
-          htmlFor="password"
-          className="block text-sm font-medium text-foreground mb-2"
-        >
-          Password
-        </label>
-        <div className="relative">
-          <Input
+      </AccountField>
+      <AccountField
+        id="password"
+        label="Password"
+        error={errors.password?.message}
+        action={
+          <button type="button" onClick={() => setRecoveryNotice(true)}>
+            Forgot password?
+          </button>
+        }
+      >
+        <div className="account-password">
+          <input
             {...register('password')}
             type={showPassword ? 'text' : 'password'}
             id="password"
             autoComplete="current-password"
-            className={`pr-10 ${authInputClassName}`}
-            placeholder="Enter your password"
+            aria-invalid={!!errors.password}
+            aria-describedby={errors.password ? 'password-error' : undefined}
           />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowPassword(!showPassword)}
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
-            aria-pressed={showPassword}
-            className="absolute right-3 top-1/2 h-8 w-8 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            {showPassword ? (
-              <EyeOff className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <Eye className="h-4 w-4" aria-hidden="true" />
-            )}
-          </Button>
+          <AccountPasswordToggle
+            visible={showPassword}
+            onToggle={() => setShowPassword(!showPassword)}
+          />
         </div>
-        {errors.password && (
-          <p className="mt-1 text-sm text-destructive">
-            {errors.password.message}
-          </p>
-        )}
-      </div>
-
-      {/* Submit Button */}
-      <Button
-        type="submit"
-        disabled={isLoading}
-        className="w-full rounded-lg shadow-sm hover:bg-brand-accent focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-blue"
-      >
+      </AccountField>
+      {recoveryNotice && (
+        <p role="status" className="account-hint account-recovery-notice">
+          Password recovery is not yet available. No reset email has been sent.
+        </p>
+      )}
+      <button className="account-primary" type="submit" disabled={isLoading}>
         {isLoading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {copy.submitLoadingLabel}
-          </>
+          'One moment…'
         ) : (
-          copy.submitLabel
+          <>
+            Log in <ArrowRight size={20} />
+          </>
         )}
-      </Button>
+      </button>
     </form>
   )
 }

@@ -1,27 +1,15 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 import RegisterForm from '@/components/auth/RegisterForm'
-import { AuthReturnLinks } from '@/components/auth/AuthReturnLinks'
-import { AuthIntentHeading } from '@/components/auth/AuthIntentHeading'
+import { AccountScreen } from '@/components/auth/AccountScreen'
 
-/**
- * Registration Page
- *
- * Provides user registration functionality with email, username, and password.
- * Creates new user accounts in the database.
- */
-
+export const metadata: Metadata = { title: 'Make yourself at home. · QuillTip' }
 export default function RegisterPage() {
   return (
-    <div className="space-y-6">
-      <Suspense fallback={null}>
-        <AuthIntentHeading variant="register" />
-      </Suspense>
-
-      <Suspense fallback={null}>
+    <Suspense fallback={null}>
+      <AccountScreen variant="register">
         <RegisterForm />
-      </Suspense>
-
-      <AuthReturnLinks variant="register" />
-    </div>
+      </AccountScreen>
+    </Suspense>
   )
 }
