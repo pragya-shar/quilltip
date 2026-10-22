@@ -21,7 +21,7 @@ function arrangeStationery(root: HTMLElement, items: SVGSVGElement[]) {
     obstacles: Box[] = []
   root
     .querySelectorAll(
-      '.hero-copy,.margin-note,.paper-note,h1,h2,h3,p,small,summary,button,a,input,textarea,nav,.reading-paper'
+      '.hero-copy,.margin-note,.paper-note,h1,h2,h3,p,small,summary,button,a,input,textarea,nav,.reading-paper,.reading-room-card,.reading-room .toolbar,.reading-room-header,.reading-room-footer,.reading-room .writer-filter'
     )
     .forEach((element) => {
       if (!element.getClientRects().length) return
@@ -105,12 +105,13 @@ function arrangeStationery(root: HTMLElement, items: SVGSVGElement[]) {
   })
 }
 
-export function LandingOrnaments() {
+export function LandingOrnaments({
+  rootSelector = '.landing-blend, .prototype-wallet',
+  count = 36,
+}: { rootSelector?: string; count?: number } = {}) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const root = ref.current?.closest<HTMLElement>(
-      '.landing-blend, .prototype-wallet'
-    )
+    const root = ref.current?.closest<HTMLElement>(rootSelector)
     if (!root) return
     let frame = 0,
       cancelled = false
@@ -141,10 +142,10 @@ export function LandingOrnaments() {
       opening.disconnect()
       removeEventListener('resize', arrange)
     }
-  }, [])
+  }, [rootSelector])
   return (
     <div ref={ref} className="literary-scatter" aria-hidden="true">
-      {Array.from({ length: 36 }, (_, index) => {
+      {Array.from({ length: count }, (_, index) => {
         const kind =
           index >= 28
             ? ([1, 2, 3, 5, 6, 7, 8, 11][index - 28] ?? 0)

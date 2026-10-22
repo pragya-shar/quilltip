@@ -10,7 +10,13 @@ import {
   BOOKMARK_EVENT,
   type Bookmark,
 } from '@/lib/library/bookmarks'
-export function BookmarkButton({ article }: { article: Bookmark }) {
+export function BookmarkButton({
+  article,
+  resumeIntent = true,
+}: {
+  article: Bookmark
+  resumeIntent?: boolean
+}) {
   const { user, isLoading } = useAuth()
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -20,7 +26,7 @@ export function BookmarkButton({ article }: { article: Bookmark }) {
         user ? readBookmarks(user._id).some((b) => b.id === article.id) : false
       )
     // Complete the guest's explicit bookmark intent after the real signup return.
-    if (user) {
+    if (user && resumeIntent) {
       const url = new URL(location.href)
       if (url.searchParams.get('bookmark') === '1') {
         try {
@@ -46,7 +52,7 @@ export function BookmarkButton({ article }: { article: Bookmark }) {
       window.removeEventListener(BOOKMARK_EVENT, refresh)
       window.removeEventListener('storage', refresh)
     }
-  }, [user, article])
+  }, [user, article, resumeIntent])
   const icon = (
     <svg
       width="22"

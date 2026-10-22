@@ -21,7 +21,16 @@ const article = {
 describe('article bookmarking', () => {
   beforeEach(() => {
     localStorage.clear()
+    history.replaceState({}, '', '/maya/real-story')
     auth.user = { _id: 'alice' }
+  })
+  it('completes signup intent once on the individual article', () => {
+    history.replaceState({}, '', '/maya/real-story?bookmark=1#passage')
+    render(<BookmarkButton article={article} />)
+    expect(readBookmarks('alice')).toEqual([article])
+    expect(location.pathname + location.search + location.hash).toBe(
+      '/maya/real-story#passage'
+    )
   })
   it('saves and removes the real article without leaving the reader', async () => {
     const user = userEvent.setup()
