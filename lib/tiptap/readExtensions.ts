@@ -1,4 +1,5 @@
 import { Node, mergeAttributes } from '@tiptap/core'
+import type { DOMOutputSpec } from '@tiptap/pm/model'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
@@ -24,7 +25,19 @@ const ReadOnlyResizableImage = Node.create({
     return [{ tag: 'img[src]:not([src^="data:"])' }]
   },
   renderHTML({ HTMLAttributes }) {
-    return ['img', mergeAttributes(HTMLAttributes)]
+    const image: DOMOutputSpec = ['img', mergeAttributes(HTMLAttributes)]
+    return HTMLAttributes.title
+      ? [
+          'figure',
+          {},
+          image,
+          [
+            'figcaption',
+            { contenteditable: 'false' },
+            String(HTMLAttributes.title),
+          ],
+        ]
+      : image
   },
 })
 

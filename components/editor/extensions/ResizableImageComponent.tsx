@@ -224,7 +224,7 @@ export default function ResizableImageComponent({
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
 
   return (
-    <NodeViewWrapper className="resizable-image-wrapper">
+    <NodeViewWrapper as="figure" className="resizable-image-wrapper m-0">
       <div
         ref={wrapperRef}
         role={selected ? 'slider' : 'group'}
@@ -366,6 +366,14 @@ export default function ResizableImageComponent({
           </>
         )}
       </div>
+      {title && (
+        <figcaption
+          contentEditable={false}
+          className="text-sm text-muted-foreground"
+        >
+          {title}
+        </figcaption>
+      )}
     </NodeViewWrapper>
   )
 }

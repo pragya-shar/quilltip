@@ -258,3 +258,101 @@ describe('useAutoSave', () => {
     expect((errorArg as Error).message).toBe('Offline')
   })
 })
+
+describe('writing desk save coordination', () => {
+  afterEach(() => vi.useRealTimers())
+  it('coalesces simultaneous manual saves and saves edits made during the request to the same draft', async () => {
+    let resolveFirst!: (id: string) => void
+    mockSaveDraft
+      .mockReset()
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockResolvedValue('same-draft')
+    const { result, rerender } = renderHook(
+      ({ title }) =>
+        useAutoSave({ content: sampleContent, title, enabled: false }),
+      { initialProps: { title: 'First' } }
+    )
+    let first!: Promise<unknown>, second!: Promise<unknown>
+    act(() => {
+      first = result.current.saveNow()
+      second = result.current.saveNow()
+    })
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1)
+    rerender({ title: 'Latest' })
+    await act(async () => {
+      resolveFirst('same-draft')
+      await Promise.all([first, second])
+    })
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2)
+    expect(mockSaveDraft.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ id: 'same-draft', title: 'Latest' })
+    )
+  })
+  it('does not cancel autosave when the parent rerenders with equivalent tags and new callbacks', async () => {
+    vi.useFakeTimers()
+    mockSaveDraft.mockReset().mockResolvedValue('draft')
+    const { rerender } = renderHook(() =>
+      useAutoSave({
+        content: sampleContent,
+        title: 'Words',
+        tags: ['Stories'],
+        onSaveSuccess: () => {},
+      })
+    )
+    rerender()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('late cloud save settlement', () => {
+  afterEach(() => vi.useRealTimers())
+  it('reuses a timed-out creation before retrying newer words so it cannot create a second draft', async () => {
+    vi.useFakeTimers()
+    let resolveFirst!: (id: string) => void
+    mockSaveDraft
+      .mockReset()
+      .mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      .mockResolvedValue('late-id')
+    const { result, rerender } = renderHook(
+      ({ title }) =>
+        useAutoSave({ content: sampleContent, title, enabled: false }),
+      { initialProps: { title: 'First words' } }
+    )
+    let first!: Promise<unknown>
+    act(() => {
+      first = result.current.saveNow()
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000)
+      await first
+    })
+    expect(result.current.error).toBeTruthy()
+    rerender({ title: 'Latest words' })
+    let retry!: Promise<unknown>
+    act(() => {
+      retry = result.current.saveNow()
+    })
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      resolveFirst('late-id')
+      await retry
+    })
+    expect(mockSaveDraft).toHaveBeenCalledTimes(2)
+    expect(mockSaveDraft.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ id: 'late-id', title: 'Latest words' })
+    )
+  })
+})
