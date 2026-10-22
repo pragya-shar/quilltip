@@ -3,7 +3,6 @@ import {
   getListingReadyPublishError,
   isArticleListingReady,
   isPlaceholderListingTitle,
-  MIN_LISTING_EXCERPT_CHARS,
 } from './articleListingReady'
 
 describe('isPlaceholderListingTitle', () => {
@@ -23,25 +22,26 @@ describe('getListingReadyPublishError', () => {
     expect(
       getListingReadyPublishError({
         title: 'My Post',
-        excerpt: 'a'.repeat(MIN_LISTING_EXCERPT_CHARS),
+        excerpt: 'A readable preview.',
       })
     ).toBeNull()
   })
 
-  it('returns messages for invalid title or excerpt', () => {
+  it('rejects placeholder titles but allows missing or short subtitles', () => {
     expect(
       getListingReadyPublishError({ title: 'Untitled', excerpt: 'abcdefghij' })
     ).toMatch(/real title/)
     expect(
       getListingReadyPublishError({ title: 'OK', excerpt: 'short' })
-    ).toMatch(/excerpt/)
+    ).toBeNull()
+    expect(getListingReadyPublishError({ title: 'Real story' })).toBeNull()
   })
 })
 
 describe('isArticleListingReady', () => {
   const ready = {
     title: 'Real Title',
-    excerpt: 'a'.repeat(MIN_LISTING_EXCERPT_CHARS),
+    excerpt: 'A readable preview.',
     authorUsername: 'writer',
   }
 
@@ -57,14 +57,29 @@ describe('isArticleListingReady', () => {
     expect(isArticleListingReady({ ...ready, title: '   ' })).toBe(false)
   })
 
-  it('rejects short or missing excerpt', () => {
+  it('accepts short subtitles and derives readiness from opening text', () => {
     expect(isArticleListingReady({ ...ready, excerpt: '' })).toBe(false)
     expect(
       isArticleListingReady({
         ...ready,
-        excerpt: 'a'.repeat(MIN_LISTING_EXCERPT_CHARS - 1),
+        excerpt: 'short',
       })
-    ).toBe(false)
+    ).toBe(true)
+    expect(
+      isArticleListingReady({
+        ...ready,
+        excerpt: '',
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Opening words.' }],
+            },
+          ],
+        },
+      })
+    ).toBe(true)
   })
 
   it('rejects missing author username', () => {

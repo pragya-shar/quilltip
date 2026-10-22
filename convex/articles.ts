@@ -656,10 +656,11 @@ export const updateArticle = mutation({
         excerpt:
           updates.excerpt !== undefined ? updates.excerpt : article.excerpt,
         authorUsername: article.authorUsername,
+        content: updates.content ?? article.content,
       }
       if (!isArticleListingReady(merged)) {
         throw new Error(
-          'Cannot update: published articles must keep a real title and excerpt for public discovery'
+          'Cannot update: published articles must keep a real title and readable preview for public discovery'
         )
       }
     }
@@ -980,6 +981,100 @@ export const unpublishArticlesWithPlaceholderTitles = internalMutation({
     }
 
     return { updated }
+  },
+})
+
+// Repair derived discovery data without rewriting the article or uploading it.
+export const refreshArticleDiscovery = internalMutation({
+  args: { ids: v.array(v.id('articles')) },
+  returns: v.object({ updated: v.number() }),
+  handler: async (ctx, args) => {
+    if (
+      args.ids.length === 0 ||
+      args.ids.length > 50 ||
+      new Set(args.ids).size !== args.ids.length
+    ) {
+      throw new Error('Choose 1 to 50 unique articles')
+    }
+    const articles = await Promise.all(args.ids.map((id) => ctx.db.get(id)))
+    for (const article of articles) {
+      if (!article?.published || !isArticleListingReady(article)) {
+        throw new Error('Only public, readable articles can be indexed')
+      }
+    }
+    for (const article of articles) {
+      if (!article) continue
+      await ctx.db.patch(article._id, {
+        searchContent: buildSearchContent(article.title, article.excerpt, {
+          tags: article.tags,
+          content: article.content,
+        }),
+      })
+      await replaceTagLinksForArticle(ctx, article)
+    }
+    return { updated: articles.length }
+  },
+})
+
+// Admin-only, reviewed-record cleanup. Preview is the default; no uploads or deletes.
+export const hideReviewedArticles = internalMutation({
+  args: {
+    articles: v.array(
+      v.object({
+        id: v.id('articles'),
+        expectedTitle: v.string(),
+        expectedUpdatedAt: v.number(),
+      })
+    ),
+    dryRun: v.optional(v.boolean()),
+  },
+  returns: v.object({
+    applied: v.boolean(),
+    articles: v.array(v.object({ id: v.id('articles'), title: v.string() })),
+  }),
+  handler: async (ctx, args) => {
+    if (args.articles.length === 0 || args.articles.length > 50) {
+      throw new Error('Review between 1 and 50 articles at a time')
+    }
+    if (new Set(args.articles.map((a) => a.id)).size !== args.articles.length) {
+      throw new Error('Duplicate article in cleanup')
+    }
+    const reviewed = await Promise.all(
+      args.articles.map(async (expected) => {
+        const article = await ctx.db.get(expected.id)
+        if (
+          !article ||
+          !article.published ||
+          article.title !== expected.expectedTitle ||
+          article.updatedAt !== expected.expectedUpdatedAt
+        ) {
+          throw new Error(`Article ${expected.id} changed since review`)
+        }
+        return article
+      })
+    )
+    const preview = reviewed.map((article) => ({
+      id: article._id,
+      title: article.title,
+    }))
+    if (args.dryRun !== false) return { applied: false, articles: preview }
+
+    const now = Date.now()
+    const deltas = new Map<Id<'users'>, number>()
+    for (const article of reviewed) {
+      await removeTagLinksForArticle(ctx, article._id)
+      await ctx.db.patch(article._id, { published: false, updatedAt: now })
+      deltas.set(article.authorId, (deltas.get(article.authorId) ?? 0) + 1)
+    }
+    for (const [authorId, delta] of deltas) {
+      const author = await ctx.db.get(authorId)
+      if (author)
+        await ctx.db.patch(authorId, {
+          articleCount: Math.max(0, (author.articleCount ?? 0) - delta),
+          updatedAt: now,
+        })
+    }
+    return { applied: true, articles: preview }
   },
 })
 

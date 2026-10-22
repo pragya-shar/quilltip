@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 import { api, internal } from './_generated/api'
 import schema from './schema'
 import type { Id } from './_generated/dataModel'
-import { MIN_LISTING_EXCERPT_CHARS } from './lib/articleListingReady'
 
 const docWithText = {
   type: 'doc',
@@ -17,7 +16,7 @@ const docWithText = {
 }
 
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
-const listingExcerpt = 'a'.repeat(MIN_LISTING_EXCERPT_CHARS)
+const listingExcerpt = 'A readable preview.'
 const authorWallet = 'GTITLEAUTHORRECEIVINGWALLET'
 
 async function drainScheduler(t: ReturnType<typeof convexTest>) {

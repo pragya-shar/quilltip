@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 import { api } from './_generated/api'
 import schema from './schema'
 import type { Id } from './_generated/dataModel'
-import { MIN_LISTING_EXCERPT_CHARS } from './lib/articleListingReady'
 
 const docWithBody = {
   type: 'doc',
@@ -16,7 +15,7 @@ const docWithBody = {
   ],
 }
 
-const listingExcerpt = 'a'.repeat(MIN_LISTING_EXCERPT_CHARS)
+const listingExcerpt = 'A readable preview.'
 
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])
 const authorWallet = 'GAUTHORRECEIVINGWALLET'
@@ -70,36 +69,43 @@ describe('publish listing readiness', () => {
     ).rejects.toThrow(/title/)
   })
 
-  it('rejects publishArticle when excerpt is too short', async () => {
-    const t = convexTest(schema, modules)
-    const { userId, now } = await seedAuthor(t)
-    const asAuthor = t.withIdentity({ subject: userId })
+  it.each(['', 'short'])(
+    'publishes with an optional subtitle: %j',
+    async (excerpt) => {
+      const t = convexTest(schema, modules)
+      const { userId, now } = await seedAuthor(t)
+      const asAuthor = t.withIdentity({ subject: userId })
 
-    const articleId = await t.run(async (ctx) => {
-      return await ctx.db.insert('articles', {
-        slug: 'short-excerpt',
-        title: 'Real Title',
-        excerpt: 'short',
-        content: docWithBody,
-        published: false,
-        authorId: userId,
-        authorUsername: 'pubwriter',
-        tags: [],
-        viewCount: 0,
-        highlightCount: 0,
-        tipCount: 0,
-        totalTipsUsd: 0,
-        createdAt: now,
-        updatedAt: now,
+      const articleId = await t.run(async (ctx) => {
+        return await ctx.db.insert('articles', {
+          slug: 'short-excerpt',
+          title: 'Real Title',
+          excerpt,
+          arweaveStatus: 'verified',
+          content: docWithBody,
+          published: false,
+          authorId: userId,
+          authorUsername: 'pubwriter',
+          tags: [],
+          viewCount: 0,
+          highlightCount: 0,
+          tipCount: 0,
+          totalTipsUsd: 0,
+          createdAt: now,
+          updatedAt: now,
+        })
       })
-    })
 
-    await expect(
-      asAuthor.mutation(api.articles.publishArticle, {
+      await asAuthor.mutation(api.articles.publishArticle, {
         id: articleId as Id<'articles'>,
       })
-    ).rejects.toThrow(/excerpt/)
-  })
+      const listed = await t.query(api.articles.listArticles, {})
+      expect(listed.articles.map((a) => a._id)).toContain(articleId)
+      expect((await t.run(async (ctx) => ctx.db.get(articleId)))?.excerpt).toBe(
+        excerpt
+      )
+    }
+  )
 
   it('publishes when title and excerpt are listing-ready', async () => {
     const t = convexTest(schema, modules)
@@ -182,13 +188,12 @@ describe('publish listing readiness', () => {
       })
     ).rejects.toThrow(/title/)
 
-    await expect(
-      asAuthor.mutation(api.articles.createArticle, {
-        title: 'Good Title',
-        content: docWithBody,
-        published: true,
-      })
-    ).rejects.toThrow(/excerpt/)
+    const id = await asAuthor.mutation(api.articles.createArticle, {
+      title: 'Good Title',
+      content: docWithBody,
+      published: true,
+    })
+    expect((await t.run(async (ctx) => ctx.db.get(id)))?.published).toBe(true)
   })
 
   it('allows createArticle published when listing-ready', async () => {

@@ -10,7 +10,7 @@ import {
 
 const emptyDoc = { type: 'doc', content: [] }
 
-/** Meets MIN_LISTING_EXCERPT_CHARS for public discovery lists */
+/** An explicit subtitle for fixtures that have no body text. */
 const listingExcerpt = 'A valid excerpt for public listing.'
 
 const modules = import.meta.glob(['./**/*.ts', '!./**/*.test.ts'])

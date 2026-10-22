@@ -30,7 +30,6 @@ import { cn } from '@/lib/utils'
 import { AUTO_SAVE_GUIDANCE } from '@/lib/autosave'
 import { truncateFeedbackMessage } from '@/lib/feedback/flow-feedback'
 import { estimateReadingMinutes } from '@/lib/reading-time'
-import { MIN_LISTING_EXCERPT_CHARS } from '@/convex/lib/articleListingReady'
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -455,9 +454,8 @@ function MoreMenu({
                       onPointerDown={(event) => event.stopPropagation()}
                     >
                       <p className="text-[11px] leading-snug text-muted-foreground">
-                        Required for publishing. Shown on article cards and in
-                        the publish preview (at least{' '}
-                        {MIN_LISTING_EXCERPT_CHARS} characters).
+                        Optional. Shown on article cards when provided.
+                        Otherwise, the opening text becomes the preview.
                       </p>
                       <Textarea
                         ref={excerptTextareaRef}
