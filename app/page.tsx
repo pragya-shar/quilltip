@@ -12,10 +12,6 @@ const LandingBelowFold = dynamic(
 )
 import { useLandingHashScroll } from '@/components/landing/useLandingHashScroll'
 import { OnboardingIntentHome } from '@/components/onboarding/OnboardingIntentHome'
-import {
-  CreatorWorkspace,
-  CreatorWorkspaceLoadingShell,
-} from '@/components/dashboard/CreatorWorkspace'
 import { useState } from 'react'
 import { LandingFooter } from '@/components/landing/LandingFooter'
 import { LandingNavigation } from '@/components/landing/LandingNavigation'
@@ -24,18 +20,7 @@ import { LandingOrnaments } from '@/components/landing/LandingOrnaments'
 import { OpeningStage } from '@/components/landing/OpeningStage'
 import { useLandingOpening } from '@/components/landing/useLandingOpening'
 
-function HomeLoadingShell() {
-  return (
-    <div className="min-h-screen bg-background">
-      <AppNavigation />
-      <div className="mx-auto max-w-6xl px-4 pt-24 pb-8">
-        <CreatorWorkspaceLoadingShell />
-      </div>
-    </div>
-  )
-}
-
-function PublicLandingPage() {
+function LandingHome() {
   useLandingHashScroll()
   const { active, finish } = useLandingOpening()
   const [receipt, setReceipt] = useState<DemoReceipt | null>(null)
@@ -70,31 +55,17 @@ function PublicLandingPage() {
 export default function HomePage() {
   const { user, isAuthenticated, isLoading } = useAuth()
 
-  const showOnboarding = isAuthenticated && user && !user.onboardingCompleted
+  const showOnboarding =
+    !isLoading && isAuthenticated && user && !user.onboardingCompleted
 
-  if (isAuthenticated && isLoading) {
-    return <HomeLoadingShell />
-  }
-
-  if (isAuthenticated && user) {
-    if (showOnboarding) {
-      return (
-        <div className="min-h-screen bg-background">
-          <AppNavigation />
-          <OnboardingIntentHome />
-        </div>
-      )
-    }
-
+  if (showOnboarding) {
     return (
       <div className="min-h-screen bg-background">
         <AppNavigation />
-        <div className="mx-auto max-w-6xl px-4 pt-24 pb-8">
-          <CreatorWorkspace user={user} />
-        </div>
+        <OnboardingIntentHome />
       </div>
     )
   }
 
-  return <PublicLandingPage />
+  return <LandingHome />
 }

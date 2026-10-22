@@ -1,8 +1,14 @@
 /** @vitest-environment jsdom */
 import { render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { LandingNavigation } from './LandingNavigation'
 import HeroSection from './HeroSection'
+
+const useAuthMock = vi.fn()
+vi.mock('@/components/providers/AuthContext', () => ({
+  useAuth: () => useAuthMock(),
+}))
+beforeEach(() => useAuthMock.mockReturnValue({ isAuthenticated: false }))
 
 describe('Prototype landing route bindings', () => {
   it('uses the prototype navigation and real reading, writing, and account routes', () => {
@@ -27,6 +33,25 @@ describe('Prototype landing route bindings', () => {
         name: /Product|Resources|Toggle menu/,
       })
     ).not.toBeInTheDocument()
+  })
+
+  it('shows account access instead of signup for signed-in readers', () => {
+    useAuthMock.mockReturnValue({ isAuthenticated: true })
+    render(<LandingNavigation />)
+    expect(screen.getByRole('link', { name: 'Account' })).toHaveAttribute(
+      'href',
+      '/profile'
+    )
+    expect(
+      screen.queryByRole('link', { name: 'Log in' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Sign up' })
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Writing desk' })).toHaveAttribute(
+      'href',
+      '/write'
+    )
   })
 
   it('sends the writing CTA through the existing protected editor route', () => {
