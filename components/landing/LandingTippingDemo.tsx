@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import {
   Dialog,
   DialogClose,
@@ -405,9 +406,7 @@ export function LandingTippingDemo({
           <p className="modal-disclaimer">
             Quick receipt preview · no wallet connects or payment is made.
           </p>
-          <Link className="text-action" href="/guide">
-            Read the wallet guide <ArrowRight size={16} aria-hidden />
-          </Link>
+          <WalletSetupHelp />
         </DialogContent>
       </Dialog>
     </div>

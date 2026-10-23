@@ -222,6 +222,7 @@ export function HighlightTipButton({
   )
   const resumedRef = useRef(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
+  const connectButtonRef = useRef<HTMLButtonElement>(null)
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const restoredFromPendingIntentRef = useRef(false)
@@ -1167,6 +1168,7 @@ export function HighlightTipButton({
               canGoBack={!pendingTipRecord}
               onBack={handleBackToAppreciation}
               onSignIn={handleSignInToTip}
+              connectButtonRef={connectButtonRef}
               onConnectWallet={handleConnectWallet}
               onSendTip={() => void handleTip()}
             />
@@ -1175,6 +1177,7 @@ export function HighlightTipButton({
       </Dialog>
 
       <InstallWalletDialog
+        returnFocusRef={connectButtonRef}
         open={installDialogOpen}
         onOpenChange={setInstallDialogOpen}
       />

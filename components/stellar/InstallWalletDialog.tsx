@@ -1,13 +1,15 @@
 'use client'
 
+import { useRef, type RefObject } from 'react'
+import './wallet-help.css'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { ExternalLink, Download } from 'lucide-react'
+import { ArrowUpRight } from 'lucide-react'
 
 type WalletInstallLink = {
   name: string
@@ -38,59 +40,81 @@ const WALLET_INSTALL_LINKS: WalletInstallLink[] = [
 export function InstallWalletDialog({
   open,
   onOpenChange,
+  returnFocusRef,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  returnFocusRef?: RefObject<HTMLButtonElement | null>
 }) {
+  const origin = useRef<HTMLElement | null>(null)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent
+        className="wallet-install-dialog"
+        overlayClassName="wallet-install-overlay"
+        onOpenAutoFocus={() => {
+          origin.current =
+            document.activeElement instanceof HTMLElement
+              ? document.activeElement
+              : null
+        }}
+        onCloseAutoFocus={(event) => {
+          const target = returnFocusRef?.current ?? origin.current
+          if (target?.isConnected && target !== document.body) {
+            event.preventDefault()
+            target.focus({ preventScroll: true })
+          }
+        }}
+      >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            Install a Stellar wallet
-          </DialogTitle>
+          <span className="wallet-install-eyebrow">
+            Your wallet · Stellar testnet
+          </span>
+          <DialogTitle>Make room for a little appreciation.</DialogTitle>
+          <DialogDescription>
+            Choose a Stellar wallet, follow its setup steps, then return here to
+            connect. If you just installed it, reload when your current task is
+            saved.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            We couldn&apos;t find a Stellar wallet in your browser. Install one
-            of the options below, then reload this page and try connecting
-            again.
-          </p>
-
-          <div className="grid gap-2">
+        <div className="wallet-install-body">
+          <div className="wallet-install-options">
             {WALLET_INSTALL_LINKS.map((w) => (
               <a
                 key={w.name}
                 href={w.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg border border-border bg-muted/30 p-3 hover:bg-muted/50 transition-colors"
+                className="wallet-install-option"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-medium text-sm">{w.name}</div>
+                    <div className="wallet-install-name">{w.name}</div>
                     {w.note ? (
-                      <div className="text-xs text-muted-foreground">
-                        {w.note}
-                      </div>
+                      <div className="wallet-install-note">{w.note}</div>
                     ) : null}
                   </div>
-                  <span className="inline-flex items-center text-xs text-muted-foreground">
+                  <span className="wallet-install-destination">
                     Open store
-                    <ExternalLink className="ml-2 h-3.5 w-3.5" />
+                    <ArrowUpRight size={18} aria-hidden />
                   </span>
                 </div>
               </a>
             ))}
           </div>
 
-          <div className="flex justify-end">
-            <Button variant="secondary" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-          </div>
+          <p className="wallet-install-note">
+            Reading is free. Keep your recovery phrase private; QuillTip will
+            never ask for it. Use Testnet and free test XLM for practice.
+          </p>
+          <button
+            type="button"
+            className="wallet-install-dismiss"
+            onClick={() => onOpenChange(false)}
+          >
+            Back to what I was doing
+          </button>
         </div>
       </DialogContent>
     </Dialog>

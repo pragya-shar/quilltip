@@ -41,7 +41,10 @@ export default function LandingBelowFold({
               Both. Highlight a passage to attach your tip to its exact words,
               or choose the whole article. Tips currently use free test XLM with
               no monetary value.{' '}
-              <Link href="/guide">Read the wallet guide</Link>.
+              <Link href="/wallet/practice#wallet-help">
+                Wallet setup and practice
+              </Link>
+              .
             </p>
           </details>
           <details>

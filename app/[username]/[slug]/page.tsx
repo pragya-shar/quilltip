@@ -68,7 +68,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
 
   if (article === undefined) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen reader-surface">
         <AppNavigation />
         <LoadingRegion
           label="article"
@@ -110,11 +110,11 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-screen flex-col reader-surface">
       <AppNavigation />
       <ReadingProgressBar />
       <main className="flex-1 pt-20 w-full">
-        <EditorialSurface>
+        <EditorialSurface className="reader-layout">
           <ErrorBoundary fallback={<ArticleDisplaySectionFallback />}>
             <ArticleDisplay
               article={articleForDisplay}

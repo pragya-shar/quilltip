@@ -1,6 +1,7 @@
 'use client'
 import dynamic from 'next/dynamic'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { LandingNavigation } from '@/components/landing/LandingNavigation'
 import { LandingOrnaments } from '@/components/landing/LandingOrnaments'
 const WalletPreview = dynamic(
@@ -9,6 +10,13 @@ const WalletPreview = dynamic(
 )
 export function WalletPracticePage() {
   const [sample, setSample] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+  useEffect(() => {
+    const update = () => setShowHelp(location.hash === '#wallet-help')
+    update()
+    window.addEventListener('hashchange', update)
+    return () => window.removeEventListener('hashchange', update)
+  }, [])
   return (
     <div
       className="prototype-wallet opening-trial onboarding-study blend-study rose-study type-study presentation-view scene-study connected-study guided-sequence stacked"
@@ -34,6 +42,13 @@ export function WalletPracticePage() {
             <div className="feature-sequences">
               <div className="reader-chapter">
                 <div>
+                  <section
+                    id="wallet-help"
+                    className="wallet-practice-help"
+                    aria-label="Wallet setup help"
+                  >
+                    <WalletSetupHelp receiving initiallyOpen={showHelp} />
+                  </section>
                   <WalletPreview onModeChange={setSample} />
                 </div>
               </div>

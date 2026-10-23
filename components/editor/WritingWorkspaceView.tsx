@@ -27,6 +27,7 @@ import { WritingToolbar } from './WritingToolbar'
 import { WritingDesk } from './WritingDesk'
 import { WritingMedia } from './WritingMedia'
 import { WritingWallet } from './WritingWallet'
+import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 
 export function WritingWorkspaceView({
   workspace: w,
@@ -816,9 +817,10 @@ export function WritingWorkspaceView({
               Checking your receiving wallet…
             </p>
           ) : w.receivingWalletAddress ? (
-            <p className="drawer-note">
-              Your receiving wallet is ready for Stellar testnet tips.
-            </p>
+            <div className="drawer-note">
+              <p>Your receiving wallet is ready for Stellar testnet tips.</p>
+              <WalletSetupHelp receiving />
+            </div>
           ) : (
             <WritingWallet onSaved={w.setReceivingWalletAddress} />
           )}

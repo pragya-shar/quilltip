@@ -16,7 +16,7 @@ export function TipStats({ articleId, className = '' }: TipStatsProps) {
   if (stats === undefined) {
     return (
       <div
-        className={`flex items-center gap-4 text-sm text-muted-foreground ${className}`}
+        className={`flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground ${className}`}
         aria-hidden
       >
         <div className="flex items-center gap-1">
@@ -35,7 +35,7 @@ export function TipStats({ articleId, className = '' }: TipStatsProps) {
 
   return (
     <div
-      className={`flex items-center gap-4 text-sm text-muted-foreground ${className}`}
+      className={`flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground ${className}`}
     >
       <div className="flex items-center gap-1">
         <Coins className="w-4 h-4 text-muted-foreground" />

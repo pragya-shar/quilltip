@@ -18,7 +18,7 @@ export function ArticleReaderSupport({
   authorStellarAddress,
 }: ArticleReaderSupportProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 py-4 border-y border-border">
+    <div className="reader-support">
       <ArticleTipActions
         articleId={articleId}
         articleSlug={articleSlug}

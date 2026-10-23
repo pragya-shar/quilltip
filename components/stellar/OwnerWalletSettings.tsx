@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import Link from 'next/link'
+import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
 import { networkLabelLowercase } from '@/lib/copy/network-status'
@@ -166,7 +166,11 @@ export function OwnerWalletSettings({
               Disconnect wallet
             </button>
           ) : (
-            <ContextualWalletSetup mode="send" className="account-connect" />
+            <ContextualWalletSetup
+              mode="send"
+              className="account-connect"
+              showHelp={false}
+            />
           )}
         </div>
       </div>
@@ -266,11 +270,9 @@ export function OwnerWalletSettings({
               </button>
             </div>
           )}
-          <Link className="account-text-link" href="/guide">
-            Wallet guide
-          </Link>
         </div>
       </details>
+      <WalletSetupHelp receiving />
       {error && !confirmRemove && (
         <p className="account-notice" role="alert">
           {error}

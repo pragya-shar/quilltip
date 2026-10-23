@@ -28,6 +28,7 @@
 @import '../components/editor/extensions/ResizableImageStyles.css';
 @import 'tw-animate-css';
 @import './shared-ui.css';
+@import '../components/articles/reader.css';
 
 /* Highlight animations and styles */
 @keyframes highlight-fade-in {
@@ -571,25 +572,6 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-/* First Paragraph – subtle lead style */
-.article-content .prose > p:first-of-type {
-  font-size: 1.125rem;
-  line-height: 1.65;
-  color: var(--foreground);
-  font-weight: 400;
-}
-
-/* Drop Cap for First Letter */
-.article-content .prose > p:first-of-type::first-letter {
-  float: left;
-  font-size: 3.25rem;
-  line-height: 1;
-  font-weight: 600;
-  margin-right: 0.375rem;
-  margin-top: 0.125rem;
-  color: var(--color-brand-blue);
 }
 
 @theme inline {
