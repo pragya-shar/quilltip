@@ -62,7 +62,7 @@ export default function FAQSection() {
                     className={cn(
                       'w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors duration-200',
                       'bg-muted text-foreground border border-border',
-                      'group-data-[state=open]:bg-brand/15 group-data-[state=open]:text-brand group-data-[state=open]:border-transparent'
+                      'group-data-[state=open]:bg-primary/15 group-data-[state=open]:text-primary group-data-[state=open]:border-transparent'
                     )}
                   >
                     <ChevronDown

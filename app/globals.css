@@ -2,28 +2,6 @@
 @import '../components/landing/landing-blend.css';
 @import '../components/layout/site-chrome.css';
 
-/* Tailwind v4 Theme Configuration */
-@theme {
-  --font-sans: Inter, sans-serif;
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-handwritten: Caveat, cursive;
-
-  --color-brand-blue: #1a365d;
-  --color-brand-cream: #fefefe;
-  --color-brand-accent: #2d5a87;
-
-  --color-quill-50: #f8f9fa;
-  --color-quill-100: #f1f3f4;
-  --color-quill-200: #e8eaed;
-  --color-quill-300: #dadce0;
-  --color-quill-400: #bdc1c6;
-  --color-quill-500: #9aa0a6;
-  --color-quill-600: #80868b;
-  --color-quill-700: #5f6368;
-  --color-quill-800: #3c4043;
-  --color-quill-900: #202124;
-}
-
 /* Import resizable image styles */
 @import '../components/editor/extensions/ResizableImageStyles.css';
 @import 'tw-animate-css';
@@ -128,19 +106,50 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Custom utility classes */
-.font-handwritten {
-  font-family: var(--font-handwritten);
+/* Keep unscoped UI and portal defaults on the current shared palette. */
+:root,
+.dark {
+  --surface: var(--ui-surface);
+  --text: var(--ui-foreground);
+  --background: var(--ui-surface);
+  --foreground: var(--ui-foreground);
+  --card: var(--ui-surface);
+  --card-foreground: var(--ui-foreground);
+  --popover: var(--ui-surface);
+  --popover-foreground: var(--ui-foreground);
+  --primary: var(--ui-primary);
+  --primary-foreground: var(--ui-primary-foreground);
+  --secondary: var(--ui-muted);
+  --secondary-foreground: var(--ui-foreground);
+  --muted: var(--ui-muted);
+  --muted-foreground: var(--ui-muted-foreground);
+  --accent: var(--ui-accent);
+  --accent-foreground: var(--ui-accent-foreground);
+  --destructive: var(--ui-danger);
+  --destructive-foreground: var(--ui-danger-foreground);
+  --border: var(--ui-border);
+  --input: var(--ui-input);
+  --ring: var(--ui-ring);
+  --sidebar: var(--ui-surface);
+  --sidebar-foreground: var(--ui-foreground);
+  --sidebar-primary: var(--ui-primary);
+  --sidebar-primary-foreground: var(--ui-primary-foreground);
+  --sidebar-accent: var(--ui-accent);
+  --sidebar-accent-foreground: var(--ui-accent-foreground);
+  --sidebar-border: var(--ui-border);
+  --sidebar-ring: var(--ui-ring);
+  --success: var(--ui-success);
+  --success-foreground: var(--ui-success-foreground);
+  --warning: var(--ui-warning);
+  --warning-foreground: var(--ui-warning-foreground);
+  --info: var(--ui-info);
+  --info-foreground: var(--ui-info-foreground);
+  --collectible: var(--ui-collectible);
+  --collectible-foreground: var(--ui-collectible-foreground);
 }
 
 :root {
-  --font-sans: 'Inter', sans-serif;
-  --font-handwritten: 'Caveat', cursive;
   --radius: 0.625rem;
-
-  /* Semantic tokens mapped to quill palette (surface=card, text=foreground, muted=muted-foreground) */
-  --surface: #ffffff;
-  --text: #202124;
 
   /* Card tokens */
   --card-padding: 1.5rem;
@@ -156,15 +165,6 @@
   --chrome-raised: var(--card-shadow);
   --workspace-row-padding: 1rem;
 
-  /* Shadcn semantic vars (quill palette) */
-  --background: #fefefe;
-  --foreground: #202124;
-  --card: #ffffff;
-  --card-foreground: #202124;
-  --popover: #ffffff;
-  --popover-foreground: #202124;
-  --primary: #1a365d;
-  --primary-foreground: #fefefe;
   --heatmap-0: #c391a1;
   --heatmap-1: #a35070;
   --heatmap-2: #790333;
@@ -176,30 +176,11 @@
     var(--heatmap-2),
     var(--heatmap-3)
   );
-  --secondary: #f1f3f4;
-  --secondary-foreground: #202124;
-  --muted: #f1f3f4;
-  --muted-foreground: #80868b;
-  --accent: #f1f3f4;
-  --accent-foreground: #202124;
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: #e8eaed;
-  --input: #e8eaed;
-  --ring: #9aa0a6;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
 
   /*
    * Approved semantic color variant matrix (ENG-262)
@@ -214,35 +195,19 @@
    * Do NOT use raw Tailwind palette classes (yellow-*, blue-500, etc.) for UI states.
    */
 
-  /*
-   * Semantic status tokens. Each pair: background (--*) + legible text (--*-foreground).
-   * Use as Tailwind utilities: bg-success text-success-foreground, bg-warning text-warning-foreground, etc.
-   * For error/danger states use --destructive / --destructive-foreground (already present above).
-   */
-  --success: oklch(0.965 0.03 145);
-  --success-foreground: oklch(0.44 0.15 145);
-  --warning: oklch(0.97 0.04 85);
-  --warning-foreground: oklch(0.45 0.14 85);
-  --info: oklch(0.965 0.03 240);
-  --info-foreground: oklch(0.48 0.17 240);
-
   /* Aliased semantic tokens */
   --support: var(--info);
   --support-foreground: var(--info-foreground);
   --wallet: var(--success);
   --wallet-foreground: var(--success-foreground);
 
-  /* Collectible / NFT tonal family (restrained violet-navy, not rainbow) */
+  /* Retain collectible intensity variants alongside the shared base pair. */
   --collectible-muted: oklch(0.96 0.02 270);
   --collectible-muted-foreground: oklch(0.5 0.08 270);
-  --collectible: oklch(0.93 0.04 265);
-  --collectible-foreground: oklch(0.42 0.14 265);
   --collectible-emphasis: oklch(0.88 0.08 260);
   --collectible-emphasis-foreground: oklch(0.35 0.16 260);
 
   /* Documented gradient stops (use via bg-gradient-to-r from-* to-*) */
-  --gradient-brand-from: var(--brand);
-  --gradient-brand-to: var(--brand-hover);
   --gradient-collectible-from: oklch(0.55 0.12 265);
   --gradient-collectible-to: oklch(0.45 0.14 260);
 
@@ -263,20 +228,6 @@
    * Wallet/NFT accent: reuse --primary (no separate monetization token).
    * See docs/design-system/monetization-status-colors.md
    */
-
-  /*
-   * Landing semantic tokens
-   * - brand: consistent CTA color across modes
-   * - spotlight: intentionally darker section surface that still adapts in dark mode
-   */
-  --brand: #1a365d;
-  --brand-foreground: #fefefe;
-  --brand-hover: #2d5a87;
-
-  --spotlight: #202124;
-  --spotlight-foreground: #f8f9fa;
-  --spotlight-muted: #c9ccd1;
-  --spotlight-border: #3c4043;
 }
 
 /* Clean Typography for Article Content */
@@ -355,9 +306,9 @@
   color: var(--foreground);
 }
 
-/* Links – softer muted blue, no underline thickening on hover */
+/* Links follow the current semantic accent without changing authored content. */
 .prose a {
-  color: var(--color-brand-accent);
+  color: var(--primary);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
@@ -365,7 +316,7 @@
 }
 
 .prose a:hover {
-  color: var(--color-brand-blue);
+  color: var(--foreground);
   text-decoration-thickness: 1px;
 }
 
@@ -575,6 +526,8 @@
 }
 
 @theme inline {
+  --font-sans: var(--ui-font);
+  --font-display: 'QuillTip Display', sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-card: var(--card-radius);
   --shadow-card: var(--card-shadow);
@@ -615,20 +568,11 @@
   --color-collectible-emphasis-foreground: var(
     --collectible-emphasis-foreground
   );
-  --color-gradient-brand-from: var(--gradient-brand-from);
-  --color-gradient-brand-to: var(--gradient-brand-to);
   --color-gradient-collectible-from: var(--gradient-collectible-from);
   --color-gradient-collectible-to: var(--gradient-collectible-to);
   --color-heatmap-low: var(--heatmap-low);
   --color-heatmap-mid: var(--heatmap-mid);
   --color-heatmap-high: var(--heatmap-high);
-  --color-brand: var(--brand);
-  --color-brand-foreground: var(--brand-foreground);
-  --color-brand-hover: var(--brand-hover);
-  --color-spotlight: var(--spotlight);
-  --color-spotlight-foreground: var(--spotlight-foreground);
-  --color-spotlight-muted: var(--spotlight-muted);
-  --color-spotlight-border: var(--spotlight-border);
   --color-border: var(--border);
   --color-surface: var(--surface);
   --color-text: var(--text);
@@ -670,59 +614,15 @@
 }
 
 .dark {
-  /* Semantic tokens (quill palette) */
-  --surface: #3c4043;
-  --text: #f8f9fa;
-
-  /* Shadcn semantic vars (quill palette) */
-  --background: #202124;
-  --foreground: #f8f9fa;
-  --card: #3c4043;
-  --card-foreground: #f8f9fa;
-  --popover: #3c4043;
-  --popover-foreground: #f8f9fa;
-  --primary: #e8eaed;
-  --primary-foreground: #202124;
   --heatmap-0: #906276;
   --heatmap-1: #b88399;
   --heatmap-2: #dca2b9;
   --heatmap-3: #f5d7e2;
-  --secondary: #3c4043;
-  --secondary-foreground: #f8f9fa;
-  --muted: #3c4043;
-  --muted-foreground: #c9ccd1;
-  --accent: #3c4043;
-  --accent-foreground: #f8f9fa;
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: #6e7378;
-  --input: #5f6368;
-  --ring: #9aa0a6;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #3c4043;
-  --sidebar-foreground: #f8f9fa;
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: #f8f9fa;
-  --sidebar-accent: #3c4043;
-  --sidebar-accent-foreground: #f8f9fa;
-  --sidebar-border: #5f6368;
-  --sidebar-ring: #9aa0a6;
-
-  /*
-   * Semantic status tokens. Each pair: background (--*) + legible text (--*-foreground).
-   * Use as Tailwind utilities: bg-success text-success-foreground, bg-warning text-warning-foreground, etc.
-   * For error/danger states use --destructive / --destructive-foreground (already present above).
-   */
-  --success: oklch(0.28 0.07 145);
-  --success-foreground: oklch(0.89 0.08 145);
-  --warning: oklch(0.3 0.07 85);
-  --warning-foreground: oklch(0.9 0.1 85);
-  --info: oklch(0.28 0.06 240);
-  --info-foreground: oklch(0.9 0.07 240);
 
   --support: var(--info);
   --support-foreground: var(--info-foreground);
@@ -731,29 +631,15 @@
 
   --collectible-muted: oklch(0.28 0.04 270);
   --collectible-muted-foreground: oklch(0.82 0.05 270);
-  --collectible: oklch(0.32 0.06 265);
-  --collectible-foreground: oklch(0.88 0.06 265);
   --collectible-emphasis: oklch(0.38 0.1 260);
   --collectible-emphasis-foreground: oklch(0.92 0.05 260);
 
-  --gradient-brand-from: var(--brand);
-  --gradient-brand-to: var(--brand-hover);
   --gradient-collectible-from: oklch(0.5 0.1 265);
   --gradient-collectible-to: oklch(0.42 0.12 260);
 
   --heatmap-low: var(--heatmap-0);
   --heatmap-mid: var(--heatmap-1);
   --heatmap-high: var(--heatmap-3);
-
-  /* Landing semantic tokens */
-  --brand: #1a365d;
-  --brand-foreground: #fefefe;
-  --brand-hover: #2d5a87;
-
-  --spotlight: #17181a;
-  --spotlight-foreground: #f8f9fa;
-  --spotlight-muted: #c9ccd1;
-  --spotlight-border: #2a2c2f;
 }
 
 @layer base {
@@ -768,14 +654,6 @@
 @layer utilities {
   .focus-ring {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
-  }
-
-  .bg-gradient-brand {
-    background-image: linear-gradient(
-      to right,
-      var(--gradient-brand-from),
-      var(--gradient-brand-to)
-    );
   }
 
   .bg-gradient-collectible {

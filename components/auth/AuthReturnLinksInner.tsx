@@ -31,7 +31,7 @@ export function AuthReturnLinksInner({
             Don&apos;t have an account?{' '}
             <Link
               href={buildRegisterHref(returnTo)}
-              className="font-medium text-brand-blue hover:text-brand-accent transition-colors"
+              className="font-medium text-primary hover:text-foreground transition-colors"
             >
               Sign up for free
             </Link>
@@ -57,7 +57,7 @@ export function AuthReturnLinksInner({
           Already have an account?{' '}
           <Link
             href={buildLoginHref(returnTo)}
-            className="font-medium text-brand-blue hover:text-brand-accent transition-colors"
+            className="font-medium text-primary hover:text-foreground transition-colors"
           >
             Sign in here
           </Link>

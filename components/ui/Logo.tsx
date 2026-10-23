@@ -48,9 +48,9 @@ export function Logo({
   const isOnDark = variant === 'onDark'
   const iconBoxClass = isOnDark
     ? 'bg-card border border-border shadow-sm'
-    : 'bg-gradient-to-br from-brand-blue to-brand-accent shadow-sm'
-  const iconColor = isOnDark ? 'text-foreground' : 'text-brand-foreground'
-  const textColor = isOnDark ? 'text-spotlight-foreground' : 'text-foreground'
+    : 'bg-primary shadow-sm'
+  const iconColor = isOnDark ? 'text-foreground' : 'text-primary-foreground'
+  const textColor = isOnDark ? 'text-ui-surface' : 'text-foreground'
   const textFont = isOnDark ? 'font-medium font-display' : 'font-semibold'
 
   const iconBox = (

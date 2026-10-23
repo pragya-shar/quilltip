@@ -171,7 +171,7 @@
   background: var(--profile-paper);
   color: var(--profile-wine);
 }
-.profile-pagination nav .bg-brand-blue {
+.profile-pagination nav .bg-primary {
   background: var(--profile-wine);
   color: var(--profile-paper);
 }

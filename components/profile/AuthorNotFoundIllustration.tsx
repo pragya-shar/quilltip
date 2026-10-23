@@ -42,7 +42,7 @@ export function AuthorNotFoundIllustration() {
         />
         <path
           d="M158 36l18 18M176 36l-18 18"
-          className="stroke-brand-accent"
+          className="stroke-primary"
           strokeWidth="2.5"
           strokeLinecap="round"
         />

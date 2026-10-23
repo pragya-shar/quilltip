@@ -30,7 +30,7 @@ export function UserAvatar({
       {trimmedSrc ? <AvatarImage src={trimmedSrc} alt="" /> : null}
       <AvatarFallback
         className={cn(
-          'bg-brand-blue text-white font-semibold text-sm',
+          'bg-primary text-primary-foreground font-semibold text-sm',
           fallbackClassName
         )}
       >

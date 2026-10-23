@@ -40,7 +40,7 @@ export function DraftListRow({
         href={`/write?id=${draft._id}`}
         className="focus-ring block rounded-[var(--card-radius)] px-[var(--card-padding)] py-4 pr-14"
       >
-        <h2 className="text-lg font-semibold text-foreground group-hover:text-brand-blue line-clamp-1 break-words">
+        <h2 className="text-lg font-semibold text-foreground group-hover:text-primary line-clamp-1 break-words">
           {title}
         </h2>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">

@@ -40,7 +40,7 @@ export function RecentWorkList({ username, hasDrafts }: RecentWorkListProps) {
         {recentWork.length > 0 && (
           <Link
             href={footerHref}
-            className="shrink-0 text-sm font-medium text-brand-blue hover:text-brand-accent"
+            className="shrink-0 text-sm font-medium text-primary hover:text-foreground"
           >
             {footerLabel}
           </Link>
@@ -54,7 +54,7 @@ export function RecentWorkList({ username, hasDrafts }: RecentWorkListProps) {
           </p>
           <Link
             href="/write"
-            className="text-sm font-medium text-brand-blue hover:text-brand-accent"
+            className="text-sm font-medium text-primary hover:text-foreground"
           >
             Start your first article
           </Link>

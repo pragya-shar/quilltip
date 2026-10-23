@@ -1,25 +1,9 @@
 import type { Metadata } from 'next'
-import { Inter, Caveat, Fraunces } from 'next/font/google'
 import './globals.css'
 import './highlights.css'
 import Providers from '@/components/providers/Providers'
 import { Analytics } from '@vercel/analytics/react'
 import { SITE_META_DESCRIPTION } from '@/lib/copy/landing-sections'
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-sans',
-})
-
-const caveat = Caveat({
-  subsets: ['latin'],
-  variable: '--font-handwritten',
-})
-
-const fraunces = Fraunces({
-  subsets: ['latin'],
-  variable: '--font-display',
-})
 
 export const metadata: Metadata = {
   title: 'Quilltip - Decentralized Publishing Platform',
@@ -33,9 +17,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${inter.variable} ${caveat.variable} ${fraunces.variable} font-sans antialiased bg-background text-foreground`}
-      >
+      <head>
+        <link
+          rel="preload"
+          href="/landing/fonts/work-sans-latin-400-normal.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+        <link
+          rel="preload"
+          href="/account/fonts/syne-variable.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
+      </head>
+      <body className="font-sans antialiased bg-background text-foreground">
         <Providers>{children}</Providers>
         <Analytics />
       </body>
