@@ -1,5 +1,7 @@
 'use client'
 
+import type { Ref } from 'react'
+
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { Heart, Loader2, RefreshCw, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -34,6 +36,7 @@ interface TipCheckoutStepProps {
   canGoBack?: boolean
   onBack: () => void
   onSignIn: () => void
+  connectButtonRef?: Ref<HTMLButtonElement>
   onConnectWallet: () => void
   onSendTip: () => void
 }
@@ -59,6 +62,7 @@ export function TipCheckoutStep({
   canGoBack = true,
   onBack,
   onSignIn,
+  connectButtonRef,
   onConnectWallet,
   onSendTip,
 }: TipCheckoutStepProps) {
@@ -83,6 +87,7 @@ export function TipCheckoutStep({
       return (
         <Button
           type="button"
+          ref={connectButtonRef}
           onClick={onConnectWallet}
           disabled={isLoading || isWalletLoading}
           className="flex-1 gap-2"

@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, type RefObject } from 'react'
 import './wallet-help.css'
 import {
   Dialog,
@@ -40,15 +40,18 @@ const WALLET_INSTALL_LINKS: WalletInstallLink[] = [
 export function InstallWalletDialog({
   open,
   onOpenChange,
+  returnFocusRef,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  returnFocusRef?: RefObject<HTMLButtonElement | null>
 }) {
   const origin = useRef<HTMLElement | null>(null)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="wallet-install-dialog"
+        overlayClassName="wallet-install-overlay"
         onOpenAutoFocus={() => {
           origin.current =
             document.activeElement instanceof HTMLElement
@@ -56,9 +59,10 @@ export function InstallWalletDialog({
               : null
         }}
         onCloseAutoFocus={(event) => {
-          if (origin.current?.isConnected) {
+          const target = returnFocusRef?.current ?? origin.current
+          if (target?.isConnected && target !== document.body) {
             event.preventDefault()
-            origin.current.focus({ preventScroll: true })
+            target.focus({ preventScroll: true })
           }
         }}
       >

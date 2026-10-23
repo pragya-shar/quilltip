@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { useMutation } from 'convex/react'
 import { Loader2, PlugZap } from 'lucide-react'
@@ -57,6 +57,7 @@ export function ContextualWalletSetup({
   })
   const [isConnecting, setIsConnecting] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
+  const connectButtonRef = useRef<HTMLButtonElement>(null)
   const [feedback, setFeedback] = useState<FlowFeedback | null>(null)
 
   const handleConnect = async () => {
@@ -143,6 +144,7 @@ export function ContextualWalletSetup({
         </div>
 
         <Button
+          ref={connectButtonRef}
           type="button"
           onClick={() => void handleConnect()}
           disabled={isConnecting || isLoading}
@@ -166,6 +168,7 @@ export function ContextualWalletSetup({
       </div>
 
       <InstallWalletDialog
+        returnFocusRef={connectButtonRef}
         open={installDialogOpen}
         onOpenChange={setInstallDialogOpen}
       />

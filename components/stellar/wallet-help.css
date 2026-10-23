@@ -72,6 +72,10 @@
   border-block: 1px solid #cdb9b4;
   scroll-margin-top: 100px;
 }
+.wallet-install-overlay,
+.wallet-install-dialog {
+  z-index: 150;
+}
 .wallet-install-dialog {
   color-scheme: light;
   color: #390c18;

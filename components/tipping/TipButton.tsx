@@ -206,6 +206,7 @@ export function TipButton({
   const [isOpen, setIsOpen] = useState(false)
   const [modalStep, setModalStep] = useState<TipModalStep>('appreciation')
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
+  const connectButtonRef = useRef<HTMLButtonElement>(null)
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -990,6 +991,7 @@ export function TipButton({
               canGoBack={!pendingTipRecord}
               onBack={handleBackToAppreciation}
               onSignIn={handleSignInToTip}
+              connectButtonRef={connectButtonRef}
               onConnectWallet={handleConnectWallet}
               onSendTip={handleTip}
             />
@@ -998,6 +1000,7 @@ export function TipButton({
       </Dialog>
 
       <InstallWalletDialog
+        returnFocusRef={connectButtonRef}
         open={installDialogOpen}
         onOpenChange={setInstallDialogOpen}
       />

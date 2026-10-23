@@ -86,6 +86,7 @@ export function MintButton({
   const [isLoading, setIsLoading] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
+  const connectButtonRef = useRef<HTMLButtonElement>(null)
   const [nftMintFlowStep, setNftMintFlowStep] =
     useState<NftMintFlowStep | null>(null)
   const nftMintFlowStepRef = useRef<NftMintFlowStep | null>(null)
@@ -419,6 +420,7 @@ export function MintButton({
 
               {!wallet.isConnected ? (
                 <Button
+                  ref={connectButtonRef}
                   onClick={handleConnectWallet}
                   disabled={isLoading}
                   className="flex-1"
@@ -453,6 +455,7 @@ export function MintButton({
       </Dialog>
 
       <InstallWalletDialog
+        returnFocusRef={connectButtonRef}
         open={installDialogOpen}
         onOpenChange={setInstallDialogOpen}
       />
