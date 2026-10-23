@@ -25,6 +25,7 @@ import {
 } from '@/lib/copy/landing-sections'
 import { WRITER_FEE_PHRASE } from '@/lib/copy/launch-guide'
 import { cn } from '@/lib/utils'
+import { GuideTabIntro } from '@/components/guide/GuideTabIntro'
 
 const WALLET_GUIDE_TABS = [
   { value: 'what-is-wallet', label: 'What is a Wallet?' },
@@ -32,23 +33,6 @@ const WALLET_GUIDE_TABS = [
   { value: 'connect', label: 'Connect' },
   { value: 'first-tip', label: 'Your First Tip' },
 ] as const
-
-function GuideTabIntro({
-  title,
-  children,
-}: {
-  title: string
-  children: React.ReactNode
-}) {
-  return (
-    <div className="mb-8">
-      <h2 className="text-lg font-semibold text-foreground mb-2">{title}</h2>
-      <p className="text-sm text-muted-foreground leading-relaxed">
-        {children}
-      </p>
-    </div>
-  )
-}
 
 export function WalletGuide() {
   return (

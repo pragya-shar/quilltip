@@ -16,6 +16,7 @@ import { Archive, DollarSign, MessageSquare, Trophy } from 'lucide-react'
 import type { Id } from '@/types/convex'
 import type { TocHeading } from '@/lib/tiptap/headings'
 import type { Doc } from '@/convex/_generated/dataModel'
+import { DetailsSection } from '@/components/articles/DetailsSection'
 
 const NFTIntegration = nextDynamic(
   () =>
@@ -39,14 +40,6 @@ interface ArticleDetailsPanelProps {
   arweaveTxId?: string | null
   arweaveUrl?: string | null
   arweaveTimestamp?: number | null
-}
-
-function DetailsSection({ children }: { children: React.ReactNode }) {
-  return (
-    <section className="border-t border-border pt-6 first:border-t-0 first:pt-0">
-      {children}
-    </section>
-  )
 }
 
 export function ArticleDetailsPanel({

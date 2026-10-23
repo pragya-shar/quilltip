@@ -14,6 +14,7 @@ import {
 import { getFeedRowContextLabel } from '@/lib/articles/feedRowStatus'
 import type { BrowseView } from '@/lib/articles/browseDiscovery'
 import { cn } from '@/lib/utils'
+import { MetadataSeparator } from '@/components/articles/MetadataSeparator'
 
 interface ArticleFeedRowProps {
   article: ArticleForDisplay
@@ -22,14 +23,6 @@ interface ArticleFeedRowProps {
   tagLinkAuthor?: string
   view?: BrowseView
   isHero?: boolean
-}
-
-function MetadataSeparator() {
-  return (
-    <span className="text-muted-foreground/70" aria-hidden>
-      ·
-    </span>
-  )
 }
 
 export default function ArticleFeedRow({

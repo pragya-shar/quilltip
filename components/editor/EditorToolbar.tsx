@@ -30,7 +30,6 @@ import {
   useRef,
   useLayoutEffect,
   useCallback,
-  forwardRef,
 } from 'react'
 import { createPortal } from 'react-dom'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
@@ -51,6 +50,8 @@ import {
   getVisibleToolbarKeys,
   resolveActiveToolbarKey,
 } from './editorToolbarKeys'
+import { ToolbarButton } from '@/components/editor/ToolbarButton'
+import { ToolbarDivider } from '@/components/editor/ToolbarDivider'
 
 function useShortcutLabel() {
   const [isApple, setIsApple] = useState(false)
@@ -77,70 +78,6 @@ interface EditorToolbarProps {
   onFocusCoverImage?: () => void
   notes?: string
   onNotesChange?: (value: string) => void
-}
-
-interface ToolbarButtonProps {
-  onClick: () => void
-  isActive?: boolean
-  disabled?: boolean
-  children: React.ReactNode
-  title?: string
-  className?: string
-  tabIndex?: number
-  onFocus?: React.FocusEventHandler<HTMLButtonElement>
-  toolbarKey?: string
-}
-
-const ToolbarButton = forwardRef<HTMLButtonElement, ToolbarButtonProps>(
-  function ToolbarButton(
-    {
-      onClick,
-      isActive = false,
-      disabled = false,
-      children,
-      title,
-      className = '',
-      tabIndex,
-      onFocus,
-      toolbarKey,
-    },
-    ref
-  ) {
-    return (
-      <button
-        ref={ref}
-        type="button"
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={onClick}
-        disabled={disabled}
-        title={title}
-        aria-label={title}
-        aria-pressed={isActive}
-        tabIndex={tabIndex}
-        onFocus={onFocus}
-        data-toolbar-item="true"
-        data-toolbar-key={toolbarKey}
-        className={`
-        p-2 rounded hover:bg-muted transition-colors shrink-0
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background
-        ${isActive ? 'bg-muted text-primary' : 'text-foreground'}
-        ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-        ${className}
-      `}
-      >
-        {children}
-      </button>
-    )
-  }
-)
-
-function ToolbarDivider({ className = '' }: { className?: string }) {
-  return (
-    <div
-      className={`w-px h-5 bg-border mx-0.5 shrink-0 ${className}`}
-      aria-hidden
-    />
-  )
 }
 
 function moreMenuItemClass(isActive: boolean) {
