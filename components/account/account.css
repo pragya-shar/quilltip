@@ -1,0 +1,700 @@
+@font-face {
+  font-family: 'Account Alegreya';
+  src: url('/landing/fonts/alegreya-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Account Syne';
+  src: url('/account/fonts/syne-variable.woff2') format('woff2');
+  font-weight: 400 800;
+  font-display: swap;
+}
+.account-surface,
+.account-dialog {
+  --account-paper: #faf5ec;
+  --account-rose: #d0a7a3;
+  --account-ink: #390c18;
+  --account-wine: #790333;
+  --account-muted: #5e535a;
+  --account-rule: #cdb9b4;
+  color: var(--account-ink);
+  font-family: 'Account Syne', sans-serif;
+  font-size: 16px;
+  font-synthesis: none;
+  line-height: 1.55;
+  color-scheme: light;
+}
+.account-surface {
+  min-height: 100svh;
+  background: var(--account-rose);
+  padding-bottom: 16px;
+}
+.account-surface a,
+.account-dialog a {
+  color: var(--account-wine);
+  text-underline-offset: 6px;
+}
+.account-surface :is(button, a, input, summary):focus-visible,
+.account-dialog :is(button, a):focus-visible {
+  outline: 2px solid var(--account-wine);
+  outline-offset: 4px;
+}
+.account-surface button,
+.account-dialog button {
+  cursor: pointer;
+  touch-action: manipulation;
+  font: inherit;
+}
+.account-surface button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.account-surface :is(h1, h2, h3, p),
+.account-dialog :is(h2, h3, p) {
+  margin: 0;
+}
+.account-surface h1 {
+  font:
+    400 46px/1.15 'Account Alegreya',
+    Georgia,
+    serif;
+  letter-spacing: -0.025em;
+  margin-bottom: 10px;
+}
+.account-surface h2,
+.account-dialog h2 {
+  font:
+    400 28px/1.25 'Account Alegreya',
+    Georgia,
+    serif;
+  letter-spacing: -0.01em;
+}
+.account-header {
+  max-width: 1600px;
+  margin: auto;
+  height: 110px;
+  padding: 20px 60px;
+  display: flex;
+  align-items: center;
+  gap: 30px;
+}
+.account-context {
+  margin-left: 30px;
+  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.account-context span {
+  font-size: 14px;
+  color: var(--account-muted);
+  border-left: 1px solid #8e6870;
+  padding-left: 20px;
+}
+.account-surface .wordmark {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--account-wine);
+  text-decoration: none;
+}
+.account-surface .logo-study {
+  display: flex;
+  align-items: center;
+}
+.account-surface .logo-study svg {
+  width: 55px;
+  height: 62px;
+}
+.account-surface .logo-study span {
+  font:
+    700 38px/1 'Account Syne',
+    sans-serif;
+  letter-spacing: -2.5px;
+  margin-left: -8px;
+}
+.account-folio {
+  max-width: 1544px;
+  min-height: 740px;
+  margin: 0 28px;
+  background: var(--account-paper);
+  border-radius: 5px;
+  padding: 16px 54px 48px;
+}
+.account-nav {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+  min-height: 76px;
+  border-bottom: 1px solid var(--account-rule);
+  padding-bottom: 14px;
+  font-size: 17px;
+}
+.account-nav a {
+  padding: 12px 0;
+  min-height: 44px;
+  text-decoration: none;
+  color: var(--account-ink);
+  position: relative;
+}
+.account-nav a[aria-current='page'] {
+  color: var(--account-wine);
+  font-weight: 600;
+}
+.account-nav a[aria-current='page']:after {
+  content: '';
+  height: 2px;
+  background: var(--account-wine);
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  right: 0;
+}
+.account-name {
+  margin-left: auto;
+  font-size: 15px;
+  color: var(--account-muted);
+  overflow-wrap: anywhere;
+}
+.account-heading {
+  padding: 34px 0 32px;
+}
+.account-heading p,
+.account-muted {
+  color: var(--account-muted);
+}
+.account-wallet {
+  max-width: 1120px;
+}
+.account-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 0;
+  color: var(--account-wine);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-underline-offset: 6px;
+}
+.account-primary {
+  background: var(--account-wine);
+  color: var(--account-paper);
+  border: 1px solid var(--account-wine);
+  border-radius: 2px;
+  padding: 11px 17px;
+  min-height: 46px;
+  font-weight: 600;
+}
+.account-surface .account-primary:hover,
+.account-dialog .account-primary:hover {
+  background: #610329;
+}
+.account-secondary {
+  border: 1px solid var(--account-rule);
+  border-radius: 2px;
+  min-height: 44px;
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--account-ink);
+}
+.account-badge {
+  display: inline-block;
+  background: #eee4db;
+  color: #5d3942;
+  font-size: 13px;
+  padding: 4px 10px;
+  border-radius: 3px;
+}
+.account-footer {
+  max-width: 1600px;
+  margin: auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 38px;
+  font-size: 13px;
+  color: var(--account-ink);
+}
+.account-footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.account-footer span {
+  align-self: center;
+  color: var(--account-muted);
+}
+.account-skip {
+  position: fixed;
+  top: -100px;
+  left: 24px;
+  z-index: 60;
+  background: var(--account-paper);
+  padding: 12px;
+}
+.account-skip:focus {
+  top: 12px;
+}
+.account-loading {
+  padding: 34px 0;
+  min-height: 500px;
+  color: var(--account-muted);
+}
+.account-loading-line {
+  height: 44px;
+  background: #eee4db;
+  max-width: 720px;
+  margin-top: 28px;
+  border-radius: 2px;
+}
+.account-loading-line:last-child {
+  max-width: 420px;
+}
+.account-notice {
+  margin-top: 20px;
+  padding: 16px;
+  border-left: 2px solid var(--account-wine);
+  font-size: 14px;
+  background: #f1e7de;
+  overflow-wrap: anywhere;
+}
+@media (min-width: 1600px) {
+  .account-folio {
+    margin-inline: auto;
+  }
+}
+@media (max-width: 1100px) {
+  .account-folio {
+    padding-inline: 32px;
+  }
+  .account-context {
+    margin-left: 0;
+  }
+  .account-context span {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .account-header {
+    height: 90px;
+    padding: 16px 24px;
+    gap: 15px;
+  }
+  .account-context {
+    display: none;
+  }
+  .account-profile-link {
+    margin-left: auto;
+    font-size: 14px;
+    max-width: 150px;
+    line-height: 1.3;
+  }
+  .account-folio {
+    margin-inline: 12px;
+    padding: 12px 22px 30px;
+    min-height: calc(100svh - 165px);
+  }
+  .account-nav {
+    font-size: 15px;
+    gap: 24px;
+    min-height: 68px;
+  }
+  .account-name {
+    display: none;
+  }
+  .account-heading {
+    padding: 26px 0 28px;
+  }
+  .account-surface h1 {
+    font-size: 37px;
+  }
+  .account-surface h2 {
+    font-size: 26px;
+  }
+  .account-heading p {
+    font-size: 15px;
+  }
+  .account-footer {
+    padding: 18px 24px;
+    flex-wrap: wrap;
+  }
+  .account-footer span {
+    display: none;
+  }
+}
+@media (max-width: 370px) {
+  .account-folio {
+    padding-inline: 16px;
+  }
+  .account-header {
+    padding-inline: 18px;
+  }
+  .account-surface h1 {
+    font-size: 32px;
+  }
+  .account-surface .logo-study svg {
+    width: 44px;
+    height: 50px;
+  }
+  .account-surface .logo-study span {
+    font-size: 30px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .account-surface *,
+  .account-dialog,
+  .account-dialog * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+.account-connection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 24px 0 26px;
+}
+.account-connection-heading {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.account-connection-summary {
+  min-width: 0;
+  max-width: 760px;
+}
+.account-connection-summary > p {
+  margin-top: 12px;
+  color: var(--account-muted);
+}
+.account-network {
+  display: block;
+  font-size: 13px;
+  color: var(--account-muted);
+  margin-top: 8px;
+}
+.account-key {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+.account-connection-actions {
+  flex-shrink: 0;
+  max-width: 100%;
+}
+.account-surface .account-connect {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 0;
+  max-width: 300px;
+}
+.account-connect > div.space-y-1,
+.account-connect > p {
+  display: none;
+}
+.account-surface .account-connect > button {
+  background: var(--account-wine);
+  color: var(--account-paper);
+  font:
+    600 15px/1.5 'Account Syne',
+    sans-serif;
+  border-radius: 2px;
+  min-height: 46px;
+  padding: 11px 17px;
+  width: auto;
+}
+.account-surface .account-connect > button > svg {
+  display: none;
+}
+.account-address-editor {
+  padding: 0 0 20px;
+  border-bottom: 1px solid var(--account-rule);
+}
+.account-address-editor summary {
+  min-height: 44px;
+  display: list-item;
+  cursor: pointer;
+  color: var(--account-wine);
+  font-size: 14px;
+  padding: 10px 0;
+  width: fit-content;
+  max-width: 100%;
+}
+.account-address-content {
+  padding: 8px 0 12px;
+  max-width: 780px;
+}
+.account-address-content p {
+  font-size: 14px;
+}
+.account-address-content form {
+  margin-top: 20px;
+}
+.account-address-content label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+.account-address-content input {
+  width: 100%;
+  min-height: 46px;
+  background: var(--account-paper);
+  color: var(--account-ink);
+  border: 1px solid var(--account-rule);
+  border-radius: 2px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+}
+.account-address-content input + p {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.account-address-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 22px;
+  margin-top: 14px;
+  font-size: 14px;
+}
+.account-feedback {
+  font-size: 14px;
+  color: var(--account-muted);
+  margin-top: 12px !important;
+}
+.account-dialog {
+  background: var(--account-paper);
+  border: 1px solid var(--account-rule);
+  border-radius: 5px;
+  max-width: 620px;
+  width: calc(100vw - 32px);
+  padding: 32px;
+  max-height: 90svh;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.account-dialog .account-muted {
+  color: var(--account-muted);
+}
+@media (max-width: 1100px) {
+  .account-connection {
+    align-items: flex-start;
+  }
+  .account-connection-heading {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+  }
+}
+@media (max-width: 760px) {
+  .account-connection {
+    padding: 10px 0 12px;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .account-connection-summary > p {
+    font-size: 15px;
+  }
+  .account-address-editor {
+    padding-bottom: 20px;
+  }
+  .account-dialog {
+    padding: 28px 24px;
+  }
+  .account-connection-heading {
+    gap: 12px 20px;
+  }
+}
+.account-tip-history {
+  margin-top: 40px;
+}
+.account-history-filters {
+  display: flex;
+  gap: 28px;
+  margin: 24px 0 6px;
+}
+.account-history-filters button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px 0;
+  border-bottom: 2px solid transparent;
+  color: var(--account-muted);
+}
+.account-history-filters button[aria-pressed='true'] {
+  color: var(--account-wine);
+  border-bottom-color: var(--account-wine);
+}
+.account-tip-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.account-tip-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px 120px 104px;
+  align-items: center;
+  gap: 24px;
+  padding: 24px 0;
+  border-top: 1px solid var(--account-rule);
+  overflow-wrap: anywhere;
+}
+.account-tip-person h3 {
+  font:
+    500 17px/1.5 'Account Syne',
+    sans-serif;
+}
+.account-tip-person p {
+  color: var(--account-muted);
+  font-size: 16px;
+  margin-top: 4px;
+}
+.account-tip-person .account-amount-notice {
+  font-size: 12px;
+  color: var(--account-wine);
+}
+.account-tip-row time {
+  font-size: 14px;
+  color: var(--account-muted);
+}
+.account-tip-amount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.account-tip-amount strong {
+  font-size: 18px;
+  font-weight: 500;
+}
+.account-tip-amount span {
+  font-size: 13px;
+  color: var(--account-muted);
+  text-align: right;
+}
+.account-tip-row > .account-text-link {
+  justify-self: end;
+}
+.account-history-bottom {
+  border-top: 1px solid var(--account-rule);
+  padding-top: 18px;
+  font-size: 13px;
+  color: var(--account-muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+}
+.account-empty {
+  padding: 40px 0;
+  border-top: 1px solid var(--account-rule);
+}
+.account-empty h3 {
+  font:
+    400 26px/1.25 'Account Alegreya',
+    serif;
+}
+.account-empty p {
+  margin-top: 12px;
+  color: var(--account-muted);
+}
+.account-receipt h3 {
+  font:
+    400 27px/1.3 'Account Alegreya',
+    serif;
+}
+.account-receipt blockquote {
+  font:
+    400 25px/1.4 'Account Alegreya',
+    serif;
+  margin: 0;
+}
+.account-receipt dl {
+  margin: 0;
+}
+.account-receipt dl > div {
+  display: grid;
+  grid-template-columns: 125px minmax(0, 1fr);
+  gap: 16px;
+  border-bottom: 1px solid var(--account-rule);
+  padding: 12px 0;
+  font-size: 14px;
+}
+.account-receipt dt {
+  color: var(--account-muted);
+}
+.account-receipt dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.account-receipt-note h4 {
+  font-weight: 500;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+.account-receipt-note p {
+  font-size: 15px;
+  color: var(--account-muted);
+}
+@media (max-width: 1100px) {
+  .account-tip-row {
+    grid-template-columns: minmax(0, 1fr) 105px 90px 80px;
+    gap: 18px;
+  }
+  .account-tip-row > .account-text-link svg {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .account-tip-history {
+    margin-top: 28px;
+  }
+  .account-history-filters {
+    margin-top: 18px;
+  }
+  .account-tip-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 16px;
+    padding: 22px 0;
+  }
+  .account-tip-person {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .account-tip-amount {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    max-width: 112px;
+  }
+  .account-tip-row time {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .account-tip-row > .account-text-link {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .account-tip-person h3 {
+    font-size: 16px;
+  }
+  .account-tip-person p {
+    font-size: 15px;
+  }
+  .account-history-bottom {
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .account-receipt dl > div {
+    grid-template-columns: 90px minmax(0, 1fr);
+    gap: 12px;
+  }
+}
