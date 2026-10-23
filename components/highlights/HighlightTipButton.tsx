@@ -7,7 +7,7 @@ import { useWallet } from '@/components/providers/WalletProvider'
 import { useWalletActivation } from '@/components/providers/WalletActivationContext'
 import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { AlertCircle, Coins, Loader2 } from 'lucide-react'
+import { AlertCircle, Heart, Loader2 } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
@@ -62,6 +62,7 @@ import {
 import { writePendingHighlightSelection } from '@/lib/highlight/pendingHighlightSelection'
 import { TipAppreciationStep } from '@/components/tipping/TipAppreciationStep'
 import { TipCheckoutStep } from '@/components/tipping/TipCheckoutStep'
+import '../tipping/tipping.css'
 import type { TipModalStep } from '@/components/tipping/tipModalStep'
 import { STELLAR_CONFIG } from '@/lib/stellar/config'
 
@@ -1049,13 +1050,21 @@ export function HighlightTipButton({
     : 0
 
   const inlineTipAlert = tipSuccess ? (
-    <Alert className="border-success/50 bg-success/10 text-success-foreground">
+    <Alert
+      className="tip-feedback tip-feedback-success"
+      role="status"
+      aria-live="polite"
+    >
       <AlertTitle>Tip sent</AlertTitle>
       <AlertDescription>{tipSuccess}</AlertDescription>
     </Alert>
   ) : isVerificationPending ? (
     <Alert
       variant={verificationWarningVisible ? 'warning' : 'info'}
+      className={cn(
+        'tip-feedback tip-feedback-pending',
+        verificationWarningVisible && 'tip-feedback-warning'
+      )}
       role="status"
       aria-live="polite"
     >
@@ -1072,7 +1081,7 @@ export function HighlightTipButton({
       </AlertDescription>
     </Alert>
   ) : tipFailure ? (
-    <Alert variant="destructive">
+    <Alert variant="destructive" className="tip-feedback">
       <AlertCircle className="h-4 w-4" />
       <AlertTitle>{tipFailure.title}</AlertTitle>
       {tipFailure.detail ? (
@@ -1080,7 +1089,7 @@ export function HighlightTipButton({
       ) : null}
     </Alert>
   ) : tipFormError ? (
-    <Alert variant="destructive">
+    <Alert variant="destructive" className="tip-feedback">
       <AlertCircle className="h-4 w-4" />
       <AlertTitle>{tipFormError.title}</AlertTitle>
       {tipFormError.detail ? (
@@ -1096,16 +1105,18 @@ export function HighlightTipButton({
           <Button
             type="button"
             size="sm"
-            className={cn('w-full gap-2 shadow-md', className)}
-            title="Tip this highlight"
+            className={cn('tip-trigger w-full gap-2', className)}
+            title="Tip this passage"
           >
-            <Coins className="w-4 h-4" />
-            <span className="font-medium">Tip Highlight</span>
+            <Heart className="w-4 h-4" aria-hidden="true" />
+            <span className="font-medium">Tip passage</span>
           </Button>
         </DialogTrigger>
         <DialogContent
           data-testid="highlight-tip-dialog"
-          className="max-w-md max-h-[min(90dvh,calc(100%-2rem))] overflow-y-auto"
+          className="tip-dialog"
+          overlayClassName="tip-dialog-overlay"
+          aria-busy={isLoading}
           onEscapeKeyDown={(e) => {
             if (isLoading) e.preventDefault()
           }}
@@ -1113,16 +1124,21 @@ export function HighlightTipButton({
             if (isLoading) e.preventDefault()
           }}
         >
-          <DialogHeader>
+          <DialogHeader className="tip-dialog-header">
+            <p data-tip-step>
+              {modalStep === 'appreciation'
+                ? '1 of 2 · Appreciation'
+                : '2 of 2 · Checkout'}
+            </p>
             <DialogTitle>
               {modalStep === 'appreciation'
                 ? tipHighlightDialogTitle(authorName)
                 : 'Send your tip'}
             </DialogTitle>
-            <DialogDescription className="sr-only">
+            <DialogDescription className="tip-dialog-description">
               {modalStep === 'appreciation'
                 ? tipHighlightDialogDescription(authorName)
-                : 'Complete your highlight tip.'}
+                : 'Complete your tip for this passage.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -1150,6 +1166,7 @@ export function HighlightTipButton({
               variant="highlight"
               authorName={authorName}
               amountCents={checkoutAmountCents}
+              highlightText={highlightText}
               isAuthenticated={isAuthenticated}
               isConnected={isConnected}
               isWalletLoading={isWalletLoading}

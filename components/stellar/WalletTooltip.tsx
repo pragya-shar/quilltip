@@ -38,13 +38,13 @@ export function WalletTooltip({ concept, className = '' }: WalletTooltipProps) {
         <TooltipTrigger asChild>
           <button
             type="button"
-            className={`focus-ring inline-flex items-center rounded-sm text-muted-foreground hover:text-foreground transition-colors ${className}`}
+            className={`focus-ring inline-flex min-h-6 min-w-6 items-center justify-center rounded-sm text-ui-muted-foreground hover:text-ui-foreground transition-colors ${className}`}
             aria-label={`Learn about ${concept}`}
           >
             <HelpCircle className="w-3.5 h-3.5" />
           </button>
         </TooltipTrigger>
-        <TooltipContent className="max-w-xs text-xs leading-relaxed">
+        <TooltipContent className="z-[130] max-w-xs border-ui-border bg-ui-surface font-ui text-xs leading-relaxed text-ui-foreground shadow-ui">
           {text}
         </TooltipContent>
       </Tooltip>

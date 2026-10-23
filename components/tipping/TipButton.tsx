@@ -7,7 +7,7 @@ import { useWallet } from '@/components/providers/WalletProvider'
 import { useWalletActivation } from '@/components/providers/WalletActivationContext'
 import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { AlertCircle, Coins } from 'lucide-react'
+import { AlertCircle, Heart } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
 import { stellarClient } from '@/lib/stellar/client'
@@ -54,6 +54,7 @@ import { TipAppreciationStep } from '@/components/tipping/TipAppreciationStep'
 import { TipCheckoutStep } from '@/components/tipping/TipCheckoutStep'
 import type { TipModalStep } from '@/components/tipping/tipModalStep'
 import { tipDialogDescription, tipDialogTitle } from '@/lib/copy/tipping'
+import './tipping.css'
 import { STELLAR_CONFIG } from '@/lib/stellar/config'
 
 interface TipButtonProps {
@@ -892,12 +893,16 @@ export function TipButton({
     : 0
 
   const inlineTipAlert = tipSuccess ? (
-    <Alert className="border-success/50 bg-success/10 text-success-foreground">
+    <Alert
+      className="tip-feedback tip-feedback-success"
+      role="status"
+      aria-live="polite"
+    >
       <AlertTitle>Tip sent</AlertTitle>
       <AlertDescription>{tipSuccess}</AlertDescription>
     </Alert>
   ) : tipFailure ? (
-    <Alert variant="destructive">
+    <Alert variant="destructive" className="tip-feedback">
       <AlertCircle className="h-4 w-4" />
       <AlertTitle>{tipFailure.title}</AlertTitle>
       {tipFailure.detail ? (
@@ -905,7 +910,7 @@ export function TipButton({
       ) : null}
     </Alert>
   ) : tipFormError ? (
-    <Alert variant="destructive">
+    <Alert variant="destructive" className="tip-feedback">
       <AlertCircle className="h-4 w-4" />
       <AlertTitle>{tipFormError.title}</AlertTitle>
       {tipFormError.detail ? (
@@ -918,13 +923,18 @@ export function TipButton({
     <>
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
-          <Button variant="outline" className={cn('gap-2', className)}>
-            <Coins className="w-4 h-4" />
-            Tip Author
+          <Button
+            variant="outline"
+            className={cn('tip-trigger gap-2', className)}
+          >
+            <Heart className="w-4 h-4" aria-hidden="true" />
+            Tip article
           </Button>
         </DialogTrigger>
         <DialogContent
-          className="top-auto bottom-0 left-1/2 max-h-[min(90dvh,calc(100%-2rem))] max-w-md translate-x-[-50%] translate-y-0 gap-4 overflow-y-auto rounded-b-none rounded-t-xl border border-ui-border bg-ui-surface p-6 shadow-ui data-[state=closed]:slide-out-to-bottom-[48%] data-[state=open]:slide-in-from-bottom-[48%] sm:top-[50%] sm:bottom-auto sm:max-h-[min(90dvh,100%)] sm:translate-y-[-50%] sm:rounded-xl sm:data-[state=closed]:slide-out-to-left-1/2 sm:data-[state=closed]:slide-out-to-top-[48%] sm:data-[state=open]:slide-in-from-left-1/2 sm:data-[state=open]:slide-in-from-top-[48%]"
+          className="tip-dialog"
+          overlayClassName="tip-dialog-overlay"
+          aria-busy={isLoading}
           onInteractOutside={(e) => {
             if (isLoading) e.preventDefault()
           }}
@@ -932,13 +942,18 @@ export function TipButton({
             if (isLoading) e.preventDefault()
           }}
         >
-          <DialogHeader className="text-left">
-            <DialogTitle className="text-xl font-bold">
+          <DialogHeader className="tip-dialog-header">
+            <p data-tip-step>
+              {modalStep === 'appreciation'
+                ? '1 of 2 · Appreciation'
+                : '2 of 2 · Checkout'}
+            </p>
+            <DialogTitle>
               {modalStep === 'appreciation'
                 ? tipDialogTitle(authorName)
                 : 'Send your tip'}
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="tip-dialog-description">
               {modalStep === 'appreciation'
                 ? tipDialogDescription()
                 : `Complete your tip to ${authorName}.`}
