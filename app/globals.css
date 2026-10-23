@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '../components/landing/landing-blend.css';
+@import '../components/layout/site-chrome.css';
 
 /* Tailwind v4 Theme Configuration */
 @theme {

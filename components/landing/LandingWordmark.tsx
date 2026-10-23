@@ -3,11 +3,16 @@
 import { useId } from 'react'
 import Link from 'next/link'
 
-export function LandingWordmark() {
+export function LandingWordmark({ onClick }: { onClick?: () => void }) {
   const id = useId().replaceAll(':', '')
   const nib = 'M47 49 78 60 98 106 53 83Z'
   return (
-    <Link href="/" aria-label="QuillTip home" className="wordmark">
+    <Link
+      href="/"
+      aria-label="QuillTip home"
+      className="wordmark"
+      onClick={onClick}
+    >
       <span className="logo-study logo-study-1" data-lettering="syne">
         <svg viewBox="0 0 100 112" aria-hidden="true">
           <defs>

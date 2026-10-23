@@ -11,7 +11,7 @@ export function LandingFooter() {
         <h2>Find your way</h2>
         <Link href="/articles">Read</Link>
         <Link href="/write">Write</Link>
-        <a href="#try-it">How it works</a>
+        <Link href="/#try-it">How it works</Link>
       </nav>
       <nav aria-label="Help and policies">
         <h2>Help &amp; information</h2>
@@ -21,8 +21,9 @@ export function LandingFooter() {
         >
           Wallet &amp; Stellar demo
         </Link>
-        <a href="#questions">Questions</a>
+        <Link href="/#questions">Questions</Link>
         <Link href="/support">Support</Link>
+        <Link href="/contact">Contact</Link>
         <Link href="/privacy">Privacy</Link>
         <Link href="/terms">Terms</Link>
       </nav>
