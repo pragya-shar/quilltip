@@ -10,6 +10,7 @@ import { Id } from '@/convex/_generated/dataModel'
 import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useHighlightPanelDismiss } from '@/hooks/useHighlightPanelDismiss'
+import { useSuspendDialogModalForWallet } from '@/hooks/useSuspendDialogModalForWallet'
 
 interface HighlightPopoverProps {
   position: { top: number; left: number }
@@ -87,6 +88,7 @@ export function HighlightPopover({
   onHighlightTipResumeOpened,
 }: HighlightPopoverProps) {
   const { isAuthenticated } = useAuth()
+  const walletConnectionActive = useSuspendDialogModalForWallet()
   const [selectedColor, setSelectedColor] = useState(
     HIGHLIGHT_COLORS[0]?.value || '#F59E0B'
   )
@@ -113,11 +115,11 @@ export function HighlightPopover({
     // Just select the color, don't create highlight automatically
   }
 
-  useHighlightPanelDismiss(onClose, !isSaving)
+  useHighlightPanelDismiss(onClose, !isSaving && !walletConnectionActive)
 
   return (
     <FocusScope
-      trapped
+      trapped={!walletConnectionActive}
       loop
       onUnmountAutoFocus={(event) => {
         event.preventDefault()
@@ -133,7 +135,7 @@ export function HighlightPopover({
           left: clampedPosition.left,
         }}
         role="dialog"
-        aria-modal="true"
+        aria-modal={!walletConnectionActive}
         aria-label="Create highlight"
         tabIndex={-1}
       >

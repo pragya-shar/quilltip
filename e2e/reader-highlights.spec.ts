@@ -63,6 +63,40 @@ test.describe('saved passages on a development backend', () => {
     'Provide a disposable development QA account through PLAYWRIGHT_QA_EMAIL and PLAYWRIGHT_QA_PASSWORD.'
   )
 
+  test('tip-dialog backdrop keeps its passage panel and unsaved note', async ({
+    page,
+  }) => {
+    await page.goto('/login')
+    await page
+      .getByLabel('Email', { exact: true })
+      .fill(process.env.PLAYWRIGHT_QA_EMAIL!)
+    await page
+      .getByLabel('Password', { exact: true })
+      .fill(process.env.PLAYWRIGHT_QA_PASSWORD!)
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await page.goto(articlePath)
+    await expect(
+      page.getByRole('button', { name: 'Account', exact: true })
+    ).toBeVisible()
+    const create = await selectPassage(page)
+    await create.getByRole('button', { name: 'Add note', exact: true }).click()
+    await create
+      .getByLabel('Highlight note')
+      .fill('Keep this unsaved passage note')
+    await create
+      .getByRole('button', { name: 'Tip Highlight', exact: true })
+      .click()
+    const tip = page.getByRole('dialog', { name: /^Support / })
+    await expect(tip).toBeVisible()
+    await page.mouse.click(5, 200)
+    await expect(tip).toBeHidden()
+    await expect(create).toBeVisible()
+    await expect(create.getByLabel('Highlight note')).toHaveValue(
+      'Keep this unsaved passage note'
+    )
+  })
+
   test('owner can save, edit and clear a note without losing the exact passage', async ({
     page,
   }) => {

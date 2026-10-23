@@ -33,6 +33,7 @@ import { UserAvatar } from '@/components/ui/user-avatar'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { useHighlightPanelDismiss } from '@/hooks/useHighlightPanelDismiss'
+import { useSuspendDialogModalForWallet } from '@/hooks/useSuspendDialogModalForWallet'
 import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
 
 interface HighlightDetailsPanelProps {
@@ -76,6 +77,7 @@ export function HighlightDetailsPanel({
   authorName,
   authorStellarAddress,
 }: HighlightDetailsPanelProps) {
+  const walletConnectionActive = useSuspendDialogModalForWallet()
   const [isEditing, setIsEditing] = useState(false)
   const [savedNote, setSavedNote] = useState(highlight.note || '')
   const [isSaving, setIsSaving] = useState(false)
@@ -94,7 +96,7 @@ export function HighlightDetailsPanel({
 
   useHighlightPanelDismiss(
     onClose,
-    !deleteConfirmOpen && !isDeleting && !isSaving
+    !deleteConfirmOpen && !isDeleting && !isSaving && !walletConnectionActive
   )
 
   // Check if current user owns this highlight
@@ -180,12 +182,12 @@ export function HighlightDetailsPanel({
         left: clampedPosition.left,
       }}
       role="dialog"
-      aria-modal="true"
+      aria-modal={!walletConnectionActive}
       aria-label="Highlight details"
       tabIndex={-1}
     >
       <FocusScope
-        trapped={!deleteConfirmOpen}
+        trapped={!deleteConfirmOpen && !walletConnectionActive}
         loop
         onUnmountAutoFocus={(event) => {
           event.preventDefault()
