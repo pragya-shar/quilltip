@@ -547,7 +547,20 @@ export default defineSchema({
     storageId: v.id('_storage'),
     fileType: v.string(),
     userId: v.id('users'),
-  }).index('by_storage', ['storageId']),
+    url: v.optional(v.string()),
+    referencesTracked: v.optional(v.boolean()),
+  })
+    .index('by_storage', ['storageId'])
+    .index('by_url', ['url']),
+
+  uploadReferences: defineTable({
+    storageId: v.id('_storage'),
+    articleId: v.optional(v.id('articles')),
+    userId: v.optional(v.id('users')),
+  })
+    .index('by_storage', ['storageId'])
+    .index('by_article_storage', ['articleId', 'storageId'])
+    .index('by_user_storage', ['userId', 'storageId']),
 
   fileUploads: defineTable({
     // Storage reference
@@ -571,6 +584,7 @@ export default defineSchema({
     // Timestamp
     createdAt: v.number(),
   })
+    .index('by_storage', ['storageId'])
     .index('by_user', ['uploadedBy'])
     .index('by_article', ['articleId'])
     .index('by_type', ['uploadType']),
