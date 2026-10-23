@@ -65,7 +65,6 @@ release PRs, changelog generation, or dependency-update PRs unless explicitly re
 - Use Cargo for Soroban contract checks under `contracts/`.
 - Use Context7 for current library, SDK, API, CLI, framework, or cloud documentation when needed.
 - Use Firecrawl only when external search, research, or source gathering is needed.
-- Use gstack `/browse` for browser QA and local web browsing when available. Do not use `mcp__claude-in-chrome__*`.
 - Use Playwright for existing repo e2e tests or explicit automated browser checks, not as a substitute for required manual QA when a checklist calls for visual behavior.
 - Use sub-agents only when the user asks for parallel agent work or the active environment explicitly allows it. Give them repo context, branch context, task scope, and the exact output needed.
 - If a requested tool is unavailable, say so clearly and use the safest available fallback.

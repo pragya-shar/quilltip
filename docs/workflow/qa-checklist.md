@@ -61,7 +61,6 @@ Every QA row must include:
 ## Execution
 
 - Run the app locally with the correct backend environment.
-- Use gstack `/browse` for browser QA and local web browsing when available.
 - Use Playwright only for existing repo e2e tests or explicit automated checks.
 - Test checklist rows one by one. Do not batch-mark rows.
 - Keep the browser console and network panel visible or otherwise inspected.
