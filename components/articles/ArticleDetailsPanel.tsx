@@ -58,7 +58,7 @@ export function ArticleDetailsPanel({
   arweaveTimestamp,
 }: ArticleDetailsPanelProps) {
   const showToc = tocHeadings.length >= 3
-  const noteCount = highlights?.filter((h) => h.note).length ?? 0
+  const noteCount = highlights?.filter((h) => h.note?.trim()).length ?? 0
 
   return (
     <Accordion type="single" collapsible className="reader-details">
@@ -102,7 +102,7 @@ export function ArticleDetailsPanel({
                 <MessageSquare className="w-4 h-4 text-muted-foreground" />
                 Highlight Notes
                 {noteCount > 0 && (
-                  <span className="px-2 py-0.5 bg-primary/15 text-primary text-xs rounded-full">
+                  <span className="px-2 py-0.5 border border-ui-border text-ui-primary text-xs rounded-[var(--ui-radius)]">
                     {noteCount}
                   </span>
                 )}
@@ -116,7 +116,10 @@ export function ArticleDetailsPanel({
                     `[data-highlight-id="${highlight._id}"]`
                   )
                   element?.scrollIntoView({
-                    behavior: 'smooth',
+                    behavior: matchMedia('(prefers-reduced-motion: reduce)')
+                      .matches
+                      ? 'instant'
+                      : 'smooth',
                     block: 'center',
                   })
                 }}

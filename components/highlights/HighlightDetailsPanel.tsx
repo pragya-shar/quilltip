@@ -1,11 +1,10 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useHighlightTipsByHighlight } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
-import { motion } from 'motion/react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
 import {
   AlertDialog,
@@ -33,6 +32,7 @@ import { formatTipAmount } from '@/lib/stellar/highlight-utils'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { useHighlightPanelDismiss } from '@/hooks/useHighlightPanelDismiss'
 import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
 
 interface HighlightDetailsPanelProps {
@@ -54,6 +54,7 @@ interface HighlightDetailsPanelProps {
   }
   position: { top: number; left: number }
   onClose: () => void
+  onRestoreFocus?: () => void
   onDeleted?: (highlightId: Id<'highlights'>) => void
   currentUserId?: Id<'users'>
   // Article data for tipping
@@ -67,6 +68,7 @@ export function HighlightDetailsPanel({
   highlight,
   position,
   onClose,
+  onRestoreFocus,
   onDeleted,
   currentUserId,
   articleId,
@@ -75,27 +77,25 @@ export function HighlightDetailsPanel({
   authorStellarAddress,
 }: HighlightDetailsPanelProps) {
   const [isEditing, setIsEditing] = useState(false)
+  const [savedNote, setSavedNote] = useState(highlight.note || '')
+  const [isSaving, setIsSaving] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
   const [editedNote, setEditedNote] = useState(highlight.note || '')
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
+  const editButtonRef = useRef<HTMLButtonElement>(null)
+  const deleteButtonRef = useRef<HTMLButtonElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const clampedPosition = useClampedFixedPosition(position, panelRef, {
     fallbackWidth: 448,
     fallbackHeight: 400,
   })
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (deleteConfirmOpen) return
-      if (e.key !== 'Escape') return
-      e.preventDefault()
-      e.stopPropagation()
-      onClose()
-    }
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [deleteConfirmOpen, onClose])
+  useHighlightPanelDismiss(
+    onClose,
+    !deleteConfirmOpen && !isDeleting && !isSaving
+  )
 
   // Check if current user owns this highlight
   const isOwner = currentUserId && currentUserId === highlight.userId
@@ -120,21 +120,32 @@ export function HighlightDetailsPanel({
 
   // Handle note update
   const handleSaveNote = async () => {
+    if (!isOwner || isSaving) return
+    setIsSaving(true)
+    setErrorMessage('')
     try {
       await updateHighlight({
         id: highlight._id,
-        note: editedNote || undefined,
+        note: editedNote,
       })
+      setSavedNote(editedNote)
       setIsEditing(false)
+      requestAnimationFrame(() => editButtonRef.current?.focus())
       toast.success('Note updated successfully')
     } catch (error) {
       console.error('Failed to update note:', error)
       toast.error('Failed to update note')
+      setErrorMessage(
+        'Your note could not be saved. Your changes are still here; try again.'
+      )
+    } finally {
+      setIsSaving(false)
     }
   }
 
   const handleConfirmDelete = async () => {
-    if (isDeleting) return
+    if (!isOwner || isDeleting) return
+    setErrorMessage('')
     setIsDeleting(true)
     try {
       await deleteHighlight({ id: highlight._id })
@@ -145,6 +156,7 @@ export function HighlightDetailsPanel({
     } catch (error) {
       console.error('Failed to delete highlight:', error)
       toast.error('Failed to delete highlight')
+      setErrorMessage('The highlight could not be deleted. Please try again.')
       setIsDeleting(false)
     }
   }
@@ -160,13 +172,9 @@ export function HighlightDetailsPanel({
       : highlight.text.trim()
 
   return (
-    <motion.div
+    <div
       ref={panelRef}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 10 }}
-      transition={{ duration: 0.2 }}
-      className="fixed z-50 bg-popover text-popover-foreground rounded-xl shadow-2xl border border-border w-full max-w-[min(28rem,calc(100vw-24px))] outline-none"
+      className="highlight-details-panel fixed z-50 w-[400px] max-w-[calc(100vw-24px)] outline-none"
       style={{
         top: clampedPosition.top,
         left: clampedPosition.left,
@@ -179,24 +187,20 @@ export function HighlightDetailsPanel({
       <FocusScope
         trapped={!deleteConfirmOpen}
         loop
+        onUnmountAutoFocus={(event) => {
+          event.preventDefault()
+          onRestoreFocus?.()
+        }}
         onMountAutoFocus={(e) => {
           e.preventDefault()
           closeButtonRef.current?.focus()
         }}
       >
         {/* Header */}
-        <div className="flex items-start justify-between p-4 border-b border-border">
-          <div className="flex-1">
-            <h3 className="text-sm font-semibold text-foreground mb-1">
-              Highlight Details
-            </h3>
-            <div
-              className="text-xs px-2 py-1 rounded inline-block"
-              style={{
-                backgroundColor: `${highlight.color}33`,
-                color: highlight.color || '#F59E0B',
-              }}
-            >
+        <div className="flex items-start justify-between p-4 border-b border-ui-border">
+          <div className="min-w-0 flex-1">
+            <h3 className="highlight-panel-title">Saved passage</h3>
+            <div className="highlight-visibility">
               {highlight.isPublic ? 'Public' : 'Private'}
             </div>
           </div>
@@ -205,16 +209,16 @@ export function HighlightDetailsPanel({
             type="button"
             onClick={onClose}
             aria-label="Close highlight details"
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="highlight-quiet-action -mr-2 -mt-2"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Highlighted Text */}
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-ui-border">
           <div
-            className="p-3 rounded-lg border-l-4 italic text-sm text-foreground"
+            className="highlight-text-preview !mb-0"
             style={{ borderLeftColor: highlight.color || '#F59E0B' }}
           >
             &ldquo;{displayText}&rdquo;
@@ -222,7 +226,7 @@ export function HighlightDetailsPanel({
         </div>
 
         {/* Creator Info */}
-        <div className="px-4 py-3 border-b border-border">
+        <div className="px-4 py-3 border-b border-ui-border">
           <div className="flex items-center gap-3">
             <UserAvatar
               src={highlight.userAvatar}
@@ -230,16 +234,16 @@ export function HighlightDetailsPanel({
               name={highlight.userName || 'Anonymous'}
               className="h-8 w-8"
             />
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <User className="w-3 h-3 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">
+                <User className="w-3 h-3 text-ui-muted-foreground" />
+                <span className="text-sm font-medium text-ui-foreground">
                   {highlight.userName || 'Anonymous'}
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5">
-                <Calendar className="w-3 h-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">
+                <Calendar className="w-3 h-3 text-ui-muted-foreground" />
+                <span className="text-xs text-ui-muted-foreground">
                   {new Date(highlight.createdAt).toLocaleDateString('en-US', {
                     month: 'short',
                     day: 'numeric',
@@ -252,11 +256,11 @@ export function HighlightDetailsPanel({
         </div>
 
         {/* Note Section */}
-        {(highlight.note || isOwner) && (
-          <div className="px-4 py-3 border-b border-border">
+        {(savedNote || isOwner) && (
+          <div className="px-4 py-3 border-b border-ui-border">
             <div className="flex items-center gap-2 mb-2">
-              <MessageSquare className="w-4 h-4 text-muted-foreground" />
-              <span className="text-xs font-medium text-muted-foreground">
+              <MessageSquare className="w-4 h-4 text-ui-muted-foreground" />
+              <span className="text-xs font-medium text-ui-muted-foreground">
                 Note
               </span>
             </div>
@@ -264,10 +268,12 @@ export function HighlightDetailsPanel({
             {isEditing ? (
               <div className="space-y-2">
                 <textarea
+                  aria-label="Highlight note"
+                  disabled={isSaving}
                   value={editedNote}
                   onChange={(e) => setEditedNote(e.target.value)}
                   placeholder="Add a note to your highlight..."
-                  className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent resize-none"
+                  className="highlight-note-input"
                   rows={3}
                   // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
@@ -277,25 +283,31 @@ export function HighlightDetailsPanel({
                     type="button"
                     size="sm"
                     onClick={handleSaveNote}
-                    className="flex-1"
+                    disabled={isSaving}
+                    className="min-w-0 min-h-11 flex-1"
                   >
-                    Save
+                    {isSaving ? 'Saving…' : 'Save note'}
                   </Button>
                   <button
                     onClick={() => {
-                      setEditedNote(highlight.note || '')
+                      setEditedNote(savedNote)
+                      setErrorMessage('')
+                      requestAnimationFrame(() =>
+                        editButtonRef.current?.focus()
+                      )
                       setIsEditing(false)
                     }}
-                    className="flex-1 px-3 py-1.5 bg-muted text-foreground text-sm rounded-lg hover:bg-muted/80 transition-colors"
+                    disabled={isSaving}
+                    className="highlight-quiet-action flex-1"
                   >
                     Cancel
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="text-sm text-foreground">
-                {highlight.note || (
-                  <span className="text-muted-foreground italic">
+              <div className="whitespace-pre-wrap text-sm leading-relaxed text-ui-foreground">
+                {savedNote || (
+                  <span className="text-ui-muted-foreground italic">
                     No note added
                   </span>
                 )}
@@ -304,32 +316,40 @@ export function HighlightDetailsPanel({
           </div>
         )}
 
-        {/* Tip Statistics */}
+        {/* Passage support */}
         {tipStats.count > 0 && (
-          <div className="px-4 py-3 border-b border-border bg-collectible/10">
+          <div className="px-4 py-3 border-b border-ui-border bg-ui-muted/40">
             <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-4 h-4 text-collectible-foreground" />
-              <span className="text-xs font-medium text-foreground">
-                Tip Statistics
+              <TrendingUp className="w-4 h-4 text-ui-primary" />
+              <span className="text-xs font-medium text-ui-foreground">
+                Passage support
               </span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-xs text-muted-foreground">Total Tips</div>
-                <div className="text-lg font-bold text-foreground">
+                <div className="text-xs text-ui-muted-foreground">
+                  Total Tips
+                </div>
+                <div className="text-lg font-semibold text-ui-foreground">
                   {tipStats.count}
                 </div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">
-                  Total Earned
+                <div className="text-xs text-ui-muted-foreground">
+                  Total tipped
                 </div>
-                <div className="text-lg font-bold text-foreground">
+                <div className="text-lg font-semibold text-ui-foreground">
                   {formatTipAmount(tipStats.totalCents)}
                 </div>
               </div>
             </div>
           </div>
+        )}
+
+        {errorMessage && (
+          <p role="alert" className="px-4 py-3 text-sm text-ui-danger">
+            {errorMessage}
+          </p>
         )}
 
         {/* Actions */}
@@ -342,8 +362,13 @@ export function HighlightDetailsPanel({
                   <Button
                     type="button"
                     variant="secondary"
-                    onClick={() => setIsEditing(true)}
-                    className="w-full gap-2"
+                    ref={editButtonRef}
+                    onClick={() => {
+                      setEditedNote(savedNote)
+                      setIsEditing(true)
+                      setErrorMessage('')
+                    }}
+                    className="w-full min-h-11 gap-2"
                   >
                     <Edit className="w-4 h-4" />
                     <span>Edit Note</span>
@@ -351,9 +376,10 @@ export function HighlightDetailsPanel({
                   <Button
                     type="button"
                     variant="destructive"
+                    ref={deleteButtonRef}
                     onClick={() => setDeleteConfirmOpen(true)}
                     disabled={isDeleting}
-                    className="w-full gap-2"
+                    className="w-full min-h-11 gap-2"
                   >
                     {isDeleting ? (
                       <>
@@ -376,7 +402,7 @@ export function HighlightDetailsPanel({
             articleSlug &&
             authorStellarAddress && (
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                <div className="flex items-center gap-2 text-xs text-ui-muted-foreground mb-2">
                   <Coins className="w-3 h-3" />
                   <span>Support this insight</span>
                 </div>
@@ -397,7 +423,7 @@ export function HighlightDetailsPanel({
                   }}
                 />
                 {tipStats.count === 0 && (
-                  <p className="text-xs text-center text-muted-foreground mt-2">
+                  <p className="text-xs text-center text-ui-muted-foreground mt-2">
                     No support for this highlight yet
                   </p>
                 )}
@@ -408,7 +434,7 @@ export function HighlightDetailsPanel({
 
         {/* Footer hint */}
         {!isOwner && tipStats.count > 0 && (
-          <div className="px-4 pb-3 text-xs text-center text-muted-foreground">
+          <div className="px-4 pb-3 text-xs text-center text-ui-muted-foreground">
             {tipStats.count}{' '}
             {tipStats.count === 1 ? 'person has' : 'people have'} tipped this
             highlight
@@ -423,18 +449,23 @@ export function HighlightDetailsPanel({
           setDeleteConfirmOpen(open)
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            deleteButtonRef.current?.focus()
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this highlight?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-ui-muted-foreground">
                   This will permanently delete the highlight and its note. This
                   action cannot be undone.
                 </p>
                 {confirmSnippet.length > 0 ? (
-                  <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-foreground">
-                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="highlight-text-preview !mb-0">
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-ui-muted-foreground">
                       Highlight
                     </div>
                     <p className="mt-1 italic">
@@ -449,7 +480,7 @@ export function HighlightDetailsPanel({
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-ui-danger text-ui-danger-foreground hover:bg-ui-danger/90 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={(e) => {
                 e.preventDefault()
                 void handleConfirmDelete()
@@ -467,6 +498,6 @@ export function HighlightDetailsPanel({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </motion.div>
+    </div>
   )
 }

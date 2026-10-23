@@ -1,19 +1,25 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState } from 'react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
-import { Highlighter, MessageSquare, Lock, Globe } from 'lucide-react'
+import { Check, Highlighter, MessageSquare, Lock, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { HighlightTipButton } from './HighlightTipButton'
 import { Id } from '@/convex/_generated/dataModel'
 import { useClampedFixedPosition } from '@/hooks/useClampedFixedPosition'
 import { useAuth } from '@/components/providers/AuthContext'
+import { useHighlightPanelDismiss } from '@/hooks/useHighlightPanelDismiss'
 
 interface HighlightPopoverProps {
   position: { top: number; left: number }
-  onCreateHighlight: (color: string, note?: string, isPublic?: boolean) => void
+  onCreateHighlight: (
+    color: string,
+    note?: string,
+    isPublic?: boolean
+  ) => Promise<boolean> | boolean
   onClose: () => void
+  onRestoreFocus?: () => void
   selectedText: string
   // Tipping props (optional - only show tip button if article data provided)
   articleId?: Id<'articles'>
@@ -34,42 +40,30 @@ interface HighlightPopoverProps {
   onHighlightTipResumeOpened?: () => void
 }
 
-const PREMIUM_HIGHLIGHT_COLORS = [
+const HIGHLIGHT_COLORS = [
   {
     name: 'Amber',
     value: '#F59E0B',
-    rgb: '245, 158, 11',
-    description: 'Warm & Inviting',
   },
   {
     name: 'Emerald',
     value: '#10B981',
-    rgb: '16, 185, 129',
-    description: 'Fresh & Natural',
   },
   {
     name: 'Azure',
     value: '#3B82F6',
-    rgb: '59, 130, 246',
-    description: 'Deep & Trustworthy',
   },
   {
     name: 'Rose',
     value: '#F43F5E',
-    rgb: '244, 63, 94',
-    description: 'Elegant & Bold',
   },
   {
     name: 'Violet',
     value: '#8B5CF6',
-    rgb: '139, 92, 246',
-    description: 'Royal & Creative',
   },
   {
     name: 'Coral',
     value: '#FB7185',
-    rgb: '251, 113, 133',
-    description: 'Soft & Playful',
   },
 ]
 
@@ -77,6 +71,7 @@ export function HighlightPopover({
   position,
   onCreateHighlight,
   onClose,
+  onRestoreFocus,
   selectedText,
   articleId,
   articleSlug,
@@ -93,17 +88,24 @@ export function HighlightPopover({
 }: HighlightPopoverProps) {
   const { isAuthenticated } = useAuth()
   const [selectedColor, setSelectedColor] = useState(
-    PREMIUM_HIGHLIGHT_COLORS[0]?.value || '#F59E0B'
+    HIGHLIGHT_COLORS[0]?.value || '#F59E0B'
   )
   const [note, setNote] = useState('')
   const [isPublic, setIsPublic] = useState(true)
   const [showNoteInput, setShowNoteInput] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
   const clampedPosition = useClampedFixedPosition(position, popoverRef)
 
-  const handleSaveHighlight = () => {
-    onCreateHighlight(selectedColor, note || undefined, isPublic)
-    onClose()
+  const handleSaveHighlight = async () => {
+    if (isSaving) return
+    setIsSaving(true)
+    try {
+      if (await onCreateHighlight(selectedColor, note || undefined, isPublic))
+        onClose()
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleColorSelect = (color: string) => {
@@ -111,23 +113,21 @@ export function HighlightPopover({
     // Just select the color, don't create highlight automatically
   }
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      e.preventDefault()
-      e.stopPropagation()
-      onClose()
-    }
-    document.addEventListener('keydown', onKeyDown, true)
-    return () => document.removeEventListener('keydown', onKeyDown, true)
-  }, [onClose])
+  useHighlightPanelDismiss(onClose, !isSaving)
 
   return (
-    <FocusScope trapped loop>
+    <FocusScope
+      trapped
+      loop
+      onUnmountAutoFocus={(event) => {
+        event.preventDefault()
+        onRestoreFocus?.()
+      }}
+    >
       <div
         ref={popoverRef}
         data-testid="highlight-popover"
-        className="highlight-popover fixed z-50 w-[360px] max-w-[calc(100vw-24px)] rounded-2xl p-4 outline-none"
+        className="highlight-popover fixed z-50 w-[360px] max-w-[calc(100vw-24px)] p-5 outline-none"
         style={{
           top: clampedPosition.top,
           left: clampedPosition.left,
@@ -137,7 +137,9 @@ export function HighlightPopover({
         aria-label="Create highlight"
         tabIndex={-1}
       >
-        {/* Text Preview */}
+        <h2 className="highlight-panel-title mb-3">
+          {isAuthenticated ? 'Keep this passage' : 'Support this passage'}
+        </h2>
         <div className="highlight-text-preview">
           &ldquo;{selectedText.slice(0, 150)}
           {selectedText.length > 150 ? '...' : ''}&rdquo;
@@ -146,11 +148,13 @@ export function HighlightPopover({
         {isAuthenticated && (
           <>
             <div className="mb-4">
-              <div className="text-xs font-medium text-muted-foreground mb-2">
-                Choose Highlight Color
-              </div>
-              <div className="color-picker-container">
-                {PREMIUM_HIGHLIGHT_COLORS.map((color) => (
+              <div className="highlight-field-label mb-2">Highlight color</div>
+              <div
+                className="color-picker-container"
+                role="group"
+                aria-label="Highlight color"
+              >
+                {HIGHLIGHT_COLORS.map((color) => (
                   <button
                     key={color.value}
                     onClick={() => handleColorSelect(color.value)}
@@ -159,17 +163,15 @@ export function HighlightPopover({
                       selectedColor === color.value && 'selected'
                     )}
                     style={{
-                      background: `linear-gradient(135deg, ${color.value}, ${color.value}dd)`,
+                      backgroundColor: color.value,
                     }}
                     aria-label={`Select ${color.name} highlight`}
+                    aria-pressed={selectedColor === color.value}
+                    title={color.name}
                   >
-                    <div className="color-tooltip">
-                      <div className="font-medium">{color.name}</div>
-                      <div className="text-xs opacity-80">
-                        {color.description}
-                      </div>
-                      <div className="color-tooltip-arrow" />
-                    </div>
+                    {selectedColor === color.value && (
+                      <Check className="h-4 w-4" aria-hidden />
+                    )}
                   </button>
                 ))}
               </div>
@@ -181,27 +183,30 @@ export function HighlightPopover({
                 onClick={() => setShowNoteInput(!showNoteInput)}
                 className={cn(
                   'highlight-action-button flex items-center gap-2',
-                  'bg-muted hover:bg-muted/80 text-foreground',
-                  showNoteInput && 'bg-muted/90'
+                  showNoteInput && 'is-active'
                 )}
+                aria-expanded={showNoteInput}
+                aria-controls="highlight-creation-note"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Add Note</span>
+                <span>{showNoteInput ? 'Hide note' : 'Add note'}</span>
               </button>
 
               <button
                 onClick={() => setIsPublic(!isPublic)}
                 className="privacy-toggle"
+                aria-label="Public highlight"
+                aria-pressed={isPublic}
               >
                 {isPublic ? (
                   <>
-                    <Globe className="w-4 h-4 text-success-foreground" />
-                    <span className="text-sm text-foreground">Public</span>
+                    <Globe className="w-4 h-4" />
+                    <span>Public</span>
                   </>
                 ) : (
                   <>
-                    <Lock className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-foreground">Private</span>
+                    <Lock className="w-4 h-4" />
+                    <span>Private</span>
                   </>
                 )}
               </button>
@@ -211,10 +216,12 @@ export function HighlightPopover({
             {showNoteInput && (
               <div className="mb-3">
                 <textarea
+                  id="highlight-creation-note"
+                  aria-label="Highlight note"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Add a note to your highlight..."
-                  className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent resize-none"
+                  className="highlight-note-input"
                   rows={3}
                   // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
@@ -224,8 +231,14 @@ export function HighlightPopover({
           </>
         )}
 
-        <div className="pt-3 border-t border-border">
-          <div className="text-xs font-medium text-muted-foreground mb-3 text-center">
+        <p className="mb-4 text-xs text-ui-muted-foreground">
+          {isAuthenticated &&
+            (isPublic
+              ? 'Visible to other readers.'
+              : 'Only you can see this highlight.')}
+        </p>
+        <div className="pt-3 border-t border-ui-border">
+          <div className="text-xs text-ui-muted-foreground mb-3 text-center">
             {isAuthenticated
               ? `Save highlight${
                   articleId &&
@@ -239,16 +252,19 @@ export function HighlightPopover({
               : 'Tip the author for this selection'}
           </div>
 
-          <div className="flex gap-2 mb-3">
+          <div className="highlight-save-actions mb-3">
             {isAuthenticated && (
               <Button
                 type="button"
                 size="sm"
                 onClick={handleSaveHighlight}
-                className="min-w-0 flex-1 gap-2 shadow-md"
+                disabled={isSaving}
+                className="min-w-0 min-h-11 flex-1 gap-2"
               >
                 <Highlighter className="w-4 h-4" />
-                <span className="font-medium">Save</span>
+                <span className="font-medium">
+                  {isSaving ? 'Saving…' : 'Save highlight'}
+                </span>
               </Button>
             )}
 
@@ -269,7 +285,7 @@ export function HighlightPopover({
                   endContainerPath={endContainerPath}
                   selectionStartPosition={selectionStartPosition}
                   selectionEndPosition={selectionEndPosition}
-                  className="min-w-0 flex-1"
+                  className="min-w-0 min-h-11 flex-1"
                   resumeOpen={Boolean(resumeHighlightTip)}
                   resumeAmountCents={resumeHighlightTip?.amountCents}
                   resumeCustomAmount={resumeHighlightTip?.customAmount}
@@ -281,12 +297,7 @@ export function HighlightPopover({
                   onSuccess={
                     isAuthenticated
                       ? () => {
-                          onCreateHighlight(
-                            selectedColor,
-                            note || undefined,
-                            isPublic
-                          )
-                          onClose()
+                          void handleSaveHighlight()
                         }
                       : undefined
                   }
@@ -297,7 +308,8 @@ export function HighlightPopover({
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="w-full text-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+            disabled={isSaving}
+            className="highlight-quiet-action w-full"
           >
             Cancel
           </button>
