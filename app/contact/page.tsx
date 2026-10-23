@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { InfoPageLayout } from '@/components/layout/InfoPageLayout'
+import { ResourcePageLayout } from '@/components/layout/ResourcePageLayout'
 import {
   contactChannels,
   contactIntro,
@@ -14,36 +14,34 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <InfoPageLayout title="Contact" description={contactIntro}>
-      <div className="space-y-10 text-foreground">
-        {contactChannels.map((channel) => (
-          <section key={channel.id} id={channel.id}>
-            <h2 className="text-lg font-semibold text-foreground mb-3">
-              {channel.title}
-            </h2>
-            <p className="text-sm leading-relaxed text-muted-foreground mb-3">
-              {channel.description}
-            </p>
-            <a
-              href={`mailto:${channel.email}`}
-              className="text-sm text-primary hover:underline underline-offset-4"
-            >
-              {channel.email}
-            </a>
-          </section>
-        ))}
-
-        <section>
-          <h2 className="text-lg font-semibold text-foreground mb-3">
-            Important notes
-          </h2>
-          <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
-            {contactNotes.map((note, index) => (
-              <p key={`note-${index}`}>{note}</p>
-            ))}
-          </div>
+    <ResourcePageLayout
+      title="Contact"
+      description={contactIntro}
+      navigationTitle="On this page"
+      links={[
+        ...contactChannels.map((channel) => ({
+          label: channel.title,
+          href: `#${channel.id}`,
+        })),
+        { label: 'Important notes', href: '#notes' },
+      ]}
+    >
+      {contactChannels.map((channel) => (
+        <section key={channel.id} id={channel.id}>
+          <h2>{channel.title}</h2>
+          <p>{channel.description}</p>
+          <a href={`mailto:${channel.email}`} className="resource-action">
+            {channel.email}
+          </a>
         </section>
-      </div>
-    </InfoPageLayout>
+      ))}
+
+      <section id="notes">
+        <h2>Important notes</h2>
+        {contactNotes.map((note, index) => (
+          <p key={`note-${index}`}>{note}</p>
+        ))}
+      </section>
+    </ResourcePageLayout>
   )
 }

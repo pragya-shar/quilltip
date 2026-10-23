@@ -1,10 +1,9 @@
-'use client'
-
 import Link from 'next/link'
 import { SiteHeader } from '@/components/layout/SiteHeader'
 import { Button } from '@/components/ui/button'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import type { LegalSection } from '@/lib/copy/legal-shared'
+import './legal.css'
 
 type LegalPageLayoutProps = {
   title: string
@@ -23,26 +22,24 @@ export function LegalPageLayout({
   alternatePolicy,
 }: LegalPageLayoutProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="legal-page">
       <SiteHeader />
-      <div className="flex-1 pt-24 pb-16 px-4">
-        <article className="mx-auto max-w-3xl">
-          <header className="mb-10 border-b border-border pb-8">
-            <p className="text-sm text-muted-foreground mb-2">
-              Last updated: {lastUpdated}
-            </p>
-            <h1 className="font-display text-3xl lg:text-4xl font-medium tracking-[-0.01em] text-foreground">
-              {title}
-            </h1>
+      <main className="legal-main">
+        <article aria-labelledby="policy-title">
+          <header className="legal-header">
+            <p className="legal-date">Last updated: {lastUpdated}</p>
+            <h1 id="policy-title">{title}</h1>
           </header>
 
-          <div className="space-y-10 text-foreground">
+          <div className="legal-sections">
             {sections.map((section) => (
-              <section key={section.id} id={section.id}>
-                <h2 className="text-lg font-semibold text-foreground mb-3">
-                  {section.title}
-                </h2>
-                <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+              <section
+                key={section.id}
+                id={section.id}
+                aria-labelledby={`${section.id}-title`}
+              >
+                <h2 id={`${section.id}-title`}>{section.title}</h2>
+                <div className="legal-paragraphs">
                   {section.paragraphs.map((paragraph, index) => (
                     <p key={`${section.id}-${index}`}>{paragraph}</p>
                   ))}
@@ -51,28 +48,29 @@ export function LegalPageLayout({
             ))}
           </div>
 
-          <footer className="mt-12 pt-8 border-t border-border space-y-6">
-            <p className="text-sm text-muted-foreground">
+          <footer className="legal-footer">
+            <p className="legal-related">
               See also:{' '}
-              <Link
-                href={alternatePolicy.href}
-                className="text-primary hover:underline underline-offset-4"
-              >
+              <Link href={alternatePolicy.href} className="legal-policy-link">
                 {alternatePolicy.label}
               </Link>
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-              <Button asChild className="sm:w-auto w-full">
+            <nav className="legal-actions" aria-label="Continue exploring">
+              <Button asChild className="min-h-11 h-auto whitespace-normal">
                 <Link href="/">Back to home</Link>
               </Button>
-              <Button asChild variant="outline" className="sm:w-auto w-full">
+              <Button
+                asChild
+                variant="outline"
+                className="min-h-11 h-auto whitespace-normal"
+              >
                 <Link href="/articles">Browse articles</Link>
               </Button>
-            </div>
+            </nav>
           </footer>
         </article>
-      </div>
+      </main>
       <SiteFooter variant="default" />
     </div>
   )
