@@ -35,6 +35,7 @@ import type * as lib_rateLimit from "../lib/rateLimit.js";
 import type * as lib_stellarTransactionHash from "../lib/stellarTransactionHash.js";
 import type * as lib_tipArticleSummary from "../lib/tipArticleSummary.js";
 import type * as lib_tiptapContent from "../lib/tiptapContent.js";
+import type * as lib_uploadReferences from "../lib/uploadReferences.js";
 import type * as lib_wikimediaFileUrl from "../lib/wikimediaFileUrl.js";
 import type * as lib_xlmPrice from "../lib/xlmPrice.js";
 import type * as nftMetadataUpload from "../nftMetadataUpload.js";
@@ -84,6 +85,7 @@ declare const fullApi: ApiFromModules<{
   "lib/stellarTransactionHash": typeof lib_stellarTransactionHash;
   "lib/tipArticleSummary": typeof lib_tipArticleSummary;
   "lib/tiptapContent": typeof lib_tiptapContent;
+  "lib/uploadReferences": typeof lib_uploadReferences;
   "lib/wikimediaFileUrl": typeof lib_wikimediaFileUrl;
   "lib/xlmPrice": typeof lib_xlmPrice;
   nftMetadataUpload: typeof nftMetadataUpload;
