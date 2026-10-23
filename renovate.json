@@ -13,12 +13,6 @@
     {
       "groupName": "stellar",
       "matchPackagePatterns": ["@stellar/*", "@creit.tech/*"]
-    },
-    {
-      "groupName": "testing",
-      "matchPackagePatterns": ["vitest", "convex-test"],
-      "automerge": true,
-      "matchUpdateTypes": ["minor", "patch"]
     }
   ]
 }

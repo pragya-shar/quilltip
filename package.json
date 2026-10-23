@@ -14,15 +14,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest",
-    "test:once": "vitest run",
     "test:e2e:eng-224": "playwright test e2e/eng-224-console.spec.ts",
     "eng-224:console-baseline": "node scripts/eng-224-console-baseline.mjs",
     "eng-235:batch-evidence": "bun scripts/eng-235-batch-evidence-runner.ts",
     "eng-236:batch-evidence": "bun scripts/eng-236-batch-evidence-runner.ts",
     "eng-238:page-load": "bun scripts/eng-238-page-load-performance.ts",
-    "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:coverage": "vitest run --coverage --coverage.reporter=text",
     "audit:dependencies": "node scripts/dependency-audit.mjs"
   },
   "lint-staged": {
@@ -88,7 +84,6 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "convex": "^1.48.0",
-    "convex-test": "^0.0.41",
     "date-fns": "^4.4.0",
     "embla-carousel-react": "^8.6.0",
     "lowlight": "^3.3.0",
@@ -114,13 +109,9 @@
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
-    "@edge-runtime/vm": "^5.0.0",
     "@eslint/eslintrc": "^3.3.7",
     "@next/bundle-analyzer": "^16.4.2",
     "@playwright/test": "^1.64.1",
-    "@testing-library/jest-dom": "^6.10.0",
-    "@testing-library/react": "^16.3.3",
-    "@testing-library/user-event": "^14.6.8",
     "@types/node": "^25.9.9",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
@@ -128,12 +119,10 @@
     "eslint-config-next": "16.4.2",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
-    "jsdom": "^29.1.1",
     "lint-staged": "^16.4.0",
     "npm-run-all": "^4.1.5",
     "prettier": "3.8.1",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.12"
+    "typescript": "^5.9.3"
   },
   "packageManager": "bun@1.4.4",
   "overrides": {

@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   quality:
-    name: Lint, Typecheck & Test
+    name: Lint & Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -37,9 +37,6 @@ jobs:
 
       - name: Typecheck
         run: bun run typecheck
-
-      - name: Test
-        run: bun run test:once
 
   build:
     name: Build
@@ -104,7 +101,7 @@ jobs:
             fi
           }
 
-          check_result "Lint, Typecheck & Test" "$QUALITY_RESULT"
+          check_result "Lint & Typecheck" "$QUALITY_RESULT"
           check_result "Build" "$BUILD_RESULT"
           check_result "Dependency Audit" "$AUDIT_RESULT"
 

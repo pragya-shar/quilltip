@@ -106,15 +106,14 @@ Standard app gate:
 1. `bun run format:check`
 2. `bun run typecheck`
 3. `bun run lint`
-4. `bun run test:once`
-5. `bun run build`
+4. `bun run build`
 
 Contract gates when touched:
 
-- `cargo test --manifest-path contracts/tipping/Cargo.toml`
-- `cargo test --manifest-path contracts/article-nft/Cargo.toml`
+- `cargo check --locked --target wasm32v1-none --manifest-path contracts/tipping/Cargo.toml`
+- `cargo check --locked --target wasm32v1-none --manifest-path contracts/article-nft/Cargo.toml`
 
-Use focused tests first while developing. Run the standard gate before PR or final handoff unless the user explicitly narrows verification.
+Unit tests and their runners have been removed. Use the existing Playwright tests for browser regression checks when relevant. Run the standard gate before PR or final handoff unless the user explicitly narrows verification.
 
 If `bun run build` fails because network access blocks external font or package fetching, report it as an environment issue only after confirming the error text.
 

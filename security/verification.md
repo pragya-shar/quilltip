@@ -1,5 +1,7 @@
 # Security fixes verification — 2026-10-23
 
+> Historical record captured before unit-test removal. The Vitest, transport, compatibility and audit-parser tests described below were subsequently removed at the owner’s request, together with the Rust unit tests and test tooling. Current verification uses formatting, lint, TypeScript, production build, dependency audit and contract compile checks.
+
 Issues: #237 upload ownership, #238 Next/Sharp, #240 dependencies/required audit, #239 pinned Actions. Changes remain uncommitted on `design-revamp-quilltip` in the original checkout. HEAD is still `a5e2953265abea67921f682b3285769af967fbf0`. Preexisting Wallet, landing and account work is preserved.
 
 ## Verified
