@@ -4,17 +4,17 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const cardVariants = cva(
-  'rounded-[var(--card-radius)] bg-card text-card-foreground',
+  'font-ui border-ui-border rounded-[var(--ui-radius)] bg-ui-surface text-ui-foreground',
   {
     variants: {
       variant: {
-        default: 'border shadow-[var(--chrome-raised)]',
+        default: 'border shadow-[var(--chrome-quiet)]',
         quiet: 'border shadow-[var(--chrome-quiet)]',
         action:
-          'border border-border p-4 shadow-[var(--chrome-quiet)] transition-colors hover:bg-muted/40',
+          'border border-ui-border p-4 shadow-[var(--chrome-quiet)] transition-colors hover:bg-ui-muted/40',
         'workspace-row':
-          'rounded-none border-0 border-b border-border shadow-[var(--chrome-quiet)] p-[var(--workspace-row-padding)] transition-colors hover:bg-muted/40 last:border-b-0',
-        inline: 'border-0 shadow-[var(--chrome-quiet)] bg-muted/30',
+          'rounded-none border-0 border-b border-ui-border shadow-[var(--chrome-quiet)] p-[var(--workspace-row-padding)] transition-colors hover:bg-ui-muted/40 last:border-b-0',
+        inline: 'border-0 shadow-[var(--chrome-quiet)] bg-ui-muted/30',
       },
     },
     defaultVariants: {
@@ -68,7 +68,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('text-sm text-muted-foreground', className)}
+    className={cn('text-sm text-ui-muted-foreground', className)}
     {...props}
   />
 ))

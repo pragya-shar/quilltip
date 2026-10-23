@@ -26,6 +26,7 @@
 /* Import resizable image styles */
 @import '../components/editor/extensions/ResizableImageStyles.css';
 @import 'tw-animate-css';
+@import './shared-ui.css';
 
 /* Highlight animations and styles */
 @keyframes highlight-fade-in {

@@ -1,0 +1,195 @@
+@font-face {
+  font-family: 'QuillTip UI';
+  src: url('/landing/fonts/work-sans-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'QuillTip UI';
+  src: url('/landing/fonts/work-sans-latin-600-normal.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+
+/* Shared chrome has its own tokens while page palettes migrate independently.
+   Root scope also makes these available to Radix and Sonner portals. */
+:root {
+  --ui-font: 'QuillTip UI', sans-serif;
+  --ui-surface: #faf5ec;
+  --ui-foreground: #390c18;
+  --ui-primary: #790333;
+  --ui-primary-foreground: #faf5ec;
+  --ui-muted: #eee2d8;
+  --ui-muted-foreground: #5e535a;
+  --ui-accent: #ead4d3;
+  --ui-accent-foreground: #590b2a;
+  --ui-border: #cdb9b4;
+  --ui-input: #9f8885;
+  --ui-ring: #790333;
+  --ui-danger: #a52e36;
+  --ui-danger-foreground: #fff8f1;
+  --ui-success: #e5ebdf;
+  --ui-success-foreground: #35513c;
+  --ui-warning: #f3e6c8;
+  --ui-warning-foreground: #705019;
+  --ui-info: #eee2e8;
+  --ui-info-foreground: #66334c;
+  --ui-collectible: #e8dfe9;
+  --ui-collectible-foreground: #633966;
+  --ui-overlay: rgb(57 12 24 / 0.36);
+  --ui-radius: 0.25rem;
+  --ui-shadow: 0 8px 28px rgb(57 12 24 / 0.1);
+}
+
+.dark {
+  --ui-surface: #281b21;
+  --ui-foreground: #faf0e5;
+  --ui-primary: #edb8cd;
+  --ui-primary-foreground: #390c18;
+  --ui-muted: #382830;
+  --ui-muted-foreground: #d0bbbf;
+  --ui-accent: #4c2b3b;
+  --ui-accent-foreground: #f5d7e2;
+  --ui-border: #725660;
+  --ui-input: #947780;
+  --ui-ring: #edb8cd;
+  --ui-danger: #f0a7ac;
+  --ui-danger-foreground: #390c18;
+  --ui-success: #283b2d;
+  --ui-success-foreground: #c6dfc4;
+  --ui-warning: #44371f;
+  --ui-warning-foreground: #f0d698;
+  --ui-info: #422c39;
+  --ui-info-foreground: #ebc9da;
+  --ui-collectible: #3d2d43;
+  --ui-collectible-foreground: #e3c9eb;
+  --ui-overlay: rgb(24 8 16 / 0.6);
+  --ui-shadow: 0 8px 28px rgb(12 4 8 / 0.24);
+}
+
+@theme inline {
+  --font-ui: var(--ui-font);
+  --color-ui-surface: var(--ui-surface);
+  --color-ui-foreground: var(--ui-foreground);
+  --color-ui-primary: var(--ui-primary);
+  --color-ui-primary-foreground: var(--ui-primary-foreground);
+  --color-ui-muted: var(--ui-muted);
+  --color-ui-muted-foreground: var(--ui-muted-foreground);
+  --color-ui-accent: var(--ui-accent);
+  --color-ui-accent-foreground: var(--ui-accent-foreground);
+  --color-ui-border: var(--ui-border);
+  --color-ui-input: var(--ui-input);
+  --color-ui-ring: var(--ui-ring);
+  --color-ui-danger: var(--ui-danger);
+  --color-ui-danger-foreground: var(--ui-danger-foreground);
+  --color-ui-success: var(--ui-success);
+  --color-ui-success-foreground: var(--ui-success-foreground);
+  --color-ui-warning: var(--ui-warning);
+  --color-ui-warning-foreground: var(--ui-warning-foreground);
+  --color-ui-info: var(--ui-info);
+  --color-ui-info-foreground: var(--ui-info-foreground);
+  --color-ui-collectible: var(--ui-collectible);
+  --color-ui-collectible-foreground: var(--ui-collectible-foreground);
+  --color-ui-overlay: var(--ui-overlay);
+  --shadow-ui: var(--ui-shadow);
+}
+
+.toaster[data-sonner-toaster][data-sonner-theme] {
+  font-family: var(--ui-font);
+  --normal-bg: var(--ui-surface);
+  --normal-text: var(--ui-foreground);
+  --normal-border: var(--ui-border);
+  --success-bg: var(--ui-success);
+  --success-text: var(--ui-success-foreground);
+  --success-border: var(--ui-success-foreground);
+  --error-bg: var(--ui-surface);
+  --error-text: var(--ui-danger);
+  --error-border: var(--ui-danger);
+  --warning-bg: var(--ui-warning);
+  --warning-text: var(--ui-warning-foreground);
+  --warning-border: var(--ui-warning-foreground);
+  --info-bg: var(--ui-info);
+  --info-text: var(--ui-info-foreground);
+  --info-border: var(--ui-info-foreground);
+}
+
+.toaster[data-sonner-toaster] [data-sonner-toast].toast {
+  background: var(--ui-surface);
+  color: var(--ui-foreground);
+  border-color: var(--ui-border);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow);
+}
+
+.toaster[data-sonner-toaster] [data-sonner-toast].toast [data-description] {
+  color: var(--ui-muted-foreground);
+}
+
+.toaster[data-sonner-toaster] [data-sonner-toast].toast [data-button] {
+  background: var(--ui-primary);
+  color: var(--ui-primary-foreground);
+  font-family: inherit;
+}
+
+.toaster[data-sonner-toaster]
+  [data-sonner-toast].toast
+  [data-button][data-cancel] {
+  background: var(--ui-muted);
+  color: var(--ui-foreground);
+}
+
+.toaster[data-sonner-toaster] [data-sonner-toast].toast [data-close-button] {
+  background: var(--ui-surface);
+  color: var(--ui-foreground);
+  border-color: var(--ui-border);
+}
+
+.toaster[data-sonner-toaster]
+  [data-sonner-toast].toast
+  :is([data-button], [data-close-button]):focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 3px;
+}
+
+.toaster[data-sonner-toaster]
+  [data-sonner-toast].toast[data-type='success']
+  [data-icon] {
+  color: var(--ui-success-foreground);
+}
+
+.toaster[data-sonner-toaster]
+  [data-sonner-toast].toast[data-type='error']
+  [data-icon] {
+  color: var(--ui-danger);
+}
+
+.toaster[data-sonner-toaster]
+  .toast[data-rich-colors='true'][data-type='success'] {
+  background: var(--ui-success);
+  color: var(--ui-success-foreground);
+}
+
+.toaster[data-sonner-toaster]
+  .toast[data-rich-colors='true'][data-type='error'] {
+  color: var(--ui-danger);
+  border-color: var(--ui-danger);
+}
+
+.toaster[data-sonner-toaster]
+  .toast[data-rich-colors='true'][data-type='warning'] {
+  background: var(--ui-warning);
+  color: var(--ui-warning-foreground);
+}
+
+.toaster[data-sonner-toaster]
+  .toast[data-rich-colors='true'][data-type='info'] {
+  background: var(--ui-info);
+  color: var(--ui-info-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toaster [data-sonner-toast] {
+    transition: none;
+  }
+}
