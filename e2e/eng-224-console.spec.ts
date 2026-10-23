@@ -51,18 +51,12 @@ test.describe('ENG-224 public pages console', () => {
       timeout: 60_000,
     })
     const articleLink = page
-      .locator('a[href^="/"]')
-      .filter({ has: page.locator('article, [data-article], h2, h3') })
+      .getByRole('article')
       .first()
-    const href = await articleLink.getAttribute('href').catch(() => null)
-
-    const fallbackLink = page.locator('main a[href*="/"]').nth(1)
-    const resolvedHref =
-      href &&
-      href.startsWith('/') &&
-      href.split('/').filter(Boolean).length >= 2
-        ? href
-        : await fallbackLink.getAttribute('href').catch(() => null)
+      .getByRole('link', { name: /^Read / })
+      .first()
+    await expect(articleLink).toBeVisible()
+    const resolvedHref = await articleLink.getAttribute('href')
 
     test.skip(
       !resolvedHref ||

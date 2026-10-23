@@ -60,6 +60,7 @@ export default function AppNavigation() {
               </Link>
             </>
           )}
+          <ThemeToggle />
         </nav>
         <Sheet
           open={menuOpen && menuPath === pathname}

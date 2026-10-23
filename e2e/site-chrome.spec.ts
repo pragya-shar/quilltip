@@ -67,6 +67,14 @@ for (const path of ['/support', '/contact', '/privacy', '/terms']) {
     await expect(
       page.getByRole('button', { name: 'Product', exact: true })
     ).toHaveCount(0)
+    await expect(
+      navigation.getByRole('button', { name: /Switch to (dark|light) mode/ })
+    ).toBeVisible()
+    expect(
+      await page
+        .locator('.app-site-header-inner')
+        .evaluate((element) => element.getBoundingClientRect().height)
+    ).toBe(64)
     const footer = page.getByRole('navigation', { name: 'Footer', exact: true })
     for (const [label, href] of [
       ['Help & Support', '/support'],

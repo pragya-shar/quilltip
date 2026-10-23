@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { ChevronDown } from 'lucide-react'
-import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,10 +51,6 @@ export function AccountNavigationMenu({
         >
           Sign out
         </DropdownMenuItem>
-        <div className="app-menu-theme">
-          <span>Appearance</span>
-          <ThemeToggle />
-        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   )

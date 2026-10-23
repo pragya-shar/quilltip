@@ -1,231 +1,92 @@
 import { test, expect } from '@playwright/test'
 
-async function scrollSectionIntoView(
-  page: import('@playwright/test').Page,
-  selector: string
-) {
-  const section = page.locator(selector).first()
-  await section.scrollIntoViewIfNeeded()
-  await page.waitForTimeout(200)
-}
-
-async function assertRevealContentVisible(
-  page: import('@playwright/test').Page,
-  selector: string
-) {
-  const section = page.locator(selector).first()
-  await expect(section).toBeVisible()
-  const reveal = section.locator('[data-reveal]').first()
-  if ((await reveal.count()) === 0) return
-  await expect(reveal).toBeVisible()
-  await expect(reveal).toHaveCSS('opacity', /^(?!0$)/)
-}
-
-test.describe('home landing visual regression', () => {
-  test.setTimeout(90_000)
+test.describe('current landing navigation and footer', () => {
+  test.use({ reducedMotion: 'reduce' })
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/')
     await expect(
-      page.getByRole('heading', { name: 'Reward the words that move you' })
+      page.getByRole('heading', { name: 'Value for writing', exact: true })
     ).toBeVisible()
   })
 
-  test('full page screenshot', async ({ page }) => {
-    await scrollSectionIntoView(page, '#features')
-    await expect(
-      page.getByRole('heading', { name: 'Why Quilltip' })
-    ).toBeVisible()
-
-    await scrollSectionIntoView(page, '#how-it-works')
-    await expect(
-      page.getByRole('heading', { name: 'How tipping works' })
-    ).toBeVisible()
-
-    await scrollSectionIntoView(page, '#security')
-    await expect(
-      page.getByRole('heading', { name: 'Security and transparency' })
-    ).toBeVisible()
-
-    await scrollSectionIntoView(page, '#faq')
-    await expect(
-      page.getByRole('heading', { name: 'Frequently Asked Questions' })
-    ).toBeVisible()
-
-    await page.evaluate(() => window.scrollTo(0, 0))
-    await page.waitForTimeout(400)
-
-    const snapshotName = `home-full-${test.info().project.name}.png`
-    await expect(page).toHaveScreenshot(snapshotName, {
-      fullPage: true,
-      animations: 'disabled',
-      timeout: 60_000,
+  test('desktop navigation preserves reading, library, writing and auth destinations', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    const navigation = page.getByRole('navigation', {
+      name: 'Main navigation',
+      exact: true,
     })
-  })
-})
-
-test.describe('landing nav hash navigation', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-    await expect(
-      page.getByRole('heading', { name: 'Reward the words that move you' })
-    ).toBeVisible()
-  })
-
-  test('desktop menu links reveal section content', async ({ page }) => {
-    test.skip(test.info().project.name === 'mobile', 'desktop nav only')
-    await page.setViewportSize({ width: 1280, height: 900 })
-
-    const productButton = page.getByRole('button', { name: 'Product' })
-    await productButton.hover()
-    await expect(productButton).toHaveAttribute('aria-expanded', 'true')
-    await page
-      .getByRole('link', { name: /How tipping works/i })
-      .first()
-      .click()
-    await page.waitForTimeout(900)
-    await expect(
-      page.getByRole('heading', { name: 'How tipping works' })
-    ).toBeVisible()
-    await assertRevealContentVisible(page, '#how-it-works')
-
-    await page.getByRole('button', { name: 'Resources' }).hover()
-    await expect(
-      page.getByRole('button', { name: 'Resources' })
-    ).toHaveAttribute('aria-expanded', 'true')
-    await page.getByRole('link', { name: 'FAQ' }).click()
-    await page.waitForTimeout(900)
-    await expect(
-      page.getByRole('heading', { name: 'Frequently Asked Questions' })
-    ).toBeVisible()
-    await assertRevealContentVisible(page, '#faq')
-  })
-
-  test('mobile menu links reveal section content', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
-
-    const cases: {
-      linkName: string
-      heading: string | RegExp
-      section: string
-    }[] = [
-      {
-        linkName: 'How tipping works',
-        heading: 'How tipping works',
-        section: '#how-it-works',
-      },
-      {
-        linkName: 'FAQ',
-        heading: 'Frequently Asked Questions',
-        section: '#faq',
-      },
-    ]
-
-    for (const { linkName, heading, section } of cases) {
-      await page.getByRole('button', { name: 'Toggle menu' }).click()
-      await expect(page.getByRole('dialog')).toBeVisible()
-      await page.getByRole('link', { name: linkName }).click()
-      await expect(page.getByRole('dialog')).not.toBeVisible()
-      await page.waitForTimeout(1200)
-      await expect(page.getByRole('heading', { name: heading })).toBeVisible()
-      await assertRevealContentVisible(page, section)
+    for (const [name, href] of [
+      ['Articles', '/articles'],
+      ['Your library', '/library'],
+      ['Writing desk', '/write'],
+      ['Log in', '/login'],
+      ['Sign up', '/register'],
+    ] as const) {
+      const link = navigation.getByRole('link', { name, exact: true })
+      await expect(link).toBeVisible()
+      await expect(link).toHaveAttribute('href', href)
     }
   })
 
-  test('mobile menu section links work from mid-page scroll position', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
-    await scrollSectionIntoView(page, '#faq')
-    await page.waitForTimeout(200)
+  for (const width of [375, 390, 1280]) {
+    test(`landing footer preserves active destinations and fits at ${width}px`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 844 })
+      const footer = page.getByRole('contentinfo')
+      await footer.scrollIntoViewIfNeeded()
+      for (const [name, href] of [
+        ['Read', '/articles'],
+        ['Write', '/write'],
+        ['How it works', '/#try-it'],
+        ['Questions', '/#questions'],
+        ['Support', '/support'],
+        ['Contact', '/contact'],
+        ['Privacy', '/privacy'],
+        ['Terms', '/terms'],
+      ] as const) {
+        const link = footer.getByRole('link', { name, exact: true })
+        await expect(link).toBeVisible()
+        await expect(link).toHaveAttribute('href', href)
+      }
+      await expect(
+        footer.getByRole('link', { name: 'Wallet & Stellar demo', exact: true })
+      ).toHaveAttribute('href', '/wallet/practice?returnTo=%2F%23try-it')
+      await expect(
+        footer.locator('a[href="/status"], a[href="/guide"]')
+      ).toHaveCount(0)
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth)
+      ).toBeLessThanOrEqual(width)
+      await page.screenshot({
+        path: testInfo.outputPath(`landing-${width}.png`),
+        fullPage: true,
+        animations: 'disabled',
+      })
+    })
+  }
 
-    await page.getByRole('button', { name: 'Toggle menu' }).click()
-    await page.getByRole('link', { name: 'How tipping works' }).click()
-    await page.waitForTimeout(1200)
-    await expect(
-      page.getByRole('heading', { name: 'How tipping works' })
-    ).toBeVisible()
-    await assertRevealContentVisible(page, '#how-it-works')
-  })
-})
-
-test.describe('landing how it works', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/#how-it-works')
-    await expect(
-      page.getByRole('heading', { name: 'How tipping works' })
-    ).toBeVisible()
-  })
-
-  test('desktop accordion steps update selection and panel content', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1280, height: 900 })
-
-    const steps = page.getByLabel('How it works steps')
-    const tip = steps.getByRole('button', { name: 'Tip' })
-    await tip.click()
-
-    await expect(tip).toHaveAttribute('aria-expanded', 'true')
-    await expect(
-      page.getByText(
-        'Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds.'
-      )
-    ).toBeVisible()
-  })
-
-  test('desktop accordion steps toggle with Enter keyboard interaction', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1280, height: 900 })
-
-    const steps = page.getByLabel('How it works steps')
-    const browse = steps.getByRole('button', { name: 'Browse' })
-    await browse.focus()
-    await page.keyboard.press('Enter')
-
-    await expect(browse).toHaveAttribute('aria-expanded', 'false')
-  })
-
-  test('mobile accordion steps update selection and panel content', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 })
-
-    const steps = page.getByLabel('How it works steps')
-    const publish = steps.getByRole('button', { name: 'Publish & earn' })
-    await publish.click()
-
-    await expect(publish).toHaveAttribute('aria-expanded', 'true')
-    await expect(
-      page.getByText(
-        'Use the rich editor to publish your work. Tips go directly to your wallet with near-zero fees.'
-      )
-    ).toBeVisible()
-  })
-})
-
-test.describe('home landing footer links', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-    await expect(
-      page.getByRole('heading', { name: 'Reward the words that move you' })
-    ).toBeVisible()
-  })
-
-  test('footer includes trust and support destinations', async ({ page }) => {
-    const footer = page.getByRole('navigation', { name: 'Footer' })
-    await footer.scrollIntoViewIfNeeded()
-
-    for (const label of [
-      'Terms of Service',
-      'Privacy Policy',
-      'Help & Support',
-      'Wallet Guide',
-      'Contact',
-      'Platform Status',
-    ]) {
-      await expect(footer.getByRole('link', { name: label })).toBeVisible()
-    }
-  })
+  for (const width of [390, 1280]) {
+    test(`footer section links reveal the reading sample and questions at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 })
+      const footer = page.getByRole('contentinfo')
+      await footer
+        .getByRole('link', { name: 'How it works', exact: true })
+        .click()
+      await expect(page).toHaveURL(/\/#try-it$/)
+      await expect(
+        page.getByRole('heading', { name: 'The words we carry', exact: true })
+      ).toBeInViewport()
+      await footer.getByRole('link', { name: 'Questions', exact: true }).click()
+      await expect(page).toHaveURL(/\/#questions$/)
+      await expect(
+        page.getByRole('heading', { name: 'A few questions.', exact: true })
+      ).toBeInViewport()
+    })
+  }
 })
