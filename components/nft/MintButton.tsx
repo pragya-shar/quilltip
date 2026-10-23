@@ -30,7 +30,7 @@ import {
   type StellarFlowEvent,
   nftMintFlowProgressLabel,
 } from '@/lib/stellar/stellar-flow-emitter'
-import { cn } from '@/lib/utils'
+import './nft.css'
 
 const NFT_MINT_UI_STEPS: readonly NftMintFlowStep[] = [
   'awaiting_signature',
@@ -84,6 +84,8 @@ export function MintButton({
   onMintSuccess,
 }: MintButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
+  const [isPreparing, setIsPreparing] = useState(false)
+  const [mintError, setMintError] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const connectButtonRef = useRef<HTMLButtonElement>(null)
@@ -154,6 +156,8 @@ export function MintButton({
       return
     }
 
+    setMintError(null)
+    setIsPreparing(true)
     setIsLoading(true)
 
     try {
@@ -181,6 +185,7 @@ export function MintButton({
         metadataUrl,
       })
 
+      setIsPreparing(false)
       const signedXDR = await wallet.signTransaction(xdr)
 
       const result = await nftClient.submitMintTransaction(signedXDR)
@@ -217,10 +222,13 @@ export function MintButton({
         fallback = 'Blockchain transaction failed. Please try again'
       }
 
-      toast.error(getFriendlyMintErrorMessage(error, fallback))
+      const message = getFriendlyMintErrorMessage(error, fallback)
+      setMintError(message)
+      toast.error(message)
     } finally {
       setNftMintFlowStep(null)
       nftMintFlowStepRef.current = null
+      setIsPreparing(false)
       setIsLoading(false)
     }
   }
@@ -233,18 +241,25 @@ export function MintButton({
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">NFT Minting Progress</span>
+          <span className="text-ui-muted-foreground">NFT Minting Progress</span>
           <span className="font-medium">
             ${totalTips.toFixed(2)} / ${threshold.toFixed(2)}
           </span>
         </div>
-        <div className="w-full bg-secondary rounded-full h-2">
+        <div
+          className="nft-progress"
+          role="progressbar"
+          aria-label="Minting progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress}
+        >
           <div
-            className="bg-primary h-2 rounded-full transition-all"
+            className="nft-progress-fill"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-ui-muted-foreground">
           ${(threshold - totalTips).toFixed(2)} more in support to become
           eligible
         </p>
@@ -257,14 +272,18 @@ export function MintButton({
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
-          if (open) activateWallet()
+          if (isLoading) return
+          if (open) {
+            setMintError(null)
+            activateWallet()
+          }
           setDialogOpen(open)
         }}
       >
         <DialogTrigger asChild>
           <Button
             disabled={!canMint}
-            className="w-full"
+            className="nft-button w-full"
             variant="default"
             type="button"
           >
@@ -273,6 +292,8 @@ export function MintButton({
           </Button>
         </DialogTrigger>
         <DialogContent
+          className="nft-dialog"
+          hideCloseButton={isLoading}
           onEscapeKeyDown={(e) => {
             if (isLoading) e.preventDefault()
           }}
@@ -280,48 +301,52 @@ export function MintButton({
             if (isLoading) e.preventDefault()
           }}
         >
-          <DialogHeader>
-            <DialogTitle>Mint Article as NFT</DialogTitle>
-            <DialogDescription>
-              Convert your article into a unique NFT on the Stellar blockchain
+          <DialogHeader className="nft-dialog-header">
+            <DialogTitle className="nft-dialog-title">
+              Mint Article as NFT
+            </DialogTitle>
+            <DialogDescription className="nft-dialog-description">
+              Create a unique NFT for your article on Stellar testnet.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             {!wallet.isConnected && (
-              <div className="bg-warning/10 border border-warning/50 rounded-lg p-3">
-                <p className="text-sm text-warning-foreground">
+              <div className="nft-notice nft-notice-warning">
+                <p className="text-sm">
                   Connect your wallet to mint this article as an NFT.
                 </p>
               </div>
             )}
-            <div className="bg-secondary p-4 rounded-lg space-y-2">
-              <h4 className="font-medium">{articleTitle}</h4>
+            <div className="nft-summary space-y-2">
+              <h4 className="nft-article-title">{articleTitle}</h4>
               <div className="text-sm space-y-1">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Tips:</span>
+                  <span className="text-ui-muted-foreground">Total Tips:</span>
                   <span className="font-medium">${totalTips.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Threshold Met:</span>
-                  <span className="font-medium text-success-foreground">
+                  <span className="text-ui-muted-foreground">
+                    Threshold Met:
+                  </span>
+                  <span className="font-medium text-ui-success-foreground">
                     ✓ Yes
                   </span>
                 </div>
                 {wallet.isConnected && wallet.publicKey ? (
-                  <div className="bg-success/10 border border-success/50 rounded p-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-success-foreground font-medium">
+                  <div className="nft-notice nft-notice-success">
+                    <div className="flex w-full flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className="text-ui-success-foreground font-medium">
                         ✓ Wallet Connected
                       </span>
-                      <span className="font-mono text-success-foreground">
+                      <span className="font-mono text-ui-success-foreground">
                         {`${wallet.publicKey.slice(0, 4)}...${wallet.publicKey.slice(-4)}`}
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-warning/10 border border-warning/50 rounded p-2">
-                    <span className="text-xs text-warning-foreground">
+                  <div className="nft-notice nft-notice-warning">
+                    <span className="text-xs text-ui-warning-foreground">
                       Wallet not connected
                     </span>
                   </div>
@@ -329,73 +354,68 @@ export function MintButton({
               </div>
             </div>
 
+            {mintError && (
+              <p className="nft-notice nft-notice-error" role="alert">
+                {mintError}
+              </p>
+            )}
+            <p
+              className="sr-only"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {isLoading
+                ? isPreparing
+                  ? 'Preparing your NFT'
+                  : nftMintFlowStep
+                    ? nftMintFlowProgressLabel(nftMintFlowStep)
+                    : 'Mint in progress'
+                : ''}
+            </p>
             {isLoading && (
-              <div
-                className="rounded-lg border border-info/50 bg-info/10 p-4"
-                aria-busy="true"
-                aria-live="polite"
-              >
-                <p className="mb-3 text-sm font-medium text-foreground">
-                  Mint in progress
+              <div className="nft-summary" aria-busy="true">
+                <p className="mb-4 font-semibold">
+                  {isPreparing ? 'Preparing your NFT' : 'Mint in progress'}
                 </p>
-                <ol className="flex w-full items-start gap-2 sm:gap-3">
-                  {NFT_MINT_UI_STEPS.map((stepKey, i) => {
-                    const activeIdx =
-                      mintStepActiveIndex >= 0 ? mintStepActiveIndex : 0
-                    const isComplete = i < activeIdx
-                    const isCurrent = i === activeIdx
-                    return (
-                      <li
-                        key={stepKey}
-                        className="flex min-w-0 flex-1 flex-col items-center gap-1.5"
-                      >
-                        <div
-                          className={cn(
-                            'flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors',
-                            isComplete &&
-                              'border-success bg-success text-success-foreground',
-                            isCurrent &&
-                              !isComplete &&
-                              'border-primary bg-primary/10 text-primary',
-                            !isComplete &&
-                              !isCurrent &&
-                              'border-muted-foreground/30 bg-muted/50 text-muted-foreground'
-                          )}
+                {isPreparing ? (
+                  <p className="nft-muted">
+                    Checking eligibility and preparing permanent metadata before
+                    wallet approval.
+                  </p>
+                ) : (
+                  <ol className="nft-steps">
+                    {NFT_MINT_UI_STEPS.map((stepKey, i) => {
+                      const activeIdx = Math.max(mintStepActiveIndex, 0)
+                      const isComplete = i < activeIdx
+                      const isCurrent = i === activeIdx
+                      return (
+                        <li
+                          key={stepKey}
+                          className="nft-step"
+                          data-current={isCurrent}
+                          data-complete={isComplete}
                           aria-current={isCurrent ? 'step' : undefined}
                         >
-                          {isComplete ? (
-                            <Check
-                              className="h-4 w-4"
-                              strokeWidth={2.5}
-                              aria-hidden
-                            />
-                          ) : isCurrent ? (
-                            <Loader2
-                              className="h-4 w-4 animate-spin"
-                              aria-hidden
-                            />
-                          ) : (
-                            <span>{i + 1}</span>
-                          )}
-                        </div>
-                        <span
-                          className={cn(
-                            'text-center text-[10px] font-medium leading-tight sm:text-xs',
-                            isCurrent && 'text-foreground',
-                            isComplete && 'text-success-foreground',
-                            !isCurrent && !isComplete && 'text-muted-foreground'
-                          )}
-                        >
-                          {nftMintFlowProgressLabel(stepKey)}
-                        </span>
-                      </li>
-                    )
-                  })}
-                </ol>
+                          <span className="nft-step-marker" aria-hidden>
+                            {isComplete ? (
+                              <Check className="h-4 w-4" />
+                            ) : isCurrent ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              i + 1
+                            )}
+                          </span>
+                          <span>{nftMintFlowProgressLabel(stepKey)}</span>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                )}
               </div>
             )}
 
-            <div className="space-y-2 text-sm text-muted-foreground">
+            <div className="space-y-2 text-sm text-ui-muted-foreground">
               <p>By minting this NFT:</p>
               <ul className="list-disc list-inside space-y-1">
                 <li>
@@ -407,13 +427,13 @@ export function MintButton({
               </ul>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col-reverse gap-3 sm:flex-row">
               <Button
                 variant="outline"
                 type="button"
                 onClick={() => setDialogOpen(false)}
                 disabled={isLoading}
-                className="flex-1"
+                className="nft-button nft-button-secondary flex-1"
               >
                 Cancel
               </Button>
@@ -423,7 +443,7 @@ export function MintButton({
                   ref={connectButtonRef}
                   onClick={handleConnectWallet}
                   disabled={isLoading}
-                  className="flex-1"
+                  className="nft-button flex-1"
                 >
                   <Wallet className="mr-2 h-4 w-4" />
                   Connect Wallet
@@ -432,14 +452,16 @@ export function MintButton({
                 <Button
                   onClick={handleMint}
                   disabled={isLoading}
-                  className="flex-1"
+                  className="nft-button flex-1"
                 >
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {nftMintFlowStep
-                        ? nftMintFlowProgressLabel(nftMintFlowStep)
-                        : 'Minting'}
+                      {isPreparing
+                        ? 'Preparing NFT'
+                        : nftMintFlowStep
+                          ? nftMintFlowProgressLabel(nftMintFlowStep)
+                          : 'Minting'}
                     </>
                   ) : (
                     <>
