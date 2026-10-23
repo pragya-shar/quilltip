@@ -1055,6 +1055,163 @@
   animation: wallet-practice-confetti 1.9s var(--delay)
     cubic-bezier(0.15, 0.6, 0.35, 1) both;
 }
+:where(.prototype-wallet) .practice-confetti i:nth-child(1) {
+  --x: 0px;
+  --y: -220px;
+  --turn: 0deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(2) {
+  --x: 121.583px;
+  --y: -146.448px;
+  --turn: 73deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(3) {
+  --x: -179.31px;
+  --y: -126.583px;
+  --turn: 146deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(4) {
+  --x: 142.86px;
+  --y: -218.399px;
+  --turn: 219deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(5) {
+  --x: -31.379px;
+  --y: -164.583px;
+  --turn: 292deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(6) {
+  --x: -96.583px;
+  --y: -105.386px;
+  --turn: 365deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(7) {
+  --x: 173.818px;
+  --y: -213.627px;
+  --turn: 438deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(8) {
+  --x: -159.762px;
+  --y: -180.624px;
+  --turn: 511deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(9) {
+  --x: 61.797px;
+  --y: -83.28px;
+  --turn: 584deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(10) {
+  --x: 68.625px;
+  --y: -205.781px;
+  --turn: 657deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(11) {
+  --x: -163.004px;
+  --y: -194.251px;
+  --turn: 730deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(12) {
+  --x: 171.771px;
+  --y: -60.708px;
+  --turn: 803deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(13) {
+  --x: -90.322px;
+  --y: -195.017px;
+  --turn: 876deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(14) {
+  --x: -38.565px;
+  --y: -205.191px;
+  --turn: 949deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(15) {
+  --x: 147.198px;
+  --y: -81.878px;
+  --turn: 1022deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(16) {
+  --x: -178.52px;
+  --y: -181.55px;
+  --turn: 1095deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(17) {
+  --x: 116.081px;
+  --y: -213.226px;
+  --turn: 1168deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(18) {
+  --x: 7.325px;
+  --y: -104.026px;
+  --turn: 1241deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(19) {
+  --x: -126.884px;
+  --y: -165.651px;
+  --turn: 1314deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(20) {
+  --x: 179.802px;
+  --y: -218.193px;
+  --turn: 1387deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(21) {
+  --x: -138.286px;
+  --y: -125.293px;
+  --turn: 1460deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(22) {
+  --x: 24.14px;
+  --y: -147.637px;
+  --turn: 1533deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(23) {
+  --x: 102.684px;
+  --y: -219.994px;
+  --turn: 1606deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(24) {
+  --x: -175.578px;
+  --y: -145.253px;
+  --turn: 1679deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(25) {
+  --x: 156.255px;
+  --y: -127.869px;
+  --turn: 1752deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(26) {
+  --x: -54.866px;
+  --y: -218.592px;
+  --turn: 1825deg;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(4n + 1) {
+  --confetti: #660033;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(4n + 2) {
+  --confetti: #bd7f94;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(4n + 3) {
+  --confetti: #c39c5b;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(4n + 4) {
+  --confetti: #eee3cf;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(5n + 1) {
+  --delay: 0ms;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(5n + 2) {
+  --delay: 40ms;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(5n + 3) {
+  --delay: 80ms;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(5n + 4) {
+  --delay: 120ms;
+}
+:where(.prototype-wallet) .practice-confetti i:nth-child(5n + 5) {
+  --delay: 160ms;
+}
 :where(.prototype-wallet) .practice-confetti i:nth-child(3n) {
   border-radius: 50%;
   width: 7px;

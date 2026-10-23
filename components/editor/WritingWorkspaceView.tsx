@@ -3,83 +3,30 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 /* User-selected cover URLs are displayed directly in the private preview. */
 /* eslint-disable @next/next/no-img-element */
-import { useState, useRef, useEffect, type CSSProperties } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { EditorContent } from '@tiptap/react'
 import { WritingPreview } from './WritingPreview'
 import {
   getArticleAppearance,
   setArticleAppearance,
-  articleStyleVariables,
+  articleAppearanceClasses,
   PAPER_COLORS,
+  PAPER_SWATCH_CLASSES,
   type ArticleStyle,
 } from '@/lib/editor/articleAppearance'
-import { clearDraftBackup, writeDraftBackup } from '@/lib/draftBackup'
+import {
+  clearDraftBackup,
+  readDraftBackup,
+  writeDraftBackup,
+} from '@/lib/draftBackup'
 import type { WritingWorkspace } from './useWritingWorkspace'
+import { WritingBrand } from './WritingBrand'
+import { WritingLoading } from './WritingLoading'
 import { WritingDialog } from './WritingDialog'
 import { WritingToolbar } from './WritingToolbar'
 import { WritingDesk } from './WritingDesk'
 import { WritingMedia } from './WritingMedia'
 import { WritingWallet } from './WritingWallet'
-
-export function WritingBrand() {
-  return (
-    <a className="brand" aria-label="QuillTip home" href="/">
-      <svg viewBox="0 0 100 112" aria-hidden="true">
-        <defs>
-          <mask id="writing-ring">
-            <rect width="110" height="120" fill="white" />
-            <path
-              d="M47 49 78 60 98 106 53 83Z"
-              fill="black"
-              stroke="black"
-              strokeWidth="11"
-            />
-          </mask>
-        </defs>
-        <path
-          mask="url(#writing-ring)"
-          transform="translate(5.88 .3) scale(.88 .94)"
-          fill="currentColor"
-          fillRule="evenodd"
-          d="M49 5C18 5 5 24 5 49s14 44 44 44 47-18 47-44S80 5 49 5ZM49 16c21 0 32 12 32 33S70 81 49 81 17 70 17 49s11-33 32-33Z"
-        />
-        <path fill="currentColor" d="M47 49 78 60 98 106 53 83Z" />
-        <circle cx="68" cy="74" r="6" fill="var(--paper)" />
-        <path d="M68 74 98 106" stroke="var(--paper)" strokeWidth="3" />
-      </svg>
-      <span className="brand-word">uillTip</span>
-      <span className="desk-label"> / Writing desk</span>
-    </a>
-  )
-}
-export function WritingLoading({
-  message = 'Opening your writing desk…',
-  retry,
-}: {
-  message?: string
-  retry?: () => void
-}) {
-  return (
-    <div className="writing-workspace">
-      <header className="topbar">
-        <WritingBrand />
-      </header>
-      <main>
-        <div className="sheet">
-          <p role="status">{message}</p>
-          {retry && (
-            <button className="wine" onClick={retry}>
-              Try again
-            </button>
-          )}
-          <a className="editor-return" href="/articles">
-            Back to articles
-          </a>
-        </div>
-      </main>
-    </div>
-  )
-}
 
 export function WritingWorkspaceView({
   workspace: w,
@@ -180,6 +127,14 @@ export function WritingWorkspaceView({
   }
   async function newDraft() {
     if (leaving || w.isSaving) return
+    if (w.recoveryDeferredRef.current) {
+      const backup = readDraftBackup()
+      if (backup) {
+        close()
+        w.setBackupPrompt(backup)
+        return
+      }
+    }
     setLeaving(true)
     try {
       if (w.hasUnsavedChanges) {
@@ -286,8 +241,7 @@ export function WritingWorkspaceView({
       : undefined
   return (
     <div
-      className={`writing-workspace ${focus ? 'focus-mode' : ''}`}
-      style={articleStyleVariables(style)}
+      className={`writing-workspace ${articleAppearanceClasses(style)} ${focus ? 'focus-mode' : ''}`}
     >
       <header className="topbar">
         <WritingBrand />
@@ -489,7 +443,7 @@ export function WritingWorkspaceView({
         <fieldset>
           <legend>Page color</legend>
           <div className="swatches">
-            {Object.entries(PAPER_COLORS).map(([key, color]) => (
+            {Object.keys(PAPER_COLORS).map((key) => (
               <label
                 key={key}
                 aria-label={key.charAt(0).toUpperCase() + key.slice(1)}
@@ -503,7 +457,9 @@ export function WritingWorkspaceView({
                     changeAppearance({ paper: key as ArticleStyle['paper'] })
                   }
                 />
-                <span style={{ '--swatch': color } as CSSProperties} />
+                <span
+                  className={PAPER_SWATCH_CLASSES[key as ArticleStyle['paper']]}
+                />
                 {key.charAt(0).toUpperCase() + key.slice(1)}
               </label>
             ))}
@@ -525,9 +481,9 @@ export function WritingWorkspaceView({
               />
               <span>
                 <strong
-                  style={
+                  className={
                     type === 'literary'
-                      ? { fontFamily: 'Writing Literata' }
+                      ? '[font-family:Writing_Literata]'
                       : undefined
                   }
                 >

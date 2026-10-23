@@ -2,7 +2,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { useRef, type ReactNode } from 'react'
 import {
-  articleStyleVariables,
+  articleAppearanceClasses,
   type ArticleStyle,
 } from '@/lib/editor/articleAppearance'
 
@@ -38,8 +38,7 @@ export function WritingDialog({
     >
       <Dialog.Portal>
         <div
-          className="writing-workspace writing-portal"
-          style={articleStyleVariables(appearance)}
+          className={`writing-workspace writing-portal ${articleAppearanceClasses(appearance)}`}
         >
           <Dialog.Overlay className="writing-overlay" />
           <Dialog.Content

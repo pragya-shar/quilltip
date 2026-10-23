@@ -2,6 +2,13 @@
 
 import Link from 'next/link'
 import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import {
   ArrowRight,
   ArrowUpRight,
   Check,
@@ -37,8 +44,8 @@ export function LandingTippingDemo({
   const paper = useRef<HTMLElement>(null)
   const sentenceRefs = useRef<(HTMLSpanElement | null)[]>([])
   const receiptRef = useRef<HTMLElement>(null)
-  const tipDialog = useRef<HTMLDialogElement>(null)
   const tipTrigger = useRef<HTMLElement | null>(null)
+  const receiptPending = useRef(false)
 
   useEffect(() => {
     const update = () => setPageVisible(!document.hidden)
@@ -99,7 +106,7 @@ export function LandingTippingDemo({
   function openTip(event: React.MouseEvent<HTMLButtonElement>) {
     tipTrigger.current = event.currentTarget
     setTipOpen(true)
-    tipDialog.current?.showModal()
+    receiptPending.current = false
   }
 
   return (
@@ -334,66 +341,75 @@ export function LandingTippingDemo({
           1 test XLM · no monetary value · separate from article tipping
         </small>
       </aside>
-      <dialog
-        ref={tipDialog}
-        className="modal"
-        aria-labelledby="tip-title"
-        aria-describedby="tip-description"
-        onClose={() => {
-          setTipOpen(false)
-          if (!receipt) tipTrigger.current?.focus()
-        }}
-      >
-        <button
-          type="button"
-          className="icon-button modal-close"
-          aria-label="Close tip dialog"
-          onClick={() => tipDialog.current?.close()}
-        >
-          <X size={22} />
-        </button>
-        <h2 id="tip-title">Preview a little appreciation.</h2>
-        <p id="tip-description">
-          A little support for the words that stayed with you.
-        </p>
-        <blockquote>“{sampleSentences[selected]}”</blockquote>
-        <form
-          onSubmit={(event) => {
+      <Dialog open={tipOpen} onOpenChange={setTipOpen}>
+        <DialogContent
+          className="landing-blend blend-study type-study landing-tip-dialog"
+          overlayClassName="landing-tip-overlay"
+          hideCloseButton
+          onCloseAutoFocus={(event) => {
             event.preventDefault()
-            tipDialog.current?.close()
-            appreciate(amount)
+            if (receiptPending.current)
+              receiptRef.current?.focus({ preventScroll: true })
+            else tipTrigger.current?.focus({ preventScroll: true })
           }}
         >
-          <fieldset>
-            <legend>
-              Choose a demo amount · test XLM has no monetary value
-            </legend>
-            <div className="amounts">
-              {['1', '2', '5'].map((value) => (
-                <label key={value} className={amount === value ? 'chosen' : ''}>
-                  <input
-                    type="radio"
-                    name="amount"
-                    value={value}
-                    checked={amount === value}
-                    onChange={() => setAmount(value)}
-                  />
-                  {value} test XLM
-                </label>
-              ))}
-            </div>
-            <button className="button primary send-tip" type="submit">
-              Preview {amount} test XLM receipt <Heart size={18} aria-hidden />
+          <DialogClose asChild>
+            <button
+              type="button"
+              className="icon-button modal-close"
+              aria-label="Close tip dialog"
+            >
+              <X size={22} />
             </button>
-          </fieldset>
-        </form>
-        <p className="modal-disclaimer">
-          Quick receipt preview · no wallet connects or payment is made.
-        </p>
-        <Link className="text-action" href="/guide">
-          Read the wallet guide <ArrowRight size={16} aria-hidden />
-        </Link>
-      </dialog>
+          </DialogClose>
+          <DialogTitle>Preview a little appreciation.</DialogTitle>
+          <DialogDescription>
+            A little support for the words that stayed with you.
+          </DialogDescription>
+          <blockquote>“{sampleSentences[selected]}”</blockquote>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              receiptPending.current = true
+              setTipOpen(false)
+              appreciate(amount)
+            }}
+          >
+            <fieldset>
+              <legend>
+                Choose a demo amount · test XLM has no monetary value
+              </legend>
+              <div className="amounts">
+                {['1', '2', '5'].map((value) => (
+                  <label
+                    key={value}
+                    className={amount === value ? 'chosen' : ''}
+                  >
+                    <input
+                      type="radio"
+                      name="amount"
+                      value={value}
+                      checked={amount === value}
+                      onChange={() => setAmount(value)}
+                    />
+                    {value} test XLM
+                  </label>
+                ))}
+              </div>
+              <button className="button primary send-tip" type="submit">
+                Preview {amount} test XLM receipt{' '}
+                <Heart size={18} aria-hidden />
+              </button>
+            </fieldset>
+          </form>
+          <p className="modal-disclaimer">
+            Quick receipt preview · no wallet connects or payment is made.
+          </p>
+          <Link className="text-action" href="/guide">
+            Read the wallet guide <ArrowRight size={16} aria-hidden />
+          </Link>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

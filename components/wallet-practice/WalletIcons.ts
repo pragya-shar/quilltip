@@ -1,0 +1,5 @@
+export { Wallet } from './icons/Wallet'
+export { SealCheck } from './icons/SealCheck'
+export { PaperPlaneTilt } from './icons/PaperPlaneTilt'
+export { ShieldCheck } from './icons/ShieldCheck'
+export { Check, ArrowUpRight } from '../landing/LandingIcons'

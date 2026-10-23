@@ -6,7 +6,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type ReactNode,
 } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -15,8 +14,6 @@ import {
   useBrowseTags,
   useListArticles,
 } from '@/hooks/convex'
-import { LandingWordmark } from '@/components/landing/LandingWordmark'
-import { LandingOrnaments } from '@/components/landing/LandingOrnaments'
 import { ReadingRoomCard } from './ReadingRoomCard'
 import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
 import {
@@ -31,25 +28,6 @@ import {
 } from '@/lib/articles/browseListScrollStorage'
 import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
 import { getBrowseContextMessage } from './ArticlesBrowseDiscoveryHeader'
-
-export function ReadingRoomShell({ children }: { children: ReactNode }) {
-  return (
-    <div className="reading-room">
-      <LandingOrnaments rootSelector=".reading-room" count={15} />
-      <header className="reading-room-header">
-        <LandingWordmark />
-        <nav aria-label="Main navigation">
-          <Link href="/articles" aria-current="page">
-            Articles
-          </Link>
-          <Link href="/library">Your library</Link>
-          <Link href="/write">Writing desk</Link>
-        </nav>
-      </header>
-      {children}
-    </div>
-  )
-}
 
 export function ReadingRoom() {
   const router = useRouter()

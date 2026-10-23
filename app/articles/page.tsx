@@ -1,10 +1,9 @@
 'use client'
 
+import { ReadingRoomShell } from '@/components/articles/ReadingRoomShell'
+
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
-import {
-  ReadingRoom,
-  ReadingRoomShell,
-} from '@/components/articles/ReadingRoom'
+import { ReadingRoom } from '@/components/articles/ReadingRoom'
 import '@/components/articles/reading-room.css'
 
 export default function ArticlesPage() {

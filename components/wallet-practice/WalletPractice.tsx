@@ -1,11 +1,5 @@
 'use client'
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   withPracticeLock,
   savePracticeStatus,
@@ -96,6 +90,8 @@ export default function WalletPractice() {
     }
   }, [])
   async function loadBalance(a: string) {
+    setBalance(null)
+    setMissing(false)
     try {
       const account = await server.loadAccount(a)
       setBalance(
@@ -136,7 +132,9 @@ export default function WalletPractice() {
     const synchronize = (event: StorageEvent) => {
       if (event.key === PENDING_KEY) {
         const latest = parsePracticeRecord(event.newValue)
-        if (latest) setRecord(latest)
+        setRecord(latest)
+        setBalance(null)
+        setMissing(false)
       }
     }
     window.addEventListener('storage', synchronize)
@@ -297,20 +295,7 @@ export default function WalletPractice() {
         {celebrate && (
           <div className="practice-confetti" aria-hidden="true">
             {Array.from({ length: 26 }, (_, i) => (
-              <i
-                key={i}
-                style={
-                  {
-                    '--x': `${Math.sin(i * 2.4) * 180}px`,
-                    '--y': `${-60 - Math.abs(Math.cos(i)) * 160}px`,
-                    '--turn': `${i * 73}deg`,
-                    '--delay': `${(i % 5) * 40}ms`,
-                    '--confetti': ['#660033', '#bd7f94', '#c39c5b', '#eee3cf'][
-                      i % 4
-                    ],
-                  } as CSSProperties
-                }
-              />
+              <i key={i} />
             ))}
           </div>
         )}
@@ -392,13 +377,20 @@ export default function WalletPractice() {
               <button
                 className="text-action"
                 disabled={Boolean(busy)}
-                onClick={() => {
-                  if (clearPracticeRecord(record.hash)) setRecord(null)
-                  else
-                    setRecord(
-                      parsePracticeRecord(localStorage.getItem(PENDING_KEY))
-                    )
-                }}
+                onClick={() =>
+                  run('Refreshing your balance…', async () => {
+                    setBalance(null)
+                    setMissing(false)
+                    if (clearPracticeRecord(record.hash)) {
+                      setRecord(null)
+                      if (address) await loadBalance(address)
+                    } else {
+                      setRecord(
+                        parsePracticeRecord(localStorage.getItem(PENDING_KEY))
+                      )
+                    }
+                  })
+                }
               >
                 Start another practice
               </button>

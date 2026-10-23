@@ -3,7 +3,7 @@ import { useAuth } from '@/components/providers/AuthContext'
 import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { WriteEditorWorkspace } from '@/components/editor/WriteEditorWorkspace'
-import { WritingLoading } from '@/components/editor/WritingWorkspaceView'
+import { WritingLoading } from '@/components/editor/WritingLoading'
 import '@/components/editor/writing-workspace.css'
 export default function WritePage() {
   const { isAuthenticated, isLoading } = useAuth()

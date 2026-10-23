@@ -91,7 +91,10 @@ function WritingImageView({
       data-selected={selected}
       contentEditable={false}
     >
-      <figure style={{ width: displayWidth, maxWidth: '100%' }}>
+      <figure
+        className="w-[attr(data-width_px,600px)] max-w-full"
+        data-width={displayWidth}
+      >
         <button
           type="button"
           ref={imageButton}
