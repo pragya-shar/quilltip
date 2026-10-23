@@ -139,15 +139,26 @@ test.describe('NFT presentation and interaction', () => {
         .getByRole('button', { name: 'Mint NFT', exact: true })
         .click()
       await expect(
-        page.getByText(
-          mode === 'preparing' ? 'Preparing your NFT' : 'Mint in progress',
-          { exact: true }
-        )
+        page
+          .locator('[aria-busy="true"]')
+          .getByText(
+            mode === 'preparing' ? 'Preparing your NFT' : 'Mint in progress',
+            { exact: true }
+          )
       ).toBeVisible()
       if (mode !== 'preparing')
         await expect(page.locator('[aria-current="step"]')).toContainText(
           mode === 'signing' ? 'Wallet' : 'Confirmed'
         )
+      const progressStatus = page.getByRole('dialog').getByRole('status')
+      await expect(progressStatus).not.toHaveAttribute('aria-busy', 'true')
+      await expect(progressStatus).toHaveText(
+        mode === 'preparing'
+          ? 'Preparing your NFT'
+          : mode === 'signing'
+            ? 'Wallet'
+            : 'Confirmed'
+      )
       await page.keyboard.press('Escape')
       await page.mouse.click(5, 5)
       await expect(page.getByRole('dialog')).toBeVisible()

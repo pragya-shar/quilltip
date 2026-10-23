@@ -359,8 +359,22 @@ export function MintButton({
                 {mintError}
               </p>
             )}
+            <p
+              className="sr-only"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {isLoading
+                ? isPreparing
+                  ? 'Preparing your NFT'
+                  : nftMintFlowStep
+                    ? nftMintFlowProgressLabel(nftMintFlowStep)
+                    : 'Mint in progress'
+                : ''}
+            </p>
             {isLoading && (
-              <div className="nft-summary" aria-busy="true" aria-live="polite">
+              <div className="nft-summary" aria-busy="true">
                 <p className="mb-4 font-semibold">
                   {isPreparing ? 'Preparing your NFT' : 'Mint in progress'}
                 </p>
