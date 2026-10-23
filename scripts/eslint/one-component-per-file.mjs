@@ -54,10 +54,11 @@ export default {
               ? statement.declaration
               : statement
           if (!node) continue
+          const fn = componentFunction(node)
           if (
-            functionTypes.has(node.type) &&
+            fn &&
             (isDefault || /^[A-Z]/.test(node.id?.name ?? '')) &&
-            containsJsx(node.body, visitorKeys)
+            containsJsx(fn.body, visitorKeys)
           ) {
             components.push({ node, name: node.id?.name ?? 'default' })
           } else if (node.type === 'VariableDeclaration') {

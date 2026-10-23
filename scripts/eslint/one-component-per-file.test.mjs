@@ -19,9 +19,16 @@ tester.run('one-component-per-file', rule, {
     'export function Page() { return <main /> }',
     'export default function() { return <main /> }',
     'export default () => <main />',
+    'export default memo(() => <main />)',
+    'export default forwardRef((props, ref) => <main ref={ref} />)',
+    'export default React.memo(() => <main />)',
+    'export default React.forwardRef((props, ref) => <main ref={ref} />)',
+    'export default memo(forwardRef((props, ref) => <main ref={ref} />))',
     'const Fallback = <div />; function Page() { return <main>{Fallback}</main> }',
     'const Lazy = dynamic(() => import("./Panel"), { loading: () => <div /> }); function Page() { return <Lazy /> }',
     'const Lazy = React.lazy(() => import("./Panel")); function Page() { return <Lazy /> }',
+    'function Helper() { return <div /> }; export default dynamic(() => import("./Panel"), { loading: () => <div /> })',
+    'function Helper() { return <div /> }; export default React.lazy(() => import("./Panel"))',
     'function Page() { return items.map(item => <span>{item}</span>) }',
     'function Configure() { register(() => <div />) }; function Page() { return <main /> }',
     'function Page() { return <main /> }; export { Other } from "./Other"',
@@ -52,6 +59,26 @@ tester.run('one-component-per-file', rule, {
     {
       code: 'function Helper() { return <div /> }; export default () => <Helper />',
       errors: [{ messageId: 'multiple', data: { name: 'default' } }],
+    },
+    {
+      code: 'function Helper() { return <div /> }; export default memo(() => <Helper />)',
+      errors: [{ messageId: 'multiple', data: { name: 'default' } }],
+    },
+    {
+      code: 'function Helper() { return <div /> }; export default forwardRef((props, ref) => <Helper ref={ref} />)',
+      errors: [{ messageId: 'multiple', data: { name: 'default' } }],
+    },
+    {
+      code: 'function Helper() { return <div /> }; export default React.memo(() => <Helper />)',
+      errors: [{ messageId: 'multiple', data: { name: 'default' } }],
+    },
+    {
+      code: 'function Helper() { return <div /> }; export default React.memo(React.forwardRef((props, ref) => <Helper ref={ref} />))',
+      errors: [{ messageId: 'multiple', data: { name: 'default' } }],
+    },
+    {
+      code: 'export default React.forwardRef((props, ref) => <main ref={ref} />); function Helper() { return <div /> }',
+      errors: [{ messageId: 'multiple', data: { name: 'Helper' } }],
     },
   ],
 })

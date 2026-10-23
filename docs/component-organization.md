@@ -32,7 +32,8 @@ recognizes top-level PascalCase JSX-bearing functions, arrow functions,
 component classes. It deliberately does not attempt to infer components from
 arbitrary factories, aliases, or functions with no direct JSX. Review those cases
 manually; the convention still applies. Nested render callbacks are not counted.
-Anonymous default function and arrow exports are also counted. Run
+Anonymous default function and arrow exports, including direct `memo`/`forwardRef`
+wrappers, are also counted. Run
 `bun run test:component-organization` for the policy fixtures; CI runs them beside
 lint. These tooling checks use Node's built-in test runner.
 
