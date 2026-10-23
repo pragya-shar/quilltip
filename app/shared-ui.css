@@ -145,6 +145,7 @@
   border-color: var(--ui-border);
 }
 
+.toaster[data-sonner-toaster] [data-sonner-toast].toast:focus-visible,
 .toaster[data-sonner-toaster]
   [data-sonner-toast].toast
   :is([data-button], [data-close-button]):focus-visible {
