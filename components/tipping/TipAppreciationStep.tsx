@@ -7,6 +7,7 @@ import {
 } from '@/lib/stellar/highlight-utils'
 import { TIP_MIN_USD, TIP_MAX_USD } from '@/lib/constants'
 import { TipHowItWorks } from '@/components/tipping/TipHowItWorks'
+import { TipPassageContext } from './TipPassageContext'
 import { Button } from '@/components/ui/button'
 
 type TipPreset = {
@@ -58,28 +59,23 @@ export function TipAppreciationStep({
       ? calculateTipBreakdown(previewCents)
       : null
 
-  const displayHighlightText =
-    highlightText && highlightText.length > 60
-      ? highlightText.slice(0, 60) + '...'
-      : highlightText
-
   return (
     <>
-      {variant === 'highlight' && displayHighlightText ? (
-        <div className="p-3 bg-warning/10 border border-warning/50 rounded-lg">
-          <p className="text-sm text-foreground italic">
-            &ldquo;{displayHighlightText}&rdquo;
-          </p>
-        </div>
+      {variant === 'highlight' && highlightText ? (
+        <TipPassageContext text={highlightText} />
       ) : null}
 
-      <p className="text-muted-foreground text-sm">
+      <p className="tip-step-copy">
         {variant === 'article'
           ? `Choose an amount to support ${authorName}.`
           : `Support ${authorName} for this passage.`}
       </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div
+        className="tip-presets"
+        role="group"
+        aria-label="Choose a tip amount"
+      >
         {presets.map((amount) => (
           <button
             key={amount.cents}
@@ -89,14 +85,11 @@ export function TipAppreciationStep({
               onCustomAmountChange('')
             }}
             disabled={isLoading}
-            className={`focus-ring relative flex min-h-12 items-center justify-center px-4 py-3 rounded-lg border transition-colors disabled:opacity-50 ${
-              selectedAmount === amount.cents
-                ? 'border-primary bg-primary/5'
-                : 'border-border hover:border-primary/40'
-            }`}
+            aria-pressed={selectedAmount === amount.cents}
+            className="tip-preset"
           >
             {amount.popular && (
-              <span className="absolute -top-2 left-1/2 transform -translate-x-1/2 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
+              <span className="tip-popular" aria-hidden="true">
                 Popular
               </span>
             )}
@@ -108,7 +101,7 @@ export function TipAppreciationStep({
       <div>
         <label
           htmlFor={`${idPrefix}-custom-amount`}
-          className="block text-sm font-medium text-foreground mb-2"
+          className="tip-field-label"
         >
           Or enter custom amount
         </label>
@@ -119,6 +112,8 @@ export function TipAppreciationStep({
           <input
             id={`${idPrefix}-custom-amount`}
             type="number"
+            inputMode="decimal"
+            aria-describedby={`${idPrefix}-amount-hint`}
             min={TIP_MIN_USD}
             max={TIP_MAX_USD}
             step="0.01"
@@ -129,10 +124,10 @@ export function TipAppreciationStep({
             }}
             disabled={isLoading}
             placeholder="0.00"
-            className="focus-ring w-full pl-8 pr-4 py-2 border border-input bg-background text-foreground rounded-lg disabled:opacity-50"
+            className="tip-input tip-custom-input"
           />
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p id={`${idPrefix}-amount-hint`} className="tip-hint">
           Minimum: ${TIP_MIN_USD.toFixed(2)} • Maximum: $
           {TIP_MAX_USD.toFixed(2)}
         </p>
@@ -142,7 +137,7 @@ export function TipAppreciationStep({
         <div>
           <label
             htmlFor={`${idPrefix}-optional-message`}
-            className="block text-sm font-medium text-foreground mb-2"
+            className="tip-field-label"
           >
             Message to author (optional)
           </label>
@@ -154,11 +149,9 @@ export function TipAppreciationStep({
             maxLength={500}
             rows={3}
             placeholder="Say thanks or leave context for your tip..."
-            className="focus-ring w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground disabled:opacity-50"
+            className="tip-input resize-none"
           />
-          <p className="mt-1 text-xs text-muted-foreground">
-            {tipMessage.length}/500 characters
-          </p>
+          <p className="tip-hint">{tipMessage.length}/500 characters</p>
         </div>
       ) : null}
 
@@ -171,7 +164,7 @@ export function TipAppreciationStep({
         platformFeeFormatted={tipBreakdownPreview?.platformFeeFormatted}
       />
 
-      <div className="flex gap-3">
+      <div className="tip-actions">
         <Button
           type="button"
           variant="outline"

@@ -5,7 +5,7 @@ export function TipUsdXlmRateLine({ priceUsd }: { priceUsd: number | null }) {
   const text = formatUsdToXlmHint(priceUsd)
   if (!text) return null
   return (
-    <p className="text-xs text-muted-foreground/90 mt-1" aria-live="polite">
+    <p className="tip-hint" aria-live="polite">
       {text}
     </p>
   )

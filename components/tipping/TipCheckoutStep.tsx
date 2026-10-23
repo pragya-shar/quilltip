@@ -5,11 +5,13 @@ import type { Ref } from 'react'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { Heart, Loader2, RefreshCw, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { TipPassageContext } from './TipPassageContext'
 import { TipAmountSummary } from '@/components/tipping/TipAmountSummary'
 import { WalletTooltip } from '@/components/stellar/WalletTooltip'
 import {
   networkLabelLowercase,
   tipDialogFooterNote,
+  practiceFundsNote,
 } from '@/lib/copy/network-status'
 import type { TipFlowStep } from '@/lib/stellar/stellar-flow-emitter'
 import { tipFlowProgressLabel } from '@/lib/stellar/stellar-flow-emitter'
@@ -20,6 +22,7 @@ interface TipCheckoutStepProps {
   authorName: string
   amountCents: number
   message?: string
+  highlightText?: string
   isAuthenticated: boolean
   isConnected: boolean
   isWalletLoading: boolean
@@ -46,6 +49,7 @@ export function TipCheckoutStep({
   authorName,
   amountCents,
   message,
+  highlightText,
   isAuthenticated,
   isConnected,
   isWalletLoading,
@@ -160,16 +164,20 @@ export function TipCheckoutStep({
 
   return (
     <>
+      {variant === 'highlight' && highlightText ? (
+        <TipPassageContext text={highlightText} />
+      ) : null}
+      <p className="tip-hint">{practiceFundsNote()}</p>
       <TipAmountSummary amountCents={amountCents} message={message} />
 
       {!isAuthenticated ? (
-        <div className="p-3 bg-muted border border-border rounded-lg text-sm text-muted-foreground">
+        <div className="tip-notice">
           <p>
             Sign in to send your {formatTipLabel(variant)} to {authorName}.
           </p>
         </div>
       ) : !isConnected && !hasRecoverablePayment ? (
-        <div className="p-3 bg-info/10 border border-info/50 rounded-lg text-sm text-info-foreground">
+        <div className="tip-notice">
           <p>
             Connect your Stellar wallet to send your {formatTipLabel(variant)}{' '}
             to {authorName}.
@@ -177,12 +185,12 @@ export function TipCheckoutStep({
           <WalletSetupHelp />
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">
+        <p className="tip-step-copy">
           Confirm and send your {formatTipLabel(variant)} to {authorName}.
         </p>
       )}
 
-      <div className="flex gap-3">
+      <div className="tip-actions">
         <Button
           type="button"
           variant="outline"
@@ -196,7 +204,7 @@ export function TipCheckoutStep({
       </div>
 
       {recoverySourcePublicKey ? (
-        <div className="text-xs text-muted-foreground text-center">
+        <div className="tip-wallet-state">
           <p className="flex items-center justify-center gap-1">
             <Wallet className="w-3 h-3" />
             Transaction source: {recoverySourcePublicKey.slice(0, 6)}...
@@ -204,7 +212,7 @@ export function TipCheckoutStep({
           </p>
         </div>
       ) : isConnected && publicKey ? (
-        <div className="text-xs text-success-foreground text-center">
+        <div className="tip-wallet-state">
           <p className="flex items-center justify-center gap-1">
             <Wallet className="w-3 h-3" />
             Connected: {publicKey.slice(0, 6)}...{publicKey.slice(-6)}
@@ -212,7 +220,7 @@ export function TipCheckoutStep({
         </div>
       ) : null}
 
-      <p className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1 flex-wrap">
+      <p className="tip-network-note">
         Powered by Stellar {networkLabelLowercase()}{' '}
         <WalletTooltip concept="stellar" />{' '}
         {networkLabelLowercase() === 'testnet' ? (
@@ -225,5 +233,5 @@ export function TipCheckoutStep({
 }
 
 function formatTipLabel(variant: 'article' | 'highlight'): string {
-  return variant === 'article' ? 'tip' : 'highlight tip'
+  return variant === 'article' ? 'tip' : 'passage tip'
 }

@@ -1,0 +1,294 @@
+@font-face {
+  font-family: 'Tip Alegreya';
+  src: url('/landing/fonts/alegreya-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+/* Dialogs render in a portal, outside the reader's palette. */
+.tip-dialog {
+  --foreground: var(--ui-foreground);
+  --muted-foreground: var(--ui-muted-foreground);
+  --background: var(--ui-surface);
+  --border: var(--ui-border);
+  --primary: var(--ui-primary);
+  --ring: var(--ui-ring);
+  z-index: 120;
+  width: min(34rem, calc(100vw - 2rem));
+  max-width: 34rem;
+  max-height: calc(100dvh - 2rem);
+  padding: 32px;
+  gap: 24px;
+  border-radius: 8px;
+  color: var(--ui-foreground);
+  background: var(--ui-surface);
+  font: 400 15px/1.6 var(--ui-font);
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.tip-dialog-overlay {
+  z-index: 120;
+  backdrop-filter: blur(3px);
+}
+.tip-dialog-header {
+  text-align: left;
+  padding-right: 24px;
+}
+.tip-dialog h2 {
+  font:
+    400 34px/1.12 'Tip Alegreya',
+    Georgia,
+    serif;
+  letter-spacing: -0.025em;
+}
+.tip-dialog-description,
+.tip-step-copy {
+  color: var(--ui-muted-foreground);
+  line-height: 1.6;
+}
+.tip-dialog [data-tip-step] {
+  margin-bottom: 8px;
+  color: var(--ui-primary);
+  font-size: 12px;
+}
+.tip-dialog :is(button, input, textarea, summary, a, blockquote):focus-visible,
+.tip-trigger:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 3px;
+}
+.tip-dialog > button:last-child {
+  display: grid;
+  place-items: center;
+  top: 8px;
+  right: 8px;
+  width: 44px;
+  height: 44px;
+}
+.tip-trigger {
+  min-height: 44px;
+  white-space: normal;
+}
+.tip-passage {
+  margin: 0;
+  border-left: 3px solid var(--ui-primary);
+  padding: 12px 16px;
+  background: var(--ui-accent);
+  color: var(--ui-foreground);
+  font:
+    400 21px/1.5 'Tip Alegreya',
+    Georgia,
+    serif;
+  max-height: 160px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+.tip-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.tip-preset {
+  position: relative;
+  min-height: 56px;
+  border: 1px solid var(--ui-input);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ui-foreground);
+  font: 600 20px/1.2 var(--ui-font);
+  cursor: pointer;
+  transition: background-color 150ms;
+}
+.tip-preset:hover,
+.tip-preset[aria-pressed='true'] {
+  background: var(--ui-accent);
+  border-color: var(--ui-primary);
+}
+.tip-popular {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--ui-primary);
+  color: var(--ui-primary-foreground);
+  font: 400 10px/1.4 var(--ui-font);
+  white-space: nowrap;
+}
+.tip-field-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.tip-input {
+  min-height: 48px;
+  width: 100%;
+  border: 1px solid var(--ui-input);
+  border-radius: 4px;
+  background: var(--ui-surface);
+  color: var(--ui-foreground);
+  font: inherit;
+  font-size: 16px;
+  padding: 12px;
+}
+.tip-custom-input {
+  padding-left: 32px;
+}
+.tip-input::placeholder {
+  color: var(--ui-muted-foreground);
+}
+.tip-hint {
+  margin-top: 6px;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.tip-actions {
+  display: flex;
+  gap: 12px;
+}
+.tip-actions > button {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  height: auto;
+  padding: 12px;
+  white-space: normal;
+}
+.tip-dialog button:disabled,
+.tip-dialog input:disabled,
+.tip-dialog textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.tip-summary {
+  border-block: 1px solid var(--ui-border);
+  padding-block: 20px;
+}
+.tip-summary-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.tip-summary-total strong {
+  font:
+    400 36px/1.2 'Tip Alegreya',
+    Georgia,
+    serif;
+  font-variant-numeric: tabular-nums;
+}
+.tip-breakdown {
+  margin: 16px 0 0;
+  display: grid;
+  gap: 8px;
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+}
+.tip-breakdown > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.tip-breakdown dd {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-foreground);
+}
+.tip-message {
+  margin-top: 16px;
+  color: var(--ui-muted-foreground);
+  white-space: pre-wrap;
+}
+.tip-help-trigger {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-block: 1px solid var(--ui-border);
+  padding: 12px 0;
+  color: var(--ui-primary);
+  font-size: 14px;
+  cursor: pointer;
+}
+.tip-help-content {
+  padding-top: 16px;
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.tip-help-content > * + * {
+  margin-top: 12px;
+}
+.tip-notice {
+  border-left: 3px solid var(--ui-border);
+  padding: 12px 16px;
+  background: var(--ui-muted);
+  color: var(--ui-foreground);
+  font-size: 14px;
+}
+.tip-dialog .wallet-setup-help {
+  font-family: var(--ui-font);
+  margin-block: 8px 0;
+}
+.tip-wallet-state,
+.tip-network-note {
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  text-align: center;
+}
+.tip-network-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.tip-feedback {
+  border-radius: 4px;
+  border-color: var(--ui-danger);
+  background: var(--ui-surface);
+  color: var(--ui-danger);
+}
+.tip-dialog .tip-feedback > svg {
+  color: inherit;
+}
+.tip-feedback-success {
+  border-color: var(--ui-success-foreground);
+  background: var(--ui-success);
+  color: var(--ui-success-foreground);
+}
+.tip-feedback-pending {
+  border-color: var(--ui-info-foreground);
+  background: var(--ui-info);
+  color: var(--ui-info-foreground);
+}
+.tip-feedback-warning {
+  border-color: var(--ui-warning-foreground);
+  background: var(--ui-warning);
+  color: var(--ui-warning-foreground);
+}
+@media (max-width: 480px) {
+  .tip-dialog {
+    padding: 24px 20px;
+    gap: 20px;
+  }
+  .tip-dialog h2 {
+    font-size: 30px;
+  }
+  .tip-presets {
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tip-dialog *,
+  .tip-dialog,
+  .tip-dialog-overlay {
+    animation: none !important;
+    transition: none !important;
+  }
+}

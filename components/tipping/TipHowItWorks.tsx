@@ -36,7 +36,7 @@ export function TipHowItWorks({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="focus-ring flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted/50">
+      <CollapsibleTrigger className="tip-help-trigger">
         How it works
         <ChevronDown
           className={cn(
@@ -45,10 +45,10 @@ export function TipHowItWorks({
           )}
         />
       </CollapsibleTrigger>
-      <CollapsibleContent className="mt-2 space-y-2 rounded-lg border border-border bg-muted/30 p-3 text-sm text-muted-foreground">
+      <CollapsibleContent className="tip-help-content">
         <p>
-          97.5% of your tip goes directly to the author. A small platform fee
-          covers payment processing.
+          97.5% of your tip goes directly to the author. The platform receives
+          2.5%. You approve the payment separately in your wallet.
         </p>
         {showBreakdown ? (
           <TipBreakdownSummaryLine
