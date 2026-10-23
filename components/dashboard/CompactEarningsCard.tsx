@@ -44,10 +44,10 @@ export function CompactEarningsCard({ user }: CompactEarningsCardProps) {
             Set up wallet
           </Link>
           <Link
-            href="/guide"
+            href="/wallet/practice#wallet-help"
             className="text-sm text-muted-foreground hover:text-foreground"
           >
-            Wallet guide
+            Wallet setup help
           </Link>
         </div>
       </div>

@@ -1,10 +1,12 @@
 'use client'
 
-import Link from 'next/link'
+import type { Ref } from 'react'
+
+import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { Heart, Loader2, RefreshCw, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TipAmountSummary } from '@/components/tipping/TipAmountSummary'
-import { WalletTooltip } from '@/components/guide/WalletTooltip'
+import { WalletTooltip } from '@/components/stellar/WalletTooltip'
 import {
   networkLabelLowercase,
   tipDialogFooterNote,
@@ -34,6 +36,7 @@ interface TipCheckoutStepProps {
   canGoBack?: boolean
   onBack: () => void
   onSignIn: () => void
+  connectButtonRef?: Ref<HTMLButtonElement>
   onConnectWallet: () => void
   onSendTip: () => void
 }
@@ -59,6 +62,7 @@ export function TipCheckoutStep({
   canGoBack = true,
   onBack,
   onSignIn,
+  connectButtonRef,
   onConnectWallet,
   onSendTip,
 }: TipCheckoutStepProps) {
@@ -83,6 +87,7 @@ export function TipCheckoutStep({
       return (
         <Button
           type="button"
+          ref={connectButtonRef}
           onClick={onConnectWallet}
           disabled={isLoading || isWalletLoading}
           className="flex-1 gap-2"
@@ -169,15 +174,7 @@ export function TipCheckoutStep({
             Connect your Stellar wallet to send your {formatTipLabel(variant)}{' '}
             to {authorName}.
           </p>
-          <p className="mt-1">
-            New to crypto?{' '}
-            <Link
-              href="/guide"
-              className="focus-ring rounded text-info-foreground underline font-medium hover:opacity-80"
-            >
-              Follow our setup guide
-            </Link>
-          </p>
+          <WalletSetupHelp />
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">

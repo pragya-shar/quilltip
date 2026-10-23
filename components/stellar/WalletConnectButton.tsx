@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -54,6 +54,7 @@ export function WalletConnectButton({
   const { activateWallet } = useWalletActivation()
   const [isConnecting, setIsConnecting] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
+  const connectButtonRef = useRef<HTMLButtonElement>(null)
 
   const handleConnect = async () => {
     activateWallet()
@@ -124,15 +125,23 @@ export function WalletConnectButton({
   // Show error state
   if (error) {
     return (
-      <Button
-        onClick={handleConnect}
-        size={size}
-        variant="outline"
-        className={cn('text-destructive border-destructive/50', className)}
-      >
-        <AlertCircle className="w-4 h-4 mr-2" />
-        Wallet Error
-      </Button>
+      <>
+        <Button
+          ref={connectButtonRef}
+          onClick={handleConnect}
+          size={size}
+          variant="outline"
+          className={cn('text-destructive border-destructive/50', className)}
+        >
+          <AlertCircle className="w-4 h-4 mr-2" />
+          Wallet Error
+        </Button>
+        <InstallWalletDialog
+          open={installDialogOpen}
+          onOpenChange={setInstallDialogOpen}
+          returnFocusRef={connectButtonRef}
+        />
+      </>
     )
   }
 
@@ -194,6 +203,7 @@ export function WalletConnectButton({
   return (
     <>
       <Button
+        ref={connectButtonRef}
         onClick={handleConnect}
         disabled={isConnecting}
         size={size}
@@ -214,6 +224,7 @@ export function WalletConnectButton({
       </Button>
 
       <InstallWalletDialog
+        returnFocusRef={connectButtonRef}
         open={installDialogOpen}
         onOpenChange={setInstallDialogOpen}
       />

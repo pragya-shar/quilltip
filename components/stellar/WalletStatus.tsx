@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -40,6 +40,7 @@ export function WalletStatus({ className }: WalletStatusProps) {
   } = useWallet({ activateOnMount: true })
   const [isConnecting, setIsConnecting] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
+  const connectButtonRef = useRef<HTMLButtonElement>(null)
 
   const handleConnect = async () => {
     setIsConnecting(true)
@@ -131,6 +132,7 @@ export function WalletStatus({ className }: WalletStatusProps) {
                 </p>
               </div>
               <Button
+                ref={connectButtonRef}
                 onClick={handleConnect}
                 disabled={isConnecting || isLoading}
                 className="w-full max-w-xs"
@@ -152,6 +154,7 @@ export function WalletStatus({ className }: WalletStatusProps) {
         </Card>
 
         <InstallWalletDialog
+          returnFocusRef={connectButtonRef}
           open={installDialogOpen}
           onOpenChange={setInstallDialogOpen}
         />
@@ -270,6 +273,7 @@ export function WalletStatus({ className }: WalletStatusProps) {
       </Card>
 
       <InstallWalletDialog
+        returnFocusRef={connectButtonRef}
         open={installDialogOpen}
         onOpenChange={setInstallDialogOpen}
       />

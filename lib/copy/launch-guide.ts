@@ -14,6 +14,4 @@ export const WRITER_FEE_PHRASE = 'Writers keep 97.5% of every tip'
 
 export const TIP_TERM = 'tip'
 
-export const WALLET_GUIDE_LABEL = 'Wallet Guide'
-
 export const WALLET_SETUP_ACTION_LABEL = 'Set up wallet'

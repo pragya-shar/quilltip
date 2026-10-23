@@ -21,7 +21,7 @@ export function WalletSettings(props: WalletSettingsProps) {
             Browse articles
           </Link>
         )}
-        <Link href="/guide">Learn how tipping works</Link>
+        <Link href="/wallet/practice#wallet-help">Learn how tipping works</Link>
       </div>
     )
   return <OwnerWalletSettings {...props} />

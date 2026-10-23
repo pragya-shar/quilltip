@@ -29,7 +29,7 @@ export const supportSections: InfoSection[] = [
     id: 'wallet',
     title: 'Wallet and tipping help',
     paragraphs: [
-      'If you are new to Stellar wallets or testnet XLM, start with our step-by-step wallet guide. It covers connecting Freighter, xBull, Albedo, or hot wallet, funding with test XLM, and sending your first practice tip.',
+      'If you are new to Stellar wallets or testnet XLM, start with our wallet setup help in wallet practice. It covers connecting Freighter, xBull, Albedo, or hot wallet, funding with test XLM, and sending your first practice tip.',
     ],
   },
   {
@@ -49,7 +49,7 @@ export const supportSections: InfoSection[] = [
 ]
 
 export const supportResourceLinks = [
-  { label: 'Wallet Guide', href: '/guide' },
+  { label: 'Wallet setup and practice', href: '/wallet/practice#wallet-help' },
   { label: 'FAQ on homepage', href: '/#faq' },
   { label: 'GitHub Issues', href: SUPPORT_GITHUB_URL },
   { label: 'Contact', href: '/contact' },
