@@ -23,7 +23,7 @@ export function PrimaryWritingAction({
         </p>
         <Button
           asChild
-          className="h-auto w-full flex-col items-start gap-1 bg-brand px-5 py-4 text-left text-brand-foreground hover:bg-brand-hover"
+          className="h-auto w-full flex-col items-start gap-1 bg-primary px-5 py-4 text-left text-primary-foreground hover:bg-primary/90"
         >
           <Link href={`/write?id=${mostRecentDraft._id}`}>
             <span className="flex items-center gap-2 text-base font-semibold">
@@ -38,7 +38,7 @@ export function PrimaryWritingAction({
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
           <Link
             href="/write"
-            className="text-brand-blue hover:text-brand-accent font-medium"
+            className="text-primary hover:text-foreground font-medium"
           >
             Start a new article
           </Link>
@@ -60,7 +60,7 @@ export function PrimaryWritingAction({
       </p>
       <Button
         asChild
-        className="h-auto w-full gap-2 bg-brand px-5 py-4 text-base font-semibold text-brand-foreground hover:bg-brand-hover"
+        className="h-auto w-full gap-2 bg-primary px-5 py-4 text-base font-semibold text-primary-foreground hover:bg-primary/90"
       >
         <Link href="/write">
           <PenSquare className="h-5 w-5" />

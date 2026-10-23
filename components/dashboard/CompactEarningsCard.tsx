@@ -39,7 +39,7 @@ export function CompactEarningsCard({ user }: CompactEarningsCardProps) {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <Link
             href="/dashboard/wallet"
-            className="text-sm font-medium text-brand-blue hover:text-brand-accent"
+            className="text-sm font-medium text-primary hover:text-foreground"
           >
             Set up wallet
           </Link>

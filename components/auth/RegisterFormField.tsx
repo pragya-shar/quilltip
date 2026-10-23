@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 export const authInputClassName =
-  'rounded-lg bg-background text-foreground focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:border-transparent'
+  'rounded-lg bg-background text-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent'
 
 export type RegisterFieldControlProps = {
   'aria-invalid': boolean

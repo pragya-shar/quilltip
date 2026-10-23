@@ -67,7 +67,7 @@ export default function SearchInput({
     <div className={`relative ${className}`}>
       <div className="relative">
         <Search
-          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-quill-500"
+          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
           aria-hidden
         />
         <input
@@ -76,13 +76,13 @@ export default function SearchInput({
           value={localValue}
           onChange={handleInputChange}
           placeholder={placeholder}
-          className="w-full pl-10 pr-10 py-2 border border-input rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue focus-visible:border-transparent text-foreground placeholder:text-muted-foreground"
+          className="w-full pl-10 pr-10 py-2 border border-input rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-transparent text-foreground placeholder:text-muted-foreground"
         />
         {localValue && (
           <button
             type="button"
             onClick={clearSearch}
-            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-quill-500 transition-colors hover:text-quill-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-label="Clear search"
           >
             <X className="h-4 w-4" aria-hidden />

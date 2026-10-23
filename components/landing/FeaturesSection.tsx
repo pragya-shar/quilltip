@@ -44,7 +44,7 @@ export default function FeaturesSection() {
             aria-hidden
           />
           <motion.div
-            className="absolute left-1/2 top-0 bottom-0 w-px bg-brand -translate-x-1/2 origin-top"
+            className="absolute left-1/2 top-0 bottom-0 w-px bg-primary -translate-x-1/2 origin-top"
             initial={{ scaleY: 0 }}
             whileInView={{ scaleY: 1 }}
             viewport={{ once: true, amount: 0.15, margin: '0px 0px -10% 0px' }}

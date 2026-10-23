@@ -161,7 +161,7 @@ export default function ShareButtons({
         {hasNativeShare && (
           <button
             onClick={handleNativeShare}
-            className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand-blue hover:bg-muted rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors"
             aria-label="Share article"
           >
             <Share2 className="h-4 w-4" />
@@ -171,7 +171,7 @@ export default function ShareButtons({
         {/* Twitter */}
         <button
           onClick={() => openShareWindow(shareUrls.twitter)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on Twitter"
         >
           <Twitter className="h-4 w-4" />
@@ -181,7 +181,7 @@ export default function ShareButtons({
         {/* LinkedIn */}
         <button
           onClick={() => openShareWindow(shareUrls.linkedin)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on LinkedIn"
         >
           <Linkedin className="h-4 w-4" />
@@ -191,7 +191,7 @@ export default function ShareButtons({
         {/* Facebook */}
         <button
           onClick={() => openShareWindow(shareUrls.facebook)}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors"
           aria-label="Share on Facebook"
         >
           <Facebook className="h-4 w-4" />
@@ -201,7 +201,7 @@ export default function ShareButtons({
         {/* Copy Link */}
         <button
           onClick={handleCopyLink}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-brand-blue hover:bg-muted rounded-lg transition-colors"
+          className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors"
           aria-label={copied ? 'Link copied!' : 'Copy link'}
         >
           {copied ? (
@@ -242,7 +242,7 @@ export default function ShareButtons({
               href={shareUrls.twitter}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-primary hover:bg-muted transition-colors"
               aria-label="Open Twitter share in new tab"
             >
               <Twitter className="h-4 w-4" />
@@ -252,7 +252,7 @@ export default function ShareButtons({
               href={shareUrls.linkedin}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-primary hover:bg-muted transition-colors"
               aria-label="Open LinkedIn share in new tab"
             >
               <Linkedin className="h-4 w-4" />
@@ -262,7 +262,7 @@ export default function ShareButtons({
               href={shareUrls.facebook}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-brand hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-primary hover:bg-muted transition-colors"
               aria-label="Open Facebook share in new tab"
             >
               <Facebook className="h-4 w-4" />
@@ -271,7 +271,7 @@ export default function ShareButtons({
             <button
               type="button"
               onClick={handleCopyLink}
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-brand-blue hover:bg-muted transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground hover:text-primary hover:bg-muted transition-colors"
               aria-label="Copy link (fallback panel)"
             >
               {copied ? (

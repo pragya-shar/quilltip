@@ -174,7 +174,7 @@ export function ArticlesBrowseDiscoveryHeader({
                 page: 1,
                 sourceParams: searchParams,
               })}
-              className="text-sm text-brand-blue hover:text-brand-accent underline"
+              className="text-sm text-primary hover:text-foreground underline"
             >
               Clear topic
             </Link>

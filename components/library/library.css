@@ -28,7 +28,6 @@
   --landing-paper: #e4d2bd;
   --landing-correction: #742350;
   --landing-ink: #38000a;
-  --brand-foreground: #fff9f2;
 }
 :where(.prototype-library) p {
   margin: 1em 0;

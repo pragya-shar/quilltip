@@ -50,7 +50,7 @@ export default function ArticleCard({
           onPointerDown={navigate}
           onClick={navigate}
         >
-          <h2 className="text-xl font-bold text-foreground mb-2 hover:text-brand-blue transition-colors line-clamp-2">
+          <h2 className="text-xl font-bold text-foreground mb-2 hover:text-primary transition-colors line-clamp-2">
             {article.title}
           </h2>
         </Link>
