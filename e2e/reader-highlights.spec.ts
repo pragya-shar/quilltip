@@ -85,7 +85,7 @@ test.describe('saved passages on a development backend', () => {
       .getByLabel('Highlight note')
       .fill('Keep this unsaved passage note')
     await create
-      .getByRole('button', { name: 'Tip Highlight', exact: true })
+      .getByRole('button', { name: 'Tip passage', exact: true })
       .click()
     const tip = page.getByRole('dialog', { name: /^Support / })
     await expect(tip).toBeVisible()
@@ -268,9 +268,13 @@ test.describe('saved passages on a development backend', () => {
     await page.keyboard.press('Escape')
     await expect(page.locator('.highlightable-article .tiptap')).toBeFocused()
     await page
-      .getByRole('button', { name: 'Highlight by Jessica', exact: true })
+      .locator('mark[data-highlight-id]')
+      .filter({
+        hasText:
+          'the Egyptian pyramids were built using massive limestone blocks',
+      })
       .first()
-      .press('Enter')
+      .click()
     await expect(details).toBeVisible()
     await expect(
       details.getByRole('button', { name: 'Edit Note', exact: true })
