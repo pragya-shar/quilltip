@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 @import '../components/landing/landing-blend.css';
 @import '../components/layout/site-chrome.css';
+@import '../components/error/failure.css';
 
 /* Import resizable image styles */
 @import '../components/editor/extensions/ResizableImageStyles.css';

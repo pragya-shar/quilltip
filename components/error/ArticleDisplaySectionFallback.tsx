@@ -1,14 +1,17 @@
 'use client'
 
-export function ArticleDisplaySectionFallback() {
+import { SectionFailure } from './SectionFailure'
+
+export function ArticleDisplaySectionFallback({
+  onRetry,
+}: {
+  onRetry: () => void
+}) {
   return (
-    <div className="rounded-lg border border-border bg-muted p-6 text-center">
-      <p className="font-medium text-foreground">
-        Unable to display this article.
-      </p>
-      <p className="mt-2 text-sm text-muted-foreground">
-        The article content failed to load. Try refreshing the page.
-      </p>
-    </div>
+    <SectionFailure
+      title="Unable to display this article."
+      description="The article content failed to load. Try again, or reload the page."
+      onRetry={onRetry}
+    />
   )
 }
