@@ -10,7 +10,6 @@ import {
 import { Flame, TrendingUp, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMemo, useState } from 'react'
-import { Badge } from '@/components/ui/badge'
 
 interface HighlightHeatmapProps {
   articleId: Id<'articles'>
@@ -21,8 +20,8 @@ interface HighlightHeatmapProps {
 
 const heatmapShellClass = (embedded: boolean) =>
   embedded
-    ? ''
-    : 'bg-card rounded-[var(--card-radius)] shadow-[var(--card-shadow)] border border-border p-[var(--card-padding)]'
+    ? 'highlight-heatmap'
+    : 'highlight-heatmap border border-ui-border bg-ui-surface rounded-[var(--ui-radius)] p-5'
 
 type HeatmapWindow = 'all' | '7d' | '30d'
 
@@ -44,261 +43,158 @@ export function HighlightHeatmap({
   // Fetch highlight tip stats for this article
   const stats = useArticleHighlightTipStats(articleId, { sinceMs })
 
-  // Loading state
-  if (stats === undefined) {
-    return (
-      <div className={cn(heatmapShellClass(embedded), className)}>
-        <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-muted rounded w-1/2" />
-          <div className="h-20 bg-muted rounded"></div>
-        </div>
-      </div>
-    )
-  }
-
   const windowLabel =
     window === '7d' ? '7 days' : window === '30d' ? '30 days' : 'all time'
+  const maxAmount = Math.max(
+    0,
+    ...(stats?.topHighlights.map((h) => h.totalAmountCents) ?? [])
+  )
 
-  // Empty state - No tips yet
-  if (!stats || stats.totalTips === 0) {
-    return (
-      <div className={cn(heatmapShellClass(embedded), className)}>
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <h3
-            className={cn(
-              'font-semibold flex items-center gap-2',
-              embedded ? 'text-sm font-medium' : 'text-lg font-semibold'
-            )}
-          >
-            <Flame className="w-5 h-5 text-muted-foreground" />
-            Highlight Heatmap
-          </h3>
-
-          <div className="flex items-center rounded-md border border-border overflow-hidden bg-muted/40">
+  return (
+    <section
+      className={cn(heatmapShellClass(embedded), className)}
+      aria-label="Highlight heatmap"
+    >
+      <div className="highlight-heatmap-header">
+        <h3>
+          <Flame className="h-4 w-4 text-ui-primary" aria-hidden />
+          Highlight heatmap
+        </h3>
+        <div
+          className="highlight-heatmap-window"
+          role="group"
+          aria-label="Heatmap time range"
+        >
+          {(
+            [
+              ['all', 'All', 'All time'],
+              ['7d', '7d', 'Last 7 days'],
+              ['30d', '30d', 'Last 30 days'],
+            ] as const
+          ).map(([value, label, accessibleLabel]) => (
             <button
+              key={value}
               type="button"
-              onClick={() => setWindow('all')}
-              className={cn(
-                'px-2.5 py-1 text-xs font-medium transition-colors',
-                window === 'all'
-                  ? 'bg-background text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
+              aria-label={accessibleLabel}
+              aria-pressed={window === value}
+              onClick={() => setWindow(value)}
             >
-              All
+              {label}
             </button>
-            <div className="w-px self-stretch bg-border" />
-            <button
-              type="button"
-              onClick={() => setWindow('7d')}
-              className={cn(
-                'px-2.5 py-1 text-xs font-medium transition-colors',
-                window === '7d'
-                  ? 'bg-background text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              7d
-            </button>
-            <div className="w-px self-stretch bg-border" />
-            <button
-              type="button"
-              onClick={() => setWindow('30d')}
-              className={cn(
-                'px-2.5 py-1 text-xs font-medium transition-colors',
-                window === '30d'
-                  ? 'bg-background text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              30d
-            </button>
-          </div>
+          ))}
         </div>
-
-        <div className="text-center py-8">
-          <Sparkles className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground text-sm mb-2">
+      </div>
+      {stats === undefined ? (
+        <div role="status" className="highlight-empty">
+          <span>Loading passage support…</span>
+          <div
+            className="mt-4 h-16 rounded-[var(--ui-radius)] bg-ui-muted motion-safe:animate-pulse"
+            aria-hidden
+          />
+        </div>
+      ) : !stats || stats.totalTips === 0 ? (
+        <div className="highlight-empty">
+          <Sparkles aria-hidden />
+          <p className="font-semibold text-ui-foreground mb-1">
             {window === 'all'
               ? isAuthor
                 ? 'No highlight tips yet'
                 : 'No highlighted passages supported yet'
               : `No highlight tips in the last ${windowLabel}`}
           </p>
-          <p className="text-foreground/85 text-xs">
+          <p>
             {isAuthor
-              ? 'Readers can highlight specific phrases and tip them directly'
-              : 'Highlight a passage you valued and choose an amount to support it'}
+              ? 'Readers can highlight specific phrases and tip them directly.'
+              : 'Highlight a passage you valued and choose an amount to support it.'}
           </p>
         </div>
-
-        {/* Instructions for readers */}
-        {!isAuthor && (
-          <div className="mt-4 p-4 rounded-lg border border-border bg-muted">
-            <p className="text-sm text-foreground">
-              <strong>How it works:</strong> Highlight a passage you valued and
-              choose an amount to support it.
-            </p>
+      ) : (
+        <>
+          <p className="text-xs text-ui-muted-foreground">
+            Passage support · {windowLabel}
+          </p>
+          <div className="highlight-heatmap-summary">
+            <div>
+              <strong>{stats.totalTips}</strong>
+              <span>Total tips</span>
+            </div>
+            <div>
+              <strong>${(stats.totalAmountUsd || 0).toFixed(2)}</strong>
+              <span>Total tipped</span>
+            </div>
+            <div>
+              <strong>{stats.uniqueTippers}</strong>
+              <span>Supporters</span>
+            </div>
           </div>
-        )}
-      </div>
-    )
-  }
-
-  // Calculate max amount for color intensity
-  const maxAmount = Math.max(
-    ...stats.topHighlights.map((h) => h.totalAmountCents)
-  )
-
-  return (
-    <div className={cn(heatmapShellClass(embedded), className)}>
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <h3
-          className={cn(
-            'flex items-center gap-2',
-            embedded ? 'text-sm font-medium' : 'text-lg font-semibold'
-          )}
-        >
-          <Flame className="w-5 h-5 text-muted-foreground" />
-          Highlight Heatmap
-        </h3>
-
-        <div className="flex items-center rounded-md border border-border overflow-hidden bg-muted/40">
-          <button
-            type="button"
-            onClick={() => setWindow('all')}
-            className={cn(
-              'px-2.5 py-1 text-xs font-medium transition-colors',
-              window === 'all'
-                ? 'bg-background text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
+          <h4 className="flex items-center gap-2 text-sm font-semibold mb-1">
+            <TrendingUp className="h-4 w-4 text-ui-primary" aria-hidden />
+            Top tipped passages
+          </h4>
+          <div
+            className="max-h-[400px] overflow-y-auto"
+            role="list"
+            aria-label="Top tipped passages"
           >
-            All
-          </button>
-          <div className="w-px self-stretch bg-border" />
-          <button
-            type="button"
-            onClick={() => setWindow('7d')}
-            className={cn(
-              'px-2.5 py-1 text-xs font-medium transition-colors',
-              window === '7d'
-                ? 'bg-background text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            7d
-          </button>
-          <div className="w-px self-stretch bg-border" />
-          <button
-            type="button"
-            onClick={() => setWindow('30d')}
-            className={cn(
-              'px-2.5 py-1 text-xs font-medium transition-colors',
-              window === '30d'
-                ? 'bg-background text-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            30d
-          </button>
-        </div>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="text-center p-3 rounded-lg border border-border bg-muted/50">
-          <div className="text-2xl font-bold text-foreground">
-            {stats.totalTips}
-          </div>
-          <div className="text-xs text-muted-foreground">Total Tips</div>
-        </div>
-        <div className="text-center p-3 rounded-lg border border-border bg-muted/50">
-          <div className="text-2xl font-bold text-foreground">
-            ${(stats.totalAmountUsd || 0).toFixed(2)}
-          </div>
-          <div className="text-xs text-muted-foreground">Total Earned</div>
-        </div>
-        <div className="text-center p-3 rounded-lg border border-border bg-muted/50">
-          <div className="text-2xl font-bold text-foreground">
-            {stats.uniqueTippers}
-          </div>
-          <div className="text-xs text-muted-foreground">Unique Tippers</div>
-        </div>
-      </div>
-
-      {/* Top Tipped Highlights */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 text-sm font-medium text-foreground mb-3">
-          <TrendingUp className="w-4 h-4" />
-          Top Tipped Phrases
-        </div>
-
-        <div className="space-y-2 max-h-[400px] overflow-y-auto">
-          {stats.topHighlights.map((highlight, index: number) => {
-            const intensity =
-              maxAmount > 0 ? highlight.totalAmountCents / maxAmount : 0
-            const heatColor = getHeatmapColor(
-              highlight.totalAmountCents,
-              maxAmount
-            )
-
-            return (
-              <div
-                key={highlight.highlightId}
-                className="p-3 rounded-lg border border-border bg-muted/50 transition-colors hover:bg-muted/80"
-              >
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant="secondary"
-                      className="h-6 w-6 justify-center p-0 text-xs"
-                    >
-                      {index + 1}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
+            {stats.topHighlights.map((highlight, index) => {
+              const intensity =
+                maxAmount > 0 ? highlight.totalAmountCents / maxAmount : 0
+              return (
+                <div
+                  key={highlight.highlightId}
+                  className="highlight-heatmap-passage"
+                  role="listitem"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="text-ui-muted-foreground">
+                      <span className="highlight-heatmap-rank">
+                        {index + 1}
+                      </span>
                       {highlight.tipCount} tip
-                      {highlight.tipCount > 1 ? 's' : ''}
+                      {highlight.tipCount !== 1 ? 's' : ''}
+                    </span>
+                    <span className="font-semibold text-ui-primary">
+                      {formatTipAmount(highlight.totalAmountCents)}
                     </span>
                   </div>
-                  <span className="text-sm font-semibold text-foreground">
-                    {formatTipAmount(highlight.totalAmountCents)}
-                  </span>
-                </div>
-
-                <p className="text-sm text-foreground italic line-clamp-2">
-                  &ldquo;{highlight.text}&rdquo;
-                </p>
-
-                <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <blockquote>&ldquo;{highlight.text}&rdquo;</blockquote>
                   <div
-                    className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${intensity * 100}%`,
-                      backgroundColor: heatColor,
-                    }}
-                  />
+                    className="highlight-heatmap-track"
+                    role="img"
+                    aria-label={`${Math.round(intensity * 100)}% of the most supported passage's tip amount`}
+                  >
+                    <div
+                      className="h-full"
+                      style={{
+                        width: `${intensity * 100}%`,
+                        backgroundColor: getHeatmapColor(
+                          highlight.totalAmountCents,
+                          maxAmount
+                        ),
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Color Legend */}
-      <div className="mt-6 pt-4 border-t border-border">
-        <p className="text-xs text-muted-foreground mb-2 font-medium">
-          Heat Intensity:
-        </p>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">Low</span>
-          <div
-            className="flex-1 h-3 rounded-full"
-            style={{ background: HEATMAP_GRADIENT_CSS }}
-          />
-          <span className="text-xs text-muted-foreground">High</span>
-        </div>
-      </div>
-    </div>
+              )
+            })}
+          </div>
+          <div className="highlight-heatmap-legend">
+            <p className="mb-2">Relative tip amount</p>
+            <div className="flex items-center gap-3">
+              <span>Less</span>
+              <div
+                className="flex-1 h-3 border border-ui-input rounded-sm"
+                style={{ background: HEATMAP_GRADIENT_CSS }}
+                aria-hidden
+              />
+              <span>More</span>
+            </div>
+            <p className="mt-2">
+              Bar length and shade show support relative to the top passage.
+            </p>
+          </div>
+        </>
+      )}
+    </section>
   )
 }

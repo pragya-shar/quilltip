@@ -20,6 +20,7 @@ import HighlightExtension from '@/components/editor/extensions/HighlightExtensio
 import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
 import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { HighlightConverter } from '@/lib/highlights/HighlightConverter'
+import { TextSelection } from '@tiptap/pm/state'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useArticleById, useArticleHighlightsQuery } from '@/hooks/convex'
@@ -135,6 +136,10 @@ export function HighlightableArticle({
   useEnsureHeadingIds(tocHeadings, { rootSelector: '.highlightable-article' })
   const article = useArticleById(articleId)
   const canTipHighlight = Boolean(article?.author?.stellarAddress)
+  const canTipHighlightRef = useRef(canTipHighlight)
+  useEffect(() => {
+    canTipHighlightRef.current = canTipHighlight
+  }, [canTipHighlight])
 
   const highlights = useArticleHighlightsQuery(articleId, highlightsActive)
 
@@ -150,7 +155,7 @@ export function HighlightableArticle({
       const anchor = getRangeTopCenterAnchor(range)
       if (!anchor) return
 
-      if (canTipHighlight) {
+      if (canTipHighlightRef.current) {
         setSelectedText({ text, from, to })
         setPopoverPosition(anchor)
         setSignInSelection(null)
@@ -161,7 +166,7 @@ export function HighlightableArticle({
         setPopoverPosition(null)
       }
     },
-    [canTipHighlight]
+    []
   )
 
   const editor = useEditor(
@@ -239,6 +244,7 @@ export function HighlightableArticle({
       editorProps: {
         attributes: {
           class: `${PUBLISHED_PROSE_CLASS} prose-stone`,
+          tabindex: '0',
         },
       },
       onSelectionUpdate: ({ editor }) => {
@@ -259,16 +265,10 @@ export function HighlightableArticle({
             if (signInPromptActive) {
               applySignedOutTextSelection(text, from, to, range)
             } else if (highlightsActive) {
-              const rect = range.getBoundingClientRect()
-              const containerRect = editorRef.current?.getBoundingClientRect()
-
+              const anchor = getRangeTopCenterAnchor(range)
+              if (!anchor) return
               setSelectedText({ text, from, to })
-              if (containerRect) {
-                setPopoverPosition({
-                  top: rect.top - containerRect.top - 60,
-                  left: rect.left - containerRect.left + rect.width / 2,
-                })
-              }
+              setPopoverPosition(anchor)
               setSignInSelection(null)
               setSignInPromptPosition(null)
             }
@@ -484,11 +484,18 @@ export function HighlightableArticle({
 
   const handleCreateHighlight = useCallback(
     async (color: string, note?: string, isPublic: boolean = true) => {
-      if (!selectedText || !editor) return
+      if (!selectedText || !editor) return false
 
       try {
-        const highlightData = HighlightConverter.createHighlightFromSelection(
+        // Live highlight updates can move the editor selection while this panel
+        // is open. Save the passage that opened it, using the same offset mapping.
+        const highlightData = HighlightConverter.selectionToHighlightData(
           editor,
+          TextSelection.create(
+            editor.state.doc,
+            selectedText.from,
+            selectedText.to
+          ),
           {
             color,
             note,
@@ -506,7 +513,9 @@ export function HighlightableArticle({
           setPopoverPosition(null)
           window.getSelection()?.removeAllRanges()
           // Highlights re-apply when the Convex query refetches.
+          return true
         }
+        return false
       } catch (error) {
         console.error('Error creating highlight:', error)
         toast.error('Failed to create highlight', {
@@ -515,10 +524,21 @@ export function HighlightableArticle({
               ? error.message
               : 'Please try again or refresh the page.',
         })
+        return false
       }
     },
     [selectedText, editor, articleId, createHighlight]
   )
+
+  const restoreArticleFocus = useCallback(() => {
+    // An outside click may already have focused another reader control.
+    if (document.activeElement && document.activeElement !== document.body)
+      return
+    // Resolve the current DOM: a live query can recreate the read-only editor.
+    editorRef.current
+      ?.querySelector<HTMLElement>('.tiptap')
+      ?.focus({ preventScroll: true })
+  }, [])
 
   const handlePopoverClose = useCallback(() => {
     if (editor) {
@@ -530,13 +550,11 @@ export function HighlightableArticle({
     setSelectedText(null)
     setPopoverPosition(null)
     window.getSelection()?.removeAllRanges()
-    editor?.commands.focus()
   }, [editor])
 
   const handleTooltipClose = useCallback(() => {
     setHighlightTooltip(null)
-    editor?.commands.focus()
-  }, [editor])
+  }, [])
 
   const handleHighlightDeleted = useCallback(
     (highlightId: Id<'highlights'>) => {
@@ -566,7 +584,6 @@ export function HighlightableArticle({
     setSignInSelection(null)
     setSignInPromptPosition(null)
     window.getSelection()?.removeAllRanges()
-    editor?.commands.focus()
   }, [editor])
 
   const saveHighlightSelectionBeforeAuth = useCallback(() => {
@@ -596,6 +613,7 @@ export function HighlightableArticle({
               position={popoverPosition}
               onCreateHighlight={handleCreateHighlight}
               onClose={handlePopoverClose}
+              onRestoreFocus={restoreArticleFocus}
               selectedText={selectedText.text}
               articleId={articleId}
               articleSlug={article.slug}
@@ -634,6 +652,7 @@ export function HighlightableArticle({
               returnPath={returnPath}
               onBeforeAuthNavigate={saveHighlightSelectionBeforeAuth}
               onClose={handleSignInPromptClose}
+              onRestoreFocus={restoreArticleFocus}
             />
           )}
       </AnimatePresence>
@@ -644,6 +663,7 @@ export function HighlightableArticle({
             highlight={highlightTooltip.highlight}
             position={highlightTooltip.position}
             onClose={handleTooltipClose}
+            onRestoreFocus={restoreArticleFocus}
             onDeleted={handleHighlightDeleted}
             currentUserId={user?._id as Id<'users'> | undefined}
             articleId={articleId}

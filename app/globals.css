@@ -165,10 +165,10 @@
   --popover-foreground: #202124;
   --primary: #1a365d;
   --primary-foreground: #fefefe;
-  --heatmap-0: #e6e6c3;
-  --heatmap-1: #7fb3d5;
-  --heatmap-2: #003366;
-  --heatmap-3: #1a365d;
+  --heatmap-0: #c391a1;
+  --heatmap-1: #a35070;
+  --heatmap-2: #790333;
+  --heatmap-3: #390c18;
   --heatmap-gradient: linear-gradient(
     to right,
     var(--heatmap-0),
@@ -247,9 +247,9 @@
   --gradient-collectible-to: oklch(0.45 0.14 260);
 
   /* Heatmap intensity scale (data encoding, not CTAs) */
-  --heatmap-low: oklch(0.95 0.04 85);
-  --heatmap-mid: oklch(0.75 0.14 55);
-  --heatmap-high: oklch(0.55 0.2 25);
+  --heatmap-low: var(--heatmap-0);
+  --heatmap-mid: var(--heatmap-1);
+  --heatmap-high: var(--heatmap-3);
 
   /*
    * Monetization status mapping (reader-facing tip, highlight, NFT surfaces):
@@ -257,7 +257,7 @@
    * - Tip / upload success: bg-success text-success-foreground
    * - Pending / uploading / info: bg-info text-info-foreground
    * - Section icons / quiet stats: text-muted-foreground
-   * - Heat intensity bars: --heatmap-gradient (cream → sky → navy → primary)
+   * - Heat intensity bars: --heatmap-gradient (rose → burgundy; dark mode rose → cream)
    * - NFT progress emphasis: bg-primary/50 on bg-muted track
    * - Errors: destructive variant
    * Wallet/NFT accent: reuse --primary (no separate monetization token).
@@ -683,8 +683,10 @@
   --popover-foreground: #f8f9fa;
   --primary: #e8eaed;
   --primary-foreground: #202124;
-  --heatmap-2: #7fb3d5;
-  --heatmap-3: #e8eaed;
+  --heatmap-0: #906276;
+  --heatmap-1: #b88399;
+  --heatmap-2: #dca2b9;
+  --heatmap-3: #f5d7e2;
   --secondary: #3c4043;
   --secondary-foreground: #f8f9fa;
   --muted: #3c4043;
@@ -739,9 +741,9 @@
   --gradient-collectible-from: oklch(0.5 0.1 265);
   --gradient-collectible-to: oklch(0.42 0.12 260);
 
-  --heatmap-low: oklch(0.35 0.06 85);
-  --heatmap-mid: oklch(0.45 0.12 55);
-  --heatmap-high: oklch(0.5 0.18 25);
+  --heatmap-low: var(--heatmap-0);
+  --heatmap-mid: var(--heatmap-1);
+  --heatmap-high: var(--heatmap-3);
 
   /* Landing semantic tokens */
   --brand: #1a365d;
