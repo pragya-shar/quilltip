@@ -5,3 +5,8 @@
 /patches/ @pragya-shar
 /package.json @pragya-shar
 /bun.lock @pragya-shar
+
+# Review workflow execution, action updates, and changes to ownership itself.
+/.github/workflows/ @pragya-shar @0xbhvn
+/.github/dependabot.yml @pragya-shar @0xbhvn
+/.github/CODEOWNERS @pragya-shar @0xbhvn
