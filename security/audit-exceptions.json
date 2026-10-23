@@ -12,18 +12,6 @@
     "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
   },
   {
-    "advisory": "GHSA-vfj7-8cjw-p6xm",
-    "package": "braces",
-    "version": "3.0.3",
-    "vulnerableVersions": "<=3.0.3",
-    "severity": "high",
-    "owner": "pragya-shar",
-    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
-    "expires": "2026-11-06",
-    "reason": "Only development lint tooling (eslint-config-next > fast-glob > micromatch) reaches this dependency. Patterns are repository-controlled; no application input reaches recursive brace AST walkers. No patched upstream release is available.",
-    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
-  },
-  {
     "advisory": "GHSA-82x6-q7mm-w9cf",
     "package": "toml",
     "version": "3.0.0",
