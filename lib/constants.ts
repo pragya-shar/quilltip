@@ -27,3 +27,6 @@ export const EDITOR_PROSE_CLASS =
 /** Visible focus ring for upload controls (file pickers, drop zones, file labels). */
 export const UPLOAD_CONTROL_FOCUS_RING =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background'
+
+// Shared by both published rendering paths; editor styling stays independent.
+export const PUBLISHED_PROSE_CLASS = EDITOR_PROSE_CLASS + ' published-prose'

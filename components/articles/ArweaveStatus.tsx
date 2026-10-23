@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import {
   ExternalLink,
   ChevronDown,
@@ -11,7 +11,6 @@ import {
   Clock,
 } from 'lucide-react'
 import type { ArweaveStatus as ArweaveStatusType } from '@/lib/arweave/types'
-import { statusVariants } from '@/lib/ui/status-config'
 import { cn } from '@/lib/utils'
 
 interface ArweaveStatusProps {
@@ -26,22 +25,22 @@ const statusConfig: Record<
   { className: string; icon: React.ReactNode; label: string }
 > = {
   pending: {
-    className: statusVariants.pending,
+    className: 'bg-ui-warning text-ui-warning-foreground',
     icon: <Clock className="w-4 h-4" />,
     label: 'Uploading to Arweave',
   },
   uploaded: {
-    className: statusVariants.info,
+    className: 'bg-ui-info text-ui-info-foreground',
     icon: <Loader2 className="w-4 h-4 animate-spin" />,
     label: 'Confirming on Arweave',
   },
   verified: {
-    className: statusVariants.success,
+    className: 'bg-ui-success text-ui-success-foreground',
     icon: <CheckCircle className="w-4 h-4" />,
     label: 'Permanently stored',
   },
   failed: {
-    className: statusVariants.error,
+    className: 'bg-ui-surface text-ui-danger',
     icon: <XCircle className="w-4 h-4" />,
     label: 'Upload failed',
   },
@@ -54,6 +53,7 @@ export function ArweaveStatus({
   timestamp,
 }: ArweaveStatusProps) {
   const [expanded, setExpanded] = useState(false)
+  const detailsId = useId()
 
   if (!status) return null
 
@@ -61,9 +61,13 @@ export function ArweaveStatus({
     statusConfig[status as ArweaveStatusType] || statusConfig.pending
 
   return (
-    <div className={cn('rounded-lg p-3', config.className)}>
+    <div className={cn('reader-storage', config.className)}>
       <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={txId ? expanded : undefined}
+        aria-controls={txId ? detailsId : undefined}
+        disabled={!txId}
         className="flex items-center justify-between w-full text-left"
       >
         <div className="flex items-center gap-2">
@@ -79,7 +83,10 @@ export function ArweaveStatus({
       </button>
 
       {expanded && txId && (
-        <div className="mt-3 pt-3 border-t border-current/10 space-y-2 text-sm">
+        <div
+          id={detailsId}
+          className="mt-3 pt-3 border-t border-current/10 space-y-2 text-sm"
+        >
           <div>
             <span className="opacity-70">Transaction ID:</span>
             <code className="ml-2 font-mono text-xs">{txId}</code>

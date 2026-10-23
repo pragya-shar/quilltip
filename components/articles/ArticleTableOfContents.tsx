@@ -8,7 +8,7 @@ const ARTICLE_ROOT_SELECTOR = '.article-content'
 const TOC_HEADING_ID = 'article-toc-heading'
 
 const TOC_LINK_CLASS =
-  'block w-full text-left text-sm rounded px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
+  'reader-toc-link block w-full text-left text-sm rounded px-2 py-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2'
 
 interface ArticleTableOfContentsProps {
   headings: TocHeading[]
@@ -113,7 +113,7 @@ export function ArticleTableOfContents({
       <h3
         id={TOC_HEADING_ID}
         className={
-          embedded ? 'text-sm font-medium mb-3' : 'text-lg font-semibold mb-3'
+          embedded ? 'reader-section-title' : 'text-lg font-semibold mb-3'
         }
       >
         On this page

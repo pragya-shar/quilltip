@@ -143,15 +143,18 @@ export default function ShareButtons({
     <div className={`${className}`}>
       {/* Error message */}
       {error && (
-        <div className="mb-2 text-sm text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded px-3 py-1">
+        <div
+          role="alert"
+          className="mb-2 text-sm text-red-600 dark:text-red-300 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded px-3 py-1"
+        >
           {error}
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="article-share-controls flex flex-wrap items-center gap-2">
         {/* Share label */}
         <span className="text-sm text-muted-foreground font-medium">
-          Share:
+          Share this article
         </span>
 
         {/* Native share button (mobile) */}

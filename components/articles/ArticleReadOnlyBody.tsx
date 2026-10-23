@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { generateHTML } from '@tiptap/html'
 import type { JSONContent } from '@tiptap/core'
 import { getReadOnlyExtensions } from '@/lib/tiptap/readExtensions'
-import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { PUBLISHED_PROSE_CLASS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
 import type { TocHeading } from '@/lib/tiptap/headings'
@@ -32,7 +32,7 @@ export function ArticleReadOnlyBody({
   return (
     <div
       className={cn(
-        EDITOR_PROSE_CLASS,
+        PUBLISHED_PROSE_CLASS,
         'prose-stone highlightable-article',
         className
       )}

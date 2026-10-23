@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils'
 import { AnimatePresence } from 'motion/react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { toast } from 'sonner'
-import { EDITOR_PROSE_CLASS } from '@/lib/constants'
+import { PUBLISHED_PROSE_CLASS } from '@/lib/constants'
 import { handleArticleHighlightOverlayPointerDown } from '@/lib/highlights/articleOverlayPointerDismiss'
 import { getRangeTopCenterAnchor } from '@/lib/highlights/utils'
 import {
@@ -238,7 +238,7 @@ export function HighlightableArticle({
       immediatelyRender: false,
       editorProps: {
         attributes: {
-          class: `${EDITOR_PROSE_CLASS} prose-stone`,
+          class: `${PUBLISHED_PROSE_CLASS} prose-stone`,
         },
       },
       onSelectionUpdate: ({ editor }) => {
