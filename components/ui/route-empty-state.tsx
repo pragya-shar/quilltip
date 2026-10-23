@@ -45,15 +45,15 @@ export function RouteEmptyState({
     <div
       className={
         className ??
-        'bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-8 sm:p-12 text-center'
+        'font-ui bg-ui-surface rounded-[var(--ui-radius)] shadow-[var(--ui-shadow)] border border-ui-border p-8 sm:p-12 text-center'
       }
     >
       <Icon
-        className="w-12 h-12 text-muted-foreground mx-auto mb-4"
+        className="w-12 h-12 text-ui-muted-foreground mx-auto mb-4"
         aria-hidden
       />
-      <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
-      <p className="text-muted-foreground max-w-md mx-auto">{description}</p>
+      <h3 className="text-lg font-semibold text-ui-foreground mb-2">{title}</h3>
+      <p className="text-ui-muted-foreground max-w-md mx-auto">{description}</p>
       {(action || secondaryAction) && (
         <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
           {action && isLinkAction(action) ? (
