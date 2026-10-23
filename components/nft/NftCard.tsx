@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { FileText } from 'lucide-react'
+import './nft-card.css'
 
 export interface NftCardProps {
   title: string
@@ -35,86 +36,65 @@ export function NftCard({
 }: NftCardProps) {
   const articleHref = href ?? buildArticleHref(authorUsername, slug)
   const displayTitle = title || 'Untitled'
-  const truncatedTokenId =
-    tokenId.length > 8 ? `${tokenId.slice(0, 8)}...` : tokenId
-
-  const media = coverImage ? (
-    <div className="relative aspect-video w-full overflow-hidden rounded-lg">
-      <Image
-        src={coverImage}
-        alt={displayTitle}
-        fill
-        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-        className="object-cover"
-      />
-    </div>
-  ) : (
-    <div
-      className="aspect-video w-full rounded-lg border border-border bg-muted flex flex-col items-center justify-center gap-2 px-4"
-      aria-hidden
-    >
-      <FileText className="h-10 w-10 text-muted-foreground/60" />
-      <span className="sr-only">No cover image</span>
-    </div>
-  )
-
-  const cardBody = (
+  const articleContent = (
     <>
-      {articleHref ? (
-        <Link
-          href={articleHref}
-          className="focus-ring block rounded-lg"
-          scroll={false}
-        >
-          {media}
-        </Link>
-      ) : (
-        media
-      )}
-
-      <div className="mt-4 min-w-0 space-y-1">
-        {articleHref ? (
-          <Link
-            href={articleHref}
-            className="focus-ring block rounded-md"
-            scroll={false}
-          >
-            <h4 className="font-semibold text-foreground truncate hover:text-brand-blue transition-colors">
-              {displayTitle}
-            </h4>
-          </Link>
+      <div className="nft-card-media">
+        {coverImage ? (
+          <Image
+            src={coverImage}
+            alt=""
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1000px) 50vw, 33vw"
+            className="object-cover"
+          />
         ) : (
-          <h4 className="font-semibold text-foreground truncate">
-            {displayTitle}
-          </h4>
+          <div className="nft-card-bookplate" aria-hidden="true">
+            <FileText strokeWidth={1} />
+            <span>Collected words</span>
+          </div>
         )}
-
-        {authorUsername && (
-          <p className="text-sm text-muted-foreground truncate">
-            @{authorUsername}
-          </p>
+        <span className="nft-card-edition">Article NFT</span>
+      </div>
+      <div className="nft-card-copy">
+        <h3 title={displayTitle}>{displayTitle}</h3>
+        {authorUsername && <p className="nft-card-author">@{authorUsername}</p>}
+        {excerpt && <p className="nft-card-excerpt">{excerpt}</p>}
+        {articleHref && (
+          <span className="nft-card-read">
+            Read more <span aria-hidden="true">↗</span>
+          </span>
         )}
-
-        {excerpt && (
-          <p className="text-sm text-muted-foreground line-clamp-2">
-            {excerpt}
-          </p>
-        )}
-
-        <p className="text-sm text-muted-foreground pt-1">
-          Token ID: {truncatedTokenId}
-        </p>
-
-        <p className="text-xs text-muted-foreground/80">
-          {footerLabel} @{footerUsername || 'unknown'}
-        </p>
       </div>
     </>
   )
 
   return (
-    <article className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-3 sm:p-4 min-w-0">
-      {cardBody}
+    <article className="nft-card">
+      {articleHref ? (
+        <Link
+          href={articleHref}
+          className="nft-card-article"
+          scroll={false}
+          aria-label={`Read more: ${displayTitle}`}
+        >
+          {articleContent}
+        </Link>
+      ) : (
+        <div className="nft-card-article">{articleContent}</div>
+      )}
+      <div className="nft-card-details">
+        <p className="nft-card-token">
+          Token ID <span>{tokenId}</span>
+        </p>
+        <p className="nft-card-owner">
+          <span>{footerLabel}</span>{' '}
+          {footerUsername ? (
+            <Link href={`/${footerUsername}`}>@{footerUsername}</Link>
+          ) : (
+            <span>Unknown</span>
+          )}
+        </p>
+      </div>
     </article>
   )
 }

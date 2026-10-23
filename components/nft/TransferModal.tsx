@@ -19,7 +19,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { userFacingTransferNftError } from '@/lib/convex/userFacingTransferNftError'
-import { statusVariants } from '@/lib/ui/status-config'
+import './nft.css'
 
 type TransferStep = 'details' | 'confirm'
 
@@ -197,20 +197,18 @@ export function TransferModal({
 
   const messageBannerClass =
     transferMessage.kind === 'success'
-      ? statusVariants.success
+      ? 'nft-notice-success'
       : transferMessage.kind === 'error'
-        ? statusVariants.error
-        : transferMessage.kind === 'progress'
-          ? statusVariants.info
-          : ''
+        ? 'nft-notice-error'
+        : ''
 
   const messageIcon =
     transferMessage.kind === 'progress' ? (
       <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
     ) : transferMessage.kind === 'success' ? (
-      <CheckCircle className="h-4 w-4 shrink-0 text-success-foreground" />
+      <CheckCircle className="h-4 w-4 shrink-0 text-ui-success-foreground" />
     ) : transferMessage.kind === 'error' ? (
-      <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+      <AlertCircle className="h-4 w-4 shrink-0 text-ui-danger" />
     ) : null
 
   const irreversibleWarning = `You are transferring ownership of the NFT for "${articleTitle}" to @${recipientUsername}. This cannot be undone.`
@@ -223,7 +221,8 @@ export function TransferModal({
       }}
     >
       <DialogContent
-        className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] overflow-x-hidden sm:max-w-md"
+        className="nft-dialog"
+        hideCloseButton={isBusy}
         onCloseAutoFocus={(e) => {
           if (triggerRef?.current) {
             e.preventDefault()
@@ -237,11 +236,11 @@ export function TransferModal({
           if (isBusy) e.preventDefault()
         }}
       >
-        <DialogHeader>
-          <DialogTitle>
+        <DialogHeader className="nft-dialog-header">
+          <DialogTitle className="nft-dialog-title">
             {step === 'details' ? 'Transfer NFT Ownership' : 'Confirm transfer'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="nft-dialog-description">
             {step === 'details'
               ? `Transfer ownership of "${articleTitle}" to another user.`
               : 'Review the details below before completing this transfer.'}
@@ -252,11 +251,11 @@ export function TransferModal({
           {step === 'details' ? (
             <>
               <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">
-                  Current Owner
-                </Label>
-                <div className="max-w-full overflow-hidden rounded-lg bg-muted px-3 py-2 font-mono text-sm break-all">
-                  @{currentOwner}
+                <Label className="nft-field-label">Current Owner</Label>
+                <div className="nft-address">
+                  {currentOwnerUsername
+                    ? `@${currentOwnerUsername}`
+                    : currentOwner}
                 </div>
               </div>
 
@@ -268,9 +267,13 @@ export function TransferModal({
                   value={recipientUsername}
                   onChange={(e) => setRecipientUsername(e.target.value)}
                   disabled={isBusy || transferMessage.kind === 'success'}
-                  className="font-mono"
+                  className="nft-input"
+                  aria-describedby="recipient-hint"
+                  aria-invalid={
+                    transferMessage.kind === 'error' && step === 'details'
+                  }
                 />
-                <p className="text-xs text-muted-foreground">
+                <p id="recipient-hint" className="nft-muted text-xs">
                   Enter the username of the recipient (e.g., johndoe)
                 </p>
               </div>
@@ -278,17 +281,15 @@ export function TransferModal({
           ) : (
             <>
               <p
-                className="min-w-0 break-words rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+                className="nft-notice nft-notice-warning min-w-0"
                 data-testid="transfer-confirm-warning"
               >
                 {irreversibleWarning}
               </p>
 
-              <div className="min-w-0 space-y-2 overflow-hidden rounded-md border border-border bg-muted/40 p-3 text-sm">
+              <div className="nft-review min-w-0">
                 <div className="min-w-0">
-                  <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    Recipient
-                  </div>
+                  <div className="nft-field-label">Recipient</div>
                   <p
                     className="mt-0.5 font-mono font-medium break-all"
                     data-testid="transfer-confirm-recipient"
@@ -297,9 +298,7 @@ export function TransferModal({
                   </p>
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    Asset
-                  </div>
+                  <div className="nft-field-label">Asset</div>
                   <p
                     className="mt-0.5 break-words font-medium"
                     data-testid="transfer-confirm-asset"
@@ -308,9 +307,7 @@ export function TransferModal({
                   </p>
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    NFT identifier
-                  </div>
+                  <div className="nft-field-label">NFT identifier</div>
                   <p
                     className="mt-0.5 font-mono text-xs break-all"
                     data-testid="transfer-confirm-nft-id"
@@ -319,14 +316,14 @@ export function TransferModal({
                   </p>
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    Current owner
-                  </div>
+                  <div className="nft-field-label">Current owner</div>
                   <p
                     className="mt-0.5 font-mono text-xs break-all"
                     data-testid="transfer-confirm-current-owner"
                   >
-                    @{currentOwner}
+                    {currentOwnerUsername
+                      ? `@${currentOwnerUsername}`
+                      : currentOwner}
                   </p>
                 </div>
               </div>
@@ -341,9 +338,7 @@ export function TransferModal({
             {transferMessage.kind === 'none' ? (
               <span className="sr-only">No transfer status</span>
             ) : (
-              <div
-                className={`flex w-full items-center gap-2 rounded-lg p-3 ${messageBannerClass}`}
-              >
+              <div className={`nft-notice w-full ${messageBannerClass}`}>
                 {messageIcon}
                 <span className="min-w-0 text-sm break-words">
                   {transferMessage.text}
@@ -364,17 +359,23 @@ export function TransferModal({
               variant="ghost"
               onClick={handleBack}
               disabled={isBusy || transferMessage.kind === 'success'}
-              className="sm:mr-auto"
+              className="nft-button nft-button-secondary sm:mr-auto"
             >
               Back
             </Button>
           ) : null}
           <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={handleClose} disabled={isBusy}>
+            <Button
+              className="nft-button nft-button-secondary"
+              variant="outline"
+              onClick={handleClose}
+              disabled={isBusy}
+            >
               Cancel
             </Button>
             {step === 'details' ? (
               <Button
+                className="nft-button"
                 type="button"
                 onClick={handleReview}
                 disabled={
@@ -388,6 +389,7 @@ export function TransferModal({
               </Button>
             ) : (
               <Button
+                className="nft-button"
                 type="button"
                 onClick={() => void handleTransfer()}
                 disabled={isBusy || transferMessage.kind === 'success'}

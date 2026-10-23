@@ -1,25 +1,20 @@
-import { Skeleton } from '@/components/ui/skeleton'
-
 export function DashboardStatsSkeleton() {
   return (
-    <div className="space-y-6">
-      <div className="mb-6 space-y-2">
-        <Skeleton className="h-8 w-44" />
-        <Skeleton className="h-5 w-80 max-w-full" />
+    <div className="account-stats" role="status" aria-label="Loading stats">
+      <div className="account-heading">
+        <h1>Stats</h1>
+        <p>Overview of your publishing activity and testnet tips.</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="bg-card rounded-lg shadow-[var(--card-shadow)] border border-border p-6"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <Skeleton className="h-5 w-28" />
-              <Skeleton className="h-5 w-5 rounded-full" />
+      <span className="sr-only">Loading stats…</span>
+      <div className="account-stat-grid" aria-hidden="true">
+        {['Articles', 'Tips received', 'NFTs owned', 'Earned (USD)'].map(
+          (label) => (
+            <div className="account-stat" key={label}>
+              <div>{label}</div>
+              <div className="account-stat-placeholder" />
             </div>
-            <Skeleton className="h-9 w-16" />
-          </div>
-        ))}
+          )
+        )}
       </div>
     </div>
   )

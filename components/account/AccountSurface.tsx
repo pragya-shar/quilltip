@@ -1,6 +1,7 @@
 'use client'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { LandingWordmark } from '@/components/landing/LandingWordmark'
@@ -8,10 +9,11 @@ import { resolveSignedInProfilePath } from '@/lib/profile/profileDestination'
 
 export function AccountSurface({ children }: { children: ReactNode }) {
   const { user } = useAuth()
+  const pathname = usePathname()
   return (
     <div className="account-surface">
       <a className="account-skip" href="#account-content">
-        Skip to wallet
+        Skip to account content
       </a>
       <header className="account-header">
         <LandingWordmark />
@@ -32,10 +34,18 @@ export function AccountSurface({ children }: { children: ReactNode }) {
       </header>
       <main id="account-content" className="account-folio">
         <nav className="account-nav" aria-label="Account sections">
-          <Link href="/dashboard/wallet" aria-current="page">
+          <Link
+            href="/dashboard/wallet"
+            aria-current={pathname === '/dashboard/wallet' ? 'page' : undefined}
+          >
             Wallet
           </Link>
-          <Link href="/dashboard/stats">Stats</Link>
+          <Link
+            href="/dashboard/stats"
+            aria-current={pathname === '/dashboard/stats' ? 'page' : undefined}
+          >
+            Stats
+          </Link>
           {user?.username && (
             <span className="account-name">@{user.username}</span>
           )}
