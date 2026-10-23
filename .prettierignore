@@ -6,7 +6,6 @@ bun.lock
 *.tsbuildinfo
 public
 contracts/*/target
-.changeset
 
 # Local Superpowers execution ledgers are not project source.
 .superpowers
