@@ -282,3 +282,65 @@
   min-height: 44px;
   margin-block: -12px;
 }
+
+.profile-nfts {
+  padding-top: 36px;
+}
+.profile-nft-collection + .profile-nft-collection {
+  margin-top: 48px;
+  padding-top: 36px;
+  border-top: 1px solid var(--profile-line);
+}
+.profile-collection-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  margin-bottom: 24px;
+  overflow-wrap: anywhere;
+}
+.profile-collection-heading h2 {
+  font:
+    36px/1.2 'Reading Room Alegreya',
+    Georgia,
+    serif;
+  margin-bottom: 8px;
+}
+.profile-collection-heading p,
+.profile-collection-count {
+  color: var(--profile-muted);
+  font-size: 13px;
+}
+.profile-collection-count {
+  font-variant-numeric: tabular-nums;
+}
+.profile-nft-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.profile-nfts [aria-hidden='true'] .animate-pulse {
+  background: #e7d9cf;
+}
+.profile-nfts .profile-pagination nav > div {
+  color: var(--profile-ink);
+}
+@media (max-width: 1000px) {
+  .profile-nft-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .profile-nft-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .profile-nfts {
+    padding-top: 28px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-nfts .animate-pulse {
+    animation: none;
+  }
+}
