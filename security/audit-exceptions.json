@@ -1,122 +1,86 @@
-{
-  "version": 1,
-  "exceptions": [
-    {
-      "package": "bigint-buffer",
-      "advisory": "https://github.com/advisories/GHSA-3gc7-fjrx-p6mg",
-      "vulnerableVersions": "<=1.1.5",
-      "reason": "Unused Solana buffer conversion path; application uses ArweaveSigner, not Solana signer or toBigIntLE. No fixed release.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "braces",
-      "advisory": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
-      "vulnerableVersions": "<=3.0.3",
-      "reason": "Build/lint tooling uses repository-defined patterns; no runtime user-controlled glob input. No fixed release.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "decode-uri-component",
-      "advisory": "https://github.com/advisories/GHSA-vcc3-ghjq-m6fr",
-      "vulnerableVersions": "<=0.4.2",
-      "reason": "Upstream 0.5.0 linear fallback backported via tracked Bun patch; subprocess CPU regression and CJS/query-string compatibility tests pass.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "elliptic",
-      "advisory": "https://github.com/advisories/GHSA-848j-6mx2-7j84",
-      "vulnerableVersions": "<=6.6.1",
-      "reason": "Remaining unpatched ECDSA nonce issue; application signs Stellar Ed25519 via wallet extensions and Arweave RSA, not elliptic ECDSA.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "stream-json",
-      "advisory": "https://github.com/advisories/GHSA-hqr4-qq8f-hg3x",
-      "vulnerableVersions": "<=3.5.0",
-      "reason": "Unused jayson/Solana streaming parser path; app uses Turbo Arweave upload and does not instantiate a stream JSON parser.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "stream-json",
-      "advisory": "https://github.com/advisories/GHSA-mjw6-4jj6-33hc",
-      "vulnerableVersions": "<3.6.0",
-      "reason": "Unused jayson/Solana streaming parser path; app uses Turbo Arweave upload and does not instantiate a stream JSON parser.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "stream-json",
-      "advisory": "https://github.com/advisories/GHSA-528h-pc64-c93x",
-      "vulnerableVersions": "<=3.4.0",
-      "reason": "Unused jayson/Solana streaming parser path; app uses Turbo Arweave upload and does not instantiate a stream JSON parser.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "toml",
-      "advisory": "https://github.com/advisories/GHSA-82x6-q7mm-w9cf",
-      "vulnerableVersions": "<4.2.0",
-      "reason": "Unused Stellar TOML/federation discovery path; app only uses Horizon/Soroban/XDR transaction APIs, never remote TOML parsing.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "toml",
-      "advisory": "https://github.com/advisories/GHSA-v5mp-jgw5-2x6j",
-      "vulnerableVersions": "<4.1.2",
-      "reason": "Unused Stellar TOML/federation discovery path; app only uses Horizon/Soroban/XDR transaction APIs, never remote TOML parsing.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "toml",
-      "advisory": "https://github.com/advisories/GHSA-4qx8-w7c3-pj3p",
-      "vulnerableVersions": "<=5.0.0",
-      "reason": "Unused Stellar TOML/federation discovery path; app only uses Horizon/Soroban/XDR transaction APIs, never remote TOML parsing.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "toml",
-      "advisory": "https://github.com/advisories/GHSA-9j65-hcg3-gc64",
-      "vulnerableVersions": "<=5.0.0",
-      "reason": "Unused Stellar TOML/federation discovery path; app only uses Horizon/Soroban/XDR transaction APIs, never remote TOML parsing.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "toml",
-      "advisory": "https://github.com/advisories/GHSA-9qmh-m7c6-f92p",
-      "vulnerableVersions": "<=5.0.0",
-      "reason": "Unused Stellar TOML/federation discovery path; app only uses Horizon/Soroban/XDR transaction APIs, never remote TOML parsing.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    },
-    {
-      "package": "uuid",
-      "advisory": "https://github.com/advisories/GHSA-w5hq-g745-h8pq",
-      "vulnerableVersions": "<11.1.1",
-      "reason": "Affected v3/v5/v6 caller-buffer APIs are unused; transitive consumers generate v4 request/session IDs without caller buffers.",
-      "evidence": "security/dependency-review.md",
-      "owner": "@pragya-shar",
-      "expires": "2026-11-06"
-    }
-  ]
-}
+[
+  {
+    "advisory": "GHSA-3gc7-fjrx-p6mg",
+    "package": "bigint-buffer",
+    "version": "1.1.5",
+    "vulnerableVersions": "<=1.1.5",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Turbo includes Solana buffer-layout utilities, but lib/arweave/client.ts constructs ArweaveSigner (RSA) and uploads JSON. It never selects a Solana signer or calls toBigIntLE. No patched upstream release is available; reassess before enabling Solana functionality.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-vfj7-8cjw-p6xm",
+    "package": "braces",
+    "version": "3.0.3",
+    "vulnerableVersions": "<=3.0.3",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Only development lint tooling (eslint-config-next > fast-glob > micromatch) reaches this dependency. Patterns are repository-controlled; no application input reaches recursive brace AST walkers. No patched upstream release is available.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-82x6-q7mm-w9cf",
+    "package": "toml",
+    "version": "3.0.0",
+    "vulnerableVersions": "<4.2.0",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Stellar SDK exposes TOML parsing through StellarTomlResolver and federation/domain-discovery helpers. QuillTip callers use Horizon/Soroban/XDR APIs and never call these helpers or toml.parse. Patched releases require a major parser migration; reassess before adding domain discovery.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-v5mp-jgw5-2x6j",
+    "package": "toml",
+    "version": "3.0.0",
+    "vulnerableVersions": "<4.1.2",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Stellar SDK exposes TOML parsing through StellarTomlResolver and federation/domain-discovery helpers. QuillTip callers use Horizon/Soroban/XDR APIs and never call these helpers or toml.parse. Patched releases require a major parser migration; reassess before adding domain discovery.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-4qx8-w7c3-pj3p",
+    "package": "toml",
+    "version": "3.0.0",
+    "vulnerableVersions": "<=5.0.0",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Stellar SDK exposes TOML parsing through StellarTomlResolver and federation/domain-discovery helpers. QuillTip callers use Horizon/Soroban/XDR APIs and never call these helpers or toml.parse. Patched releases require a major parser migration; reassess before adding domain discovery.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-9j65-hcg3-gc64",
+    "package": "toml",
+    "version": "3.0.0",
+    "vulnerableVersions": "<=5.0.0",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Stellar SDK exposes TOML parsing through StellarTomlResolver and federation/domain-discovery helpers. QuillTip callers use Horizon/Soroban/XDR APIs and never call these helpers or toml.parse. Patched releases require a major parser migration; reassess before adding domain discovery.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-9qmh-m7c6-f92p",
+    "package": "toml",
+    "version": "3.0.0",
+    "vulnerableVersions": "<=5.0.0",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Stellar SDK exposes TOML parsing through StellarTomlResolver and federation/domain-discovery helpers. QuillTip callers use Horizon/Soroban/XDR APIs and never call these helpers or toml.parse. Patched releases require a major parser migration; reassess before adding domain discovery.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  }
+]

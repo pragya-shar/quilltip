@@ -19,7 +19,9 @@
     "eng-235:batch-evidence": "bun scripts/eng-235-batch-evidence-runner.ts",
     "eng-236:batch-evidence": "bun scripts/eng-236-batch-evidence-runner.ts",
     "eng-238:page-load": "bun scripts/eng-238-page-load-performance.ts",
-    "audit:dependencies": "node scripts/dependency-audit.mjs"
+    "audit:dependencies": "bun run security:audit",
+    "security:audit": "bun scripts/security/audit.ts",
+    "test:security": "vitest run scripts/security/audit.test.ts"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -122,13 +124,17 @@
     "lint-staged": "^16.4.0",
     "npm-run-all": "^4.1.5",
     "prettier": "3.8.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "json5": "^2.2.3",
+    "semver": "^7.7.4",
+    "@types/semver": "^7.7.1",
+    "vitest": "^4.1.12"
   },
   "packageManager": "bun@1.4.4",
   "overrides": {
     "elliptic": "6.6.1",
     "protobufjs": "7.6.6",
-    "secp256k1": "5.0.1",
+    "secp256k1": "5.0.2",
     "ws@^7": "7.5.13",
     "ws@^8": "8.21.0"
   },

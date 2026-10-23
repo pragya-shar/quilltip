@@ -1,12 +1,14 @@
 # Dependency security review — 2026-10-23
 
+> Current #240 inventory, gate behavior and version-bound exception policy: [dependency advisory review](../docs/security/dependency-audit.md). This document retains the earlier package-level rationale and decoder patch evidence. Low/moderate findings are reported without blocking; only reviewed high/critical exceptions are enforced.
+
 Owner: @pragya-shar. Re-review by 2026-11-06. These are temporary, exact advisory/package exceptions, not a claim that the dependency tree is vulnerability-free. The gate rejects new advisories, changed vulnerable ranges, expired exceptions, registry failures and malformed reports. Remove stale entries when an upstream fix removes a finding.
 
 ## Remediation
 
-Next/tooling 16.4.2 and Sharp 0.35.5 address the image-processing findings. Dependencies were resolved within declared ranges; Convex Auth was updated to 0.0.96, which supports the patched Auth.js 0.41.x peer. Wallet-kit remains 1.9.5. Bun 1.4.4 is pinned in packageManager and CI to support version-scoped overrides: ws 7.5.13/8.21.0, elliptic 6.6.1, protobufjs 7.6.6, secp256k1 5.0.1. No wallet signing or contract code changed.
+Next/tooling 16.4.2 and Sharp 0.35.5 address the image-processing findings. Dependencies were resolved within declared ranges; Convex Auth was updated to 0.0.96, which supports the patched Auth.js 0.41.x peer. Wallet-kit remains 1.9.5. Bun 1.4.4 is pinned in packageManager and CI to support version-scoped overrides: ws 7.5.13/8.21.0, elliptic 6.6.1, protobufjs 7.6.6, secp256k1 5.0.2. No wallet signing or contract code changed.
 
-The decoder patch backports the linear malformed UTF-8 fallback from upstream decode-uri-component 0.5.0 into 0.2.2. It preserves CommonJS exports and plus-to-space behavior required by query-string 7.1.3. The original decoder exceeded a 2-second subprocess timeout on 2,000 malformed bytes; the patch passes the same test and query-string compatibility cases. The package version still matches the advisory, so its exact exception documents the applied patch. Source: https://github.com/sindresorhus/decode-uri-component and npm package 0.5.0. Existing MIT license remains in the package.
+The decoder patch backports the linear malformed UTF-8 fallback from upstream decode-uri-component 0.5.0 into 0.2.2. It preserves CommonJS exports and plus-to-space behavior required by query-string 7.1.3. The original decoder exceeded a 2-second subprocess timeout on 2,000 malformed bytes; the patch passes the same test and query-string compatibility cases. The package version still matches the moderate advisory; the patch remains installed, and the scanner reports the record without a blocking exception. Source: https://github.com/sindresorhus/decode-uri-component and npm package 0.5.0. Existing MIT license remains in the package.
 
 ## Residual findings and scope evidence
 
