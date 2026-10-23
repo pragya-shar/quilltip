@@ -1,0 +1,7 @@
+# Workflow and audit-policy changes need repository-owner review.
+/.github/ @pragya-shar
+/security/ @pragya-shar
+/scripts/dependency-audit* @pragya-shar
+/patches/ @pragya-shar
+/package.json @pragya-shar
+/bun.lock @pragya-shar
