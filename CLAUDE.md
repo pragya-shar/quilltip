@@ -54,7 +54,10 @@ bun run build         # Next.js production build
 - Use Radix UI / shadcn primitives from `components/ui/` before building custom components.
 - Convex for backend. Queries, mutations, and actions in `convex/`.
 - Zod for validation at system boundaries.
-- Prefer named exports. One component per file.
+- Prefer named exports. One component per file, including private component helpers.
+  Compound primitives in `components/ui/` and test fixtures are exceptions;
+  re-exports, lazy aliases, render callbacks, and JSX values are not definitions.
+  Follow `docs/component-organization.md`; `bun run lint` checks the convention.
 
 ## Anti-Slop Rules
 
@@ -85,7 +88,8 @@ When reviewing code, check for:
 2. **Type safety**: No `any`, proper generics, Zod schemas at boundaries.
 3. **Security**: No XSS, no SQL injection, no secrets in code, input validation.
 4. **Performance**: No unnecessary re-renders, proper memoization, efficient queries.
-5. **Style compliance**: Matches the rules above. No slop.
+5. **Style compliance**: Matches the rules above. No slop. Apply the component
+   organization policy and its explicit exceptions in `docs/component-organization.md`.
 
 ## Testing
 

@@ -64,6 +64,9 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 - **Radix UI / shadcn** for UI primitives — check `components/ui/` before building custom components
 - **Convex** for backend — queries, mutations, and actions in `convex/`
 - **Zod** for validation at system boundaries
+- **One component per file**, including private helpers. Compound primitives in
+  `components/ui/` are exempt. See [component organization](docs/component-organization.md)
+  for the full policy, compatibility exports, and lint-check scope.
 - Run `bun run lint` and `bun run typecheck` before submitting
 
 ## Project Structure

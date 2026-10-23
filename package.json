@@ -11,6 +11,7 @@
     "analyze": "ANALYZE=true next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "test:component-organization": "node --test scripts/eslint/one-component-per-file.test.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
