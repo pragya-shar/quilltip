@@ -16,10 +16,8 @@ upstream commits, and action manifests were checked on 2026-10-23:
 
 ## Updates and permissions
 
-Dependabot checks action updates weekly and opens `ci:` PRs against `development`,
-so updates pass through the normal development-to-main review path. Keep the
-Dependabot configuration on the default branch (`main`) as well: GitHub reads its
-configuration there even when updates target another branch. Review upstream
+Dependabot checks action updates weekly and opens `ci:` PRs against `main`.
+Keep its configuration on the default branch (`main`), where GitHub reads it. Review upstream
 changes and keep the full SHA and version comment together when merging updates;
 do not automatically merge action updates.
 
@@ -33,18 +31,18 @@ create releases and release PRs. Its trigger remains a push to `main`.
 `.github/CODEOWNERS` assigns workflows, Dependabot configuration, and CODEOWNERS
 itself to the existing maintainers: `@pragya-shar` (admin) and `@0xbhvn` (write),
 whose repository access was verified on 2026-10-23. GitHub uses the CODEOWNERS file
-on the PR's base branch, so this ownership must reach both `development` and `main`.
+on the PR's base branch, so this ownership must reach `main`.
 Existing ownership for audit policy, dependency files, and patches remains assigned
 to the repository owner.
 
 CODEOWNERS requests reviews; it does not by itself require approval before merge.
-The existing branch protections on `development` and `main` require the `Required`
+The branch protections on `main` require the `Required`
 and `PR Hygiene Required` status checks, but do not require code-owner approval
 (verified 2026-10-23). Repository settings are managed separately from these files.
-To enforce approval, enable **Require review from Code Owners** on both protected
-branches after this ownership file lands. Keep at least two code owners with write
+To enforce approval, enable **Require review from Code Owners** on `main`
+after this ownership file lands. Keep at least two code owners with write
 access so one can approve the other's PR: GitHub does not let authors approve
-their own PRs. This change adds ownership without changing remote branch rules.
+their own PRs. The retired `development` branch is no longer part of the review path.
 
 ## Safe validation
 

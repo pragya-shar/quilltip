@@ -24,7 +24,8 @@ See [docs/SETUP.md](docs/SETUP.md) for full environment details.
 1. Create a branch from `main`:
 
 ```bash
-git checkout -b feature/your-feature
+git fetch origin
+git switch -c feature/your-feature origin/main
 ```
 
 1. Make your changes. Run checks before committing:

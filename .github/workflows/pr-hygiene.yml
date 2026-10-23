@@ -2,7 +2,7 @@ name: PR Hygiene
 
 on:
   pull_request:
-    branches: [main, development]
+    branches: [main]
     types: [opened, edited, reopened, synchronize, ready_for_review]
 
 permissions: {}
@@ -47,8 +47,8 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # GitHub squash merges append a PR reference such as "(#230)".
-          pattern="^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9][a-z0-9._/-]{0,39}\))?: [A-Za-z0-9][A-Za-z0-9 ,.:'()/&+._/-]{0,100}( \(#[0-9]+\))?$"
+          # Accept trailing issue references (#237) and squash PR references ((#230)).
+          pattern="^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9][a-z0-9._/-]{0,39}\))?: [A-Za-z0-9][A-Za-z0-9 ,.:'()/&+._/-]{0,100}( #[0-9]+| \(#[0-9]+\))?$"
           bad=0
 
           while IFS= read -r subject; do

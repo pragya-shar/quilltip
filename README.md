@@ -3,7 +3,7 @@
 <div align="center">
 
 [![quilltip.me](https://img.shields.io/badge/quilltip.me-blue?style=flat)](https://quilltip.me)
-[![CI](https://img.shields.io/github/actions/workflow/status/pragya-shar/quilltip/ci.yml?branch=development&style=flat&label=CI)](https://github.com/pragya-shar/quilltip/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/pragya-shar/quilltip/ci.yml?branch=main&style=flat&label=CI)](https://github.com/pragya-shar/quilltip/actions/workflows/ci.yml)
 [![Tipping Contract](https://img.shields.io/badge/Tipping_Contract-yellow?style=flat&logo=stellar)](https://stellar.expert/explorer/testnet/contract/CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY) [![NFT Contract](https://img.shields.io/badge/NFT_Contract-yellow?style=flat&logo=stellar)](https://stellar.expert/explorer/testnet/contract/CAS44OQK7A6W5FDRAH3K3ZN7TTQTJ5ESRVG6MB2HBVFWZ5TVH26UUB4S)
 
 ![Next.js](https://img.shields.io/badge/Next.js-000?style=flat&logo=nextdotjs&logoColor=white)
