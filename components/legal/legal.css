@@ -1,0 +1,128 @@
+.legal-page {
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+  background: var(--ui-surface);
+  color: var(--ui-foreground);
+  font-family: var(--ui-font);
+}
+
+.legal-main {
+  width: 100%;
+  max-width: 48rem;
+  flex: 1;
+  margin-inline: auto;
+  padding: 128px 32px 80px;
+}
+
+.legal-header {
+  margin-bottom: 48px;
+  padding-bottom: 32px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.legal-date {
+  margin: 0 0 16px;
+  color: var(--ui-muted-foreground);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.legal-header h1 {
+  margin: 0;
+  font:
+    600 clamp(34px, 5vw, 52px) / 1.12 'Landing Syne',
+    sans-serif;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.legal-sections {
+  display: grid;
+  gap: 40px;
+}
+
+.legal-sections section {
+  min-width: 0;
+  scroll-margin-top: 96px;
+}
+
+.legal-sections h2 {
+  margin: 0 0 16px;
+  font:
+    600 20px / 1.4 'Landing Syne',
+    sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.legal-paragraphs {
+  display: grid;
+  gap: 16px;
+  font:
+    400 22px / 1.65 'Landing Alegreya',
+    Georgia,
+    serif;
+  overflow-wrap: anywhere;
+}
+
+.legal-paragraphs p {
+  margin: 0;
+}
+
+.legal-footer {
+  display: grid;
+  gap: 28px;
+  margin-top: 48px;
+  padding-top: 32px;
+  border-top: 1px solid var(--ui-border);
+}
+
+.legal-related {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.legal-policy-link {
+  display: inline-block;
+  padding-block: 10px;
+  color: var(--ui-primary);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.legal-policy-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.legal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.legal-main a:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 4px;
+}
+
+@media (max-width: 600px) {
+  .legal-main {
+    padding: 104px 24px 56px;
+  }
+
+  .legal-header {
+    margin-bottom: 36px;
+    padding-bottom: 28px;
+  }
+
+  .legal-paragraphs {
+    font-size: 20px;
+  }
+
+  .legal-actions {
+    flex-direction: column;
+  }
+}
