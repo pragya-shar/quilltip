@@ -9,12 +9,10 @@ import {
 import { usePaginationTransition } from '@/hooks/usePaginationTransition'
 import type { Id } from '@/types/convex'
 import { ProfileNftsTabSkeleton } from '@/components/profile/ProfileNftsTabSkeleton'
-import { PaginationTransition } from '@/components/profile/PaginationTransition'
-import Pagination from '@/components/articles/Pagination'
+import { ProfileNftCollection } from './ProfileNftCollection'
+import Link from 'next/link'
 import { buildProfileNftPaginationHref } from '@/lib/profile/buildProfileNftPaginationHref'
 import { NftCard } from '@/components/nft/NftCard'
-import { RouteEmptyState } from '@/components/ui/route-empty-state'
-import { ImageIcon, Trophy } from 'lucide-react'
 
 const NFT_PAGE_LIMIT = 9
 
@@ -94,107 +92,83 @@ export function ProfileNftsTabContent({
   const bothEmpty = ownedData.total === 0 && mintedData.total === 0
 
   return (
-    <div className="space-y-8">
+    <div className="profile-nfts">
       {ownedData.total > 0 && (
-        <div>
-          <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-collectible-foreground" />
-            Owned NFTs
-          </h3>
-          <PaginationTransition isPaginating={owned.isPaginating}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {ownedNfts.map((nft) => (
-                <NftCard
-                  key={nft._id}
-                  title={nft.article?.title || 'Untitled'}
-                  slug={nft.article?.slug}
-                  authorUsername={nft.article?.authorUsername}
-                  coverImage={nft.article?.coverImage}
-                  excerpt={nft.article?.excerpt}
-                  tokenId={nft.tokenId}
-                  footerLabel="Minted by"
-                  footerUsername={nft.minter?.username}
-                />
-              ))}
-            </div>
-          </PaginationTransition>
-
-          {ownedTotalPages > 1 && (
-            <div className="mt-12">
-              <Pagination
-                currentPage={nftOwnedPage}
-                totalPages={ownedTotalPages}
-                getPageHref={ownedHref}
-              />
-            </div>
-          )}
-
-          {ownedTotalPages > 1 && (
-            <div className="mt-4 text-center text-sm text-muted-foreground">
-              Showing {(nftOwnedPage - 1) * NFT_PAGE_LIMIT + 1} -{' '}
-              {Math.min(nftOwnedPage * NFT_PAGE_LIMIT, ownedData.total)} of{' '}
-              {ownedData.total} NFTs
-            </div>
-          )}
-        </div>
-      )}
-
-      {mintedData.total > 0 && (
-        <div>
-          <h3 className="text-xl font-semibold mb-4">Minted NFTs</h3>
-          <PaginationTransition isPaginating={minted.isPaginating}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {mintedNfts.map((nft) => (
-                <NftCard
-                  key={nft._id}
-                  title={nft.article?.title || 'Untitled'}
-                  slug={nft.article?.slug}
-                  authorUsername={nft.article?.authorUsername}
-                  coverImage={nft.article?.coverImage}
-                  excerpt={nft.article?.excerpt}
-                  tokenId={nft.tokenId}
-                  footerLabel="Owner"
-                  footerUsername={nft.currentOwnerInfo?.username}
-                />
-              ))}
-            </div>
-          </PaginationTransition>
-
-          {mintedTotalPages > 1 && (
-            <div className="mt-12">
-              <Pagination
-                currentPage={nftMintedPage}
-                totalPages={mintedTotalPages}
-                getPageHref={mintedHref}
-              />
-            </div>
-          )}
-
-          {mintedTotalPages > 1 && (
-            <div className="mt-4 text-center text-sm text-muted-foreground">
-              Showing {(nftMintedPage - 1) * NFT_PAGE_LIMIT + 1} -{' '}
-              {Math.min(nftMintedPage * NFT_PAGE_LIMIT, mintedData.total)} of{' '}
-              {mintedData.total} NFTs
-            </div>
-          )}
-        </div>
-      )}
-
-      {bothEmpty && (
-        <RouteEmptyState
-          icon={ImageIcon}
-          title="No NFTs yet"
+        <ProfileNftCollection
+          id="owned-nfts"
+          title="Owned NFTs"
           description={
             isOwnProfile
-              ? 'Articles earn NFTs when they reach the tip threshold. Mint or collect one to see it here.'
-              : `${displayName} doesn't have any NFTs yet.`
+              ? 'Articles in your collection.'
+              : `Articles in ${displayName}’s collection.`
           }
-          action={
+          total={ownedData.total}
+          page={nftOwnedPage}
+          pageSize={NFT_PAGE_LIMIT}
+          totalPages={ownedTotalPages}
+          getPageHref={ownedHref}
+          isPaginating={owned.isPaginating}
+        >
+          {ownedNfts.map((nft) => (
+            <NftCard
+              key={nft._id}
+              title={nft.article?.title || 'Untitled'}
+              slug={nft.article?.slug}
+              authorUsername={nft.article?.authorUsername}
+              coverImage={nft.article?.coverImage}
+              excerpt={nft.article?.excerpt}
+              tokenId={nft.tokenId}
+              footerLabel="Minted by"
+              footerUsername={nft.minter?.username}
+            />
+          ))}
+        </ProfileNftCollection>
+      )}
+      {mintedData.total > 0 && (
+        <ProfileNftCollection
+          id="minted-nfts"
+          title="Minted NFTs"
+          description={
             isOwnProfile
-              ? { label: 'Browse articles', href: '/articles' }
-              : undefined
+              ? 'Articles you brought onchain.'
+              : `Articles ${displayName} brought onchain.`
           }
-        />
+          total={mintedData.total}
+          page={nftMintedPage}
+          pageSize={NFT_PAGE_LIMIT}
+          totalPages={mintedTotalPages}
+          getPageHref={mintedHref}
+          isPaginating={minted.isPaginating}
+        >
+          {mintedNfts.map((nft) => (
+            <NftCard
+              key={nft._id}
+              title={nft.article?.title || 'Untitled'}
+              slug={nft.article?.slug}
+              authorUsername={nft.article?.authorUsername}
+              coverImage={nft.article?.coverImage}
+              excerpt={nft.article?.excerpt}
+              tokenId={nft.tokenId}
+              footerLabel="Owner"
+              footerUsername={nft.currentOwnerInfo?.username}
+            />
+          ))}
+        </ProfileNftCollection>
+      )}
+      {bothEmpty && (
+        <div className="profile-empty">
+          <h2>A collection to come</h2>
+          <p>
+            {isOwnProfile
+              ? 'Articles earn NFTs when they reach the tip threshold. Mint or collect one to see it here.'
+              : `${displayName} doesn't have any NFTs yet.`}
+          </p>
+          {isOwnProfile && (
+            <Link href="/articles" className="profile-action">
+              Browse articles
+            </Link>
+          )}
+        </div>
       )}
     </div>
   )
