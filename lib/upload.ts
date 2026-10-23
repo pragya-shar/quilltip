@@ -100,10 +100,7 @@ export async function uploadFile(
       return { success: false, error: validation.error }
     }
 
-    const uploadUrl = await convexClient.mutation(
-      api.uploads.generateUploadUrl,
-      {}
-    )
+    const ticket = await convexClient.action(api.uploadIngress.issueTicket, {})
 
     if (signal?.aborted) {
       throw makeAbortError()
@@ -155,7 +152,9 @@ export async function uploadFile(
         resolve({ aborted: true })
       })
 
-      xhr.open('POST', uploadUrl)
+      xhr.open('POST', ticket.url)
+      xhr.setRequestHeader('X-Upload-Token', ticket.token)
+      xhr.setRequestHeader('Content-Type', file.type)
       xhr.send(file)
     })
 
@@ -215,10 +214,7 @@ export async function uploadAvatarFile(
   }
 
   try {
-    const uploadUrl = await convexClient.mutation(
-      api.uploads.generateUploadUrl,
-      {}
-    )
+    const ticket = await convexClient.action(api.uploadIngress.issueTicket, {})
 
     const result = await new Promise<{
       storageId?: Id<'_storage'>
@@ -253,7 +249,9 @@ export async function uploadAvatarFile(
         resolve({ error: 'Network error occurred during upload' })
       })
 
-      xhr.open('POST', uploadUrl)
+      xhr.open('POST', ticket.url)
+      xhr.setRequestHeader('X-Upload-Token', ticket.token)
+      xhr.setRequestHeader('Content-Type', file.type)
       xhr.send(file)
     })
 

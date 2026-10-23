@@ -535,6 +535,20 @@ export default defineSchema({
     .index('by_status', ['status']),
 
   // File uploads table
+  uploadTickets: defineTable({
+    tokenHash: v.string(),
+    userId: v.id('users'),
+    expiresAt: v.number(),
+  })
+    .index('by_hash', ['tokenHash'])
+    .index('by_user', ['userId']),
+
+  uploadOwners: defineTable({
+    storageId: v.id('_storage'),
+    fileType: v.string(),
+    userId: v.id('users'),
+  }).index('by_storage', ['storageId']),
+
   fileUploads: defineTable({
     // Storage reference
     storageId: v.id('_storage'),

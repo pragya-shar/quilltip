@@ -1,18 +1,13 @@
 import { httpRouter } from 'convex/server'
 import { auth } from './auth'
+import { upload, options } from './uploadHttp'
 
 const http = httpRouter()
 
 // Add auth routes
 auth.addHttpRoutes(http)
 
-// You can add custom HTTP routes here if needed
-// http.route({
-//   path: "/api/custom",
-//   method: "GET",
-//   handler: async (ctx, request) => {
-//     return new Response("Custom endpoint", { status: 200 });
-//   },
-// });
+http.route({ path: '/image-upload', method: 'POST', handler: upload })
+http.route({ path: '/image-upload', method: 'OPTIONS', handler: options })
 
 export default http

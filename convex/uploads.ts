@@ -1,29 +1,43 @@
 import { v } from 'convex/values'
-import { mutation, query } from './_generated/server'
+import { mutation, query, type MutationCtx } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 
-// Generate upload URL for client-side uploads
+import type { Id } from './_generated/dataModel'
+import { IMAGE_TYPES, MAX_IMAGE_BYTES } from './lib/imageUpload'
+
+async function requireOwnedImage(
+  ctx: MutationCtx,
+  storageId: Id<'_storage'>,
+  userId: Id<'users'>
+) {
+  const owner = await ctx.db
+    .query('uploadOwners')
+    .withIndex('by_storage', (q) => q.eq('storageId', storageId))
+    .unique()
+  if (!owner || owner.userId !== userId)
+    throw new Error(
+      'Upload ownership could not be verified; please upload the image again'
+    )
+  const metadata = await ctx.db.system.get(storageId)
+  if (
+    !metadata ||
+    !IMAGE_TYPES.includes(owner.fileType) ||
+    metadata.size > MAX_IMAGE_BYTES
+  )
+    throw new Error('Invalid stored image')
+  return { owner, fileType: owner.fileType, fileSize: metadata.size }
+}
+
+// Retire the unbound upload path; old clients must refresh.
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
-    // Generate a short-lived upload URL
-    const uploadUrl = await ctx.storage.generateUploadUrl()
-
-    return uploadUrl
+    throw new Error('Please refresh the page to use secure uploads')
   },
 })
-
-// Allowed file types and max size
-const ALLOWED_FILE_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-]
-const MAX_FILE_SIZE = 10485760 // 10MB
 
 // Store file metadata after upload
 export const storeFileMetadata = mutation({
@@ -44,14 +58,11 @@ export const storeFileMetadata = mutation({
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
-    // Server-side validation
-    if (!ALLOWED_FILE_TYPES.includes(args.fileType)) {
-      throw new Error(
-        `Invalid file type: ${args.fileType}. Allowed types: ${ALLOWED_FILE_TYPES.join(', ')}`
-      )
-    }
-    if (args.fileSize > MAX_FILE_SIZE) {
-      throw new Error(`File size exceeds maximum of 10MB`)
+    const image = await requireOwnedImage(ctx, args.storageId, userId)
+    if (args.articleId) {
+      const article = await ctx.db.get(args.articleId)
+      if (!article || article.authorId !== userId)
+        throw new Error('Not authorized')
     }
 
     const now = Date.now()
@@ -60,8 +71,8 @@ export const storeFileMetadata = mutation({
     const fileId = await ctx.db.insert('fileUploads', {
       storageId: args.storageId,
       fileName: args.fileName,
-      fileType: args.fileType,
-      fileSize: args.fileSize,
+      fileType: image.fileType,
+      fileSize: image.fileSize,
       uploadType: args.uploadType,
       uploadedBy: userId,
       articleId: args.articleId,
@@ -137,6 +148,9 @@ export const deleteFile = mutation({
     if (!file) throw new Error('File not found')
     if (file.uploadedBy !== userId) throw new Error('Not authorized')
 
+    const image = await requireOwnedImage(ctx, file.storageId, userId)
+    await ctx.db.delete(image.owner._id)
+
     // Delete from storage
     await ctx.storage.delete(file.storageId)
 
@@ -160,6 +174,8 @@ export const updateUserAvatar = mutation({
     const user = await ctx.db.get(userId)
     if (!user) throw new Error('User not found')
 
+    const image = await requireOwnedImage(ctx, args.storageId, userId)
+
     // Get the public URL for the avatar
     const avatarUrl = await ctx.storage.getUrl(args.storageId)
 
@@ -168,8 +184,8 @@ export const updateUserAvatar = mutation({
     await ctx.db.insert('fileUploads', {
       storageId: args.storageId,
       fileName: args.fileName,
-      fileType: 'image',
-      fileSize: 0, // Size can be determined client-side
+      fileType: image.fileType,
+      fileSize: image.fileSize,
       uploadType: 'avatar',
       uploadedBy: userId,
       createdAt: now,
@@ -202,6 +218,8 @@ export const updateArticleCoverImage = mutation({
     if (!article) throw new Error('Article not found')
     if (article.authorId !== userId) throw new Error('Not authorized')
 
+    const image = await requireOwnedImage(ctx, args.storageId, userId)
+
     // Get the public URL for the image
     const imageUrl = await ctx.storage.getUrl(args.storageId)
 
@@ -210,8 +228,8 @@ export const updateArticleCoverImage = mutation({
     await ctx.db.insert('fileUploads', {
       storageId: args.storageId,
       fileName: args.fileName,
-      fileType: 'image',
-      fileSize: 0, // Size can be determined client-side
+      fileType: image.fileType,
+      fileSize: image.fileSize,
       uploadType: 'cover_image',
       uploadedBy: userId,
       articleId: args.articleId,
