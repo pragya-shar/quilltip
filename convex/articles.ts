@@ -4,6 +4,7 @@ import { query, mutation, internalMutation } from './_generated/server'
 import { internal } from './_generated/api'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { enrichWithUser } from './lib/enrich'
+import { syncArticleUploadReferences } from './lib/uploadReferences'
 import {
   generateUniqueArticleSlugForAuthor,
   isPlaceholderArticleSlug,
@@ -563,6 +564,8 @@ export const createArticle = mutation({
       updatedAt: now,
     })
 
+    await syncArticleUploadReferences(ctx, articleId, null, args)
+
     if (args.published) {
       const row = await ctx.db.get(articleId)
       if (row) await replaceTagLinksForArticle(ctx, row)
@@ -668,6 +671,8 @@ export const updateArticle = mutation({
     await ctx.db.patch(args.id, updates)
 
     const updated = await ctx.db.get(args.id)
+    if (updated)
+      await syncArticleUploadReferences(ctx, args.id, article, updated)
     if (updated?.published) {
       await replaceTagLinksForArticle(ctx, updated)
     }
@@ -797,6 +802,8 @@ export const deleteArticle = mutation({
 
     await removeTagLinksForArticle(ctx, args.id)
 
+    await syncArticleUploadReferences(ctx, args.id, article, null)
+
     // Delete article
     await ctx.db.delete(args.id)
 
@@ -877,6 +884,7 @@ export const saveDraft = mutation({
       await ctx.db.patch(args.id, patch)
 
       const after = await ctx.db.get(args.id)
+      if (after) await syncArticleUploadReferences(ctx, args.id, article, after)
       if (after?.published) await replaceTagLinksForArticle(ctx, after)
 
       return args.id
@@ -893,7 +901,7 @@ export const saveDraft = mutation({
 
       const now = Date.now()
 
-      return await ctx.db.insert('articles', {
+      const articleId = await ctx.db.insert('articles', {
         slug: finalSlug,
         title: args.title,
         content: args.content,
@@ -918,6 +926,8 @@ export const saveDraft = mutation({
         createdAt: now,
         updatedAt: now,
       })
+      await syncArticleUploadReferences(ctx, articleId, null, args)
+      return articleId
     }
   },
 })

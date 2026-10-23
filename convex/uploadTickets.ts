@@ -49,6 +49,7 @@ export const recordOwner = internalMutation({
     userId: v.id('users'),
     fileType: v.string(),
   },
+  returns: v.null(),
   handler: async (ctx, { storageId, userId, fileType }) => {
     const metadata = await ctx.db.system.get(storageId)
     if (
@@ -63,6 +64,15 @@ export const recordOwner = internalMutation({
       .withIndex('by_storage', (q) => q.eq('storageId', storageId))
       .unique()
     if (existing) throw new Error('Upload ownership already recorded')
-    await ctx.db.insert('uploadOwners', { storageId, userId, fileType })
+    const url = await ctx.storage.getUrl(storageId)
+    if (!url) throw new Error('Upload no longer available')
+    await ctx.db.insert('uploadOwners', {
+      storageId,
+      userId,
+      fileType,
+      url,
+      referencesTracked: true,
+    })
+    return null
   },
 })

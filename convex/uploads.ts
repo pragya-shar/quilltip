@@ -4,6 +4,10 @@ import { getAuthUserId } from '@convex-dev/auth/server'
 
 import type { Id } from './_generated/dataModel'
 import { IMAGE_TYPES, MAX_IMAGE_BYTES } from './lib/imageUpload'
+import {
+  syncArticleUploadReferences,
+  syncAvatarUploadReference,
+} from './lib/uploadReferences'
 
 async function requireOwnedImage(
   ctx: MutationCtx,
@@ -140,6 +144,7 @@ export const deleteFile = mutation({
   args: {
     fileId: v.id('fileUploads'),
   },
+  returns: v.object({ success: v.boolean() }),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
@@ -149,13 +154,26 @@ export const deleteFile = mutation({
     if (file.uploadedBy !== userId) throw new Error('Not authorized')
 
     const image = await requireOwnedImage(ctx, file.storageId, userId)
-    await ctx.db.delete(image.owner._id)
-
-    // Delete from storage
-    await ctx.storage.delete(file.storageId)
-
-    // Delete metadata
+    // Existing ownership rows predate complete saved-reference tracking.
+    if (!image.owner.referencesTracked) {
+      throw new Error(
+        'Upload references could not be verified; please upload the image again'
+      )
+    }
     await ctx.db.delete(args.fileId)
+    const remainingReference = await ctx.db
+      .query('fileUploads')
+      .withIndex('by_storage', (q) => q.eq('storageId', file.storageId))
+      .first()
+    if (!remainingReference) {
+      const activeReference = await ctx.db
+        .query('uploadReferences')
+        .withIndex('by_storage', (q) => q.eq('storageId', file.storageId))
+        .first()
+      if (activeReference) throw new Error('File is still in use')
+      await ctx.storage.delete(file.storageId)
+      await ctx.db.delete(image.owner._id)
+    }
 
     return { success: true }
   },
@@ -178,6 +196,12 @@ export const updateUserAvatar = mutation({
 
     // Get the public URL for the avatar
     const avatarUrl = await ctx.storage.getUrl(args.storageId)
+    await syncAvatarUploadReference(
+      ctx,
+      userId,
+      user.avatar,
+      avatarUrl ?? undefined
+    )
 
     // Store file metadata
     const now = Date.now()
@@ -222,6 +246,10 @@ export const updateArticleCoverImage = mutation({
 
     // Get the public URL for the image
     const imageUrl = await ctx.storage.getUrl(args.storageId)
+    await syncArticleUploadReferences(ctx, args.articleId, article, {
+      ...article,
+      coverImage: imageUrl ?? undefined,
+    })
 
     // Store file metadata
     const now = Date.now()
