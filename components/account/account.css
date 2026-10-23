@@ -166,6 +166,51 @@
 .account-wallet {
   max-width: 1120px;
 }
+.account-stats {
+  max-width: 1120px;
+}
+.account-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-bottom: 1px solid var(--account-rule);
+}
+.account-stat {
+  min-width: 0;
+  padding: 28px 24px 32px 0;
+  border-top: 1px solid var(--account-rule);
+  color: var(--account-muted);
+}
+.account-stat dd {
+  margin: 16px 0 0;
+  color: var(--account-ink);
+  font:
+    400 46px/1.2 'Account Alegreya',
+    Georgia,
+    serif;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.account-stat-placeholder {
+  height: 55px;
+  max-width: 120px;
+  margin-top: 16px;
+  border-radius: 2px;
+  background: #eee4db;
+}
+@media (max-width: 1100px) {
+  .account-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .account-stat-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .account-stat {
+    padding: 22px 0 26px;
+  }
+}
 .account-text-link {
   display: inline-flex;
   align-items: center;
