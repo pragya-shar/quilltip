@@ -1,0 +1,283 @@
+.profile-page {
+  --profile-paper: #faf5ec;
+  --profile-ink: #390c18;
+  --profile-wine: #790333;
+  --profile-muted: #5e535a;
+  --profile-line: #cdb9b4;
+  background: #d0a7a3;
+  color: var(--profile-ink);
+  font-family: 'Reading Room Syne', sans-serif;
+  color-scheme: light;
+}
+.profile-folio {
+  width: calc(100% - 48px);
+  max-width: 1400px;
+  min-width: 0;
+  margin: 96px auto 32px;
+  padding: 48px clamp(24px, 5vw, 72px);
+  border-radius: 5px;
+  background: var(--profile-paper);
+}
+.profile-identity {
+  display: flex;
+  align-items: flex-start;
+  gap: 36px;
+  padding: 8px 0 40px;
+}
+.profile-avatar {
+  width: 104px;
+  height: 104px;
+  flex-shrink: 0;
+  border: 1px solid var(--profile-line);
+  box-shadow: 0 0 0 6px var(--profile-paper);
+}
+.profile-avatar-fallback {
+  background: #ead4d3;
+  color: var(--profile-wine);
+  font:
+    42px/1 'Reading Room Alegreya',
+    Georgia,
+    serif;
+}
+.profile-introduction {
+  min-width: 0;
+  flex: 1;
+}
+.profile-identity h1 {
+  margin: -8px 0 8px;
+  font:
+    400 clamp(40px, 5vw, 64px)/1.1 'Reading Room Alegreya',
+    Georgia,
+    serif;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+}
+.profile-handle {
+  color: var(--profile-muted);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.profile-bio {
+  max-width: 65ch;
+  margin-top: 24px;
+  font:
+    22px/1.6 'Reading Room Alegreya',
+    Georgia,
+    serif;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.profile-member-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--profile-muted);
+}
+.profile-member-info strong {
+  color: var(--profile-wine);
+  font-weight: 600;
+}
+.profile-tabs {
+  width: 100%;
+  min-width: 0;
+  border-block: 1px solid var(--profile-line);
+}
+.profile-tab-links {
+  display: flex;
+  gap: 32px;
+  overflow-x: auto;
+}
+.profile-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  min-height: 56px;
+  padding: 12px 2px;
+  border-bottom: 2px solid transparent;
+  color: var(--profile-muted);
+  font-size: 14px;
+}
+.profile-tab.active {
+  color: var(--profile-wine);
+  border-bottom-color: currentColor;
+}
+.profile-tab:hover {
+  color: var(--profile-wine);
+}
+.profile-tab-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.profile-page :is(a, button):focus-visible {
+  outline: 2px solid var(--profile-wine);
+  outline-offset: 4px;
+}
+.reading-room.profile-publications {
+  --accent: var(--profile-wine);
+  --ink: var(--profile-ink);
+  --paper: var(--profile-paper);
+  --muted: var(--profile-muted);
+  --line: var(--profile-line);
+  min-height: 0;
+  background: transparent;
+}
+.profile-publications::before {
+  display: none;
+}
+.profile-publications .shelf {
+  padding-top: 32px;
+}
+.profile-publications .category:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.profile-empty {
+  padding: 64px 16px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.profile-empty h2 {
+  font:
+    36px/1.2 'Reading Room Alegreya',
+    Georgia,
+    serif;
+  margin-bottom: 16px;
+}
+.profile-empty p {
+  color: var(--profile-muted);
+  margin-bottom: 24px;
+}
+.profile-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 10px 20px;
+  border-radius: 3px;
+  background: var(--profile-wine);
+  color: var(--profile-paper);
+}
+.profile-pagination {
+  margin-top: 24px;
+}
+.profile-pagination nav :is(a, button) {
+  min-height: 44px;
+  border-radius: 3px;
+  border-color: var(--profile-line);
+  background: var(--profile-paper);
+  color: var(--profile-wine);
+}
+.profile-pagination nav .bg-brand-blue {
+  background: var(--profile-wine);
+  color: var(--profile-paper);
+}
+.profile-page-count {
+  text-align: center;
+  color: var(--profile-muted);
+  font-size: 12px;
+  margin-top: 18px;
+}
+.profile-photo-trigger {
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  display: flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--profile-line);
+  border-radius: 50%;
+  background: var(--profile-paper);
+  color: var(--profile-wine);
+}
+.profile-photo-trigger:hover {
+  background: #ead4d3;
+}
+.profile-photo-trigger:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.profile-photo-menu {
+  min-width: 200px;
+}
+.profile-photo-menu [role='menuitem'] {
+  min-height: 44px;
+  padding-inline: 12px;
+}
+.profile-photo-dialog {
+  max-width: 460px;
+}
+.profile-photo-dialog h2 {
+  font:
+    32px/1.2 'Reading Room Alegreya',
+    Georgia,
+    serif;
+}
+.profile-photo-dialog input {
+  min-height: 44px;
+}
+.profile-photo-dialog button {
+  min-height: 44px;
+}
+.profile-photo-dialog > button {
+  min-width: 44px;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+}
+@media (max-width: 1000px) {
+  .profile-publications .shelf,
+  .profile-publications .skeleton-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+  }
+}
+@media (max-width: 640px) {
+  .profile-folio {
+    width: calc(100% - 20px);
+    padding: 28px 20px;
+    margin-top: 84px;
+  }
+  .profile-identity {
+    flex-direction: column;
+    gap: 28px;
+    padding-bottom: 28px;
+  }
+  .profile-avatar {
+    width: 88px;
+    height: 88px;
+  }
+  .profile-bio {
+    font-size: 21px;
+    margin-top: 18px;
+  }
+  .profile-publications .shelf,
+  .profile-publications .skeleton-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .profile-tabs {
+    margin-bottom: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-publications .skeleton-row i {
+    animation: none;
+  }
+}
+
+.profile-article-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.profile-article-tags a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-block: -12px;
+}

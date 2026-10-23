@@ -26,7 +26,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/convex/_generated/api'
 import { compressImage, uploadAvatarFile } from '@/lib/upload'
-import { cn } from '@/lib/utils'
 
 function isValidHttpUrl(value: string): boolean {
   try {
@@ -56,16 +55,19 @@ export function ProfileAvatarEditor({
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
   const avatarMenuTriggerRef = useRef<HTMLButtonElement>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [urlDialogOpen, setUrlDialogOpen] = useState(false)
   const [urlInput, setUrlInput] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [isSavingUrl, setIsSavingUrl] = useState(false)
   const [isRemoving, setIsRemoving] = useState(false)
 
+  const isBusy = isUploading || isRemoving || isSavingUrl
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (!file) return
+    if (!file || isBusy) return
 
     setIsUploading(true)
     try {
@@ -85,6 +87,7 @@ export function ProfileAvatarEditor({
   }
 
   const handleSaveUrl = async () => {
+    if (isBusy) return
     const trimmed = urlInput.trim()
     if (!trimmed) {
       toast.error('Enter an image URL')
@@ -122,6 +125,7 @@ export function ProfileAvatarEditor({
   }
 
   const handleRemovePhoto = async () => {
+    if (isBusy) return
     setIsRemoving(true)
     try {
       await clearAvatar()
@@ -144,22 +148,19 @@ export function ProfileAvatarEditor({
           src={avatar}
           alt={name || username}
           name={name || username}
-          className="h-[120px] w-[120px] border-4 border-border"
-          fallbackClassName="text-4xl font-bold"
+          className="profile-avatar"
+          fallbackClassName="profile-avatar-fallback"
         />
 
-        <DropdownMenu>
+        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
             <button
               ref={avatarMenuTriggerRef}
               type="button"
-              disabled={isUploading || isRemoving}
-              className={cn(
-                'absolute bottom-0 right-0 z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-border bg-background text-foreground shadow-md transition-colors',
-                'hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                (isUploading || isRemoving) && 'pointer-events-none opacity-60'
-              )}
+              disabled={isBusy}
+              className="profile-photo-trigger"
               aria-label="Change profile photo"
+              aria-busy={isBusy}
             >
               {isUploading || isRemoving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -168,11 +169,19 @@ export function ProfileAvatarEditor({
               )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-[11rem]">
+          <DropdownMenuContent
+            align="start"
+            className="profile-photo-menu"
+            onCloseAutoFocus={(event) => {
+              if (urlDialogOpen) event.preventDefault()
+            }}
+          >
             <DropdownMenuItem
               className="cursor-pointer gap-2"
+              disabled={isBusy}
               onSelect={(ev) => {
                 ev.preventDefault()
+                setMenuOpen(false)
                 fileInputRef.current?.click()
               }}
             >
@@ -181,8 +190,10 @@ export function ProfileAvatarEditor({
             </DropdownMenuItem>
             <DropdownMenuItem
               className="cursor-pointer gap-2"
+              disabled={isBusy}
               onSelect={(ev) => {
                 ev.preventDefault()
+                setMenuOpen(false)
                 setUrlDialogOpen(true)
               }}
             >
@@ -193,9 +204,11 @@ export function ProfileAvatarEditor({
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                  className="cursor-pointer gap-2 text-ui-danger focus:text-ui-danger"
+                  disabled={isBusy}
                   onSelect={(ev) => {
                     ev.preventDefault()
+                    setMenuOpen(false)
                     void handleRemovePhoto()
                   }}
                 >
@@ -220,14 +233,14 @@ export function ProfileAvatarEditor({
 
       <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
         <DialogContent
-          className="sm:max-w-md"
+          className="profile-photo-dialog"
           onCloseAutoFocus={(e) => {
             e.preventDefault()
             avatarMenuTriggerRef.current?.focus()
           }}
         >
           <DialogHeader>
-            <DialogTitle>Image URL</DialogTitle>
+            <DialogTitle>Change your profile photo</DialogTitle>
             <DialogDescription>
               Paste a direct image link (ends in .jpg, .png, etc.), or a
               Wikipedia / Wikimedia Commons &quot;File:&quot; page URL; those
@@ -235,7 +248,7 @@ export function ProfileAvatarEditor({
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2 py-2">
-            <Label htmlFor="avatar-url">URL</Label>
+            <Label htmlFor="avatar-url">Image URL</Label>
             <Input
               id="avatar-url"
               type="url"
@@ -245,6 +258,7 @@ export function ProfileAvatarEditor({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void handleSaveUrl()
               }}
+              disabled={isSavingUrl}
               autoComplete="off"
             />
           </div>
@@ -270,7 +284,7 @@ export function ProfileAvatarEditor({
                   Saving
                 </>
               ) : (
-                'Save'
+                'Save photo'
               )}
             </Button>
           </DialogFooter>

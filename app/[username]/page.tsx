@@ -26,6 +26,8 @@ import { ProfileNftsTabContent } from '@/components/profile/ProfileNftsTabConten
 import { AuthorNotFoundPage } from '@/components/profile/AuthorNotFoundPage'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
 import { BookOpen, Image } from 'lucide-react'
+import '@/components/articles/reading-room.css'
+import '@/components/profile/public-profile.css'
 
 interface ProfilePageProps {
   params: Promise<{
@@ -95,7 +97,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
 
   if (authLoading || user === undefined) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="profile-page min-h-screen">
         <AppNavigation />
         <LoadingRegion
           label="profile"
@@ -126,7 +128,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
     bio: user.bio,
     avatar: user.avatar,
     createdAt: new Date(user.createdAt),
-    articleCount: userStats?.articleCount || 0,
+    articleCount: userStats?.articleCount ?? null,
     totalEarnings: userStats?.totalEarnings || 0,
     tipsReceivedCount: userStats?.tipsReceivedCount || 0,
     nftsOwned: user.nftsOwned || 0,
@@ -149,11 +151,11 @@ export default function ProfilePage({ params }: ProfilePageProps) {
   ]
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="profile-page flex min-h-screen flex-col">
       <AppNavigation />
 
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12 w-full min-w-0">
-        <div className="mb-8">
+      <main className="profile-folio flex-1">
+        <div>
           <ProfileHeader user={userWithStats} isOwnProfile={isOwnProfile} />
         </div>
 
@@ -173,6 +175,7 @@ export default function ProfilePage({ params }: ProfilePageProps) {
           {activeTab === 'articles' && (
             <div>
               <ProfileArticlesTabContent
+                key={username}
                 username={username}
                 page={page}
                 basePath={`/${username}`}

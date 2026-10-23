@@ -6,6 +6,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
 import { BookmarkButton } from '@/components/library/BookmarkButton'
 import { articleHref } from '@/lib/library/bookmarks'
+import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
 import type { ArticleForDisplay } from '@/types/index'
 import { formatListingReadTime } from '@/lib/articles/articleListingMeta'
 import { ArticleCoverDoodles } from './ArticleCoverDoodles'
@@ -17,11 +18,13 @@ export function ReadingRoomCard({
   index,
   onNavigate,
   onAuthor,
+  tagLinkAuthor,
 }: {
   article: ArticleForDisplay
   index: number
   onNavigate: () => void
   onAuthor: (username: string) => void
+  tagLinkAuthor?: string
 }) {
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const [loadedImage, setLoadedImage] = useState<string | null>(null)
@@ -92,7 +95,26 @@ export function ReadingRoomCard({
         <ArticleCoverDoodles article={article} />
       </Link>
       <div className="details">
-        <span className="category">{bookmark.topic}</span>
+        {tagLinkAuthor && article.tags.length > 0 ? (
+          <div className="profile-article-tags">
+            {article.tags.map((tag) => (
+              <Link
+                key={tag.id}
+                className="category"
+                href={buildArticlesBrowseHref({
+                  tag: tag.name,
+                  author: tagLinkAuthor,
+                  page: 1,
+                })}
+                aria-label={`Filter by tag ${tag.name}`}
+              >
+                {tag.name}
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <span className="category">{bookmark.topic}</span>
+        )}
         <h2>
           <Link href={href} onClick={onNavigate}>
             {article.title}
@@ -111,7 +133,7 @@ export function ReadingRoomCard({
           )}
         </p>
         <Link className="read-more" href={href} onClick={onNavigate}>
-          Read article <span>↗</span>
+          Read more <span aria-hidden>↗</span>
         </Link>
       </div>
       <BookmarkButton article={bookmark} resumeIntent={false} />
