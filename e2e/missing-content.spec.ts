@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 
+test.use({ reducedMotion: 'reduce' })
+
 const missingWriter =
   'quilltip_missing_writer_' + 'abcdefghijklmnopqrstuvwxyz_'.repeat(3)
 
