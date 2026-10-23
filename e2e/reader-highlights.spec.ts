@@ -40,6 +40,21 @@ test('guest passage controls stay reachable in a short, narrow viewport', async 
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
   await expect(page.locator('.highlightable-article .tiptap')).toBeFocused()
+  await selectPassage(page)
+  const articleDetails = page.getByRole('button', {
+    name: 'Article details',
+    exact: true,
+  })
+  await articleDetails.click()
+  await expect(dialog).toBeHidden()
+  // Let the focus scope complete its deferred unmount restoration.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      )
+  )
+  await expect(articleDetails).toBeFocused()
 })
 
 test.describe('saved passages on a development backend', () => {

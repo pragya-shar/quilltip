@@ -531,6 +531,9 @@ export function HighlightableArticle({
   )
 
   const restoreArticleFocus = useCallback(() => {
+    // An outside click may already have focused another reader control.
+    if (document.activeElement && document.activeElement !== document.body)
+      return
     // Resolve the current DOM: a live query can recreate the read-only editor.
     editorRef.current
       ?.querySelector<HTMLElement>('.tiptap')
@@ -551,7 +554,7 @@ export function HighlightableArticle({
 
   const handleTooltipClose = useCallback(() => {
     setHighlightTooltip(null)
-  }, [editor])
+  }, [])
 
   const handleHighlightDeleted = useCallback(
     (highlightId: Id<'highlights'>) => {
