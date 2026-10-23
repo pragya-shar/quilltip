@@ -115,7 +115,11 @@ export default function ArticlePage({ params }: ArticlePageProps) {
       <ReadingProgressBar />
       <main className="flex-1 pt-20 w-full">
         <EditorialSurface className="reader-layout">
-          <ErrorBoundary fallback={<ArticleDisplaySectionFallback />}>
+          <ErrorBoundary
+            fallback={({ reset }) => (
+              <ArticleDisplaySectionFallback onRetry={reset} />
+            )}
+          >
             <ArticleDisplay
               article={articleForDisplay}
               tocHeadings={tocHeadings}
@@ -131,7 +135,11 @@ export default function ArticlePage({ params }: ArticlePageProps) {
             />
           </ErrorBoundary>
 
-          <ErrorBoundary fallback={<ArticleSidebarSectionFallback />}>
+          <ErrorBoundary
+            fallback={({ reset }) => (
+              <ArticleSidebarSectionFallback onRetry={reset} />
+            )}
+          >
             <ArticleDetailsPanel
               articleId={article._id}
               articleTitle={article.title}

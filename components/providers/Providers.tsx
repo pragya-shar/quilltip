@@ -4,6 +4,7 @@ import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import { ConvexReactClient } from 'convex/react'
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
+import { WalletErrorFallback } from '@/components/error/WalletErrorFallback'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import { WalletActivationProvider } from './WalletActivationContext'
 import { WalletProvider } from './WalletProvider'
@@ -15,22 +16,15 @@ interface ProvidersProps {
   children: React.ReactNode
 }
 
-const WalletErrorFallback = (
-  <div className="p-4 border border-border bg-muted rounded-lg text-center">
-    <p className="text-foreground">Wallet connection unavailable.</p>
-    <p className="text-sm text-muted-foreground mt-1">
-      You can still browse content.
-    </p>
-  </div>
-)
-
 export default function Providers({ children }: ProvidersProps) {
   return (
     <ConvexAuthProvider client={convex}>
       <AuthSessionProvider>
         <ThemeProvider>
           <WalletActivationProvider>
-            <ErrorBoundary fallback={WalletErrorFallback}>
+            <ErrorBoundary
+              fallback={({ reset }) => <WalletErrorFallback onRetry={reset} />}
+            >
               <WalletProvider>
                 {children}
                 <Toaster />

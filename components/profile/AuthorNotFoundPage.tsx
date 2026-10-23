@@ -7,8 +7,6 @@ import SearchInput from '@/components/articles/SearchInput'
 import { FailurePageShell } from '@/components/error/FailurePageShell'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
-import { Button } from '@/components/ui/button'
-import { AuthorNotFoundIllustration } from '@/components/profile/AuthorNotFoundIllustration'
 
 type AuthorNotFoundPageProps = {
   username: string
@@ -27,22 +25,19 @@ export function AuthorNotFoundPage({ username }: AuthorNotFoundPageProps) {
   )
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="failure-profile flex min-h-screen flex-col bg-ui-surface font-ui text-ui-foreground">
       <AppNavigation />
       <main className="flex flex-1 flex-col">
         <FailurePageShell
-          className="flex-1 py-12"
-          illustration={<AuthorNotFoundIllustration />}
-          heading={
-            <h1 className="font-display text-2xl font-medium tracking-[-0.01em] text-foreground sm:text-3xl">
-              Profile unavailable
-            </h1>
-          }
+          label="Writer not found"
+          heading={<h1 className="failure-heading">Profile unavailable</h1>}
           description={
             <>
               <p>
                 No writer profile exists for{' '}
-                <span className="font-medium text-foreground">@{username}</span>
+                <span className="font-semibold text-ui-foreground">
+                  @{username}
+                </span>
                 .
               </p>
               <p className="mt-2">
@@ -50,14 +45,13 @@ export function AuthorNotFoundPage({ username }: AuthorNotFoundPageProps) {
               </p>
             </>
           }
-          actionsClassName="flex w-full flex-col items-stretch gap-4 sm:flex-col"
           actions={
             <>
               <div className="w-full text-left">
                 <label
                   id="author-not-found-search-label"
                   htmlFor="author-not-found-search"
-                  className="mb-2 block text-sm font-medium text-foreground"
+                  className="failure-search-label"
                 >
                   Search for articles
                 </label>
@@ -69,13 +63,10 @@ export function AuthorNotFoundPage({ username }: AuthorNotFoundPageProps) {
                   className="w-full"
                 />
               </div>
-              <Button asChild size="lg" className="w-full sm:w-auto sm:mx-auto">
-                <Link href="/articles">Browse articles</Link>
-              </Button>
-              <Link
-                href="/"
-                className="text-center text-sm font-medium text-primary underline-offset-4 transition-colors hover:underline sm:mx-auto"
-              >
+              <Link href="/articles" className="failure-action">
+                Browse articles
+              </Link>
+              <Link href="/" className="failure-link">
                 Go home
               </Link>
             </>

@@ -1,6 +1,7 @@
 'use client'
 
 import { Component, ReactNode } from 'react'
+import { SectionFailure } from './SectionFailure'
 
 export type ErrorBoundaryFallbackRender = (ctx: {
   reset: () => void
@@ -45,15 +46,11 @@ export class ErrorBoundary extends Component<Props, State> {
       }
       return (
         fallback || (
-          <div className="p-4 border border-destructive/30 bg-destructive/10 rounded-lg">
-            <p className="text-destructive">Something went wrong.</p>
-            <button
-              onClick={this.reset}
-              className="mt-2 text-sm text-destructive underline"
-            >
-              Try again
-            </button>
-          </div>
+          <SectionFailure
+            title="Something went wrong."
+            description="This section ran into a problem. Try loading it again."
+            onRetry={this.reset}
+          />
         )
       )
     }
