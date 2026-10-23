@@ -91,7 +91,7 @@ export const LANDING_FAQS: FaqCopy[] = [
   {
     question: 'Do I need cryptocurrency to read articles?',
     answer:
-      'No. Reading is completely free — no wallet, no account, no crypto needed. You only need a wallet if you want to tip writers. Our Wallet Guide walks you through setup in a few minutes.',
+      'No. Reading is completely free — no wallet, no account, no crypto needed. You only need a wallet if you want to tip writers. Wallet practice includes setup help beside the actions.',
   },
   {
     question: 'How does the tipping mechanism work?',
@@ -113,13 +113,6 @@ export const LANDING_FAQS: FaqCopy[] = [
 
 export const NAV_RESOURCES_FEATURED_DESCRIPTION =
   'Set up your wallet and learn how tipping works.'
-
-export const NAV_WALLET_GUIDE_DESCRIPTION = 'Set up your Stellar wallet'
-
-export const WALLET_GUIDE_HEADING = 'Getting Started with Quilltip'
-
-export const WALLET_GUIDE_SUBHEAD =
-  'Everything you need to know to start reading, highlighting, and tipping writers — even if you have never used crypto before.'
 
 export const SITE_META_DESCRIPTION =
   'Read for free, tip what moves you, and publish to earn on Quilltip.'

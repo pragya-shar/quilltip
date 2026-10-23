@@ -5,7 +5,7 @@ const DEV_CONSOLE_PATTERN = /development|dev mode|devtools|development build/i
 const PUBLIC_PAGES = [
   { name: 'home', path: '/' },
   { name: 'articles', path: '/articles' },
-  { name: 'guide', path: '/guide' },
+  { name: 'wallet practice', path: '/wallet/practice' },
 ] as const
 
 function collectDevConsoleMessages(

@@ -1,5 +1,5 @@
 'use client'
-import Link from 'next/link'
+import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { useState } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -48,7 +48,7 @@ export function WritingWallet({
       >
         {busy || isLoading ? 'Connecting wallet…' : 'Connect wallet'}
       </button>
-      <Link href="/guide">Wallet guide ↗</Link>
+      <WalletSetupHelp receiving />
     </section>
   )
 }

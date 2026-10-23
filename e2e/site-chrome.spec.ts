@@ -124,3 +124,50 @@ test('status redirects to wallet practice while network guidance remains availab
     )
   ).toBeVisible()
 })
+
+test('legacy guide reaches public wallet help and installation preserves the task', async ({
+  page,
+}) => {
+  await page.goto('/guide')
+  await expect(page).toHaveURL(/\/wallet\/practice#wallet-help$/)
+  await expect(
+    page.getByText(
+      'Reading is free. A wallet is only needed to send or receive tips.',
+      { exact: true }
+    )
+  ).toBeVisible()
+  const trigger = page.getByRole('button', {
+    name: 'Choose a Stellar wallet',
+    exact: true,
+  })
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 844 })
+    await trigger.click()
+    const dialog = page.getByRole('dialog', {
+      name: 'Make room for a little appreciation.',
+    })
+    await expect(dialog).toBeVisible()
+    for (const name of [
+      'Freighter Open store',
+      'xBull Open store',
+      'Albedo Requires HTTPS for some flows Open store',
+      'HOT Wallet Open store',
+    ]) {
+      const link = dialog.getByRole('link', { name, exact: true })
+      await expect(link).toHaveAttribute('target', '_blank')
+      await expect(link).toHaveAttribute(
+        'href',
+        /^https:\/\/chrome(webstore)?\.google\.com\//
+      )
+    }
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth)
+    ).toBeLessThanOrEqual(width)
+    const bounds = await dialog.boundingBox()
+    expect(bounds!.width).toBeLessThanOrEqual(width)
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+    await expect(trigger).toBeFocused()
+    await expect(page).toHaveURL(/\/wallet\/practice#wallet-help$/)
+  }
+})

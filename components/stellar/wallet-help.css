@@ -1,0 +1,167 @@
+@font-face {
+  font-family: 'Wallet Syne';
+  src: url('/account/fonts/syne-variable.woff2') format('woff2');
+  font-weight: 400 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Wallet Alegreya';
+  src: url('/landing/fonts/alegreya-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+.wallet-setup-help {
+  font:
+    400 14px/1.65 'Wallet Syne',
+    sans-serif;
+  text-align: left;
+  overflow-wrap: anywhere;
+  margin-block: 16px;
+}
+.wallet-setup-help summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding-block: 10px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
+.wallet-setup-help .wallet-help-content {
+  padding: 12px 0;
+  display: grid;
+  gap: 12px;
+}
+.wallet-help-content p,
+.wallet-help-content ol {
+  margin: 0;
+}
+.wallet-help-content ol {
+  list-style: decimal;
+  padding-left: 22px;
+}
+.wallet-help-content li + li {
+  margin-top: 12px;
+}
+.wallet-setup-help a,
+.wallet-setup-help .wallet-help-link {
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.wallet-setup-help .wallet-help-link {
+  display: inline;
+  border: 0;
+  padding: 0;
+  background: none;
+  min-height: 44px;
+  width: auto;
+}
+.wallet-setup-help :is(summary, button, a):focus-visible,
+.wallet-install-dialog :is(button, a):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+}
+.wallet-practice-help {
+  max-width: 1120px;
+  margin: 0 auto 32px;
+  padding: 16px 24px;
+  color: #390c18;
+  background: #faf5ec;
+  border-block: 1px solid #cdb9b4;
+  scroll-margin-top: 100px;
+}
+.wallet-install-dialog {
+  color-scheme: light;
+  color: #390c18;
+  background: #faf5ec;
+  border: 1px solid #cdb9b4;
+  border-radius: 3px;
+  padding: 32px;
+  font:
+    400 15px/1.6 'Wallet Syne',
+    sans-serif;
+  gap: 24px;
+}
+.wallet-install-dialog [data-slot],
+.wallet-install-dialog p {
+  color: inherit;
+}
+.wallet-install-dialog h2 {
+  font:
+    400 32px/1.15 'Wallet Alegreya',
+    Georgia,
+    serif;
+  letter-spacing: -0.02em;
+  padding-right: 14px;
+  margin-block: 8px 12px;
+}
+.wallet-install-dialog [data-radix-dialog-description],
+.wallet-install-dialog .wallet-install-note {
+  color: #5e535a;
+  font-size: 13px;
+}
+.wallet-install-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.wallet-install-body {
+  display: grid;
+  gap: 20px;
+}
+.wallet-install-options {
+  border-top: 1px solid #cdb9b4;
+}
+.wallet-install-option {
+  display: block;
+  color: inherit;
+  padding: 16px 4px;
+  border-bottom: 1px solid #cdb9b4;
+}
+.wallet-install-option:hover {
+  background: #d0a7a326;
+}
+.wallet-install-name {
+  font-weight: 600;
+}
+.wallet-install-destination {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #790333;
+}
+.wallet-install-dismiss {
+  background: #790333;
+  color: #faf5ec;
+  border-radius: 2px;
+  min-height: 46px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+.wallet-connection-notice {
+  border-left: 2px solid #790333;
+  padding: 12px 16px;
+  color: #790333;
+  background: #faf5ec;
+  font:
+    400 14px/1.6 'Wallet Syne',
+    sans-serif;
+}
+.wallet-connection-notice p {
+  margin: 6px 0 0;
+}
+@media (max-width: 480px) {
+  .wallet-install-dialog {
+    padding: 24px;
+  }
+  .wallet-install-dialog h2 {
+    font-size: 28px;
+  }
+  .wallet-practice-help {
+    padding: 12px 16px;
+  }
+}

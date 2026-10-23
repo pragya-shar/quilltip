@@ -1,13 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { useMutation } from 'convex/react'
-import { AlertCircle, Loader2, PlugZap } from 'lucide-react'
+import { Loader2, PlugZap } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
 import { useWallet } from '@/components/providers/WalletProvider'
 import type { FlowFeedback } from '@/lib/feedback/flow-feedback'
@@ -24,6 +23,7 @@ export interface ContextualWalletSetupProps {
   recipientLabel?: string
   onAddressSaved?: (address: string) => void
   onConnected?: () => void
+  showHelp?: boolean
   className?: string
 }
 
@@ -49,6 +49,7 @@ export function ContextualWalletSetup({
   onAddressSaved,
   onConnected,
   className,
+  showHelp = true,
 }: ContextualWalletSetupProps) {
   const updateProfile = useMutation(api.users.updateProfile)
   const { isLoading, connect } = useWallet({
@@ -128,17 +129,10 @@ export function ContextualWalletSetup({
         )}
       >
         {feedback && (
-          <Alert
-            variant={
-              feedback.variant === 'destructive' ? 'destructive' : 'default'
-            }
-          >
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>{feedback.title}</AlertTitle>
-            {feedback.detail ? (
-              <AlertDescription>{feedback.detail}</AlertDescription>
-            ) : null}
-          </Alert>
+          <div className="wallet-connection-notice" role="alert">
+            <strong>{feedback.title}</strong>
+            {feedback.detail && <p>{feedback.detail}</p>}
+          </div>
         )}
 
         <div className="space-y-1">
@@ -168,15 +162,7 @@ export function ContextualWalletSetup({
           )}
         </Button>
 
-        <p className="text-center text-xs text-muted-foreground">
-          Need more help?{' '}
-          <Link
-            href="/guide"
-            className="text-foreground underline underline-offset-2 hover:text-foreground/80"
-          >
-            Wallet guide
-          </Link>
-        </p>
+        {showHelp && <WalletSetupHelp receiving={mode === 'receive'} />}
       </div>
 
       <InstallWalletDialog

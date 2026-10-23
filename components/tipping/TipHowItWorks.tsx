@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { ChevronDown } from 'lucide-react'
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { WalletTooltip } from '@/components/guide/WalletTooltip'
+import { WalletTooltip } from '@/components/stellar/WalletTooltip'
 import { TipBreakdownSummaryLine } from '@/components/tipping/TipBreakdownSummaryLine'
 import { TipUsdXlmRateLine } from '@/components/tipping/TipUsdXlmRateLine'
 import {
@@ -66,15 +66,7 @@ export function TipHowItWorks({
           ) : null}{' '}
           • {tipFlowShortNote()}
         </p>
-        <p>
-          New to crypto?{' '}
-          <Link
-            href="/guide"
-            className="focus-ring rounded font-medium text-foreground underline hover:text-foreground/80"
-          >
-            Follow our setup guide
-          </Link>
-        </p>
+        <WalletSetupHelp />
       </CollapsibleContent>
     </Collapsible>
   )
