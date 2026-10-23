@@ -13,8 +13,8 @@ export function PaginationTransition({
     <div
       aria-busy={isPaginating}
       className={cn(
-        'transition-opacity duration-200',
-        isPaginating && 'animate-pulse opacity-70'
+        'transition-opacity duration-200 motion-reduce:transition-none',
+        isPaginating && 'animate-pulse opacity-70 motion-reduce:animate-none'
       )}
     >
       {children}
