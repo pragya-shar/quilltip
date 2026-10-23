@@ -1,52 +1,47 @@
 # Deployment
 
-## Production Build
+Deploy only within an authorized release task. First review the diff and
+verification results, confirm the target account/project/backend/network, and
+check environment configuration. A pushed commit, successful build, and deployed
+backend are separate results.
 
-```bash
-bun run build
-bun run start
-```
+## Frontend
 
-## Vercel
+[Vercel configuration](../vercel.json) defines the build/install commands, region,
+function limits, headers, and rewrites. Inspect it and the linked Vercel project
+rather than relying on a copied settings list. A Git push may trigger Vercel's
+connected deployment; inspect the resulting deployment and real app flow.
 
-The project is configured for Vercel via `vercel.json`:
-
-- **Region**: `cle1` (US Cleveland)
-- **Function timeout**: 15 seconds for API routes and article pages
-- **Cache-Control**: no-cache, no-store (dynamic content)
-
-```bash
-vercel
-```
+For an authorized manual deployment, use the Vercel integration or current CLI
+and confirm whether the target is preview or production. Keep the CLI current
+with `npm i -g vercel@latest` (or `pnpm add -g vercel@latest`). Never commit tokens
+or `.vercel` account linkage. Check protected previews through an authorized
+session rather than weakening deployment protection.
 
 ## Convex
 
-Deploy backend functions to production:
+`bunx convex deploy` targets production by default for a locally configured
+project; a deploy key can instead select production or preview. Inspect
+`bunx convex deploy --help` and the target before running it. It can typecheck,
+regenerate bindings, and push functions, schema, and indexes.
+
+Convex environment is separate from Vercel/local environment. For an authorized
+production auth-origin change:
 
 ```bash
-npx convex deploy --prod
+bunx convex env set SITE_URL https://quilltip.me --prod
 ```
 
-Set production environment variables on the Convex deployment:
+Use [setup](SETUP.md) for configuration responsibilities. Verify the frontend
+points to the intended backend; align tipping contract IDs and Stellar networks.
 
-```bash
-npx convex env set SITE_URL https://quilltip.me --prod
-```
+## Soroban contracts
 
-## Smart Contracts
-
-Two Soroban contracts. Only needed if deploying your own contracts (not required for frontend work):
-
-```bash
-# Tipping contract
-cd contracts/tipping
-cargo build --target wasm32-unknown-unknown --release
-stellar contract deploy --wasm target/wasm32-unknown-unknown/release/tipping.wasm
-
-# NFT contract
-cd contracts/article-nft
-cargo build --target wasm32-unknown-unknown --release
-stellar contract deploy --wasm target/wasm32-unknown-unknown/release/article_nft.wasm
-```
-
-After deployment, update `NEXT_PUBLIC_TIPPING_CONTRACT_ID` and `NEXT_PUBLIC_NFT_CONTRACT_ID` in your environment.
+Contract deployment is a separate operation from deploying the web app/backend.
+Check the affected crate with the commands in the
+[workflow](workflow/repo-workflow.md), then use the installed Stellar CLI's
+`contract build --help` and `contract deploy --help` for its supported artifact and
+network options. Confirm signer, network, initialization, and resulting contract
+ID before updating configuration. Record the deployment and check the relevant
+wallet-to-ledger-to-Convex flow; see the
+[testnet note](tipping-contract-testnet-deploy.md).

@@ -1,48 +1,22 @@
 # GitHub Actions maintenance
 
-Every external `uses:` reference must use a full 40-character commit SHA with the
-release version in a trailing comment. Resolve releases from the action's upstream
-repository, review the upstream changes, and verify the commit and action
-inputs before updating a pin. Do not substitute a major or release tag for a SHA.
+- Pin every external `uses:` reference to a full 40-character commit SHA with a
+  release-version comment. Verify the release, upstream changes, commit, and
+  inputs in the action's own repository when updating a pin.
+- Update pins manually. Keep workflow permissions empty by default and grant
+  minimum job-level access. Checkout jobs use `contents: read` and
+  `persist-credentials: false`.
+- [.github/CODEOWNERS](../.github/CODEOWNERS) defines review ownership for workflows,
+  security policy, dependency files, and patches. GitHub uses the base branch's
+  file; code-owner review requests alone do not enforce approval.
+- Branch protection is managed separately in GitHub settings. Before changing or
+  relying on it, inspect the current settings; retain required checks and prevent
+  force pushes/deletion on `main`. Require code-owner approval only when the owner
+  requests that settings change, with enough eligible reviewers to avoid deadlock.
+- Validate changed workflows with `actionlint .github/workflows/*.yml` and run
+  `bun run check`. Inspect trigger, permission, fork/secret exposure, and required
+  job aggregation changes in the diff.
 
-The initial pins retain the existing major versions. Upstream changes, verified
-commits, and action manifests were checked on 2026-10-23:
-
-| Action              | Release                                                            | Commit                                                                                                                           |
-| ------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `actions/checkout`  | [v4.4.0](https://github.com/actions/checkout/releases/tag/v4.4.0)  | [11d5960a326750d5838078e36cf38b85af677262](https://github.com/actions/checkout/commit/11d5960a326750d5838078e36cf38b85af677262)  |
-| `oven-sh/setup-bun` | [v2.2.0](https://github.com/oven-sh/setup-bun/releases/tag/v2.2.0) | [0c5077e51419868618aeaa5fe8019c62421857d6](https://github.com/oven-sh/setup-bun/commit/0c5077e51419868618aeaa5fe8019c62421857d6) |
-
-## Updates and permissions
-
-Action updates are reviewed and applied manually. Review upstream changes and keep
-the full SHA and version comment together when updating a pin.
-
-Workflow token permissions default to none. Only checkout jobs receive
-`contents: read`; checkout does not persist credentials for subsequent commands.
-
-## Ownership and review
-
-`.github/CODEOWNERS` assigns workflows and CODEOWNERS
-itself to the existing maintainers: `@pragya-shar` (admin) and `@0xbhvn` (write),
-whose repository access was verified on 2026-10-23. GitHub uses the CODEOWNERS file
-on the PR's base branch, so this ownership must reach `main`.
-Existing ownership for audit policy, dependency files, and patches remains assigned
-to the repository owner.
-
-CODEOWNERS requests reviews; it does not by itself require approval before merge.
-The branch protections on `main` require the `Required`
-and `PR Hygiene Required` status checks, but do not require code-owner approval
-(verified 2026-10-23). Repository settings are managed separately from these files.
-To enforce approval, enable **Require review from Code Owners** on `main`
-after this ownership file lands. Keep at least two code owners with write
-access so one can approve the other's PR: GitHub does not let authors approve
-their own PRs. The retired `development` branch is no longer part of the review path.
-
-## Safe validation
-
-Run `actionlint .github/workflows/*.yml` and the normal format, lint, typecheck,
-and build checks. Confirm that workflow permissions remain scoped to the jobs
-that need them.
-
-Reference: [CODEOWNERS and required reviews](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners).
+The workflow YAML and CODEOWNERS are authoritative for current pins and owners;
+GitHub settings are authoritative for live protection. See
+[GitHub's CODEOWNERS documentation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners).

@@ -1,126 +1,36 @@
-# Quilltip Linear Issue Policy
+# Linear issue conventions
 
-Conventions for filing and editing issues in the Quilltip Linear workspace. Applies to humans and agents.
+Workspace: [bhvn](https://linear.app/bhvn). Team: Engineering (`ENG`). Use the
+current QuillTip project; code work targets `main`.
 
-## Workspace
+## Before creating or updating
 
-- Workspace URL: `https://linear.app/bhvn`
-- Team: `Engineering` with key `ENG`
-- Default project: current Quilltip project
-- Default target branch for code work: `main`
+Verify the report against the current code/history and check existing issues for
+duplicates or parent/sub-issue coverage. Make authorized edits through the Linear
+tool; a request to draft or review an issue does not authorize publishing it.
+Use live team metadata for available states, labels, projects, and members.
 
-## Workflow
+## Content
 
-1. Research the report against the live codebase and current branch. Confirm the issue is still real before filing.
-2. Check existing Linear issues for duplicates or parent/child coverage.
-3. Check git history when the report might already be merged.
-4. Propose the issue fields for review when the user asks for review before creating.
-5. After approval, update Linear through the Linear tool. Do not stage issue text in a separate markdown file unless the user asks.
+- Give each independently shippable outcome a short, neutral title.
+- Lead with current and expected behavior, then a small acceptance checklist with
+  verification. Include known file/function references; omit drifting line numbers
+  and chat transcripts. Keep scope factual rather than inventing product direction.
+- Separate contract, backend, UI, QA, performance, private evidence, and outreach
+  work when each can ship independently. Identify article tips, highlight tips,
+  batch settlement, wallet UX, or contract work explicitly.
+- Apply the testnet/mainnet and Arweave constraints in [AGENTS.md](../../AGENTS.md).
 
-## Title
+## Fields and relationships
 
-- Short, neutral, and easy to scan.
-- State the problem or outcome, not the chat that surfaced it.
-- One issue per title. Split separate problems.
-- Avoid names, dates, chat references, "from the last call", or similar context.
-- Use plain words. Avoid jargon where a direct phrase is enough.
+| Field     | Convention                                                                                                                                                             |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status    | Backlog for triage, Todo when scoped, In Progress while active, In Review for review, Done when complete; Canceled/Duplicate when applicable.                          |
+| Blocked   | Use a `Blocked by` relation and the appropriate existing state.                                                                                                        |
+| Priority  | Urgent: active breakage/security/release blocker; High: visible regression or near-term blocker; Medium: non-blocking work; Low: polish. Map P0/P1/P2/P3 respectively. |
+| Assignee  | Use requested ownership. Pragya-owned work maps to `sharmapragya997@gmail.com`; otherwise leave unassigned. Third-party assignment needs confirmation.                 |
+| Labels    | Use existing Bug, Feature, or Improvement labels as appropriate; check live metadata before inventing values.                                                          |
+| Relations | Preserve existing links. Use Blocks/Blocked by for dependencies and Related to for adjacent work. Report parent/sub-issue counts when reviewing a hierarchy.           |
 
-## Description
-
-Use this structure for normal issues:
-
-```md
-Short description of the current problem or intended outcome.
-
-## Checklist
-
-- [ ] Specific acceptance item
-- [ ] Specific acceptance item
-- [ ] Verification or evidence item
-```
-
-Guidelines:
-
-- Lead with current behavior and expected behavior for bugs.
-- For feature work, lead with the smallest useful outcome.
-- Add suspected cause and relevant code paths only when known.
-- Mention files, components, functions, or flows only when confident.
-- Avoid line numbers because they drift.
-- Do not paste chat transcripts.
-- Do not overstate grant, GTM, or traction claims. Testnet activity stays testnet activity.
-
-## Status
-
-Use Linear workflow states only:
-
-- `Backlog` for work that needs reproduction, triage, or scoping.
-- `Todo` for scoped work ready to pick up.
-- `In Progress` for active work.
-- `In Review` for review or merge readiness.
-- `Done` for completed work.
-- `Canceled` for work no longer planned.
-- `Duplicate` for duplicate issues.
-
-Do not invent custom states. Map "blocked" to `Backlog` or `Todo` plus a `Blocked by` relation.
-
-## Priority
-
-Use Linear default priorities:
-
-- `Urgent` for active production breakage, release blocker, security issue, or a hard dependency that blocks the next required step.
-- `High` for visible regression, demo blocker, beta blocker, or near-term project dependency.
-- `Medium` for real but non-blocking work.
-- `Low` for polish, nice-to-have work, or edge cases.
-
-Map P0/P1/P2/P3 if seen in a source: P0 to Urgent, P1 to High, P2 to Medium, P3 to Low.
-
-## Assignee
-
-- Use the assignee requested by the user.
-- For Pragya-owned work, assign to `sharmapragya997@gmail.com`.
-- Leave unassigned if ownership is unclear.
-- Do not assign to a third party without explicit confirmation.
-
-## Labels
-
-Use labels that exist on the team:
-
-- `Bug` for incorrect behavior, broken flows, or regressions.
-- `Feature` for a new capability.
-- `Improvement` for an enhancement to an existing feature or process.
-
-Do not invent labels until they exist in Linear.
-
-## Relationships
-
-- Use `Blocked by` when another issue must ship first.
-- Use `Blocks` when this issue unlocks another issue.
-- Use `Related to` for adjacent work that should be coordinated but is not a hard dependency.
-- Preserve existing relations unless the user explicitly asks to remove them.
-- For parent/sub-issue reviews, include a parent/sub-issue count table when reporting back.
-
-## Quilltip-Specific Rules
-
-- Keep contract, backend verification, UI, QA, performance, outreach, and submission-packet work separate when they can ship independently.
-- Do not mix code tasks with private evidence-gathering tasks unless the same outcome truly requires both.
-- For Stellar work, say whether the task is article tipping, highlight tipping, batch settlement, wallet UX, verification, or contract code.
-- For Arweave work, call out permanence risks.
-- For GTM, SCF, or external-facing work, separate testnet validation from production or mainnet claims.
-- For QA findings, file only concrete blockers or regressions. Defer polish unless the user asks for it.
-
-## Style Rules
-
-- No emoji.
-- No em dashes.
-- ASCII-friendly punctuation.
-- Use concise bullets.
-- Do not invent scope or product direction inside an issue.
-- Make every issue actionable.
-
-## Anti-Patterns
-
-- Filing the same issue twice because it appeared in two places.
-- Copying a chat transcript into Linear.
-- Splitting one bug into both a Bug and a Feature.
-- Marking everything Urgent.
-- Filing a broad "fix QA" issue when concrete blocker issues are needed.
+Keep issue text concise, with plain words and ASCII-friendly punctuation. File
+concrete QA blockers/regressions; include polish only when requested.

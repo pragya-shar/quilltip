@@ -1,111 +1,23 @@
-# Contributing to Quilltip
+# Contributing to QuillTip
 
-Thanks for your interest in contributing! This guide covers everything you need to get started.
+Fork and clone the repository, then follow [setup](docs/SETUP.md).
 
-## Getting Started
+1. Start a focused feature branch from the latest `origin/main`.
+2. Follow [AGENTS.md](AGENTS.md) for project constraints and relevant references.
+   Both human contributors and coding agents use these conventions.
+3. Run `bun run check` for code/tooling changes. For docs-only changes, run
+   `bun run format:check` and `git diff --check`. Add relevant behavioral checks
+   from the [QA guide](docs/workflow/qa-checklist.md).
+4. Commit with a Conventional Commit subject, such as `fix: restore draft focus`.
+5. Open a PR into `main` using the [template](.github/pull_request_template.md).
+   Explain the behavior changed, verification results, and remaining risks.
 
-1. Fork the repository
-2. Clone your fork and set up the dev environment:
+See [workflow](docs/workflow/repo-workflow.md) for branch/merge conventions and CI,
+[component organization](docs/component-organization.md) for React conventions,
+and [architecture](docs/ARCHITECTURE.md) for service boundaries.
 
-```bash
-git clone https://github.com/<your-username>/quilltip.git
-cd quilltip
-bun install
-cp .env.example .env.local
-npx convex dev --once
-npx convex env set SITE_URL http://localhost:3000
-bun run dev
-```
+For bugs, include reproduction steps, expected/actual behavior, and relevant
+browser or environment details. Report vulnerabilities privately through
+[SECURITY.md](SECURITY.md).
 
-See [docs/SETUP.md](docs/SETUP.md) for full environment details.
-
-## Development Workflow
-
-1. Create a branch from `main`:
-
-```bash
-git fetch origin
-git switch -c feature/your-feature origin/main
-```
-
-1. Make your changes. Run checks before committing:
-
-```bash
-bun run lint
-bun run typecheck
-bun run format:check
-bun run build
-```
-
-1. Commit with a clear message:
-
-```bash
-git commit -m "feat: add highlight color picker"
-```
-
-1. Push and open a PR against `main`.
-
-## Commit Messages
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
-
-- `feat:` — new feature
-- `fix:` — bug fix
-- `refactor:` — code change that neither fixes a bug nor adds a feature
-- `docs:` — documentation only
-- `style:` — formatting, missing semicolons, etc.
-- `test:` — adding or updating tests
-- `chore:` — build process, dependencies, tooling
-
-## Code Style
-
-- **TypeScript** for all new code
-- **Tailwind CSS** for styling — no inline styles or CSS modules
-- **Radix UI / shadcn** for UI primitives — check `components/ui/` before building custom components
-- **Convex** for backend — queries, mutations, and actions in `convex/`
-- **Zod** for validation at system boundaries
-- **One component per file**, including private helpers. Compound primitives in
-  `components/ui/` are exempt. See [component organization](docs/component-organization.md)
-  for the full policy, compatibility exports, and lint-check scope.
-- Run `bun run lint` and `bun run typecheck` before submitting
-
-## Project Structure
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full breakdown. Key directories:
-
-- `app/` — Next.js pages and routes
-- `components/` — React components
-- `convex/` — Backend functions
-- `lib/` — Shared utilities
-- `contracts/` — Soroban smart contracts (Rust)
-
-## Pull Requests
-
-- Keep PRs focused — one feature or fix per PR
-- Include a description of what changed and why
-- Add screenshots for UI changes
-- Make sure CI passes (format, lint, typecheck, build, dependency audit)
-
-## Reporting Issues
-
-Open an issue with:
-
-- A clear title
-- Steps to reproduce (if it's a bug)
-- Expected vs actual behavior
-- Browser/OS if relevant
-
-## Areas for Contribution
-
-Some areas where help is welcome:
-
-- UI/UX improvements
-- Browser regression coverage
-- Accessibility
-- Documentation
-- Performance optimization
-- New reader/writer features
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the MIT License.
+Contributions are licensed under the repository's [MIT license](LICENSE).

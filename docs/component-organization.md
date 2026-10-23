@@ -42,9 +42,3 @@ directives, error boundaries, and lazy-loading boundaries remain intact. Avoid
 parent/child circular imports: move shared types or constants into a sibling
 support module. Prefer direct imports internally; retain re-exports only where
 needed to preserve the public import surface.
-
-Issue #242 audited the 56-file shortlist from PR #241. The semantic audit also
-includes class components, which found `components/account/ActivityBoundary.tsx`.
-Dynamic aliases and fallback JSX values from the original shortlist do not need
-extraction. The remaining application definitions are split; compound primitives
-remain under the explicit exception above.

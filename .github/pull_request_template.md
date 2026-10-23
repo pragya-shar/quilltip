@@ -10,7 +10,7 @@
 
 -
 
-<!-- Common gates: `bun run format:check`, `bun run typecheck`, `bun run lint`, `bun run build`. Add browser tests and contract compile checks when relevant. -->
+<!-- Code/tooling: `bun run check`; docs-only: `bun run format:check` and `git diff --check`. Add relevant browser/contract checks and state coverage limits. -->
 
 ## Notes
 

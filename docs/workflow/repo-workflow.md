@@ -1,145 +1,92 @@
-# Quilltip Repo Workflow Policy
+# Development workflow
 
-This policy applies to Quilltip repo work. It should be read with:
+[AGENTS.md](../../AGENTS.md) holds the shared project instructions for Codex,
+Claude Code, and contributors. `CLAUDE.md` imports it instead of maintaining a
+second copy. This document covers collaboration and delivery; read the other
+guides only for the task they cover.
 
-- `docs/workflow/qa-checklist.md`
-- `docs/workflow/linear-issue-policy.md`
-- `.github/pull_request_template.md`
-- `.github/workflows/ci.yml`
-- `.github/workflows/pr-hygiene.yml`
+## Work loop
 
-## Project Context
+1. State the outcome, constraints, and how success will be checked. Inspect the
+   relevant code and existing patterns. Plan multi-file or uncertain work before
+   implementing; a small, well-defined edit needs no separate planning artifact.
+2. Make a focused change, then run the smallest useful check while iterating.
+   For UI changes, inspect the real page, console/network, and backend behavior
+   using the [QA guide](qa-checklist.md).
+3. Review the final diff for correctness and regressions. Fix in-scope findings;
+   report any unresolved findings with severity and file/flow references. Re-review
+   affected behavior after fixes; if repeated reviews keep failing, reconsider
+   the approach rather than starting another unbounded cleanup cycle.
+4. Run the final verification appropriate to the diff. Report completed checks
+   and limits, then commit/push when requested. PR, merge, and deployment actions
+   each need authorization within the task.
 
-- Quilltip is a decentralized publishing app for writers and readers.
-- Writers receive 97.5% of each tip. Quilltip keeps 2.5%.
-- Current payment work is on Stellar testnet unless a task explicitly says mainnet.
-- Published article storage can involve Arweave permanence. Do not recommend throwaway publish and unpublish tests without checking the exact path first.
-- Be honest in grant, GTM, and project wording. Do not present testnet activity as production traction, production volume, NAV, or mainnet revenue.
+Keep durable project constraints in `AGENTS.md`, task-specific reference in the
+linked docs, and temporary evidence in the chat or ignored local files. Promote
+recurring lessons into the smallest relevant rule or automated check. Existing
+Husky hooks, ESLint, commitlint, and CI enforce deterministic rules; avoid repeating
+their configuration as prose or adding another hook to run the same checks.
 
-## Branches
+## Branches and pull requests
 
-- Default base and PR target branch: `main`.
-- Create all new feature and fix branches from the latest `origin/main`: run `git fetch origin`, then `git switch -c <branch-name> origin/main`.
-- The `development` branch is retired. Do not recreate it or use it as a base.
-- Work in a feature branch unless the user explicitly asks for direct work on the current branch.
-- For Linear issues, prefer the Linear suggested branch name.
-- For non-Linear work, use a short branch name such as `codex/<task-slug>`.
-- Before starting, check `git status --short --branch` and confirm the branch is clean enough for the task.
-- Before opening a PR, compare the branch against `origin/main` and make sure the diff only contains intended work.
+- Base work on `origin/main`; use Linear's suggested branch name when applicable,
+  otherwise a short descriptive name. For a new branch:
 
-## Merge Direction Policy
+  ```bash
+  git fetch origin
+  git switch -c codex/task-name origin/main
+  ```
 
-Choose the merge method from the branch direction, not from whichever GitHub button is currently available.
+- Preserve others' local changes and shared commit history. Refresh a shared
+  feature branch by merging `origin/main`; merge PRs with a regular merge commit.
+- Before a PR, fetch and review `git log origin/main..HEAD` and
+  `git diff origin/main...HEAD`. Confirm the diff contains only intended work.
+- Use Conventional Commit subjects; allowed types/scopes are enforced by
+  `commitlint.config.js` and `.github/workflows/pr-hygiene.yml`.
+- Use the [PR template](../../.github/pull_request_template.md). Include concise
+  results, not raw logs, full diffs, or private evidence.
+- Before merging, require `Required` and `PR Hygiene Required` to pass and confirm
+  GitHub reports the PR as mergeable. Inspect Vercel checks when present.
+- Release bookkeeping and dependency updates are manual. Add release/changelog
+  or dependency PR automation only when requested.
 
-| From           | Into   | Required method | Reason                                                      |
-| -------------- | ------ | --------------- | ----------------------------------------------------------- |
-| Feature branch | `main` | Regular merge   | Preserve the feature commits and their original identities. |
+## Verification and CI
 
-- Preserve existing shared feature history with a regular merge into `main`; do not rebase or force-push it.
-- `main` intentionally allows merge commits. Do not enable required linear history while this policy is active.
-- Keep force pushes and branch deletion disabled for `main`.
-- If a different merge method appears necessary, stop and explain the history impact before proceeding.
+`bun run check` runs formatting, lint, component-rule fixtures, typecheck, audit
+CLI tests, and the production build. Docs-only edits need formatting and
+`git diff --check`; run the full check if scripts or executable config changed.
 
-### Main PR Preflight
+For affected browser behavior, run the relevant existing Playwright spec against
+an explicitly selected running app; see [setup](../SETUP.md). For Rust changes,
+run the affected contract check:
 
-Before opening a feature branch PR into `main`:
+```bash
+cargo check --locked --target wasm32v1-none --manifest-path contracts/tipping/Cargo.toml
+cargo check --locked --target wasm32v1-none --manifest-path contracts/article-nft/Cargo.toml
+```
 
-1. Run `git fetch origin --prune`.
-2. Confirm the worktree is clean with `git status --short --branch`.
-3. Run `git merge-base --is-ancestor origin/main HEAD`. If it fails, merge current `origin/main` into the feature branch and resolve conflicts before continuing.
-4. Review `git log --oneline origin/main..HEAD` for the exact commits being proposed.
-5. Review `git diff --stat origin/main...HEAD` and the full diff for unintended files.
-6. Confirm the PR base is `main`, the head is the intended feature branch, and the PR body follows the repository template.
-7. Require `Required` and `PR Hygiene Required` to pass. Review Vercel when GitHub reports a deployment check.
-8. Confirm GitHub reports the PR as mergeable and select a regular merge commit.
+[CI](../../.github/workflows/ci.yml) runs on pushes to `main` and PRs into `main`.
+`Required` aggregates quality, build, and dependency audit. The audit is a required
+job; its severity/exception rules are defined in the
+[audit policy](../../security/dependency-review.md). PR hygiene runs on PRs.
+Local success does not establish remote CI or deployment success.
 
-Start subsequent work from the latest `origin/main`; no development sync branch is needed.
-Release bookkeeping and dependency updates are handled manually. Do not add automated
-release PRs, changelog generation, or dependency-update PRs unless explicitly requested.
+## Using Codex and Claude Code
 
-## Agent And Tooling
+- Give the agent an outcome and evidence: a route, error, reproduction, expected
+  behavior, and constraints. Example: "Fix draft recovery after reload on `/write`;
+  preserve publishing and show the restored draft in the signed-in browser."
+- Codex loads `AGENTS.md`. Claude Code loads the same text through `@AGENTS.md` in
+  `CLAUDE.md`, including versions/settings without native AGENTS support. Use
+  Claude's `/context` to inspect loaded instructions.
+- Use a fresh chat for unrelated work. For a long task, retain a short handoff:
+  objective, branch, decisions, checks, and next step. Keep private session notes
+  and machine-specific permissions out of tracked project instructions.
+- Use skills for repeatable specialist work. Add a repository skill only after
+  repeated use demonstrates a need; give it a precise trigger and load detailed
+  references on demand.
+- When parallel work is authorized, assign independent scopes and explicit
+  ownership. Separate editing agents into worktrees; concurrent readers can share
+  a checkout. Give review work a correctness question and verification criteria.
 
-- Use existing repo patterns before introducing new tools or abstractions.
-- Use Bun scripts from `package.json` for app checks.
-- Use Convex CLI when backend schema or generated Convex API types need updating.
-- Use Cargo for Soroban contract checks under `contracts/`.
-- Use Context7 for current library, SDK, API, CLI, framework, or cloud documentation when needed.
-- Use Firecrawl only when external search, research, or source gathering is needed.
-- Use Playwright for existing repo e2e tests or explicit automated browser checks, not as a substitute for required manual QA when a checklist calls for visual behavior.
-- Use sub-agents only when the user asks for parallel agent work or the active environment explicitly allows it. Give them repo context, branch context, task scope, and the exact output needed.
-- If a requested tool is unavailable, say so clearly and use the safest available fallback.
-
-## Scope Rules
-
-- Keep scope tight to the requested issue, feature, review, or PR.
-- Do not include unrelated refactors, cleanup, formatting churn, generated files, screenshots, or files you did not work on.
-- Do not commit `.env*`, `.stellar`, contract build artifacts, browser screenshots, private evidence docs, or local QA artifacts unless the user explicitly asks.
-- Do not weaken Stellar transaction verification, tip accounting, pause guards, fee math, storage keys, auth boundaries, or Arweave behavior unless that is the stated task.
-- If generated Convex files change because the task requires codegen, include them with the related source change and explain why.
-
-## Review And Fix Policy
-
-- Run a critical review before calling work done.
-- Grade A through F. A means no unresolved findings.
-- Review for bugs, regressions, security, auth boundaries, Stellar trust boundaries, Convex data rules, Arweave permanence, dead code, edge cases, and library correctness.
-- Present findings with grade, severity, file or flow reference, required fix, and residual risk.
-- Fix every valid in-scope finding, including low-priority findings.
-- If a finding cannot be fixed safely in scope, explain why and list it as follow-up risk.
-- After fixes, rerun targeted tests before the final verification gate.
-
-## QA
-
-- Follow `docs/workflow/qa-checklist.md` for UI-heavy, risky, demo-blocker, auth, wallet, publishing, tipping, NFT, Arweave, or workflow changes.
-- Make QA specific to the real diff and likely regressions.
-- For manual QA, watch the page, browser console/network, and dev server output.
-- Investigate failures before final verification unless the user explicitly says not to.
-- Commit a QA checklist only if the user asks or docs are part of the PR scope.
-
-## Verification
-
-Do not claim completion unless verification outputs were checked.
-
-Standard app gate:
-
-1. `bun run format:check`
-2. `bun run typecheck`
-3. `bun run lint`
-4. `bun run build`
-
-Contract gates when touched:
-
-- `cargo check --locked --target wasm32v1-none --manifest-path contracts/tipping/Cargo.toml`
-- `cargo check --locked --target wasm32v1-none --manifest-path contracts/article-nft/Cargo.toml`
-
-Unit tests and their runners have been removed. Use the existing Playwright tests for browser regression checks when relevant. Run the standard gate before PR or final handoff unless the user explicitly narrows verification.
-
-If `bun run build` fails because network access blocks external font or package fetching, report it as an environment issue only after confirming the error text.
-
-## CI
-
-GitHub Actions run on pull requests targeting `main` and pushes to `main`.
-
-Protected merge gates:
-
-- `Required`
-- `PR Hygiene Required`
-
-Additional signals:
-
-- Review the Vercel deployment check when GitHub reports one for the PR.
-- Review `Dependency Audit` findings. The audit remains advisory while its workflow is configured not to fail the job.
-
-Report warnings separately from failures. Do not hide a failed check behind a broad "CI is flaky" explanation without evidence.
-
-## Commits And PRs
-
-- Commit in small groups ordered by dependency.
-- Use `type: short description` commit subjects and PR titles.
-- Allowed types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`.
-- Keep commit messages lean. No emoji. No em dashes.
-- Push with GitHub CLI or git after checks pass.
-- Open PRs with GitHub CLI and use `.github/pull_request_template.md`.
-- Keep PR bodies plain and limited to summary, changes, testing, and notes.
-- Do not paste diffs, full file contents, generated code, or codegen output into PR bodies.
-- Follow the merge direction policy above. Preserve feature history by using a regular merge into `main`.
-- After merge, delete merged local and remote feature branches when appropriate.
+Research and source-to-repo decisions: [agent workflow sources](agent-workflow-sources.md).

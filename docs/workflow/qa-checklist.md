@@ -1,90 +1,41 @@
-# Quilltip QA Checklist Policy
+# Behavioral QA
 
-Use this policy for UI-heavy work, risky user workflows, demo blockers, wallet flows, publishing, tipping, NFT flows, Arweave behavior, auth changes, or any PR where manual QA matters.
+Use for changed UI, auth, wallet/tipping, publishing, NFT, storage, or persistence
+behavior. Choose checks from the actual diff and likely regressions; documentation
+edits do not require a browser checklist.
 
-## File
+## Record
 
-- Create the checklist in `docs/`.
-- File name format: `docs/<issue-or-feature>-qa-checklist.md`.
-- Make the checklist specific to the actual diff.
-- Include changed flows and plausible regressions from touched areas.
-- Do not commit the checklist unless the user asks or docs are part of the PR scope.
+Keep a short checklist in the chat or an ignored local file. Commit a
+`docs/<feature>-qa-checklist.md` only when requested or when the checklist itself
+is a deliverable. Existing feature QA/evidence documents are historical results,
+not proof that the current checkout passes.
 
-## Setup Details
+Record the branch/commit, date, app URL and serving checkout, auth state, Convex
+target, and Stellar network/contract IDs when relevant. Never record credentials.
 
-Include:
+| Status | Action / precondition | Expected result | Observed result / evidence |
+| ------ | --------------------- | --------------- | -------------------------- |
+| `[ ]`  | Exact reproduction    | Visible outcome | Not tested                 |
 
-- Branch
-- Base branch
-- Local URL
-- Backend target, usually local Convex or the named Convex deployment
-- Stellar network, usually TESTNET
-- Contract IDs if wallet, tipping, batch, or NFT work is involved
-- PR number, if known
-- Date
+Use `[x]` for observed passes, `[!]` for failures, and `[-]` for partial, skipped,
+or blocked checks with a reason. Update rows after observing the result.
 
-## Row Status
+## Execute
 
-Use these markers:
-
-- `[ ]` not tested yet
-- `[x]` passed
-- `[-]` partial, blocked, intentionally skipped, or not applicable with a note
-- `[!]` failed, with the failure note and linked fix or follow-up
-
-## Row Content
-
-Every QA row must include:
-
-- Area
-- Exact action to perform
-- Expected result
-- What to watch in the UI
-- What to watch in browser console or network
-- What to watch in the dev server terminal
-- Final status marker and note
-
-## Required Sections
-
-1. Environment and setup
-2. Automated verification
-3. Primary changed workflows
-4. Module or feature-specific workflows
-5. Cross-feature regressions
-6. Responsive checks
-7. Auth, permissions, and public/internal boundary checks
-8. Persistence, reload, caching, and session checks
-9. Error, empty, loading, and disabled states
-10. Wallet, Stellar, Convex, Arweave, or contract checks when touched
-11. Cleanup and uncommitted artifact checks
-
-## Execution
-
-- Run the app locally with the correct backend environment.
-- Use Playwright only for existing repo e2e tests or explicit automated checks.
-- Test checklist rows one by one. Do not batch-mark rows.
-- Keep the browser console and network panel visible or otherwise inspected.
-- Keep the `bun run dev` terminal visible.
-- Watch for React errors, failed requests, hydration warnings, Convex errors, wallet errors, and unexpected network calls.
-- Update each row immediately after testing it.
-
-## Quilltip-Specific Checks
-
-- For publishing, remember Arweave can be permanent. Do not publish throwaway content unless the user explicitly approves the risk.
-- For testnet tipping, verify the UI never presents testnet activity as real-money production traction.
-- For article tips, highlight tips, and batch tips, watch both the wallet approval path and the Convex record state.
-- For contract work, test pause behavior, fee math, storage updates, minimum tip checks, and verification paths that changed.
-- For private evidence, screenshots, or local measurement files, keep them out of git unless explicitly requested.
-
-## Failure Handling
-
-- Use `[!]` for failed rows.
-- Add a concrete note explaining what failed.
-- Investigate and fix failures before final verification unless the user explicitly says not to.
-- Use `[-]` only for partial, blocked, risky, or intentionally deferred checks.
-- Explain what blocked full verification.
-
-## Commit Scope
-
-- Commit the QA checklist only if requested or if docs are part of the PR scope.
-- Do not commit Playwright screenshots, browser screenshots, videos, downloaded files, `.env*`, `.stellar`, or local evidence files.
+- Start or reuse the correct app/backend using [setup](../SETUP.md). Inspect the
+  page, browser console/network, and server output. Use the available browser tool;
+  Playwright tests complement visual/manual checks.
+- Cover the changed happy path and relevant failure/loading/empty states.
+  For responsive UI, include narrow and desktop widths, keyboard/focus behavior,
+  and reduced motion when animation changes.
+- For auth/data changes, check signed-out, owner, and non-owner behavior as
+  relevant; verify reload/session persistence and backend results.
+- For tips, verify wallet approval/rejection and matching Convex transaction state.
+  Check changed verification, accounting, pause/minimum guards, and fee behavior.
+- For publishing/storage, confirm the environment and Arweave permanence risk
+  before creating content. Follow the invariants in [AGENTS.md](../../AGENTS.md).
+- Run relevant existing checks/specs. Mark unavailable coverage as blocked;
+  investigate failures and distinguish app errors from extension/tool noise.
+- Finish with the result, unresolved risks, and artifact cleanup. Keep raw
+  screenshots, traces, wallet material, and private evidence out of Git.

@@ -58,26 +58,14 @@ Quilltip is a decentralized publishing platform where writers earn money through
 
 - **Article NFTs** — unique digital collectibles, transferable ownership, on-chain provenance, future marketplace integration
 
-## Quick Start
+## Development
 
-```bash
-# 1. Install dependencies
-bun install
+Follow [local setup](docs/SETUP.md) for prerequisites, Convex/Auth configuration,
+and server startup. Use [CONTRIBUTING.md](CONTRIBUTING.md) for contribution steps
+and [AGENTS.md](AGENTS.md) for shared Codex/Claude Code project instructions.
 
-# 2. Copy env template
-cp .env.example .env.local
-
-# 3. Initialize Convex (auto-populates CONVEX_DEPLOYMENT + NEXT_PUBLIC_CONVEX_URL)
-bunx convex dev --once
-
-# 4. Set auth URL on Convex deployment
-bunx convex env set SITE_URL http://localhost:3000
-
-# 5. Start dev server (Next.js + Convex in parallel)
-bun run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000). See [docs/SETUP.md](docs/SETUP.md) for full environment details.
+Run `bun run check` for the local code/tooling gate. The
+[workflow guide](docs/workflow/repo-workflow.md) explains targeted QA and CI.
 
 ## Documentation
 

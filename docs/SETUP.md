@@ -1,90 +1,74 @@
-# Setup
+# Local setup
 
-## Prerequisites
+Use Node.js 24 LTS and the Bun version in `package.json`'s `packageManager` field.
+Install from `bun.lock`; do not mix package-manager lockfiles. A Convex account
+and development deployment are required. Wallet/contract tools are needed only
+for payment or contract work.
 
-- Node.js 20+
-- [Bun](https://bun.sh) (project uses `bun.lock`; npm/yarn also work)
-- A free [Convex](https://convex.dev) account
-- Stellar wallet (only for blockchain features)
-
-## Wallet install / connect troubleshooting
-
-If you click **Connect Wallet** and don’t have any Stellar wallet installed, Quilltip will show an install dialog with links to supported wallets. After installing a wallet, **reload the page** and try connecting again.
-
-To test this behavior locally:
-
-- **No-wallet flow**:
-  - Open Chrome with a fresh profile (or a browser where you have no Stellar wallet extensions installed).
-  - Run `bun run dev` and open Quilltip.
-  - Click **Connect Wallet** (from the header, wallet status card, tipping modal, or minting modal).
-  - Expected: install dialog appears with links for **Freighter**, **xBull**, **Albedo**, **HOT Wallet** (and the wallet selection modal does not open empty).
-- **After install + reload**:
-  - Install one wallet from the provided link.
-  - Reload the page.
-  - Click **Connect Wallet** again.
-  - Expected: the normal wallet selection/connect flow works as before.
-
-## Installation
+## First checkout
 
 ```bash
-bun install
+bun install --frozen-lockfile
 cp .env.example .env.local
-npx convex dev --once
-npx convex env set SITE_URL http://localhost:3000
+bunx convex dev --once
+bunx convex env set SITE_URL http://localhost:3000
 bun run dev
 ```
 
-## Environment Variables
+Choose the intended **development** deployment during Convex setup. Initial
+Convex Auth signing-key setup is covered by the
+[auth setup guide](https://labs.convex.dev/auth/setup). Existing deployments may
+already have it; keep keys on Convex, never in tracked files.
 
-See [`.env.example`](../.env.example) for the template. Only Convex vars are required — everything else has defaults or is optional:
+`bun run dev` first runs `predev` (`convex dev --until-success`), then starts
+Next.js and Convex together. This can push functions/schema to the configured
+backend. For UI-only work against an already configured backend, use
+`bun run dev:frontend`. Start `bun run dev:backend` separately only when needed.
 
-| Variable                          | Source                         | Required                 |
-| --------------------------------- | ------------------------------ | ------------------------ |
-| `CONVEX_DEPLOYMENT`               | Auto — `npx convex dev`        | Yes                      |
-| `NEXT_PUBLIC_CONVEX_URL`          | Auto — `npx convex dev`        | Yes                      |
-| `NEXT_PUBLIC_PLATFORM_ADDRESS`    | `.env.example` default         | For tipping              |
-| `NEXT_PUBLIC_TIPPING_CONTRACT_ID` | Deploy contract or leave blank | For tipping              |
-| `STELLAR_NETWORK`                 | Convex deployment              | For verified tipping     |
-| `NEXT_PUBLIC_NFT_CONTRACT_ID`     | Deploy contract or leave blank | For NFTs                 |
-| `ARWEAVE_ENABLED`                 | `false` by default             | For permanent storage    |
-| `ARWEAVE_WALLET_KEY`              | Arweave JWK wallet             | Only for files > 100 KiB |
-
-Stellar network vars (`NEXT_PUBLIC_STELLAR_NETWORK`, `NEXT_PUBLIC_HORIZON_URL`, `NEXT_PUBLIC_SOROBAN_RPC_URL`, `NEXT_PUBLIC_NETWORK_PASSPHRASE`) all have built-in testnet defaults — no config needed for dev.
-
-## Authentication
-
-Auth uses Convex Auth with the Password provider (defined in `convex/auth.ts`). The `SITE_URL` environment variable is set on the **Convex deployment** (not in `.env.local`):
+Before reusing `http://localhost:3000`, inspect the listener and its checkout:
 
 ```bash
-npx convex env set SITE_URL http://localhost:3000
+lsof -nP -iTCP:3000 -sTCP:LISTEN
+lsof -a -p <listener-pid> -d cwd
 ```
 
-This is read by `convex/auth.config.ts` as `process.env.CONVEX_SITE_URL`.
+An HTTP 200 or `EADDRINUSE` does not identify which checkout is serving the app.
+Avoid launching a duplicate backend or stopping another chat's server.
 
-## Tip Verification
+## Environment
 
-The Convex action that verifies Stellar tip transactions needs the tipping contract ID at runtime. Set it on the **Convex deployment**:
+[.env.example](../.env.example) contains local placeholders. Convex setup writes
+`CONVEX_DEPLOYMENT` and `NEXT_PUBLIC_CONVEX_URL` into `.env.local`.
+`SITE_URL` is the app/auth redirect origin on Convex; `CONVEX_SITE_URL` is Convex's
+own HTTP-action origin, provided by Convex and used in `convex/auth.config.ts`.
+
+| Feature                | Local Next.js environment                                              | Convex deployment environment                                      |
+| ---------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| App/auth               | Generated Convex URL                                                   | `SITE_URL`; Auth signing configuration                             |
+| Article/highlight tips | `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`      | `TIPPING_CONTRACT_ID`, `STELLAR_NETWORK=TESTNET`                   |
+| NFT                    | `NEXT_PUBLIC_NFT_CONTRACT_ID`; optional `NEXT_PUBLIC_NFT_METADATA_URL` | Check the affected backend function's requirements                 |
+| Permanent publishing   | `ARWEAVE_ENABLED=false` by default                                     | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY` when intentionally enabled |
+
+Frontend/backend tipping IDs and network must match. The browser's Stellar
+endpoints/passphrase default to testnet in `lib/stellar/config.ts`; backend
+verification configuration lives in `convex/lib/constants.ts`. Missing backend
+contract configuration blocks quote preparation before wallet approval.
+Arweave wallet configuration is required by `convex/arweave.ts` when enabled,
+including for small uploads; keep it only on the backend.
+
+## Checks and browser tests
+
+Run `bun run check` for the local code/tooling gate; `package.json` lists individual
+checks. Playwright uses an existing server rather than launching one. For example:
 
 ```bash
-npx convex env set TIPPING_CONTRACT_ID <your-tipping-contract-id>
-npx convex env set STELLAR_NETWORK TESTNET
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 bunx playwright test e2e/site-chrome.spec.ts
 ```
 
-For testnet, use the same contract value as `NEXT_PUBLIC_TIPPING_CONTRACT_ID`
-in `.env.local`. `STELLAR_NETWORK` must match `NEXT_PUBLIC_STELLAR_NETWORK`;
-the backend defaults to `TESTNET`. Without the contract ID, quote preparation
-stops before Freighter opens, so no payment is submitted.
+Install Playwright's Chromium browser if the runner requests it. See
+[playwright.config.ts](../playwright.config.ts) for defaults and
+[behavioral QA](workflow/qa-checklist.md) for evidence requirements.
 
-## Development Commands
-
-```bash
-bun run dev              # Next.js (Turbopack) + Convex dev server
-bun run dev:frontend     # Next.js only
-bun run dev:backend      # Convex only
-bun run build            # Production build
-bun run start            # Start production server
-bun run lint             # ESLint
-bun run typecheck        # TypeScript validation
-bun run format:check     # Formatting validation
-bun run test:e2e:eng-224 # Playwright console checks (running app required)
-```
+For wallet install/connect QA, test once without an extension, then install a
+supported Stellar wallet, reload, and verify the connection flow. Signed wallet
+operations and permanent publishing require the correct target environment.
