@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project uses [Semantic Versioning](https://semver.org/).
 
+## [1.3.0](https://github.com/pragya-shar/quilltip/compare/v1.2.0...v1.3.0) (2026-10-23)
+
+
+### Features
+
+* **account:** add the editorial account surface ([cda2aa4](https://github.com/pragya-shar/quilltip/commit/cda2aa491555b0210c334a321b9e5c9ccd5d8861))
+* add reading room with subject-specific cover doodles ([149d8eb](https://github.com/pragya-shar/quilltip/commit/149d8eba584fcd15e464d19babcfe92b04b94c14))
+* connect prototype library and transfer practice screens ([17119fb](https://github.com/pragya-shar/quilltip/commit/17119fb4f72974789028b4715ef5375e7d3cc436))
+* **demos:** restore public reading and writing introductions ([53e5422](https://github.com/pragya-shar/quilltip/commit/53e542221f017c46d27171c5844ca18604ccf5d1))
+* integrate writing desk with draft recovery ([a5e2953](https://github.com/pragya-shar/quilltip/commit/a5e2953265abea67921f682b3285769af967fbf0))
+* **landing:** add paper arrival motion and demo destinations ([dc0c4b3](https://github.com/pragya-shar/quilltip/commit/dc0c4b3d064ea8b6969946299b7717ed62535e7a))
+* merge QuillTip redesign and main-based workflow ([e802f33](https://github.com/pragya-shar/quilltip/commit/e802f336f53dc7b0ba872788cd4d99cfb64d1073))
+* replace landing with approved QuillTip prototype ([4b91d2d](https://github.com/pragya-shar/quilltip/commit/4b91d2d087097afbc8f91dc908b9d302f8a5ee6a))
+* replace login and signup with prototype screens ([052992d](https://github.com/pragya-shar/quilltip/commit/052992d27ea5ca0c2370ddd4a3461ce1535e7948))
+* support optional subtitles and reviewed article curation ([7031429](https://github.com/pragya-shar/quilltip/commit/7031429ee24608a5f9d62e9500ac96bc84b73718))
+* **uploads:** add indexed saved image references ([b6b274a](https://github.com/pragya-shar/quilltip/commit/b6b274afb72cf931925c04c04905fd0773cced09))
+* **wallet:** add filtered history and transaction receipts ([cb11203](https://github.com/pragya-shar/quilltip/commit/cb11203a0635fed20c234b4ceff4e019429f7bd6))
+* **wallet:** integrate account settings and receiving address controls ([5704fea](https://github.com/pragya-shar/quilltip/commit/5704fea80a58dbdc2e5c0f10ea4a3aa0c97d91db))
+* **wallet:** normalize article and passage tip activity ([a4773bc](https://github.com/pragya-shar/quilltip/commit/a4773bc88ea71620d542d437a27f4b11cd380708))
+
+
+### Bug Fixes
+
+* keep returning members on the redesigned home ([dbe5ad8](https://github.com/pragya-shar/quilltip/commit/dbe5ad831531564ed827635218d9ad289e4db385))
+* lint components wrapped in direct default exports ([e3bf525](https://github.com/pragya-shar/quilltip/commit/e3bf525691faddb518b66bcb2b69963cee33cdbf))
+* patch Next.js image processing dependencies ([2735814](https://github.com/pragya-shar/quilltip/commit/27358145f6cfb52e9d63bbe8351aca95a8f7d9c6))
+* resolve Greptile review findings [#241](https://github.com/pragya-shar/quilltip/issues/241) ([9934956](https://github.com/pragya-shar/quilltip/commit/9934956c5cc0754c1b88cf944eda799335872fcb))
+* **security:** triage dependencies and require reviewed audit findings ([c64060d](https://github.com/pragya-shar/quilltip/commit/c64060dad461354333ad9696300b7356925158af))
+* **uploads:** bind validated image uploads to their owners ([cccdba2](https://github.com/pragya-shar/quilltip/commit/cccdba2e37a9367fbda613f5521ff226bb717df1))
+* **uploads:** merge storage ownership protections for [#237](https://github.com/pragya-shar/quilltip/issues/237) ([eb208be](https://github.com/pragya-shar/quilltip/commit/eb208be406969c9d803032bb4310827d24e82566))
+* **uploads:** preserve blobs referenced by saved content ([d4d234a](https://github.com/pragya-shar/quilltip/commit/d4d234af271661ba446aa61798556c602f2d0aad))
+
 ## [1.2.0](https://github.com/pragya-shar/quilltip/compare/v1.1.0...v1.2.0) (2026-08-25)
 
 ### Features
