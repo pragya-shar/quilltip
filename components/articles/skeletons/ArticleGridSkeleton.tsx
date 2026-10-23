@@ -1,4 +1,4 @@
-import { ArticleCardSkeleton } from '@/components/articles/ArticleCardSkeleton'
+import { ArticleCardSkeleton } from './ArticleCardSkeleton'
 
 export function ArticleGridSkeleton({ count = 6 }: { count?: number }) {
   return (

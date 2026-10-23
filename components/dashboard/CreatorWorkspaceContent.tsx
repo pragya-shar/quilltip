@@ -7,10 +7,8 @@ import { PrimaryWritingAction } from '@/components/dashboard/PrimaryWritingActio
 import { CompactEarningsCard } from '@/components/dashboard/CompactEarningsCard'
 import { RecentWorkList } from '@/components/dashboard/RecentWorkList'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
-import {
-  CreatorWorkspacePanelFallback,
-  CreatorWorkspaceWalletFallback,
-} from '@/components/error/SectionErrorFallback'
+import { CreatorWorkspacePanelFallback } from '@/components/error/CreatorWorkspacePanelFallback'
+import { CreatorWorkspaceWalletFallback } from '@/components/error/CreatorWorkspaceWalletFallback'
 import type { CreatorWorkspaceProps } from '@/components/dashboard/CreatorWorkspaceShared'
 import { CreatorWorkspaceSkeleton } from '@/components/dashboard/CreatorWorkspaceSkeleton'
 

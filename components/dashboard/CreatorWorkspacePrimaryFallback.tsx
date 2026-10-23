@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { BookOpen } from 'lucide-react'
 import { PrimaryWritingAction } from '@/components/dashboard/PrimaryWritingAction'
-import { CreatorWorkspacePanelFallback } from '@/components/error/SectionErrorFallback'
+import { CreatorWorkspacePanelFallback } from '@/components/error/CreatorWorkspacePanelFallback'
 import type { CreatorWorkspaceProps } from '@/components/dashboard/CreatorWorkspaceShared'
 
 export function CreatorWorkspacePrimaryFallback({

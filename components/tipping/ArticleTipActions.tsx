@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense } from 'react'
-import { TipButtonSkeleton } from '@/components/articles/ArticleEngagementSkeleton'
+import { TipButtonSkeleton } from '@/components/articles/TipButtonSkeleton'
 import type { ArticleTipActionsProps } from '@/components/tipping/ArticleTipActionsShared'
 import { ArticleTipActionsInner } from '@/components/tipping/ArticleTipActionsInner'
 
