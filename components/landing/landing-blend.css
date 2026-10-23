@@ -3629,7 +3629,9 @@
   .product-area {
   padding-top: 8px !important;
 }
-.landing-blend.opening-trial[data-onboarding='landing'] .hero .reading-paper {
+.landing-blend.opening-trial[data-onboarding='landing'][data-opening-ready='false']
+  .hero
+  .reading-paper {
   transform: none;
 }
 .landing-blend.opening-trial[data-onboarding='landing'][data-opening-ready='false']

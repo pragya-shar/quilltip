@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ArrowRight } from './LandingIcons'
 import { LandingTippingDemo, type DemoReceipt } from './LandingTippingDemo'
 import { HandwrittenWord } from './OpeningInk'
+import { usePaperArrival } from './usePaperArrival'
 
 export default function HeroSection({
   ready = true,
@@ -12,8 +13,10 @@ export default function HeroSection({
   ready?: boolean
   onReceipt?: (receipt: DemoReceipt | null) => void
 }) {
+  const heroRef = usePaperArrival(ready)
+
   return (
-    <section className="hero" aria-labelledby="hero-title">
+    <section ref={heroRef} className="hero" aria-labelledby="hero-title">
       <div className="hero-copy">
         <h1
           id="hero-title"
@@ -35,11 +38,11 @@ export default function HeroSection({
           Show the love you feel when words move you.
         </p>
         <div className="hero-actions">
-          <Link href="/articles" className="button primary">
+          <a href="/demos/read.html" className="button primary">
             I’m here to read
             <ArrowRight size={18} aria-hidden />
-          </Link>
-          <Link href="/write" className="button primary">
+          </a>
+          <Link href="/demo/write" className="button primary">
             I’m here to write
             <ArrowRight size={18} aria-hidden />
           </Link>
