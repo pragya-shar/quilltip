@@ -38,6 +38,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Component convention fixtures
+        run: bun run test:component-organization
+
       - name: Typecheck
         run: bun run typecheck
 

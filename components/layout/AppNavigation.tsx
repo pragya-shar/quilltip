@@ -26,12 +26,7 @@ import {
 import { Logo } from '@/components/ui/Logo'
 import { NAV_SIGN_IN, NAV_TRY_ON_TESTNET } from '@/lib/copy/nav-cta'
 import { isProtectedPath } from '@/lib/navigation/protectedRoutes'
-
-function AuthActionsSkeleton() {
-  return (
-    <div className="h-9 w-24 rounded-lg bg-muted animate-pulse" aria-hidden />
-  )
-}
+import { AuthActionsSkeleton } from '@/components/layout/AuthActionsSkeleton'
 
 export default function AppNavigation() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth()

@@ -2,41 +2,13 @@
 
 import { motion } from 'motion/react'
 import { Reveal } from '@/components/landing/Reveal'
-import { LandingHashLink } from '@/components/landing/LandingHashLink'
-import { LANDING_FEATURES, type LandingFeature } from '@/lib/landing/features'
+import { LANDING_FEATURES } from '@/lib/landing/features'
 import {
   FEATURES_SECTION_BADGE,
   FEATURES_SECTION_SUBHEAD,
 } from '@/lib/copy/landing-sections'
-
-function FeatureTitleLink({ feature }: { feature: LandingFeature }) {
-  return (
-    <LandingHashLink
-      href={feature.href}
-      className="focus-ring rounded-sm text-[15px] font-semibold text-foreground hover:underline underline-offset-2"
-    >
-      {feature.title}
-    </LandingHashLink>
-  )
-}
-
-function FeatureRow({ feature }: { feature: LandingFeature }) {
-  return (
-    <motion.div className="flex items-start gap-4">
-      <div className="shrink-0 w-10 h-10 rounded-full bg-card border-2 border-border flex items-center justify-center">
-        <feature.icon className="w-4 h-4 text-muted-foreground" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <h3 className="text-[15px] font-semibold leading-snug">
-          <FeatureTitleLink feature={feature} />
-        </h3>
-        <p className="text-[13px] text-muted-foreground leading-relaxed mt-0.5">
-          {feature.description}
-        </p>
-      </div>
-    </motion.div>
-  )
-}
+import { FeatureRow } from '@/components/landing/FeatureRow'
+import { FeatureTitleLink } from '@/components/landing/FeatureTitleLink'
 
 export default function FeaturesSection() {
   return (

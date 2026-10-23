@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { formatDistanceToNow } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import type { Doc } from '@/types/convex'
 import { Card, CardContent } from '@/components/ui/card'
+import { TipDateTime } from '@/components/dashboard/TipDateTime'
 
 export type ReceivedTipRow = Doc<'tips'> & {
   tipper: { name?: string; username?: string } | null
@@ -17,7 +17,9 @@ type TipHistoryProps = {
 }
 
 type PageSize = 10 | 25 | 50 | 'all'
+
 type SortKey = 'tipper' | 'articleTitle' | 'amountUsd' | 'createdAt'
+
 type SortDir = 'asc' | 'desc'
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
@@ -29,28 +31,6 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
 
 function getTipperName(tip: ReceivedTipRow) {
   return tip.tipper?.name || tip.tipper?.username || 'Anonymous'
-}
-
-function formatTipDate(createdAt: number) {
-  const tipDate = new Date(createdAt)
-  const relative = formatDistanceToNow(tipDate, { addSuffix: true })
-  const absolute = tipDate.toLocaleDateString('en-US', { dateStyle: 'long' })
-  const a11yLabel = `${relative}. ${absolute}.`
-  return { tipDate, relative, absolute, a11yLabel }
-}
-
-function TipDateTime({ createdAt }: { createdAt: number }) {
-  const { tipDate, relative, absolute, a11yLabel } = formatTipDate(createdAt)
-  return (
-    <time
-      dateTime={tipDate.toISOString()}
-      title={absolute}
-      aria-label={a11yLabel}
-      className="text-xs text-muted-foreground"
-    >
-      {relative}
-    </time>
-  )
 }
 
 function csvEscape(value: string) {
