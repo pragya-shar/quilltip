@@ -26,6 +26,6 @@ Advisory links and exact vulnerable ranges are recorded individually in `audit-e
 
 ## CI and rollout
 
-`bun run audit:dependencies` is part of the Required aggregate check. GitHub Actions are pinned to commits resolved through the official repository API on 2026-10-23; Dependabot maintains Actions against development. CODEOWNERS covers workflows, audit policy, patches, manifest and lockfile. Requiring the Required check and code-owner approval in repository branch protection remains a GitHub settings action, separate from these files.
+`bun run audit:dependencies` is part of the Required aggregate check. GitHub Actions are pinned to commits resolved through the official repository API on 2026-10-23; Action updates are reviewed and applied manually against main. CODEOWNERS covers workflows, audit policy, patches, manifest and lockfile. Requiring the Required check and code-owner approval in repository branch protection remains a GitHub settings action, separate from these files.
 
 These changes are local until published. Production remediation is not established by a local build. Existing legacy uploaded images remain readable, but changing ownership-sensitive metadata requires a new verified upload.

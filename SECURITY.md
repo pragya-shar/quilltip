@@ -32,8 +32,8 @@ The following are in scope:
 
 ## Supported Versions
 
-Only the latest release on `main` is supported with security updates.
+Only the latest code on `main` is supported with security updates.
 
 ## Disclosure
 
-We follow coordinated disclosure. We will credit reporters in the release notes unless anonymity is requested.
+We follow coordinated disclosure. We will credit reporters in security advisories unless anonymity is requested.

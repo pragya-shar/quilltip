@@ -31,10 +31,9 @@ This policy applies to Quilltip repo work. It should be read with:
 
 Choose the merge method from the branch direction, not from whichever GitHub button is currently available.
 
-| From                  | Into   | Required method  | Reason                                                                  |
-| --------------------- | ------ | ---------------- | ----------------------------------------------------------------------- |
-| Feature branch        | `main` | Regular merge    | Preserve the feature commits and their original identities.             |
-| Release Please branch | `main` | Rebase and merge | Land the single generated release commit without an extra branch merge. |
+| From           | Into   | Required method | Reason                                                      |
+| -------------- | ------ | --------------- | ----------------------------------------------------------- |
+| Feature branch | `main` | Regular merge   | Preserve the feature commits and their original identities. |
 
 - Preserve existing shared feature history with a regular merge into `main`; do not rebase or force-push it.
 - `main` intentionally allows merge commits. Do not enable required linear history while this policy is active.
@@ -54,7 +53,9 @@ Before opening a feature branch PR into `main`:
 7. Require `Required` and `PR Hygiene Required` to pass. Review Vercel when GitHub reports a deployment check.
 8. Confirm GitHub reports the PR as mergeable and select a regular merge commit.
 
-Release Please updates `main` directly through its generated PR. Start subsequent work from the latest `origin/main`; no development sync branch is needed.
+Start subsequent work from the latest `origin/main`; no development sync branch is needed.
+Release bookkeeping and dependency updates are handled manually. Do not add automated
+release PRs, changelog generation, or dependency-update PRs unless explicitly requested.
 
 ## Agent And Tooling
 
