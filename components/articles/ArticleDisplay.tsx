@@ -59,12 +59,11 @@ export default function ArticleDisplay({
   useEnsureHeadingIds(tocHeadings, { rootSelector: '.article-content' })
 
   return (
-    <article className="max-w-4xl mx-auto px-4 py-8">
-      <header className="mb-8">
+    <article className="reader-article">
+      <header className="reader-header">
+        <p className="reader-eyebrow">A QuillTip article</p>
         <div className="article-title-bookmark">
-          <h1 className="text-3xl md:text-4xl font-semibold text-foreground mb-3 leading-snug">
-            {article.title}
-          </h1>
+          <h1 className="reader-title">{article.title}</h1>
           <BookmarkButton
             article={{
               id: article.id,
@@ -78,9 +77,9 @@ export default function ArticleDisplay({
           />
         </div>
 
-        <div className="flex items-center gap-4 mb-6">
+        <div className="reader-byline">
           <ArticleAuthorByline author={article.author} size="md">
-            <p className="text-sm text-muted-foreground">
+            <p className="reader-metadata">
               @{article.author.username}
               <span className="mx-1">•</span>
               {publishedDate && (
@@ -95,26 +94,22 @@ export default function ArticleDisplay({
         </div>
 
         {article.coverImage && (
-          <div className="relative mb-8 w-full h-64 md:h-96">
+          <div className="reader-cover">
             <Image
               src={article.coverImage}
               alt={article.title}
               fill
-              sizes="(max-width: 768px) 100vw, 896px"
+              sizes="(max-width: 768px) calc(100vw - 40px), 832px"
               priority
-              className="object-cover rounded-lg"
+              className="object-cover"
             />
           </div>
         )}
 
         {article.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6">
+          <div className="reader-tags">
             {article.tags.map((tag) => (
-              <TagFilterLink
-                key={tag.id}
-                tag={tag.name}
-                className="px-3 py-1 text-sm"
-              >
+              <TagFilterLink key={tag.id} tag={tag.name} className="reader-tag">
                 {tag.name}
               </TagFilterLink>
             ))}
@@ -144,7 +139,7 @@ export default function ArticleDisplay({
       </div>
 
       {currentUrl && (
-        <div className="mt-8 pt-6 border-t border-border">
+        <div className="reader-share">
           <ShareButtons
             title={article.title}
             url={currentUrl}

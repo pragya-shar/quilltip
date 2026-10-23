@@ -61,17 +61,13 @@ export function ArticleDetailsPanel({
   const noteCount = highlights?.filter((h) => h.note).length ?? 0
 
   return (
-    <Accordion
-      type="single"
-      collapsible
-      className="mt-8 border-t border-border"
-    >
+    <Accordion type="single" collapsible className="reader-details">
       <AccordionItem value="article-details" className="border-none">
-        <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
+        <AccordionTrigger className="reader-details-trigger">
           Article details
         </AccordionTrigger>
-        <AccordionContent>
-          <div className="space-y-0">
+        <AccordionContent className="reader-details-content">
+          <div className="reader-details-sections">
             {showToc && (
               <DetailsSection>
                 <ArticleTableOfContents headings={tocHeadings} embedded />
@@ -79,7 +75,7 @@ export function ArticleDetailsPanel({
             )}
 
             <DetailsSection>
-              <h4 className="text-sm font-medium flex items-center gap-2 mb-4">
+              <h4 className="reader-section-title">
                 <Trophy className="w-4 h-4 text-muted-foreground" />
                 NFT Collection
               </h4>
@@ -102,7 +98,7 @@ export function ArticleDetailsPanel({
             </DetailsSection>
 
             <DetailsSection>
-              <h4 className="text-sm font-medium flex items-center gap-2 mb-4">
+              <h4 className="reader-section-title">
                 <MessageSquare className="w-4 h-4 text-muted-foreground" />
                 Highlight Notes
                 {noteCount > 0 && (
@@ -130,11 +126,11 @@ export function ArticleDetailsPanel({
 
             {tipStats && (
               <DetailsSection>
-                <h4 className="text-sm font-medium flex items-center gap-2 mb-4">
+                <h4 className="reader-section-title">
                   <DollarSign className="w-4 h-4 text-muted-foreground" />
                   Article Stats
                 </h4>
-                <div className="space-y-3">
+                <div className="reader-stats">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Total Tips</span>
                     <span className="font-semibold">{tipStats.count || 0}</span>
@@ -151,7 +147,7 @@ export function ArticleDetailsPanel({
 
             {arweaveStatus && (
               <DetailsSection>
-                <h4 className="text-sm font-medium flex items-center gap-2 mb-4">
+                <h4 className="reader-section-title">
                   <Archive className="w-4 h-4 text-muted-foreground" />
                   Permanent Storage
                 </h4>

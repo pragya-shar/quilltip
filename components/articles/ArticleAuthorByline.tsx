@@ -34,7 +34,8 @@ export function ArticleAuthorByline({
 }: ArticleAuthorBylineProps) {
   const displayName = author.name || author.username
   const linkable = canLinkAuthorProfile(author)
-  const avatarClassName = size === 'sm' ? 'h-9 w-9' : 'h-12 w-12'
+  const avatarClassName =
+    size === 'sm' ? 'h-9 w-9 shrink-0' : 'h-12 w-12 shrink-0'
   const fallbackClassName = size === 'sm' ? undefined : 'text-base'
   const nameClassName =
     size === 'sm'
@@ -54,7 +55,7 @@ export function ArticleAuthorByline({
         className={avatarClassName}
         fallbackClassName={fallbackClassName}
       />
-      <div>
+      <div className="min-w-0 break-words">
         <p className={nameClassName}>{displayName}</p>
         {showHandle && <p className={handleClassName}>@{author.username}</p>}
         {!linkable && (
@@ -66,7 +67,10 @@ export function ArticleAuthorByline({
     </>
   )
 
-  const wrapperClassName = cn('flex flex-col gap-1', className)
+  const wrapperClassName = cn(
+    'article-author flex min-w-0 flex-col gap-1',
+    className
+  )
 
   if (linkable) {
     return (
@@ -74,7 +78,7 @@ export function ArticleAuthorByline({
         <Link
           href={`/${author.username}`}
           aria-label={profileAriaLabel(displayName)}
-          className="focus-ring flex items-center gap-3 rounded-md hover:opacity-80 transition-opacity w-fit"
+          className="focus-ring flex items-center gap-3 rounded-md hover:opacity-80 transition-opacity w-fit max-w-full"
         >
           {identityBlock}
         </Link>
