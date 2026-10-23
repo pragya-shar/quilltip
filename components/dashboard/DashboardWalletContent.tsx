@@ -2,54 +2,66 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/components/providers/AuthContext'
-import { useUserByUsername } from '@/hooks/convex'
 import { WalletSettings } from '@/components/stellar'
 import { DashboardWalletSkeleton } from '@/components/dashboard/DashboardWalletSkeleton'
+import { ActivityBoundary } from '@/components/account/ActivityBoundary'
+import { WalletTipHistory } from '@/components/account/WalletTipHistory'
+import { useTipActivity } from '@/hooks/convex/useTipActivity'
+import type { CurrentUserDoc } from '@/types/convex'
 
-export function DashboardWalletContent() {
-  const { user: currentUser } = useAuth()
-  const user = useUserByUsername(currentUser?.username)
-  const [localWalletAddress, setLocalWalletAddress] = useState<
-    string | null | undefined
-  >()
+function WalletActivity() {
+  const activity = useTipActivity()
+  if (activity.status === 'loading')
+    return (
+      <section
+        className="account-tip-history"
+        aria-labelledby="tip-history-title"
+      >
+        <h2 id="tip-history-title">Tip history</h2>
+        <p role="status" className="account-muted">
+          Loading your tips…
+        </p>
+      </section>
+    )
+  return <WalletTipHistory items={activity.items} />
+}
 
+function WalletAccountContent({ user }: { user: CurrentUserDoc }) {
+  const [localAddress, setLocalAddress] = useState<string | null | undefined>()
   useEffect(() => {
     if (
-      localWalletAddress !== undefined &&
-      user?.stellarAddress === localWalletAddress
-    ) {
-      setLocalWalletAddress(undefined)
-    }
-  }, [user?.stellarAddress, localWalletAddress])
-
-  if (!currentUser?.username || user === undefined) {
-    return <DashboardWalletSkeleton />
-  }
-
-  const profileDisplayName = user?.name || currentUser.username
-  const walletAddress =
-    localWalletAddress === undefined ? user?.stellarAddress : localWalletAddress
-
+      localAddress !== undefined &&
+      (user.stellarAddress ?? null) === localAddress
+    )
+      setLocalAddress(undefined)
+  }, [user.stellarAddress, localAddress])
   return (
-    <div className="space-y-8">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-foreground mb-2">
-          Wallet Management
-        </h2>
-        <p className="text-muted-foreground">
-          Manage your Stellar wallet for sending and receiving tips.
-        </p>
+    <>
+      <div className="account-heading">
+        <h1>Wallet</h1>
+        <p>Your wallet and tip activity.</p>
       </div>
-
-      <div className="max-w-2xl">
+      <div className="account-wallet">
         <WalletSettings
-          walletAddress={walletAddress}
-          profileUsername={currentUser.username}
+          walletAddress={
+            localAddress === undefined ? user.stellarAddress : localAddress
+          }
+          profileUsername={user.username}
           isOwnProfile
-          profileDisplayName={profileDisplayName}
-          onAddressChange={setLocalWalletAddress}
+          profileDisplayName={user.name || user.username}
+          onAddressChange={setLocalAddress}
         />
+        <ActivityBoundary resetKey={user._id}>
+          <WalletActivity />
+        </ActivityBoundary>
       </div>
-    </div>
+    </>
   )
+}
+
+export function DashboardWalletContent() {
+  const { user } = useAuth()
+  if (!user) return <DashboardWalletSkeleton />
+  // Remount drafts, optimistic address state, and receipts together on account change.
+  return <WalletAccountContent key={user._id} user={user} />
 }
