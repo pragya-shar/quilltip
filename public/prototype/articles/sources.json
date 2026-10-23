@@ -1,0 +1,34 @@
+[
+  {
+    "file": "words-museum.jpg",
+    "title": "Wheat Field with Cypresses",
+    "artist": "Vincent van Gogh",
+    "source": "https://www.metmuseum.org/art/collection/search/436535",
+    "metadata": "https://collectionapi.metmuseum.org/public/collection/v1/objects/436535",
+    "is_public_domain": true
+  },
+  {
+    "file": "window-museum.jpg",
+    "title": "A Woman Seated beside a Vase of Flowers (Madame Paul Valpin\u00e7on?)",
+    "artist": "Edgar Degas",
+    "source": "https://www.metmuseum.org/art/collection/search/436121",
+    "metadata": "https://collectionapi.metmuseum.org/public/collection/v1/objects/436121",
+    "is_public_domain": true
+  },
+  {
+    "file": "room-museum.jpg",
+    "title": "Roses",
+    "artist": "Vincent van Gogh",
+    "source": "https://www.metmuseum.org/art/collection/search/436534",
+    "metadata": "https://collectionapi.metmuseum.org/public/collection/v1/objects/436534",
+    "is_public_domain": true
+  },
+  {
+    "file": "recipe-museum.jpg",
+    "title": "Still Life with Apples and a Pot of Primroses",
+    "artist": "Paul C\u00e9zanne",
+    "source": "https://www.metmuseum.org/art/collection/search/435882",
+    "metadata": "https://collectionapi.metmuseum.org/public/collection/v1/objects/435882",
+    "is_public_domain": true
+  }
+]

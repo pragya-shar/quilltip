@@ -1,3 +1,4 @@
+import { getTipArticleSummary } from './lib/tipArticleSummary'
 import { mutation, query } from './_generated/server'
 import { ConvexError, v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -808,11 +809,17 @@ export const getByTipper = query({
     const tipperId = await getAuthUserId(ctx)
     if (!tipperId) return []
 
-    return await ctx.db
+    const tips = await ctx.db
       .query('highlightTips')
       .withIndex('by_tipper', (q) => q.eq('tipperId', tipperId))
       .order('desc')
       .collect()
+    return await Promise.all(
+      tips.map(async (tip) => ({
+        ...tip,
+        sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
+      }))
+    )
   },
 })
 
@@ -826,12 +833,18 @@ export const getByAuthor = query({
     const authorId = await getAuthUserId(ctx)
     if (!authorId) return []
 
-    return await ctx.db
+    const tips = await ctx.db
       .query('highlightTips')
       .withIndex('by_author', (q) => q.eq('authorId', authorId))
       .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .order('desc')
       .collect()
+    return await Promise.all(
+      tips.map(async (tip) => ({
+        ...tip,
+        sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
+      }))
+    )
   },
 })
 

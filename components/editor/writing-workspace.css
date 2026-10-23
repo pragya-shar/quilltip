@@ -1,0 +1,1290 @@
+@font-face {
+  font-family: 'Writing Work';
+  src: url(/prototype/writing/fonts/reading-work-sans.woff2);
+}
+@font-face {
+  font-family: 'Writing Syne';
+  src: url('/prototype/writing/fonts/reading-syne.woff2');
+}
+@font-face {
+  font-family: 'Writing Literata';
+  src: url('/prototype/writing/fonts/literata-latin-400-normal.woff2');
+}
+@font-face {
+  font-family: 'Writing Alegreya';
+  src: url('/prototype/writing/fonts/alegreya-latin-400-italic.woff');
+  font-style: italic;
+}
+.writing-workspace * {
+  box-sizing: border-box;
+}
+.writing-workspace {
+  --wine: #660033;
+  --ink: #38272c;
+  --paper: #eee3cf;
+  --article-font: 'Writing Literata', Georgia, serif;
+  --title-font: 'Writing Literata', Georgia, serif;
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font:
+    15px/1.5 'Writing Syne',
+    sans-serif;
+}
+.writing-workspace button,
+.writing-workspace a,
+.writing-workspace input,
+.writing-workspace textarea {
+  font: inherit;
+}
+.writing-workspace button {
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  min-height: 44px;
+  padding: 9px 14px;
+  border-radius: 6px;
+  transition:
+    background 0.16s,
+    box-shadow 0.16s;
+}
+.writing-workspace button:hover {
+  background: #6600330c;
+}
+.writing-workspace button:focus-visible,
+.writing-workspace a:focus-visible,
+.writing-workspace input:focus-visible,
+.writing-workspace textarea:focus-visible,
+.writing-workspace [contenteditable]:focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 4px;
+}
+.writing-workspace a {
+  color: var(--wine);
+}
+.writing-workspace button.wine {
+  background: var(--wine);
+  color: #fff3e2;
+}
+.writing-workspace .wine:hover {
+  background: #80134b;
+  box-shadow: 0 4px 15px #66003322;
+}
+.writing-workspace .topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 36px;
+  border-bottom: 1px solid #66003320;
+  background: transparent;
+}
+.writing-workspace .brand {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  text-decoration: none;
+}
+.writing-workspace .brand span {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: #795b65;
+  margin-left: 10px;
+}
+.writing-workspace .actions {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.writing-workspace #save-status {
+  font-size: 12px;
+  color: #71565c;
+  margin-right: 12px;
+}
+.writing-workspace .desk-nav {
+  max-width: 1100px;
+  margin: 18px auto 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 24px;
+  color: var(--wine);
+}
+.writing-workspace .desk-nav > div {
+  display: flex;
+  gap: 5px;
+}
+.writing-workspace main {
+  position: relative;
+  padding: 22px 24px 48px;
+}
+.writing-workspace .sheet {
+  max-width: 780px;
+  min-height: 690px;
+  background: var(--paper);
+  margin: auto;
+  padding: 40px 66px 28px;
+  box-shadow: 0 14px 44px #5832430d;
+  color: var(--ink);
+}
+.writing-workspace .paper-heading {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  letter-spacing: 1.7px;
+  color: #866b6c;
+  margin-bottom: 38px;
+}
+.writing-workspace textarea {
+  display: block;
+  resize: none;
+  overflow: hidden;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+.writing-workspace #article-title {
+  font-family: var(--title-font);
+  font-size: 42px;
+  line-height: 1.23;
+  letter-spacing: -1.3px;
+  font-weight: 500;
+  min-height: 58px;
+}
+.writing-workspace #article-subtitle {
+  font-size: 17px;
+  line-height: 1.6;
+  margin-top: 16px;
+  min-height: 28px;
+}
+.writing-workspace textarea::placeholder {
+  color: #a18a83;
+}
+.writing-workspace .rule {
+  height: 1px;
+  background: #7a4b5325;
+  margin: 26px 0;
+}
+.writing-workspace .writer-body {
+  font-family: var(--article-font);
+  font-size: 19px;
+  line-height: 1.85;
+  min-height: 340px;
+  outline: none;
+  overflow-wrap: anywhere;
+}
+.writing-workspace .writer-body:empty:before {
+  content: attr(data-placeholder);
+  color: #9a827b;
+  pointer-events: none;
+}
+.writing-workspace .writer-body p {
+  margin: 0 0 20px;
+}
+.writing-workspace .writer-body h2 {
+  font-size: 27px;
+  line-height: 1.3;
+  margin: 28px 0 12px;
+}
+.writing-workspace .writer-body blockquote,
+.writing-workspace .preview-dialog blockquote {
+  margin: 20px 0;
+  padding-left: 22px;
+  border-left: 2px solid #66003380;
+  font-style: italic;
+}
+.writing-workspace .writer-body img,
+.writing-workspace .preview-dialog img {
+  max-width: 100%;
+  height: auto;
+}
+.writing-workspace .writer-body hr {
+  border: 0;
+  border-top: 1px solid #66003340;
+  margin: 30px 0;
+}
+.writing-workspace .paper-footer {
+  border-top: 1px solid #7a4b5325;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 40px;
+  padding-top: 20px;
+  color: #82666b;
+  font-size: 11px;
+}
+.writing-workspace .margin-note {
+  position: absolute;
+  top: 140px;
+  left: calc(50% - 575px);
+  font:
+    italic 27px/1.2 'Writing Alegreya',
+    Georgia,
+    serif;
+  color: #804157;
+  transform: rotate(-8deg);
+}
+.writing-workspace .margin-note svg {
+  display: block;
+  width: 100px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  margin-top: 12px;
+}
+.writing-workspace .trial-footer {
+  text-align: center;
+  color: #795b65;
+  font-size: 12px;
+  padding: 0 20px 30px;
+}
+.writing-workspace .trial-footer button {
+  font-size: 12px;
+  text-decoration: underline;
+  margin-left: 15px;
+}
+.writing-workspace .formatbar {
+  position: fixed;
+  z-index: 5;
+  background: #fff5e6;
+  box-shadow: 0 6px 30px #38000a24;
+  border: 1px solid #66003325;
+  border-radius: 9px;
+  padding: 4px;
+  max-width: calc(100vw - 16px);
+  display: flex;
+  align-items: center;
+}
+.writing-workspace .formatbar[hidden] {
+  display: none;
+}
+.writing-workspace .formatbar button {
+  min-width: 38px;
+  padding: 8px 10px;
+  color: #660033;
+}
+.writing-workspace .formatbar button[aria-pressed='true'] {
+  background: #e9ccd6;
+}
+.writing-workspace .writer-dialog {
+  color: var(--ink);
+  background: #f6ebde;
+  border: 1px solid #66003320;
+  padding: 30px;
+  box-shadow: 0 12px 60px #38000a28;
+}
+.writing-overlay {
+  background: #38212d30;
+  backdrop-filter: blur(2px);
+}
+.writing-workspace .drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: 380px;
+  height: 100dvh;
+  max-height: 100dvh;
+  max-width: 100%;
+  border-radius: 0;
+}
+.writing-workspace .drawer.left {
+  inset: 0 auto 0 0;
+}
+.writing-workspace .drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+}
+.writing-workspace .drawer-header h2 {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+.writing-workspace .drawer-header button {
+  font-size: 25px;
+}
+.writing-workspace .muted {
+  color: #755961;
+  font-size: 14px;
+}
+.writing-workspace .drawer fieldset {
+  border: 0;
+  padding: 0;
+  margin: 36px 0;
+}
+.writing-workspace .drawer legend {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+.writing-workspace .swatches {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.writing-workspace .swatches label {
+  position: relative;
+  cursor: pointer;
+  text-align: center;
+  font-size: 12px;
+}
+.writing-workspace .swatches input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  left: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.writing-workspace .swatches span {
+  display: block;
+  background: var(--swatch);
+  width: 54px;
+  height: 54px;
+  border: 1px solid #80657550;
+  border-radius: 50%;
+  margin-bottom: 9px;
+}
+.writing-workspace .swatches input:checked + span {
+  outline: 2px solid var(--wine);
+  outline-offset: 4px;
+}
+.writing-workspace .swatches input:focus-visible + span {
+  outline: 3px double var(--wine);
+  outline-offset: 5px;
+}
+.writing-workspace .font-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid #66003320;
+  cursor: pointer;
+}
+.writing-workspace .font-choice input {
+  accent-color: var(--wine);
+}
+.writing-workspace .font-choice strong {
+  display: block;
+  font-size: 21px;
+  font-weight: 500;
+}
+.writing-workspace .font-choice small {
+  display: block;
+  font-size: 12px;
+  color: #755961;
+}
+.writing-workspace .drawer-note {
+  border-top: 1px solid #66003320;
+  padding-top: 22px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #755961;
+}
+.writing-workspace .wide {
+  width: 100%;
+  margin-top: 12px;
+}
+.writing-workspace .small-dialog {
+  width: 420px;
+  max-width: calc(100% - 32px);
+  border-radius: 10px;
+}
+.writing-workspace .insert-option {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid #66003320;
+  border-radius: 0;
+  padding: 18px 0;
+}
+.writing-workspace .insert-option span {
+  font-size: 12px;
+  color: #755961;
+}
+.writing-workspace #link-url {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0 15px;
+  border: 1px solid #66003340;
+  background: #fff8ee;
+  border-radius: 5px;
+}
+.writing-workspace .preview-dialog {
+  max-width: 100%;
+  width: 100vw;
+  max-height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background: #e3c6c6;
+}
+.writing-workspace .preview-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 32px;
+  background: #f6ebde;
+  border-bottom: 1px solid #66003320;
+}
+.writing-workspace .preview-dialog .sheet {
+  margin: 35px auto;
+  min-height: 65vh;
+}
+.writing-workspace .preview-dialog h1 {
+  font-family: var(--title-font);
+  font-size: 42px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.writing-workspace .preview-body {
+  font: 19px/1.85 var(--article-font);
+  overflow-wrap: anywhere;
+}
+.writing-workspace .preview-subtitle {
+  font-size: 18px;
+  color: #755961;
+}
+.writing-workspace .preview-note {
+  text-align: center;
+  font-size: 13px;
+}
+.writing-workspace .draft-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #66003325;
+  padding: 14px 0;
+}
+.writing-workspace .draft-open {
+  flex: 1;
+  text-align: left;
+  min-width: 0;
+}
+.writing-workspace .draft-open strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.writing-workspace .draft-open small {
+  font-size: 12px;
+  color: #755961;
+}
+.writing-workspace .draft-delete {
+  font-size: 12px;
+}
+.writing-workspace .draft-row.current {
+  background: #66003308;
+}
+.writing-workspace #toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #660033;
+  color: #fff3e2;
+  padding: 12px 22px;
+  border-radius: 8px;
+  z-index: 20;
+  max-width: 90vw;
+}
+.writing-workspace #toast:empty {
+  display: none;
+}
+.writing-workspace .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.writing-workspace.focus-mode {
+  background: var(--paper);
+}
+.writing-workspace.focus-mode .margin-note,
+.writing-workspace.focus-mode .brand span {
+  visibility: hidden;
+}
+.writing-workspace.focus-mode .sheet {
+  box-shadow: none;
+}
+.writing-workspace.focus-mode .topbar {
+  background: var(--paper);
+}
+.writing-workspace.focus-mode #focus {
+  background: #66003318;
+}
+@media (max-width: 1150px) {
+  .writing-workspace .margin-note {
+    display: none;
+  }
+}
+@media (max-width: 650px) {
+  .writing-workspace .topbar {
+    padding: 12px 16px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .writing-workspace .brand {
+    font-size: 23px;
+  }
+  .writing-workspace .brand span {
+    display: none;
+  }
+  .writing-workspace .actions {
+    gap: 4px;
+  }
+  .writing-workspace .actions button {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+  .writing-workspace #save-status {
+    position: absolute;
+    top: 82px;
+    left: 24px;
+    font-size: 11px;
+    margin: 0;
+  }
+  .writing-workspace .desk-nav {
+    margin-top: 38px;
+    padding: 0 12px;
+  }
+  .writing-workspace .desk-nav button {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  .writing-workspace main {
+    padding: 15px 12px 25px;
+  }
+  .writing-workspace .sheet {
+    padding: 28px 24px 22px;
+    min-height: 640px;
+  }
+  .writing-workspace .paper-heading {
+    font-size: 9px;
+    letter-spacing: 1px;
+    margin-bottom: 28px;
+  }
+  .writing-workspace #article-title,
+  .writing-workspace .preview-dialog h1 {
+    font-size: 33px;
+    letter-spacing: -0.7px;
+  }
+  .writing-workspace #article-subtitle {
+    font-size: 16px;
+  }
+  .writing-workspace .writer-body,
+  .writing-workspace .preview-body {
+    font-size: 17px;
+    line-height: 1.85;
+  }
+  .writing-workspace .paper-footer {
+    font-size: 10px;
+    gap: 15px;
+  }
+  .writing-workspace .trial-footer {
+    font-size: 11px;
+  }
+  .writing-workspace .formatbar button {
+    padding: 8px;
+    min-width: 36px;
+  }
+  .writing-workspace .preview-dialog .sheet {
+    margin: 16px 12px;
+  }
+  .writing-workspace .preview-header {
+    padding: 12px 18px;
+    font-size: 13px;
+  }
+  .writing-workspace .drawer {
+    padding: 24px;
+  }
+  .writing-workspace .preview-header button {
+    font-size: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .writing-workspace * {
+    transition: none !important;
+  }
+}
+
+.writing-workspace [hidden] {
+  display: none !important;
+}
+.writing-workspace .paper-heading {
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+.writing-workspace .paper-footer {
+  font-size: 12px;
+}
+.writing-workspace .formatbar button {
+  min-width: 44px;
+}
+.writing-workspace .formatbar {
+  flex-wrap: wrap;
+}
+.writing-workspace #save-help {
+  font-size: 12px;
+  text-decoration: underline;
+  color: var(--wine);
+}
+.writing-workspace .appearance-sample {
+  padding: 20px;
+  background: var(--paper);
+  border: 1px solid #66003320;
+  margin-top: 24px;
+}
+.writing-workspace .appearance-sample small {
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+.writing-workspace .appearance-sample h3 {
+  font: 24px/1.25 var(--title-font);
+  margin: 14px 0;
+}
+.writing-workspace .appearance-sample p {
+  font: 15px/1.6 var(--article-font);
+  margin: 0;
+}
+.writing-workspace .small-dialog h2 {
+  font-size: 25px;
+}
+.writing-workspace .small-dialog label,
+.writing-workspace #publish-form > label {
+  display: block;
+  margin: 22px 0 8px;
+  font-size: 14px;
+}
+.writing-workspace .small-dialog input,
+.writing-workspace #publish-form input,
+.writing-workspace #publish-form select {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #66003340;
+  border-radius: 5px;
+  background: #fff7e9;
+  color: var(--ink);
+  font: inherit;
+}
+.writing-workspace .image-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+.writing-workspace .writer-body figure,
+.writing-workspace .preview-body figure {
+  margin: 24px 0;
+}
+.writing-workspace .writer-body figure {
+  position: relative;
+}
+.writing-workspace .writer-body figure img {
+  cursor: pointer;
+}
+.writing-workspace .writer-body figure:focus-within {
+  outline: 2px solid var(--wine);
+}
+.writing-workspace figcaption {
+  font:
+    14px/1.5 'Writing Syne',
+    sans-serif;
+  color: #71565c;
+  margin-top: 10px;
+}
+.writing-workspace #cover-preview img,
+.writing-workspace .article-cover {
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+  margin-top: 20px;
+}
+.writing-workspace #publish-error {
+  color: #8a163c;
+}
+.writing-workspace #toast button {
+  color: #fff3e2;
+  text-decoration: underline;
+}
+.writing-workspace .preview-header > div {
+  display: flex;
+  gap: 10px;
+}
+.writing-workspace .article-meta {
+  font-size: 13px;
+  color: #71565c;
+  margin-bottom: 24px;
+}
+.writing-workspace .preview-dialog.reader-view .preview-header {
+  background: var(--paper);
+}
+.writing-workspace .preview-dialog.reader-view #continue-publish {
+  display: none;
+}
+.writing-workspace button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 650px) {
+  .writing-workspace .paper-heading,
+  .writing-workspace .paper-footer {
+    font-size: 12px;
+  }
+  .writing-workspace .paper-footer {
+    flex-wrap: wrap;
+  }
+  .writing-workspace .preview-header {
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .writing-workspace .preview-header > div {
+    flex-direction: column;
+    gap: 3px;
+  }
+  .writing-workspace .formatbar {
+    max-width: calc(100vw - 16px);
+  }
+  .writing-workspace #save-help {
+    position: absolute;
+    right: 12px;
+    top: 72px;
+    font-size: 11px;
+  }
+  .writing-workspace .actions:has(#save-help:not([hidden])) #save-status {
+    max-width: 210px;
+    font-size: 10px;
+  }
+  .writing-workspace .appearance-sample {
+    padding: 16px;
+  }
+}
+@font-face {
+  font-family: 'Writing Literata';
+  src: url('/prototype/writing/fonts/literata-latin-400-normal.woff2');
+  font-display: swap;
+}
+
+.writing-workspace .draft-row {
+  flex-wrap: wrap;
+}
+.writing-workspace .draft-open {
+  flex-basis: 65%;
+}
+.writing-workspace .draft-view {
+  font-size: 12px;
+  color: var(--wine);
+  text-decoration: underline;
+}
+.writing-workspace #appearance-done {
+  position: sticky;
+  bottom: 0;
+  box-shadow: 0 -8px 20px #f6ebde;
+}
+.writing-workspace .drawer input:disabled {
+  opacity: 0.55;
+}
+
+.writing-workspace #save-draft {
+  border: 1px solid var(--wine);
+  border-radius: 12px;
+  background: var(--wine);
+  color: #fff3e2;
+  font-weight: 600;
+  transition:
+    background 0.18s,
+    box-shadow 0.18s,
+    border-color 0.18s;
+}
+.writing-workspace #save-draft:hover {
+  background: #80134b;
+  border-color: #80134b;
+  box-shadow: 0 3px 14px #66003325;
+}
+.writing-workspace #save-draft:active,
+.writing-workspace #save-draft.saved-flash {
+  background: #942b60;
+  border-color: #942b60;
+  box-shadow: 0 0 0 4px #942b6026;
+}
+.writing-workspace #save-draft:focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 4px;
+}
+@media (max-width: 650px) {
+  .writing-workspace .topbar {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: 12px 16px;
+    gap: 8px;
+  }
+  .writing-workspace .brand {
+    justify-self: start;
+  }
+  .writing-workspace .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .writing-workspace .actions #save-status {
+    position: static;
+    flex-basis: 100%;
+    max-width: none;
+    margin: 0 0 3px;
+    font-size: 11px;
+  }
+  .writing-workspace .actions #save-help {
+    position: static;
+    font-size: 12px;
+  }
+  .writing-workspace .actions #save-draft,
+  .writing-workspace .actions #appearance,
+  .writing-workspace .actions #preview {
+    flex: 1;
+  }
+  .writing-workspace .desk-nav {
+    margin-top: 12px;
+  }
+  .writing-workspace .actions:has(#save-help:not([hidden])) #save-status {
+    max-width: none;
+    font-size: 11px;
+  }
+}
+@media (max-width: 650px) {
+  .writing-workspace #appearance span {
+    display: none;
+  }
+  .writing-workspace .actions button {
+    white-space: nowrap;
+  }
+}
+
+/* The writing canvas shares the workspace color rather than sitting on a card. */
+.writing-workspace main > .sheet {
+  background: transparent;
+  box-shadow: none;
+}
+
+.writing-workspace .preview-dialog,
+.writing-workspace .preview-header {
+  background: var(--paper);
+}
+.writing-workspace .preview-dialog .sheet {
+  background: transparent;
+  box-shadow: none;
+}
+.writing-workspace .brand {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.writing-workspace .brand svg {
+  width: 39px;
+  height: 44px;
+  flex-shrink: 0;
+}
+.writing-workspace .brand .brand-word {
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: var(--wine);
+  margin: 0;
+}
+.writing-workspace .brand .desk-label {
+  margin-left: 10px;
+}
+.writing-workspace .editor-return {
+  display: block;
+  width: max-content;
+  margin: 18px auto 0;
+  color: var(--wine);
+  padding: 10px 14px;
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.writing-workspace .brand .brand-word {
+  display: inline;
+}
+
+/* One compact library reuses the editor's saved drafts and publications. */
+.writing-workspace .writing-group {
+  margin: 28px 0 6px;
+  font-size: 13px;
+  color: var(--wine);
+  letter-spacing: 0.05em;
+}
+.writing-workspace .publication-row {
+  padding: 16px 0;
+  border-bottom: 1px solid #66003325;
+}
+.writing-workspace .publication-row > strong,
+.writing-workspace .publication-row > small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.writing-workspace .publication-row > small {
+  color: #755961;
+  margin-top: 4px;
+}
+.writing-workspace .publication-actions {
+  display: flex;
+  gap: 4px;
+  margin: 6px 0 0;
+  flex-wrap: wrap;
+}
+.writing-workspace .publication-actions button {
+  padding: 8px 12px;
+  text-decoration: none;
+  border: 1px solid #66003320;
+}
+@media (max-width: 650px) {
+  .writing-workspace .topbar {
+    padding: 10px 16px 8px;
+    gap: 4px;
+  }
+  .writing-workspace .actions {
+    gap: 5px;
+  }
+  .writing-workspace .actions #save-status {
+    margin: 0;
+    font-size: 11px;
+  }
+  .writing-workspace .editor-return {
+    margin: 4px 12px 0;
+    padding: 8px 12px;
+  }
+  .writing-workspace .desk-nav {
+    margin: 0;
+    padding: 0 12px;
+  }
+  .writing-workspace .desk-nav button {
+    padding: 8px;
+    font-size: 12px;
+  }
+  .writing-workspace main {
+    padding-top: 4px;
+  }
+  .writing-workspace .sheet {
+    padding-top: 14px;
+  }
+  .writing-workspace .paper-heading {
+    margin-bottom: 22px;
+  }
+}
+
+.writing-workspace .editor-destinations {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 12px 28px;
+  border-bottom: 1px solid #66003320;
+  font-size: 14px;
+}
+.writing-workspace .editor-destinations a {
+  color: #660033;
+  text-decoration: none;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.writing-workspace .editor-destinations a[aria-current] {
+  border-bottom: 2px solid #660033;
+  font-weight: 600;
+}
+.writing-workspace .editor-destinations a:hover {
+  text-decoration: underline;
+}
+@media (max-width: 600px) {
+  .writing-workspace .editor-destinations {
+    padding: 4px 16px;
+    gap: 20px;
+  }
+}
+
+/* A visible writing boundary when arriving by keyboard. */
+.writing-workspace .writer-body:focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 8px;
+  border-radius: 2px;
+}
+
+/* Adapter rules for React, accessible dialogs and the real TipTap document. */
+.writing-workspace {
+  min-height: 100dvh;
+  isolation: isolate;
+}
+.writing-workspace button,
+.writing-workspace input,
+.writing-workspace select,
+.writing-workspace textarea {
+  font: inherit;
+}
+.writing-workspace button {
+  cursor: pointer;
+}
+.writing-workspace h1,
+.writing-workspace h2,
+.writing-workspace h3,
+.writing-workspace p {
+  margin-block-start: 1em;
+  margin-block-end: 1em;
+}
+.writing-workspace .drawer-header h2 {
+  margin: 0;
+}
+.writing-workspace a {
+  color: var(--wine);
+}
+.writing-workspace.writing-portal {
+  min-height: 0;
+  position: relative;
+  z-index: 100;
+  background: none;
+}
+.writing-overlay {
+  position: fixed;
+  inset: 0;
+  background: #38212d30;
+  backdrop-filter: blur(2px);
+  z-index: 100;
+}
+.writing-workspace .writer-dialog {
+  position: fixed;
+  z-index: 101;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.writing-workspace .small-dialog {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-height: 90dvh;
+}
+.writing-workspace .preview-dialog {
+  inset: 0;
+}
+.writing-workspace .writer-body .is-editor-empty:first-child:before {
+  content: attr(data-placeholder);
+  color: #9a827b;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.writing-workspace .writer-body ul,
+.writing-workspace .preview-body ul {
+  list-style: disc;
+  padding-left: 28px;
+}
+.writing-workspace .writer-body ol,
+.writing-workspace .preview-body ol {
+  list-style: decimal;
+  padding-left: 28px;
+}
+.writing-workspace .writer-body h1 {
+  font-size: 36px;
+  line-height: 1.3;
+}
+.writing-workspace .writer-body h3 {
+  font-size: 23px;
+  line-height: 1.4;
+}
+.writing-workspace .writer-body pre {
+  white-space: pre-wrap;
+  background: #66003308;
+  padding: 16px;
+  border: 1px solid #66003320;
+  border-radius: 6px;
+}
+.writing-workspace .writer-body iframe,
+.writing-workspace .preview-body iframe {
+  max-width: 100%;
+  aspect-ratio: 16/9;
+  height: auto;
+}
+.writing-workspace .formatbar {
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  justify-content: center;
+}
+.writing-workspace .formatbar select {
+  background: transparent;
+  border: 0;
+  font-size: 13px;
+  max-width: 90px;
+  color: var(--wine);
+}
+.writing-workspace .writer-notice {
+  max-width: 780px;
+  margin: 16px auto;
+  padding: 12px 20px;
+  border: 1px solid #66003330;
+  border-radius: 8px;
+  color: var(--wine);
+  font-size: 14px;
+}
+.writing-workspace .writer-notice p {
+  margin: 5px 0;
+}
+.writing-workspace .writer-notice button {
+  text-decoration: underline;
+}
+.writing-workspace .writer-body.dragging {
+  outline: 2px dashed var(--wine);
+  outline-offset: 12px;
+}
+.writing-workspace .writer-notes {
+  min-height: 240px;
+  border: 1px solid #66003340;
+  background: #fff7e9;
+  padding: 14px;
+  resize: vertical;
+}
+.writing-workspace .preview-body {
+  color: var(--ink);
+  max-width: none;
+}
+.writing-workspace .preview-body p {
+  margin: 0 0 20px;
+}
+.writing-workspace .preview-body h2 {
+  font-size: 27px;
+  line-height: 1.3;
+  margin: 28px 0 12px;
+}
+.writing-workspace .preview-body a {
+  text-decoration: underline;
+}
+.writing-workspace .preview-subtitle {
+  white-space: pre-wrap;
+}
+.writing-workspace .writer-dialog label {
+  color: var(--ink);
+}
+.writing-workspace .writer-dialog input[type='radio'] {
+  width: auto;
+}
+.writing-workspace .swatches input[type='radio'] {
+  width: 100%;
+}
+.writing-workspace .published-link {
+  display: block;
+  text-align: center;
+  padding: 12px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+.writing-workspace button:focus-visible,
+.writing-workspace a:focus-visible,
+.writing-workspace input:focus-visible,
+.writing-workspace textarea:focus-visible,
+.writing-workspace select:focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 4px;
+}
+.writing-workspace .writer-body[contenteditable='false'] {
+  opacity: 0.7;
+}
+.writing-workspace .empty-writing {
+  font-size: 14px;
+  color: #755961;
+  line-height: 1.7;
+}
+.writing-workspace .draft-open {
+  color: var(--ink);
+  text-decoration: none;
+  padding: 10px 14px;
+}
+.writing-workspace .publication-actions a {
+  padding: 8px 12px;
+  border: 1px solid #66003320;
+  border-radius: 8px;
+  font-size: 14px;
+  text-decoration: none;
+}
+.writing-workspace .publication-actions button {
+  font-size: 14px;
+}
+.writing-workspace .writer-body .resize-handle {
+  background: var(--wine);
+}
+@media (max-width: 650px) {
+  .writing-workspace .formatbar {
+    bottom: 12px;
+    width: calc(100vw - 24px);
+  }
+  .writing-workspace .preview-dialog .sheet {
+    width: auto;
+  }
+  .writing-workspace .writer-notice {
+    margin: 12px;
+  }
+  .writing-workspace .paper-footer {
+    font-size: 12px;
+  }
+}
+
+.writing-workspace .published-link.wine {
+  background: var(--wine);
+  color: #fff3e2;
+}
+.writing-workspace .writing-image figure {
+  margin: 24px 0;
+  position: relative;
+}
+.writing-workspace .writing-image-open {
+  display: block;
+  padding: 0;
+  min-height: 0;
+  width: 100%;
+  border-radius: 0;
+  text-align: left;
+}
+.writing-workspace .writing-image-open img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 0;
+}
+.writing-workspace .writing-image-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--wine);
+  flex-wrap: wrap;
+}
+.writing-workspace .writing-image-tools select {
+  background: transparent;
+  border: 1px solid #66003320;
+  padding: 8px;
+  border-radius: 6px;
+}
+.writing-workspace .writing-resize {
+  touch-action: none;
+  cursor: ew-resize;
+  border: 1px solid #66003330;
+}
+.writing-workspace .writer-drop.dragging {
+  outline: 2px dashed var(--wine);
+  outline-offset: 10px;
+}
+
+.writing-workspace .writing-image .writing-image-tools {
+  display: none;
+}
+.writing-workspace .writing-image:focus-within .writing-image-tools,
+.writing-workspace .writing-image:hover .writing-image-tools,
+.writing-workspace .writing-image[data-selected='true'] .writing-image-tools {
+  display: flex;
+}

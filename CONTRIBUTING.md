@@ -24,7 +24,8 @@ See [docs/SETUP.md](docs/SETUP.md) for full environment details.
 1. Create a branch from `main`:
 
 ```bash
-git checkout -b feature/your-feature
+git fetch origin
+git switch -c feature/your-feature origin/main
 ```
 
 1. Make your changes. Run checks before committing:
@@ -32,7 +33,8 @@ git checkout -b feature/your-feature
 ```bash
 bun run lint
 bun run typecheck
-bun test
+bun run format:check
+bun run build
 ```
 
 1. Commit with a clear message:
@@ -79,7 +81,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full breakdown. Key direc
 - Keep PRs focused — one feature or fix per PR
 - Include a description of what changed and why
 - Add screenshots for UI changes
-- Make sure CI passes (lint, typecheck, tests)
+- Make sure CI passes (format, lint, typecheck, build, dependency audit)
 
 ## Reporting Issues
 
@@ -95,7 +97,7 @@ Open an issue with:
 Some areas where help is welcome:
 
 - UI/UX improvements
-- Test coverage
+- Browser regression coverage
 - Accessibility
 - Documentation
 - Performance optimization

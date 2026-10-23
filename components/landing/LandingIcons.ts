@@ -1,0 +1,7 @@
+export { ArrowRight } from './icons/ArrowRight'
+export { ArrowUpRight } from './icons/ArrowUpRight'
+export { Heart } from './icons/Heart'
+export { UserCircle } from './icons/UserCircle'
+export { Check } from './icons/Check'
+export { Plus } from './icons/Plus'
+export { X } from './icons/X'

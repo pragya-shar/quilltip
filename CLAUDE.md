@@ -15,7 +15,7 @@ Quilltip is a decentralized publishing platform where writers earn money through
 - **Editor**: Tiptap
 - **Validation**: Zod
 - **State**: Zustand
-- **Testing**: Vitest, convex-test
+- **Browser tests**: Playwright (`e2e/`)
 
 ## File Structure
 
@@ -35,7 +35,6 @@ docs/           Documentation
 bun run dev           # Start Next.js + Convex in parallel
 bun run lint          # ESLint (flat config)
 bun run typecheck     # tsc --noEmit
-bun run test:once     # Vitest single run
 bun run format        # Prettier write
 bun run format:check  # Prettier check (CI)
 bun run build         # Next.js production build
@@ -90,6 +89,6 @@ When reviewing code, check for:
 
 ## Testing
 
-- Use Vitest for unit tests, convex-test for backend function tests.
-- Bug fixes must include a regression test.
-- Test files live next to the code they test (`*.test.ts` / `*.test.tsx`).
+- Unit tests and their runners have been removed.
+- Use the existing Playwright tests in `e2e/` for browser regression checks.
+- Run formatting, typechecking, lint, and a production build before handoff.

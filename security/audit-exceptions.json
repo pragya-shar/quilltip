@@ -1,0 +1,86 @@
+[
+  {
+    "advisory": "GHSA-3gc7-fjrx-p6mg",
+    "package": "bigint-buffer",
+    "version": "1.1.5",
+    "vulnerableVersions": "<=1.1.5",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Turbo includes Solana buffer-layout utilities, but lib/arweave/client.ts constructs ArweaveSigner (RSA) and uploads JSON. It never selects a Solana signer or calls toBigIntLE. No patched upstream release is available; reassess before enabling Solana functionality.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-vfj7-8cjw-p6xm",
+    "package": "braces",
+    "version": "3.0.3",
+    "vulnerableVersions": "<=3.0.3",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Only development lint tooling (eslint-config-next > fast-glob > micromatch) reaches this dependency. Patterns are repository-controlled; no application input reaches recursive brace AST walkers. No patched upstream release is available.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-82x6-q7mm-w9cf",
+    "package": "toml",
+    "version": "3.0.0",
+    "vulnerableVersions": "<4.2.0",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Stellar SDK exposes TOML parsing through StellarTomlResolver and federation/domain-discovery helpers. QuillTip callers use Horizon/Soroban/XDR APIs and never call these helpers or toml.parse. Patched releases require a major parser migration; reassess before adding domain discovery.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-v5mp-jgw5-2x6j",
+    "package": "toml",
+    "version": "3.0.0",
+    "vulnerableVersions": "<4.1.2",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Stellar SDK exposes TOML parsing through StellarTomlResolver and federation/domain-discovery helpers. QuillTip callers use Horizon/Soroban/XDR APIs and never call these helpers or toml.parse. Patched releases require a major parser migration; reassess before adding domain discovery.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-4qx8-w7c3-pj3p",
+    "package": "toml",
+    "version": "3.0.0",
+    "vulnerableVersions": "<=5.0.0",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Stellar SDK exposes TOML parsing through StellarTomlResolver and federation/domain-discovery helpers. QuillTip callers use Horizon/Soroban/XDR APIs and never call these helpers or toml.parse. Patched releases require a major parser migration; reassess before adding domain discovery.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-9j65-hcg3-gc64",
+    "package": "toml",
+    "version": "3.0.0",
+    "vulnerableVersions": "<=5.0.0",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Stellar SDK exposes TOML parsing through StellarTomlResolver and federation/domain-discovery helpers. QuillTip callers use Horizon/Soroban/XDR APIs and never call these helpers or toml.parse. Patched releases require a major parser migration; reassess before adding domain discovery.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  },
+  {
+    "advisory": "GHSA-9qmh-m7c6-f92p",
+    "package": "toml",
+    "version": "3.0.0",
+    "vulnerableVersions": "<=5.0.0",
+    "severity": "high",
+    "owner": "pragya-shar",
+    "reviewedBy": "Codex dependency reachability review, 2026-10-23",
+    "expires": "2026-11-06",
+    "reason": "Stellar SDK exposes TOML parsing through StellarTomlResolver and federation/domain-discovery helpers. QuillTip callers use Horizon/Soroban/XDR APIs and never call these helpers or toml.parse. Patched releases require a major parser migration; reassess before adding domain discovery.",
+    "evidence": "docs/security/dependency-audit.md#remaining-exceptions"
+  }
+]

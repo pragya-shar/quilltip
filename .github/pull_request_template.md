@@ -10,7 +10,7 @@
 
 -
 
-<!-- Common gates: `bun run format:check`, `bun run typecheck`, `bun run lint`, `bun run test:once`, `bun run build`. Add focused tests and contract tests when relevant. -->
+<!-- Common gates: `bun run format:check`, `bun run typecheck`, `bun run lint`, `bun run build`. Add browser tests and contract compile checks when relevant. -->
 
 ## Notes
 

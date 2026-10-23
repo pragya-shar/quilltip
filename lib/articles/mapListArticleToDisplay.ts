@@ -1,5 +1,6 @@
 import type { ListArticleRow } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
+import { getArticlePreview } from '@/convex/lib/articlePreview'
 
 export function mapListArticleRowToDisplay(
   article: ListArticleRow
@@ -8,7 +9,7 @@ export function mapListArticleRowToDisplay(
     id: article._id,
     slug: article.slug,
     title: article.title,
-    excerpt: article.excerpt ?? null,
+    excerpt: getArticlePreview(article) || null,
     coverImage: article.coverImage ?? null,
     publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
     author: article.author

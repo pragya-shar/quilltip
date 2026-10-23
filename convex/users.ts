@@ -2,6 +2,7 @@ import { v } from 'convex/values'
 import { query, mutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { isArticleListingReady } from './lib/articleListingReady'
+import { syncAvatarUploadReference } from './lib/uploadReferences'
 
 /**
  * Validate Stellar address format
@@ -87,6 +88,10 @@ export const updateProfile = mutation({
 
     updates.updatedAt = Date.now()
 
+    if ('avatar' in args) {
+      const user = await ctx.db.get(userId)
+      await syncAvatarUploadReference(ctx, userId, user?.avatar, args.avatar)
+    }
     await ctx.db.patch(userId, updates)
     const updated = await ctx.db.get(userId)
     if (!updated) return null
@@ -106,6 +111,7 @@ export const clearAvatar = mutation({
     if (!user) throw new Error('User not found')
 
     const next = { ...user }
+    await syncAvatarUploadReference(ctx, userId, user.avatar, undefined)
     delete next.avatar
     await ctx.db.replace(userId, next)
     const updated = await ctx.db.get(userId)

@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns'
 import Image from 'next/image'
 import { ArticleAuthorByline } from '@/components/articles/ArticleAuthorByline'
 import ShareButtons from './ShareButtons'
+import { BookmarkButton } from '@/components/library/BookmarkButton'
 import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
 import { ArticleBodySkeleton } from '@/components/articles/ArticleBodySkeleton'
 const HighlightableArticle = dynamic(
@@ -60,9 +61,22 @@ export default function ArticleDisplay({
   return (
     <article className="max-w-4xl mx-auto px-4 py-8">
       <header className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-semibold text-foreground mb-3 leading-snug">
-          {article.title}
-        </h1>
+        <div className="article-title-bookmark">
+          <h1 className="text-3xl md:text-4xl font-semibold text-foreground mb-3 leading-snug">
+            {article.title}
+          </h1>
+          <BookmarkButton
+            article={{
+              id: article.id,
+              title: article.title,
+              author: article.author.name || article.author.username,
+              username: article.author.username,
+              slug: article.slug,
+              topic: article.tags[0]?.name || 'Article',
+              minutes: readingMinutes,
+            }}
+          />
+        </div>
 
         <div className="flex items-center gap-4 mb-6">
           <ArticleAuthorByline author={article.author} size="md">

@@ -1,38 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import Link from 'next/link'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { ActionableNotice } from '@/components/ui/ActionableNotice'
-import type { FlowFeedback } from '@/lib/feedback/flow-feedback'
-import {
-  Wallet,
-  Copy,
-  Check,
-  AlertCircle,
-  ArrowUpRight,
-  Loader2,
-  Power,
-} from 'lucide-react'
-import { WalletTooltip } from '@/components/guide/WalletTooltip'
-import { toast } from 'sonner'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
-import { LegalLinks } from '@/components/legal/LegalLinks'
 import { networkLabelLowercase } from '@/lib/copy/network-status'
 import { isValidStellarAccountId } from '@/lib/stellar/is-valid-stellar-account-id'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface WalletSettingsProps {
   walletAddress?: string | null
@@ -43,431 +24,347 @@ interface WalletSettingsProps {
   className?: string
 }
 
-export function WalletSettings({
+export function WalletSettings(props: WalletSettingsProps) {
+  if (!props.isOwnProfile)
+    return (
+      <div className={props.className}>
+        <h2>Stellar Wallet</h2>
+        <p>
+          {props.walletAddress
+            ? 'This writer has a receiving wallet.'
+            : `${props.profileDisplayName || 'This author'} hasn't connected a wallet yet, so in-app tipping isn't available.`}
+        </p>
+        {props.profileUsername && (
+          <Link
+            href={`/${encodeURIComponent(props.profileUsername)}?tab=articles`}
+          >
+            Browse articles
+          </Link>
+        )}
+        <Link href="/guide">Learn how tipping works</Link>
+      </div>
+    )
+  return <OwnerWalletSettings {...props} />
+}
+
+function OwnerWalletSettings({
   walletAddress,
-  profileUsername,
   onAddressChange,
-  isOwnProfile,
-  profileDisplayName,
   className = '',
 }: WalletSettingsProps) {
   const updateProfile = useMutation(api.users.updateProfile)
-  const { disconnect } = useWallet({
+  const { isConnected, publicKey, network, disconnect } = useWallet({
     activateOnMount: true,
   })
-  const [isCopied, setIsCopied] = useState(false)
-  const [isDisconnecting, setIsDisconnecting] = useState(false)
-  const [isSavingAddress, setIsSavingAddress] = useState(false)
-  const [walletAddressDraft, setWalletAddressDraft] = useState(
-    walletAddress ?? ''
-  )
-  const [walletFeedback, setWalletFeedback] = useState<FlowFeedback | null>(
-    null
-  )
-
+  const [draft, setDraft] = useState(walletAddress ?? '')
+  const [saving, setSaving] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const mounted = useRef(true)
+  const removeButton = useRef<HTMLButtonElement>(null)
   useEffect(() => {
-    setWalletAddressDraft(walletAddress ?? '')
-  }, [walletAddress])
-
-  const handleCopy = async () => {
-    const addressToCopy = walletAddressDraft.trim() || walletAddress
-    if (!addressToCopy) return
-
-    try {
-      await navigator.clipboard.writeText(addressToCopy)
-      setIsCopied(true)
-      setWalletFeedback(null)
-      toast.success('Wallet address copied to clipboard')
-      setTimeout(() => setIsCopied(false), 2000)
-    } catch {
-      setWalletFeedback({
-        variant: 'destructive',
-        title: 'Failed to copy address',
-        detail: 'Copy the address manually or try again.',
-      })
-      toast.error('Failed to copy address')
+    mounted.current = true
+    return () => {
+      mounted.current = false
     }
-  }
+  }, [])
+  useEffect(() => {
+    setDraft(walletAddress ?? '')
+  }, [walletAddress])
+  const busy = saving || removing
+  const appNetwork = networkLabelLowercase()
+  const explorerNetwork =
+    appNetwork === 'mainnet'
+      ? 'public'
+      : appNetwork === 'testnet'
+        ? 'testnet'
+        : null
 
-  const handleSaveWalletAddress = async () => {
-    if (isSavingAddress) return
-
-    const nextAddress = walletAddressDraft.trim()
-    if (!isValidStellarAccountId(nextAddress)) {
-      setWalletFeedback({
-        variant: 'destructive',
-        title: 'Invalid wallet address',
-        detail:
-          'Enter a valid Stellar public key that starts with G and is 56 characters long.',
-      })
-      toast.error('Invalid Stellar wallet address')
+  async function saveAddress() {
+    if (busy) return
+    const next = draft.trim()
+    if (!isValidStellarAccountId(next)) {
+      setError(
+        'Enter a valid Stellar public address starting with G (56 characters).'
+      )
       return
     }
-
-    if (nextAddress === walletAddress) return
-
-    setIsSavingAddress(true)
-    setWalletFeedback(null)
-
+    setSaving(true)
+    setError(null)
+    setFeedback(null)
     try {
-      await updateProfile({
-        stellarAddress: nextAddress,
-      })
-      onAddressChange?.(nextAddress)
-      toast.success('Receiving wallet saved')
-    } catch (error) {
-      console.error('[WalletSettings] Failed to save wallet address:', error)
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Please check the address and try again.'
-
-      setWalletFeedback({
-        variant: 'destructive',
-        title: 'Wallet save failed',
-        detail: message,
-      })
-      toast.error('Wallet save failed')
+      await updateProfile({ stellarAddress: next })
+      if (!mounted.current) return
+      onAddressChange?.(next)
+      setFeedback('Receiving wallet saved.')
+    } catch (cause) {
+      if (mounted.current)
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : 'Couldn’t save the address. Please try again.'
+        )
     } finally {
-      setIsSavingAddress(false)
+      if (mounted.current) setSaving(false)
     }
   }
-
-  const handleDisconnectWallet = async () => {
-    if (isDisconnecting) return
-
-    setIsDisconnecting(true)
-    setWalletFeedback(null)
-
+  async function removeAddress() {
+    if (busy) return
+    setRemoving(true)
+    setError(null)
+    setFeedback(null)
     try {
-      // Step 1: Update database FIRST (ensures source of truth is updated)
-      await updateProfile({
-        stellarAddress: null,
-      })
-
-      // Step 2: Clear local wallet state AFTER DB confirms
-      disconnect()
-
-      // Step 3: Notify parent component for immediate UI update
+      await updateProfile({ stellarAddress: null })
+      if (!mounted.current) return
       onAddressChange?.(null)
-      setWalletFeedback(null)
-
-      toast.success('Wallet disconnected successfully')
-    } catch (error) {
-      console.error('[WalletSettings] Failed to disconnect wallet:', error)
-
-      // Provide specific error messages
-      if (error instanceof Error) {
-        if (error.message.includes('Not authenticated')) {
-          setWalletFeedback({
-            variant: 'destructive',
-            title: 'Session expired',
-            detail: 'Please refresh and try again.',
-          })
-          toast.error('Session expired. Please refresh and try again.')
-        } else if (
-          error.message.includes('network') ||
-          error.message.includes('fetch')
-        ) {
-          setWalletFeedback({
-            variant: 'destructive',
-            title: 'Network error',
-            detail: 'Check your connection and try again.',
-          })
-          toast.error('Network error. Check your connection and try again.')
-        } else {
-          setWalletFeedback({
-            variant: 'destructive',
-            title: 'Disconnect failed',
-            detail: error.message,
-          })
-          toast.error(`Disconnect failed: ${error.message}`)
-        }
-      } else {
-        setWalletFeedback({
-          variant: 'destructive',
-          title: 'Failed to disconnect wallet',
-          detail: 'Please try again.',
-        })
-        toast.error('Failed to disconnect wallet. Please try again.')
-      }
-
-      // Don't clear local state if DB update failed
-      // This keeps UI in sync with actual DB state
+      setDraft('')
+      setConfirmRemove(false)
+      setFeedback(
+        'Receiving address removed. Your wallet connection is unchanged.'
+      )
+    } catch (cause) {
+      if (mounted.current)
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : 'Couldn’t remove the address. Please try again.'
+        )
     } finally {
-      setIsDisconnecting(false)
+      if (mounted.current) setRemoving(false)
     }
   }
-
-  if (!isOwnProfile && !walletAddress) {
-    return (
-      <Card variant="quiet" className={className}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
-            Stellar Wallet
-            <WalletTooltip concept="stellar" />
-            <WalletTooltip concept="testnet" />
-          </CardTitle>
-          <CardDescription>
-            {profileDisplayName
-              ? `${profileDisplayName} hasn't connected a wallet yet, so in-app tipping isn't available.`
-              : "This author hasn't connected a wallet yet, so in-app tipping isn't available."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ActionableNotice intent="informational">
-            You can still read their work. Once they connect a wallet, you can
-            tip from any article using &quot;Tip Author&quot;.
-          </ActionableNotice>
-
-          <div className="flex flex-col gap-2 sm:flex-row">
-            {profileUsername ? (
-              <Button asChild className="flex-1">
-                <Link href={`/${profileUsername}?tab=articles`}>
-                  Browse articles
-                </Link>
-              </Button>
-            ) : null}
-            <Button asChild variant="outline" className="flex-1">
-              <Link href="/guide">Learn how tipping works</Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    )
+  async function copyAddress() {
+    if (!walletAddress) return
+    try {
+      await navigator.clipboard.writeText(walletAddress)
+      if (mounted.current) {
+        setFeedback('Receiving address copied.')
+        setError(null)
+      }
+    } catch {
+      if (mounted.current)
+        setError('Couldn’t copy the address. You can select and copy it below.')
+    }
   }
-
   return (
-    <>
-      <Card variant="quiet" className={className}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
-            Stellar Wallet
-            <WalletTooltip concept="stellar" />
-            {networkLabelLowercase() === 'testnet' ? (
-              <WalletTooltip concept="testnet" />
-            ) : null}
-          </CardTitle>
-          <CardDescription>
-            {isOwnProfile
-              ? `Manage your Stellar ${networkLabelLowercase()} wallet for sending and receiving tips`
-              : 'Copy the wallet address, or tip this author from their articles.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {walletFeedback && (
-            <Alert
-              variant={
-                walletFeedback.variant === 'destructive'
-                  ? 'destructive'
-                  : 'default'
-              }
+    <section
+      className={`account-wallet-settings ${className}`}
+      aria-labelledby="wallet-connection-title"
+    >
+      <div className="account-connection">
+        <div className="account-connection-summary">
+          <div className="account-connection-heading">
+            <h2 id="wallet-connection-title">Your wallet</h2>
+            <span className="account-badge">
+              {isConnected ? 'Connected' : 'Not connected'}
+            </span>
+          </div>
+          <p>
+            {walletAddress
+              ? isConnected
+                ? 'Your receiving address is saved.'
+                : 'Your receiving address is saved. You can receive tips while disconnected.'
+              : 'Connect to send tips. Save a receiving address to receive them.'}
+          </p>
+          <span className="account-network">
+            Stellar {appNetwork}
+            {appNetwork === 'testnet' ? ' · Test funds only' : ''}
+          </span>
+          {isConnected && publicKey && (
+            <p className="account-key">
+              <span>
+                Connected wallet{network ? ` (${network.toLowerCase()})` : ''}
+              </span>
+              <span>{publicKey}</span>
+            </p>
+          )}
+        </div>
+        <div className="account-connection-actions">
+          {isConnected ? (
+            <button
+              className="account-text-link"
+              disabled={busy}
+              onClick={() => {
+                disconnect()
+                setError(null)
+                setFeedback(
+                  'Wallet disconnected. Your saved receiving address is unchanged.'
+                )
+              }}
             >
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>{walletFeedback.title}</AlertTitle>
-              {walletFeedback.detail ? (
-                <AlertDescription>{walletFeedback.detail}</AlertDescription>
-              ) : null}
-            </Alert>
-          )}
-          {isOwnProfile && walletAddress ? (
-            <ActionableNotice intent="informational">
-              <strong>This wallet is for receiving tips.</strong> When readers
-              tip your articles, payments come here. To send tips to other
-              authors, you&apos;ll connect your wallet extension directly on
-              their articles.
-            </ActionableNotice>
-          ) : null}
-
-          {isOwnProfile ? (
-            <>
-              {!walletAddress ? (
-                <ContextualWalletSetup
-                  mode="receive"
-                  onAddressSaved={(address) => onAddressChange?.(address)}
-                />
-              ) : (
-                <div className="space-y-4">
-                  {/* Connected State */}
-                  <div className="p-4 bg-success border border-success/50 rounded-lg space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
-                        <span className="text-sm font-medium text-success-foreground">
-                          Wallet Connected
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">
-                        Your Wallet Address
-                      </Label>
-                      <div className="flex gap-2">
-                        <Input
-                          aria-label="Receiving wallet address"
-                          value={walletAddressDraft}
-                          onChange={(event) =>
-                            setWalletAddressDraft(event.target.value)
-                          }
-                          autoCapitalize="characters"
-                          autoComplete="off"
-                          spellCheck={false}
-                          className="font-mono text-xs"
-                        />
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={handleCopy}
-                        >
-                          {isCopied ? (
-                            <Check className="h-4 w-4" />
-                          ) : (
-                            <Copy className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button
-                          type="button"
-                          onClick={() => void handleSaveWalletAddress()}
-                          disabled={
-                            isSavingAddress ||
-                            walletAddressDraft.trim() === walletAddress
-                          }
-                          className="flex-1"
-                        >
-                          {isSavingAddress ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Saving...
-                            </>
-                          ) : (
-                            'Save receiving wallet'
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() =>
-                            setWalletAddressDraft(walletAddress ?? '')
-                          }
-                          disabled={
-                            isSavingAddress ||
-                            walletAddressDraft === (walletAddress ?? '')
-                          }
-                          className="flex-1"
-                        >
-                          Reset changes
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <ActionableNotice intent="informational">
-                    This saved receiving wallet is editable. Paste or type a
-                    different Stellar testnet address, then save it before
-                    publishing or receiving tips.
-                  </ActionableNotice>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() =>
-                        walletAddress &&
-                        window.open(
-                          `https://stellar.expert/explorer/${
-                            networkLabelLowercase() === 'testnet'
-                              ? 'testnet'
-                              : 'public'
-                          }/account/${walletAddress}`,
-                          '_blank'
-                        )
-                      }
-                      disabled={!walletAddress}
-                    >
-                      <ArrowUpRight className="h-4 w-4 mr-2" />
-                      View on Explorer
-                    </Button>
-                    <Button
-                      onClick={handleDisconnectWallet}
-                      disabled={isDisconnecting}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      {isDisconnecting ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Disconnecting...
-                        </>
-                      ) : (
-                        <>
-                          <Power className="w-4 h-4 mr-2" />
-                          Disconnect
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
+              Disconnect wallet
+            </button>
           ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>User&apos;s Wallet Address</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={walletAddress || ''}
-                    readOnly
-                    className="font-mono text-xs"
-                  />
-                  <Button variant="outline" size="icon" onClick={handleCopy}>
-                    {isCopied ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() =>
-                  walletAddress &&
-                  window.open(
-                    `https://stellar.expert/explorer/${
-                      networkLabelLowercase() === 'testnet'
-                        ? 'testnet'
-                        : 'public'
-                    }/account/${walletAddress}`,
-                    '_blank'
-                  )
-                }
-                disabled={!walletAddress}
+            <ContextualWalletSetup mode="send" className="account-connect" />
+          )}
+        </div>
+      </div>
+      <details className="account-address-editor">
+        <summary>
+          {walletAddress
+            ? 'Manage receiving address'
+            : 'Add a receiving address'}
+        </summary>
+        <div className="account-address-content">
+          <p className="account-muted">
+            This is where tips to your writing are sent. Connecting a wallet
+            does not change it.
+          </p>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void saveAddress()
+            }}
+          >
+            <label htmlFor="receiving-wallet">Receiving wallet address</label>
+            <input
+              id="receiving-wallet"
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              disabled={busy}
+              spellCheck={false}
+              autoComplete="off"
+              placeholder="G…"
+              aria-describedby="receiving-address-help"
+            />
+            <p id="receiving-address-help" className="account-muted">
+              Use a Stellar public address. Never enter a secret key.
+            </p>
+            <div className="account-address-actions">
+              <button
+                type="submit"
+                className="account-primary"
+                disabled={busy || draft.trim() === (walletAddress ?? '')}
               >
-                <ArrowUpRight className="h-4 w-4 mr-2" />
-                View on Stellar Explorer
-              </Button>
-
-              <ActionableNotice intent="informational">
-                Want to tip in-app? Open any of their articles and click
-                &quot;Tip Author&quot;.
-              </ActionableNotice>
+                {saving ? 'Saving…' : 'Save receiving wallet'}
+              </button>
+              <button
+                type="button"
+                className="account-text-link"
+                disabled={busy || draft === (walletAddress ?? '')}
+                onClick={() => {
+                  setDraft(walletAddress ?? '')
+                  setError(null)
+                }}
+              >
+                Reset changes
+              </button>
+              {isConnected && publicKey && publicKey !== draft && (
+                <button
+                  type="button"
+                  className="account-text-link"
+                  disabled={busy}
+                  onClick={() => {
+                    setDraft(publicKey)
+                    setError(null)
+                  }}
+                >
+                  Use connected wallet
+                </button>
+              )}
+            </div>
+          </form>
+          {walletAddress && (
+            <div className="account-address-actions">
+              <button
+                className="account-text-link"
+                onClick={() => void copyAddress()}
+              >
+                Copy saved address
+              </button>
+              {explorerNetwork && (
+                <a
+                  className="account-text-link"
+                  href={`https://stellar.expert/explorer/${explorerNetwork}/account/${encodeURIComponent(walletAddress)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View on Explorer
+                </a>
+              )}
+              <button
+                ref={removeButton}
+                className="account-text-link"
+                disabled={busy}
+                onClick={() => {
+                  setError(null)
+                  setConfirmRemove(true)
+                }}
+              >
+                Remove receiving address
+              </button>
             </div>
           )}
-
-          {isOwnProfile && (
-            <div className="pt-4 mt-2 border-t border-border">
-              <LegalLinks linkClassName="text-muted-foreground hover:text-foreground text-xs" />
-            </div>
+          <Link className="account-text-link" href="/guide">
+            Wallet guide
+          </Link>
+        </div>
+      </details>
+      {error && !confirmRemove && (
+        <p className="account-notice" role="alert">
+          {error}
+        </p>
+      )}
+      {feedback && (
+        <p className="account-feedback" role="status">
+          {feedback}
+        </p>
+      )}
+      <Dialog
+        open={confirmRemove}
+        onOpenChange={(open) => {
+          if (!removing) {
+            setConfirmRemove(open)
+            setError(null)
+          }
+        }}
+      >
+        <DialogContent
+          className="account-dialog"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            removeButton.current?.focus()
+          }}
+          onEscapeKeyDown={(event) => {
+            if (removing) event.preventDefault()
+          }}
+          onPointerDownOutside={(event) => {
+            if (removing) event.preventDefault()
+          }}
+        >
+          <DialogTitle>Remove receiving address?</DialogTitle>
+          <DialogDescription className="account-muted">
+            Your writing won’t receive new tips until you save another address.
+            This does not disconnect your wallet or change past tips.
+          </DialogDescription>
+          {error && (
+            <p role="alert" className="account-notice">
+              {error}
+            </p>
           )}
-        </CardContent>
-      </Card>
-    </>
+          <div className="account-address-actions">
+            <button
+              className="account-primary"
+              disabled={removing}
+              onClick={() => void removeAddress()}
+            >
+              {removing ? 'Removing…' : 'Remove address'}
+            </button>
+            <button
+              className="account-text-link"
+              disabled={removing}
+              onClick={() => {
+                setConfirmRemove(false)
+                setError(null)
+              }}
+            >
+              Keep address
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </section>
   )
 }

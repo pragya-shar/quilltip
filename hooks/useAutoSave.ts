@@ -10,6 +10,7 @@ const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
 
 interface DraftResponse {
   id: string
+  isCurrent: boolean
   title: string
   content: JSONContent
   excerpt?: string
@@ -37,192 +38,126 @@ interface AutoSaveState {
   error: Error | null
 }
 
-export function useAutoSave({
-  content,
-  articleId,
-  title,
-  excerpt,
-  tags,
-  coverImage,
-  writerNotes,
-  enabled = true,
-  onSaveSuccess,
-  onSaveError,
-}: UseAutoSaveOptions) {
+export function useAutoSave(options: UseAutoSaveOptions) {
+  const { enabled = true, articleId } = options
   const [state, setState] = useState<AutoSaveState>({
     isSaving: false,
     lastSavedAt: null,
     error: null,
   })
-
-  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
-  const previousContentRef = useRef<string | undefined>(undefined)
-  const previousTitleRef = useRef<string | undefined>(undefined)
-  const previousCoverImageRef = useRef<string | undefined>(undefined)
-  const previousExcerptRef = useRef<string | undefined>(undefined)
-  const previousTagsRef = useRef<string | undefined>(undefined)
-  const previousNotesRef = useRef<string | undefined>(undefined)
-
-  // Convex mutation for saving drafts
+  const latest = useRef(options)
+  latest.current = options
+  const savedId = useRef(articleId)
+  if (articleId) savedId.current = articleId
+  const inFlight = useRef<Promise<DraftResponse | undefined> | null>(null)
+  // A timeout does not cancel Convex. Retain the pending write so Retry cannot
+  // create a second draft or overwrite a later edit out of order.
+  const pending = useRef<{
+    promise: Promise<string>
+    value: UseAutoSaveOptions
+  } | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  )
   const saveDraftMutation = useMutation(api.articles.saveDraft)
-
-  const saveDraft = useCallback(async (): Promise<
-    DraftResponse | undefined
-  > => {
-    // Allow save when we have content OR (title or coverImage) for metadata-only drafts
-    const hasContent = !!content
-    const hasMetadata = !!(title?.trim() || coverImage || writerNotes?.trim())
-    if (!hasContent && !hasMetadata) return undefined
-
-    setState((prev) => {
-      if (prev.isSaving) return prev
-      return { ...prev, isSaving: true, error: null }
+  const snapshot = (value: UseAutoSaveOptions) =>
+    JSON.stringify({
+      content: value.content,
+      title: value.title,
+      excerpt: value.excerpt,
+      tags: value.tags,
+      coverImage: value.coverImage,
+      writerNotes: value.writerNotes,
     })
-
-    const contentToSave = content ?? EMPTY_DOC
-    const mutationPromise = saveDraftMutation({
-      id: articleId as Id<'articles'> | undefined,
-      title: title || 'Untitled',
-      content: contentToSave,
-      excerpt,
-      tags: tags?.length ? tags : undefined,
-      coverImage: coverImage || undefined,
-      writerNotes: writerNotes?.trim() ? writerNotes : undefined,
-    })
-
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new Error('Save timed out. Check your connection.'))
-      }, CONVEX_MUTATION_TIMEOUT_MS)
-    })
-
-    try {
-      const draftId = await Promise.race([mutationPromise, timeoutPromise])
-      if (timeoutId !== undefined) clearTimeout(timeoutId)
-
-      setState((prev) => ({
-        ...prev,
-        isSaving: false,
-        lastSavedAt: new Date(),
-        error: null,
-      }))
-
-      const response: DraftResponse = {
-        id: draftId,
-        title: title || 'Untitled',
-        content: contentToSave,
-        excerpt,
-        version: 1,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-
-      onSaveSuccess?.(response)
-      return response
-    } catch (error) {
-      if (timeoutId !== undefined) clearTimeout(timeoutId)
-      void mutationPromise.catch(() => {})
-
-      const err =
-        error instanceof Error ? error : new Error('Failed to save draft')
-
-      setState((prev) => ({
-        ...prev,
-        isSaving: false,
-        error: err,
-      }))
-
-      onSaveError?.(err)
-      return undefined
+  const signature = snapshot(options)
+  const saveNow = useCallback((): Promise<DraftResponse | undefined> => {
+    clearTimeout(timeoutRef.current)
+    if (inFlight.current) return inFlight.current
+    const run = async (): Promise<DraftResponse | undefined> => {
+      let response: DraftResponse | undefined
+      do {
+        const value = pending.current?.value ?? latest.current
+        if (
+          !value.content &&
+          !(
+            value.title?.trim() ||
+            value.coverImage ||
+            value.writerNotes?.trim()
+          )
+        )
+          return undefined
+        const started = snapshot(value)
+        setState((prev) => ({ ...prev, isSaving: true, error: null }))
+        let timer: ReturnType<typeof setTimeout> | undefined
+        try {
+          if (!pending.current) {
+            const mutation = saveDraftMutation({
+              id: savedId.current as Id<'articles'> | undefined,
+              title: value.title || 'Untitled',
+              content: value.content ?? EMPTY_DOC,
+              excerpt: value.excerpt,
+              tags: value.tags ?? [],
+              coverImage: value.coverImage ?? '',
+              writerNotes: value.writerNotes ?? '',
+            })
+            pending.current = { promise: mutation, value }
+            void mutation.catch(() => {
+              if (pending.current?.promise === mutation) pending.current = null
+            })
+          }
+          const active = pending.current
+          const id = await Promise.race([
+            active.promise,
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(
+                () =>
+                  reject(new Error('Save timed out. Check your connection.')),
+                CONVEX_MUTATION_TIMEOUT_MS
+              )
+            }),
+          ])
+          pending.current = null
+          savedId.current = id
+          const isCurrent = started === snapshot(latest.current)
+          response = {
+            id,
+            isCurrent,
+            title: value.title || 'Untitled',
+            content: value.content ?? EMPTY_DOC,
+            excerpt: value.excerpt,
+            version: 1,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }
+          setState({
+            isSaving: !isCurrent,
+            lastSavedAt: new Date(),
+            error: null,
+          })
+          latest.current.onSaveSuccess?.(response)
+          if (isCurrent) return response
+        } catch (error) {
+          const err =
+            error instanceof Error ? error : new Error('Failed to save draft')
+          setState((prev) => ({ ...prev, isSaving: false, error: err }))
+          latest.current.onSaveError?.(err)
+          return undefined
+        } finally {
+          clearTimeout(timer)
+        }
+      } while (true)
     }
-  }, [
-    content,
-    articleId,
-    title,
-    excerpt,
-    tags,
-    coverImage,
-    writerNotes,
-    onSaveSuccess,
-    onSaveError,
-    saveDraftMutation,
-  ])
-
-  const debouncedSave = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-    }
-
-    timeoutRef.current = setTimeout(() => {
-      saveDraft()
-    }, AUTO_SAVE_DEBOUNCE_MS)
-  }, [saveDraft])
-
-  // Effect to handle content, title, coverImage, and excerpt changes
+    inFlight.current = run().finally(() => {
+      inFlight.current = null
+    })
+    return inFlight.current
+  }, [saveDraftMutation])
   useEffect(() => {
-    const hasContent = !!content
-    const hasMetadata = !!(title?.trim() || coverImage || writerNotes?.trim())
-    if (!enabled || (!hasContent && !hasMetadata)) return
-
-    const contentString = content ? JSON.stringify(content) : ''
-    const titleVal = title ?? ''
-    const coverImageVal = coverImage ?? ''
-    const excerptVal = excerpt ?? ''
-    const tagsVal = tags?.join(',') ?? ''
-    const notesVal = writerNotes ?? ''
-
-    const contentChanged = previousContentRef.current !== contentString
-    const titleChanged = previousTitleRef.current !== titleVal
-    const coverImageChanged = previousCoverImageRef.current !== coverImageVal
-    const excerptChanged = previousExcerptRef.current !== excerptVal
-    const tagsChanged = previousTagsRef.current !== tagsVal
-    const notesChanged = previousNotesRef.current !== notesVal
-
-    if (
-      contentChanged ||
-      titleChanged ||
-      coverImageChanged ||
-      excerptChanged ||
-      tagsChanged ||
-      notesChanged
-    ) {
-      previousContentRef.current = contentString
-      previousTitleRef.current = titleVal
-      previousCoverImageRef.current = coverImageVal
-      previousExcerptRef.current = excerptVal
-      previousTagsRef.current = tagsVal
-      previousNotesRef.current = notesVal
-      debouncedSave()
-    }
-
-    // Cleanup on unmount or when deps change
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
-    }
-  }, [
-    content,
-    title,
-    coverImage,
-    excerpt,
-    tags,
-    writerNotes,
-    enabled,
-    debouncedSave,
-  ])
-
-  // Save immediately function for manual triggers
-  const saveNow = useCallback(async () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-    }
-    return await saveDraft()
-  }, [saveDraft])
-
-  return {
-    ...state,
-    saveNow,
-  }
+    if (!enabled) return
+    timeoutRef.current = setTimeout(() => {
+      void saveNow()
+    }, AUTO_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timeoutRef.current)
+  }, [signature, enabled, saveNow])
+  return { ...state, saveNow }
 }

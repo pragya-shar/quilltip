@@ -1,3 +1,4 @@
+import '@/components/account/account.css'
 import type { Metadata } from 'next'
 import { DashboardShell } from '@/components/dashboard/DashboardShell'
 

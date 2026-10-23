@@ -1,50 +1,24 @@
 'use client'
-
 import { useAuth } from '@/components/providers/AuthContext'
-import AppNavigation from '@/components/layout/AppNavigation'
-import { ProtectedPageShell } from '@/components/layout/ProtectedPageShell'
-import { EditorChromeSkeleton } from '@/components/editor/EditorChromeSkeleton'
+import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
-import { EditorWorkspaceErrorFallback } from '@/components/error/SectionErrorFallback'
 import { WriteEditorWorkspace } from '@/components/editor/WriteEditorWorkspace'
-import { LoadingRegion } from '@/components/a11y/LoadingRegion'
-import { useStaleLoading } from '@/hooks/useStaleLoading'
-import { useRouter } from 'next/navigation'
-
+import { WritingLoading } from '@/components/editor/WritingLoading'
+import '@/components/editor/writing-workspace.css'
 export default function WritePage() {
   const { isAuthenticated, isLoading } = useAuth()
-  const router = useRouter()
-  const { isStale, reset: resetStale } = useStaleLoading(isLoading)
-
+  useRedirectWhenUnauthenticated(isLoading, isAuthenticated)
+  if (isLoading || !isAuthenticated) return <WritingLoading />
   return (
-    <ProtectedPageShell
-      isLoading={isLoading}
-      isAuthenticated={isAuthenticated}
-      loadingContent={
-        <LoadingRegion
-          label="editor"
-          isLoading
-          isStale={isStale}
-          onRetry={() => {
-            resetStale()
-            router.refresh()
-          }}
-          fallback={<EditorChromeSkeleton />}
-        >
-          <div />
-        </LoadingRegion>
-      }
+    <ErrorBoundary
+      fallback={({ reset }) => (
+        <WritingLoading
+          message="Your writing desk couldn’t load. Your saved drafts are still in your account."
+          retry={reset}
+        />
+      )}
     >
-      <div className="min-h-screen bg-background">
-        <AppNavigation />
-        <ErrorBoundary
-          fallback={({ reset }) => (
-            <EditorWorkspaceErrorFallback onRetry={reset} />
-          )}
-        >
-          <WriteEditorWorkspace />
-        </ErrorBoundary>
-      </div>
-    </ProtectedPageShell>
+      <WriteEditorWorkspace />
+    </ErrorBoundary>
   )
 }

@@ -85,6 +85,6 @@ bun run build            # Production build
 bun run start            # Start production server
 bun run lint             # ESLint
 bun run typecheck        # TypeScript validation
-bun test                 # Vitest
-bun run test:coverage    # Coverage report
+bun run format:check     # Formatting validation
+bun run test:e2e:eng-224 # Playwright console checks (running app required)
 ```

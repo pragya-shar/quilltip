@@ -1,3 +1,4 @@
+import { getTipArticleSummary } from './lib/tipArticleSummary'
 import { ConvexError, v } from 'convex/values'
 import { query, mutation, internalMutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -96,6 +97,7 @@ export const getUserSentTips = query({
         const article = await ctx.db.get(tip.articleId)
         return {
           ...tip,
+          sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
           article: article
             ? {
                 id: article._id,
@@ -136,6 +138,7 @@ export const getUserReceivedTips = query({
 
         return {
           ...tip,
+          sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
           tipper,
           article: article
             ? {

@@ -18,13 +18,43 @@ This policy applies to Quilltip repo work. It should be read with:
 
 ## Branches
 
-- Default base branch: `development`.
-- Use `main` only when the task explicitly says the target is `main`.
+- Default base and PR target branch: `main`.
+- Create all new feature and fix branches from the latest `origin/main`: run `git fetch origin`, then `git switch -c <branch-name> origin/main`.
+- The `development` branch is retired. Do not recreate it or use it as a base.
 - Work in a feature branch unless the user explicitly asks for direct work on the current branch.
 - For Linear issues, prefer the Linear suggested branch name.
 - For non-Linear work, use a short branch name such as `codex/<task-slug>`.
 - Before starting, check `git status --short --branch` and confirm the branch is clean enough for the task.
-- Before opening a PR, compare the branch against `origin/development` and make sure the diff only contains intended work.
+- Before opening a PR, compare the branch against `origin/main` and make sure the diff only contains intended work.
+
+## Merge Direction Policy
+
+Choose the merge method from the branch direction, not from whichever GitHub button is currently available.
+
+| From                  | Into   | Required method  | Reason                                                                  |
+| --------------------- | ------ | ---------------- | ----------------------------------------------------------------------- |
+| Feature branch        | `main` | Regular merge    | Preserve the feature commits and their original identities.             |
+| Release Please branch | `main` | Rebase and merge | Land the single generated release commit without an extra branch merge. |
+
+- Preserve existing shared feature history with a regular merge into `main`; do not rebase or force-push it.
+- `main` intentionally allows merge commits. Do not enable required linear history while this policy is active.
+- Keep force pushes and branch deletion disabled for `main`.
+- If a different merge method appears necessary, stop and explain the history impact before proceeding.
+
+### Main PR Preflight
+
+Before opening a feature branch PR into `main`:
+
+1. Run `git fetch origin --prune`.
+2. Confirm the worktree is clean with `git status --short --branch`.
+3. Run `git merge-base --is-ancestor origin/main HEAD`. If it fails, merge current `origin/main` into the feature branch and resolve conflicts before continuing.
+4. Review `git log --oneline origin/main..HEAD` for the exact commits being proposed.
+5. Review `git diff --stat origin/main...HEAD` and the full diff for unintended files.
+6. Confirm the PR base is `main`, the head is the intended feature branch, and the PR body follows the repository template.
+7. Require `Required` and `PR Hygiene Required` to pass. Review Vercel when GitHub reports a deployment check.
+8. Confirm GitHub reports the PR as mergeable and select a regular merge commit.
+
+Release Please updates `main` directly through its generated PR. Start subsequent work from the latest `origin/main`; no development sync branch is needed.
 
 ## Agent And Tooling
 
@@ -74,27 +104,30 @@ Standard app gate:
 1. `bun run format:check`
 2. `bun run typecheck`
 3. `bun run lint`
-4. `bun run test:once`
-5. `bun run build`
+4. `bun run build`
 
 Contract gates when touched:
 
-- `cargo test --manifest-path contracts/tipping/Cargo.toml`
-- `cargo test --manifest-path contracts/article-nft/Cargo.toml`
+- `cargo check --locked --target wasm32v1-none --manifest-path contracts/tipping/Cargo.toml`
+- `cargo check --locked --target wasm32v1-none --manifest-path contracts/article-nft/Cargo.toml`
 
-Use focused tests first while developing. Run the standard gate before PR or final handoff unless the user explicitly narrows verification.
+Unit tests and their runners have been removed. Use the existing Playwright tests for browser regression checks when relevant. Run the standard gate before PR or final handoff unless the user explicitly narrows verification.
 
 If `bun run build` fails because network access blocks external font or package fetching, report it as an environment issue only after confirming the error text.
 
 ## CI
 
-GitHub Actions run on pull requests and pushes to `development` and `main`.
+GitHub Actions run on pull requests targeting `main` and pushes to `main`.
 
-Required checks:
+Protected merge gates:
 
 - `Required`
 - `PR Hygiene Required`
-- Vercel deployment check, when GitHub reports one for the PR
+
+Additional signals:
+
+- Review the Vercel deployment check when GitHub reports one for the PR.
+- Review `Dependency Audit` findings. The audit remains advisory while its workflow is configured not to fail the job.
 
 Report warnings separately from failures. Do not hide a failed check behind a broad "CI is flaky" explanation without evidence.
 
@@ -108,5 +141,5 @@ Report warnings separately from failures. Do not hide a failed check behind a br
 - Open PRs with GitHub CLI and use `.github/pull_request_template.md`.
 - Keep PR bodies plain and limited to summary, changes, testing, and notes.
 - Do not paste diffs, full file contents, generated code, or codegen output into PR bodies.
-- Preserve commits when merging unless the user explicitly asks to squash.
+- Follow the merge direction policy above. Preserve feature history by using a regular merge into `main`.
 - After merge, delete merged local and remote feature branches when appropriate.

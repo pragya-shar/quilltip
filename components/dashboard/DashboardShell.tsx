@@ -12,6 +12,8 @@ import {
   DEFAULT_DASHBOARD_TAB,
   type DashboardTabId,
 } from '@/lib/dashboard/dashboardTab'
+import { AccountSurface } from '@/components/account/AccountSurface'
+import { DashboardWalletSkeleton } from '@/components/dashboard/DashboardWalletSkeleton'
 import { ChartBar, Wallet } from 'lucide-react'
 
 const DASHBOARD_TABS = [
@@ -37,6 +39,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated && !isLoading) {
     return null
+  }
+
+  if (pathname === '/dashboard/wallet') {
+    return (
+      <AccountSurface>
+        {isLoading ? <DashboardWalletSkeleton /> : children}
+      </AccountSurface>
+    )
   }
 
   if (isLoading) {

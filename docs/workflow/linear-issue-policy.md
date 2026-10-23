@@ -7,7 +7,7 @@ Conventions for filing and editing issues in the Quilltip Linear workspace. Appl
 - Workspace URL: `https://linear.app/bhvn`
 - Team: `Engineering` with key `ENG`
 - Default project: current Quilltip project
-- Default target branch for code work: `development`
+- Default target branch for code work: `main`
 
 ## Workflow
 
