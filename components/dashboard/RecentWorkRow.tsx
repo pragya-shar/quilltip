@@ -34,7 +34,7 @@ export function RecentWorkRow({ item }: { item: CreatorWorkItem }) {
       className="group block rounded-lg border border-transparent px-3 py-3 transition-colors hover:border-border hover:bg-muted/40"
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="min-w-0 flex-1 font-semibold text-foreground group-hover:text-brand-blue line-clamp-1">
+        <h3 className="min-w-0 flex-1 font-semibold text-foreground group-hover:text-primary line-clamp-1">
           {title}
         </h3>
         <WorkStatusBadge published={item.published} />

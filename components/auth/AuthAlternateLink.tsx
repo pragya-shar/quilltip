@@ -23,7 +23,7 @@ export function AuthAlternateLink({
       {prompt}{' '}
       <Link
         href={href}
-        className="font-medium text-brand-blue hover:text-brand-accent transition-colors"
+        className="font-medium text-primary hover:text-foreground transition-colors"
       >
         {linkLabel}
       </Link>

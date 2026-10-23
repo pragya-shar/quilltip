@@ -133,7 +133,7 @@ export default function Pagination({
           page === '...' ? (
             <span
               key={`ellipsis-${index}`}
-              className="inline-flex items-center px-3 py-2 text-quill-800 dark:text-foreground/90"
+              className="inline-flex items-center px-3 py-2 text-foreground dark:text-foreground/90"
             >
               <span aria-hidden>...</span>
               <span className="sr-only">More pages</span>
@@ -144,7 +144,7 @@ export default function Pagination({
               page={page as number}
               className={`focus-ring relative inline-flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                 currentPage === page
-                  ? 'z-10 bg-brand-blue text-white'
+                  ? 'z-10 bg-primary text-primary-foreground'
                   : 'text-foreground bg-background border border-border hover:bg-muted'
               }`}
               ariaLabel={`Go to page ${page}`}

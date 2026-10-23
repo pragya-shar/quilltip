@@ -18,7 +18,7 @@ export function NotFoundIllustration() {
         />
         <path
           d="M132 28h36v36l-36-36z"
-          className="fill-brand-accent/20 stroke-border"
+          className="fill-primary/20 stroke-border"
           strokeWidth="1.5"
           strokeLinejoin="round"
         />
@@ -51,7 +51,7 @@ export function NotFoundIllustration() {
         />
         <path
           d="M168 18c6 14 2 32-12 46l-14 18"
-          className="fill-none stroke-brand-accent"
+          className="fill-none stroke-primary"
           strokeWidth="2.5"
           strokeLinecap="round"
         />

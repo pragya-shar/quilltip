@@ -38,7 +38,7 @@ export function ErrorPageIllustration({
       />
       <path
         d="M98 88c12-8 28-32 34-48 2-6-2-12-8-10-14 4-36 26-44 40-4 8-2 18 6 22 8 4 18 2 22-6l10-18"
-        className="fill-brand-accent/20 stroke-brand-accent"
+        className="fill-primary/20 stroke-primary"
         strokeWidth="2"
         strokeLinejoin="round"
       />

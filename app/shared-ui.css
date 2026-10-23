@@ -12,8 +12,15 @@
   font-display: swap;
 }
 
-/* Shared chrome has its own tokens while page palettes migrate independently.
-   Root scope also makes these available to Radix and Sonner portals. */
+@font-face {
+  font-family: 'QuillTip Display';
+  src: url('/account/fonts/syne-variable.woff2') format('woff2');
+  font-weight: 400 800;
+  font-display: swap;
+}
+
+/* Current application palette, shared by root defaults, chrome and portals.
+   Page-specific palettes can still override their scoped semantic tokens. */
 :root {
   --ui-font: 'QuillTip UI', sans-serif;
   --ui-surface: #faf5ec;

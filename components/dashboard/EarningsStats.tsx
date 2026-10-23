@@ -74,7 +74,7 @@ export function EarningsStats({
                   }
                 }}
                 disabled={disableBalanceAction}
-                className="mt-3 w-full px-3 py-1.5 bg-brand text-brand-foreground text-sm rounded-lg hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="mt-3 w-full px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <Wallet className="w-4 h-4" />
                 {!userProfile?.stellarAddress ? 'Set Up Wallet' : 'Withdraw'}

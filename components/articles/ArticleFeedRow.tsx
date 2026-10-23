@@ -50,7 +50,7 @@ export default function ArticleFeedRow({
     <article
       className={cn(
         'py-6 first:pt-6 last:pb-6',
-        isHero && 'border-l-2 border-brand-blue pl-4'
+        isHero && 'border-l-2 border-primary pl-4'
       )}
     >
       <div className="mb-3 flex min-w-0 items-center gap-2 text-[13px] leading-none text-muted-foreground">
@@ -111,7 +111,7 @@ export default function ArticleFeedRow({
           >
             <h2
               className={cn(
-                'font-bold leading-snug text-foreground line-clamp-3 hover:text-brand-blue transition-colors',
+                'font-bold leading-snug text-foreground line-clamp-3 hover:text-primary transition-colors',
                 isHero
                   ? 'text-2xl sm:text-3xl sm:leading-tight'
                   : 'text-xl sm:text-2xl sm:leading-tight'

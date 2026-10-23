@@ -46,7 +46,7 @@ export function DashboardTabBar({ tabs, activeTab }: DashboardTabBarProps) {
             aria-current={activeTab === tab.id ? 'page' : undefined}
             className={`shrink-0 flex items-center gap-2 py-3 px-3 min-h-[44px] touch-manipulation border-b-2 font-medium text-sm transition-colors ${
               activeTab === tab.id
-                ? 'border-brand-blue text-foreground dark:border-primary'
+                ? 'border-primary text-foreground dark:border-primary'
                 : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
             }`}
           >

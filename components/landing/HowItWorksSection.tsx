@@ -27,7 +27,7 @@ interface Step {
 }
 
 const stepTriggerFocusClass =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-spotlight'
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-ui-foreground'
 
 const STEP_ICONS: LucideIcon[] = [BookOpen, Wallet, Coins]
 
@@ -49,9 +49,9 @@ export default function HowItWorksSection() {
   return (
     <section
       id="how-it-works"
-      className="py-16 px-6 bg-spotlight text-spotlight-foreground relative overflow-hidden"
+      className="py-16 px-6 bg-ui-foreground text-ui-surface relative overflow-hidden"
     >
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_color-mix(in_oklab,var(--spotlight-foreground)_6%,transparent)_0%,_transparent_60%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_color-mix(in_oklab,var(--ui-surface)_6%,transparent)_0%,_transparent_60%)]" />
 
       <div className="container mx-auto max-w-7xl relative z-10" ref={ref}>
         <motion.div
@@ -60,10 +60,10 @@ export default function HowItWorksSection() {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
           transition={{ duration: 0.8 }}
         >
-          <h2 className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-4 leading-[1.15] text-spotlight-foreground">
+          <h2 className="font-display text-4xl lg:text-5xl font-medium tracking-[-0.01em] mb-4 leading-[1.15] text-ui-surface">
             {HOW_IT_WORKS_HEADING}
           </h2>
-          <p className="text-[15px] text-spotlight-muted max-w-lg leading-relaxed">
+          <p className="text-[15px] text-ui-surface/75 max-w-lg leading-relaxed">
             {HOW_IT_WORKS_SUBHEAD}
           </p>
         </motion.div>
@@ -108,15 +108,15 @@ export default function HowItWorksSection() {
                       )}
                       aria-hidden="true"
                     >
-                      <ChevronDown className="w-4 h-4 text-spotlight-muted transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                      <ChevronDown className="w-4 h-4 text-ui-surface/75 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                     </div>
 
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <step.icon
-                        className="w-4.5 h-4.5 text-spotlight-muted flex-shrink-0"
+                        className="w-4.5 h-4.5 text-ui-surface/75 flex-shrink-0"
                         aria-hidden="true"
                       />
-                      <span className="font-display text-lg md:text-xl font-medium tracking-tight text-spotlight-foreground truncate">
+                      <span className="font-display text-lg md:text-xl font-medium tracking-tight text-ui-surface truncate">
                         {step.title}
                       </span>
                     </div>
@@ -124,10 +124,10 @@ export default function HowItWorksSection() {
 
                   <AccordionContent className="px-5 pb-5 pt-0">
                     <ul className="list-disc pl-5 space-y-2">
-                      <li className="text-[14px] text-spotlight-foreground/85 leading-relaxed">
+                      <li className="text-[14px] text-ui-surface/85 leading-relaxed">
                         {step.description}
                       </li>
-                      <li className="text-[13px] text-spotlight-muted leading-relaxed">
+                      <li className="text-[13px] text-ui-surface/75 leading-relaxed">
                         {step.detail}
                       </li>
                     </ul>
