@@ -19,5 +19,11 @@ The app server is independent; the fixtures never ship as a Next.js route.
 `state=profile-pagination` renders the production profile NFT tab with controlled
 query results. Use `total` (default `9`), `nftOwnedPage`, and `nftMintedPage` to
 exercise saved URLs, or the shrink button to reduce both collections to 9 items.
-`loading=1` holds the initial query results. Navigation uses the current URL and
-the production pagination URL builder.
+`loading=1` holds the initial query results. Profile pagination links update the
+URL without reloading or remounting the production tab, using its real URL builder.
+
+Add `controlled=1&total=19` to hold each collection's next page result as
+`undefined`. The **Resolve owned/minted page** buttons release only that
+collection's requested result. **Resolve owned/minted empty page** reduces only
+that collection to 9 items and resolves the requested page, allowing cached-card
+replacement and recovery to be tested without backend writes or timing delays.

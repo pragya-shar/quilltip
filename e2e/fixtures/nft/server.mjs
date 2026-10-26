@@ -19,7 +19,7 @@ const result = await Bun.build({
           path: path.join(import.meta.dirname, 'navigation.ts'),
         }))
         build.onResolve({ filter: /^next\/link$/ }, () => ({
-          path: path.join(root, 'e2e/fixtures/recovery/link.tsx'),
+          path: path.join(import.meta.dirname, 'link.tsx'),
         }))
         build.onResolve(
           {

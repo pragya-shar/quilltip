@@ -11,6 +11,145 @@ test.describe('NFT presentation and interaction', () => {
 
   for (const width of [375, 1280]) {
     for (const key of ['nftOwnedPage', 'nftMintedPage']) {
+      test(`cached ${key} cards and ranges stay aligned through client pagination at ${width}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 844 })
+        const collectionName =
+          key === 'nftOwnedPage' ? 'Owned NFTs' : 'Minted NFTs'
+        const kind = key === 'nftOwnedPage' ? 'owned' : 'minted'
+        const otherKey =
+          key === 'nftOwnedPage' ? 'nftMintedPage' : 'nftOwnedPage'
+        const collection = page.getByRole('region', {
+          name: collectionName,
+          exact: true,
+        })
+        const other = page.getByRole('region', {
+          name: key === 'nftOwnedPage' ? 'Minted NFTs' : 'Owned NFTs',
+          exact: true,
+        })
+        const errors: string[] = []
+        page.on('pageerror', (error) => errors.push(error.message))
+        page.on('console', (message) => {
+          if (message.type() === 'error') errors.push(message.text())
+        })
+        page.on('requestfailed', (request) => errors.push(request.url()))
+        await page.goto(
+          `/writer?state=profile-pagination&controlled=1&tab=nfts&${otherKey}=2&tag=art&total=19`
+        )
+        // These markers disappear on a document reload or profile-tab remount.
+        await collection.evaluate((element) =>
+          element.setAttribute('data-retained', 'yes')
+        )
+        await other.evaluate((element) =>
+          element.setAttribute('data-retained', 'yes')
+        )
+        const titles = (start: number, count: number) =>
+          Array.from(
+            { length: count },
+            (_, index) => `Article ${start + index}`
+          )
+        const expectPage = async (
+          start: number,
+          count: number,
+          total: number
+        ) => {
+          await expect(
+            collection.getByRole('heading', { level: 3 })
+          ).toHaveText(titles(start, count))
+          await expect(
+            collection.getByText(
+              `Showing ${start} – ${start + count - 1} of ${total} NFTs`,
+              { exact: true }
+            )
+          ).toBeVisible()
+        }
+        const expectIndependent = async (requestedPage: number) => {
+          const url = new URL(page.url())
+          expect(url.searchParams.get(key)).toBe(
+            requestedPage === 1 ? null : String(requestedPage)
+          )
+          expect(url.searchParams.get(otherKey)).toBe('2')
+          expect(url.searchParams.get('tab')).toBe('nfts')
+          expect(url.searchParams.get('tag')).toBe('art')
+          await expect(collection).toHaveAttribute('data-retained', 'yes')
+          await expect(other).toHaveAttribute('data-retained', 'yes')
+          await expect(other.getByRole('heading', { level: 3 })).toHaveText(
+            titles(10, 9)
+          )
+          await expect(
+            other.getByText('Showing 10 – 18 of 19 NFTs', { exact: true })
+          ).toBeVisible()
+          await expect(other.locator('[aria-busy]')).toHaveAttribute(
+            'aria-busy',
+            'false'
+          )
+        }
+
+        await expectPage(1, 9, 19)
+        await collection
+          .getByRole('link', { name: 'Next page', exact: true })
+          .press('Enter')
+        await expect(collection.locator('[aria-busy]')).toHaveAttribute(
+          'aria-busy',
+          'true'
+        )
+        await expectPage(1, 9, 19)
+        await expectIndependent(2)
+        await page
+          .getByRole('button', { name: `Resolve ${kind} page`, exact: true })
+          .click()
+        await expect(collection.locator('[aria-busy]')).toHaveAttribute(
+          'aria-busy',
+          'false'
+        )
+        await expectPage(10, 9, 19)
+        await expectIndependent(2)
+
+        await collection
+          .getByRole('link', { name: 'Next page', exact: true })
+          .click()
+        await expect(collection.locator('[aria-busy]')).toHaveAttribute(
+          'aria-busy',
+          'true'
+        )
+        await expectPage(10, 9, 19)
+        await expectIndependent(3)
+        await page
+          .getByRole('button', {
+            name: `Resolve ${kind} empty page`,
+            exact: true,
+          })
+          .click()
+        await expect(collection.locator('[aria-busy]')).toHaveAttribute(
+          'aria-busy',
+          'false'
+        )
+        await expect(collection.getByRole('article')).toHaveCount(0)
+        await expect(collection.getByText(/Showing/)).toHaveCount(0)
+        const recovery = collection.getByRole('link', {
+          name: 'Go to last available page',
+        })
+        await expect(recovery).toBeVisible()
+        await expectIndependent(3)
+        await recovery.press('Enter')
+        await expect(collection.locator('[aria-busy]')).toHaveAttribute(
+          'aria-busy',
+          'true'
+        )
+        await expectIndependent(1)
+        await page
+          .getByRole('button', { name: `Resolve ${kind} page`, exact: true })
+          .click()
+        await expectPage(1, 9, 9)
+        await expectIndependent(1)
+        await page.getByRole('button', { name: 'Toggle theme' }).click()
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth)
+        ).toBeLessThanOrEqual(width)
+        expect(errors).toEqual([])
+      })
+
       test(`stale ${key} recovers independently at ${width}px`, async ({
         page,
       }) => {

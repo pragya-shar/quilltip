@@ -14,18 +14,24 @@ export const api = {
 }
 const pause = () => new Promise<void>((resolve) => setTimeout(resolve, 900))
 const hold = () => new Promise<never>(() => {})
-export const ProfileNftTotalsContext = createContext(9)
+export const ProfileNftQueriesContext = createContext({
+  owned: { total: 9, resolvedPage: 1 },
+  minted: { total: 9, resolvedPage: 1 },
+})
 
-export function useNFTsByOwnerPaginated({
-  page,
-  limit,
-}: {
-  page: number
-  limit: number
-}) {
-  const total = useContext(ProfileNftTotalsContext)
+function useProfileNftQuery(
+  collection: 'owned' | 'minted',
+  { page, limit }: { page: number; limit: number }
+) {
+  const { total, resolvedPage } = useContext(ProfileNftQueriesContext)[
+    collection
+  ]
   return useMemo(() => {
-    if (params.get('loading') === '1') return undefined
+    if (
+      params.get('loading') === '1' ||
+      (params.get('controlled') === '1' && page !== resolvedPage)
+    )
+      return undefined
     return {
       page,
       limit,
@@ -46,10 +52,17 @@ export function useNFTsByOwnerPaginated({
         })
       ),
     }
-  }, [page, limit, total])
+  }, [page, limit, total, resolvedPage])
 }
 
-export const useUserMintedNFTsPaginated = useNFTsByOwnerPaginated
+export const useNFTsByOwnerPaginated = (args: {
+  page: number
+  limit: number
+}) => useProfileNftQuery('owned', args)
+export const useUserMintedNFTsPaginated = (args: {
+  page: number
+  limit: number
+}) => useProfileNftQuery('minted', args)
 
 export function useNFTByArticle() {
   if (state === 'loading') return undefined
