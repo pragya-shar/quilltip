@@ -53,7 +53,8 @@ their configuration as prose or adding another hook to run the same checks.
 ## Verification and CI
 
 `bun run check` runs formatting, lint, component-rule fixtures, typecheck, audit
-CLI tests, and the production build. Docs-only edits need formatting and
+CLI tests, dependency compatibility tests, the live dependency audit, and the
+production build. Docs-only edits need formatting and
 `git diff --check`; run the full check if scripts or executable config changed.
 
 For affected browser behavior, run the relevant existing Playwright spec against
