@@ -15,6 +15,9 @@ const result = await Bun.build({
     {
       name: 'isolated-nft-collaborators',
       setup(build) {
+        build.onResolve({ filter: /^next\/link$/ }, () => ({
+          path: path.join(root, 'e2e/fixtures/recovery/link.tsx'),
+        }))
         build.onResolve(
           {
             filter:
@@ -28,7 +31,7 @@ const result = await Bun.build({
 })
 if (!result.success) throw new AggregateError(result.logs)
 const css = await postcss([tailwind({ base: root })]).process(
-  "@import 'tailwindcss';\n@import './app/shared-ui.css';\n@import './components/articles/reader.css';",
+  "@import './app/globals.css';",
   { from: path.join(root, 'nft-fixture.css') }
 )
 const outputs = new Map(
