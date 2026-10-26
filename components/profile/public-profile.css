@@ -162,6 +162,7 @@
   color: var(--profile-paper);
 }
 .profile-pagination {
+  --foreground: var(--profile-ink);
   margin-top: 24px;
 }
 .profile-pagination nav :is(a, button) {
@@ -322,9 +323,6 @@
 }
 .profile-nfts [aria-hidden='true'] .animate-pulse {
   background: #e7d9cf;
-}
-.profile-nfts .profile-pagination nav > div {
-  color: var(--profile-ink);
 }
 @media (max-width: 1000px) {
   .profile-nft-grid {

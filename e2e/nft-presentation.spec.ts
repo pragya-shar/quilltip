@@ -9,6 +9,75 @@ test.describe('NFT presentation and interaction', () => {
   )
   test.use({ baseURL: 'http://127.0.0.1:4174' })
 
+  for (const width of [375, 1280]) {
+    test(`profile pagination and NFT counts retain contrast at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 })
+      await page.goto('/?state=profile')
+      const articles = page.getByRole('region', {
+        name: 'Articles',
+        exact: true,
+      })
+      const nfts = page.getByRole('region', { name: 'Owned NFTs', exact: true })
+      for (const theme of ['light', 'dark']) {
+        if (theme === 'dark')
+          await page.getByRole('button', { name: 'Toggle theme' }).click()
+        const labels =
+          width === 375
+            ? page.getByText('Page 1 of 8', { exact: true })
+            : page.getByText('More pages', { exact: true }).locator('..')
+        await expect(labels).toHaveCount(2)
+        for (const label of await labels.all()) {
+          await expect(label).toBeVisible()
+          // Contrast is measured against the fixed paper, including dark ellipsis opacity.
+          const contrast = await label.evaluate((element) => {
+            const color = getComputedStyle(element).color
+            const canvas = document.createElement('canvas')
+            const context = canvas.getContext('2d')!
+            context.fillStyle = '#faf5ec'
+            context.fillRect(0, 0, 1, 1)
+            context.fillStyle = color
+            context.fillRect(0, 0, 1, 1)
+            const channels = [...context.getImageData(0, 0, 1, 1).data].slice(
+              0,
+              3
+            )
+            const luminance = (rgb: number[]) =>
+              rgb.reduce((sum, value, i) => {
+                const s = value / 255
+                return (
+                  sum +
+                  (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4) *
+                    [0.2126, 0.7152, 0.0722][i]!
+                )
+              }, 0)
+            return (
+              (luminance([250, 245, 236]) + 0.05) / (luminance(channels) + 0.05)
+            )
+          })
+          expect(contrast).toBeGreaterThanOrEqual(4.5)
+        }
+        await expect(nfts.getByText('72 NFTs', { exact: true })).toHaveCSS(
+          'color',
+          'rgb(94, 83, 90)'
+        )
+        await expect(
+          nfts.getByText('Showing 1 – 9 of 72 NFTs', { exact: true })
+        ).toHaveCSS('color', 'rgb(94, 83, 90)')
+        await expect(
+          articles.getByRole('link', { name: 'Next page' })
+        ).toHaveAttribute('href', '/writer?page=2')
+        await expect(
+          nfts.getByRole('link', { name: 'Next page' })
+        ).toHaveAttribute('href', '/writer?tab=nfts&nftOwnedPage=2')
+        expect(
+          await page.evaluate(() => document.documentElement.scrollWidth)
+        ).toBeLessThanOrEqual(width)
+      }
+    })
+  }
+
   test('collection retains ownership, eligibility, stats and loading meaning', async ({
     page,
   }) => {
