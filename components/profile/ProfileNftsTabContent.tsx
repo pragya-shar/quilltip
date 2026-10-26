@@ -103,7 +103,8 @@ export function ProfileNftsTabContent({
               : `Articles in ${displayName}’s collection.`
           }
           total={ownedData.total}
-          page={nftOwnedPage}
+          displayedCount={ownedNfts.length}
+          page={ownedData.page}
           pageSize={NFT_PAGE_LIMIT}
           totalPages={ownedTotalPages}
           getPageHref={ownedHref}
@@ -134,7 +135,8 @@ export function ProfileNftsTabContent({
               : `Articles ${displayName} brought onchain.`
           }
           total={mintedData.total}
-          page={nftMintedPage}
+          displayedCount={mintedNfts.length}
+          page={mintedData.page}
           pageSize={NFT_PAGE_LIMIT}
           totalPages={mintedTotalPages}
           getPageHref={mintedHref}
