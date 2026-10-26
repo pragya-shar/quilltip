@@ -1,7 +1,53 @@
 import { test, expect, type Page } from '@playwright/test'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { HighlightNotes } from '../components/highlights/HighlightNotes'
+import type { Id } from '../convex/_generated/dataModel'
 
 const articlePath =
   process.env.PLAYWRIGHT_HIGHLIGHT_ARTICLE ?? '/chris/untitled'
+
+test('notes on the same passage expose distinct content, authors, privacy and tips', async ({
+  page,
+}) => {
+  // Render the production component with fixed data: no backend writes, account
+  // credentials or live tip history are needed to verify accessible names.
+  const passage = 'The words we keep'
+  const highlights = [
+    { note: 'A public reflection', userName: 'Reader One', isPublic: true },
+    { note: 'A private reminder', userName: 'Reader Two', isPublic: false },
+    { note: 'A supported idea', userName: 'Reader Three', isPublic: true },
+  ].map((highlight, index) => ({
+    ...highlight,
+    _id: `note-${index}` as Id<'highlights'>,
+    highlightId: `passage-${index}`,
+    userId: `reader-${index}` as Id<'users'>,
+    text: passage,
+    createdAt: Date.UTC(2026, 9, 23),
+  }))
+  await page.setContent(
+    renderToStaticMarkup(
+      createElement(HighlightNotes, {
+        highlights,
+        currentUserId: highlights[1]!.userId,
+        tipsByHighlight: { 'passage-2': { count: 2, totalUsd: 1.5 } },
+      })
+    )
+  )
+
+  const publicNote = page.getByRole('button', { name: /A public reflection/ })
+  const privateNote = page.getByRole('button', { name: /A private reminder/ })
+  const tippedNote = page.getByRole('button', { name: /A supported idea/ })
+  await expect(publicNote).toHaveAccessibleName(
+    /Reader One.*The words we keep.*A public reflection.*Public note.*View passage/
+  )
+  await expect(privateNote).toHaveAccessibleName(
+    /Reader Two \(You\).*The words we keep.*A private reminder.*Private · Only you.*View passage/
+  )
+  await expect(tippedNote).toHaveAccessibleName(
+    /Reader Three.*The words we keep.*A supported idea.*Public note.*2 tips · \$1\.50.*View passage/
+  )
+})
 
 async function selectPassage(page: Page, paragraphIndex = 0) {
   await page.waitForLoadState('networkidle')
@@ -247,7 +293,7 @@ test.describe('saved passages on a development backend', () => {
       .getByRole('button', { name: 'Article details', exact: true })
       .click()
     const noteLink = page
-      .getByRole('button', { name: /^Go to passage:/ })
+      .getByRole('button', { name: /View passage$/ })
       .filter({ hasText: note })
     await expect(noteLink).toContainText('Private · Only you')
     await noteLink.click()
