@@ -83,6 +83,9 @@ of an advisory-free dependency tree.
 ## Reproducible compatibility checks
 
 Run `bun run test:dependency-compatibility` (also included in `check`).
+The tests explicitly declare `esbuild` 0.27.0 and `@dha-team/arbundles` 1.1.0
+as development dependencies, using their already locked versions instead of
+depending on transitive package hoisting.
 
 - Tiptap/Happy DOM: real server HTML generation and parse/serialize round-trip;
   real `ArticleReadOnlyBody` and `WritingPreview` components. Checks exact
