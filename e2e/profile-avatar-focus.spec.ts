@@ -54,8 +54,11 @@ test.describe('profile avatar focus during a URL save', () => {
 
         // A focusable disabled control must block pointer and keyboard opening.
         await trigger.press('Enter')
+        await expect(page.getByRole('menu')).toBeHidden()
         await trigger.press('Space')
+        await expect(page.getByRole('menu')).toBeHidden()
         await trigger.press('ArrowDown')
+        await expect(page.getByRole('menu')).toBeHidden()
         await page.mouse.click(
           ...(await trigger.evaluate((element) => {
             const box = element.getBoundingClientRect()
