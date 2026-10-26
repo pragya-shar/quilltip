@@ -69,6 +69,23 @@ Install Playwright's Chromium browser if the runner requests it. See
 [playwright.config.ts](../playwright.config.ts) for defaults and
 [behavioral QA](workflow/qa-checklist.md) for evidence requirements.
 
+Signed-in navigation coverage lives in `e2e/account-navigation.spec.ts`. Run it
+against a frontend configured for a **development** Convex deployment, using a
+dedicated disposable account created through `/register`. Supply that account's
+email and password as `PLAYWRIGHT_QA_EMAIL` and `PLAYWRIGHT_QA_PASSWORD` through
+your local environment or secret manager, then run:
+
+```bash
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 bunx playwright test e2e/account-navigation.spec.ts
+```
+
+Without both variables the spec skips explicitly. Each test uses a fresh browser
+context and signs in through `/login`; sign-out tests have independent sessions.
+The spec disables traces, screenshots, and video to avoid capturing credentials.
+Do not commit credentials or saved browser state. It follows desktop/mobile
+destinations, holds real Convex responses to check auth loading, and signs out;
+it does not publish articles, edit content, or send wallet transactions.
+
 For wallet install/connect QA, test once without an extension, then install a
 supported Stellar wallet, reload, and verify the connection flow. Signed wallet
 operations and permanent publishing require the correct target environment.
