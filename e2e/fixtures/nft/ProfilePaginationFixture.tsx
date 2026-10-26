@@ -1,11 +1,20 @@
 import { useState } from 'react'
 import { ProfileNftsTabContent } from '../../../components/profile/ProfileNftsTabContent'
 import type { Id } from '../../../types/convex'
-import { ProfileNftTotalsContext } from './runtime'
+import { ProfileNftQueriesContext } from './runtime'
+import { useSearchParams } from './navigation'
 
 export function ProfilePaginationFixture() {
-  const params = new URLSearchParams(location.search)
-  const [total, setTotal] = useState(Number(params.get('total') ?? 9))
+  const params = useSearchParams()
+  const ownedPage = Number(params.get('nftOwnedPage') ?? 1)
+  const mintedPage = Number(params.get('nftMintedPage') ?? 1)
+  const [queries, setQueries] = useState(() => ({
+    owned: { total: Number(params.get('total') ?? 9), resolvedPage: ownedPage },
+    minted: {
+      total: Number(params.get('total') ?? 9),
+      resolvedPage: mintedPage,
+    },
+  }))
   return (
     <main className="profile-page min-h-screen">
       <div className="profile-folio">
@@ -19,21 +28,57 @@ export function ProfilePaginationFixture() {
             const next = new URL(location.href)
             next.searchParams.set('total', '9')
             history.replaceState(null, '', next)
-            setTotal(9)
+            setQueries((previous) => ({
+              owned: { ...previous.owned, total: 9 },
+              minted: { ...previous.minted, total: 9 },
+            }))
           }}
         >
           Shrink collections to 9
         </button>
-        <ProfileNftTotalsContext.Provider value={total}>
+        {params.get('controlled') === '1' &&
+          (['owned', 'minted'] as const).map((collection) => (
+            <div key={collection}>
+              <button
+                onClick={() =>
+                  setQueries((previous) => ({
+                    ...previous,
+                    [collection]: {
+                      ...previous[collection],
+                      resolvedPage:
+                        collection === 'owned' ? ownedPage : mintedPage,
+                    },
+                  }))
+                }
+              >
+                Resolve {collection} page
+              </button>
+              <button
+                onClick={() =>
+                  setQueries((previous) => ({
+                    ...previous,
+                    [collection]: {
+                      total: 9,
+                      resolvedPage:
+                        collection === 'owned' ? ownedPage : mintedPage,
+                    },
+                  }))
+                }
+              >
+                Resolve {collection} empty page
+              </button>
+            </div>
+          ))}
+        <ProfileNftQueriesContext.Provider value={queries}>
           <ProfileNftsTabContent
             userId={'qa-author' as Id<'users'>}
             username="writer"
-            nftOwnedPage={Number(params.get('nftOwnedPage') ?? 1)}
-            nftMintedPage={Number(params.get('nftMintedPage') ?? 1)}
+            nftOwnedPage={ownedPage}
+            nftMintedPage={mintedPage}
             isOwnProfile={false}
             displayName="Writer"
           />
-        </ProfileNftTotalsContext.Provider>
+        </ProfileNftQueriesContext.Provider>
       </div>
     </main>
   )
