@@ -291,6 +291,90 @@ test.describe('saved passages on a development backend', () => {
 test('heatmap time ranges and empty states fit the reader at narrow and desktop sizes', async ({
   page,
 }) => {
+  const now = new Date('2026-10-15T12:00:00Z').getTime()
+  const dayMs = 24 * 60 * 60 * 1000
+  await page.clock.setFixedTime(now)
+  const recentPassage = {
+    highlightId: 'fixture-recent',
+    text: 'A passage supported within the last thirty days.',
+    startOffset: 0,
+    endOffset: 51,
+    totalAmountCents: 500,
+    tipCount: 1,
+  }
+  const recent = {
+    totalTips: 1,
+    totalAmountCents: 500,
+    totalAmountUsd: 5,
+    uniqueTippers: 1,
+    topHighlights: [recentPassage],
+  }
+  const allTime = {
+    totalTips: 3,
+    totalAmountCents: 1250,
+    totalAmountUsd: 12.5,
+    uniqueTippers: 2,
+    topHighlights: [
+      {
+        ...recentPassage,
+        highlightId: 'fixture-older',
+        text: 'An older supported passage.',
+        endOffset: 26,
+        totalAmountCents: 750,
+        tipCount: 2,
+      },
+      recentPassage,
+    ],
+  }
+  const empty = {
+    totalTips: 0,
+    totalAmountCents: 0,
+    totalAmountUsd: 0,
+    uniqueTippers: 0,
+    topHighlights: [],
+  }
+  // Replace only the heatmap's external query, keyed by its subscription ID.
+  // Article content, auth and all other queries still use the development backend.
+  await page.routeWebSocket(/\.convex\.cloud\//, (socket) => {
+    const fixtures = new Map<number, typeof allTime>()
+    const server = socket.connectToServer()
+    socket.onMessage((message) => {
+      const data = JSON.parse(message.toString())
+      if (data.type === 'ModifyQuerySet') {
+        for (const query of data.modifications) {
+          if (query.type === 'Remove') fixtures.delete(query.queryId)
+          if (
+            query.type === 'Add' &&
+            query.udfPath === 'highlightTips:getArticleStats'
+          ) {
+            const sinceMs = query.args[0].sinceMs
+            expect([undefined, now - 7 * dayMs, now - 30 * dayMs]).toContain(
+              sinceMs
+            )
+            fixtures.set(
+              query.queryId,
+              sinceMs === undefined
+                ? allTime
+                : sinceMs === now - 7 * dayMs
+                  ? empty
+                  : recent
+            )
+          }
+        }
+      }
+      server.send(message)
+    })
+    server.onMessage((message) => {
+      const data = JSON.parse(message.toString())
+      for (const modification of data.modifications ?? []) {
+        const fixture = fixtures.get(modification.queryId)
+        if (modification.type === 'QueryUpdated' && fixture) {
+          modification.value = fixture
+        }
+      }
+      socket.send(JSON.stringify(data))
+    })
+  })
   await page.goto(articlePath)
   await page
     .getByRole('button', { name: 'Article details', exact: true })
@@ -299,26 +383,63 @@ test('heatmap time ranges and empty states fit the reader at narrow and desktop 
     name: 'Highlight heatmap',
     exact: true,
   })
-  await expect(
-    heatmap.getByRole('button', { name: 'All time' })
-  ).toHaveAttribute('aria-pressed', 'true')
-  await expect(heatmap.getByRole('status')).toHaveCount(0)
-  const baseline = await heatmap.innerText()
-  await heatmap.getByRole('button', { name: 'Last 7 days' }).click()
-  await expect(
-    heatmap.getByRole('button', { name: 'Last 7 days' })
-  ).toHaveAttribute('aria-pressed', 'true')
-  await expect(
-    heatmap.getByText('No highlight tips in the last 7 days')
-  ).toBeVisible()
-  await heatmap.getByRole('button', { name: 'All time' }).click()
-  await expect(heatmap).toHaveText(baseline, { useInnerText: true })
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 700 })
+    await expect(
+      heatmap.getByRole('button', { name: 'All time' })
+    ).toHaveAttribute('aria-pressed', 'true')
+    await expect(heatmap.locator('strong')).toHaveText(['3', '$12.50', '2'])
+    await expect(heatmap.getByRole('listitem')).toHaveCount(2)
+    await expect(heatmap.getByRole('listitem').first()).toContainText(
+      'An older supported passage.'
+    )
+    const baseline = await heatmap.innerText()
+    await heatmap.getByRole('button', { name: 'Last 7 days' }).click()
+    await expect(
+      heatmap.getByRole('button', { name: 'Last 7 days' })
+    ).toHaveAttribute('aria-pressed', 'true')
+    await expect(
+      heatmap.getByText('No highlight tips in the last 7 days', { exact: true })
+    ).toBeVisible()
+    await expect(heatmap.getByRole('listitem')).toHaveCount(0)
+    await heatmap.getByRole('button', { name: 'Last 30 days' }).click()
+    await expect(
+      heatmap.getByRole('button', { name: 'Last 30 days' })
+    ).toHaveAttribute('aria-pressed', 'true')
+    await expect(heatmap.locator('strong')).toHaveText(['1', '$5.00', '1'])
+    await expect(heatmap.getByRole('listitem')).toHaveCount(1)
+    await expect(heatmap.getByRole('listitem')).toContainText(
+      recentPassage.text
+    )
+    await heatmap.getByRole('button', { name: 'All time' }).click()
+    await expect(heatmap).toHaveText(baseline, { useInnerText: true })
     await heatmap.scrollIntoViewIfNeeded()
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth)
     ).toBeLessThanOrEqual(width)
+  }
+})
+
+test('heatmap renders live development data without assuming tip dates', async ({
+  page,
+}) => {
+  await page.goto(articlePath)
+  await page
+    .getByRole('button', { name: 'Article details', exact: true })
+    .click()
+  const heatmap = page.getByRole('region', { name: 'Highlight heatmap' })
+  for (const [range, label, emptyMessage] of [
+    ['All time', 'all time', 'No highlighted passages supported yet'],
+    ['Last 7 days', '7 days', 'No highlight tips in the last 7 days'],
+    ['Last 30 days', '30 days', 'No highlight tips in the last 30 days'],
+  ] as const) {
+    await heatmap.getByRole('button', { name: range, exact: true }).click()
+    await expect(
+      heatmap
+        .getByText(`Passage support · ${label}`, { exact: true })
+        .or(heatmap.getByText(emptyMessage, { exact: true }))
+    ).toBeVisible()
+    await expect(heatmap.getByRole('status')).toHaveCount(0)
   }
 })
 
