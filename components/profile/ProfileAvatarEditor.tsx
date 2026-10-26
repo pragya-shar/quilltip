@@ -152,12 +152,18 @@ export function ProfileAvatarEditor({
           fallbackClassName="profile-avatar-fallback"
         />
 
-        <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenu
+          open={menuOpen}
+          onOpenChange={(open) => {
+            if (!open || !isBusy) setMenuOpen(open)
+          }}
+        >
           <DropdownMenuTrigger asChild>
             <button
               ref={avatarMenuTriggerRef}
               type="button"
-              disabled={isBusy}
+              // Keep the dialog's return target focusable during a save.
+              aria-disabled={isBusy}
               className="profile-photo-trigger"
               aria-label="Change profile photo"
               aria-busy={isBusy}
