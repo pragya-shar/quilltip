@@ -61,7 +61,6 @@ export function HighlightNotes({
             key={highlight._id}
             className="highlight-note-item"
             onClick={() => onNoteClick?.(highlight)}
-            aria-label={`Go to passage: ${highlight.text}`}
           >
             <span className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="flex min-w-0 items-center gap-2">
