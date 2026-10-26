@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { publishedArticlePath } from './helpers/published-article-path'
 
 const DEV_CONSOLE_PATTERN = /development|dev mode|devtools|development build/i
 
@@ -50,19 +51,11 @@ test.describe('ENG-224 public pages console', () => {
       waitUntil: 'networkidle',
       timeout: 60_000,
     })
-    const articleLink = page
-      .getByRole('article')
-      .first()
-      .getByRole('link', { name: /^Read / })
-      .first()
-    await expect(articleLink).toBeVisible()
-    const resolvedHref = await articleLink.getAttribute('href')
+    const resolvedHref = await publishedArticlePath(page)
 
     test.skip(
-      !resolvedHref ||
-        !resolvedHref.startsWith('/') ||
-        resolvedHref.split('/').filter(Boolean).length < 2,
-      'No published article link on /articles to test article detail'
+      resolvedHref === null,
+      'Articles finished loading with no published articles; skipping article detail console check'
     )
 
     const entries = await captureConsoleForPath(page, resolvedHref!)
