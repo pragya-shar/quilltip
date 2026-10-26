@@ -307,7 +307,7 @@
 .published-prose.prose > :first-child {
   margin-top: 0;
 }
-.reader-surface [data-slot='skeleton'] {
+.reader-surface .skeleton {
   background: var(--ui-muted);
 }
 .reader-loading-title {
