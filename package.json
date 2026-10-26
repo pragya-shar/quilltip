@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "private": true,
   "scripts": {
-    "check": "bun run format:check && bun run lint && bun run test:component-organization && bun run typecheck && bun run test:security && bun run build",
+    "check": "bun run format:check && bun run lint && bun run test:component-organization && bun run typecheck && bun run test:security && bun run test:dependency-compatibility && bun run security:audit && bun run build",
     "dev": "npm-run-all --parallel dev:frontend dev:backend",
     "dev:frontend": "next dev --turbopack",
     "dev:backend": "convex dev",
@@ -23,7 +23,8 @@
     "eng-238:page-load": "bun scripts/eng-238-page-load-performance.ts",
     "audit:dependencies": "bun run security:audit",
     "security:audit": "bun scripts/security/audit.ts",
-    "test:security": "vitest run scripts/security/audit.test.ts"
+    "test:security": "vitest run scripts/security/audit.test.ts",
+    "test:dependency-compatibility": "vitest run --config scripts/security/compatibility.config.mts"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -39,7 +40,7 @@
     ]
   },
   "dependencies": {
-    "@ardrive/turbo-sdk": "^1.44.1",
+    "@ardrive/turbo-sdk": "2.1.2",
     "@convex-dev/auth": "^0.0.96",
     "@creit.tech/stellar-wallets-kit": "^1.9.5",
     "@hookform/resolvers": "^5.9.2",
@@ -134,6 +135,7 @@
   },
   "packageManager": "bun@1.4.4",
   "overrides": {
+    "happy-dom": "21.0.4",
     "elliptic": "6.6.1",
     "protobufjs": "7.6.6",
     "secp256k1": "5.0.2",
@@ -141,6 +143,7 @@
     "ws@^8": "8.21.0"
   },
   "patchedDependencies": {
-    "decode-uri-component@0.2.2": "patches/decode-uri-component@0.2.2.patch"
+    "decode-uri-component@0.2.2": "patches/decode-uri-component@0.2.2.patch",
+    "@ardrive/turbo-sdk@2.1.2": "patches/@ardrive%2Fturbo-sdk@2.1.2.patch"
   }
 }
