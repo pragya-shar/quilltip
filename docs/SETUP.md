@@ -59,7 +59,8 @@ including for small uploads; keep it only on the backend.
 ## Checks and browser tests
 
 Run `bun run check` for the local code/tooling gate; `package.json` lists individual
-checks. Playwright uses an existing server rather than launching one. For example:
+checks. Live-route Playwright suites use an existing server rather than launching
+one. For example:
 
 ```bash
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 bunx playwright test e2e/site-chrome.spec.ts
@@ -68,6 +69,22 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 bunx playwright test e2e/site-chrome.s
 Install Playwright's Chromium browser if the runner requests it. See
 [playwright.config.ts](../playwright.config.ts) for defaults and
 [behavioral QA](workflow/qa-checklist.md) for evidence requirements.
+
+The console test command runs both the live public-page console suite and all
+seven article selection regressions:
+
+```bash
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 bun run test:e2e:eng-224
+```
+
+Start a production build (`bun run build`, then `bun run start`) at the selected
+URL first; development-mode console messages intentionally fail the live suite.
+Neither suite requires sign-in credentials. The selection regressions use
+isolated DOM fixtures and can also run without an app server or backend:
+
+```bash
+bunx playwright test e2e/article-console-selection.spec.ts
+```
 
 Signed-in navigation coverage lives in `e2e/account-navigation.spec.ts`. Run it
 against a frontend configured for a **development** Convex deployment, using a

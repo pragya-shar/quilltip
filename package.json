@@ -16,7 +16,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "test:e2e:eng-224": "playwright test e2e/eng-224-console.spec.ts",
+    "test:e2e:eng-224": "playwright test e2e/eng-224-console.spec.ts e2e/article-console-selection.spec.ts",
     "eng-224:console-baseline": "node scripts/eng-224-console-baseline.mjs",
     "eng-235:batch-evidence": "bun scripts/eng-235-batch-evidence-runner.ts",
     "eng-236:batch-evidence": "bun scripts/eng-236-batch-evidence-runner.ts",
