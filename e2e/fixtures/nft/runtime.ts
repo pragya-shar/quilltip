@@ -1,6 +1,6 @@
 // Browser-only collaborators for rendering the real NFT components without
 // sending transactions, uploading metadata, or changing a Convex deployment.
-import { useState } from 'react'
+import { createContext, useContext, useMemo, useState } from 'react'
 import { stellarFlowEmitter } from '../../../lib/stellar/stellar-flow-emitter'
 
 const params = new URLSearchParams(location.search)
@@ -14,6 +14,43 @@ export const api = {
 }
 const pause = () => new Promise<void>((resolve) => setTimeout(resolve, 900))
 const hold = () => new Promise<never>(() => {})
+export const ProfileNftTotalsContext = createContext(9)
+
+export function useNFTsByOwnerPaginated({
+  page,
+  limit,
+}: {
+  page: number
+  limit: number
+}) {
+  const total = useContext(ProfileNftTotalsContext)
+  return useMemo(() => {
+    if (params.get('loading') === '1') return undefined
+    return {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      nfts: Array.from(
+        { length: Math.max(0, Math.min(limit, total - (page - 1) * limit)) },
+        (_, index) => ({
+          _id: `qa-nft-${(page - 1) * limit + index}`,
+          tokenId: String((page - 1) * limit + index + 1),
+          article: {
+            title: `Article ${(page - 1) * limit + index + 1}`,
+            slug: 'qa-article',
+            authorUsername: 'writer',
+          },
+          minter: { username: 'writer' },
+          currentOwnerInfo: { username: 'reader' },
+        })
+      ),
+    }
+  }, [page, limit, total])
+}
+
+export const useUserMintedNFTsPaginated = useNFTsByOwnerPaginated
+
 export function useNFTByArticle() {
   if (state === 'loading') return undefined
   return {

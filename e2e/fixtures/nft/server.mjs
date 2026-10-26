@@ -10,11 +10,14 @@ const runtime = path.join(import.meta.dirname, 'runtime.ts')
 const result = await Bun.build({
   entrypoints: [path.join(import.meta.dirname, 'page.tsx')],
   target: 'browser',
-  define: { 'process.env.NODE_ENV': '"development"' },
+  define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' },
   plugins: [
     {
       name: 'isolated-nft-collaborators',
       setup(build) {
+        build.onResolve({ filter: /^next\/navigation$/ }, () => ({
+          path: path.join(import.meta.dirname, 'navigation.ts'),
+        }))
         build.onResolve({ filter: /^next\/link$/ }, () => ({
           path: path.join(root, 'e2e/fixtures/recovery/link.tsx'),
         }))

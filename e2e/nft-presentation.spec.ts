@@ -10,6 +10,103 @@ test.describe('NFT presentation and interaction', () => {
   test.use({ baseURL: 'http://127.0.0.1:4174' })
 
   for (const width of [375, 1280]) {
+    for (const key of ['nftOwnedPage', 'nftMintedPage']) {
+      test(`stale ${key} recovers independently at ${width}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 844 })
+        const otherKey =
+          key === 'nftOwnedPage' ? 'nftMintedPage' : 'nftOwnedPage'
+        const collection = page.getByRole('region', {
+          name: key === 'nftOwnedPage' ? 'Owned NFTs' : 'Minted NFTs',
+          exact: true,
+        })
+        await page.goto(
+          `/writer?state=profile-pagination&tab=nfts&${key}=2&${otherKey}=3&tag=art&total=9`
+        )
+        await expect(collection).toBeVisible()
+        await expect(collection.getByText(/Showing/)).toHaveCount(0)
+        const recovery = collection.getByRole('link', {
+          name: 'Go to last available page',
+        })
+        await expect(recovery).toBeVisible()
+        const href = await recovery.getAttribute('href')
+        const recovered = new URL(href!, 'http://127.0.0.1:4174')
+        expect(recovered.searchParams.has(key)).toBe(false)
+        expect(recovered.searchParams.get(otherKey)).toBe('3')
+        expect(recovered.searchParams.get('tab')).toBe('nfts')
+        expect(recovered.searchParams.get('tag')).toBe('art')
+        await recovery.focus()
+        await expect(recovery).toBeFocused()
+        await recovery.press('Enter')
+        await expect(
+          collection.getByText('Showing 1 – 9 of 9 NFTs', { exact: true })
+        ).toBeVisible()
+        await expect(collection.getByRole('article')).toHaveCount(9)
+        await page.goto(
+          `/writer?state=profile-pagination&tab=nfts&${key}=4&${otherKey}=2&tag=art&total=19`
+        )
+        await expect(collection.getByText(/Showing/)).toHaveCount(0)
+        await expect(recovery).toHaveAttribute(
+          'href',
+          `/writer?state=profile-pagination&tab=nfts&${key}=3&${otherKey}=2&tag=art&total=19`
+        )
+        await recovery.click()
+        await expect(
+          collection.getByText('Showing 19 – 19 of 19 NFTs', { exact: true })
+        ).toBeVisible()
+      })
+    }
+
+    test(`NFT pages remain accurate when collections shrink at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 })
+      await page.goto('/writer?state=profile-pagination&tab=nfts&total=10')
+      await expect(
+        page.getByText('Showing 1 – 9 of 10 NFTs', { exact: true })
+      ).toHaveCount(2)
+      await page.goto(
+        '/writer?state=profile-pagination&tab=nfts&total=10&nftOwnedPage=2&nftMintedPage=2'
+      )
+      await expect(
+        page.getByText('Showing 10 – 10 of 10 NFTs', { exact: true })
+      ).toHaveCount(2)
+      await page
+        .getByRole('button', { name: 'Shrink collections to 9' })
+        .click()
+      await expect(page.getByText(/Showing/)).toHaveCount(0)
+      await expect(
+        page.getByRole('link', { name: 'Go to last available page' })
+      ).toHaveCount(2)
+      await page.getByRole('button', { name: 'Toggle theme' }).click()
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth)
+      ).toBeLessThanOrEqual(width)
+      await page
+        .getByRole('region', { name: 'Owned NFTs', exact: true })
+        .getByRole('link', { name: 'Go to last available page' })
+        .click()
+      await expect(
+        page.getByText('Showing 1 – 9 of 9 NFTs', { exact: true })
+      ).toBeVisible()
+      await page.goto(
+        '/writer?state=profile-pagination&total=0&nftOwnedPage=2&nftMintedPage=2'
+      )
+      await expect(
+        page.getByRole('heading', { name: 'A collection to come' })
+      ).toBeVisible()
+      await expect(page.getByText(/Showing/)).toHaveCount(0)
+      await page.goto('/writer?state=profile-pagination&loading=1')
+      await expect(
+        page.getByRole('status', {
+          name: 'Loading NFT collections',
+          exact: true,
+        })
+      ).toBeVisible()
+      await expect(page.getByText(/Showing/)).toHaveCount(0)
+    })
+
     test(`profile pagination and NFT counts retain contrast at ${width}px`, async ({
       page,
     }) => {

@@ -7,9 +7,11 @@ import type { Id } from '../../../types/convex'
 import Pagination from '../../../components/articles/Pagination'
 import { ProfileNftCollection } from '../../../components/profile/ProfileNftCollection'
 import '../../../components/profile/public-profile.css'
+import { ProfilePaginationFixture } from './ProfilePaginationFixture'
 
 const articleId = 'qa-article' as Id<'articles'>
 function Fixture() {
+  if (state === 'profile-pagination') return <ProfilePaginationFixture />
   if (state === 'profile') {
     return (
       <main className="profile-page min-h-screen">
@@ -30,6 +32,7 @@ function Fixture() {
               title="Owned NFTs"
               description="Articles in this collection."
               total={72}
+              displayedCount={9}
               page={1}
               pageSize={9}
               totalPages={8}

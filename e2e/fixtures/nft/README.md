@@ -15,3 +15,9 @@ Open `http://127.0.0.1:4174` for manual QA. `state` selects `owner`, `visitor`,
 `disconnected`, `preparing`, `signing`, `confirming`, `busy` (pending transfer),
 or `failure`. Pending modes intentionally remain pending until navigation.
 The app server is independent; the fixtures never ship as a Next.js route.
+
+`state=profile-pagination` renders the production profile NFT tab with controlled
+query results. Use `total` (default `9`), `nftOwnedPage`, and `nftMintedPage` to
+exercise saved URLs, or the shrink button to reduce both collections to 9 items.
+`loading=1` holds the initial query results. Navigation uses the current URL and
+the production pagination URL builder.
