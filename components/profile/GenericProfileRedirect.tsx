@@ -7,6 +7,8 @@ import AppNavigation from '@/components/layout/AppNavigation'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
 import { buildLoginHref } from '@/lib/auth/safeReturnPath'
 import { resolveProfileAliasPath } from '@/lib/profile/profileDestination'
+import '@/components/articles/reading-room.css'
+import '@/components/profile/public-profile.css'
 
 export function GenericProfileRedirect() {
   const router = useRouter()
@@ -40,7 +42,7 @@ export function GenericProfileRedirect() {
   ])
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="profile-page min-h-screen">
       <AppNavigation />
       <ProfilePageLoadingSkeleton />
     </div>
