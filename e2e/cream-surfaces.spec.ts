@@ -1,6 +1,13 @@
-import { test, expect, type Locator } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 
 test.use({ trace: 'off' })
+
+async function toggleRootTheme(page: Page) {
+  await page.evaluate(() => {
+    const dark = document.documentElement.classList.toggle('dark')
+    document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+  })
+}
 
 async function expectReadableText(text: Locator, surface: Locator) {
   const color = await text.evaluate((node) => getComputedStyle(node).color)
@@ -81,13 +88,7 @@ for (const viewport of [
         await expect(next).toHaveCSS('outline-style', 'solid')
 
         // A root theme can change while the portaled surface is already open.
-        await page.evaluate(() => {
-          document.documentElement.classList.toggle('dark')
-          document.documentElement.style.colorScheme =
-            document.documentElement.classList.contains('dark')
-              ? 'dark'
-              : 'light'
-        })
+        await toggleRootTheme(page)
         await expectReadableText(description, dialog)
         await expect(next).toHaveCSS('color-scheme', 'light')
         const submit = dialog.getByRole('button', {
@@ -159,13 +160,7 @@ for (const viewport of [
         await expect(modern).toBeFocused()
         await expect(modern).toHaveCSS('outline-style', 'solid')
         await expect(modern).toHaveCSS('outline-width', '2px')
-        await page.evaluate(() => {
-          document.documentElement.classList.toggle('dark')
-          document.documentElement.style.colorScheme =
-            document.documentElement.classList.contains('dark')
-              ? 'dark'
-              : 'light'
-        })
+        await toggleRootTheme(page)
         await expect(modern).toHaveCSS('color-scheme', 'light')
         await expect(modern).toBeChecked()
         await expectReadableText(
