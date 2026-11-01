@@ -6,6 +6,16 @@ The canonical dependency source is `bun.lock`. This review started at commit `c0
 
 After same-major dependency refreshes, Convex Auth 0.0.96, and the reviewed overrides, the follow-up live scan returns 12 records: **0 critical, 6 high, 5 moderate, 1 low**. All six high records have exact reviewed exceptions. `bigint-buffer` was newly introduced by the updated Turbo Solana tree and is included below. No new independently confirmed application root cause was uncovered, so no speculative remediation tickets were filed. The independently tracked Next/Sharp work remains [#238](https://github.com/pragya-shar/quilltip/issues/238).
 
+## 2026-11-01 remediation for #353
+
+The new [decoder advisory GHSA-qr28-fpjm-wq7f](https://github.com/advisories/GHSA-qr28-fpjm-wq7f) affects the replacement loop left by the earlier 0.2.2 patch. Override `decode-uri-component` to upstream **0.5.1**, which decodes each percent-encoded run once. Remove the old decoder patch. The only installed consumer is CommonJS `query-string@7.1.3`; its one-line patch selects the ESM decoder's `.default` export on Node 24, Bun and bundled builds. The decoder algorithm itself is unmodified. Query parsing still handles spaces, literal plus signs, Unicode and malformed escapes; decoded output is no longer rescanned on malformed input.
+
+Override `follow-redirects` to upstream **1.16.2** for [GHSA-mrwp-f3q8-3g9p](https://github.com/advisories/GHSA-mrwp-f3q8-3g9p). This preserves Axios's 1.x dependency API while correctly handling cross-realm `sensitiveHeaders` arrays.
+
+`url-dependencies.test.ts` exercises the CommonJS query-string API, the 32,000-distinct-run denial-of-service payload in a time-bounded subprocess, and real loopback cross-origin redirects with cross-realm sensitive headers in both object and array header forms. Existing wallet, Arweave and rendering compatibility tests remain part of the same suite.
+
+The live registry gate now reports **0 critical, 6 high, 5 moderate and 1 low** records. Neither new advisory remains. No audit code, thresholds or exceptions changed; the six existing exact exceptions below still expire on 2026-11-06. Earlier counts and decoder patch descriptions in this document are historical.
+
 ## Reproduce and enforce
 
 Use Bun 1.4.4, pinned in `packageManager` and CI. A local global upgrade is unnecessary: `npm exec --yes --package=bun@1.4.4 -- bun run security:audit` works with an older global Bun. Run `bun install --frozen-lockfile` first. Version-scoped overrides produce Bun lockfile version 3, which older Bun installers cannot read.
