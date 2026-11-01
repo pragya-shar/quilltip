@@ -57,9 +57,6 @@ export function parseHighlightUserNameFromElement(
   return null
 }
 
-/** Default tint strength for a single highlight mark (matches highlights.css). */
-export const HIGHLIGHT_READ_MIX_DEFAULT = '18%'
-
 /** Muted RGB for in-article marks (~35% toward neutral); picker hex unchanged in DB. */
 export const HIGHLIGHT_READ_RGB_MAP: Record<string, string> = {
   '#F59E0B': '204, 148, 52',
@@ -90,7 +87,6 @@ export function buildHighlightMarkStyle(attributes: {
   if (attributes.color) {
     parts.push(`--highlight-color: ${attributes.color}`)
     parts.push(`--highlight-color-rgb: ${getColorRgb(attributes.color)}`)
-    parts.push(`--highlight-mix: ${HIGHLIGHT_READ_MIX_DEFAULT}`)
   }
   if (attributes.userName) {
     parts.push(`--highlight-user-name: ${cssStringValue(attributes.userName)}`)

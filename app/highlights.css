@@ -16,8 +16,10 @@
   --highlight-coral: #fb7185;
   --highlight-coral-rgb: 251, 113, 133;
 
-  /* Muted RGB for in-article marks (~35% toward neutral) */
-  --highlight-read-mix-default: 18%;
+  /* Fixed prototype paper and ink stay readable under either root theme. */
+  --highlight-passage-fill: #dcb6bc;
+  --highlight-passage-hover: #cfa0aa;
+  --highlight-passage-ink: #382c26;
 }
 
 /* Base Highlight Container */
@@ -30,12 +32,8 @@
 /* Premium Highlight Mark Styling */
 mark[data-highlight-id] {
   position: relative;
-  --highlight-mix: var(--highlight-read-mix-default);
-  background-color: color-mix(
-    in srgb,
-    rgb(var(--highlight-color-rgb)) var(--highlight-mix),
-    var(--background)
-  );
+  background-color: var(--highlight-passage-fill);
+  color: var(--highlight-passage-ink);
   mix-blend-mode: normal;
   transition:
     background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
@@ -49,40 +47,16 @@ mark[data-highlight-id] {
   backface-visibility: hidden;
 }
 
-/* Overlap intensity: subtle depth without saturation boost */
-mark[data-overlap-count='1'] {
-  --highlight-mix: 12%;
-}
-
-mark[data-overlap-count='2'] {
-  --highlight-mix: 15%;
-}
-
-mark[data-overlap-count='3'] {
-  --highlight-mix: 18%;
-  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--border) 40%, transparent);
-}
-
-mark[data-overlap-count='4'] {
-  --highlight-mix: 21%;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 55%, transparent);
-}
-
-mark[data-overlap-count='5'] {
-  --highlight-mix: 24%;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 65%, transparent);
-}
-
-/* Hover: slightly stronger tint, no saturation filter */
+/* Keep one rose treatment for every saved color and overlap count. */
 mark[data-highlight-id]:hover {
-  --highlight-mix: calc(var(--highlight-mix) + 4%);
-  transform: scale(1.01) translateZ(0);
-  box-shadow:
-    0 2px 8px
-      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 12%, transparent),
-    0 0 0 1px
-      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 20%, transparent);
+  background-color: var(--highlight-passage-hover);
   z-index: 10;
+}
+
+mark[data-highlight-id]:focus-visible,
+mark[data-highlight-id]:has(+ .highlight-attribution-control:focus-visible) {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 3px;
 }
 
 /* Active/Click State for Instant Feedback */
@@ -156,14 +130,6 @@ mark[data-highlight-id]:hover::after {
   box-shadow: 0 0 0 2px var(--ring, #3b82f6);
 }
 
-mark[data-highlight-id]:has(+ .highlight-attribution-control:focus-visible) {
-  box-shadow:
-    0 0 0 2px
-      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 28%, transparent),
-    0 3px 10px
-      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 18%, transparent);
-}
-
 /* Entrance Animations */
 @keyframes highlight-paint {
   0% {
@@ -184,12 +150,6 @@ mark[data-highlight-id]:has(+ .highlight-attribution-control:focus-visible) {
 
 .highlight-animated {
   animation: highlight-paint 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  background-color: color-mix(
-    in srgb,
-    rgb(var(--highlight-color-rgb))
-      var(--highlight-mix, var(--highlight-read-mix-default)),
-    var(--background)
-  );
   background-size: 100% 100%;
   background-repeat: no-repeat;
 }
@@ -215,40 +175,6 @@ mark[data-note]::before {
 
 mark[data-note]:hover::before {
   opacity: 1;
-}
-
-/* Dark mode: softer in-article marks on dark prose */
-.dark mark[data-highlight-id] {
-  --highlight-read-mix-default: 14%;
-}
-
-.dark mark[data-overlap-count='1'] {
-  --highlight-mix: 10%;
-}
-
-.dark mark[data-overlap-count='2'] {
-  --highlight-mix: 12%;
-}
-
-.dark mark[data-overlap-count='3'] {
-  --highlight-mix: 14%;
-}
-
-.dark mark[data-overlap-count='4'] {
-  --highlight-mix: 16%;
-}
-
-.dark mark[data-overlap-count='5'] {
-  --highlight-mix: 18%;
-}
-
-.dark mark[data-highlight-id]:hover {
-  --highlight-mix: calc(var(--highlight-mix) + 3%);
-  box-shadow:
-    0 2px 8px
-      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 10%, transparent),
-    0 0 0 1px
-      color-mix(in srgb, rgb(var(--highlight-color-rgb)) 16%, transparent);
 }
 
 /* Passage tools share the reader's paper, ink and accessible theme tokens. */
