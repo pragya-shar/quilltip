@@ -142,10 +142,12 @@
     "protobufjs": "7.6.6",
     "secp256k1": "5.0.2",
     "ws@^7": "7.5.13",
-    "ws@^8": "8.21.0"
+    "ws@^8": "8.21.0",
+    "decode-uri-component": "0.5.1",
+    "follow-redirects": "1.16.2"
   },
   "patchedDependencies": {
-    "decode-uri-component@0.2.2": "patches/decode-uri-component@0.2.2.patch",
-    "@ardrive/turbo-sdk@2.1.2": "patches/@ardrive%2Fturbo-sdk@2.1.2.patch"
+    "@ardrive/turbo-sdk@2.1.2": "patches/@ardrive%2Fturbo-sdk@2.1.2.patch",
+    "query-string@7.1.3": "patches/query-string@7.1.3.patch"
   }
 }
