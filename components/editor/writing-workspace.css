@@ -19,6 +19,8 @@
   box-sizing: border-box;
 }
 .writing-workspace {
+  /* Paper colors remain light, including in the portaled writing drawers. */
+  color-scheme: light;
   --wine: #660033;
   --ink: #38272c;
   --paper: #eee3cf;
