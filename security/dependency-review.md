@@ -6,6 +6,8 @@ Owner: @pragya-shar. Re-review by 2026-11-06. These are temporary, exact advisor
 
 ## Remediation
 
+The 2026-11-01 [#353 remediation](../docs/security/dependency-audit.md#2026-11-01-remediation-for-353) supersedes the historical decoder patch below: upstream decoder 0.5.1 and follow-redirects 1.16.2 replace the affected versions, with a one-line CommonJS consumer adapter. Neither new advisory has an audit exception.
+
 Next/tooling 16.4.2 and Sharp 0.35.5 address the image-processing findings. Dependencies were resolved within declared ranges; Convex Auth was updated to 0.0.96, which supports the patched Auth.js 0.41.x peer. Wallet-kit remains 1.9.5. Bun 1.4.4 is pinned in packageManager and CI to support version-scoped overrides: ws 7.5.13/8.21.0, elliptic 6.6.1, protobufjs 7.6.6, secp256k1 5.0.2. No wallet signing or contract code changed.
 
 The decoder patch backports the linear malformed UTF-8 fallback from upstream decode-uri-component 0.5.0 into 0.2.2. It preserves CommonJS exports and plus-to-space behavior required by query-string 7.1.3. The original decoder exceeded a 2-second subprocess timeout on 2,000 malformed bytes; the patch passes the same test and query-string compatibility cases. The package version still matches the moderate advisory; the patch remains installed, and the scanner reports the record without a blocking exception. Source: https://github.com/sindresorhus/decode-uri-component and npm package 0.5.0. Existing MIT license remains in the package.
