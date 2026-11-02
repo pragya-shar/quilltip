@@ -1,9 +1,12 @@
 'use client'
 
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import { ArticleReadNext } from '@/components/articles/ArticleReadNext'
 import { use, useMemo } from 'react'
 import {
   useArticleBySlug,
+  useReadNextArticles,
   useArticleHighlightTipStatsOptional,
   useArticleHighlightsQuery,
 } from '@/hooks/convex'
@@ -41,6 +44,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   const router = useRouter()
 
   const article = useArticleBySlug(username, slug)
+  const nextArticles = useReadNextArticles(article?._id)
   const { isStale, reset: resetStale } = useStaleLoading(article === undefined)
 
   const highlights = useArticleHighlightsQuery(article?._id)
@@ -115,6 +119,9 @@ export default function ArticlePage({ params }: ArticlePageProps) {
       <ReadingProgressBar />
       <main className="flex-1 pt-20 w-full">
         <EditorialSurface className="reader-layout">
+          <Link href="/articles" className="reader-return">
+            ← Articles
+          </Link>
           <ErrorBoundary
             fallback={({ reset }) => (
               <ArticleDisplaySectionFallback onRetry={reset} />
@@ -124,6 +131,12 @@ export default function ArticlePage({ params }: ArticlePageProps) {
               article={articleForDisplay}
               tocHeadings={tocHeadings}
               authorStellarAddress={article.author.stellarAddress}
+              readNext={
+                <ArticleReadNext
+                  currentArticleId={article._id}
+                  articles={nextArticles ?? []}
+                />
+              }
               readerSupport={
                 <ArticleReaderSupport
                   articleId={article._id}
@@ -143,6 +156,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
             <ArticleDetailsPanel
               articleId={article._id}
               articleTitle={article.title}
+              articleExcerpt={article.excerpt}
               articleSlug={article.slug}
               authorId={article.author.id}
               currentUserId={user?._id as Id<'users'> | undefined}

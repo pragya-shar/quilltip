@@ -1,6 +1,8 @@
 'use client'
 
 import nextDynamic from 'next/dynamic'
+import { useEffect, useState } from 'react'
+import ShareButtons from './ShareButtons'
 import {
   Accordion,
   AccordionContent,
@@ -29,6 +31,7 @@ const NFTIntegration = nextDynamic(
 interface ArticleDetailsPanelProps {
   articleId: Id<'articles'>
   articleTitle: string
+  articleExcerpt?: string | null
   articleSlug: string
   authorId: Id<'users'>
   currentUserId?: Id<'users'>
@@ -45,6 +48,7 @@ interface ArticleDetailsPanelProps {
 export function ArticleDetailsPanel({
   articleId,
   articleTitle,
+  articleExcerpt,
   articleSlug,
   authorId,
   currentUserId,
@@ -57,6 +61,10 @@ export function ArticleDetailsPanel({
   arweaveUrl,
   arweaveTimestamp,
 }: ArticleDetailsPanelProps) {
+  const [currentUrl, setCurrentUrl] = useState('')
+  useEffect(() => {
+    setCurrentUrl(window.location.href)
+  }, [articleId])
   const showToc = tocHeadings.length >= 3
   const noteCount = highlights?.filter((h) => h.note?.trim()).length ?? 0
 
@@ -68,6 +76,15 @@ export function ArticleDetailsPanel({
         </AccordionTrigger>
         <AccordionContent className="reader-details-content">
           <div className="reader-details-sections">
+            {currentUrl && (
+              <DetailsSection>
+                <ShareButtons
+                  title={articleTitle}
+                  excerpt={articleExcerpt}
+                  url={currentUrl}
+                />
+              </DetailsSection>
+            )}
             {showToc && (
               <DetailsSection>
                 <ArticleTableOfContents headings={tocHeadings} embedded />

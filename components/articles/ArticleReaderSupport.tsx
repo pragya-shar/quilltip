@@ -1,7 +1,6 @@
 'use client'
 
 import { ArticleTipActions } from '@/components/tipping/ArticleTipActions'
-import { TipStats } from '@/components/tipping/TipStats'
 import type { Id } from '@/types/convex'
 
 interface ArticleReaderSupportProps {
@@ -25,7 +24,6 @@ export function ArticleReaderSupport({
         authorName={authorName}
         authorStellarAddress={authorStellarAddress}
       />
-      <TipStats articleId={articleId} />
     </div>
   )
 }

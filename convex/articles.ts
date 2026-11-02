@@ -270,6 +270,52 @@ export const listArticles = query({
   },
 })
 
+// Small public reader projection. Keep selection bounded and check that each
+// destination is readable before counting it toward the two end-matter rows.
+export const getReadNextArticles = query({
+  args: { articleId: v.id('articles') },
+  returns: v.array(
+    v.object({
+      id: v.id('articles'),
+      title: v.string(),
+      slug: v.string(),
+      username: v.string(),
+      opening: v.string(),
+    })
+  ),
+  handler: async (ctx, { articleId }) => {
+    const next = []
+    let scanned = 0
+    const candidates = ctx.db
+      .query('articles')
+      .withIndex('by_published_date', (q) => q.eq('published', true))
+      .order('desc')
+    for await (const article of candidates) {
+      if (++scanned > 50) break
+      if (article._id === articleId || !isArticleListingReady(article)) continue
+      const author = await ctx.db.get(article.authorId)
+      if (!author?.username.trim() || !article.slug.trim()) continue
+      const text = extractTextFromTiptapJson(article.content)
+        .replace(/\s+/g, ' ')
+        .trim()
+      const opening = (
+        text.match(/^[^.!?]+[.!?]/)?.[0] ||
+        article.excerpt?.trim() ||
+        text
+      ).slice(0, 180)
+      next.push({
+        id: article._id,
+        title: article.title,
+        slug: article.slug,
+        username: author.username,
+        opening,
+      })
+      if (next.length === 2) break
+    }
+    return next
+  },
+})
+
 export const listBrowseTags = query({
   args: {
     limit: v.optional(v.number()),

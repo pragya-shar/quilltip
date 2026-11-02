@@ -58,3 +58,10 @@ export function useCreatorRecentWork(args: CreatorRecentWorkArgs = {}) {
 export function useCreatorWorkspaceSummary() {
   return useQuery(api.articles.getCreatorWorkspaceSummary)
 }
+
+export function useReadNextArticles(articleId: Id<'articles'> | undefined) {
+  return useQuery(
+    api.articles.getReadNextArticles,
+    articleId ? { articleId } : 'skip'
+  )
+}

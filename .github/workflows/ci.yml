@@ -44,6 +44,9 @@ jobs:
       - name: Highlight behavior regressions
         run: bun run test:highlights
 
+      - name: Reader end-matter regressions
+        run: bun run test:reader
+
       - name: Typecheck
         run: bun run typecheck
 
