@@ -329,11 +329,27 @@ export function HighlightableArticle({
                 : largeStep || event.altKey
                   ? 'word'
                   : 'character'
-            selection.modify(
-              'extend',
-              forward ? 'forward' : 'backward',
-              granularity
-            )
+            const edgePosition = forward
+              ? TextSelection.atEnd(view.state.doc).head
+              : TextSelection.atStart(view.state.doc).head
+            const edge = view.domAtPos(edgePosition)
+            if (boundary && largeStep) {
+              selection.extend(edge.node, edge.offset)
+            } else {
+              selection.modify(
+                'extend',
+                forward ? 'forward' : 'backward',
+                granularity
+              )
+              // Native selection boundaries refer to the entire web page.
+              // Keep the quote and its offsets inside the published article.
+              if (
+                selection.focusNode &&
+                !view.dom.contains(selection.focusNode)
+              ) {
+                selection.extend(edge.node, edge.offset)
+              }
+            }
             if (
               selection.anchorNode &&
               selection.focusNode &&

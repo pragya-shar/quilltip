@@ -120,6 +120,13 @@ test('keyboard selection keeps a full long quote and paper controls fit desktop 
   }
   await page.keyboard.press('Escape')
   await expect(editor).toBeFocused()
+  await editor.press('ControlOrMeta+Shift+End')
+  await expect(dialog).toBeVisible()
+  const fullQuote = await dialog.locator('blockquote').innerText()
+  expect(fullQuote).toContain('Ancient architecture is a remarkable reflection')
+  expect(fullQuote).toMatch(/for generations to come\.$/)
+  expect(fullQuote).not.toContain('Share this article')
+  await page.keyboard.press('Escape')
 })
 
 test('guest free saving works for a wallet-enabled author and retains words when session storage fails', async ({
