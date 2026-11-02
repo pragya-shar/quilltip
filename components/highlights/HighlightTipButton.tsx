@@ -46,6 +46,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { signInToTip, validateTipAmountForm } from '@/lib/tip/signInToTip'
+import { getCurrentReturnPath } from '@/lib/auth/safeReturnPath'
 import { connectWalletFromOverlay } from '@/lib/wallet/connectWalletFromOverlay'
 import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
 import {
@@ -328,15 +329,17 @@ export function HighlightTipButton({
   useEffect(() => {
     if (!resumeOpen || resumedRef.current) return
     resumedRef.current = true
+    // Hydrate the amount before attempting a save so a failed prerequisite can
+    // be retried from the same slip without losing the pending checkout state.
+    applyPendingAmountFields(
+      { amountCents: resumeAmountCents, customAmount: resumeCustomAmount },
+      setSelectedAmount,
+      setCustomAmount
+    )
+    setModalStep('checkout')
     // Auth-return checkout follows the same free-save prerequisite as a click.
     void (async () => {
       if (onBeforeOpen && !(await onBeforeOpen())) return
-      applyPendingAmountFields(
-        { amountCents: resumeAmountCents, customAmount: resumeCustomAmount },
-        setSelectedAmount,
-        setCustomAmount
-      )
-      setModalStep('checkout')
       activateWallet()
       setIsOpen(true)
       onResumeOpenChange?.(true)
@@ -680,15 +683,25 @@ export function HighlightTipButton({
   }
 
   const handleSignInToTip = () => {
-    writePendingHighlightSelection({
+    const saved = writePendingHighlightSelection({
       articleId: String(articleId),
       highlightText,
       startOffset: selectionStartPosition ?? startOffset,
       endOffset: selectionEndPosition ?? endOffset,
     })
+    if (!saved) {
+      setTipFormError({
+        title:
+          'Browser storage is unavailable. Your words and amount are still here; enable session storage and try again.',
+      })
+      return
+    }
     signInToTip(
       router,
-      pathname,
+      getCurrentReturnPath(
+        pathname,
+        new URLSearchParams(window.location.search)
+      ) + window.location.hash,
       { selectedAmount, customAmount },
       {
         kind: 'highlight',

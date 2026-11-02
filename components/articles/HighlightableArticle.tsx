@@ -133,7 +133,9 @@ export function HighlightableArticle({
   }, [user?._id])
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const returnPath = getCurrentReturnPath(pathname, searchParams)
+  const returnPath =
+    getCurrentReturnPath(pathname, searchParams) +
+    (typeof window !== 'undefined' ? window.location.hash : '')
   const libraryHighlight = searchParams.get('highlight')
   const focusedLibraryHighlight = useRef<string | null>(null)
   const highlightsActive = showHighlights && isAuthenticated
