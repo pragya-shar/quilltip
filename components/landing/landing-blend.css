@@ -522,6 +522,9 @@
   align-items: center;
 }
 .landing-blend.landing-tip-dialog {
+  /* This portaled cream surface keeps its own ink and native-control palette. */
+  --ui-muted-foreground: var(--ink);
+  color-scheme: light;
   display: block;
   position: fixed;
   min-height: 0;
