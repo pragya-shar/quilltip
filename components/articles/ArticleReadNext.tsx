@@ -1,15 +1,11 @@
 import Link from 'next/link'
 import { articleHref } from '@/lib/library/bookmarks'
-import { extractPlainTextFromTiptapJson } from '@/lib/tiptap/plainText'
-import type { JSONContent } from '@tiptap/core'
-
 type NextArticle = {
-  _id: string
+  id: string
   title: string
   slug: string
-  content?: JSONContent
-  excerpt?: string | null
-  author: { username?: string | null } | null
+  username: string
+  opening: string
 }
 
 export function ArticleReadNext({
@@ -20,36 +16,25 @@ export function ArticleReadNext({
   articles: NextArticle[]
 }) {
   const next = articles
-    .filter(
-      (article) =>
-        article._id !== currentArticleId &&
-        article.author?.username &&
-        article.slug
-    )
+    .filter((article) => article.id !== currentArticleId)
     .slice(0, 2)
   if (!next.length) return null
   return (
     <nav className="reader-read-next" aria-label="Read next">
       <h2>Read next</h2>
       {next.map((article) => {
-        const text = extractPlainTextFromTiptapJson(article.content).trim()
-        const opening = (
-          text.match(/^[^.!?]+[.!?]/)?.[0] ||
-          article.excerpt?.trim() ||
-          text
-        ).slice(0, 180)
         return (
           <Link
-            key={article._id}
+            key={article.id}
             href={articleHref({
-              username: article.author!.username!,
+              username: article.username,
               slug: article.slug,
             })}
           >
             <span>
               <strong>{article.title}</strong>
-              {opening && (
-                <span className="reader-next-opening">“{opening}”</span>
+              {article.opening && (
+                <span className="reader-next-opening">“{article.opening}”</span>
               )}
               <span className="reader-next-label">Read more</span>
             </span>

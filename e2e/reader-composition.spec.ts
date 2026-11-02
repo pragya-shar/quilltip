@@ -6,36 +6,21 @@ import { ArticleReadNext } from '../components/articles/ArticleReadNext'
 const articlePath =
   process.env.PLAYWRIGHT_HIGHLIGHT_ARTICLE ?? '/chris/untitled'
 
-test('Read next excludes the current article and unavailable authors, caps rows and uses real openings', async ({
+test('Read next excludes the current article, caps rows and uses supplied public openings', async ({
   page,
 }) => {
   const row = (id: string) => ({
-    _id: id,
+    id,
     title: `Article ${id}`,
     slug: id,
-    author: { username: 'writer' },
-    excerpt: 'Actual subtitle',
-    content: {
-      type: 'doc',
-      content: [
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: `Opening ${id}. Another sentence.` }],
-        },
-      ],
-    },
+    username: 'writer',
+    opening: `Opening ${id}.`,
   })
   await page.setContent(
     renderToStaticMarkup(
       createElement(ArticleReadNext, {
         currentArticleId: 'current',
-        articles: [
-          row('current'),
-          { ...row('orphan'), author: null },
-          row('one'),
-          row('two'),
-          row('three'),
-        ],
+        articles: [row('current'), row('one'), row('two'), row('three')],
       })
     )
   )

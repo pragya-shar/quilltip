@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "private": true,
   "scripts": {
-    "check": "bun run format:check && bun run lint && bun run test:component-organization && bun run test:highlights && bun run typecheck && bun run test:security && bun run test:dependency-compatibility && bun run security:audit && bun run build",
+    "check": "bun run format:check && bun run lint && bun run test:component-organization && bun run test:highlights && bun run test:reader && bun run typecheck && bun run test:security && bun run test:dependency-compatibility && bun run security:audit && bun run build",
     "dev": "npm-run-all --parallel dev:frontend dev:backend",
     "dev:frontend": "next dev --turbopack",
     "dev:backend": "convex dev",
@@ -12,6 +12,7 @@
     "analyze": "ANALYZE=true next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "test:reader": "vitest run --config scripts/articles/convex.config.mts",
     "test:highlights": "vitest run --config scripts/highlights/convex.config.mts",
     "test:component-organization": "node --test scripts/eslint/one-component-per-file.test.mjs",
     "format": "prettier --write .",

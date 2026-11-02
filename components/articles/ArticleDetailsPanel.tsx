@@ -31,6 +31,7 @@ const NFTIntegration = nextDynamic(
 interface ArticleDetailsPanelProps {
   articleId: Id<'articles'>
   articleTitle: string
+  articleExcerpt?: string | null
   articleSlug: string
   authorId: Id<'users'>
   currentUserId?: Id<'users'>
@@ -47,6 +48,7 @@ interface ArticleDetailsPanelProps {
 export function ArticleDetailsPanel({
   articleId,
   articleTitle,
+  articleExcerpt,
   articleSlug,
   authorId,
   currentUserId,
@@ -76,7 +78,11 @@ export function ArticleDetailsPanel({
           <div className="reader-details-sections">
             {currentUrl && (
               <DetailsSection>
-                <ShareButtons title={articleTitle} url={currentUrl} />
+                <ShareButtons
+                  title={articleTitle}
+                  excerpt={articleExcerpt}
+                  url={currentUrl}
+                />
               </DetailsSection>
             )}
             {showToc && (

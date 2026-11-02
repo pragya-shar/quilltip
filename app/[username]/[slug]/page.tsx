@@ -6,7 +6,7 @@ import { ArticleReadNext } from '@/components/articles/ArticleReadNext'
 import { use, useMemo } from 'react'
 import {
   useArticleBySlug,
-  useListArticles,
+  useReadNextArticles,
   useArticleHighlightTipStatsOptional,
   useArticleHighlightsQuery,
 } from '@/hooks/convex'
@@ -44,8 +44,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   const router = useRouter()
 
   const article = useArticleBySlug(username, slug)
-  // Three eligible listing rows leave two alternatives when this article is present.
-  const nextArticles = useListArticles(article ? { limit: 3 } : 'skip')
+  const nextArticles = useReadNextArticles(article?._id)
   const { isStale, reset: resetStale } = useStaleLoading(article === undefined)
 
   const highlights = useArticleHighlightsQuery(article?._id)
@@ -135,7 +134,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
               readNext={
                 <ArticleReadNext
                   currentArticleId={article._id}
-                  articles={nextArticles?.articles ?? []}
+                  articles={nextArticles ?? []}
                 />
               }
               readerSupport={
@@ -157,6 +156,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
             <ArticleDetailsPanel
               articleId={article._id}
               articleTitle={article.title}
+              articleExcerpt={article.excerpt}
               articleSlug={article.slug}
               authorId={article.author.id}
               currentUserId={user?._id as Id<'users'> | undefined}
