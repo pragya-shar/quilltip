@@ -167,6 +167,8 @@ export default defineSchema({
     color: v.optional(v.string()),
     note: v.optional(v.string()),
     isPublic: v.boolean(),
+    // Personal removal is reversible; passage identity and financial links remain.
+    removedAt: v.optional(v.number()),
 
     // Timestamps
     createdAt: v.number(),
@@ -177,7 +179,29 @@ export default defineSchema({
     .index('by_article_public', ['articleId', 'isPublic'])
     .index('by_article_user_public', ['articleId', 'userId', 'isPublic'])
     .index('by_highlight_id', ['highlightId'])
-    .index('by_user_public', ['userId', 'isPublic']), // For user's public highlights
+    .index('by_user_public', ['userId', 'isPublic']) // For user's public highlights
+    .index('by_article_public_removed', ['articleId', 'isPublic', 'removedAt'])
+    .index('by_article_user_public_removed', [
+      'articleId',
+      'userId',
+      'isPublic',
+      'removedAt',
+    ])
+    .index('by_user_removed', ['userId', 'removedAt'])
+    .index('by_user_public_removed', ['userId', 'isPublic', 'removedAt'])
+    .index('by_article_passage_user', ['articleId', 'highlightId', 'userId'])
+    .index('by_article_passage_public_removed', [
+      'articleId',
+      'highlightId',
+      'isPublic',
+      'removedAt',
+    ]),
+
+  passageAppreciations: defineTable({
+    articleId: v.id('articles'),
+    highlightId: v.string(),
+    userId: v.id('users'),
+  }).index('by_article_passage_user', ['articleId', 'highlightId', 'userId']),
 
   // Private, pre-wallet expectations for whole-article tips. These rows never
   // contribute to public totals or histories; a normal tip row is created

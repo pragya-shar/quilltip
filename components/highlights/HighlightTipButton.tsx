@@ -46,6 +46,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { signInToTip, validateTipAmountForm } from '@/lib/tip/signInToTip'
+import { getCurrentReturnPath } from '@/lib/auth/safeReturnPath'
 import { connectWalletFromOverlay } from '@/lib/wallet/connectWalletFromOverlay'
 import { applyPendingAmountFields } from '@/lib/tip/applyPendingTipFormState'
 import {
@@ -85,6 +86,9 @@ interface HighlightTipButtonProps {
   resumeCustomAmount?: string
   onResumeOpenChange?: (open: boolean) => void
   onResumeDialogVisible?: () => void
+  label?: string
+  onBeforeOpen?: () => Promise<boolean>
+  disabled?: boolean
 }
 
 type HighlightTipRecordArgs = {
@@ -204,6 +208,9 @@ export function HighlightTipButton({
   resumeCustomAmount,
   onResumeOpenChange,
   onResumeDialogVisible,
+  label = 'Tip passage',
+  onBeforeOpen,
+  disabled,
 }: HighlightTipButtonProps) {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const authUserId = user?._id
@@ -217,7 +224,7 @@ export function HighlightTipButton({
   const { activateWallet } = useWalletActivation()
   const router = useRouter()
   const pathname = usePathname()
-  const [isOpen, setIsOpen] = useState(resumeOpen)
+  const [isOpen, setIsOpen] = useState(resumeOpen && !onBeforeOpen)
   const [modalStep, setModalStep] = useState<TipModalStep>(
     resumeOpen ? 'checkout' : 'appreciation'
   )
@@ -322,24 +329,28 @@ export function HighlightTipButton({
   useEffect(() => {
     if (!resumeOpen || resumedRef.current) return
     resumedRef.current = true
+    // Hydrate the amount before attempting a save so a failed prerequisite can
+    // be retried from the same slip without losing the pending checkout state.
     applyPendingAmountFields(
-      {
-        amountCents: resumeAmountCents,
-        customAmount: resumeCustomAmount,
-      },
+      { amountCents: resumeAmountCents, customAmount: resumeCustomAmount },
       setSelectedAmount,
       setCustomAmount
     )
     setModalStep('checkout')
-    activateWallet()
-    setIsOpen(true)
-    onResumeOpenChange?.(true)
+    // Auth-return checkout follows the same free-save prerequisite as a click.
+    void (async () => {
+      if (onBeforeOpen && !(await onBeforeOpen())) return
+      activateWallet()
+      setIsOpen(true)
+      onResumeOpenChange?.(true)
+    })()
   }, [
     resumeOpen,
     resumeAmountCents,
     resumeCustomAmount,
     activateWallet,
     onResumeOpenChange,
+    onBeforeOpen,
   ])
 
   useEffect(() => {
@@ -672,15 +683,25 @@ export function HighlightTipButton({
   }
 
   const handleSignInToTip = () => {
-    writePendingHighlightSelection({
+    const saved = writePendingHighlightSelection({
       articleId: String(articleId),
       highlightText,
       startOffset: selectionStartPosition ?? startOffset,
       endOffset: selectionEndPosition ?? endOffset,
     })
+    if (!saved) {
+      setTipFormError({
+        title:
+          'Browser storage is unavailable. Your words and amount are still here; enable session storage and try again.',
+      })
+      return
+    }
     signInToTip(
       router,
-      pathname,
+      getCurrentReturnPath(
+        pathname,
+        new URLSearchParams(window.location.search)
+      ) + window.location.hash,
       { selectedAmount, customAmount },
       {
         kind: 'highlight',
@@ -1107,9 +1128,15 @@ export function HighlightTipButton({
             size="sm"
             className={cn('tip-trigger w-full gap-2', className)}
             title="Tip this passage"
+            disabled={disabled}
+            onClick={async (event) => {
+              if (!onBeforeOpen) return
+              event.preventDefault()
+              if (await onBeforeOpen()) handleOpenChange(true)
+            }}
           >
             <Heart className="w-4 h-4" aria-hidden="true" />
-            <span className="font-medium">Tip passage</span>
+            <span className="font-medium">{label}</span>
           </Button>
         </DialogTrigger>
         <DialogContent

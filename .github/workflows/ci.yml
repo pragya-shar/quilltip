@@ -41,6 +41,9 @@ jobs:
       - name: Component convention fixtures
         run: bun run test:component-organization
 
+      - name: Highlight behavior regressions
+        run: bun run test:highlights
+
       - name: Typecheck
         run: bun run typecheck
 
