@@ -1,6 +1,8 @@
 'use client'
 
 import nextDynamic from 'next/dynamic'
+import { useEffect, useState } from 'react'
+import ShareButtons from './ShareButtons'
 import {
   Accordion,
   AccordionContent,
@@ -57,6 +59,10 @@ export function ArticleDetailsPanel({
   arweaveUrl,
   arweaveTimestamp,
 }: ArticleDetailsPanelProps) {
+  const [currentUrl, setCurrentUrl] = useState('')
+  useEffect(() => {
+    setCurrentUrl(window.location.href)
+  }, [articleId])
   const showToc = tocHeadings.length >= 3
   const noteCount = highlights?.filter((h) => h.note?.trim()).length ?? 0
 
@@ -68,6 +74,11 @@ export function ArticleDetailsPanel({
         </AccordionTrigger>
         <AccordionContent className="reader-details-content">
           <div className="reader-details-sections">
+            {currentUrl && (
+              <DetailsSection>
+                <ShareButtons title={articleTitle} url={currentUrl} />
+              </DetailsSection>
+            )}
             {showToc && (
               <DetailsSection>
                 <ArticleTableOfContents headings={tocHeadings} embedded />

@@ -2,11 +2,8 @@
 
 import dynamic from 'next/dynamic'
 import { type JSONContent } from '@tiptap/core'
-import { useEffect, useState } from 'react'
-import { formatDistanceToNow } from 'date-fns'
-import Image from 'next/image'
-import { ArticleAuthorByline } from '@/components/articles/ArticleAuthorByline'
-import ShareButtons from './ShareButtons'
+import Link from 'next/link'
+import { ArticleSelectionHint } from './ArticleSelectionHint'
 import { BookmarkButton } from '@/components/library/BookmarkButton'
 import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
 import { ArticleBodySkeleton } from '@/components/articles/ArticleBodySkeleton'
@@ -19,7 +16,6 @@ const HighlightableArticle = dynamic(
 )
 import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
-import { TagFilterLink } from '@/components/articles/TagFilterLink'
 import { extractPlainTextFromTiptapJson } from '@/lib/tiptap/plainText'
 import { estimateReadingMinutes } from '@/lib/reading-time'
 import type { TocHeading } from '@/lib/tiptap/headings'
@@ -33,6 +29,7 @@ interface ArticleDisplayProps {
   showHighlights?: boolean
   tocHeadings?: TocHeading[]
   readerSupport?: React.ReactNode
+  readNext?: React.ReactNode
 }
 
 export default function ArticleDisplay({
@@ -41,17 +38,8 @@ export default function ArticleDisplay({
   showHighlights = true,
   tocHeadings = [],
   readerSupport,
+  readNext,
 }: ArticleDisplayProps) {
-  const [currentUrl, setCurrentUrl] = useState('')
-
-  useEffect(() => {
-    setCurrentUrl(window.location.href)
-  }, [])
-
-  const publishedDate = article.publishedAt
-    ? formatDistanceToNow(new Date(article.publishedAt), { addSuffix: true })
-    : null
-
   const readingMinutes = estimateReadingMinutes(
     extractPlainTextFromTiptapJson(article.content)
   )
@@ -61,7 +49,9 @@ export default function ArticleDisplay({
   return (
     <article className="reader-article">
       <header className="reader-header">
-        <p className="reader-eyebrow">A QuillTip article</p>
+        {article.tags[0] && (
+          <p className="reader-eyebrow">{article.tags[0].name}</p>
+        )}
         <div className="article-title-bookmark">
           <h1 className="reader-title">{article.title}</h1>
           <BookmarkButton
@@ -77,47 +67,19 @@ export default function ArticleDisplay({
           />
         </div>
 
-        <div className="reader-byline">
-          <ArticleAuthorByline author={article.author} size="md">
-            <p className="reader-metadata">
-              @{article.author.username}
-              <span className="mx-1">•</span>
-              {publishedDate && (
-                <>
-                  {publishedDate}
-                  <span className="mx-1">•</span>
-                </>
-              )}
-              {readingMinutes} min read
-            </p>
-          </ArticleAuthorByline>
-        </div>
-
-        {article.coverImage && (
-          <div className="reader-cover">
-            <Image
-              src={article.coverImage}
-              alt={article.title}
-              fill
-              sizes="(max-width: 768px) calc(100vw - 40px), 832px"
-              priority
-              className="object-cover"
-            />
-          </div>
+        {article.excerpt?.trim() && (
+          <p className="reader-subtitle">{article.excerpt}</p>
         )}
-
-        {article.tags.length > 0 && (
-          <div className="reader-tags">
-            {article.tags.map((tag) => (
-              <TagFilterLink key={tag.id} tag={tag.name} className="reader-tag">
-                {tag.name}
-              </TagFilterLink>
-            ))}
-          </div>
-        )}
+        <p className="reader-byline">
+          <Link href={`/${encodeURIComponent(article.author.username)}`}>
+            {article.author.name || article.author.username}
+          </Link>
+          {' · '}
+          {readingMinutes} min read
+        </p>
       </header>
 
-      {readerSupport}
+      {showHighlights && <ArticleSelectionHint />}
 
       <div className="article-content">
         {showHighlights ? (
@@ -138,15 +100,19 @@ export default function ArticleDisplay({
         )}
       </div>
 
-      {currentUrl && (
-        <div className="reader-share">
-          <ShareButtons
-            title={article.title}
-            url={currentUrl}
-            excerpt={article.excerpt}
-          />
-        </div>
-      )}
+      <footer className="reader-end-matter">
+        {readerSupport}
+        <p className="reader-endmark" aria-hidden="true">
+          ◇
+        </p>
+        <p className="reader-author-end">
+          By{' '}
+          <Link href={`/${encodeURIComponent(article.author.username)}`}>
+            {article.author.name || article.author.username}
+          </Link>
+        </p>
+        {readNext}
+      </footer>
     </article>
   )
 }

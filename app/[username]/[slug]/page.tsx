@@ -1,9 +1,12 @@
 'use client'
 
 import { notFound } from 'next/navigation'
+import Link from 'next/link'
+import { ArticleReadNext } from '@/components/articles/ArticleReadNext'
 import { use, useMemo } from 'react'
 import {
   useArticleBySlug,
+  useListArticles,
   useArticleHighlightTipStatsOptional,
   useArticleHighlightsQuery,
 } from '@/hooks/convex'
@@ -41,6 +44,8 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   const router = useRouter()
 
   const article = useArticleBySlug(username, slug)
+  // Three eligible listing rows leave two alternatives when this article is present.
+  const nextArticles = useListArticles(article ? { limit: 3 } : 'skip')
   const { isStale, reset: resetStale } = useStaleLoading(article === undefined)
 
   const highlights = useArticleHighlightsQuery(article?._id)
@@ -115,6 +120,9 @@ export default function ArticlePage({ params }: ArticlePageProps) {
       <ReadingProgressBar />
       <main className="flex-1 pt-20 w-full">
         <EditorialSurface className="reader-layout">
+          <Link href="/articles" className="reader-return">
+            ← Articles
+          </Link>
           <ErrorBoundary
             fallback={({ reset }) => (
               <ArticleDisplaySectionFallback onRetry={reset} />
@@ -124,6 +132,12 @@ export default function ArticlePage({ params }: ArticlePageProps) {
               article={articleForDisplay}
               tocHeadings={tocHeadings}
               authorStellarAddress={article.author.stellarAddress}
+              readNext={
+                <ArticleReadNext
+                  currentArticleId={article._id}
+                  articles={nextArticles?.articles ?? []}
+                />
+              }
               readerSupport={
                 <ArticleReaderSupport
                   articleId={article._id}
