@@ -17,15 +17,16 @@ export type PendingHighlightSelection = z.infer<
 
 export function writePendingHighlightSelection(
   selection: PendingHighlightSelection
-): void {
-  if (typeof window === 'undefined') return
+): boolean {
+  if (typeof window === 'undefined') return false
   try {
     window.sessionStorage.setItem(
       PENDING_HIGHLIGHT_SELECTION_STORAGE_KEY,
       JSON.stringify(selection)
     )
+    return true
   } catch {
-    // Quota or private mode
+    return false
   }
 }
 

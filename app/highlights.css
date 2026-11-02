@@ -293,6 +293,185 @@ mark[data-note]:hover::before {
   color: var(--ui-muted-foreground);
   font-size: 12px;
 }
+
+/* The connected prototype's torn paper, with readable ink in both themes. */
+.passage-slip {
+  z-index: 80;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 34px 36px 42px;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(110deg, #f3e9d7, #e9dac1);
+  color: #382c26;
+  clip-path: polygon(
+    0 1%,
+    4% 0,
+    8% 1.1%,
+    13% 0.2%,
+    18% 1%,
+    23% 0,
+    28% 0.7%,
+    34% 0,
+    39% 1%,
+    45% 0.2%,
+    51% 1%,
+    58% 0,
+    65% 0.8%,
+    72% 0,
+    78% 1%,
+    84% 0.2%,
+    91% 1%,
+    96% 0,
+    100% 0.8%,
+    100% 98.6%,
+    96% 100%,
+    91% 98.8%,
+    86% 100%,
+    81% 99%,
+    75% 100%,
+    70% 98.8%,
+    64% 100%,
+    58% 99%,
+    52% 100%,
+    46% 98.7%,
+    40% 100%,
+    34% 99%,
+    28% 100%,
+    22% 98.8%,
+    16% 100%,
+    11% 99%,
+    5% 100%,
+    0 98.8%
+  );
+  scrollbar-color: #775964 #eee3cf;
+}
+.passage-slip .slip-close {
+  float: right;
+  margin: -8px -10px 0 10px;
+  color: #660033;
+}
+.slip-meta {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #694652;
+}
+.slip-label {
+  margin: 30px 0 4px;
+  font-size: 13px;
+  color: #775964;
+}
+.slip-title {
+  font:
+    500 39px/1.12 'Reader Alegreya',
+    Georgia,
+    serif;
+  color: #660033;
+  margin: 12px 0 24px;
+  letter-spacing: -0.6px;
+}
+.slip-quote {
+  font:
+    25px/1.45 'Reader Alegreya',
+    Georgia,
+    serif;
+  padding: 22px 0;
+  margin: 16px 0 26px;
+  border-block: 1px solid #75495350;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.slip-actions {
+  display: grid;
+  gap: 12px;
+}
+.passage-slip .slip-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  height: auto;
+  min-height: 54px;
+  padding: 12px 21px;
+  border: 1px solid #75495350;
+  border-radius: 999px;
+  background: #f5ecdc;
+  color: #660033;
+  font: 500 16px/1.3 var(--ui-font);
+  white-space: normal;
+  box-shadow:
+    0 3px 0 #81565712,
+    0 5px 12px #5b243020;
+}
+.passage-slip .slip-action:hover {
+  background: #f9f0e2;
+  color: #660033;
+}
+.passage-slip .slip-action[aria-pressed='true'] {
+  background: #dfc3ca;
+}
+.slip-aside {
+  margin: 20px 0 0;
+  font:
+    italic 17px/1.5 'Reader Alegreya',
+    Georgia,
+    serif;
+  color: #694652;
+}
+.slip-shared {
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: #660033;
+}
+.slip-error {
+  margin-block: 16px;
+  color: #8a142b;
+  font-size: 14px;
+}
+.slip-note {
+  margin-top: 20px;
+  font-size: 14px;
+}
+.slip-note summary {
+  min-height: 44px;
+  cursor: pointer;
+}
+.passage-slip :is(button, a, textarea, blockquote, summary):focus-visible {
+  outline: 2px solid #660033;
+  outline-offset: 3px;
+}
+.passage-slip .highlight-note-input {
+  background: #f5ecdc;
+  color: #382c26;
+  border-color: #775964;
+  margin-block: 12px;
+}
+.passage-slip .highlight-text-preview {
+  background: transparent;
+  color: #382c26;
+  border-color: #775964;
+}
+.passage-slip :is(.text-ui-muted-foreground, .text-ui-primary) {
+  color: #694652;
+}
+@media (max-width: 600px) {
+  .passage-slip {
+    padding: 28px 22px 32px;
+  }
+  .slip-title {
+    font-size: 34px;
+  }
+  .slip-quote {
+    font-size: 23px;
+    max-height: 145px;
+  }
+  .passage-slip .slip-action {
+    font-size: 15px;
+  }
+}
 .highlight-notes {
   min-width: 0;
   color: var(--ui-foreground);
@@ -422,4 +601,29 @@ mark[data-note]:hover::before {
   border-top: 1px solid var(--ui-border);
   font-size: 12px;
   color: var(--ui-muted-foreground);
+}
+
+.passage-slip-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: #38202c66;
+  backdrop-filter: blur(5px);
+}
+.passage-slip .slip-action > svg,
+.passage-slip .slip-action:not(:has(svg))::after {
+  order: 2;
+  content: '→';
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #dfc3ca;
+  padding: 8px;
+}
+.passage-slip .slip-action {
+  padding: 7px 8px 7px 21px;
+  text-align: left;
 }

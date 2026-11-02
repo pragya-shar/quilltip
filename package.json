@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "private": true,
   "scripts": {
-    "check": "bun run format:check && bun run lint && bun run test:component-organization && bun run typecheck && bun run test:security && bun run test:dependency-compatibility && bun run security:audit && bun run build",
+    "check": "bun run format:check && bun run lint && bun run test:component-organization && bun run test:highlights && bun run typecheck && bun run test:security && bun run test:dependency-compatibility && bun run security:audit && bun run build",
     "dev": "npm-run-all --parallel dev:frontend dev:backend",
     "dev:frontend": "next dev --turbopack",
     "dev:backend": "convex dev",
@@ -12,6 +12,7 @@
     "analyze": "ANALYZE=true next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "test:highlights": "vitest run --config scripts/highlights/convex.config.mts",
     "test:component-organization": "node --test scripts/eslint/one-component-per-file.test.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -133,7 +134,9 @@
     "json5": "^2.2.3",
     "semver": "^7.7.4",
     "@types/semver": "^7.7.1",
-    "vitest": "^4.1.12"
+    "vitest": "^4.1.12",
+    "convex-test": "^0.0.66",
+    "@edge-runtime/vm": "^5.0.0"
   },
   "packageManager": "bun@1.4.4",
   "overrides": {

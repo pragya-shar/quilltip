@@ -100,6 +100,7 @@ export function HighlightableArticle({
   } | null>(null)
   const [highlightTooltip, setHighlightTooltip] = useState<{
     highlight: HighlightData
+    viewerId?: string
     position: { top: number; left: number }
   } | null>(null)
   const [signInPromptPosition, setSignInPromptPosition] = useState<{
@@ -123,8 +124,13 @@ export function HighlightableArticle({
   // popover at 3 chars, HighlightPopover's FocusScope trap steals focus from
   // the article body and the native selection collapses. Defer popover to pointerup.
   const isDraggingRef = useRef(false)
+  const isKeyboardSelectingRef = useRef(false)
 
   const { user, isAuthenticated } = useAuth()
+  const currentUserIdRef = useRef(user?._id)
+  useEffect(() => {
+    currentUserIdRef.current = user?._id
+  }, [user?._id])
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const returnPath = getCurrentReturnPath(pathname, searchParams)
@@ -135,12 +141,6 @@ export function HighlightableArticle({
 
   useEnsureHeadingIds(tocHeadings, { rootSelector: '.highlightable-article' })
   const article = useArticleById(articleId)
-  const canTipHighlight = Boolean(article?.author?.stellarAddress)
-  const canTipHighlightRef = useRef(canTipHighlight)
-  useEffect(() => {
-    canTipHighlightRef.current = canTipHighlight
-  }, [canTipHighlight])
-
   const highlights = useArticleHighlightsQuery(articleId, highlightsActive)
 
   const highlightsRef = useRef(highlights)
@@ -155,18 +155,55 @@ export function HighlightableArticle({
       const anchor = getRangeTopCenterAnchor(range)
       if (!anchor) return
 
-      if (canTipHighlightRef.current) {
-        setSelectedText({ text, from, to })
-        setPopoverPosition(anchor)
-        setSignInSelection(null)
-      } else {
-        setSignInSelection({ text, from, to })
-        setSignInPromptPosition(anchor)
-        setSelectedText(null)
-        setPopoverPosition(null)
-      }
+      setSelectedText({ text, from, to })
+      setPopoverPosition(anchor)
+      setSignInSelection(null)
+      setSignInPromptPosition(null)
     },
     []
+  )
+
+  const presentSelection = useCallback(
+    (state: Editor['state']) => {
+      if (editable || isApplyingHighlightsRef.current) return
+      if (!showHighlights) return
+      // Keyboard selection (shift+arrow, ctrl+a) still runs this path.
+      if (isDraggingRef.current || isKeyboardSelectingRef.current) return
+
+      const { selection } = state
+      const { from, to } = selection
+      const text = state.doc.textBetween(from, to, ' ')
+
+      if (text.trim().length >= 3) {
+        const domSelection = window.getSelection()
+        if (domSelection && domSelection.rangeCount > 0) {
+          const range = domSelection.getRangeAt(0)
+
+          if (signInPromptActive) {
+            applySignedOutTextSelection(text, from, to, range)
+          } else if (highlightsActive) {
+            const anchor = getRangeTopCenterAnchor(range)
+            if (!anchor) return
+            setSelectedText({ text, from, to })
+            setPopoverPosition(anchor)
+            setSignInSelection(null)
+            setSignInPromptPosition(null)
+          }
+        }
+      } else {
+        setSelectedText(null)
+        setPopoverPosition(null)
+        setSignInSelection(null)
+        setSignInPromptPosition(null)
+      }
+    },
+    [
+      editable,
+      showHighlights,
+      signInPromptActive,
+      highlightsActive,
+      applySignedOutTextSelection,
+    ]
   )
 
   const editor = useEditor(
@@ -226,6 +263,7 @@ export function HighlightableArticle({
                       const rect = target.getBoundingClientRect()
                       setHighlightTooltip({
                         highlight: fullHighlight,
+                        viewerId: currentUserIdRef.current,
                         position: {
                           top: rect.top - 10,
                           left: rect.left + rect.width / 2,
@@ -242,44 +280,99 @@ export function HighlightableArticle({
       editable,
       immediatelyRender: false,
       editorProps: {
+        handleDOMEvents: {
+          keydown(view, event) {
+            if (
+              editable ||
+              !showHighlights ||
+              !event.shiftKey ||
+              ![
+                'ArrowLeft',
+                'ArrowRight',
+                'ArrowUp',
+                'ArrowDown',
+                'Home',
+                'End',
+              ].includes(event.key)
+            )
+              return false
+            const selection = window.getSelection()
+            if (!selection?.modify) return false
+            isKeyboardSelectingRef.current = true
+            if (
+              !selection.anchorNode ||
+              !view.dom.contains(selection.anchorNode)
+            ) {
+              const range = document.createRange()
+              const start = view.domAtPos(1)
+              range.setStart(start.node, start.offset)
+              range.collapse(true)
+              selection.removeAllRanges()
+              selection.addRange(range)
+            }
+            const forward = ['ArrowRight', 'ArrowDown', 'End'].includes(
+              event.key
+            )
+            const vertical = ['ArrowUp', 'ArrowDown'].includes(event.key)
+            const boundary = ['Home', 'End'].includes(event.key)
+            const largeStep = event.ctrlKey || event.metaKey
+            const granularity = boundary
+              ? largeStep
+                ? 'documentboundary'
+                : 'lineboundary'
+              : vertical
+                ? largeStep
+                  ? 'paragraph'
+                  : 'line'
+                : largeStep || event.altKey
+                  ? 'word'
+                  : 'character'
+            selection.modify(
+              'extend',
+              forward ? 'forward' : 'backward',
+              granularity
+            )
+            if (
+              selection.anchorNode &&
+              selection.focusNode &&
+              view.dom.contains(selection.anchorNode) &&
+              view.dom.contains(selection.focusNode)
+            ) {
+              const anchor = view.posAtDOM(
+                selection.anchorNode,
+                selection.anchorOffset
+              )
+              const head = view.posAtDOM(
+                selection.focusNode,
+                selection.focusOffset
+              )
+              view.dispatch(
+                view.state.tr.setSelection(
+                  TextSelection.create(view.state.doc, anchor, head)
+                )
+              )
+            }
+            event.preventDefault()
+            return true
+          },
+          keyup(view, event) {
+            if (event.key === 'Shift' && isKeyboardSelectingRef.current) {
+              isKeyboardSelectingRef.current = false
+              presentSelection(view.state)
+            }
+            return false
+          },
+          blur() {
+            isKeyboardSelectingRef.current = false
+            return false
+          },
+        },
         attributes: {
           class: `${PUBLISHED_PROSE_CLASS} prose-stone`,
           tabindex: '0',
         },
       },
-      onSelectionUpdate: ({ editor }) => {
-        if (editable || isApplyingHighlightsRef.current) return
-        if (!showHighlights) return
-        // Keyboard selection (shift+arrow, ctrl+a) still runs this path.
-        if (isDraggingRef.current) return
-
-        const { selection } = editor.state
-        const { from, to } = selection
-        const text = editor.state.doc.textBetween(from, to, ' ')
-
-        if (text.trim().length >= 3) {
-          const domSelection = window.getSelection()
-          if (domSelection && domSelection.rangeCount > 0) {
-            const range = domSelection.getRangeAt(0)
-
-            if (signInPromptActive) {
-              applySignedOutTextSelection(text, from, to, range)
-            } else if (highlightsActive) {
-              const anchor = getRangeTopCenterAnchor(range)
-              if (!anchor) return
-              setSelectedText({ text, from, to })
-              setPopoverPosition(anchor)
-              setSignInSelection(null)
-              setSignInPromptPosition(null)
-            }
-          }
-        } else {
-          setSelectedText(null)
-          setPopoverPosition(null)
-          setSignInSelection(null)
-          setSignInPromptPosition(null)
-        }
-      },
+      onSelectionUpdate: ({ editor }) => presentSelection(editor.state),
     },
     [
       showHighlights,
@@ -483,7 +576,12 @@ export function HighlightableArticle({
   ])
 
   const handleCreateHighlight = useCallback(
-    async (color: string, note?: string, isPublic: boolean = true) => {
+    async (
+      color: string,
+      note?: string,
+      isPublic: boolean = true,
+      keepOpen = false
+    ) => {
       if (!selectedText || !editor) return false
 
       try {
@@ -509,9 +607,11 @@ export function HighlightableArticle({
             ...highlightData,
           })
 
-          setSelectedText(null)
-          setPopoverPosition(null)
-          window.getSelection()?.removeAllRanges()
+          if (!keepOpen) {
+            setSelectedText(null)
+            setPopoverPosition(null)
+            window.getSelection()?.removeAllRanges()
+          }
           // Highlights re-apply when the Convex query refetches.
           return true
         }
@@ -588,13 +688,17 @@ export function HighlightableArticle({
 
   const saveHighlightSelectionBeforeAuth = useCallback(() => {
     if (!signInSelection) return
-    writePendingHighlightSelection({
+    return writePendingHighlightSelection({
       articleId: String(articleId),
       highlightText: signInSelection.text,
       startOffset: signInSelection.from,
       endOffset: signInSelection.to,
     })
   }, [articleId, signInSelection])
+
+  const activeTooltipHighlight =
+    highlightTooltip &&
+    highlights?.find((h) => h._id === highlightTooltip.highlight._id)
 
   return (
     <div
@@ -608,10 +712,16 @@ export function HighlightableArticle({
           selectedText &&
           article &&
           editor &&
-          (highlightsActive || (signInPromptActive && canTipHighlight)) && (
+          (highlightsActive || signInPromptActive) && (
             <HighlightPopover
               position={popoverPosition}
               onCreateHighlight={handleCreateHighlight}
+              onSignInToSave={() => {
+                setSignInSelection(selectedText)
+                setSignInPromptPosition(popoverPosition)
+                setSelectedText(null)
+                setPopoverPosition(null)
+              }}
               onClose={handlePopoverClose}
               onRestoreFocus={restoreArticleFocus}
               selectedText={selectedText.text}
@@ -642,36 +752,40 @@ export function HighlightableArticle({
       </AnimatePresence>
 
       <AnimatePresence>
-        {signInPromptActive &&
-          signInPromptPosition &&
-          signInSelection &&
-          !canTipHighlight && (
-            <HighlightSignInPrompt
-              position={signInPromptPosition}
-              selectedText={signInSelection.text}
-              returnPath={returnPath}
-              onBeforeAuthNavigate={saveHighlightSelectionBeforeAuth}
-              onClose={handleSignInPromptClose}
-              onRestoreFocus={restoreArticleFocus}
-            />
-          )}
+        {signInPromptActive && signInPromptPosition && signInSelection && (
+          <HighlightSignInPrompt
+            position={signInPromptPosition}
+            selectedText={signInSelection.text}
+            returnPath={returnPath}
+            onBeforeAuthNavigate={saveHighlightSelectionBeforeAuth}
+            onClose={handleSignInPromptClose}
+            onRestoreFocus={restoreArticleFocus}
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {highlightTooltip && article && (
-          <HighlightDetailsPanel
-            highlight={highlightTooltip.highlight}
-            position={highlightTooltip.position}
-            onClose={handleTooltipClose}
-            onRestoreFocus={restoreArticleFocus}
-            onDeleted={handleHighlightDeleted}
-            currentUserId={user?._id as Id<'users'> | undefined}
-            articleId={articleId}
-            articleSlug={article.slug}
-            authorName={article.author?.name || article.authorName || 'Author'}
-            authorStellarAddress={article.author?.stellarAddress}
-          />
-        )}
+        {highlightTooltip &&
+          article &&
+          highlightsActive &&
+          activeTooltipHighlight &&
+          highlightTooltip.viewerId === user?._id && (
+            <HighlightDetailsPanel
+              key={`${user?._id ?? 'guest'}:${highlightTooltip.highlight._id}`}
+              highlight={activeTooltipHighlight}
+              position={highlightTooltip.position}
+              onClose={handleTooltipClose}
+              onRestoreFocus={restoreArticleFocus}
+              onDeleted={handleHighlightDeleted}
+              currentUserId={user?._id as Id<'users'> | undefined}
+              articleId={articleId}
+              articleSlug={article.slug}
+              authorName={
+                article.author?.name || article.authorName || 'Author'
+              }
+              authorStellarAddress={article.author?.stellarAddress}
+            />
+          )}
       </AnimatePresence>
     </div>
   )

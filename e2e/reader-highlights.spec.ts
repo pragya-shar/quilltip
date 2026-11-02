@@ -71,6 +71,84 @@ async function selectPassage(page: Page, paragraphIndex = 0) {
   return page.getByRole('dialog').first()
 }
 
+test('keyboard selection keeps a full long quote and paper controls fit desktop and mobile', async ({
+  page,
+}) => {
+  await page.goto(articlePath)
+  const editor = page.locator('.highlightable-article .tiptap')
+  await expect(editor).toBeVisible()
+  await editor.focus()
+  // Establish a caret in the read-only prose, then extend it with the keyboard.
+  await editor
+    .locator('p')
+    .first()
+    .evaluate((element) => {
+      const range = document.createRange()
+      range.setStart(element.firstChild!, 0)
+      range.collapse(true)
+      const selection = window.getSelection()!
+      selection.removeAllRanges()
+      selection.addRange(range)
+    })
+  await page.keyboard.press('ControlOrMeta+Shift+ArrowDown')
+  const dialog = page.getByRole('dialog', {
+    name: 'Create highlight',
+    exact: true,
+  })
+  await expect(dialog).toBeVisible()
+  const quote = await dialog.locator('blockquote').innerText()
+  expect(quote.length).toBeGreaterThan(150)
+  expect(quote).toContain('technological advancements.')
+  for (const size of [
+    { width: 1440, height: 1000 },
+    { width: 390, height: 844 },
+    { width: 320, height: 300 },
+  ]) {
+    await page.setViewportSize(size)
+    const bounds = await dialog.boundingBox()
+    expect(bounds!.x).toBeGreaterThanOrEqual(12)
+    expect(bounds!.y).toBeGreaterThanOrEqual(12)
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(size.width - 12)
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(size.height - 12)
+    await dialog
+      .getByRole('button', { name: 'Highlight only', exact: true })
+      .scrollIntoViewIfNeeded()
+    await expect(
+      dialog.getByRole('button', { name: 'Highlight only', exact: true })
+    ).toBeInViewport()
+    await expect(dialog.locator('blockquote')).toHaveText(quote)
+  }
+  await page.keyboard.press('Escape')
+  await expect(editor).toBeFocused()
+})
+
+test('guest free saving works for a wallet-enabled author and retains words when session storage fails', async ({
+  page,
+}) => {
+  await page.goto(articlePath)
+  const create = await selectPassage(page)
+  await expect(
+    create.getByRole('button', { name: 'Highlight & tip', exact: true })
+  ).toBeVisible()
+  await create
+    .getByRole('button', { name: 'Highlight only', exact: true })
+    .click()
+  const dialog = page.getByRole('dialog', {
+    name: 'Sign in to save highlights',
+    exact: true,
+  })
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new Error('Storage unavailable')
+    }
+  })
+  await dialog.getByRole('link', { name: 'Sign in', exact: true }).click()
+  await expect(dialog.getByRole('alert')).toContainText(
+    'Your words are still here'
+  )
+  await expect(page).toHaveURL(new RegExp(articlePath))
+})
+
 test('guest passage controls stay reachable in a short, narrow viewport', async ({
   page,
 }) => {
@@ -91,8 +169,9 @@ test('guest passage controls stay reachable in a short, narrow viewport', async 
     name: 'Article details',
     exact: true,
   })
-  await articleDetails.click()
+  await page.mouse.click(5, 150)
   await expect(dialog).toBeHidden()
+  await articleDetails.click()
   // Let the focus scope complete its deferred unmount restoration.
   await page.evaluate(
     () =>
@@ -109,9 +188,10 @@ test.describe('saved passages on a development backend', () => {
     'Provide a disposable development QA account through PLAYWRIGHT_QA_EMAIL and PLAYWRIGHT_QA_PASSWORD.'
   )
 
-  test('tip-dialog backdrop keeps its passage panel and unsaved note', async ({
+  test('save, appreciate, remove and undo persist without requiring a note or payment', async ({
     page,
   }) => {
+    test.setTimeout(90000)
     await page.goto('/login')
     await page
       .getByLabel('Email', { exact: true })
@@ -122,131 +202,107 @@ test.describe('saved passages on a development backend', () => {
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await expect(page).toHaveURL(/\/$/)
     await page.goto(articlePath)
-    await expect(
-      page.getByRole('button', { name: 'Account', exact: true })
-    ).toBeVisible()
     const create = await selectPassage(page)
-    await create.getByRole('button', { name: 'Add note', exact: true }).click()
+    await expect(
+      create.getByRole('button', { name: 'Highlight only', exact: true })
+    ).toBeVisible()
+    await expect(
+      create.getByRole('group', { name: 'Highlight color' })
+    ).toHaveCount(0)
+    const text = await create.locator('blockquote').innerText()
     await create
-      .getByLabel('Highlight note')
-      .fill('Keep this unsaved passage note')
-    await create
-      .getByRole('button', { name: 'Tip passage', exact: true })
+      .getByRole('button', { name: 'Highlight & tip', exact: true })
       .click()
-    const tip = page.getByRole('dialog', { name: /^Support / })
+    const tip = page.getByTestId('highlight-tip-dialog')
     await expect(tip).toBeVisible()
-    await page.mouse.click(5, 200)
+    await page.keyboard.press('Escape')
     await expect(tip).toBeHidden()
     await expect(create).toBeVisible()
-    await expect(create.getByLabel('Highlight note')).toHaveValue(
-      'Keep this unsaved passage note'
-    )
-  })
-
-  test('owner can save, edit and clear a note without losing the exact passage', async ({
-    page,
-  }) => {
-    test.setTimeout(90_000)
-    await page.goto('/login')
-    await page
-      .getByLabel('Email', { exact: true })
-      .fill(process.env.PLAYWRIGHT_QA_EMAIL!)
-    await page
-      .getByLabel('Password', { exact: true })
-      .fill(process.env.PLAYWRIGHT_QA_PASSWORD!)
-    await page.getByRole('button', { name: 'Log in', exact: true }).click()
-    await expect(page).toHaveURL(/\/$/)
-    await page.goto(articlePath)
-    await expect(
-      page.getByRole('button', { name: 'Account', exact: true })
-    ).toBeVisible()
-    const create = await selectPassage(page)
-    await expect(create).toBeVisible()
-    await expect(
-      create.getByRole('button', { name: /^Select .* highlight$/ })
-    ).toHaveCount(6)
-    await create
-      .getByRole('button', { name: 'Select Emerald highlight' })
-      .click()
-    await expect(
-      create.getByRole('button', { name: 'Select Emerald highlight' })
-    ).toHaveAttribute('aria-pressed', 'true')
-    await create.getByRole('button', { name: 'Add note', exact: true }).click()
-    const note = `QA passage note ${Date.now()}`
-    await create.getByLabel('Highlight note').fill(note)
-    await create
-      .getByRole('button', { name: 'Save highlight', exact: true })
-      .click()
-    await expect(create).toBeHidden()
+    await page.keyboard.press('Escape')
     await page.reload()
     const mark = page
       .locator('mark[data-highlight-id]')
-      .filter({ hasText: 'Ancient architecture is a remarkable reflecti' })
+      .filter({ hasText: text })
       .first()
     await expect(mark).toBeVisible()
-    const passage = await mark.innerText()
     await mark.click()
     const details = page.getByRole('dialog', {
       name: 'Highlight details',
       exact: true,
     })
-    await expect(details.getByText(note, { exact: true })).toBeVisible()
-    await details
-      .getByRole('button', { name: 'Edit Note', exact: true })
-      .click()
-    await details.getByLabel('Highlight note').fill('')
-    await details
-      .getByRole('button', { name: 'Save note', exact: true })
-      .click()
+    // The disposable account may already have appreciated this passage in a
+    // previous QA run. Start the toggle assertion from an observed state.
     await expect(
-      details.getByText('No note added', { exact: true })
+      details.getByRole('button', { name: 'Remove highlight', exact: true })
     ).toBeVisible()
-    const deleteButton = details.getByRole('button', {
-      name: 'Delete Highlight',
+    const appreciated = details.getByRole('button', {
+      name: 'Appreciated',
       exact: true,
     })
-    await deleteButton.click()
-    const confirmation = page.getByRole('alertdialog', {
-      name: 'Delete this highlight?',
-    })
-    await expect(confirmation).toBeVisible()
-    await confirmation
-      .getByRole('button', { name: 'Cancel', exact: true })
-      .click()
-    await expect(confirmation).toBeHidden()
-    await expect(deleteButton).toBeFocused()
+    if (await appreciated.isVisible()) await appreciated.click()
+    await expect(details.locator('.slip-actions button')).toHaveText([
+      'Keep reading',
+      'Appreciate for free',
+      'Remove highlight',
+      'Tip this passage',
+    ])
     await details
-      .getByRole('button', { name: 'Close highlight details' })
+      .getByRole('button', { name: 'Appreciate for free', exact: true })
+      .click()
+    await expect(
+      details.getByRole('button', { name: 'Appreciated', exact: true })
+    ).toHaveAttribute('aria-pressed', 'true')
+    await details
+      .getByRole('button', { name: 'Keep reading', exact: true })
       .click()
     await page.reload()
-    await expect(mark).toHaveText(passage)
     await mark.click()
     await expect(
-      details.getByText('No note added', { exact: true })
+      details.getByRole('button', { name: 'Appreciated', exact: true })
+    ).toHaveAttribute('aria-pressed', 'true')
+    await details
+      .getByRole('button', { name: 'Appreciated', exact: true })
+      .click()
+    await expect(
+      details.getByRole('button', { name: 'Appreciate for free', exact: true })
+    ).toHaveAttribute('aria-pressed', 'false')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await details
+      .getByRole('button', { name: 'Remove highlight', exact: true })
+      .click()
+    await expect(details).toBeHidden()
+    await page.getByRole('button', { name: 'Undo', exact: true }).click()
+    await expect(
+      page.getByText('Highlight restored.', { exact: true })
     ).toBeVisible()
+    await page.reload()
+    await expect(mark).toHaveText(text)
+    await mark.click()
+    await details
+      .getByRole('button', { name: 'Remove highlight', exact: true })
+      .click()
   })
 
-  test('private note survives a failed save and reload; note links and non-owner controls remain correct', async ({
+  test('failed saves retain the full quote and can be retried', async ({
     page,
   }) => {
-    test.setTimeout(90_000)
-    let rejectNextCreate = true
+    let reject = true
     await page.routeWebSocket(/\.convex\.cloud\//, (socket) => {
       const server = socket.connectToServer()
       socket.onMessage((message) => {
         const data = JSON.parse(message.toString())
         if (
-          rejectNextCreate &&
+          reject &&
           data.type === 'Mutation' &&
           data.udfPath === 'highlights:createHighlight'
         ) {
-          rejectNextCreate = false
+          reject = false
           socket.send(
             JSON.stringify({
               type: 'MutationResponse',
               requestId: data.requestId,
               success: false,
-              result: 'QA simulated save failure',
+              result: 'QA save failure',
               logLines: [],
             })
           )
@@ -263,74 +319,19 @@ test.describe('saved passages on a development backend', () => {
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await expect(page).toHaveURL(/\/$/)
     await page.goto(articlePath)
-    await expect(
-      page.getByRole('button', { name: 'Account', exact: true })
-    ).toBeVisible()
-    await page.setViewportSize({ width: 320, height: 500 })
     const create = await selectPassage(page, 6)
+    const quote = await create.locator('blockquote').innerText()
     await create
-      .getByRole('button', { name: 'Public highlight', exact: true })
+      .getByRole('button', { name: 'Highlight only', exact: true })
       .click()
-    await create.getByRole('button', { name: 'Add note', exact: true }).click()
-    const note = `Private QA ${Date.now()} ${'LongNoteWithoutSpaces'.repeat(35)}`
-    await create.getByLabel('Highlight note').fill(note)
-    const save = create.getByRole('button', {
-      name: 'Save highlight',
-      exact: true,
-    })
-    await save.click()
-    await expect(
-      page.getByText('Failed to create highlight', { exact: true })
-    ).toBeVisible()
-    await expect(create.getByLabel('Highlight note')).toHaveValue(note)
-    await expect(
-      create.getByRole('button', { name: 'Public highlight' })
-    ).toHaveAttribute('aria-pressed', 'false')
-    await save.click()
+    await expect(create.getByRole('alert')).toContainText(
+      'Your words are still here'
+    )
+    await expect(create.locator('blockquote')).toHaveText(quote)
+    await create
+      .getByRole('button', { name: 'Highlight only', exact: true })
+      .click()
     await expect(create).toBeHidden()
-    await page.reload()
-    await page
-      .getByRole('button', { name: 'Article details', exact: true })
-      .click()
-    const noteLink = page
-      .getByRole('button', { name: /View passage$/ })
-      .filter({ hasText: note })
-    await expect(noteLink).toContainText('Private · Only you')
-    await noteLink.click()
-    const privateMark = page
-      .locator('mark[data-highlight-id]')
-      .filter({ hasText: 'Preserving and studying ancient architecture' })
-      .first()
-    await expect(privateMark).toBeInViewport()
-    await privateMark.click()
-    const details = page.getByRole('dialog', {
-      name: 'Highlight details',
-      exact: true,
-    })
-    await expect(details.getByText('Private', { exact: true })).toBeVisible()
-    await expect(details.getByText(note, { exact: true })).toBeVisible()
-    const bounds = await details.boundingBox()
-    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(488)
-    await page.keyboard.press('Escape')
-    await expect(page.locator('.highlightable-article .tiptap')).toBeFocused()
-    await page
-      .locator('mark[data-highlight-id]')
-      .filter({
-        hasText:
-          'the Egyptian pyramids were built using massive limestone blocks',
-      })
-      .first()
-      .click()
-    await expect(details).toBeVisible()
-    await expect(
-      details.getByRole('button', { name: 'Edit Note', exact: true })
-    ).toHaveCount(0)
-    await expect(
-      details.getByRole('button', { name: 'Delete Highlight', exact: true })
-    ).toHaveCount(0)
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth)
-    ).toBeLessThanOrEqual(320)
   })
 })
 
@@ -512,7 +513,14 @@ for (const authPath of ['login', 'register']) {
     })
     const returnPath = `${articlePath}?reader=notes`
     await page.goto(returnPath)
-    const dialog = await selectPassage(page)
+    const creation = await selectPassage(page)
+    await creation
+      .getByRole('button', { name: 'Highlight only', exact: true })
+      .click()
+    const dialog = page.getByRole('dialog', {
+      name: 'Sign in to save highlights',
+      exact: true,
+    })
     await expect(
       page.getByRole('heading', {
         name: 'Sign in to save highlights',

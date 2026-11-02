@@ -85,6 +85,9 @@ interface HighlightTipButtonProps {
   resumeCustomAmount?: string
   onResumeOpenChange?: (open: boolean) => void
   onResumeDialogVisible?: () => void
+  label?: string
+  onBeforeOpen?: () => Promise<boolean>
+  disabled?: boolean
 }
 
 type HighlightTipRecordArgs = {
@@ -204,6 +207,9 @@ export function HighlightTipButton({
   resumeCustomAmount,
   onResumeOpenChange,
   onResumeDialogVisible,
+  label = 'Tip passage',
+  onBeforeOpen,
+  disabled,
 }: HighlightTipButtonProps) {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const authUserId = user?._id
@@ -217,7 +223,7 @@ export function HighlightTipButton({
   const { activateWallet } = useWalletActivation()
   const router = useRouter()
   const pathname = usePathname()
-  const [isOpen, setIsOpen] = useState(resumeOpen)
+  const [isOpen, setIsOpen] = useState(resumeOpen && !onBeforeOpen)
   const [modalStep, setModalStep] = useState<TipModalStep>(
     resumeOpen ? 'checkout' : 'appreciation'
   )
@@ -322,24 +328,26 @@ export function HighlightTipButton({
   useEffect(() => {
     if (!resumeOpen || resumedRef.current) return
     resumedRef.current = true
-    applyPendingAmountFields(
-      {
-        amountCents: resumeAmountCents,
-        customAmount: resumeCustomAmount,
-      },
-      setSelectedAmount,
-      setCustomAmount
-    )
-    setModalStep('checkout')
-    activateWallet()
-    setIsOpen(true)
-    onResumeOpenChange?.(true)
+    // Auth-return checkout follows the same free-save prerequisite as a click.
+    void (async () => {
+      if (onBeforeOpen && !(await onBeforeOpen())) return
+      applyPendingAmountFields(
+        { amountCents: resumeAmountCents, customAmount: resumeCustomAmount },
+        setSelectedAmount,
+        setCustomAmount
+      )
+      setModalStep('checkout')
+      activateWallet()
+      setIsOpen(true)
+      onResumeOpenChange?.(true)
+    })()
   }, [
     resumeOpen,
     resumeAmountCents,
     resumeCustomAmount,
     activateWallet,
     onResumeOpenChange,
+    onBeforeOpen,
   ])
 
   useEffect(() => {
@@ -1107,9 +1115,15 @@ export function HighlightTipButton({
             size="sm"
             className={cn('tip-trigger w-full gap-2', className)}
             title="Tip this passage"
+            disabled={disabled}
+            onClick={async (event) => {
+              if (!onBeforeOpen) return
+              event.preventDefault()
+              if (await onBeforeOpen()) handleOpenChange(true)
+            }}
           >
             <Heart className="w-4 h-4" aria-hidden="true" />
-            <span className="font-medium">Tip passage</span>
+            <span className="font-medium">{label}</span>
           </Button>
         </DialogTrigger>
         <DialogContent
