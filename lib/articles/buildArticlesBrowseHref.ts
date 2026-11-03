@@ -2,11 +2,14 @@ import {
   DEFAULT_BROWSE_SORT,
   DEFAULT_BROWSE_VIEW,
   type BrowseSort,
+  type ReadingRoomCategory,
   type BrowseView,
 } from './browseDiscovery'
 
 export const ARTICLES_BROWSE_QUERY_KEYS = [
   'tag',
+  'category',
+  'bookmarked',
   'page',
   'search',
   'author',
@@ -28,6 +31,8 @@ export function pickArticlesBrowseParams(
 }
 
 export function buildArticlesBrowseHref(options: {
+  category?: ReadingRoomCategory | ''
+  bookmarked?: boolean
   tag?: string
   page?: number
   search?: string
@@ -39,6 +44,16 @@ export function buildArticlesBrowseHref(options: {
   const params = options.sourceParams
     ? pickArticlesBrowseParams(options.sourceParams)
     : new URLSearchParams()
+
+  if (options.category !== undefined) {
+    if (options.category) params.set('category', options.category)
+    else params.delete('category')
+  }
+
+  if (options.bookmarked !== undefined) {
+    if (options.bookmarked) params.set('bookmarked', '1')
+    else params.delete('bookmarked')
+  }
 
   if (options.tag !== undefined) {
     const trimmed = options.tag.trim()

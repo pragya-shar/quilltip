@@ -1,5 +1,5 @@
 import { v } from 'convex/values'
-import type { Id } from './_generated/dataModel'
+import type { Doc, Id } from './_generated/dataModel'
 import { query, mutation, internalMutation } from './_generated/server'
 import { internal } from './_generated/api'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -22,7 +22,10 @@ import {
   assertArticleListingReady,
   isArticleListingReady,
 } from './lib/articleListingReady'
-import { searchListingArticles } from './lib/articleSearch'
+import {
+  fetchArticlesByTagSearch,
+  searchListingArticles,
+} from './lib/articleSearch'
 import {
   sortArticlesForBrowse,
   type BrowseSort,
@@ -92,11 +95,13 @@ const browseViewValidator = v.union(
 const browseSortValidator = v.union(
   v.literal('newest'),
   v.literal('oldest'),
-  v.literal('most_tipped')
+  v.literal('most_tipped'),
+  v.literal('title')
 )
 
 function paginateBrowseArticles<
   T extends {
+    title: string
     publishedAt?: number
     tipCount?: number
     highlightCount?: number
@@ -129,6 +134,15 @@ export const listArticles = query({
     search: v.optional(v.string()),
     view: v.optional(browseViewValidator),
     sort: v.optional(browseSortValidator),
+    category: v.optional(
+      v.union(
+        v.literal('stories'),
+        v.literal('thoughts'),
+        v.literal('anecdotes')
+      )
+    ),
+    bookmarkIds: v.optional(v.array(v.string())),
+    searchByWriterOrTitle: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const page = Math.max(args.page || 1, 1)
@@ -161,91 +175,74 @@ export const listArticles = query({
       authorId = author._id
     }
 
-    if (search) {
-      const rows = await searchListingArticles(ctx, {
+    let rows: Doc<'articles'>[]
+    if (args.bookmarkIds) {
+      const ids = [...new Set(args.bookmarkIds)]
+        .map((id) => ctx.db.normalizeId('articles', id))
+        .filter((id) => id !== null)
+      const saved = await Promise.all(ids.map((id) => ctx.db.get(id)))
+      rows = saved.filter(
+        (article): article is Doc<'articles'> =>
+          article?.published === true &&
+          (!authorId || article.authorId === authorId) &&
+          (!tag || article.tags?.includes(tag) === true)
+      )
+    } else if (search && !args.searchByWriterOrTitle) {
+      rows = await searchListingArticles(ctx, {
         search,
         authorUsername: args.author,
         authorId,
         filterTag: tag,
       })
-      const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
-        rows,
-        view,
-        sort,
-        offset,
-        limit
-      )
-      const enrichedArticles = await Promise.all(
-        slice.map(async (article) => ({
-          ...stripWriterNotes(article),
-          author: await enrichWithUser(ctx, article.authorId),
-        }))
-      )
-      return {
-        articles: enrichedArticles,
-        total,
-        page,
-        limit,
-        totalPages,
-        browseMeta,
-      }
-    }
-
-    if (tag) {
-      const linkRows = authorId
+    } else if (tag) {
+      rows = await fetchArticlesByTagSearch(ctx, tag, authorId)
+    } else {
+      rows = authorId
         ? await ctx.db
-            .query('articleTagLinks')
-            .withIndex('by_author_tag_publishedAt', (q) =>
-              q.eq('authorId', authorId).eq('tag', tag)
+            .query('articles')
+            .withIndex('by_author_published', (q) =>
+              q.eq('authorId', authorId).eq('published', true)
             )
             .order('desc')
             .collect()
         : await ctx.db
-            .query('articleTagLinks')
-            .withIndex('by_tag_publishedAt', (q) => q.eq('tag', tag))
+            .query('articles')
+            .withIndex('by_published_date', (q) => q.eq('published', true))
             .order('desc')
             .collect()
-      const fetched = await Promise.all(
-        linkRows.map((row) => ctx.db.get(row.articleId))
-      )
-      const articles = fetched.filter(
-        (a): a is NonNullable<typeof a> =>
-          a?.published === true && isArticleListingReady(a)
-      )
-      const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
-        articles,
-        view,
-        sort,
-        offset,
-        limit
-      )
-      const enrichedArticles = await Promise.all(
-        slice.map(async (article) => ({
-          ...stripWriterNotes(article),
-          author: await enrichWithUser(ctx, article.authorId),
-        }))
-      )
-      return {
-        articles: enrichedArticles,
-        total,
-        page,
-        limit,
-        totalPages,
-        browseMeta,
-      }
     }
-
-    let rowsQuery = ctx.db
-      .query('articles')
-      .withIndex('by_published_date', (q) => q.eq('published', true))
-      .order('desc')
-
-    if (authorId) {
-      rowsQuery = rowsQuery.filter((q) => q.eq(q.field('authorId'), authorId!))
-    }
-
-    let rows = await rowsQuery.collect()
     rows = rows.filter(isArticleListingReady)
+    if (args.category) {
+      rows = rows.filter((article) =>
+        article.tags?.some((tag) => tag.trim().toLowerCase() === args.category)
+      )
+    }
+
+    const writers = new Map<
+      Id<'users'>,
+      Awaited<ReturnType<typeof enrichWithUser>>
+    >()
+    if (search && args.searchByWriterOrTitle) {
+      await Promise.all(
+        [...new Set(rows.map((article) => article.authorId))].map(
+          async (id) => {
+            writers.set(id, await enrichWithUser(ctx, id))
+          }
+        )
+      )
+      const terms = search.toLowerCase().split(/\s+/)
+      rows = rows.filter((article) => {
+        const writer = writers.get(article.authorId)
+        const text = [
+          article.title,
+          writer?.name ?? article.authorName,
+          writer?.username ?? article.authorUsername,
+        ]
+          .join(' ')
+          .toLowerCase()
+        return terms.every((term) => text.includes(term))
+      })
+    }
     const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
       rows,
       view,
@@ -256,7 +253,9 @@ export const listArticles = query({
     const enrichedArticles = await Promise.all(
       slice.map(async (article) => ({
         ...stripWriterNotes(article),
-        author: await enrichWithUser(ctx, article.authorId),
+        author: writers.has(article.authorId)
+          ? (writers.get(article.authorId) ?? null)
+          : await enrichWithUser(ctx, article.authorId),
       }))
     )
     return {

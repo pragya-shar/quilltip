@@ -27,6 +27,7 @@ const SORT_LABELS: Record<BrowseSort, string> = {
   newest: 'Newest',
   oldest: 'Oldest',
   most_tipped: 'Most tipped',
+  title: 'Title A–Z',
 }
 
 type ArticlesBrowseDiscoveryHeaderProps = {

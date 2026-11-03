@@ -9,15 +9,16 @@ import {
 } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import {
-  useBrowseAuthors,
-  useBrowseTags,
-  useListArticles,
-} from '@/hooks/convex'
+import { useBrowseAuthors, useListArticles } from '@/hooks/convex'
+import { useAuth } from '@/components/providers/AuthContext'
+import { buildRegisterHref } from '@/lib/auth/safeReturnPath'
+import { BOOKMARK_EVENT, readBookmarks } from '@/lib/library/bookmarks'
 import { ReadingRoomCard } from './ReadingRoomCard'
 import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
 import {
   parseBrowseSort,
+  parseReadingRoomCategory,
+  READING_ROOM_CATEGORIES,
   parseBrowseView,
 } from '@/lib/articles/browseDiscovery'
 import { parseArticlesPageParam } from '@/lib/articles/parseArticlesPageParam'
@@ -39,6 +40,29 @@ export function ReadingRoom() {
   const visibleCount = Number.isFinite(requestedCount)
     ? Math.min(9, Math.max(3, requestedCount))
     : 3
+  const category = parseReadingRoomCategory(params?.get('category'))
+  const bookmarked = params?.get('bookmarked') === '1'
+  const { user, isLoading: authLoading } = useAuth()
+  const userId = user?._id
+  const [saved, setSaved] = useState<{ userId: string; ids: string[] }>()
+  useEffect(() => {
+    if (!bookmarked || !userId) return
+    const refresh = () =>
+      setSaved({
+        userId,
+        ids: readBookmarks(userId).map((bookmark) => bookmark.id),
+      })
+    refresh()
+    window.addEventListener(BOOKMARK_EVENT, refresh)
+    window.addEventListener('storage', refresh)
+    return () => {
+      window.removeEventListener(BOOKMARK_EVENT, refresh)
+      window.removeEventListener('storage', refresh)
+    }
+  }, [bookmarked, userId])
+  const guestBookmarks = bookmarked && !authLoading && !user
+  const bookmarkIds =
+    bookmarked && saved?.userId === userId ? saved?.ids : undefined
   const tag = params?.get('tag') || undefined
   const author = params?.get('author') || undefined
   const search = params?.get('search') || undefined
@@ -48,16 +72,22 @@ export function ReadingRoom() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didNavigate = useRef(false)
   const scrollKey = buildArticlesBrowseScrollStorageKey(pathname, searchString)
-  const result = useListArticles({
-    page: currentPage,
-    limit: 9,
-    tag,
-    author,
-    search,
-    view,
-    sort,
-  })
-  const topics = useBrowseTags()
+  const result = useListArticles(
+    bookmarked && (authLoading || !bookmarkIds)
+      ? 'skip'
+      : {
+          page: currentPage,
+          limit: 9,
+          tag,
+          category,
+          bookmarkIds,
+          searchByWriterOrTitle: search ? true : undefined,
+          author,
+          search,
+          view,
+          sort,
+        }
+  )
   const authors = useBrowseAuthors()
   const cancelSearch = useCallback(() => {
     if (searchTimer.current !== null) clearTimeout(searchTimer.current)
@@ -83,6 +113,15 @@ export function ReadingRoom() {
     window.addEventListener('pagehide', save)
     return () => window.removeEventListener('pagehide', save)
   }, [scrollKey])
+  useEffect(() => {
+    if (!result || currentPage <= 1 || result.articles.length > 0) return
+    router.replace(
+      buildArticlesBrowseHref({
+        page: Math.max(1, result.totalPages),
+        sourceParams: new URLSearchParams(searchString),
+      })
+    )
+  }, [currentPage, result, router, searchString])
   const ready = result !== undefined
   useLayoutEffect(() => {
     if (!ready) return
@@ -92,7 +131,7 @@ export function ReadingRoom() {
   const navigate = (
     changes: Omit<Parameters<typeof buildArticlesBrowseHref>[0], 'sourceParams'>
   ) => {
-    cancelSearch()
+    savePosition()
     setSearchText(search || '')
     router.push(
       buildArticlesBrowseHref({ page: 1, ...changes, sourceParams: params })
@@ -103,15 +142,15 @@ export function ReadingRoom() {
     didNavigate.current = true
     writeBrowseScrollY(scrollKey, window.scrollY)
   }
-  const articles = result ? mapListArticlesToDisplay(result.articles) : []
+  const articles = result
+    ? mapListArticlesToDisplay(result.articles, { compact: true })
+    : []
   const totalPages = result
     ? result.totalPages || Math.ceil(result.total / result.limit)
     : 0
   const message = result
     ? getBrowseContextMessage(view, result.browseMeta)
     : null
-  const allTopics = topics?.map((t) => t.tag) || []
-  if (tag && !allTopics.includes(tag)) allTopics.push(tag)
   return (
     <main className="reading-room-main">
       <section className="intro" aria-labelledby="reading-room-title">
@@ -120,20 +159,39 @@ export function ReadingRoom() {
         <p>Stories, thoughts, and everyday anecdotes.</p>
       </section>
       <div className="toolbar">
-        <div className="filters" aria-label="Article topics">
-          <button aria-pressed={!tag} onClick={() => navigate({ tag: '' })}>
+        <div className="filters" role="group" aria-label="Article topics">
+          <button
+            aria-pressed={!category && !tag && !bookmarked}
+            onClick={() =>
+              navigate({ category: '', tag: '', bookmarked: false })
+            }
+          >
             All
           </button>
-          {allTopics.map((topic) => (
+          {READING_ROOM_CATEGORIES.map((topic) => (
             <button
               key={topic}
-              aria-pressed={tag === topic}
-              onClick={() => navigate({ tag: topic })}
+              aria-pressed={!bookmarked && category === topic}
+              onClick={() =>
+                navigate({ category: topic, tag: '', bookmarked: false })
+              }
             >
-              {topic}
+              {topic.charAt(0).toUpperCase() + topic.slice(1)}
             </button>
           ))}
-          <Link href="/library">Bookmarked</Link>
+          <button
+            aria-pressed={bookmarked}
+            onClick={() =>
+              navigate({ bookmarked: true, category: '', tag: '' })
+            }
+          >
+            Bookmarked
+          </button>
+          {tag && (
+            <button aria-pressed onClick={() => navigate({ tag: '' })}>
+              {tag} ×
+            </button>
+          )}
         </div>
         <div className="search">
           <label htmlFor="reading-room-search">Search articles</label>
@@ -150,13 +208,14 @@ export function ReadingRoom() {
             id="reading-room-search"
             type="search"
             value={searchText}
-            placeholder="Title or excerpt…"
+            placeholder="Writer or title…"
             onChange={(event) => {
               const value = event.target.value
               setSearchText(value)
               cancelSearch()
               searchTimer.current = setTimeout(() => {
                 searchTimer.current = null
+                savePosition()
                 router.push(
                   buildArticlesBrowseHref({
                     search: value,
@@ -180,16 +239,31 @@ export function ReadingRoom() {
             value={view === 'latest' ? sort : view}
             onChange={(event) => {
               const value = event.target.value
-              if (value === 'featured' || value === 'trending')
-                navigate({ view: value, sort: '' })
-              else navigate({ view: 'latest', sort: parseBrowseSort(value) })
+              navigate({ view: 'latest', sort: parseBrowseSort(value) })
             }}
           >
             <option value="newest">Latest</option>
-            <option value="oldest">Oldest</option>
-            <option value="most_tipped">Most tipped</option>
-            <option value="featured">Featured</option>
-            <option value="trending">Trending</option>
+            <option value="title">Title A–Z</option>
+            {view === 'latest' && sort === 'oldest' && (
+              <option value="oldest" disabled>
+                Oldest
+              </option>
+            )}
+            {view === 'latest' && sort === 'most_tipped' && (
+              <option value="most_tipped" disabled>
+                Most tipped
+              </option>
+            )}
+            {view === 'featured' && (
+              <option value="featured" disabled>
+                Featured
+              </option>
+            )}
+            {view === 'trending' && (
+              <option value="trending" disabled>
+                Trending
+              </option>
+            )}
           </select>
         </label>
       </div>
@@ -219,7 +293,19 @@ export function ReadingRoom() {
         </details>
       )}
       {message && <p className="browse-context">{message}</p>}
-      {!result ? (
+      {guestBookmarks ? (
+        <section className="empty">
+          <h2>Sign in to see your bookmarks.</h2>
+          <p>Find the articles you saved in this browser.</p>
+          <Link
+            href={buildRegisterHref(
+              buildArticlesBrowseHref({ sourceParams: params })
+            )}
+          >
+            Sign in or create an account
+          </Link>
+        </section>
+      ) : !result ? (
         <div className="reading-room-loading" role="status" aria-live="polite">
           <span>Loading articles…</span>
           <div className="skeleton-row" aria-hidden="true">
@@ -246,7 +332,7 @@ export function ReadingRoom() {
             <button
               className="load-more"
               onClick={() => {
-                cancelSearch()
+                savePosition()
                 const next = new URLSearchParams(searchString)
                 next.set('count', String(visibleCount + 3))
                 router.push(`/articles?${next}`, { scroll: false })
@@ -277,11 +363,19 @@ export function ReadingRoom() {
         </>
       ) : (
         <section className="empty">
-          <h2>{search ? 'No matching articles.' : 'No articles here yet.'}</h2>
+          <h2>
+            {search
+              ? 'No matching articles.'
+              : bookmarked
+                ? 'No bookmarks here yet.'
+                : 'No articles here yet.'}
+          </h2>
           <p>
             {search
               ? `No articles match “${search}”. Try another search.`
-              : 'Try another topic or come back for new writing.'}
+              : bookmarked
+                ? 'Bookmark an article to find it here again.'
+                : 'Try another topic or come back for new writing.'}
           </p>
           <button
             onClick={() => {
