@@ -2,7 +2,7 @@
 import { convexTest } from 'convex-test'
 import { expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
-import { api } from '../../convex/_generated/api'
+import { api, internal } from '../../convex/_generated/api'
 import { getArticleOpening } from '../../lib/articles/getArticleOpening'
 import { buildArticlesBrowseHref } from '../../lib/articles/buildArticlesBrowseHref'
 
@@ -55,6 +55,7 @@ test('browse applies categories, writer/title search and bookmark IDs before sor
       draft: await insert('Draft', 5, ['Stories'], false),
     }
   })
+  await t.mutation(internal.readingRoomIndex.backfill, {})
   const storyFilters = {
     category: 'stories',
     searchByWriterOrTitle: true,
@@ -130,4 +131,147 @@ test('compact previews load when Intl.Segmenter is unavailable', async () => {
     vi.unstubAllGlobals()
     vi.resetModules()
   }
+})
+
+test('search backfills a large catalog and follows public writes without changing filter or sort behavior', async () => {
+  const t = convexTest(schema, modules)
+  const authorId = await t.run((ctx) =>
+    ctx.db.insert('users', {
+      username: 'lumen-writer',
+      email: 'lumen@example.test',
+      name: 'Lumen Arch',
+      stellarAddress: 'G' + 'A'.repeat(55),
+      createdAt: 1,
+      updatedAt: 1,
+    })
+  )
+  const author = t.withIdentity({ subject: `${authorId}|session` })
+  const ids = await t.run(async (ctx) => {
+    const ids = []
+    for (let i = 0; i < 540; i++) {
+      ids.push(
+        await ctx.db.insert('articles', {
+          slug: `field-${i}`,
+          title: i === 13 ? 'Field: Quartz—Window' : `Field ${i}`,
+          content,
+          excerpt: 'Notes from the field.',
+          authorId,
+          authorName: 'Previous Pen Name',
+          authorUsername: 'lumen-writer',
+          published: true,
+          publishedAt: i + 1,
+          tags: ['stories', i % 2 === 0 ? 'Exact' : 'exact'],
+          createdAt: 1,
+          updatedAt: 1,
+        })
+      )
+      if (i === 13) {
+        await ctx.db.insert('articleTagLinks', {
+          articleId: ids[13]!,
+          authorId,
+          publishedAt: i + 1,
+          tag: 'exact',
+        })
+      }
+    }
+    return ids
+  })
+  const browse = (
+    args: Parameters<typeof t.query<typeof api.articles.listArticles>>[1]
+  ) =>
+    t.query(api.articles.listArticles, { ...args, searchByWriterOrTitle: true })
+  const narrow = {
+    author: 'lumen-writer',
+    category: 'stories',
+    tag: 'exact',
+    search: 'artz—win arch',
+  } as const
+  const before = await browse(narrow)
+  expect(before.articles.map((article) => article._id)).toEqual([ids[13]])
+  // Invoke each checkpoint directly, as the deployment scheduler would.
+  for (let i = 0; i < 80; i++) {
+    const result = await t.mutation(internal.readingRoomIndex.backfill, {})
+    if (result.complete) break
+    expect(i).toBeLessThan(79)
+  }
+  expect(await browse(narrow)).toEqual(before)
+  expect((await browse({ ...narrow, tag: 'Exact' })).total).toBe(0)
+  const broad = await browse({
+    search: 'field',
+    sort: 'oldest',
+    page: 3,
+    limit: 2,
+  })
+  expect(
+    (await browse({ search: 'field 539' })).articles.map(
+      (article) => article._id
+    )
+  ).toEqual(ids.slice(-1))
+  expect(broad.total).toBe(540)
+  expect(broad.totalPages).toBe(270)
+  expect(broad.articles.map((article) => article._id)).toEqual(ids.slice(4, 6))
+
+  await author.mutation(api.users.updateProfile, { name: 'Nereid Arc' })
+  expect((await browse({ ...narrow, search: 'artz—win nereid' })).total).toBe(1)
+  expect((await browse(narrow)).total).toBe(0)
+  await author.mutation(api.users.updateProfile, {
+    name: `${'a'.repeat(1100)} Umbrella`,
+  })
+  expect((await browse({ search: 'umbrella quartz' })).total).toBe(1)
+
+  await author.mutation(api.articles.updateArticle, {
+    id: ids[13]!,
+    title: 'Blue Lantern',
+  })
+  expect(
+    (await browse({ search: 'lue lan', bookmarkIds: [ids[13]!, ids[0]!] }))
+      .total
+  ).toBe(1)
+  expect((await browse({ search: 'quartz' })).total).toBe(0)
+
+  const id = await author.mutation(api.articles.createArticle, {
+    title: 'Narrow Mangrove',
+    content,
+    published: true,
+  })
+  expect((await browse({ search: 'mangrove' })).articles[0]?._id).toBe(id)
+  await t.mutation(internal.articles.setAllArticlesToDraft, {})
+  expect((await browse({ search: 'mangrove' })).total).toBe(0)
+  expect(
+    await t.query(api.articles.getContinueReadingArticle, { ids: [id] })
+  ).toBeNull()
+})
+
+test('continue reading resolves the first available ID to its current public title and route', async () => {
+  const t = convexTest(schema, modules)
+  const ids = await t.run(async (ctx) => {
+    const authorId = await ctx.db.insert('users', {
+      username: 'current-writer',
+      email: 'resume@example.test',
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    const insert = (published: boolean) =>
+      ctx.db.insert('articles', {
+        authorId,
+        authorUsername: 'old-writer',
+        title: 'Current Title',
+        slug: 'current-slug',
+        published,
+        content,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+    return [await insert(false), await insert(true)]
+  })
+  expect(
+    await t.query(api.articles.getContinueReadingArticle, {
+      ids: ['removed', ...ids],
+    })
+  ).toEqual({
+    id: ids[1],
+    username: 'current-writer',
+    slug: 'current-slug',
+    title: 'Current Title',
+  })
 })

@@ -50,4 +50,11 @@ crons.interval(
   internal.xlmPrice.refreshXlmPriceCache
 )
 
+// The migration checkpoints each bounded batch and becomes a no-op once complete.
+crons.interval(
+  'backfill reading room search',
+  { minutes: 5 },
+  internal.readingRoomIndex.backfill
+)
+
 export default crons

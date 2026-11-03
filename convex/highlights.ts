@@ -1,3 +1,4 @@
+import { syncReadingRoomEngagement } from './lib/readingRoomIndex'
 import { v } from 'convex/values'
 import { query, mutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -340,9 +341,11 @@ export const createHighlight = mutation({
     })
 
     // Update article highlight count
+    const highlightCount = (article.highlightCount || 0) + 1
     await ctx.db.patch(args.articleId, {
-      highlightCount: (article.highlightCount || 0) + 1,
+      highlightCount,
     })
+    await syncReadingRoomEngagement(ctx, article._id, { highlightCount })
 
     // Update user highlight count
     await ctx.db.patch(userId, {
@@ -417,10 +420,12 @@ async function setRemoved(
   const delta = removed ? -1 : 1
   for (const id of [highlight.articleId, highlight.userId]) {
     const row = await ctx.db.get(id)
-    if (row)
-      await ctx.db.patch(id, {
-        highlightCount: Math.max(0, (row.highlightCount ?? 0) + delta),
-      })
+    if (!row) continue
+    const highlightCount = Math.max(0, (row.highlightCount ?? 0) + delta)
+    await ctx.db.patch(id, { highlightCount })
+    if (id === highlight.articleId) {
+      await syncReadingRoomEngagement(ctx, id, { highlightCount })
+    }
   }
   await ctx.db.patch(highlight._id, {
     removedAt: removed ? Date.now() : undefined,

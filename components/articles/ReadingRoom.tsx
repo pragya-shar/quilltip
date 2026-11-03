@@ -10,9 +10,11 @@ import {
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useBrowseAuthors, useListArticles } from '@/hooks/convex'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { useAuth } from '@/components/providers/AuthContext'
 import { buildRegisterHref } from '@/lib/auth/safeReturnPath'
 import { BOOKMARK_EVENT, readBookmarks } from '@/lib/library/bookmarks'
+import { ContinueReading } from './ContinueReading'
 import { ReadingRoomCard } from './ReadingRoomCard'
 import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
 import {
@@ -158,6 +160,9 @@ export function ReadingRoom() {
         <h1 id="reading-room-title">Story time.</h1>
         <p>Stories, thoughts, and everyday anecdotes.</p>
       </section>
+      <ErrorBoundary fallback={() => null}>
+        <ContinueReading />
+      </ErrorBoundary>
       <div className="toolbar">
         <div className="filters" role="group" aria-label="Article topics">
           <button

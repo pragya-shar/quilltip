@@ -25,6 +25,13 @@ project; a deploy key can instead select production or preview. Inspect
 `bunx convex deploy --help` and the target before running it. It can typecheck,
 regenerate bindings, and push functions, schema, and indexes.
 
+The reading-room writer/title index backfills automatically after the Convex
+functions are deployed. The internal `readingRoomIndex:backfill` job checkpoints
+each batch; search keeps using the existing query until the state row reports
+`complete: true`. Check that state and verify a title and writer search against
+the intended backend after deploy. The job reads existing articles and writes
+search metadata only.
+
 Convex environment is separate from Vercel/local environment. For an authorized
 production auth-origin change:
 

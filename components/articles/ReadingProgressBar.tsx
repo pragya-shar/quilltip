@@ -1,5 +1,6 @@
 'use client'
 
+import { useReadingPosition } from './useReadingPosition'
 import { useEffect, useRef, useState } from 'react'
 
 function clamp01(n: number): number {
@@ -88,7 +89,8 @@ function getScrollProgress(nested: HTMLElement | null): number {
   return 0
 }
 
-export function ReadingProgressBar() {
+export function ReadingProgressBar({ articleId }: { articleId: string }) {
+  useReadingPosition(articleId)
   const [progress, setProgress] = useState(0)
   const nestedRef = useRef<HTMLElement | null>(null)
   const nestedScrollCleanupRef = useRef<(() => void) | null>(null)

@@ -4,6 +4,11 @@ import { query, mutation, internalMutation } from './_generated/server'
 import { internal } from './_generated/api'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { enrichWithUser } from './lib/enrich'
+import {
+  getReadingRoomIndexState,
+  searchReadingRoomIndex,
+  syncReadingRoomArticle,
+} from './lib/readingRoomIndex'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
 import {
   generateUniqueArticleSlugForAuthor,
@@ -175,6 +180,46 @@ export const listArticles = query({
       authorId = author._id
     }
 
+    if (
+      search &&
+      args.searchByWriterOrTitle &&
+      (await getReadingRoomIndexState(ctx))?.complete
+    ) {
+      const { rows, authors } = await searchReadingRoomIndex(ctx, search, {
+        authorId,
+        tag,
+        category: args.category,
+        bookmarkIds: args.bookmarkIds,
+      })
+      const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
+        rows,
+        view,
+        sort,
+        offset,
+        limit
+      )
+      const articles = await Promise.all(
+        slice.map(async (row) => {
+          const article = await ctx.db.get(row.articleId)
+          return article?.published
+            ? {
+                ...stripWriterNotes(article),
+                author: (await authors.get(row.authorId)) ?? null,
+              }
+            : null
+        })
+      )
+      return {
+        articles: articles.filter((article) => article !== null),
+        total,
+        page,
+        limit,
+        totalPages,
+        browseMeta,
+      }
+    }
+
+    // Preserve results during the bounded backfill.
     let rows: Doc<'articles'>[]
     if (args.bookmarkIds) {
       const ids = [...new Set(args.bookmarkIds)]
@@ -373,6 +418,38 @@ export const listBrowseAuthors = query({
     }
 
     return authors
+  },
+})
+
+// Resolve browser-local IDs through the current public reader route.
+export const getContinueReadingArticle = query({
+  args: { ids: v.array(v.string()) },
+  returns: v.union(
+    v.null(),
+    v.object({
+      id: v.id('articles'),
+      title: v.string(),
+      slug: v.string(),
+      username: v.string(),
+    })
+  ),
+  handler: async (ctx, { ids }) => {
+    for (const value of ids.slice(0, 20)) {
+      const id = ctx.db.normalizeId('articles', value)
+      if (!id) continue
+      const article = await ctx.db.get(id)
+      if (!article?.published) continue
+      const author = await ctx.db.get(article.authorId)
+      if (author?.username) {
+        return {
+          id,
+          title: article.title,
+          slug: article.slug,
+          username: author.username,
+        }
+      }
+    }
+    return null
   },
 })
 
@@ -613,7 +690,10 @@ export const createArticle = mutation({
 
     if (args.published) {
       const row = await ctx.db.get(articleId)
-      if (row) await replaceTagLinksForArticle(ctx, row)
+      if (row) {
+        await replaceTagLinksForArticle(ctx, row)
+        await syncReadingRoomArticle(ctx, row._id, row)
+      }
     }
 
     return articleId
@@ -720,6 +800,7 @@ export const updateArticle = mutation({
       await syncArticleUploadReferences(ctx, args.id, article, updated)
     if (updated?.published) {
       await replaceTagLinksForArticle(ctx, updated)
+      await syncReadingRoomArticle(ctx, updated._id, updated)
     }
 
     return args.id
@@ -790,7 +871,10 @@ export const publishArticle = mutation({
     })
 
     const publishedRow = await ctx.db.get(args.id)
-    if (publishedRow) await replaceTagLinksForArticle(ctx, publishedRow)
+    if (publishedRow) {
+      await replaceTagLinksForArticle(ctx, publishedRow)
+      await syncReadingRoomArticle(ctx, publishedRow._id, publishedRow)
+    }
 
     if (shouldUpload) {
       // Schedule Arweave upload (runs in background)
@@ -846,6 +930,7 @@ export const deleteArticle = mutation({
     }
 
     await removeTagLinksForArticle(ctx, args.id)
+    await syncReadingRoomArticle(ctx, args.id, null)
 
     await syncArticleUploadReferences(ctx, args.id, article, null)
 
@@ -930,7 +1015,10 @@ export const saveDraft = mutation({
 
       const after = await ctx.db.get(args.id)
       if (after) await syncArticleUploadReferences(ctx, args.id, article, after)
-      if (after?.published) await replaceTagLinksForArticle(ctx, after)
+      if (after?.published) {
+        await replaceTagLinksForArticle(ctx, after)
+        await syncReadingRoomArticle(ctx, after._id, after)
+      }
 
       return args.id
     } else {
@@ -1012,6 +1100,7 @@ export const unpublishArticlesWithPlaceholderTitles = internalMutation({
       }
 
       await removeTagLinksForArticle(ctx, article._id)
+      await syncReadingRoomArticle(ctx, article._id, null)
       await ctx.db.patch(article._id, {
         published: false,
         publishedAt: undefined,
@@ -1066,6 +1155,7 @@ export const refreshArticleDiscovery = internalMutation({
         }),
       })
       await replaceTagLinksForArticle(ctx, article)
+      await syncReadingRoomArticle(ctx, article._id, article)
     }
     return { updated: articles.length }
   },
@@ -1118,6 +1208,7 @@ export const hideReviewedArticles = internalMutation({
     const deltas = new Map<Id<'users'>, number>()
     for (const article of reviewed) {
       await removeTagLinksForArticle(ctx, article._id)
+      await syncReadingRoomArticle(ctx, article._id, null)
       await ctx.db.patch(article._id, { published: false, updatedAt: now })
       deltas.set(article.authorId, (deltas.get(article.authorId) ?? 0) + 1)
     }
@@ -1144,6 +1235,7 @@ export const setAllArticlesToDraft = internalMutation({
     for (const article of articles) {
       if (article.published) {
         await removeTagLinksForArticle(ctx, article._id)
+        await syncReadingRoomArticle(ctx, article._id, null)
         await ctx.db.patch(article._id, {
           published: false,
           updatedAt: now,

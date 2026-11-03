@@ -1,6 +1,7 @@
 import { v } from 'convex/values'
 import { query, mutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
+import { syncReadingRoomWriter } from './lib/readingRoomIndex'
 import { isArticleListingReady } from './lib/articleListingReady'
 import { syncAvatarUploadReference } from './lib/uploadReferences'
 
@@ -95,6 +96,7 @@ export const updateProfile = mutation({
     await ctx.db.patch(userId, updates)
     const updated = await ctx.db.get(userId)
     if (!updated) return null
+    if ('name' in args) await syncReadingRoomWriter(ctx, updated)
     const { hashedPassword: _, ...safeUser } = updated
     return safeUser
   },
