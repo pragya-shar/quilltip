@@ -1,3 +1,4 @@
+import { syncReadingRoomEngagement } from './lib/readingRoomIndex'
 import { v } from 'convex/values'
 import {
   internalAction,
@@ -206,11 +207,13 @@ export const confirmVerifiedArticleTip = internalMutation({
 
     const article = await ctx.db.get(tip.articleId)
     if (article) {
+      const tipCount = (article.tipCount || 0) + 1
       await ctx.db.patch(tip.articleId, {
-        tipCount: (article.tipCount || 0) + 1,
+        tipCount,
         totalTipsUsd: (article.totalTipsUsd || 0) + tip.amountUsd,
         updatedAt: now,
       })
+      await syncReadingRoomEngagement(ctx, tip.articleId, { tipCount })
     }
 
     const earnings = await ctx.db

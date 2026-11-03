@@ -115,6 +115,43 @@ export default defineSchema({
       filterFields: ['published', 'authorUsername'],
     }),
 
+  readingRoomArticles: defineTable({
+    articleId: v.id('articles'),
+    authorId: v.id('users'),
+    authorName: v.optional(v.string()),
+    authorUsername: v.string(),
+    title: v.string(),
+    grams: v.string(),
+    oversized: v.optional(v.boolean()),
+    tags: v.optional(v.array(v.string())),
+    publishedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    tipCount: v.optional(v.number()),
+    highlightCount: v.optional(v.number()),
+  })
+    .index('by_article', ['articleId'])
+    .index('by_author', ['authorId'])
+    .index('by_oversized', ['oversized'])
+    .searchIndex('by_grams', {
+      searchField: 'grams',
+      filterFields: ['authorId'],
+    }),
+
+  readingRoomWriters: defineTable({
+    authorId: v.id('users'),
+    grams: v.string(),
+    oversized: v.optional(v.boolean()),
+  })
+    .index('by_author', ['authorId'])
+    .index('by_oversized', ['oversized'])
+    .searchIndex('by_grams', { searchField: 'grams', filterFields: [] }),
+
+  readingRoomIndexState: defineTable({
+    version: v.literal(1),
+    cursor: v.union(v.string(), v.null()),
+    complete: v.boolean(),
+  }).index('by_version', ['version']),
+
   // One row per (article, tag) for published articles; used for indexed tag listing
   articleTagLinks: defineTable({
     articleId: v.id('articles'),
@@ -123,6 +160,7 @@ export default defineSchema({
     publishedAt: v.number(),
   })
     .index('by_article', ['articleId'])
+    .index('by_article_tag', ['articleId', 'tag'])
     .index('by_tag_publishedAt', ['tag', 'publishedAt'])
     .index('by_author_tag_publishedAt', ['authorId', 'tag', 'publishedAt']),
 

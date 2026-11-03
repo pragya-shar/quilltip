@@ -1,3 +1,4 @@
+import { syncReadingRoomEngagement } from './lib/readingRoomIndex'
 import { getTipArticleSummary } from './lib/tipArticleSummary'
 import { ConvexError, v } from 'convex/values'
 import { query, mutation, internalMutation } from './_generated/server'
@@ -542,10 +543,12 @@ export const confirmTip = internalMutation({
     // Update article stats
     const article = await ctx.db.get(tip.articleId)
     if (article) {
+      const tipCount = (article.tipCount || 0) + 1
       await ctx.db.patch(tip.articleId, {
-        tipCount: (article.tipCount || 0) + 1,
+        tipCount,
         totalTipsUsd: (article.totalTipsUsd || 0) + tip.amountUsd,
       })
+      await syncReadingRoomEngagement(ctx, tip.articleId, { tipCount })
     }
 
     // Update author earnings
@@ -687,10 +690,12 @@ export const markArticleTipFraudulent = internalMutation({
     // Reverse article counters
     const article = await ctx.db.get(tip.articleId)
     if (article) {
+      const tipCount = Math.max(0, (article.tipCount || 0) - 1)
       await ctx.db.patch(tip.articleId, {
-        tipCount: Math.max(0, (article.tipCount || 0) - 1),
+        tipCount,
         totalTipsUsd: Math.max(0, (article.totalTipsUsd || 0) - tip.amountUsd),
       })
+      await syncReadingRoomEngagement(ctx, tip.articleId, { tipCount })
     }
 
     // Reverse authorEarnings

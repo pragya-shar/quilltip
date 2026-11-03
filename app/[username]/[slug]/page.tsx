@@ -116,7 +116,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
   return (
     <div className="flex min-h-screen flex-col reader-surface">
       <AppNavigation />
-      <ReadingProgressBar />
+      <ReadingProgressBar articleId={article._id} />
       <main className="flex-1 pt-20 w-full">
         <EditorialSurface className="reader-layout">
           <Link href="/articles" className="reader-return">
