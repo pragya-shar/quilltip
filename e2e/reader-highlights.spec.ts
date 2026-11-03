@@ -49,7 +49,7 @@ test('notes on the same passage expose distinct content, authors, privacy and ti
   )
 })
 
-async function selectPassage(page: Page, paragraphIndex = 0) {
+async function selectPassage(page: Page, paragraphIndex = 0, unmarked = false) {
   await page.waitForLoadState('networkidle')
   const paragraph = page
     .locator('.highlightable-article .tiptap p')
@@ -57,17 +57,28 @@ async function selectPassage(page: Page, paragraphIndex = 0) {
   await expect(paragraph).toBeVisible()
   await paragraph.scrollIntoViewIfNeeded()
   // Use the browser's native selection, as a keyboard reader would.
-  await paragraph.evaluate((element) => {
+  await paragraph.evaluate((element, requireUnmarked) => {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
-    const text = walker.nextNode()!
+    let text = walker.nextNode()
+    if (requireUnmarked) {
+      while (
+        text &&
+        (text.parentElement?.closest('mark') ||
+          text.textContent!.trim().length < 50)
+      ) {
+        text = walker.nextNode()
+      }
+    }
+    if (!text) throw new Error('No suitable passage text in the QA paragraph')
+    const start = requireUnmarked ? text.textContent!.search(/\S/) : 0
     const range = document.createRange()
-    range.setStart(text, 0)
-    range.setEnd(text, Math.min(text.textContent!.length, 45))
+    range.setStart(text, start)
+    range.setEnd(text, Math.min(text.textContent!.length, start + 45))
     const selection = window.getSelection()!
     selection.removeAllRanges()
     selection.addRange(range)
     document.dispatchEvent(new Event('selectionchange'))
-  })
+  }, unmarked)
   return page.getByRole('dialog').first()
 }
 
@@ -283,6 +294,134 @@ test.describe('saved passages on a development backend', () => {
     await page.keyboard.press('Escape')
     await expect(tip).toBeHidden()
     await page.keyboard.press('Escape')
+  })
+
+  test('a new saved passage supports adding, clearing and retrying optional notes', async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(90000)
+    let rejectNoteSave = false
+    await page.routeWebSocket(/\.convex\.cloud\//, (socket) => {
+      const server = socket.connectToServer()
+      socket.onMessage((message) => {
+        const data = JSON.parse(message.toString())
+        if (
+          rejectNoteSave &&
+          data.type === 'Mutation' &&
+          data.udfPath === 'highlights:updateHighlight'
+        ) {
+          rejectNoteSave = false
+          socket.send(
+            JSON.stringify({
+              type: 'MutationResponse',
+              requestId: data.requestId,
+              success: false,
+              result: 'QA note save failure',
+              logLines: [],
+            })
+          )
+        } else server.send(message)
+      })
+    })
+    await page.goto('/login')
+    await page
+      .getByLabel('Email', { exact: true })
+      .fill(process.env.PLAYWRIGHT_QA_EMAIL!)
+    await page
+      .getByLabel('Password', { exact: true })
+      .fill(process.env.PLAYWRIGHT_QA_PASSWORD!)
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto(articlePath)
+    const create = await selectPassage(page, 5, true)
+    await expect(create.getByRole('textbox')).toHaveCount(0)
+    const text = await create.locator('blockquote').innerText()
+    const mark = page
+      .locator('mark[data-highlight-id]')
+      .filter({ hasText: text })
+    await expect(mark).toHaveCount(0)
+    await create
+      .getByRole('button', { name: 'Highlight only', exact: true })
+      .click()
+    await expect(create).toBeHidden()
+    const details = page.getByRole('dialog', {
+      name: 'Highlight details',
+      exact: true,
+    })
+    try {
+      await mark.click()
+      const disclosure = details.locator('.slip-note summary')
+      const note = details.getByRole('textbox', { name: 'Highlight note' })
+      const saveNote = details.getByRole('button', {
+        name: 'Save note',
+        exact: true,
+      })
+      const openNoteWithKeyboard = async () => {
+        await expect(
+          details.getByRole('button', {
+            name: 'Close highlight details',
+            exact: true,
+          })
+        ).toBeFocused()
+        for (
+          let i = 0;
+          i < 10 &&
+          !(await disclosure.evaluate((el) => el === document.activeElement));
+          i++
+        ) {
+          await page.keyboard.press('Tab')
+        }
+        await expect(disclosure).toBeFocused()
+        await expect(disclosure).toHaveCSS('outline-style', 'solid')
+        await page.keyboard.press('Enter')
+        await page.keyboard.press('Tab')
+        await expect(note).toBeFocused()
+        await expect(note).toHaveCSS('outline-style', 'solid')
+      }
+      await expect(disclosure).toContainText('Add a note')
+      await openNoteWithKeyboard()
+      await expect(note).toHaveValue('')
+      await note.fill('A first reflection')
+      await saveNote.click()
+      await expect(disclosure).toContainText('Saved note')
+      await page.reload()
+      await mark.click()
+      await disclosure.click()
+      await expect(note).toHaveValue('A first reflection')
+      await note.clear()
+      await saveNote.click()
+      await expect(disclosure).toContainText('Add a note')
+      await expect(note).toBeVisible()
+      await page.setViewportSize({ width: 390, height: 844 })
+      await page.reload()
+      await mark.click()
+      await expect(disclosure).toContainText('Add a note')
+      await openNoteWithKeyboard()
+      await expect(note).toHaveValue('')
+      rejectNoteSave = true
+      await note.fill('A second reflection')
+      await saveNote.click()
+      await expect(details.getByRole('alert')).toContainText('Please try again')
+      await expect(note).toHaveValue('A second reflection')
+      await saveNote.click()
+      await expect(disclosure).toContainText('Saved note')
+      await page.setViewportSize({ width: 1440, height: 1000 })
+      await page.reload()
+      await mark.click()
+      await disclosure.click()
+      await expect(note).toHaveValue('A second reflection')
+      await page.screenshot({ path: testInfo.outputPath('saved-note.png') })
+    } finally {
+      // The save belongs to this test; clear it even when a note assertion fails.
+      await page.reload()
+      await mark.click()
+      await details
+        .getByRole('button', { name: 'Remove highlight', exact: true })
+        .click()
+      await expect(details).toBeHidden()
+    }
   })
 
   test('save, appreciate, remove and undo persist without requiring a note or payment', async ({
