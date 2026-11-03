@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import { LiteraryObject } from './LiteraryObject'
 
 type Box = { x: number; y: number; w: number; h: number }
@@ -110,7 +110,8 @@ function arrangeStationery(root: HTMLElement, items: SVGSVGElement[]) {
 export function LandingOrnaments({
   rootSelector = '.landing-blend, .prototype-wallet',
   count = 36,
-}: { rootSelector?: string; count?: number } = {}) {
+  trackContent = false,
+}: { rootSelector?: string; count?: number; trackContent?: boolean } = {}) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const root = ref.current?.closest<HTMLElement>(rootSelector)
@@ -129,7 +130,7 @@ export function LandingOrnaments({
     const resize = new ResizeObserver(arrange)
     resize.observe(root)
     const content = new MutationObserver(arrange)
-    if (root.classList.contains('prototype-library')) {
+    if (trackContent) {
       content.observe(root, {
         childList: true,
         subtree: true,
@@ -153,7 +154,7 @@ export function LandingOrnaments({
       content.disconnect()
       removeEventListener('resize', arrange)
     }
-  }, [rootSelector])
+  }, [rootSelector, trackContent])
   return (
     <div ref={ref} className="literary-scatter" aria-hidden="true">
       {Array.from({ length: count }, (_, index) => {
@@ -167,6 +168,7 @@ export function LandingOrnaments({
             className="scatter-object"
             data-opening={index >= 28}
             data-kind={kind}
+            style={{ '--scatter-index': index } as CSSProperties}
             viewBox="0 0 170 170"
           >
             <LiteraryObject kind={kind} />

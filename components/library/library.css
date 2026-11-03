@@ -445,6 +445,7 @@
   opacity: 0.3;
   rotate: 13deg;
   animation: library-discover-drift 8s ease-in-out infinite alternate;
+  animation-delay: calc(var(--scatter-index) * -0.7s);
 }
 
 .prototype-library .scatter-object:nth-child(4n + 2) {
@@ -519,4 +520,10 @@
 .writer-collection > .library-browse {
   margin-top: 16px;
   text-decoration: underline;
+}
+
+.writer-collection .writer-row-action {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--accent);
 }

@@ -11,7 +11,11 @@ export function CollectionShell({
 }) {
   return (
     <div className="prototype-library" data-view="journal">
-      <LandingOrnaments rootSelector=".prototype-library" count={15} />
+      <LandingOrnaments
+        rootSelector=".prototype-library"
+        count={15}
+        trackContent
+      />
       <header>
         <LandingWordmark />
         <nav aria-label="Main navigation">

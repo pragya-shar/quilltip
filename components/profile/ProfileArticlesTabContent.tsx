@@ -75,7 +75,9 @@ export function ProfileArticlesTabContent({
               <strong>{article.title}</strong>
               <span>{displayName}</span>
             </span>
-            <span aria-hidden>↗</span>
+            <span className="writer-row-action" aria-hidden>
+              Read more ↗
+            </span>
           </Link>
         )
       })}
