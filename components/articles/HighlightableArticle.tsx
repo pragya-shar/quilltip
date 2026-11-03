@@ -2,6 +2,7 @@
 
 import { focusLibraryHighlight } from '@/lib/library/focusHighlight'
 
+import { createPortal } from 'react-dom'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import {
@@ -41,6 +42,7 @@ import {
   shouldKeepTryingHighlightSelectionResume,
 } from '@/lib/highlight/resumePendingHighlightSelection'
 import type { TocHeading } from '@/lib/tiptap/headings'
+import { ArticlePassageRail } from '@/components/articles/ArticlePassageRail'
 import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
 import { getCurrentReturnPath } from '@/lib/auth/safeReturnPath'
 import {
@@ -78,6 +80,7 @@ interface HighlightableArticleProps {
   onHighlightClick?: (highlight: HighlightData) => void
   className?: string
   tocHeadings?: TocHeading[]
+  passageRailTarget?: HTMLElement | null
 }
 
 export function HighlightableArticle({
@@ -88,6 +91,7 @@ export function HighlightableArticle({
   onHighlightClick,
   className,
   tocHeadings = [],
+  passageRailTarget,
 }: HighlightableArticleProps) {
   const [selectedText, setSelectedText] = useState<{
     text: string
@@ -499,6 +503,17 @@ export function HighlightableArticle({
     return () => cancelAnimationFrame(raf1)
   }, [popoverPosition, selectedText])
 
+  const focusPassage = useCallback((id: string) => {
+    const root = editorRef.current
+    return root
+      ? focusLibraryHighlight(
+          root,
+          id,
+          matchMedia('(prefers-reduced-motion: reduce)').matches
+        )
+      : false
+  }, [])
+
   useEffect(() => {
     if (!editor || !highlights || !highlightsActive) return
 
@@ -506,22 +521,20 @@ export function HighlightableArticle({
     isApplyingHighlightsRef.current = true
     HighlightConverter.applyHighlightsToEditor(editor, highlights)
     // Clear flag after selection events from apply have fired
-    requestAnimationFrame(() => {
+    const frame = requestAnimationFrame(() => {
       isApplyingHighlightsRef.current = false
       if (
         libraryHighlight &&
         focusedLibraryHighlight.current !== libraryHighlight &&
-        editorRef.current &&
-        focusLibraryHighlight(
-          editorRef.current,
-          libraryHighlight,
-          matchMedia('(prefers-reduced-motion: reduce)').matches,
-          { editor, highlights }
-        )
+        focusPassage(libraryHighlight)
       )
         focusedLibraryHighlight.current = libraryHighlight
     })
-  }, [editor, highlights, highlightsActive, libraryHighlight])
+    return () => {
+      cancelAnimationFrame(frame)
+      isApplyingHighlightsRef.current = false
+    }
+  }, [editor, highlights, highlightsActive, libraryHighlight, focusPassage])
 
   // Show overlay only after the user releases a drag-select.
   useEffect(() => {
@@ -714,6 +727,13 @@ export function HighlightableArticle({
     })
   }, [articleId, signInSelection])
 
+  const ownPassages =
+    highlightsActive && user
+      ? highlights
+          ?.filter((highlight) => highlight.userId === user._id)
+          .sort((a, b) => a.startOffset - b.startOffset)
+      : undefined
+
   const activeTooltipHighlight =
     highlightTooltip &&
     highlights?.find((h) => h._id === highlightTooltip.highlight._id)
@@ -724,6 +744,19 @@ export function HighlightableArticle({
       ref={editorRef}
     >
       <EditorContent editor={editor} />
+
+      {passageRailTarget &&
+        editor &&
+        highlights &&
+        ownPassages &&
+        createPortal(
+          <ArticlePassageRail
+            key={`${articleId}:${user?._id}`}
+            passages={ownPassages}
+            onActivate={focusPassage}
+          />,
+          passageRailTarget
+        )}
 
       <AnimatePresence>
         {popoverPosition &&

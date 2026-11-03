@@ -44,6 +44,7 @@ export interface HighlightSegment<T extends HighlightRangeInput> {
   startOffset: number
   endOffset: number
   overlapCount: number
+  passageStartIds: string[]
   primary: T
 }
 
@@ -75,6 +76,9 @@ export function buildHighlightSegments<T extends HighlightRangeInput>(
       startOffset,
       endOffset,
       overlapCount: Math.min(covering.length, 5),
+      passageStartIds: covering
+        .filter((range) => range.startOffset === startOffset)
+        .map((range) => range.id),
       primary: pickPrimaryRange(covering),
     })
   }
