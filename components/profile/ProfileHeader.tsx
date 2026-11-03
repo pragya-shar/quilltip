@@ -1,16 +1,17 @@
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { ProfileAvatarEditor } from '@/components/profile/ProfileAvatarEditor'
 import { formatDistanceToNow } from 'date-fns'
+import { useUserStats } from '@/hooks/convex'
+import type { Id } from '@/types/convex'
 
 interface ProfileHeaderProps {
   user: {
-    id: string
+    _id: Id<'users'>
     username: string
     name?: string | null
     bio?: string | null
     avatar?: string | null
-    createdAt: Date | string
-    articleCount: number | null
+    createdAt: number
   }
   isOwnProfile?: boolean
 }
@@ -19,6 +20,7 @@ export default function ProfileHeader({
   user,
   isOwnProfile = false,
 }: ProfileHeaderProps) {
+  const articleCount = useUserStats(user._id)?.articleCount
   const memberSince = formatDistanceToNow(new Date(user.createdAt), {
     addSuffix: true,
   })
@@ -48,8 +50,8 @@ export default function ProfileHeader({
         {user.bio && <p className="profile-bio">{user.bio}</p>}
         <div className="profile-member-info">
           <p>
-            <strong>{user.articleCount ?? '…'}</strong>{' '}
-            {user.articleCount === 1 ? 'article' : 'articles'} published
+            <strong>{articleCount ?? '…'}</strong>{' '}
+            {articleCount === 1 ? 'article' : 'articles'} published
           </p>
           <p>Joined {memberSince}</p>
         </div>

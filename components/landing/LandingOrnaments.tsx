@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type CSSProperties } from 'react'
 import { LiteraryObject } from './LiteraryObject'
 
 type Box = { x: number; y: number; w: number; h: number }
@@ -22,7 +22,7 @@ function arrangeStationery(root: HTMLElement, items: SVGSVGElement[]) {
     obstacles: Box[] = []
   root
     .querySelectorAll(
-      '.hero-copy,.margin-note,.paper-note,h1,h2,h3,p,small,summary,button,a,input,textarea,nav,.reading-paper,.reading-room-card,.reading-room .toolbar,.reading-room-header,.reading-room-footer,.reading-room .writer-filter'
+      '.hero-copy,.margin-note,.paper-note,h1,h2,h3,p,small,summary,button,a,input,textarea,nav,.reading-paper,.reading-room-card,.reading-room .toolbar,.reading-room-header,.reading-room-footer,.reading-room .writer-filter,.library-row,.library-empty,.collection-page > nav,.collection-page .eyebrow'
     )
     .forEach((element) => {
       if (!element.getClientRects().length) return
@@ -50,6 +50,7 @@ function arrangeStationery(root: HTMLElement, items: SVGSVGElement[]) {
   }
   items.forEach((element, index) => {
     element.style.visibility = 'hidden'
+    if (element.getClientRects().length === 0) return
     const size = parseFloat(getComputedStyle(element).width),
       kind = element.dataset.kind ?? String(index % 12)
     let best: Placed | null = null,
@@ -109,7 +110,8 @@ function arrangeStationery(root: HTMLElement, items: SVGSVGElement[]) {
 export function LandingOrnaments({
   rootSelector = '.landing-blend, .prototype-wallet',
   count = 36,
-}: { rootSelector?: string; count?: number } = {}) {
+  trackContent = false,
+}: { rootSelector?: string; count?: number; trackContent?: boolean } = {}) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const root = ref.current?.closest<HTMLElement>(rootSelector)
@@ -127,6 +129,14 @@ export function LandingOrnaments({
     }
     const resize = new ResizeObserver(arrange)
     resize.observe(root)
+    const content = new MutationObserver(arrange)
+    if (trackContent) {
+      content.observe(root, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      })
+    }
     const opening = new MutationObserver(arrange)
     opening.observe(root, {
       attributes: true,
@@ -141,9 +151,10 @@ export function LandingOrnaments({
       cancelAnimationFrame(frame)
       resize.disconnect()
       opening.disconnect()
+      content.disconnect()
       removeEventListener('resize', arrange)
     }
-  }, [rootSelector])
+  }, [rootSelector, trackContent])
   return (
     <div ref={ref} className="literary-scatter" aria-hidden="true">
       {Array.from({ length: count }, (_, index) => {
@@ -157,6 +168,7 @@ export function LandingOrnaments({
             className="scatter-object"
             data-opening={index >= 28}
             data-kind={kind}
+            style={{ '--scatter-index': index } as CSSProperties}
             viewBox="0 0 170 170"
           >
             <LiteraryObject kind={kind} />

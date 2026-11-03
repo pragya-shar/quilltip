@@ -423,3 +423,107 @@
 .prototype-library .collection-page h2 {
   margin-bottom: 0.83em;
 }
+
+.prototype-library .literary-scatter {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: -1;
+  color: var(--accent);
+}
+
+.prototype-library .scatter-object {
+  position: absolute;
+  visibility: hidden;
+  width: 43px;
+  fill: #dfc9b0;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.3;
+  rotate: 13deg;
+  animation: library-discover-drift 8s ease-in-out infinite alternate;
+  animation-delay: calc(var(--scatter-index) * -0.7s);
+}
+
+.prototype-library .scatter-object:nth-child(4n + 2) {
+  width: 46px;
+}
+
+.prototype-library .scatter-object:nth-child(4n + 3) {
+  width: 49px;
+}
+
+.prototype-library .scatter-object:nth-child(4n) {
+  width: 52px;
+}
+
+.prototype-library .scatter-object:nth-child(5n + 2) {
+  rotate: -17deg;
+}
+
+.prototype-library .scatter-object:nth-child(5n + 3) {
+  rotate: 8deg;
+}
+
+.prototype-library .scatter-object:nth-child(5n + 4) {
+  rotate: -9deg;
+}
+
+.prototype-library .scatter-object:nth-child(5n) {
+  rotate: 19deg;
+}
+
+@media (max-width: 600px) {
+  .prototype-library .literary-scatter .scatter-object {
+    width: 26px;
+    opacity: 0.25;
+  }
+
+  .prototype-library .literary-scatter .scatter-object:nth-child(3n + 2) {
+    width: 29px;
+  }
+
+  .prototype-library .literary-scatter .scatter-object:nth-child(3n) {
+    width: 32px;
+  }
+
+  .prototype-library .scatter-object:nth-child(n + 10) {
+    display: none;
+  }
+}
+
+.writer-collection {
+  overflow-wrap: anywhere;
+}
+
+.writer-collection > .eyebrow {
+  display: block;
+  margin: 8px 0 0;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.writer-collection > .writer-biography {
+  white-space: pre-line;
+}
+
+.writer-collection .writer-pagination:has(nav) {
+  margin-block: 24px;
+}
+
+.writer-collection > .library-browse {
+  margin-top: 16px;
+  text-decoration: underline;
+}
+
+.writer-collection .writer-row-action {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--accent);
+}

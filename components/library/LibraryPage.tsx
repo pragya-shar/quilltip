@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
 import { buildRegisterHref } from '@/lib/auth/safeReturnPath'
 import { AccountLibrary } from './AccountLibrary'
-import { LibraryShell } from './LibraryShell'
+import { CollectionShell } from './CollectionShell'
 
 export function LibraryPage() {
   const { user, isAuthenticated, isLoading } = useAuth()
@@ -15,7 +15,7 @@ export function LibraryPage() {
       router.replace(buildRegisterHref('/library'))
   }, [isLoading, isAuthenticated, router])
   return (
-    <LibraryShell>
+    <CollectionShell isLibrary>
       {!isLoading && isAuthenticated && user ? (
         <AccountLibrary key={user._id} userId={user._id} />
       ) : (
@@ -35,6 +35,6 @@ export function LibraryPage() {
           )}
         </main>
       )}
-    </LibraryShell>
+    </CollectionShell>
   )
 }
