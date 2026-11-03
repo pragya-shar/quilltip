@@ -1,6 +1,9 @@
 import { extractTextFromTiptapJson } from '../../convex/lib/tiptapContent'
 
-const sentenceSegmenter = new Intl.Segmenter('en', { granularity: 'sentence' })
+const sentenceSegmenter =
+  typeof Intl.Segmenter === 'function'
+    ? new Intl.Segmenter('en', { granularity: 'sentence' })
+    : null
 
 export function getArticleOpening(article: {
   excerpt?: string | null
@@ -15,10 +18,12 @@ export function getArticleOpening(article: {
     .trim()
   const sentence =
     sentenceSegmenter
-      .segment(text)
+      ?.segment(text)
       [Symbol.iterator]()
       .next()
-      .value?.segment.trim() ?? ''
+      .value?.segment.trim() ??
+    text.match(/^.*?(?:[.!?](?=\s|$)|[。！？])/u)?.[0] ??
+    text
   if (sentence.length <= 160) return sentence
   const prefix = sentence.slice(0, 159)
   const boundary = prefix.lastIndexOf(' ')

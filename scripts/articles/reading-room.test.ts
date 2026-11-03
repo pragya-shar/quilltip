@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api } from '../../convex/_generated/api'
 import { getArticleOpening } from '../../lib/articles/getArticleOpening'
@@ -113,4 +113,21 @@ test('compact previews use the opening and browse links preserve active filters 
     page: 2,
   })
   expect(href).toBe('/articles?bookmarked=1&search=marin&sort=title&page=2')
+})
+
+test('compact previews load when Intl.Segmenter is unavailable', async () => {
+  vi.resetModules()
+  const intl = Object.create(Intl, { Segmenter: { value: undefined } })
+  vi.stubGlobal('Intl', intl)
+  try {
+    const { getArticleOpening } =
+      await import('../../lib/articles/getArticleOpening')
+    expect(getArticleOpening({ content })).toBe('First sentence.')
+    expect(getArticleOpening({ excerpt: '最初の文。次の文。' })).toBe(
+      '最初の文。'
+    )
+  } finally {
+    vi.unstubAllGlobals()
+    vi.resetModules()
+  }
 })
