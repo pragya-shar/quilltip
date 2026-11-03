@@ -22,7 +22,7 @@ function arrangeStationery(root: HTMLElement, items: SVGSVGElement[]) {
     obstacles: Box[] = []
   root
     .querySelectorAll(
-      '.hero-copy,.margin-note,.paper-note,h1,h2,h3,p,small,summary,button,a,input,textarea,nav,.reading-paper,.reading-room-card,.reading-room .toolbar,.reading-room-header,.reading-room-footer,.reading-room .writer-filter'
+      '.hero-copy,.margin-note,.paper-note,h1,h2,h3,p,small,summary,button,a,input,textarea,nav,.reading-paper,.reading-room-card,.reading-room .toolbar,.reading-room-header,.reading-room-footer,.reading-room .writer-filter,.library-row,.library-empty,.collection-page > nav,.collection-page .eyebrow'
     )
     .forEach((element) => {
       if (!element.getClientRects().length) return
@@ -50,6 +50,7 @@ function arrangeStationery(root: HTMLElement, items: SVGSVGElement[]) {
   }
   items.forEach((element, index) => {
     element.style.visibility = 'hidden'
+    if (element.getClientRects().length === 0) return
     const size = parseFloat(getComputedStyle(element).width),
       kind = element.dataset.kind ?? String(index % 12)
     let best: Placed | null = null,
@@ -127,6 +128,14 @@ export function LandingOrnaments({
     }
     const resize = new ResizeObserver(arrange)
     resize.observe(root)
+    const content = new MutationObserver(arrange)
+    if (root.classList.contains('prototype-library')) {
+      content.observe(root, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      })
+    }
     const opening = new MutationObserver(arrange)
     opening.observe(root, {
       attributes: true,
@@ -141,6 +150,7 @@ export function LandingOrnaments({
       cancelAnimationFrame(frame)
       resize.disconnect()
       opening.disconnect()
+      content.disconnect()
       removeEventListener('resize', arrange)
     }
   }, [rootSelector])

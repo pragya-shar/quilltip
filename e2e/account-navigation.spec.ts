@@ -37,10 +37,13 @@ async function expectDestination(page: Page, label: string, path: string) {
       ).toBeVisible()
       break
     case 'Public profile':
-      // The handle comes from this session, never a seeded or published article.
-      await expect(
-        page.getByText(`@${path.slice(1)}`, { exact: true })
-      ).toBeVisible()
+      await expect(page.getByText('Writer', { exact: true })).toBeVisible()
+      await page
+        .getByRole('link', { name: /Profile photo and NFT collection/ })
+        .click()
+      await expect(page).toHaveURL(
+        (url) => url.pathname === path && url.searchParams.get('tab') === 'nfts'
+      )
       await expect(
         page.getByRole('button', { name: 'Change profile photo', exact: true })
       ).toBeVisible()
