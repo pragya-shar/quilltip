@@ -69,6 +69,7 @@ export function WriterIntroduction() {
       setStep(next)
       setHeld(false)
       if (focusNext) tabs.current[next]?.focus({ preventScroll: true })
+      else setFocused(false)
     } else {
       setHeld(true)
     }

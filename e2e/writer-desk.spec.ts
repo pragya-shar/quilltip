@@ -130,4 +130,6 @@ test('the sample card holds before continuing to the next stage', async ({
   await page.getByRole('button', { name: `Continue to ${next}` }).click()
   await expect(selected).toHaveText(next)
   await expect(hold).toBeFocused()
+  await expect(selected).toHaveText(current!)
+  await expect(hold).toBeFocused()
 })
