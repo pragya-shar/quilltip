@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useConvex } from 'convex/react'
 import {
   uploadFile,
@@ -16,9 +16,11 @@ import type { ArticleStyle } from '@/lib/editor/articleAppearance'
 export function WritingMedia({
   workspace: w,
   appearance,
+  insertTrigger,
 }: {
   workspace: WritingWorkspace
   appearance: ArticleStyle
+  insertTrigger: RefObject<HTMLButtonElement | null>
 }) {
   const convex = useConvex()
   const [url, setUrl] = useState('')
@@ -103,6 +105,7 @@ export function WritingMedia({
       }
       appearance={appearance}
       busy={busy}
+      fallbackFocus={insertTrigger}
     >
       {!w.showBodyYouTubeDialog && (
         <>

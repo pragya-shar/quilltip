@@ -1,6 +1,6 @@
 'use client'
 import * as Dialog from '@radix-ui/react-dialog'
-import { useRef, type ReactNode } from 'react'
+import { useRef, type ReactNode, type RefObject } from 'react'
 import {
   articleAppearanceClasses,
   type ArticleStyle,
@@ -16,6 +16,7 @@ export function WritingDialog({
   modal = true,
   busy = false,
   header = true,
+  fallbackFocus,
 }: {
   open: boolean
   onClose: () => void
@@ -26,6 +27,7 @@ export function WritingDialog({
   modal?: boolean
   busy?: boolean
   header?: boolean
+  fallbackFocus?: RefObject<HTMLElement | null>
 }) {
   const returnFocus = useRef<HTMLElement | null>(null)
   return (
@@ -49,7 +51,12 @@ export function WritingDialog({
             }}
             onCloseAutoFocus={(event) => {
               event.preventDefault()
-              returnFocus.current?.focus()
+              const target = returnFocus.current
+              if (target?.isConnected && target !== document.body) {
+                target.focus()
+              } else {
+                fallbackFocus?.current?.focus()
+              }
             }}
             onEscapeKeyDown={(event) => {
               if (busy) event.preventDefault()

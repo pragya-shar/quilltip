@@ -106,6 +106,7 @@
   margin-right: 12px;
 }
 .writing-workspace .desk-nav {
+  position: relative;
   max-width: 1100px;
   margin: 18px auto 0;
   display: flex;
@@ -242,33 +243,40 @@
   font-size: 12px;
   padding: 0 20px 30px;
 }
-.writing-workspace .trial-footer button {
-  font-size: 12px;
-  text-decoration: underline;
-  margin-left: 15px;
-}
 .writing-workspace .formatbar {
-  position: fixed;
+  position: absolute;
   z-index: 5;
+  top: calc(100% + 8px);
+  right: 8px;
+  width: min(370px, calc(100% - 16px));
+  display: flex;
+  align-items: center;
   background: #fff5e6;
   box-shadow: 0 6px 30px #38000a24;
   border: 1px solid #66003325;
   border-radius: 9px;
   padding: 4px;
-  max-width: calc(100vw - 16px);
-  display: flex;
-  align-items: center;
 }
-.writing-workspace .formatbar[hidden] {
-  display: none;
-}
-.writing-workspace .formatbar button {
-  min-width: 38px;
-  padding: 8px 10px;
+.writing-workspace .desk-nav .formatbar button {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 2px;
+  white-space: nowrap;
   color: #660033;
 }
 .writing-workspace .formatbar button[aria-pressed='true'] {
   background: #e9ccd6;
+}
+@media (min-width: 1320px) {
+  .writing-workspace .format-tools {
+    position: relative;
+  }
+  .writing-workspace .formatbar {
+    left: 0;
+    right: auto;
+    width: 370px;
+  }
 }
 .writing-workspace .writer-dialog {
   color: var(--ink);
@@ -595,10 +603,6 @@
   .writing-workspace .trial-footer {
     font-size: 11px;
   }
-  .writing-workspace .formatbar button {
-    padding: 8px;
-    min-width: 36px;
-  }
   .writing-workspace .preview-dialog .sheet {
     margin: 16px 12px;
   }
@@ -628,12 +632,6 @@
 }
 .writing-workspace .paper-footer {
   font-size: 12px;
-}
-.writing-workspace .formatbar button {
-  min-width: 44px;
-}
-.writing-workspace .formatbar {
-  flex-wrap: wrap;
 }
 .writing-workspace #save-help {
   font-size: 12px;
@@ -751,9 +749,6 @@
   .writing-workspace .preview-header > div {
     flex-direction: column;
     gap: 3px;
-  }
-  .writing-workspace .formatbar {
-    max-width: calc(100vw - 16px);
   }
   .writing-workspace #save-help {
     position: absolute;
@@ -1112,20 +1107,6 @@
   aspect-ratio: 16/9;
   height: auto;
 }
-.writing-workspace .formatbar {
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  justify-content: center;
-}
-.writing-workspace .formatbar select {
-  background: transparent;
-  border: 0;
-  font-size: 13px;
-  max-width: 90px;
-  color: var(--wine);
-}
 .writing-workspace .writer-notice {
   max-width: 780px;
   margin: 16px auto;
@@ -1144,13 +1125,6 @@
 .writing-workspace .writer-body.dragging {
   outline: 2px dashed var(--wine);
   outline-offset: 12px;
-}
-.writing-workspace .writer-notes {
-  min-height: 240px;
-  border: 1px solid #66003340;
-  background: #fff7e9;
-  padding: 14px;
-  resize: vertical;
 }
 .writing-workspace .preview-body {
   color: var(--ink);
@@ -1221,10 +1195,6 @@
   background: var(--wine);
 }
 @media (max-width: 650px) {
-  .writing-workspace .formatbar {
-    bottom: 12px;
-    width: calc(100vw - 24px);
-  }
   .writing-workspace .preview-dialog .sheet {
     width: auto;
   }

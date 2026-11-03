@@ -35,20 +35,38 @@ export function WritingWorkspaceView({
   workspace: WritingWorkspace
 }) {
   const [panel, setPanel] = useState<
-    | 'appearance'
-    | 'writing'
-    | 'preview'
-    | 'insert'
-    | 'link'
-    | 'publish'
-    | 'notes'
-    | null
+    'appearance' | 'writing' | 'preview' | 'insert' | 'link' | 'publish' | null
   >(w.initialWritingOpen ? 'writing' : null)
   const [focus, setFocus] = useState(false)
   const [format, setFormat] = useState(false)
   const [link, setLink] = useState('')
   const [linkError, setLinkError] = useState('')
   const [leaving, setLeaving] = useState(false)
+  const insertTrigger = useRef<HTMLButtonElement>(null)
+  const formatTrigger = useRef<HTMLButtonElement>(null)
+  const formatTools = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!format) return
+    const dismissOutside = (event: PointerEvent) => {
+      if (
+        event.target instanceof Element &&
+        !formatTools.current?.contains(event.target) &&
+        !event.target.closest('.writer-body, .writing-portal')
+      )
+        setFormat(false)
+    }
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || panel || event.defaultPrevented) return
+      setFormat(false)
+      formatTrigger.current?.focus()
+    }
+    document.addEventListener('pointerdown', dismissOutside)
+    document.addEventListener('keydown', dismissOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside)
+      document.removeEventListener('keydown', dismissOnEscape)
+    }
+  }, [format, panel])
   const titleRef = useRef<HTMLTextAreaElement>(null)
   const appearance = getArticleAppearance(w.editorContent)
   const [localAppearance, setLocalAppearance] = useState<ArticleStyle | null>(
@@ -291,9 +309,32 @@ export function WritingWorkspaceView({
           ☰ <span>Your writing</span>
         </button>
         <div>
-          <button aria-expanded={format} onClick={() => setFormat((v) => !v)}>
-            Aa <span>Format</span>
-          </button>
+          <div className="format-tools" ref={formatTools}>
+            <button
+              ref={formatTrigger}
+              aria-expanded={format}
+              aria-controls={format ? 'writing-format-tools' : undefined}
+              disabled={!w.editor || w.isPublishing}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setFormat((v) => !v)}
+            >
+              Aa <span>Format</span>
+            </button>
+            {format && w.editor && (
+              <WritingToolbar
+                editor={w.editor}
+                onClose={() => {
+                  setFormat(false)
+                  formatTrigger.current?.focus()
+                }}
+                onLink={() => {
+                  setLink(w.editor?.getAttributes('link').href || '')
+                  setLinkError('')
+                  setPanel('link')
+                }}
+              />
+            )}
+          </div>
           <button
             id="focus"
             aria-pressed={focus}
@@ -301,7 +342,7 @@ export function WritingWorkspaceView({
           >
             Focus
           </button>
-          <button onClick={() => setPanel('insert')}>
+          <button ref={insertTrigger} onClick={() => setPanel('insert')}>
             ＋ <span>Insert</span>
           </button>
         </div>
@@ -420,19 +461,7 @@ export function WritingWorkspaceView({
       </main>
       <footer className="trial-footer">
         Your writing, saved to your account.
-        <button onClick={() => setPanel('notes')}>Private notes</button>
       </footer>
-      {format && w.editor && (
-        <WritingToolbar
-          editor={w.editor}
-          onClose={() => setFormat(false)}
-          onLink={() => {
-            setLink(w.editor?.getAttributes('link').href || '')
-            setLinkError('')
-            setPanel('link')
-          }}
-        />
-      )}
       <WritingDialog
         open={panel === 'appearance'}
         onClose={close}
@@ -602,15 +631,6 @@ export function WritingWorkspaceView({
         >
           Divider <span>A pause between thoughts</span>
         </button>
-        <button
-          className="insert-option"
-          onClick={() => {
-            close()
-            w.setShowBodyYouTubeDialog(true)
-          }}
-        >
-          Video <span>Embed from YouTube ↗</span>
-        </button>
         <p className="muted">
           Images upload to your account and save with your draft.
         </p>
@@ -661,32 +681,6 @@ export function WritingWorkspaceView({
             Remove link
           </button>
         </form>
-      </WritingDialog>
-      <WritingDialog
-        open={panel === 'notes'}
-        onClose={close}
-        title="Room for a thought."
-        kind="drawer"
-        appearance={style}
-      >
-        <p className="muted">
-          Private notes for this draft. Only you can see them.
-        </p>
-        <label className="sr-only" htmlFor="writer-notes">
-          Private notes
-        </label>
-        <textarea
-          id="writer-notes"
-          className="writer-notes"
-          value={w.writerNotes}
-          onChange={(e) => {
-            w.setWriterNotes(e.target.value)
-            w.setHasUnsavedChanges(true)
-          }}
-        />
-        <button className="wine wide" onClick={close}>
-          Back to writing
-        </button>
       </WritingDialog>
       <WritingDialog
         open={
@@ -955,7 +949,11 @@ export function WritingWorkspaceView({
           Keep writing
         </button>
       </WritingDialog>
-      <WritingMedia workspace={w} appearance={style} />
+      <WritingMedia
+        workspace={w}
+        appearance={style}
+        insertTrigger={insertTrigger}
+      />
     </div>
   )
 }
