@@ -1,7 +1,8 @@
 export type BrowseView = 'latest' | 'trending' | 'featured'
-export type BrowseSort = 'newest' | 'oldest' | 'most_tipped'
+export type BrowseSort = 'newest' | 'oldest' | 'most_tipped' | 'title'
 
 export type BrowseSortableArticle = {
+  title?: string
   publishedAt?: number
   tipCount?: number
   highlightCount?: number
@@ -35,6 +36,15 @@ function sortByLatest<T extends BrowseSortableArticle>(
   sort: BrowseSort
 ): T[] {
   const copy = [...articles]
+  if (sort === 'title') {
+    copy.sort(
+      (a, b) =>
+        (a.title ?? '').localeCompare(b.title ?? '', 'en', {
+          sensitivity: 'base',
+        }) || comparePublishedAtDesc(a, b)
+    )
+    return copy
+  }
   if (sort === 'oldest') {
     copy.sort(comparePublishedAtAsc)
     return copy

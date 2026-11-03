@@ -1,15 +1,20 @@
 import type { ListArticleRow } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
 import { getArticlePreview } from '@/convex/lib/articlePreview'
+import { getArticleOpening } from './getArticleOpening'
 
 export function mapListArticleRowToDisplay(
-  article: ListArticleRow
+  article: ListArticleRow,
+  options?: { compact?: boolean }
 ): ArticleForDisplay {
   return {
     id: article._id,
     slug: article.slug,
     title: article.title,
-    excerpt: getArticlePreview(article) || null,
+    excerpt:
+      (options?.compact
+        ? getArticleOpening(article)
+        : getArticlePreview(article)) || null,
     coverImage: article.coverImage ?? null,
     publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
     author: article.author
@@ -37,7 +42,8 @@ export function mapListArticleRowToDisplay(
 }
 
 export function mapListArticlesToDisplay(
-  articles: ListArticleRow[]
+  articles: ListArticleRow[],
+  options?: { compact?: boolean }
 ): ArticleForDisplay[] {
-  return articles.map(mapListArticleRowToDisplay)
+  return articles.map((article) => mapListArticleRowToDisplay(article, options))
 }

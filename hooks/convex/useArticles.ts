@@ -2,7 +2,11 @@ import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/types/convex'
 
-import type { BrowseSort, BrowseView } from '@/lib/articles/browseDiscovery'
+import type {
+  BrowseSort,
+  BrowseView,
+  ReadingRoomCategory,
+} from '@/lib/articles/browseDiscovery'
 
 export type ListArticlesArgs = {
   page?: number
@@ -11,6 +15,9 @@ export type ListArticlesArgs = {
   author?: string
   search?: string
   view?: BrowseView
+  category?: ReadingRoomCategory
+  bookmarkIds?: string[]
+  searchByWriterOrTitle?: boolean
   sort?: BrowseSort
 }
 
