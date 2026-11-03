@@ -4,6 +4,7 @@ import { TipButton } from '@/components/tipping/TipButton'
 import type { ArticleTipActionsProps } from '@/components/tipping/ArticleTipActionsShared'
 
 export function ArticleTipActionsInner({
+  articleTitle,
   articleId,
   articleSlug: _articleSlug,
   authorName,
@@ -12,6 +13,7 @@ export function ArticleTipActionsInner({
   return (
     <>
       <TipButton
+        articleTitle={articleTitle}
         articleId={articleId}
         authorName={authorName}
         authorStellarAddress={authorStellarAddress}

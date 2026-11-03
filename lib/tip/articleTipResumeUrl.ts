@@ -1,3 +1,4 @@
+import { tipXlmPresetSchema } from './pendingTipIntent'
 import type { Id } from '@/convex/_generated/dataModel'
 import type { ArticlePendingTipIntent } from '@/lib/tip/pendingTipIntent'
 
@@ -20,6 +21,8 @@ export function appendArticleTipResumeToReturnPath(
   )
 
   params.set(RESUME_ARTICLE_TIP_PARAM, '1')
+  if (intent.amountXlm !== undefined)
+    params.set('tipXlm', String(intent.amountXlm))
   if (intent.amountCents != null) {
     params.set(TIP_CENTS_PARAM, String(intent.amountCents))
   }
@@ -46,6 +49,7 @@ export function parseArticleTipResumeFromSearchParams(
 ): ArticlePendingTipIntent | null {
   if (!hasArticleTipResumeFlag(searchParams)) return null
 
+  const xlm = tipXlmPresetSchema.safeParse(Number(searchParams.get('tipXlm')))
   const centsRaw = searchParams.get(TIP_CENTS_PARAM)
   const amountCents =
     centsRaw !== null ? Number.parseInt(centsRaw, 10) : undefined
@@ -67,6 +71,7 @@ export function parseArticleTipResumeFromSearchParams(
   return {
     kind: 'article',
     articleId: String(articleId),
+    ...(xlm.success ? { amountXlm: xlm.data } : {}),
     ...(amountCents !== undefined ? { amountCents } : {}),
     ...(customAmount ? { customAmount } : {}),
     ...(message ? { message } : {}),

@@ -1,3 +1,4 @@
+import { tipXlmPresetValidator } from './lib/articleTipExpectation'
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { authTables } from '@convex-dev/auth/server'
@@ -222,6 +223,7 @@ export default defineSchema({
     expectedSourceAccount: v.string(),
     expectedDestinationAccount: v.string(),
     expectedArticleSymbol: v.string(),
+    amountXlm: v.optional(tipXlmPresetValidator),
     expectedAmountStroops: v.string(),
     expectedContractId: v.optional(v.string()),
     expectedMinTime: v.optional(v.string()),
@@ -268,6 +270,7 @@ export default defineSchema({
     expectedDestinationAccount: v.string(),
     expectedHighlightId: v.string(),
     expectedArticleSymbol: v.string(),
+    amountXlm: v.optional(tipXlmPresetValidator),
     expectedAmountStroops: v.string(),
     expectedContractId: v.string(),
     expectedFunction: v.optional(v.string()),

@@ -1,3 +1,4 @@
+import { tipXlmPresetSchema } from './pendingTipIntent'
 import { z } from 'zod'
 import type { Id } from '@/convex/_generated/dataModel'
 
@@ -12,6 +13,7 @@ const pendingHighlightTipReceiptSchema = z.object({
   articleId: z.string().min(1),
   highlightId: z.string().min(1),
   tipperId: z.string().min(1),
+  amountXlm: tipXlmPresetSchema.optional(),
   amountCents: z.number().int().positive(),
   stellarNetwork: z.union([z.literal('TESTNET'), z.literal('MAINNET')]),
   stellarSourceAccount: z.string().min(1),

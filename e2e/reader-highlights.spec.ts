@@ -229,8 +229,12 @@ test.describe('saved passages on a development backend', () => {
       .getByRole('button', { name: 'Highlight & tip', exact: true })
       .click()
     const tip = page.getByTestId('highlight-tip-dialog')
-    await tip.getByRole('button', { name: '50¢', exact: true }).click()
-    await tip.getByRole('button', { name: 'Continue', exact: true }).click()
+    await tip
+      .getByRole('button', { name: /^2( test)? XLM$/, exact: true })
+      .click()
+    await tip
+      .getByRole('button', { name: 'Choose wallet', exact: true })
+      .click()
     await page.evaluate(() => {
       Object.defineProperty(sessionStorage, 'setItem', {
         configurable: true,
@@ -275,7 +279,7 @@ test.describe('saved passages on a development backend', () => {
       .getByRole('button', { name: 'Highlight & tip', exact: true })
       .click()
     await expect(tip).toBeVisible()
-    await expect(tip).toContainText('$0.50')
+    await expect(tip).toContainText(/2( test)? XLM/)
     await page.keyboard.press('Escape')
     await expect(tip).toBeHidden()
     await page.keyboard.press('Escape')

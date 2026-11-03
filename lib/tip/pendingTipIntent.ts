@@ -3,8 +3,15 @@ import type { Id } from '@/convex/_generated/dataModel'
 
 export const PENDING_TIP_INTENT_STORAGE_KEY = 'quilltip:pendingTipIntent'
 
+export const tipXlmPresetSchema = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(5),
+])
+
 const amountFieldsSchema = z.object({
   amountCents: z.number().int().positive().optional(),
+  amountXlm: tipXlmPresetSchema.optional(),
   customAmount: z.string().optional(),
 })
 

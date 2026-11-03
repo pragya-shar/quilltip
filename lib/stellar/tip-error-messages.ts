@@ -29,6 +29,18 @@ export function formatTipFailureMessage(error: unknown): TipFailureMessage {
     }
   }
 
+  if (
+    lower.includes('insufficient balance') ||
+    lower.includes('insufficient funds') ||
+    lower.includes('tx_insufficient_balance') ||
+    lower.includes('underfunded')
+  ) {
+    return {
+      title: 'Not enough XLM',
+      detail: 'Add funds on the correct network or choose a smaller tip.',
+    }
+  }
+
   if (raw.includes('Transaction failed on the network')) {
     return {
       title: 'Transaction failed on the network',
