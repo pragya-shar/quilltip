@@ -62,7 +62,7 @@ for (const theme of ['light', 'dark']) {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 })
       await page.emulateMedia({ reducedMotion: 'reduce' })
       await page.setContent(
-        `<html class="${theme}"><body><article class="published-prose prose"><div id="editor"></div></article></body></html>`
+        `<html class="${theme}"><body><button id="before-editor">Before passages</button><article class="published-prose prose"><div id="editor"></div></article></body></html>`
       )
       for (const path of [
         'app/shared-ui.css',
@@ -102,10 +102,23 @@ for (const theme of ['light', 'dark']) {
         })
         await expect(mark).toBeFocused()
         await expect.poll(() => contrast(mark)).toBeGreaterThanOrEqual(4.5)
+      }
+
+      // Enter the real tab order from a stable element outside the editor.
+      await page.locator('#before-editor').click()
+      for (const [index, mark] of (await marks.all()).entries()) {
         const control = page
           .locator('.highlight-attribution-control')
           .nth(index)
-        await control.focus()
+        await page.keyboard.press('Tab')
+        await expect(control).toBeFocused()
+        await expect(control).toHaveCSS('clip', 'auto')
+        await expect(control).toHaveCSS('box-shadow', /0px 0px 0px 2px/)
+        await expect(mark).toHaveCSS('outline-style', 'solid')
+        await expect(mark).toHaveCSS('outline-width', '2px')
+        if (index > 0) {
+          await expect(marks.nth(index - 1)).toHaveCSS('outline-style', 'none')
+        }
         await expect.poll(() => contrast(mark)).toBeGreaterThanOrEqual(4.5)
       }
       expect(

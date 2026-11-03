@@ -250,10 +250,11 @@ export function HighlightDetailsPanel({
             Your highlights are saved to your account. Appreciation and tipping
             are optional.
           </p>
-          {savedNote && (
+          {(isOwner || savedNote) && (
             <details className="slip-note">
               <summary>
-                Saved note · {highlight.isPublic ? 'Public' : 'Private'}
+                {savedNote ? 'Saved note' : 'Add a note'} ·{' '}
+                {highlight.isPublic ? 'Public' : 'Private'}
               </summary>
               {isOwner ? (
                 <form
