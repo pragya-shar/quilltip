@@ -1,5 +1,10 @@
 'use client'
+import type { MouseEvent } from 'react'
 import { useEditorState, type Editor } from '@tiptap/react'
+function keepEditorSelection(event: MouseEvent<HTMLButtonElement>) {
+  event.preventDefault()
+}
+
 export function WritingToolbar({
   editor,
   onLink,
@@ -14,8 +19,6 @@ export function WritingToolbar({
     selector: ({ editor }) => ({
       bold: editor.isActive('bold'),
       italic: editor.isActive('italic'),
-      underline: editor.isActive('underline'),
-      strike: editor.isActive('strike'),
       heading: editor.getAttributes('heading').level || 'p',
       quote: editor.isActive('blockquote'),
       list: editor.isActive('bulletList'),
@@ -23,15 +26,14 @@ export function WritingToolbar({
   })
   return (
     <div
+      id="writing-format-tools"
       className="formatbar"
-      role="toolbar"
+      role="group"
       aria-label="Text formatting"
-      onMouseDown={(e) => {
-        if ((e.target as HTMLElement).closest('button')) e.preventDefault()
-      }}
     >
       <button
         aria-label="Bold"
+        onMouseDown={keepEditorSelection}
         aria-pressed={state.bold}
         onClick={() => editor.chain().focus().toggleBold().run()}
       >
@@ -39,6 +41,7 @@ export function WritingToolbar({
       </button>
       <button
         aria-label="Italic"
+        onMouseDown={keepEditorSelection}
         aria-pressed={state.italic}
         onClick={() => editor.chain().focus().toggleItalic().run()}
       >
@@ -46,6 +49,7 @@ export function WritingToolbar({
       </button>
       <button
         aria-label="Section heading"
+        onMouseDown={keepEditorSelection}
         aria-pressed={state.heading === 2}
         onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
       >
@@ -53,6 +57,7 @@ export function WritingToolbar({
       </button>
       <button
         aria-label="Quote"
+        onMouseDown={keepEditorSelection}
         aria-pressed={state.quote}
         onClick={() => editor.chain().focus().toggleBlockquote().run()}
       >
@@ -60,6 +65,7 @@ export function WritingToolbar({
       </button>
       <button
         aria-label="Bulleted list"
+        onMouseDown={keepEditorSelection}
         aria-pressed={state.list}
         onClick={() => editor.chain().focus().toggleBulletList().run()}
       >
@@ -68,48 +74,11 @@ export function WritingToolbar({
       <button onClick={onLink}>Link</button>
       <button
         aria-label="Paragraph"
+        onMouseDown={keepEditorSelection}
         onClick={() => editor.chain().focus().setParagraph().run()}
       >
         ¶
       </button>
-      <select
-        aria-label="More formatting"
-        value=""
-        onChange={(e) => {
-          const v = e.target.value
-          const c = editor.chain().focus()
-          if (v === 'underline') c.toggleUnderline().run()
-          if (v === 'strike') c.toggleStrike().run()
-          if (v === 'ordered') c.toggleOrderedList().run()
-          if (v === 'code') c.toggleCodeBlock().run()
-          if (v === 'undo') c.undo().run()
-          if (v === 'redo') c.redo().run()
-          if (v.startsWith('h'))
-            c.toggleHeading({
-              level: Number(v.slice(1)) as 1 | 2 | 3 | 4 | 5 | 6,
-            }).run()
-          if (['left', 'center', 'right', 'justify'].includes(v))
-            c.setTextAlign(v).run()
-        }}
-      >
-        <option value="">More</option>
-        <option value="underline">Underline</option>
-        <option value="strike">Strikethrough</option>
-        <option value="ordered">Numbered list</option>
-        <option value="code">Code block</option>
-        {[1, 3, 4, 5, 6].map((n) => (
-          <option key={n} value={`h${n}`}>
-            Heading {n}
-          </option>
-        ))}
-        {['left', 'center', 'right', 'justify'].map((v) => (
-          <option key={v} value={v}>
-            {v} align
-          </option>
-        ))}
-        <option value="undo">Undo</option>
-        <option value="redo">Redo</option>
-      </select>
       <button aria-label="Close formatting" onClick={onClose}>
         ×
       </button>

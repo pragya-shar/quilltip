@@ -2,7 +2,10 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
+import { LiteraryObject } from '@/components/landing/LiteraryObject'
 import { LandingNavigation } from '@/components/landing/LandingNavigation'
+import { useAuth } from '@/components/providers/AuthContext'
+import { WriterTypewriter } from './WriterTypewriter'
 import { visibleTimer } from '@/components/landing/visibleTimer'
 
 const title = 'The words we carry'
@@ -10,6 +13,7 @@ const passage =
   'There are words we read, and words we carry.\nA small permission to begin again.'
 
 export function WriterIntroduction() {
+  const { isAuthenticated, isLoading } = useAuth()
   const [step, setStep] = useState(0)
   const [held, setHeld] = useState(false)
   const [reduced, setReduced] = useState(true)
@@ -41,7 +45,7 @@ export function WriterIntroduction() {
   }, [step, reduced, held, focused, visible])
 
   useEffect(() => {
-    if (step !== 0 || reduced || held || !visible) return
+    if (step !== 0 || reduced || held || focused || !visible) return
     let cancel = () => {}
     let count = 0
     const tick = () => {
@@ -51,7 +55,7 @@ export function WriterIntroduction() {
     }
     tick()
     return () => cancel()
-  }, [step, reduced, held, visible])
+  }, [step, reduced, held, focused, visible])
 
   function choose(next: number, focus = false) {
     setStep(next)
@@ -59,7 +63,26 @@ export function WriterIntroduction() {
     if (focus) tabs.current[next]?.focus()
   }
 
-  const shown = reduced || held ? title.length + passage.length : typed
+  function activateStage(focusNext = false) {
+    if (held || reduced) {
+      const next = 1 - step
+      setStep(next)
+      setHeld(false)
+      if (focusNext) tabs.current[next]?.focus({ preventScroll: true })
+      else setFocused(false)
+    } else {
+      setHeld(true)
+    }
+  }
+
+  const stageAction =
+    held || reduced
+      ? step === 0
+        ? 'Continue to Publish'
+        : 'Continue to Write'
+      : 'Hold demonstration'
+  const shown =
+    reduced || held || focused ? title.length + passage.length : typed
 
   return (
     <div className="landing-blend onboarding-study blend-study rose-study type-study presentation-view scene-study connected-study guided-sequence writer-introduction">
@@ -70,6 +93,13 @@ export function WriterIntroduction() {
           Back to home
         </Link>
         <div className="writer-intro-spread">
+          <div className="writer-intro-ornaments" aria-hidden>
+            {[1, 3, 5, 6].map((kind) => (
+              <svg key={kind} viewBox="0 0 170 170">
+                <LiteraryObject kind={kind} />
+              </svg>
+            ))}
+          </div>
           <section
             className="writer-intro-invitation"
             aria-labelledby="writer-intro-title"
@@ -79,9 +109,12 @@ export function WriterIntroduction() {
               A cozy home for your stories, thoughts, random anecdotes,
               feelings.<span>And the regards of your patrons.</span>
             </h1>
-            <Link className="button primary" href="/write">
-              Open writing desk <span aria-hidden>→</span>
-            </Link>
+            <div className="writer-intro-action">
+              <Link className="button primary" href="/write">
+                Open writing desk <span aria-hidden>→</span>
+              </Link>
+              <WriterTypewriter reduced={reduced} />
+            </div>
           </section>
           <section
             className="writer-intro-demo"
@@ -104,7 +137,10 @@ export function WriterIntroduction() {
                   aria-selected={step === index}
                   aria-controls="writer-demo-panel"
                   tabIndex={step === index ? 0 : -1}
-                  onClick={() => choose(index)}
+                  onClick={(event) => {
+                    if (index === step) activateStage(event.detail === 0)
+                    else choose(index)
+                  }}
                   onKeyDown={(event) => {
                     if (
                       !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(
@@ -141,7 +177,20 @@ export function WriterIntroduction() {
                   ? 'A thought, ready to take shape.'
                   : 'Your words, as a reader sees them.'}
               </p>
-              <article className="writer-intro-paper">
+              <article
+                className={
+                  step === 0
+                    ? 'writer-intro-paper'
+                    : 'writer-intro-paper writer-intro-published'
+                }
+              >
+                <button
+                  type="button"
+                  className="writer-intro-motion"
+                  onClick={() => activateStage()}
+                >
+                  <span>{stageAction}</span>
+                </button>
                 <div className="writer-intro-paper-top">
                   <span>QuillTip</span>
                   <span>
@@ -180,24 +229,16 @@ export function WriterIntroduction() {
                 </div>
               </article>
             </div>
-            {!reduced && (
-              <button
-                className="writer-intro-motion"
-                aria-pressed={held}
-                onClick={() => {
-                  if (held) setFocused(false)
-                  setHeld((value) => !value)
-                }}
-              >
-                {held ? 'Resume demonstration' : 'Pause demonstration'}
-              </button>
-            )}
           </section>
         </div>
         <div className="writer-intro-finish">
           <div>
             <h2>Your writing desk is ready.</h2>
-            <p>Sign in to save drafts and begin your own story.</p>
+            <p>
+              {isLoading || isAuthenticated
+                ? 'Open your desk to begin a story or return to a draft.'
+                : 'Sign in to save drafts and begin your own story.'}
+            </p>
           </div>
           <Link className="button primary" href="/write">
             Open writing desk <span aria-hidden>→</span>
