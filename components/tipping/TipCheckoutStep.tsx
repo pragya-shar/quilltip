@@ -215,7 +215,7 @@ export function TipCheckoutStep({
           <WalletSetupHelp />
         </div>
       ) : wrongWalletNetwork ? (
-        <p role="alert" className="tip-notice">
+        <p role="alert" className="tip-notice tip-notice-error">
           Switch your wallet to Stellar {networkLabelLowercase()} to review this
           tip.
         </p>

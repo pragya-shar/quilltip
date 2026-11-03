@@ -1,4 +1,5 @@
 'use client'
+import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   withPracticeLock,
@@ -34,7 +35,7 @@ const wallets: [string, string][] = [
   ['xbull', 'xBull'],
   ['albedo', 'Albedo'],
 ]
-export default function WalletPractice() {
+export default function WalletPractice({ active }: { active: boolean }) {
   const kit = useRef<PracticeKit | null>(null),
     lock = useRef(false)
   const returnUrl = getSafeReturnPath(
@@ -428,22 +429,6 @@ export default function WalletPractice() {
                   Connect {wallets.find((w) => w[0] === wallet)?.[1]}{' '}
                   <ArrowUpRight size={19} />
                 </button>
-                <details className="practice-help">
-                  <summary>Need help connecting?</summary>
-                  <p>
-                    Use the browser where your wallet is installed. For
-                    Freighter, open this preview in Chrome rather than the Codex
-                    preview, then unlock the extension and choose Testnet.
-                  </p>
-                  <a
-                    href="https://freighter.app/#download"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Get Freighter ↗
-                  </a>
-                  <p>Once connected, you can request free test XLM here.</p>
-                </details>
               </>
             ) : (
               <>
@@ -515,6 +500,7 @@ export default function WalletPractice() {
             )}
           </>
         )}
+        {active && <WalletSetupHelp practice />}
         <p className="practice-live" role="status" aria-live="polite">
           {busy && <span className="practice-spinner" aria-hidden="true" />}
           {busy || (confirmed ? 'Transfer confirmed on Stellar testnet.' : '')}

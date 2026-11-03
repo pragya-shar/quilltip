@@ -63,14 +63,8 @@
   outline: 2px solid currentColor;
   outline-offset: 4px;
 }
-.wallet-practice-help {
-  max-width: 1120px;
-  margin: 0 auto 32px;
-  padding: 16px 24px;
-  color: #390c18;
-  background: #faf5ec;
-  border-block: 1px solid #cdb9b4;
-  scroll-margin-top: 100px;
+#wallet-help {
+  scroll-margin-block-start: 100px;
 }
 .wallet-install-overlay,
 .wallet-install-dialog {
@@ -164,8 +158,5 @@
   }
   .wallet-install-dialog h2 {
     font-size: 28px;
-  }
-  .wallet-practice-help {
-    padding: 12px 16px;
   }
 }
