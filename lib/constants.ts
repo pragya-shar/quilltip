@@ -7,18 +7,8 @@ export const TIP_MAX_USD = TIP_MAX_CENTS / 100
 // Withdrawal
 export const MIN_WITHDRAWAL_USD = 10
 
-// Presets: article tips (higher) vs highlight tips (lower)
-export const TIP_PRESETS_ARTICLE = [
-  { cents: 100, label: '$1', popular: false },
-  { cents: 500, label: '$5', popular: true },
-  { cents: 1000, label: '$10', popular: false },
-] as const
-
-export const TIP_PRESETS_HIGHLIGHT = [
-  { cents: 10, label: '10¢', popular: false },
-  { cents: 50, label: '50¢', popular: true },
-  { cents: 100, label: '$1', popular: false },
-] as const
+export const TIP_XLM_PRESETS = [1, 2, 5] as const
+export type TipXlmPreset = (typeof TIP_XLM_PRESETS)[number]
 
 // Editor content styling (prose class for Tiptap)
 export const EDITOR_PROSE_CLASS =

@@ -1,5 +1,7 @@
 'use client'
 
+import type { TipXlmPreset } from '@/lib/constants'
+
 import { focusLibraryHighlight } from '@/lib/library/focusHighlight'
 
 import { createPortal } from 'react-dom'
@@ -121,6 +123,7 @@ export function HighlightableArticle({
   const selectionRestoredEditorRef = useRef<Editor | null>(null)
   const [resumeHighlightTip, setResumeHighlightTip] = useState<{
     amountCents?: number
+    amountXlm?: TipXlmPreset
     customAmount?: string
   } | null>(null)
   const pendingSelectionNeedsClearRef = useRef(false)
@@ -457,6 +460,7 @@ export function HighlightableArticle({
       if (matchesHighlightPendingIntent(tipIntent, articleId)) {
         setResumeHighlightTip({
           amountCents: tipIntent.amountCents,
+          amountXlm: tipIntent.amountXlm,
           customAmount: tipIntent.customAmount,
         })
       }

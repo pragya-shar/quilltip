@@ -15,8 +15,7 @@ import {
   stellarFlowEmitter,
   type TipFlowStep,
 } from '@/lib/stellar/stellar-flow-emitter'
-import { useTipDialogXlmUsdRate } from '@/hooks/useTipDialogXlmUsdRate'
-import { TIP_PRESETS_ARTICLE } from '@/lib/constants'
+import type { TipXlmPreset } from '@/lib/constants'
 import {
   Dialog,
   DialogContent,
@@ -53,11 +52,11 @@ import { useArticleTipResume } from '@/hooks/useArticleTipResume'
 import { TipAppreciationStep } from '@/components/tipping/TipAppreciationStep'
 import { TipCheckoutStep } from '@/components/tipping/TipCheckoutStep'
 import type { TipModalStep } from '@/components/tipping/tipModalStep'
-import { tipDialogDescription, tipDialogTitle } from '@/lib/copy/tipping'
 import './tipping.css'
 import { STELLAR_CONFIG } from '@/lib/stellar/config'
 
 interface TipButtonProps {
+  articleTitle: string
   articleId: Id<'articles'>
   authorName: string
   authorStellarAddress?: string | null
@@ -187,6 +186,7 @@ export function stellarExpertNetworkPath(
 }
 
 export function TipButton({
+  articleTitle,
   articleId,
   authorName,
   authorStellarAddress,
@@ -197,10 +197,15 @@ export function TipButton({
   const {
     isConnected,
     isLoading: isWalletLoading,
+    networkPassphrase,
     publicKey,
     signTransaction,
     connect,
   } = useWallet()
+  const wrongWalletNetwork =
+    isConnected &&
+    networkPassphrase !== null &&
+    networkPassphrase !== STELLAR_CONFIG.NETWORK_PASSPHRASE
   const { activateWallet } = useWalletActivation()
   const router = useRouter()
   const pathname = usePathname()
@@ -208,6 +213,7 @@ export function TipButton({
   const [modalStep, setModalStep] = useState<TipModalStep>('appreciation')
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const connectButtonRef = useRef<HTMLButtonElement>(null)
+  const [amountXlm, setAmountXlm] = useState<TipXlmPreset>()
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -254,7 +260,6 @@ export function TipButton({
     (verificationStatus?.status === 'CONFIRMED' ||
       verificationStatus?.status === 'FAILED')
   )
-  const { priceUsd: displayXlmUsdRate } = useTipDialogXlmUsdRate(isOpen)
 
   useEffect(() => {
     return stellarFlowEmitter.subscribe((event) => {
@@ -266,6 +271,7 @@ export function TipButton({
 
   const applyResumeIntent = useCallback(
     (intent: ArticlePendingTipIntent) => {
+      setAmountXlm(intent.amountXlm)
       applyPendingAmountFields(intent, setSelectedAmount, setCustomAmount)
       if (intent.message) setTipMessage(intent.message)
       setModalStep('checkout')
@@ -298,6 +304,7 @@ export function TipButton({
       setRequiresStartOver(false)
       setIsLoading(false)
       setTipFlowStep(null)
+      setAmountXlm(undefined)
       setSelectedAmount(null)
       setCustomAmount('')
       setTipMessage('')
@@ -314,6 +321,7 @@ export function TipButton({
 
     setPendingTipRecord(restored)
     setSubmittedTipId(restored.submittedTipId ?? null)
+    setAmountXlm(restored.amountXlm)
     setSelectedAmount(restored.amountCents)
     setCustomAmount('')
     setTipMessage(restored.message ?? '')
@@ -363,7 +371,11 @@ export function TipButton({
       setSubmittedTipId(null)
       setTipFailure(null)
       setTipFormError(null)
-      const successMessage = `Successfully tipped ${authorName} $${(record.amountCents / 100).toFixed(2)} via Stellar!`
+      const amount =
+        record.amountXlm === undefined
+          ? `$${(record.amountCents / 100).toFixed(2)}`
+          : `${record.amountXlm} ${record.stellarNetwork === 'TESTNET' ? 'test XLM' : 'XLM'}`
+      const successMessage = `Successfully tipped ${authorName} ${amount} via Stellar!`
       setTipSuccess(successMessage)
 
       toast.success(successMessage, {
@@ -381,6 +393,7 @@ export function TipButton({
       window.setTimeout(() => {
         setIsOpen(false)
         resetModalState()
+        setAmountXlm(undefined)
         setSelectedAmount(null)
         setCustomAmount('')
         setTipMessage('')
@@ -532,6 +545,7 @@ export function TipButton({
       }
     } else {
       if (pendingTipRecord) {
+        setAmountXlm(pendingTipRecord.amountXlm)
         setSelectedAmount(pendingTipRecord.amountCents)
         setCustomAmount('')
         setTipMessage(pendingTipRecord.message ?? '')
@@ -563,7 +577,7 @@ export function TipButton({
       customAmount,
       message: tipMessage,
     })
-    if (!validation.ok) {
+    if (amountXlm === undefined && !validation.ok) {
       setTipFormError({ title: validation.message })
       toast.error(validation.message)
       return
@@ -577,6 +591,10 @@ export function TipButton({
 
   const handleBackToAppreciation = () => {
     if (pendingTipRecord) return
+    if (amountXlm === undefined && selectedAmount !== null && !customAmount) {
+      setCustomAmount((selectedAmount / 100).toFixed(2))
+      setSelectedAmount(null)
+    }
     setModalStep('appreciation')
     setTipFailure(null)
     setTipFormError(null)
@@ -597,7 +615,11 @@ export function TipButton({
       {
         kind: 'article',
         articleId: articleId,
-        ...(selectedAmount != null ? { amountCents: selectedAmount } : {}),
+        ...(amountXlm !== undefined
+          ? { amountXlm }
+          : selectedAmount != null
+            ? { amountCents: selectedAmount }
+            : {}),
         ...(customAmount ? { customAmount } : {}),
         ...(tipMessage.trim() ? { message: tipMessage.trim() } : {}),
       }
@@ -647,12 +669,13 @@ export function TipButton({
       customAmount,
       message: tipMessage,
     })
-    if (!validation.ok) {
+    if (amountXlm === undefined && !validation.ok) {
       setTipFormError({ title: validation.message })
       toast.error(validation.message)
       return
     }
-    const amountCents = validation.amountCents
+
+    if (wrongWalletNetwork) return
 
     if (!isConnected || !publicKey) {
       const message = 'Please connect your Stellar wallet to send tips'
@@ -720,7 +743,9 @@ export function TipButton({
           stellarFlowEmitter.emit({ flow: 'tip', step: 'awaiting_signature' })
           const quote = await prepareArticleTip({
             articleId,
-            amountCents,
+            ...(amountXlm === undefined && validation.ok
+              ? { amountCents: validation.amountCents }
+              : { amountXlm }),
             message: tipMessage.trim() ? tipMessage.trim() : undefined,
             stellarSourceAccount: publicKey,
           })
@@ -748,7 +773,8 @@ export function TipButton({
           const tipRecord: PendingArticleTipRecord = {
             articleId: String(articleId),
             tipperId: user._id,
-            amountCents,
+            amountCents: quote.amountCents,
+            amountXlm,
             message: tipMessage.trim() ? tipMessage.trim() : undefined,
             stellarNetwork: quote.stellarNetwork,
             stellarSourceAccount: publicKey,
@@ -805,6 +831,7 @@ export function TipButton({
         const restored = lockResult.record
         setPendingTipRecord(restored)
         setSubmittedTipId(restored.submittedTipId ?? null)
+        setAmountXlm(restored.amountXlm)
         setSelectedAmount(restored.amountCents)
         setCustomAmount('')
         setTipMessage(restored.message ?? '')
@@ -943,20 +970,17 @@ export function TipButton({
           }}
         >
           <DialogHeader className="tip-dialog-header">
-            <p data-tip-step>
-              {modalStep === 'appreciation'
-                ? '1 of 2 · Appreciation'
-                : '2 of 2 · Checkout'}
-            </p>
             <DialogTitle>
               {modalStep === 'appreciation'
-                ? tipDialogTitle(authorName)
-                : 'Send your tip'}
+                ? 'Tip the whole article.'
+                : pendingTipRecord || verificationSettled
+                  ? 'Tip status'
+                  : !isAuthenticated || !isConnected
+                    ? 'Your wallet, your choice.'
+                    : 'Ready when you are.'}
             </DialogTitle>
             <DialogDescription className="tip-dialog-description">
-              {modalStep === 'appreciation'
-                ? tipDialogDescription()
-                : `Complete your tip to ${authorName}.`}
+              For {authorName} · Whole article
             </DialogDescription>
           </DialogHeader>
 
@@ -965,19 +989,26 @@ export function TipButton({
           {modalStep === 'appreciation' ? (
             <TipAppreciationStep
               variant="article"
-              authorName={authorName}
-              presets={TIP_PRESETS_ARTICLE}
-              selectedAmount={selectedAmount}
+              articleTitle={articleTitle}
+              amountXlm={amountXlm}
               customAmount={customAmount}
               tipMessage={tipMessage}
-              onSelectedAmountChange={setSelectedAmount}
-              onCustomAmountChange={setCustomAmount}
+              onAmountXlmChange={(xlm) => {
+                setAmountXlm(xlm)
+                setSelectedAmount(null)
+                setCustomAmount('')
+              }}
+              onCustomAmountChange={(value) => {
+                setAmountXlm(undefined)
+                setSelectedAmount(null)
+                setCustomAmount(value)
+              }}
               onTipMessageChange={setTipMessage}
               onContinue={handleContinue}
-              onCancel={() => handleOpenChange(false)}
               isLoading={isLoading}
-              canContinue={!!selectedAmount || !!customAmount}
-              priceUsd={displayXlmUsdRate}
+              canContinue={
+                amountXlm !== undefined || !!selectedAmount || !!customAmount
+              }
               idPrefix="tip"
             />
           ) : (
@@ -985,10 +1016,13 @@ export function TipButton({
               variant="article"
               authorName={authorName}
               amountCents={checkoutAmountCents}
+              amountXlm={amountXlm}
+              articleTitle={articleTitle}
               message={tipMessage.trim() || undefined}
               isAuthenticated={isAuthenticated}
               isConnected={isConnected || Boolean(pendingTipRecord)}
               isWalletLoading={isWalletLoading}
+              wrongWalletNetwork={wrongWalletNetwork && !pendingTipRecord}
               publicKey={publicKey ?? null}
               isLoading={isLoading}
               tipSuccess={tipSuccess}

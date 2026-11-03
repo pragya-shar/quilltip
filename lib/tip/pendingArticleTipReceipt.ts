@@ -1,3 +1,4 @@
+import { tipXlmPresetSchema } from './pendingTipIntent'
 import { z } from 'zod'
 import type { Id } from '@/convex/_generated/dataModel'
 
@@ -13,6 +14,7 @@ const STORAGE_FAILURE_MESSAGE =
 const pendingArticleTipReceiptBaseSchema = z.object({
   articleId: z.string().min(1),
   tipperId: z.string().min(1),
+  amountXlm: tipXlmPresetSchema.optional(),
   amountCents: z.number().int().positive(),
   message: z.string().max(500).optional(),
   stellarNetwork: z.union([z.literal('TESTNET'), z.literal('MAINNET')]),

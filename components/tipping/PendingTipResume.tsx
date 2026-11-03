@@ -47,6 +47,7 @@ export function PendingTipResume({
         endContainerPath={intent.endContainerPath}
         resumeOpen
         resumeAmountCents={intent.amountCents}
+        resumeAmountXlm={intent.amountXlm}
         resumeCustomAmount={intent.customAmount}
         onResumeOpenChange={setIsOpen}
       />

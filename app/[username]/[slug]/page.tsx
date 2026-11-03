@@ -139,6 +139,7 @@ export default function ArticlePage({ params }: ArticlePageProps) {
               }
               readerSupport={
                 <ArticleReaderSupport
+                  articleTitle={article.title}
                   articleId={article._id}
                   articleSlug={article.slug}
                   authorName={article.author.name || article.author.username}

@@ -3,6 +3,7 @@
 import type { Id } from '@/convex/_generated/dataModel'
 
 export interface ArticleTipActionsProps {
+  articleTitle: string
   articleId: Id<'articles'>
   articleSlug: string
   authorName: string

@@ -50,6 +50,10 @@ export function signInToTip(
   form: TipAmountFormState,
   intent: PendingTipIntent
 ): void {
+  if (intent.amountXlm !== undefined) {
+    redirectToLoginForTip(router, returnPath, intent)
+    return
+  }
   const validation = validateTipAmountForm(form)
   if (!validation.ok) return
 

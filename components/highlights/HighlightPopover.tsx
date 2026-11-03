@@ -1,5 +1,7 @@
 'use client'
 
+import type { TipXlmPreset } from '@/lib/constants'
+
 import { useState } from 'react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter, X } from 'lucide-react'
@@ -36,6 +38,7 @@ interface HighlightPopoverProps {
   selectionEndPosition?: number
   resumeHighlightTip?: {
     amountCents?: number
+    amountXlm?: TipXlmPreset
     customAmount?: string
   } | null
   onHighlightTipResumeOpened?: () => void
@@ -170,6 +173,7 @@ export function HighlightPopover({
                   }
                   resumeOpen={Boolean(resumeHighlightTip)}
                   resumeAmountCents={resumeHighlightTip?.amountCents}
+                  resumeAmountXlm={resumeHighlightTip?.amountXlm}
                   resumeCustomAmount={resumeHighlightTip?.customAmount}
                   onResumeDialogVisible={() => {
                     if (resumeHighlightTip) {

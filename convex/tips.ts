@@ -5,8 +5,6 @@ import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import { enrichWithUser } from './lib/enrich'
 import {
-  TIP_MIN_CENTS,
-  TIP_MAX_CENTS,
   MIN_WITHDRAWAL_USD,
   HORIZON_VERIFY_INITIAL_DELAY_MS,
   ARTICLE_TIP_VERIFY_REQUEST_COOLDOWN_MS,
@@ -18,7 +16,9 @@ import {
   ARTICLE_TIP_FALLBACK_XLM_USD_RATE,
   ARTICLE_TIP_INTENT_TTL_MS,
   articleTipIntentTimeBoundsServer,
-  calculateTipStroops,
+  quoteTipAmount,
+  tipXlmPresetValidator,
+  validateTipAmount,
   shortArticleIdServer,
 } from './lib/articleTipExpectation'
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
@@ -171,7 +171,8 @@ export const canTip = query({
 export const prepareArticleTip = mutation({
   args: {
     articleId: v.id('articles'),
-    amountCents: v.number(),
+    amountCents: v.optional(v.number()),
+    amountXlm: v.optional(tipXlmPresetValidator),
     message: v.optional(v.string()),
     stellarSourceAccount: v.string(),
   },
@@ -180,6 +181,7 @@ export const prepareArticleTip = mutation({
     articleSymbol: v.string(),
     authorAddress: v.string(),
     amountStroops: v.number(),
+    amountCents: v.number(),
     stellarNetwork: v.union(v.literal('TESTNET'), v.literal('MAINNET')),
     contractId: v.string(),
     timeBounds: v.object({
@@ -191,13 +193,8 @@ export const prepareArticleTip = mutation({
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
-    if (
-      !Number.isSafeInteger(args.amountCents) ||
-      args.amountCents < TIP_MIN_CENTS ||
-      args.amountCents > TIP_MAX_CENTS
-    ) {
-      throw new Error('Invalid tip amount')
-    }
+    const amount = validateTipAmount(args)
+    const { amountCents: usdCents, amountXlm } = amount
     if (args.message && args.message.length > 500) {
       throw new Error('Message must be 500 characters or less')
     }
@@ -237,7 +234,8 @@ export const prepareArticleTip = mutation({
         intent.authorId === article.authorId &&
         intent.articleTitle === article.title &&
         intent.articleSlug === article.slug &&
-        intent.amountCents === args.amountCents &&
+        intent.amountXlm === amountXlm &&
+        (amountXlm !== undefined || intent.amountCents === usdCents) &&
         intent.message === args.message &&
         intent.expectedSourceAccount === args.stellarSourceAccount &&
         intent.expectedDestinationAccount === author.stellarAddress &&
@@ -253,6 +251,7 @@ export const prepareArticleTip = mutation({
         articleSymbol: reusable.expectedArticleSymbol,
         authorAddress: reusable.expectedDestinationAccount,
         amountStroops: Number(reusable.expectedAmountStroops),
+        amountCents: reusable.amountCents,
         stellarNetwork: expectedStellarNetwork,
         contractId: expectedContractId,
         timeBounds: {
@@ -273,8 +272,8 @@ export const prepareArticleTip = mutation({
       : ARTICLE_TIP_FALLBACK_XLM_USD_RATE
     const quoteSource = useCachedRate ? cachedRate.source : 'Fallback'
     const quoteFetchedAt = useCachedRate ? cachedRate.fetchedAt : now
-    const expectedAmountStroops = calculateTipStroops(
-      args.amountCents,
+    const { amountCents, expectedAmountStroops } = quoteTipAmount(
+      amount,
       quotePriceUsd
     )
     const expiresAt = now + ARTICLE_TIP_INTENT_TTL_MS
@@ -289,8 +288,9 @@ export const prepareArticleTip = mutation({
       tipperAvatar: tipper.avatar,
       authorName: author.name || author.username,
       authorAvatar: author.avatar,
-      amountUsd: args.amountCents / 100,
-      amountCents: args.amountCents,
+      amountUsd: amountCents / 100,
+      amountCents,
+      amountXlm,
       message: args.message,
       expectedSourceAccount: args.stellarSourceAccount,
       expectedDestinationAccount: author.stellarAddress,
@@ -319,6 +319,7 @@ export const prepareArticleTip = mutation({
       articleSymbol: expectedArticleSymbol,
       authorAddress: author.stellarAddress,
       amountStroops: expectedAmountStroops,
+      amountCents,
       stellarNetwork: expectedStellarNetwork,
       contractId: expectedContractId,
       timeBounds: expectedTimeBounds,

@@ -19,8 +19,7 @@ import {
   generateHighlightId,
   formatTipAmount,
 } from '@/lib/stellar/highlight-utils'
-import { useTipDialogXlmUsdRate } from '@/hooks/useTipDialogXlmUsdRate'
-import { TIP_PRESETS_HIGHLIGHT } from '@/lib/constants'
+import type { TipXlmPreset } from '@/lib/constants'
 import {
   Dialog,
   DialogContent,
@@ -30,10 +29,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
-import {
-  tipHighlightDialogDescription,
-  tipHighlightDialogTitle,
-} from '@/lib/copy/tipping'
 import {
   NO_WALLET_AVAILABLE_ERROR_CODE,
   ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
@@ -83,6 +78,7 @@ interface HighlightTipButtonProps {
   onSuccess?: () => void
   resumeOpen?: boolean
   resumeAmountCents?: number
+  resumeAmountXlm?: TipXlmPreset
   resumeCustomAmount?: string
   onResumeOpenChange?: (open: boolean) => void
   onResumeDialogVisible?: () => void
@@ -205,6 +201,7 @@ export function HighlightTipButton({
   onSuccess,
   resumeOpen = false,
   resumeAmountCents,
+  resumeAmountXlm,
   resumeCustomAmount,
   onResumeOpenChange,
   onResumeDialogVisible,
@@ -217,10 +214,15 @@ export function HighlightTipButton({
   const {
     isConnected,
     isLoading: isWalletLoading,
+    networkPassphrase,
     publicKey,
     signTransaction,
     connect,
   } = useWallet()
+  const wrongWalletNetwork =
+    isConnected &&
+    networkPassphrase !== null &&
+    networkPassphrase !== STELLAR_CONFIG.NETWORK_PASSPHRASE
   const { activateWallet } = useWalletActivation()
   const router = useRouter()
   const pathname = usePathname()
@@ -231,6 +233,7 @@ export function HighlightTipButton({
   const resumedRef = useRef(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const connectButtonRef = useRef<HTMLButtonElement>(null)
+  const [amountXlm, setAmountXlm] = useState<TipXlmPreset>()
   const [selectedAmount, setSelectedAmount] = useState<number | null>(null)
   const [customAmount, setCustomAmount] = useState('')
   const restoredFromPendingIntentRef = useRef(false)
@@ -291,7 +294,6 @@ export function HighlightTipButton({
     verificationStatus?.status !== 'CONFIRMED' &&
     verificationStatus?.status !== 'FAILED'
   )
-  const { priceUsd: displayXlmUsdRate } = useTipDialogXlmUsdRate(isOpen)
 
   useEffect(() => {
     setVerificationWarningVisible(false)
@@ -331,6 +333,7 @@ export function HighlightTipButton({
     resumedRef.current = true
     // Hydrate the amount before attempting a save so a failed prerequisite can
     // be retried from the same slip without losing the pending checkout state.
+    setAmountXlm(resumeAmountXlm)
     applyPendingAmountFields(
       { amountCents: resumeAmountCents, customAmount: resumeCustomAmount },
       setSelectedAmount,
@@ -347,6 +350,7 @@ export function HighlightTipButton({
   }, [
     resumeOpen,
     resumeAmountCents,
+    resumeAmountXlm,
     resumeCustomAmount,
     activateWallet,
     onResumeOpenChange,
@@ -362,7 +366,8 @@ export function HighlightTipButton({
     if (!isOpen || !isAuthenticated) return
     if (resumedRef.current) return
     if (restoredFromPendingIntentRef.current) return
-    if (selectedAmount != null || customAmount) return
+    if (amountXlm !== undefined || selectedAmount != null || customAmount)
+      return
 
     const pending = readPendingTipIntent()
     if (
@@ -375,6 +380,7 @@ export function HighlightTipButton({
     }
 
     restoredFromPendingIntentRef.current = true
+    setAmountXlm(pending.amountXlm)
     applyPendingAmountFields(
       {
         amountCents: pending.amountCents,
@@ -399,6 +405,7 @@ export function HighlightTipButton({
     selectedAmount,
     customAmount,
     activateWallet,
+    amountXlm,
   ])
 
   useEffect(() => {
@@ -423,6 +430,7 @@ export function HighlightTipButton({
       setRequiresStartOver(false)
       setIsLoading(false)
       setTipFlowStep(null)
+      setAmountXlm(undefined)
       setSelectedAmount(null)
       setCustomAmount('')
       setModalStep('appreciation')
@@ -438,6 +446,7 @@ export function HighlightTipButton({
 
     setPendingTipRecord(restored)
     setSubmittedTipId(restored.submittedTipId ?? null)
+    setAmountXlm(restored.amountXlm)
     setSelectedAmount(restored.amountCents)
     setCustomAmount('')
     setModalStep('checkout')
@@ -475,7 +484,11 @@ export function HighlightTipButton({
       setSubmittedTipId(null)
       setTipFailure(null)
       setTipFormError(null)
-      const successMessage = `Successfully tipped ${authorName} ${formatTipAmount(record.amountCents)} for this highlight!`
+      const amount =
+        record.amountXlm === undefined
+          ? formatTipAmount(record.amountCents)
+          : `${record.amountXlm} ${record.stellarNetwork === 'TESTNET' ? 'test XLM' : 'XLM'}`
+      const successMessage = `Successfully tipped ${authorName} ${amount} for this passage!`
       setTipSuccess(successMessage)
 
       toast.success(successMessage, {
@@ -493,6 +506,7 @@ export function HighlightTipButton({
       window.setTimeout(() => {
         setIsOpen(false)
         resetModalState()
+        setAmountXlm(undefined)
         setSelectedAmount(null)
         setCustomAmount('')
         onSuccess?.()
@@ -641,6 +655,7 @@ export function HighlightTipButton({
       }
     } else {
       if (pendingTipRecord) {
+        setAmountXlm(pendingTipRecord.amountXlm)
         setSelectedAmount(pendingTipRecord.amountCents)
         setCustomAmount('')
         setModalStep('checkout')
@@ -663,7 +678,7 @@ export function HighlightTipButton({
       selectedAmount,
       customAmount,
     })
-    if (!validation.ok) {
+    if (amountXlm === undefined && !validation.ok) {
       setTipFormError({ title: validation.message })
       toast.error(validation.message)
       return
@@ -677,6 +692,10 @@ export function HighlightTipButton({
 
   const handleBackToAppreciation = () => {
     if (pendingTipRecord) return
+    if (amountXlm === undefined && selectedAmount !== null && !customAmount) {
+      setCustomAmount((selectedAmount / 100).toFixed(2))
+      setSelectedAmount(null)
+    }
     setModalStep('appreciation')
     setTipFailure(null)
     setTipFormError(null)
@@ -712,7 +731,11 @@ export function HighlightTipButton({
         endOffset,
         ...(startContainerPath ? { startContainerPath } : {}),
         ...(endContainerPath ? { endContainerPath } : {}),
-        ...(selectedAmount != null ? { amountCents: selectedAmount } : {}),
+        ...(amountXlm !== undefined
+          ? { amountXlm }
+          : selectedAmount != null
+            ? { amountCents: selectedAmount }
+            : {}),
         ...(customAmount ? { customAmount } : {}),
       }
     )
@@ -804,6 +827,7 @@ export function HighlightTipButton({
         : null
     if (durableReceipt) {
       setPendingTipRecord(durableReceipt)
+      setAmountXlm(durableReceipt.amountXlm)
       setSelectedAmount(durableReceipt.amountCents)
       if (durableReceipt.submittedTipId) {
         setSubmittedTipId(durableReceipt.submittedTipId)
@@ -822,12 +846,13 @@ export function HighlightTipButton({
       selectedAmount,
       customAmount,
     })
-    if (!validation.ok) {
+    if (amountXlm === undefined && !validation.ok) {
       setTipFormError({ title: validation.message })
       toast.error(validation.message)
       return
     }
-    const amountCents = validation.amountCents
+
+    if (wrongWalletNetwork) return
 
     if (!isConnected || !publicKey) {
       const message = 'Please connect your Stellar wallet to send tips'
@@ -906,7 +931,9 @@ export function HighlightTipButton({
             endOffset,
             startContainerPath,
             endContainerPath,
-            amountCents,
+            ...(amountXlm === undefined && validation.ok
+              ? { amountCents: validation.amountCents }
+              : { amountXlm }),
             stellarSourceAccount: publicKey,
           })
           if (quote.stellarNetwork !== STELLAR_CONFIG.NETWORK) {
@@ -933,7 +960,8 @@ export function HighlightTipButton({
             articleId: String(articleId),
             highlightId: quote.highlightId,
             tipperId: user._id,
-            amountCents,
+            amountCents: quote.amountCents,
+            amountXlm,
             stellarNetwork: quote.stellarNetwork,
             stellarSourceAccount: publicKey,
             intentId: quote.intentId,
@@ -989,6 +1017,7 @@ export function HighlightTipButton({
 
       if (lockedResult.kind === 'existing') {
         setPendingTipRecord(lockedResult.tipRecord)
+        setAmountXlm(lockedResult.tipRecord.amountXlm)
         setSelectedAmount(lockedResult.tipRecord.amountCents)
         if (lockedResult.tipRecord.submittedTipId) {
           setSubmittedTipId(lockedResult.tipRecord.submittedTipId)
@@ -1152,20 +1181,17 @@ export function HighlightTipButton({
           }}
         >
           <DialogHeader className="tip-dialog-header">
-            <p data-tip-step>
-              {modalStep === 'appreciation'
-                ? '1 of 2 · Appreciation'
-                : '2 of 2 · Checkout'}
-            </p>
             <DialogTitle>
               {modalStep === 'appreciation'
-                ? tipHighlightDialogTitle(authorName)
-                : 'Send your tip'}
+                ? 'Tip this passage.'
+                : pendingTipRecord || verificationSettled
+                  ? 'Tip status'
+                  : !isAuthenticated || !isConnected
+                    ? 'Your wallet, your choice.'
+                    : 'Ready when you are.'}
             </DialogTitle>
             <DialogDescription className="tip-dialog-description">
-              {modalStep === 'appreciation'
-                ? tipHighlightDialogDescription(authorName)
-                : 'Complete your tip for this passage.'}
+              For {authorName} · Selected passage
             </DialogDescription>
           </DialogHeader>
 
@@ -1174,18 +1200,24 @@ export function HighlightTipButton({
           {modalStep === 'appreciation' ? (
             <TipAppreciationStep
               variant="highlight"
-              authorName={authorName}
               highlightText={highlightText}
-              presets={TIP_PRESETS_HIGHLIGHT}
-              selectedAmount={selectedAmount}
+              amountXlm={amountXlm}
               customAmount={customAmount}
-              onSelectedAmountChange={setSelectedAmount}
-              onCustomAmountChange={setCustomAmount}
+              onAmountXlmChange={(xlm) => {
+                setAmountXlm(xlm)
+                setSelectedAmount(null)
+                setCustomAmount('')
+              }}
+              onCustomAmountChange={(value) => {
+                setAmountXlm(undefined)
+                setSelectedAmount(null)
+                setCustomAmount(value)
+              }}
               onContinue={handleContinue}
-              onCancel={() => handleOpenChange(false)}
               isLoading={isLoading}
-              canContinue={!!selectedAmount || !!customAmount}
-              priceUsd={displayXlmUsdRate}
+              canContinue={
+                amountXlm !== undefined || !!selectedAmount || !!customAmount
+              }
               idPrefix="highlight-tip"
             />
           ) : (
@@ -1193,10 +1225,12 @@ export function HighlightTipButton({
               variant="highlight"
               authorName={authorName}
               amountCents={checkoutAmountCents}
+              amountXlm={amountXlm}
               highlightText={highlightText}
               isAuthenticated={isAuthenticated}
               isConnected={isConnected}
               isWalletLoading={isWalletLoading}
+              wrongWalletNetwork={wrongWalletNetwork && !pendingTipRecord}
               publicKey={publicKey}
               recoverySourcePublicKey={
                 pendingTipRecord?.stellarSourceAccount ?? null
