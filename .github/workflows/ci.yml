@@ -47,6 +47,9 @@ jobs:
       - name: Reader end-matter regressions
         run: bun run test:reader
 
+      - name: Dependency compatibility regressions
+        run: bun run test:dependency-compatibility
+
       - name: Typecheck
         run: bun run typecheck
 
