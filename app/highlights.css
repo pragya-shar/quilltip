@@ -54,7 +54,7 @@ mark[data-highlight-id]:hover {
 }
 
 mark[data-highlight-id]:focus-visible,
-mark[data-highlight-id]:has(+ .highlight-attribution-control:focus-visible) {
+mark[data-highlight-id].highlight-attribution-focused {
   outline: 2px solid var(--ui-ring);
   outline-offset: 3px;
 }

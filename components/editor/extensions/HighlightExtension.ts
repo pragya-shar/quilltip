@@ -525,14 +525,41 @@ const HighlightExtension = Mark.create<HighlightOptions>({
 
             // One focusable control per highlight at the end of its range
             highlightRanges.forEach(({ to, attrs }) => {
-              if (!attrs.id) return
+              const { id } = attrs
+              if (!id) return
+              let focusedMarks: NodeListOf<Element> | undefined
+              const clearFocus = () => {
+                focusedMarks?.forEach((mark) =>
+                  mark.classList.remove('highlight-attribution-focused')
+                )
+                focusedMarks = undefined
+              }
               decorations.push(
                 Decoration.widget(
                   to,
-                  () => createHighlightControlButton(attrs, onHighlightClick),
+                  (view) => {
+                    const button = createHighlightControlButton(
+                      attrs,
+                      onHighlightClick
+                    )
+                    // The widget and mark can have different formatting parents.
+                    // Match every fragment of this passage within this editor.
+                    button.addEventListener('focus', () => {
+                      if (!button.matches(':focus-visible')) return
+                      focusedMarks = view.dom.querySelectorAll(
+                        `mark[data-highlight-id="${CSS.escape(id)}"]`
+                      )
+                      focusedMarks.forEach((mark) =>
+                        mark.classList.add('highlight-attribution-focused')
+                      )
+                    })
+                    button.addEventListener('blur', clearFocus)
+                    return button
+                  },
                   {
                     side: 1,
-                    key: `highlight-control-${attrs.id}`,
+                    key: `highlight-control-${id}`,
+                    destroy: clearFocus,
                   }
                 )
               )
