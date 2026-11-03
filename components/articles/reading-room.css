@@ -163,6 +163,10 @@
   font-size: 18px;
   overflow-wrap: anywhere;
 }
+.reading-room .continue-reading-action {
+  font-size: 0.78em;
+  white-space: nowrap;
+}
 .reading-room .continue-reading a:hover {
   text-decoration: underline;
 }

@@ -7,6 +7,17 @@ import {
   type ReadingPosition,
 } from '@/lib/articles/readingProgress'
 
+const IMAGE_LAYOUT_WAIT_MS = 2000
+const scrollKeys = new Set([
+  ' ',
+  'ArrowDown',
+  'ArrowUp',
+  'PageDown',
+  'PageUp',
+  'Home',
+  'End',
+])
+
 let restoredDocumentReload = false
 
 export function useReadingPosition(id: string) {
@@ -31,6 +42,10 @@ export function useReadingPosition(id: string) {
     let frame = 0
     let saveTimer: ReturnType<typeof setTimeout> | undefined
     let pending: ReadingPosition | undefined
+    let imageTimer: ReturnType<typeof setTimeout> | undefined
+    let imageWaitExpired = false
+    let restoredWhileWaiting = false
+    const content = document.querySelector('.article-content')
     const prose = () =>
       document.querySelector<HTMLElement>('.article-content .published-prose')
 
@@ -53,30 +68,81 @@ export function useReadingPosition(id: string) {
     }
     const observer = new MutationObserver(restore)
     const resize = new ResizeObserver(restore)
-    function restore() {
-      const body = prose()
-      if (!body || !position || !body.getBoundingClientRect().height) return
+    function stopObservingLayout() {
       observer.disconnect()
       resize.disconnect()
+      content?.removeEventListener('load', restore, true)
+      content?.removeEventListener('error', restore, true)
+      clearTimeout(imageTimer)
+    }
+
+    function cancelRestore() {
+      if (!restoring) return
+      stopObservingLayout()
+      cancelAnimationFrame(frame)
+      if (isReload) restoredDocumentReload = true
+      restoring = false
+    }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (scrollKeys.has(event.key)) cancelRestore()
+    }
+
+    function restore() {
+      if (!restoring || !position || frame) return
+      // TipTap may mount its prose before React mounts its image node views.
+      // Let the editor commit the node views before measuring.
       frame = requestAnimationFrame(() => {
-        const bounds = body.getBoundingClientRect()
-        if (isReload) restoredDocumentReload = true
-        // With the prose still below the top of the viewport, use the saved
-        // visible fraction to avoid jumping farther than the reader had read.
-        const delta = position.offset
-          ? bounds.top + bounds.height * position.offset
-          : bounds.top + bounds.height * position.ratio - window.innerHeight
-        window.scrollTo({ top: window.scrollY + delta, behavior: 'instant' })
         frame = requestAnimationFrame(() => {
-          restoring = false
+          frame = 0
+          if (!restoring) return
+          const body = prose()
+          const bounds = body?.getBoundingClientRect()
+          if (!body || !bounds?.height) return
+
+          const waiting = Array.from(body.querySelectorAll('img')).some(
+            (img) => img.loading !== 'lazy' && !img.complete
+          )
+          if (waiting && !imageWaitExpired) {
+            imageTimer ??= setTimeout(() => {
+              imageWaitExpired = true
+              restore()
+            }, IMAGE_LAYOUT_WAIT_MS)
+            return
+          }
+          if (waiting && restoredWhileWaiting) return
+          restoredWhileWaiting = waiting
+          if (!waiting) stopObservingLayout()
+          if (isReload) restoredDocumentReload = true
+          // With the prose still below the top of the viewport, use the saved
+          // visible fraction to avoid jumping farther than the reader had read.
+          const delta = position.offset
+            ? bounds.top + bounds.height * position.offset
+            : bounds.top + bounds.height * position.ratio - window.innerHeight
+          window.scrollTo({ top: window.scrollY + delta, behavior: 'instant' })
+          // Let readers start after a bounded wait; correct once when the
+          // remaining eager images settle, unless the reader starts scrolling.
+          if (!waiting) {
+            frame = requestAnimationFrame(() => {
+              frame = 0
+              restoring = false
+            })
+          }
         })
       })
     }
 
     if (position) {
       observer.observe(document.body, { childList: true, subtree: true })
-      const content = document.querySelector('.article-content')
-      if (content) resize.observe(content)
+      if (content) {
+        resize.observe(content)
+        content.addEventListener('load', restore, true)
+        content.addEventListener('error', restore, true)
+      }
+      window.addEventListener('wheel', cancelRestore, { passive: true })
+      window.addEventListener('touchmove', cancelRestore, { passive: true })
+      window.addEventListener('pointerdown', cancelRestore, { passive: true })
+      window.addEventListener('keydown', onKeyDown)
       restore()
     }
     window.addEventListener('scroll', onScroll, { passive: true })
@@ -85,8 +151,11 @@ export function useReadingPosition(id: string) {
       save()
       clearTimeout(saveTimer)
       cancelAnimationFrame(frame)
-      observer.disconnect()
-      resize.disconnect()
+      stopObservingLayout()
+      window.removeEventListener('wheel', cancelRestore)
+      window.removeEventListener('touchmove', cancelRestore)
+      window.removeEventListener('pointerdown', cancelRestore)
+      window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('pagehide', save)
     }

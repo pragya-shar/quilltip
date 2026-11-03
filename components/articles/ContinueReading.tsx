@@ -35,7 +35,10 @@ export function ContinueReading() {
       <Link
         href={`/${encodeURIComponent(article.username)}/${encodeURIComponent(article.slug)}?resume=1`}
       >
-        <span>{article.title}</span> <span aria-hidden="true">→</span>
+        <span>{article.title}</span>
+        <span className="continue-reading-action">
+          Read more <span aria-hidden="true">→</span>
+        </span>
       </Link>
     </aside>
   )
