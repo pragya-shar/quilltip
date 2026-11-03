@@ -145,6 +145,7 @@ export class HighlightConverter {
           note: highlight.note,
           createdAt: highlight.createdAt,
           overlapCount: segment.overlapCount,
+          passageStartIds: segment.passageStartIds.join(' ') || undefined,
         })
       }
 

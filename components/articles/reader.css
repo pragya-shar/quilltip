@@ -400,3 +400,93 @@
     line-height: 1.7;
   }
 }
+
+.reader-passage-slot:empty {
+  display: none;
+}
+.reader-passage-rail {
+  margin-bottom: 14px;
+  color: var(--ui-primary);
+}
+.reader-passage-rail[open] {
+  border-bottom: 1px solid var(--ui-border);
+  padding-bottom: 12px;
+}
+.reader-passage-rail summary {
+  cursor: pointer;
+  min-height: 44px;
+  align-content: center;
+  font:
+    600 15px/1.4 'Reader Syne',
+    sans-serif;
+}
+.reader-passage-rail summary span {
+  margin-inline: 5px 8px;
+  font:
+    24px/1 'Reader Alegreya',
+    serif;
+}
+.reader-passage-rail p {
+  color: var(--ui-muted-foreground);
+}
+.reader-passage-rail ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.reader-passage-rail button {
+  width: 100%;
+  min-height: 44px;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--ui-border);
+  text-align: start;
+  overflow-wrap: anywhere;
+  font:
+    18px/1.4 'Reader Alegreya',
+    serif;
+}
+.reader-passage-rail button:hover {
+  background: var(--ui-accent);
+}
+.reader-passage-rail :focus-visible,
+.reader-article [data-highlight-id]:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+@media (600px < width < 851px) {
+  .reader-passage-rail ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 16px;
+  }
+}
+@media (min-width: 851px) {
+  .reader-layout > .reader-article:has(.reader-passage-rail) {
+    display: grid;
+    max-width: 936px;
+    grid-template-columns: minmax(0, 700px) 200px;
+    column-gap: 36px;
+    grid-template-rows: auto auto 1fr auto;
+  }
+  .reader-article:has(.reader-passage-rail) > :not(.reader-passage-slot) {
+    grid-column: 1;
+    min-width: 0;
+  }
+  .reader-passage-slot {
+    grid-column: 2;
+    grid-row: 1 / -1;
+  }
+  .reader-passage-rail {
+    position: sticky;
+    top: 96px;
+    max-height: calc(100dvh - 112px);
+    overflow-y: auto;
+    margin: 0;
+    padding: 8px 4px 4px;
+    border-top: 1px solid var(--ui-border);
+  }
+  .reader-passage-rail[open] {
+    border-bottom: 0;
+    padding-bottom: 4px;
+  }
+}

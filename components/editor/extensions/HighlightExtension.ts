@@ -11,6 +11,7 @@ export interface HighlightAttributes {
   userAvatar?: string
   note?: string
   createdAt: number
+  passageStartIds?: string
   overlapCount?: number
   startOffset?: number
   endOffset?: number
@@ -194,6 +195,13 @@ const HighlightExtension = Mark.create<HighlightOptions>({
             'data-highlight-id': attributes.id,
           }
         },
+      },
+      passageStartIds: {
+        default: null,
+        renderHTML: (attributes) =>
+          attributes.passageStartIds
+            ? { 'data-passage-start-ids': attributes.passageStartIds }
+            : {},
       },
       color: {
         default: null,

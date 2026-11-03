@@ -294,7 +294,11 @@ test.describe('saved passages on a development backend', () => {
       .fill(process.env.PLAYWRIGHT_QA_PASSWORD!)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
     await expect(page).toHaveURL(/\/$/)
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.goto(articlePath)
+    const rail = page.locator('.reader-passage-rail')
+    await expect(rail).toHaveAttribute('open', '')
     const create = await selectPassage(page, 4)
     await expect(
       create.getByRole('button', { name: 'Highlight only', exact: true })
@@ -312,12 +316,16 @@ test.describe('saved passages on a development backend', () => {
     await expect(tip).toBeHidden()
     await expect(create).toBeVisible()
     await page.keyboard.press('Escape')
-    await page.reload()
+    const savedPassage = rail.getByRole('button', { name: text, exact: true })
+    await expect(savedPassage).toBeVisible()
     const mark = page
       .locator('mark[data-highlight-id]')
       .filter({ hasText: text })
       .first()
     await expect(mark).toBeVisible()
+    await savedPassage.press('Enter')
+    await expect(mark).toBeFocused()
+    await expect(mark).toBeInViewport()
     await mark.click()
     const details = page.getByRole('dialog', {
       name: 'Highlight details',
@@ -360,15 +368,21 @@ test.describe('saved passages on a development backend', () => {
       details.getByRole('button', { name: 'Appreciate for free', exact: true })
     ).toHaveAttribute('aria-pressed', 'false')
     await page.setViewportSize({ width: 390, height: 844 })
+    await expect(rail).not.toHaveAttribute('open')
+    await expect(savedPassage).toBeHidden()
     await details
       .getByRole('button', { name: 'Remove highlight', exact: true })
       .click()
     await expect(details).toBeHidden()
+    await rail.locator('summary').press('Enter')
+    await expect(savedPassage).toHaveCount(0)
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
     await expect(
       page.getByText('Highlight restored.', { exact: true })
     ).toBeVisible()
+    await expect(savedPassage).toBeVisible()
     await page.reload()
+    await expect(rail).not.toHaveAttribute('open')
     await expect(mark).toHaveText(text)
     await mark.click()
     await details

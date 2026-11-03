@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useState } from 'react'
 import { type JSONContent } from '@tiptap/core'
 import Link from 'next/link'
 import { ArticleSelectionHint } from './ArticleSelectionHint'
@@ -40,6 +41,8 @@ export default function ArticleDisplay({
   readerSupport,
   readNext,
 }: ArticleDisplayProps) {
+  const [passageRailTarget, setPassageRailTarget] =
+    useState<HTMLDivElement | null>(null)
   const readingMinutes = estimateReadingMinutes(
     extractPlainTextFromTiptapJson(article.content)
   )
@@ -48,6 +51,9 @@ export default function ArticleDisplay({
 
   return (
     <article className="reader-article">
+      {showHighlights && (
+        <div className="reader-passage-slot" ref={setPassageRailTarget} />
+      )}
       <header className="reader-header">
         {article.tags[0] && (
           <p className="reader-eyebrow">{article.tags[0].name}</p>
@@ -90,6 +96,7 @@ export default function ArticleDisplay({
               editable={false}
               showHighlights={showHighlights}
               tocHeadings={tocHeadings}
+              passageRailTarget={passageRailTarget}
             />
           </>
         ) : (
