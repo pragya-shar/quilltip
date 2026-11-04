@@ -17,12 +17,22 @@ export function WalletPreview({
   onModeChange: (sample: boolean) => void
 }) {
   const [practice, setPractice] = useState(
-    new URLSearchParams(location.search).get('wallet') !== 'sample'
+    () =>
+      location.hash === '#wallet-help' ||
+      new URLSearchParams(location.search).get('wallet') !== 'sample'
   )
-  const [practiceOpened, setPracticeOpened] = useState(
-    new URLSearchParams(location.search).get('wallet') !== 'sample'
-  )
+  const [practiceOpened, setPracticeOpened] = useState(practice)
   useEffect(() => onModeChange(!practice), [practice, onModeChange])
+  useEffect(() => {
+    function showLinkedHelp() {
+      if (location.hash !== '#wallet-help') return
+      setPracticeOpened(true)
+      setPractice(true)
+      setSheet(false)
+    }
+    window.addEventListener('hashchange', showLinkedHelp)
+    return () => window.removeEventListener('hashchange', showLinkedHelp)
+  }, [])
   const [quote, setQuote] = useState<string | null>(null)
   const noteRef = useRef<HTMLElement>(null)
   const [sheet, setSheet] = useState(false)
@@ -183,6 +193,7 @@ export function WalletPreview({
             setSheet(false)
             const url = new URL(location.href)
             url.searchParams.set('wallet', next ? 'practice' : 'sample')
+            if (!next && url.hash === '#wallet-help') url.hash = ''
             history.replaceState(null, '', url)
           }}
         >
@@ -194,7 +205,7 @@ export function WalletPreview({
       {practiceOpened && (
         <div hidden={!practice}>
           <Suspense fallback={<p role="status">Opening wallet practice…</p>}>
-            <WalletPractice />
+            <WalletPractice active={practice} />
           </Suspense>
         </div>
       )}

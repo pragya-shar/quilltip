@@ -1,27 +1,56 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { InstallWalletDialog } from './InstallWalletDialog'
 import './wallet-help.css'
 
 export function WalletSetupHelp({
   receiving = false,
-  initiallyOpen = false,
+  practice = false,
 }: {
   receiving?: boolean
-  initiallyOpen?: boolean
+  practice?: boolean
 }) {
   const [installOpen, setInstallOpen] = useState(false)
+  const disclosure = useRef<HTMLDetailsElement>(null)
+  useEffect(() => {
+    if (!practice) return
+    const openLinkedHelp = () => {
+      const details = disclosure.current
+      if (location.hash !== '#wallet-help' || !details) return
+      details.open = true
+      details.querySelector('summary')?.focus({ preventScroll: true })
+      details.scrollIntoView({ block: 'nearest' })
+    }
+    openLinkedHelp()
+    window.addEventListener('hashchange', openLinkedHelp)
+    return () => window.removeEventListener('hashchange', openLinkedHelp)
+  }, [practice])
+
   return (
     <div className="wallet-setup-help">
-      <details open={initiallyOpen || undefined}>
+      <details
+        ref={disclosure}
+        id={practice ? 'wallet-help' : undefined}
+        className={practice ? 'practice-help' : undefined}
+      >
         <summary>
-          {receiving ? 'Help with your receiving wallet' : 'Wallet setup help'}
+          {practice
+            ? 'Need help connecting?'
+            : receiving
+              ? 'Help with your receiving wallet'
+              : 'Wallet setup help'}
         </summary>
         <div className="wallet-help-content">
           <p>
             Reading is free. A wallet is only needed to send or receive tips.
           </p>
+          {practice && (
+            <p>
+              Use the browser where your wallet is installed and unlock it
+              before connecting.
+            </p>
+          )}
           <ol>
             <li>
               <button

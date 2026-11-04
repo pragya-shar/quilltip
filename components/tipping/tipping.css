@@ -18,6 +18,8 @@
   --ui-border: #ad8690;
   --ui-input: #ad8690;
   --ui-ring: #660033;
+  --ui-danger: #a52e36;
+  --destructive: var(--ui-danger);
   --foreground: var(--ui-foreground);
   --muted-foreground: var(--ui-muted-foreground);
   --background: var(--ui-surface);
@@ -288,6 +290,10 @@
   background: var(--ui-muted);
   color: var(--ui-foreground);
   font-size: 14px;
+}
+.tip-notice-error {
+  border-color: var(--ui-danger);
+  color: var(--ui-danger);
 }
 .tip-dialog .wallet-setup-help {
   font-family: var(--ui-font);

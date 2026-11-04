@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 
 async function openArticle(page: Page) {
   // A development backend may provide a stable article without creating content.
@@ -16,6 +16,34 @@ async function openArticle(page: Page) {
   ).toBeVisible()
 }
 
+async function expectErrorContrast(error: Locator) {
+  const ratios = await error.evaluate((alert) => {
+    function luminance(rgb: string) {
+      const [r = 0, g = 0, b = 0] = rgb
+        .match(/[\d.]+/g)!
+        .slice(0, 3)
+        .map((channel) => {
+          const value = Number(channel) / 255
+          return value <= 0.04045
+            ? value / 12.92
+            : ((value + 0.055) / 1.055) ** 2.4
+        })
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    const background = luminance(getComputedStyle(alert).backgroundColor)
+    return ['h5', 'svg'].map((selector) => {
+      const foreground = luminance(
+        getComputedStyle(alert.querySelector(selector)!).color
+      )
+      return (
+        (Math.max(background, foreground) + 0.05) /
+        (Math.min(background, foreground) + 0.05)
+      )
+    })
+  })
+  for (const ratio of ratios) expect(ratio).toBeGreaterThanOrEqual(4.5)
+}
+
 test('passage context and amount survive checkout, back and cancellation', async ({
   page,
 }) => {
@@ -23,6 +51,7 @@ test('passage context and amount survive checkout, back and cancellation', async
     !process.env.PLAYWRIGHT_TIP_ARTICLE_PATH,
     'Select a development article with a receiving wallet using PLAYWRIGHT_TIP_ARTICLE_PATH.'
   )
+  await page.addInitScript(() => localStorage.setItem('theme', 'dark'))
   await openArticle(page)
   const paragraph = page.locator('.published-prose p').first()
   await paragraph.scrollIntoViewIfNeeded()
@@ -45,6 +74,16 @@ test('passage context and amount survive checkout, back and cancellation', async
   const dialog = page.getByTestId('highlight-tip-dialog')
   const context = dialog.getByRole('blockquote', { name: 'Selected passage' })
   await expect(context).toHaveText(selectedText)
+  await dialog.getByText('Other tip options', { exact: true }).click()
+  await dialog.getByLabel('Or enter custom amount').fill('0')
+  await dialog
+    .getByRole('button', { name: 'Choose wallet', exact: true })
+    .click()
+  const error = dialog.getByRole('alert')
+  await expect(error).toContainText('Please select or enter a valid amount')
+  await expectErrorContrast(error)
+  await expect(context).toHaveText(selectedText)
+
   await dialog
     .getByRole('button', { name: /^(2)( test)? XLM$/, exact: true })
     .click()
@@ -161,4 +200,39 @@ for (const [width, height] of [
     await expect(dialog).toBeHidden()
     await expect(trigger).toBeFocused()
   })
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  for (const [width, height] of [
+    [390, 844],
+    [1440, 1000],
+  ] as const) {
+    test(`paper tip error meets contrast in ${theme} at ${width}×${height}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height })
+      await page.addInitScript(
+        (value) => localStorage.setItem('theme', value),
+        theme
+      )
+      await openArticle(page)
+      await expect(page.locator('html')).toHaveClass(
+        new RegExp(`\\b${theme}\\b`)
+      )
+      await page
+        .getByRole('button', { name: 'Tip article', exact: true })
+        .click()
+      const dialog = page.getByRole('dialog')
+      await dialog.getByText('Other tip options', { exact: true }).click()
+      const amount = dialog.getByLabel('Or enter custom amount')
+      await amount.fill('0')
+      await dialog
+        .getByRole('button', { name: 'Choose wallet', exact: true })
+        .click()
+      const error = dialog.getByRole('alert')
+      await expect(error).toContainText('Please select or enter a valid amount')
+      await expectErrorContrast(error)
+      await expect(amount).toHaveValue('0')
+    })
+  }
 }
