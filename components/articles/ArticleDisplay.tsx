@@ -17,8 +17,7 @@ const HighlightableArticle = dynamic(
 )
 import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
-import { extractPlainTextFromTiptapJson } from '@/lib/tiptap/plainText'
-import { estimateReadingMinutes } from '@/lib/reading-time'
+import { estimateArticleReadingMinutes } from '@/lib/reading-time'
 import type { TocHeading } from '@/lib/tiptap/headings'
 import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
 
@@ -43,9 +42,7 @@ export default function ArticleDisplay({
 }: ArticleDisplayProps) {
   const [passageRailTarget, setPassageRailTarget] =
     useState<HTMLDivElement | null>(null)
-  const readingMinutes = estimateReadingMinutes(
-    extractPlainTextFromTiptapJson(article.content)
-  )
+  const readingMinutes = estimateArticleReadingMinutes(article.content)
 
   useEnsureHeadingIds(tocHeadings, { rootSelector: '.article-content' })
 

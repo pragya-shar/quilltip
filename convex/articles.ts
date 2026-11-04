@@ -3,6 +3,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import { query, mutation, internalMutation } from './_generated/server'
 import { internal } from './_generated/api'
 import { getAuthUserId } from '@convex-dev/auth/server'
+import { estimateArticleReadingMinutes } from '../lib/reading-time'
 import { enrichWithUser } from './lib/enrich'
 import {
   getReadingRoomIndexState,
@@ -204,6 +205,7 @@ export const listArticles = query({
           return article?.published
             ? {
                 ...stripWriterNotes(article),
+                readTime: estimateArticleReadingMinutes(article.content),
                 author: (await authors.get(row.authorId)) ?? null,
               }
             : null
@@ -298,6 +300,7 @@ export const listArticles = query({
     const enrichedArticles = await Promise.all(
       slice.map(async (article) => ({
         ...stripWriterNotes(article),
+        readTime: estimateArticleReadingMinutes(article.content),
         author: writers.has(article.authorId)
           ? (writers.get(article.authorId) ?? null)
           : await enrichWithUser(ctx, article.authorId),
@@ -681,7 +684,7 @@ export const createArticle = mutation({
       highlightCount: 0,
       tipCount: 0,
       totalTipsUsd: 0,
-      readTime: calculateReadTime(args.content),
+      readTime: estimateArticleReadingMinutes(args.content),
       createdAt: now,
       updatedAt: now,
     })
@@ -755,7 +758,7 @@ export const updateArticle = mutation({
 
     if (args.content !== undefined) {
       updates.content = args.content
-      updates.readTime = calculateReadTime(args.content)
+      updates.readTime = estimateArticleReadingMinutes(args.content)
     }
 
     if (args.excerpt !== undefined) updates.excerpt = args.excerpt
@@ -861,6 +864,7 @@ export const publishArticle = mutation({
     await ctx.db.patch(args.id, {
       published: true,
       publishedAt: now,
+      readTime: estimateArticleReadingMinutes(article.content),
       searchContent: buildSearchContent(article.title, article.excerpt, {
         tags: article.tags,
         content: article.content,
@@ -979,6 +983,7 @@ export const saveDraft = mutation({
       const patch: {
         title: string
         content: unknown
+        readTime: number
         excerpt?: string
         coverImage?: string
         tags?: string[]
@@ -989,6 +994,7 @@ export const saveDraft = mutation({
       } = {
         title: args.title,
         content: args.content,
+        readTime: estimateArticleReadingMinutes(args.content),
         excerpt: args.excerpt,
         coverImage: args.coverImage,
         tags: args.tags,
@@ -1055,7 +1061,7 @@ export const saveDraft = mutation({
         highlightCount: 0,
         tipCount: 0,
         totalTipsUsd: 0,
-        readTime: calculateReadTime(args.content),
+        readTime: estimateArticleReadingMinutes(args.content),
         createdAt: now,
         updatedAt: now,
       })
@@ -1246,11 +1252,3 @@ export const setAllArticlesToDraft = internalMutation({
     return { updated }
   },
 })
-
-// Helper function to calculate read time
-function calculateReadTime(content: unknown): number {
-  // Simple estimation: 200 words per minute
-  const text = extractTextFromTiptapJson(content)
-  const wordCount = text.split(/\s+/).filter(Boolean).length
-  return Math.max(1, Math.ceil(wordCount / 200))
-}

@@ -28,6 +28,10 @@ import { WritingDesk } from './WritingDesk'
 import { WritingMedia } from './WritingMedia'
 import { WritingWallet } from './WritingWallet'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
+import {
+  countWords,
+  estimateReadingMinutesFromWordCount,
+} from '@/lib/reading-time'
 
 export function WritingWorkspaceView({
   workspace: w,
@@ -181,8 +185,7 @@ export function WritingWorkspaceView({
       setLeaving(false)
     }
   }
-  const words =
-    w.editor?.getText().trim().split(/\s+/).filter(Boolean).length ?? 0
+  const words = countWords(w.editor?.getText() ?? '')
   const date = new Date().toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -448,7 +451,7 @@ export function WritingWorkspaceView({
             <span>
               {words} {words === 1 ? 'word' : 'words'}
               {words > 0
-                ? ` · ${Math.max(1, Math.ceil(words / 200))} min read`
+                ? ` · ${estimateReadingMinutesFromWordCount(words)} min read`
                 : ''}
             </span>
             <span>
