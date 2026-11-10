@@ -48,6 +48,7 @@
   min-width: 0;
 }
 .reader-header {
+  --reader-bookmark-size: 44px;
   padding: 18px 0 30px;
   margin-bottom: 28px;
   border-bottom: 1px solid var(--ui-border);
@@ -73,9 +74,9 @@
   gap: 12px;
 }
 .reader-header .article-bookmark {
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
+  flex: 0 0 var(--reader-bookmark-size);
+  width: var(--reader-bookmark-size);
+  height: var(--reader-bookmark-size);
   margin-top: 9px;
   border: 1px solid var(--ui-border);
   border-radius: 5px;
@@ -99,10 +100,12 @@
   font-size: 12px;
   color: var(--ui-muted-foreground);
 }
-.reader-byline a {
+.reader-byline > :is(a, span) {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
+}
+.reader-byline a {
   text-decoration: underline;
   text-underline-offset: 4px;
   color: var(--ui-primary);

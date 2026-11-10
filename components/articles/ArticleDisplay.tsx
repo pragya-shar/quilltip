@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { useState } from 'react'
 import { type JSONContent } from '@tiptap/core'
 import Link from 'next/link'
+import { ArticleReaderHeader } from './ArticleReaderHeader'
 import { ArticleSelectionHint } from './ArticleSelectionHint'
 import { BookmarkButton } from '@/components/library/BookmarkButton'
 import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
@@ -51,12 +52,17 @@ export default function ArticleDisplay({
       {showHighlights && (
         <div className="reader-passage-slot" ref={setPassageRailTarget} />
       )}
-      <header className="reader-header">
-        {article.tags[0] && (
-          <p className="reader-eyebrow">{article.tags[0].name}</p>
-        )}
-        <div className="article-title-bookmark">
-          <h1 className="reader-title">{article.title}</h1>
+      <ArticleReaderHeader
+        title={article.title}
+        subtitle={article.excerpt}
+        topic={article.tags[0]?.name}
+        author={
+          <Link href={`/${encodeURIComponent(article.author.username)}`}>
+            {article.author.name || article.author.username}
+          </Link>
+        }
+        readingMinutes={readingMinutes}
+        bookmark={
           <BookmarkButton
             article={{
               id: article.id,
@@ -68,19 +74,8 @@ export default function ArticleDisplay({
               minutes: readingMinutes,
             }}
           />
-        </div>
-
-        {article.excerpt?.trim() && (
-          <p className="reader-subtitle">{article.excerpt}</p>
-        )}
-        <p className="reader-byline">
-          <Link href={`/${encodeURIComponent(article.author.username)}`}>
-            {article.author.name || article.author.username}
-          </Link>
-          {' · '}
-          {readingMinutes} min read
-        </p>
-      </header>
+        }
+      />
 
       {showHighlights && <ArticleSelectionHint />}
 
