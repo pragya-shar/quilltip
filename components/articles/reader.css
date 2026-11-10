@@ -73,6 +73,11 @@
   align-items: flex-start;
   gap: 12px;
 }
+/* A preview reserves the bookmark width so the headline wraps identically. */
+.reader-header .article-title-bookmark:not(:has(.article-bookmark))::after {
+  content: '';
+  flex: 0 0 var(--reader-bookmark-size);
+}
 .reader-header .article-bookmark {
   flex: 0 0 var(--reader-bookmark-size);
   width: var(--reader-bookmark-size);
@@ -365,6 +370,13 @@
 .published-prose.prose > :first-child {
   margin-top: 0;
 }
+/* Match the interactive reader’s ProseMirror whitespace in the static preview. */
+.reader-article-preview .published-prose {
+  white-space: break-spaces;
+}
+.reader-article-preview .published-prose :is(p, h1, h2, h3, h4, h5, h6):empty {
+  min-height: 1lh;
+}
 .reader-surface .skeleton {
   background: var(--ui-muted);
 }
@@ -464,14 +476,16 @@
   }
 }
 @media (min-width: 851px) {
-  .reader-layout > .reader-article:has(.reader-passage-rail) {
+  .reader-layout
+    > .reader-article:is(.reader-article-preview, :has(.reader-passage-rail)) {
     display: grid;
     max-width: 936px;
     grid-template-columns: minmax(0, 700px) 200px;
     column-gap: 36px;
     grid-template-rows: auto auto 1fr auto;
   }
-  .reader-article:has(.reader-passage-rail) > :not(.reader-passage-slot) {
+  .reader-article:is(.reader-article-preview, :has(.reader-passage-rail))
+    > :not(.reader-passage-slot) {
     grid-column: 1;
     min-width: 0;
   }

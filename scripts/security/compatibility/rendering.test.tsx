@@ -4,7 +4,6 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { generateHTML, generateJSON } from '@tiptap/html/server'
 import { expect, it } from 'vitest'
 import { ArticleReadOnlyBody } from '../../../components/articles/ArticleReadOnlyBody'
-import { WritingPreview } from '../../../components/editor/WritingPreview'
 import { getReadOnlyExtensions } from '../../../lib/tiptap/readExtensions'
 import type { JSONContent } from '@tiptap/core'
 
@@ -77,12 +76,9 @@ it('serializes and parses rich article JSON with Tiptap and Happy DOM 21', () =>
   checkHtml(generateHTML(generateJSON(html, extensions), extensions))
 })
 
-it('renders the real article body and writing preview with the same exact text', () => {
-  checkHtml(
+it('renders exact rich content in the shared read-only article body', () => {
+  const body = checkHtml(
     renderToStaticMarkup(createElement(ArticleReadOnlyBody, { content }))
   )
-  const preview = checkHtml(
-    renderToStaticMarkup(createElement(WritingPreview, { content }))
-  )
-  expect(preview.querySelector('p')?.style.textAlign).toBe('center')
+  expect(body.querySelector('p')?.style.textAlign).toBe('')
 })

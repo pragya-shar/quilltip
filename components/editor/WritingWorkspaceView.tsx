@@ -5,7 +5,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useState, useRef, useEffect } from 'react'
 import { EditorContent } from '@tiptap/react'
-import { WritingPreview } from './WritingPreview'
+import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
 import { ArticleReaderHeader } from '@/components/articles/ArticleReaderHeader'
 import { EditorialSurface } from '@/components/layout/EditorialSurface'
 import {
@@ -475,7 +475,7 @@ export function WritingWorkspaceView({
         kind="drawer"
         appearance={style}
       >
-        <p className="muted">Style your article. See it in your preview.</p>
+        <p className="muted">Choose how your writing desk looks.</p>
         <fieldset>
           <legend>Page color</legend>
           <div className="swatches">
@@ -602,14 +602,11 @@ export function WritingWorkspaceView({
                 Your cover appears on article cards.
               </p>
             )}
-            <article className="reader-article">
+            <article className="reader-article reader-article-preview">
               <ArticleReaderHeader
                 title={w.title.trim() ? w.title : 'Untitled draft'}
                 subtitle={w.excerpt}
-                topic={w.tags
-                  .split(',')
-                  .map((tag) => tag.trim())
-                  .find(Boolean)}
+                topic={w.articleTags[0]}
                 author={
                   w.currentUser && (
                     <span>{w.currentUser.name || w.currentUser.username}</span>
@@ -617,7 +614,11 @@ export function WritingWorkspaceView({
                 }
                 readingMinutes={estimateArticleReadingMinutes(w.editorContent)}
               />
-              {w.editorContent && <WritingPreview content={w.editorContent} />}
+              {w.editorContent && (
+                <div className="article-content">
+                  <ArticleReadOnlyBody content={w.editorContent} />
+                </div>
+              )}
             </article>
             <p className="preview-note">
               {w.publishStatus.published

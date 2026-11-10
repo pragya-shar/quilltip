@@ -446,11 +446,6 @@
   color: var(--ink);
   border-bottom: 1px solid #66003320;
 }
-/* Keep the published title wrap without showing an interactive bookmark. */
-.writing-workspace .preview-dialog .article-title-bookmark::after {
-  content: '';
-  flex: 0 0 var(--reader-bookmark-size);
-}
 .writing-workspace .preview-cover-note,
 .writing-workspace .preview-note {
   color: var(--ui-muted-foreground);

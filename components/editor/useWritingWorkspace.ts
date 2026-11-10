@@ -1,7 +1,7 @@
 'use client'
 
 import { ArticleAppearance } from '@/lib/editor/articleAppearance'
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useEditor, JSONContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -104,6 +104,14 @@ export function useWritingWorkspace() {
   const [titleError, setTitleError] = useState<string | null>(null)
   const [excerpt, setExcerpt] = useState('')
   const [tags, setTags] = useState('')
+  const articleTags = useMemo(
+    () =>
+      tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    [tags]
+  )
   const [coverImage, setCoverImage] = useState('')
   const [showCoverImageDialog, setShowCoverImageDialog] = useState(false)
   const [bodyImageDragging, setBodyImageDragging] = useState(false)
@@ -271,10 +279,7 @@ export function useWritingWorkspace() {
     articleId,
     title: title || 'Untitled',
     excerpt,
-    tags: tags
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean),
+    tags: articleTags,
     coverImage: coverImage || undefined,
     writerNotes,
     enabled:
@@ -305,21 +310,25 @@ export function useWritingWorkspace() {
   )
 
   const buildDraftBackup = useCallback((): DraftBackup => {
-    const tagsArr = tags
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean)
     return {
       title: title || 'Untitled',
       content: editorContent ?? EMPTY_DOC,
       excerpt: excerpt || undefined,
-      tags: tagsArr.length ? tagsArr : undefined,
+      tags: articleTags.length ? articleTags : undefined,
       coverImage: coverImage || undefined,
       writerNotes: writerNotes.trim() ? writerNotes : undefined,
       articleId,
       savedAt: Date.now(),
     }
-  }, [editorContent, title, excerpt, tags, coverImage, writerNotes, articleId])
+  }, [
+    editorContent,
+    title,
+    excerpt,
+    articleTags,
+    coverImage,
+    writerNotes,
+    articleId,
+  ])
 
   const persistDraftBackup = useCallback(() => {
     const hasContent = !!editorContent
@@ -866,6 +875,7 @@ export function useWritingWorkspace() {
     setExcerpt,
     excerptTextareaRef,
     tags,
+    articleTags,
     setTags,
     coverImage,
     setCoverImage,
