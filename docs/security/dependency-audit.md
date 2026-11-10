@@ -18,8 +18,8 @@ The live registry gate now reports **0 critical, 6 high, 5 moderate and 1 low** 
 
 ## 2026-11-10 remediation
 
-- Both Stellar SDK versions resolve `toml@^3.0.0` to `5.0.1`, outside all five high-severity advisory ranges. The override preserves the CommonJS `parse` entry used by the SDK. The compatibility suite exercises the real Stellar TOML resolver against a loopback server.
-- Turbo's Solana buffer-layout dependency resolves `bigint-buffer@^1.1.5` to the checked-in JavaScript converter in `vendor/portable-bigint-buffer`. It retains the four conversions from the upstream fallback and ships no native binding, build script, or registry dependency. The compatibility suite checks byte order through the installed Solana layout and verifies Turbo's existing RSA signing and bundling paths.
+- Both Stellar SDK versions resolve `toml@^3.0.0` to `5.0.1`, outside all five high-severity advisory ranges. The override preserves the CommonJS `parse` entry used by the SDK. The compatibility suite exercises the real Stellar TOML resolver against a loopback server. The SDK’s prebuilt browser bundles still include the older parser. QuillTip does not call the browser TOML or federation APIs, and this remediation does not rebuild those bundles.
+- Turbo's Solana buffer-layout dependency resolves `bigint-buffer@^1.1.5` to the checked-in JavaScript converter in `patches/portable-bigint-buffer`. It retains the four conversions from the upstream fallback and ships no native binding, build script, or registry dependency. The compatibility suite checks byte order through the installed Solana layout and verifies Turbo's existing RSA signing and bundling paths.
 - The live lockfile scan reports **0 critical, 0 high, 5 moderate and 1 low** records. All six expired entries were removed after their affected packages disappeared from the lockfile. The existing audit threshold and CI gate still apply.
 
 ## Reproduce and enforce
@@ -39,7 +39,7 @@ CI's Dependency Audit job is now a dependency of the existing Required job and n
 | secp256k1 5.0.2                  | Patch within 5.x; replaces 5.0.0's ECDH implementation.                                                                                            | Stellar wallet path uses Ed25519 and no app ECDH call. No native ECDH/key material was exercised.                                                         |
 | ws@^7 to 7.5.13; ws@^8 to 8.21.0 | Bun 1.4.4 applies selectors to declared ranges. Keeps both existing major APIs and covers exact vulnerable pins without moving 7.x callers to 8.x. | Inspected final lock; wallet/SDK adapter mocks, build and test suite check integration. These are not live hardware-wallet or production-network tests.   |
 
-Convex Auth was upgraded through its own release, whose Auth.js peer range permits patched 0.41.x. Tiptap packages move together to 3.32.0; the fresh tree deduplicates ProseMirror model instances. Other transitive patches are resolved within upstream ranges. No major wallet-kit or TOML parser migration is forced. Dependency lifecycle scripts were skipped during review installs; that is not relied on as the exception's security boundary.
+Convex Auth was upgraded through its own release, whose Auth.js peer range permits patched 0.41.x. Tiptap packages move together to 3.32.0; the fresh tree deduplicates ProseMirror model instances. Other transitive patches are resolved within upstream ranges. That earlier work kept wallet-kit and the TOML parser on their existing major versions. Dependency lifecycle scripts were skipped during review installs; that is not relied on as the exception's security boundary.
 
 ## Remaining exceptions
 

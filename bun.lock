@@ -110,7 +110,7 @@
   },
   "overrides": {
     "bigint-buffer@^1.1.5": {
-      ".": "file:./vendor/portable-bigint-buffer",
+      ".": "file:./patches/portable-bigint-buffer",
     },
     "decode-uri-component": "0.5.1",
     "elliptic": "6.6.1",
@@ -2797,7 +2797,7 @@
 
     "@solana/assertions/@solana/errors": ["@solana/errors@2.3.0", "", { "dependencies": { "chalk": "^5.4.1", "commander": "^14.0.0" }, "peerDependencies": { "typescript": ">=5.3.3" }, "bin": { "errors": "bin/cli.mjs" } }, "sha512-66RI9MAbwYV0UtP7kGcTBVLxJgUxoZGm8Fbc0ah+lGiAw17Gugco6+9GrJCV83VyF2mDWyYnYM9qdI3yjgpnaQ=="],
 
-    "@solana/buffer-layout-utils/bigint-buffer": ["@quilltip/portable-bigint-buffer@file:vendor/portable-bigint-buffer", {}],
+    "@solana/buffer-layout-utils/bigint-buffer": ["@quilltip/portable-bigint-buffer@file:patches/portable-bigint-buffer", {}],
 
     "@solana/codecs/@solana/codecs-core": ["@solana/codecs-core@2.0.0-rc.1", "", { "dependencies": { "@solana/errors": "2.0.0-rc.1" }, "peerDependencies": { "typescript": ">=5" } }, "sha512-bauxqMfSs8EHD0JKESaNmNuNvkvHSuN3bbWAF5RjOfDu2PugxHrvRebmYauvSumZ3cTfQ4HJJX6PG5rN852qyQ=="],
 
