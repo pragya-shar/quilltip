@@ -14,7 +14,13 @@ Override `follow-redirects` to upstream **1.16.2** for [GHSA-mrwp-f3q8-3g9p](htt
 
 `url-dependencies.test.ts` exercises the CommonJS query-string API, the 32,000-distinct-run denial-of-service payload in a time-bounded subprocess, and real loopback cross-origin redirects with cross-realm sensitive headers in both object and array header forms. Existing wallet, Arweave and rendering compatibility tests remain part of the same suite.
 
-The live registry gate now reports **0 critical, 6 high, 5 moderate and 1 low** records. Neither new advisory remains. No audit code, thresholds or exceptions changed; the six existing exact exceptions below still expire on 2026-11-06. Earlier counts and decoder patch descriptions in this document are historical.
+The live registry gate now reports **0 critical, 6 high, 5 moderate and 1 low** records. Neither new advisory remains. No audit code, thresholds or exceptions changed; the six existing exact exceptions were scheduled to expire on 2026-11-06. Earlier counts and decoder patch descriptions in this document are historical.
+
+## 2026-11-10 remediation
+
+- Both Stellar SDK versions resolve `toml@^3.0.0` to `5.0.1`, outside all five high-severity advisory ranges. The override preserves the CommonJS `parse` entry used by the SDK. The compatibility suite exercises the real Stellar TOML resolver against a loopback server.
+- Turbo's Solana buffer-layout dependency resolves `bigint-buffer@^1.1.5` to the checked-in JavaScript converter in `vendor/portable-bigint-buffer`. It retains the four conversions from the upstream fallback and ships no native binding, build script, or registry dependency. The compatibility suite checks byte order through the installed Solana layout and verifies Turbo's existing RSA signing and bundling paths.
+- The live lockfile scan reports **0 critical, 0 high, 5 moderate and 1 low** records. All six expired entries were removed after their affected packages disappeared from the lockfile. The existing audit threshold and CI gate still apply.
 
 ## Reproduce and enforce
 
@@ -37,7 +43,7 @@ Convex Auth was upgraded through its own release, whose Auth.js peer range permi
 
 ## Remaining exceptions
 
-`security/audit-exceptions.json` is the enforced policy. Each entry names its advisory, exact installed version and affected range, reviewer, owner @pragya-shar, expiry **2026-11-06**, rationale and this evidence file. Expiry is exclusive at 00:00 UTC; owner review is required to extend it. Remove an exception when its finding disappears. Do not enable one of the excluded APIs without remediating it first.
+`security/audit-exceptions.json` is the enforced policy. It has no active exceptions after the November 10 remediation. The table records the earlier review. Those entries named the exact installed version and affected range, reviewer, owner @pragya-shar, expiry **2026-11-06**, rationale and this evidence file. Expiry is exclusive at 00:00 UTC; owner review is required to extend it. Remove an exception when its finding disappears. Do not enable one of the excluded APIs without remediating it first.
 
 | Package             | Scope and installed dependency path                                                                        | Affected function and reachability                                                                                                                                                                                                        | Disposition                                                                                                                        |
 | ------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
