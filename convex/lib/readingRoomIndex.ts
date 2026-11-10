@@ -129,7 +129,8 @@ const CANDIDATE_LIMIT = 512
 
 export const readingRoomRankValidator = v.object({
   articleId: v.id('articles'),
-  title: v.string(),
+  writerId: v.optional(v.id('users')),
+  title: v.optional(v.string()),
   publishedAt: v.optional(v.number()),
   createdAt: v.number(),
   tipCount: v.optional(v.number()),

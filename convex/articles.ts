@@ -379,7 +379,7 @@ export const listArticles = query({
 export const scanReadingRoomSearch = query({
   args: {
     ...readingRoomFilters,
-    search: v.string(),
+    search: v.optional(v.string()),
     paginationOpts: paginationOptsValidator,
   },
   returns: paginationResultValidator(readingRoomRankValidator),
@@ -428,6 +428,19 @@ export const scanReadingRoomSearch = query({
           ? [{ ...row, articleId: row._id, createdAt: row._creationTime }]
           : []
     )
+    // The writer picker counts every public article using the same bounded
+    // cursor source. It resolves only the final top writers' profiles.
+    if (args.search === undefined) {
+      return {
+        ...batch,
+        page: candidates.map((row) => ({
+          articleId: row.articleId,
+          createdAt: row.createdAt,
+          publishedAt: row.publishedAt,
+          writerId: row.authorId,
+        })),
+      }
+    }
     const matches = await matchReadingRoomRows(
       ctx,
       candidates,
@@ -476,6 +489,26 @@ export const loadReadingRoomSearchPage = query({
       if (article) articles.push(article)
     }
     return articles
+  },
+})
+
+export const loadReadingRoomWriterOptions = query({
+  args: { ids: v.array(v.id('articles')) },
+  returns: v.array(
+    v.object({ username: v.string(), name: v.union(v.string(), v.null()) })
+  ),
+  handler: async (ctx, { ids }) => {
+    if (ids.length > READING_ROOM_HYDRATION_SIZE)
+      throw new Error('Too many article IDs')
+    const writers = []
+    for (const id of ids) {
+      const article = await ctx.db.get(id)
+      if (!article?.published || !isArticleListingReady(article)) continue
+      const user = await ctx.db.get(article.authorId)
+      const username = user?.username.trim()
+      if (user && username) writers.push({ username, name: user.name ?? null })
+    }
+    return writers
   },
 })
 
@@ -549,20 +582,14 @@ export const listBrowseAuthors = query({
   },
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 20, 1), 50)
-    // The picker suggests writers from recent articles. Bound this separate
-    // read so it cannot prevent an exact author search on a large catalog.
-    const { page } = await ctx.db
+    const rows = await ctx.db
       .query('articles')
       .withIndex('by_published_date', (q) => q.eq('published', true))
       .order('desc')
-      .paginate({
-        cursor: null,
-        numItems: 8000,
-        maximumBytesRead: 8 * 1024 * 1024,
-      })
+      .collect()
 
     const counts = new Map<Id<'users'>, number>()
-    for (const article of page) {
+    for (const article of rows) {
       if (!isArticleListingReady(article)) continue
       counts.set(article.authorId, (counts.get(article.authorId) ?? 0) + 1)
     }
@@ -578,7 +605,6 @@ export const listBrowseAuthors = query({
     }[] = []
 
     for (const [authorId, articleCount] of sorted) {
-      if (!(await hasReadingRoomReadBudget(ctx))) break
       const user = await ctx.db.get(authorId)
       const username = user?.username?.trim()
       if (!user || !username) continue

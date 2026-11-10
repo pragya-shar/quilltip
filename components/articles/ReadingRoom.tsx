@@ -9,7 +9,10 @@ import {
 } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useBrowseAuthors, useReadingRoomArticles } from '@/hooks/convex'
+import {
+  useReadingRoomArticles,
+  useReadingRoomWriterOptions,
+} from '@/hooks/convex'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { useAuth } from '@/components/providers/AuthContext'
 import { buildRegisterHref } from '@/lib/auth/safeReturnPath'
@@ -90,7 +93,7 @@ export function ReadingRoom() {
           sort,
         }
   )
-  const authors = useBrowseAuthors(author ? 20 : 'skip')
+  const authors = useReadingRoomWriterOptions(!!author)
   const cancelSearch = useCallback(() => {
     if (searchTimer.current !== null) clearTimeout(searchTimer.current)
     searchTimer.current = null

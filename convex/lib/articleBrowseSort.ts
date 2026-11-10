@@ -115,14 +115,7 @@ export function normalizeBrowsePage({
   }
 }
 
-export function paginateBrowseArticles<
-  T extends {
-    title: string
-    publishedAt?: number
-    tipCount?: number
-    highlightCount?: number
-  },
->(
+export function paginateBrowseArticles<T extends BrowseSortableArticle>(
   articles: T[],
   view: BrowseView,
   sort: BrowseSort,
@@ -184,4 +177,28 @@ export function paginateReadingRoomMatches(
     )
   })
   return paginateBrowseArticles(ordered, view, sort, (page - 1) * limit, limit)
+}
+
+export function rankReadingRoomWriters(rows: ReadingRoomRank[], limit: number) {
+  // The former writer picker broke equal counts by latest published article.
+  const newestFirst = [...rows].sort(
+    (a, b) =>
+      (b.publishedAt ?? -Infinity) - (a.publishedAt ?? -Infinity) ||
+      b.createdAt - a.createdAt ||
+      b.articleId.localeCompare(a.articleId)
+  )
+  const counts = new Map<
+    NonNullable<ReadingRoomRank['writerId']>,
+    { articleId: ReadingRoomRank['articleId']; count: number }
+  >()
+  for (const { writerId, articleId } of newestFirst) {
+    if (!writerId) continue
+    const writer = counts.get(writerId)
+    if (writer) writer.count++
+    else counts.set(writerId, { articleId, count: 1 })
+  }
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+    .map(({ articleId }) => articleId)
 }

@@ -3,7 +3,10 @@ import { convexTest } from 'convex-test'
 import type { FunctionArgs, PaginationResult } from 'convex/server'
 import { expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
-import { paginateReadingRoomMatches } from '../../convex/lib/articleBrowseSort'
+import {
+  paginateReadingRoomMatches,
+  rankReadingRoomWriters,
+} from '../../convex/lib/articleBrowseSort'
 import {
   READING_ROOM_HYDRATION_SIZE,
   READING_ROOM_SCAN_SIZE,
@@ -29,26 +32,21 @@ const content = {
   ],
 }
 
-// Drive the same bounded probe, cursor scan, ranking and hydration as the room.
-async function browseReadingRoom(
+async function scanReadingRoom(
   t: ReturnType<typeof convexTest<typeof schema.tables>>,
-  args: FunctionArgs<typeof api.articles.listArticles>
+  filters: Omit<
+    FunctionArgs<typeof api.articles.scanReadingRoomSearch>,
+    'paginationOpts'
+  >,
+  numItems = READING_ROOM_SCAN_SIZE
 ) {
-  const probe = await t.query(api.articles.listArticles, {
-    ...args,
-    allowSearchScan: true,
-  })
-  if (!('scanRequired' in probe) || !probe.scanRequired) return probe
-
-  const { search, author, tag, category, bookmarkIds } = args
-  const filters = { search: search!, author, tag, category, bookmarkIds }
   const scan = async (
     cursor: string | null,
     endCursor?: string
   ): Promise<PaginationResult<ReadingRoomRank>> => {
     const batch = await t.query(api.articles.scanReadingRoomSearch, {
       ...filters,
-      paginationOpts: { cursor, endCursor, numItems: READING_ROOM_SCAN_SIZE },
+      paginationOpts: { cursor, endCursor, numItems },
     })
     if (batch.pageStatus !== 'SplitRequired') return batch
     expect(batch.splitCursor).toBeTruthy()
@@ -65,6 +63,23 @@ async function browseReadingRoom(
     expect(batch.continueCursor).not.toBe(cursor)
     cursor = batch.continueCursor
   }
+  return rows
+}
+
+// Drive the same bounded probe, cursor scan, ranking and hydration as the room.
+async function browseReadingRoom(
+  t: ReturnType<typeof convexTest<typeof schema.tables>>,
+  args: FunctionArgs<typeof api.articles.listArticles>
+) {
+  const probe = await t.query(api.articles.listArticles, {
+    ...args,
+    allowSearchScan: true,
+  })
+  if (!('scanRequired' in probe) || !probe.scanRequired) return probe
+
+  const { search, author, tag, category, bookmarkIds } = args
+  const filters = { search: search!, author, tag, category, bookmarkIds }
+  const rows = await scanReadingRoom(t, filters)
   const { page, limit } = probe
   const { slice, total, totalPages, browseMeta } = paginateReadingRoomMatches(
     rows,
@@ -513,4 +528,53 @@ test('broad titles and prolific writers stay within a transaction budget', async
   })
   expect(saved.total).toBe(300)
   expect(saved.articles.map(({ _id }) => _id)).toEqual([ids[598], ids[596]])
+})
+
+test('writer options count old articles across ranges and preserve legacy ordering', async () => {
+  const t = convexTest(schema, modules)
+  await t.run(async (ctx) => {
+    for (const [index, dates] of [
+      [1, 2, 3],
+      [4, 5],
+      [6, 7],
+    ].entries()) {
+      const username = `writer-${index}`
+      const authorId = await ctx.db.insert('users', {
+        username,
+        email: `${username}@example.test`,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      for (const publishedAt of dates) {
+        await ctx.db.insert('articles', {
+          slug: `fixture-${publishedAt}`,
+          title: `Article ${publishedAt}`,
+          content,
+          authorId,
+          authorUsername: username,
+          published: true,
+          publishedAt,
+          createdAt: 1,
+          updatedAt: 1,
+        })
+      }
+    }
+  })
+  const legacy = await t.query(api.articles.listBrowseAuthors, { limit: 3 })
+  const writerNames = legacy.map(({ username }) => username)
+  expect(writerNames).toEqual(['writer-0', 'writer-2', 'writer-1'])
+
+  const readOptions = async () => {
+    const rows = await scanReadingRoom(t, {}, 2)
+    const ids = rankReadingRoomWriters(rows, 3)
+    const writers = await t.query(api.articles.loadReadingRoomWriterOptions, {
+      ids,
+    })
+    return writers.map(({ username }) => username)
+  }
+  expect(await readOptions()).toEqual(writerNames)
+  expect(
+    (await t.mutation(internal.readingRoomIndex.backfill, {})).complete
+  ).toBe(true)
+  expect(await readOptions()).toEqual(writerNames)
 })
