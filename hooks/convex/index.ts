@@ -1,6 +1,7 @@
 export { useCurrentUser, useUserByUsername, useUserStats } from './useUsers'
 export {
   useListArticles,
+  useReadingRoomArticles,
   useReadNextArticles,
   useBrowseTags,
   useBrowseAuthors,

@@ -1,7 +1,18 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test'
+import type { FunctionArgs, PaginationResult } from 'convex/server'
 import { expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
+import { paginateReadingRoomMatches } from '../../convex/lib/articleBrowseSort'
+import {
+  READING_ROOM_HYDRATION_SIZE,
+  READING_ROOM_SCAN_SIZE,
+} from '../../lib/articles/readingRoomSearchBatch'
+import {
+  syncReadingRoomArticle,
+  type ReadingRoomRank,
+} from '../../convex/lib/readingRoomIndex'
+
 import { api, internal } from '../../convex/_generated/api'
 import { getArticleOpening } from '../../lib/articles/getArticleOpening'
 import { buildArticlesBrowseHref } from '../../lib/articles/buildArticlesBrowseHref'
@@ -16,6 +27,57 @@ const content = {
       content: [{ type: 'text', text: 'First sentence. Second sentence.' }],
     },
   ],
+}
+
+// Drive the same bounded probe, cursor scan, ranking and hydration as the room.
+async function browseReadingRoom(
+  t: ReturnType<typeof convexTest<typeof schema.tables>>,
+  args: FunctionArgs<typeof api.articles.listArticles>
+) {
+  const probe = await t.query(api.articles.listArticles, args)
+  if (!('scanRequired' in probe) || !probe.scanRequired) return probe
+
+  const { search, author, tag, category, bookmarkIds } = args
+  const filters = { search: search!, author, tag, category, bookmarkIds }
+  const scan = async (
+    cursor: string | null,
+    endCursor?: string
+  ): Promise<PaginationResult<ReadingRoomRank>> => {
+    const batch = await t.query(api.articles.scanReadingRoomSearch, {
+      ...filters,
+      paginationOpts: { cursor, endCursor, numItems: READING_ROOM_SCAN_SIZE },
+    })
+    if (batch.pageStatus !== 'SplitRequired') return batch
+    expect(batch.splitCursor).toBeTruthy()
+    const left = await scan(cursor, batch.splitCursor!)
+    const right = await scan(batch.splitCursor!, batch.continueCursor)
+    return { ...batch, page: [...left.page, ...right.page] }
+  }
+  const rows: ReadingRoomRank[] = []
+  let cursor: string | null = null
+  for (;;) {
+    const batch = await scan(cursor)
+    rows.push(...batch.page)
+    if (batch.isDone) break
+    expect(batch.continueCursor).not.toBe(cursor)
+    cursor = batch.continueCursor
+  }
+  const { page, limit } = probe
+  const { slice, total, totalPages, browseMeta } = paginateReadingRoomMatches(
+    rows,
+    { ...args, page, limit }
+  )
+  const articles = []
+  for (let i = 0; i < slice.length; i += READING_ROOM_HYDRATION_SIZE) {
+    articles.push(
+      ...(await t.query(api.articles.loadReadingRoomSearchPage, {
+        ids: slice
+          .slice(i, i + READING_ROOM_HYDRATION_SIZE)
+          .map(({ articleId }) => articleId),
+      }))
+    )
+  }
+  return { articles, total, totalPages, browseMeta, page, limit }
 }
 
 test('browse applies categories, writer/title search and bookmark IDs before sorting and pagination', async () => {
@@ -64,17 +126,17 @@ test('browse applies categories, writer/title search and bookmark IDs before sor
     sort: 'title',
     limit: 1,
   } as const
-  const first = await t.query(api.articles.listArticles, storyFilters)
+  const first = await browseReadingRoom(t, storyFilters)
   expect(first.total).toBe(2)
   expect(first.totalPages).toBe(2)
   expect(first.articles.map((article) => article._id)).toEqual([ids.a])
   expect(first.articles[0]).not.toHaveProperty('writerNotes')
-  const second = await t.query(api.articles.listArticles, {
+  const second = await browseReadingRoom(t, {
     ...storyFilters,
     page: 2,
   })
   expect(second.articles.map((article) => article._id)).toEqual([ids.z])
-  const bookmarked = await t.query(api.articles.listArticles, {
+  const bookmarked = await browseReadingRoom(t, {
     bookmarkIds: [ids.z, ids.z, ids.draft, ids.other, 'stale-id'],
     sort: 'title',
     search: 'river-writer',
@@ -84,17 +146,15 @@ test('browse applies categories, writer/title search and bookmark IDs before sor
     ids.other,
     ids.z,
   ])
-  const empty = await t.query(api.articles.listArticles, {
+  const empty = await browseReadingRoom(t, {
     searchByWriterOrTitle: true,
     search: 'keyword',
   })
   expect(empty.total).toBe(0)
-  expect(
-    (await t.query(api.articles.listArticles, { bookmarkIds: [] })).total
-  ).toBe(0)
+  expect((await browseReadingRoom(t, { bookmarkIds: [] })).total).toBe(0)
   expect(
     (
-      await t.query(api.articles.listArticles, {
+      await browseReadingRoom(t, {
         searchByWriterOrTitle: true,
         search: 'zebra',
       })
@@ -124,7 +184,7 @@ test('Reading Room cards show the saved subtitle after publication and published
     typeof t.query<typeof api.articles.listArticles>
   >[1]
   const cards = async (filters: BrowseFilters = {}) => {
-    const result = await t.query(api.articles.listArticles, filters)
+    const result = await browseReadingRoom(t, filters)
     return mapListArticlesToDisplay(result.articles, { compact: true })
   }
   expect(await cards()).toEqual([])
@@ -239,8 +299,7 @@ test('search backfills a large catalog and follows public writes without changin
   })
   const browse = (
     args: Parameters<typeof t.query<typeof api.articles.listArticles>>[1]
-  ) =>
-    t.query(api.articles.listArticles, { ...args, searchByWriterOrTitle: true })
+  ) => browseReadingRoom(t, { ...args, searchByWriterOrTitle: true })
   const narrow = {
     author: 'lumen-writer',
     category: 'stories',
@@ -335,4 +394,94 @@ test('continue reading resolves the first available ID to its current public tit
     slug: 'current-slug',
     title: 'Current Title',
   })
+})
+
+test('broad titles and prolific writers stay within a transaction budget', async () => {
+  const t = convexTest({
+    schema,
+    modules,
+    transactionLimits: { documentsRead: 250 },
+  })
+  const authorId = await t.run((ctx) =>
+    ctx.db.insert('users', {
+      username: 'fixture-writer',
+      email: 'writer@example.test',
+
+      name: 'Prolific Writer',
+      createdAt: 1,
+      updatedAt: 1,
+    })
+  )
+  const ids = []
+  for (let start = 0; start < 600; start += 40) {
+    const batch = await t.run(async (ctx) => {
+      const ids = []
+      for (let i = start; i < start + 40; i++) {
+        const id = await ctx.db.insert('articles', {
+          slug: `field-${i}`,
+          title: i === 0 ? 'Field Quartz' : `Field ${i}`,
+          authorId,
+          authorUsername: 'fixture-writer',
+          content,
+          published: true,
+          publishedAt: i + 1,
+          tags: [i % 2 === 0 ? 'stories' : 'thoughts'],
+          createdAt: 1,
+          updatedAt: 1,
+        })
+        await syncReadingRoomArticle(ctx, id, await ctx.db.get(id))
+        if (i % 3 === 0) {
+          await ctx.db.insert('articleTagLinks', {
+            articleId: id,
+            authorId,
+            publishedAt: i + 1,
+            tag: i % 2 === 0 ? 'Exact' : 'exact',
+          })
+        }
+        ids.push(id)
+      }
+      return ids
+    })
+    ids.push(...batch)
+  }
+  await t.run((ctx) =>
+    ctx.db.insert('readingRoomIndexState', {
+      version: 1,
+      cursor: null,
+      complete: true,
+    })
+  )
+  for (const search of ['field', 'prolific']) {
+    const result = await browseReadingRoom(t, {
+      search,
+      searchByWriterOrTitle: true,
+      category: 'stories',
+      sort: 'oldest',
+      limit: 2,
+      page: 2,
+    })
+    expect(result.total).toBe(300)
+    expect(result.totalPages).toBe(150)
+    expect(result.articles.map(({ _id }) => _id)).toEqual([ids[4], ids[6]])
+  }
+
+  const tagResult = await browseReadingRoom(t, {
+    author: 'fixture-writer',
+    tag: 'Exact',
+    search: 'prolific',
+    searchByWriterOrTitle: true,
+    limit: 2,
+  })
+  expect(tagResult.total).toBe(100)
+  expect(tagResult.articles.map(({ _id }) => _id)).toEqual([ids[594], ids[588]])
+
+  const saved = await browseReadingRoom(t, {
+    bookmarkIds: ['missing-id', ...ids, ids[0]!],
+    category: 'stories',
+    search: 'field',
+    searchByWriterOrTitle: true,
+    limit: 2,
+  })
+  expect(saved.total).toBe(300)
+  expect(saved.articles.map(({ _id }) => _id)).toEqual([ids[598], ids[596]])
 })

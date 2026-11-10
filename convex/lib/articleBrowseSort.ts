@@ -1,3 +1,5 @@
+import type { ReadingRoomRank } from './readingRoomIndex'
+
 export type BrowseView = 'latest' | 'trending' | 'featured'
 export type BrowseSort = 'newest' | 'oldest' | 'most_tipped' | 'title'
 
@@ -98,4 +100,75 @@ export function sortArticlesForBrowse<T extends BrowseSortableArticle>(
   }
 
   return { articles: scored, meta }
+}
+
+export function paginateBrowseArticles<
+  T extends {
+    title: string
+    publishedAt?: number
+    tipCount?: number
+    highlightCount?: number
+  },
+>(
+  articles: T[],
+  view: BrowseView,
+  sort: BrowseSort,
+  offset: number,
+  limit: number
+) {
+  const { articles: sorted, meta } = sortArticlesForBrowse(articles, view, sort)
+  const total = sorted.length
+  const slice = sorted.slice(offset, offset + limit)
+  return {
+    slice,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    browseMeta: meta,
+  }
+}
+
+export function paginateReadingRoomMatches(
+  rows: ReadingRoomRank[],
+  {
+    page = 1,
+    limit = 10,
+    view = 'latest',
+    sort = 'newest',
+    author,
+    bookmarkIds,
+  }: {
+    page?: number
+    limit?: number
+    view?: BrowseView
+    sort?: BrowseSort
+    author?: string
+    bookmarkIds?: string[]
+  }
+) {
+  // Stable ties inherit the same order as the original browse source.
+  const savedOrder = new Map(
+    bookmarkIds?.map((id, index) => [id, index] as const).reverse()
+  )
+  const ordered = [...rows].sort((a, b) => {
+    if (bookmarkIds)
+      return (
+        (savedOrder.get(a.articleId) ?? 0) - (savedOrder.get(b.articleId) ?? 0)
+      )
+
+    const aTag = a.tagOrder
+    const bTag = b.tagOrder
+    if (aTag && bTag) {
+      return (
+        bTag.date - aTag.date ||
+        bTag.created - aTag.created ||
+        bTag.id.localeCompare(aTag.id)
+      )
+    }
+    return (
+      (author ? 0 : (b.publishedAt ?? 0) - (a.publishedAt ?? 0)) ||
+      b.createdAt - a.createdAt ||
+      b.articleId.localeCompare(a.articleId)
+    )
+  })
+  return paginateBrowseArticles(ordered, view, sort, (page - 1) * limit, limit)
 }

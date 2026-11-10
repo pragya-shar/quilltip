@@ -1,13 +1,31 @@
 import { v } from 'convex/values'
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from 'convex/server'
+import schema from './schema'
 import type { Doc, Id } from './_generated/dataModel'
-import { query, mutation, internalMutation } from './_generated/server'
+import {
+  query,
+  mutation,
+  internalMutation,
+  type QueryCtx,
+} from './_generated/server'
 import { internal } from './_generated/api'
 import { getAuthUserId } from '@convex-dev/auth/server'
+import {
+  READING_ROOM_HYDRATION_SIZE,
+  READING_ROOM_SCAN_SIZE,
+} from '../lib/articles/readingRoomSearchBatch'
 import { estimateArticleReadingMinutes } from '../lib/reading-time'
-import { enrichWithUser } from './lib/enrich'
+import { enrichWithUser, type PublicUser } from './lib/enrich'
 import {
   getReadingRoomIndexState,
-  searchReadingRoomIndex,
+  hasReadingRoomReadBudget,
+  matchReadingRoomRows,
+  probeReadingRoomIndex,
+  readingRoomRankValidator,
+  readingRoomTerms,
   syncReadingRoomArticle,
 } from './lib/readingRoomIndex'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
@@ -33,7 +51,8 @@ import {
   searchListingArticles,
 } from './lib/articleSearch'
 import {
-  sortArticlesForBrowse,
+  paginateBrowseArticles,
+  paginateReadingRoomMatches,
   type BrowseSort,
   type BrowseView,
 } from './lib/articleBrowseSort'
@@ -105,49 +124,49 @@ const browseSortValidator = v.union(
   v.literal('title')
 )
 
-function paginateBrowseArticles<
-  T extends {
-    title: string
-    publishedAt?: number
-    tipCount?: number
-    highlightCount?: number
-  },
->(
-  articles: T[],
-  view: BrowseView,
-  sort: BrowseSort,
-  offset: number,
-  limit: number
+const readingRoomFilters = {
+  tag: v.optional(v.string()),
+  author: v.optional(v.string()),
+  category: v.optional(
+    v.union(v.literal('stories'), v.literal('thoughts'), v.literal('anecdotes'))
+  ),
+  bookmarkIds: v.optional(v.array(v.string())),
+}
+
+async function findBrowseAuthor(ctx: QueryCtx, username: string) {
+  return ctx.db
+    .query('users')
+    .withIndex('by_username', (q) => q.eq('username', username))
+    .first()
+}
+
+async function loadReadingRoomArticle(
+  ctx: QueryCtx,
+  id: Id<'articles'>,
+  authors: Map<Id<'users'>, PublicUser | null>
 ) {
-  const { articles: sorted, meta } = sortArticlesForBrowse(articles, view, sort)
-  const total = sorted.length
-  const slice = sorted.slice(offset, offset + limit)
+  const article = await ctx.db.get(id)
+  if (!article?.published || !isArticleListingReady(article)) return null
+  if (!authors.has(article.authorId)) {
+    authors.set(article.authorId, await enrichWithUser(ctx, article.authorId))
+  }
   return {
-    slice,
-    total,
-    totalPages: total === 0 ? 0 : Math.ceil(total / limit),
-    browseMeta: meta,
+    ...stripWriterNotes(article),
+    readTime: estimateArticleReadingMinutes(article.content),
+    author: authors.get(article.authorId) ?? null,
   }
 }
 
+// The narrow lookup remains reactive and returns cards in a single round trip.
 // List articles with pagination and filters
 export const listArticles = query({
   args: {
     page: v.optional(v.number()),
     limit: v.optional(v.number()),
-    tag: v.optional(v.string()),
-    author: v.optional(v.string()),
+    ...readingRoomFilters,
     search: v.optional(v.string()),
     view: v.optional(browseViewValidator),
     sort: v.optional(browseSortValidator),
-    category: v.optional(
-      v.union(
-        v.literal('stories'),
-        v.literal('thoughts'),
-        v.literal('anecdotes')
-      )
-    ),
-    bookmarkIds: v.optional(v.array(v.string())),
     searchByWriterOrTitle: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
@@ -164,10 +183,7 @@ export const listArticles = query({
 
     let authorId: Id<'users'> | undefined
     if (args.author) {
-      const author = await ctx.db
-        .query('users')
-        .withIndex('by_username', (q) => q.eq('username', args.author!))
-        .first()
+      const author = await findBrowseAuthor(ctx, args.author)
 
       if (!author) {
         return {
@@ -181,47 +197,59 @@ export const listArticles = query({
       authorId = author._id
     }
 
-    if (
-      search &&
-      args.searchByWriterOrTitle &&
-      (await getReadingRoomIndexState(ctx))?.complete
-    ) {
-      const { rows, authors } = await searchReadingRoomIndex(ctx, search, {
+    if (search && args.searchByWriterOrTitle) {
+      const scan = {
+        articles: [],
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+        scanRequired: true as const,
+        browseMeta: undefined,
+      }
+      if (!(await getReadingRoomIndexState(ctx))?.complete) return scan
+
+      const terms = readingRoomTerms(search)
+      const filters = {
         authorId,
         tag,
         category: args.category,
         bookmarkIds: args.bookmarkIds,
-      })
-      const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
-        rows,
-        view,
-        sort,
-        offset,
-        limit
-      )
-      const articles = await Promise.all(
-        slice.map(async (row) => {
-          const article = await ctx.db.get(row.articleId)
-          return article?.published
-            ? {
-                ...stripWriterNotes(article),
-                readTime: estimateArticleReadingMinutes(article.content),
-                author: (await authors.get(row.authorId)) ?? null,
-              }
-            : null
-        })
-      )
-      return {
-        articles: articles.filter((article) => article !== null),
-        total,
-        page,
-        limit,
-        totalPages,
-        browseMeta,
       }
+      const probe = await probeReadingRoomIndex(ctx, terms, filters)
+      if (!probe) return scan
+      const matches = await matchReadingRoomRows(
+        ctx,
+        probe.rows,
+        terms,
+        filters,
+        probe.authors
+      )
+      if (!matches) return scan
+
+      const { slice, total, totalPages, browseMeta } =
+        paginateReadingRoomMatches(matches.rows, {
+          ...args,
+          page,
+          limit,
+          view,
+          sort,
+        })
+      // The scan path can hydrate large pages in several transactions.
+      if (slice.length > 9) return scan
+      const articles = []
+      for (const row of slice) {
+        if (!(await hasReadingRoomReadBudget(ctx))) return scan
+        const article = await loadReadingRoomArticle(
+          ctx,
+          row.articleId,
+          matches.authors
+        )
+        if (article) articles.push(article)
+      }
+      return { articles, total, page, limit, totalPages, browseMeta }
     }
 
-    // Preserve results during the bounded backfill.
     let rows: Doc<'articles'>[]
     if (args.bookmarkIds) {
       const ids = [...new Set(args.bookmarkIds)]
@@ -234,7 +262,7 @@ export const listArticles = query({
           (!authorId || article.authorId === authorId) &&
           (!tag || article.tags?.includes(tag) === true)
       )
-    } else if (search && !args.searchByWriterOrTitle) {
+    } else if (search) {
       rows = await searchListingArticles(ctx, {
         search,
         authorUsername: args.author,
@@ -265,31 +293,6 @@ export const listArticles = query({
       )
     }
 
-    const writers = new Map<
-      Id<'users'>,
-      Awaited<ReturnType<typeof enrichWithUser>>
-    >()
-    if (search && args.searchByWriterOrTitle) {
-      await Promise.all(
-        [...new Set(rows.map((article) => article.authorId))].map(
-          async (id) => {
-            writers.set(id, await enrichWithUser(ctx, id))
-          }
-        )
-      )
-      const terms = search.toLowerCase().split(/\s+/)
-      rows = rows.filter((article) => {
-        const writer = writers.get(article.authorId)
-        const text = [
-          article.title,
-          writer?.name ?? article.authorName,
-          writer?.username ?? article.authorUsername,
-        ]
-          .join(' ')
-          .toLowerCase()
-        return terms.every((term) => text.includes(term))
-      })
-    }
     const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
       rows,
       view,
@@ -301,9 +304,7 @@ export const listArticles = query({
       slice.map(async (article) => ({
         ...stripWriterNotes(article),
         readTime: estimateArticleReadingMinutes(article.content),
-        author: writers.has(article.authorId)
-          ? (writers.get(article.authorId) ?? null)
-          : await enrichWithUser(ctx, article.authorId),
+        author: await enrichWithUser(ctx, article.authorId),
       }))
     )
     return {
@@ -314,6 +315,111 @@ export const listArticles = query({
       totalPages,
       browseMeta,
     }
+  },
+})
+
+// Each call scans one bounded cursor range. Return only the public fields
+// needed to count and rank matches across ranges.
+export const scanReadingRoomSearch = query({
+  args: {
+    ...readingRoomFilters,
+    search: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(readingRoomRankValidator),
+  handler: async (ctx, args) => {
+    const author = args.author ? await findBrowseAuthor(ctx, args.author) : null
+    if (args.author && !author)
+      return { page: [], isDone: true, continueCursor: '' }
+    const authorId = author?._id
+    const options = {
+      ...args.paginationOpts,
+      numItems: Math.min(
+        READING_ROOM_SCAN_SIZE,
+        Math.max(1, args.paginationOpts.numItems)
+      ),
+      maximumRowsRead: READING_ROOM_SCAN_SIZE * 2,
+      maximumBytesRead: 4 * 1024 * 1024,
+    }
+    const indexed = (await getReadingRoomIndexState(ctx))?.complete
+    const batch = indexed
+      ? await (
+          authorId
+            ? ctx.db
+                .query('readingRoomArticles')
+                .withIndex('by_author', (q) => q.eq('authorId', authorId))
+            : ctx.db.query('readingRoomArticles')
+        ).paginate(options)
+      : await (
+          authorId
+            ? ctx.db
+                .query('articles')
+                .withIndex('by_author_published', (q) =>
+                  q.eq('authorId', authorId).eq('published', true)
+                )
+            : ctx.db
+                .query('articles')
+                .withIndex('by_published', (q) => q.eq('published', true))
+        ).paginate(options)
+
+    if (batch.pageStatus === 'SplitRequired') return { ...batch, page: [] }
+    const candidates = batch.page.flatMap<
+      Parameters<typeof matchReadingRoomRows>[1][number]
+    >((row) =>
+      'articleId' in row
+        ? [row]
+        : isArticleListingReady(row)
+          ? [{ ...row, articleId: row._id, createdAt: row._creationTime }]
+          : []
+    )
+    const matches = await matchReadingRoomRows(
+      ctx,
+      candidates,
+      readingRoomTerms(args.search),
+      {
+        authorId,
+        tag: args.tag?.trim() || undefined,
+        category: args.category,
+        bookmarkIds: args.bookmarkIds,
+      }
+    )
+    if (matches) return { ...batch, page: matches.rows }
+
+    // Writer and tag lookups also consume the transaction's read budget.
+    if (batch.splitCursor)
+      return { ...batch, page: [], pageStatus: 'SplitRequired' as const }
+    throw new Error('Reading Room scan exceeded its read budget')
+  },
+})
+
+export const loadReadingRoomSearchPage = query({
+  args: { ids: v.array(v.id('articles')) },
+  returns: v.array(
+    schema.tables.articles.validator.omit('writerNotes').extend({
+      _id: v.id('articles'),
+      _creationTime: v.number(),
+      readTime: v.number(),
+      author: v.union(
+        v.object({
+          id: v.id('users'),
+          username: v.string(),
+          name: v.optional(v.string()),
+          avatar: v.optional(v.string()),
+        }),
+        v.null()
+      ),
+    })
+  ),
+  handler: async (ctx, { ids }) => {
+    if (ids.length > READING_ROOM_HYDRATION_SIZE)
+      throw new Error('Too many article IDs')
+    const authors = new Map<Id<'users'>, PublicUser | null>()
+    const articles = []
+    for (const id of ids) {
+      const article = await loadReadingRoomArticle(ctx, id, authors)
+      if (article) articles.push(article)
+    }
+    return articles
   },
 })
 
