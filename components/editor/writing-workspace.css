@@ -192,15 +192,13 @@
   line-height: 1.3;
   margin: 28px 0 12px;
 }
-.writing-workspace .writer-body blockquote,
-.writing-workspace .preview-dialog blockquote {
+.writing-workspace .writer-body blockquote {
   margin: 20px 0;
   padding-left: 22px;
   border-left: 2px solid #66003380;
   font-style: italic;
 }
-.writing-workspace .writer-body img,
-.writing-workspace .preview-dialog img {
+.writing-workspace .writer-body img {
   max-width: 100%;
   height: auto;
 }
@@ -432,7 +430,9 @@
   height: 100dvh;
   margin: 0;
   padding: 0;
-  background: #e3c6c6;
+  border: 0;
+  background: var(--ui-surface);
+  color: var(--ui-foreground);
 }
 .writing-workspace .preview-header {
   position: sticky;
@@ -442,30 +442,17 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 32px;
-  background: #f6ebde;
+  background: var(--paper);
+  color: var(--ink);
   border-bottom: 1px solid #66003320;
 }
-.writing-workspace .preview-dialog .sheet {
-  margin: 35px auto;
-  min-height: 65vh;
-}
-.writing-workspace .preview-dialog h1 {
-  font-family: var(--title-font);
-  font-size: 42px;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-}
-.writing-workspace .preview-body {
-  font: 19px/1.85 var(--article-font);
-  overflow-wrap: anywhere;
-}
-.writing-workspace .preview-subtitle {
-  font-size: 18px;
-  color: #755961;
+.writing-workspace .preview-cover-note,
+.writing-workspace .preview-note {
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
 }
 .writing-workspace .preview-note {
-  text-align: center;
-  font-size: 13px;
+  margin-top: 24px;
 }
 .writing-workspace .draft-row {
   display: flex;
@@ -583,16 +570,14 @@
     letter-spacing: 1px;
     margin-bottom: 28px;
   }
-  .writing-workspace #article-title,
-  .writing-workspace .preview-dialog h1 {
+  .writing-workspace #article-title {
     font-size: 33px;
     letter-spacing: -0.7px;
   }
   .writing-workspace #article-subtitle {
     font-size: 16px;
   }
-  .writing-workspace .writer-body,
-  .writing-workspace .preview-body {
+  .writing-workspace .writer-body {
     font-size: 17px;
     line-height: 1.85;
   }
@@ -602,9 +587,6 @@
   }
   .writing-workspace .trial-footer {
     font-size: 11px;
-  }
-  .writing-workspace .preview-dialog .sheet {
-    margin: 16px 12px;
   }
   .writing-workspace .preview-header {
     padding: 12px 18px;
@@ -681,8 +663,7 @@
   justify-content: space-between;
   margin-top: 20px;
 }
-.writing-workspace .writer-body figure,
-.writing-workspace .preview-body figure {
+.writing-workspace .writer-body figure {
   margin: 24px 0;
 }
 .writing-workspace .writer-body figure {
@@ -701,8 +682,7 @@
   color: #71565c;
   margin-top: 10px;
 }
-.writing-workspace #cover-preview img,
-.writing-workspace .article-cover {
+.writing-workspace #cover-preview img {
   width: 100%;
   max-height: 300px;
   object-fit: cover;
@@ -723,12 +703,6 @@
   font-size: 13px;
   color: #71565c;
   margin-bottom: 24px;
-}
-.writing-workspace .preview-dialog.reader-view .preview-header {
-  background: var(--paper);
-}
-.writing-workspace .preview-dialog.reader-view #continue-publish {
-  display: none;
 }
 .writing-workspace button:disabled {
   opacity: 0.5;
@@ -870,14 +844,6 @@
   box-shadow: none;
 }
 
-.writing-workspace .preview-dialog,
-.writing-workspace .preview-header {
-  background: var(--paper);
-}
-.writing-workspace .preview-dialog .sheet {
-  background: transparent;
-  box-shadow: none;
-}
 .writing-workspace .brand {
   display: flex;
   align-items: center;
@@ -1028,10 +994,7 @@
 .writing-workspace button {
   cursor: pointer;
 }
-.writing-workspace h1,
-.writing-workspace h2,
-.writing-workspace h3,
-.writing-workspace p {
+.writing-workspace :is(h1, h2, h3, p):not(:where(.reader-surface *)) {
   margin-block-start: 1em;
   margin-block-end: 1em;
 }
@@ -1076,13 +1039,11 @@
   height: 0;
   pointer-events: none;
 }
-.writing-workspace .writer-body ul,
-.writing-workspace .preview-body ul {
+.writing-workspace .writer-body ul {
   list-style: disc;
   padding-left: 28px;
 }
-.writing-workspace .writer-body ol,
-.writing-workspace .preview-body ol {
+.writing-workspace .writer-body ol {
   list-style: decimal;
   padding-left: 28px;
 }
@@ -1101,8 +1062,7 @@
   border: 1px solid #66003320;
   border-radius: 6px;
 }
-.writing-workspace .writer-body iframe,
-.writing-workspace .preview-body iframe {
+.writing-workspace .writer-body iframe {
   max-width: 100%;
   aspect-ratio: 16/9;
   height: auto;
@@ -1125,24 +1085,6 @@
 .writing-workspace .writer-body.dragging {
   outline: 2px dashed var(--wine);
   outline-offset: 12px;
-}
-.writing-workspace .preview-body {
-  color: var(--ink);
-  max-width: none;
-}
-.writing-workspace .preview-body p {
-  margin: 0 0 20px;
-}
-.writing-workspace .preview-body h2 {
-  font-size: 27px;
-  line-height: 1.3;
-  margin: 28px 0 12px;
-}
-.writing-workspace .preview-body a {
-  text-decoration: underline;
-}
-.writing-workspace .preview-subtitle {
-  white-space: pre-wrap;
 }
 .writing-workspace .writer-dialog label {
   color: var(--ink);
@@ -1195,9 +1137,6 @@
   background: var(--wine);
 }
 @media (max-width: 650px) {
-  .writing-workspace .preview-dialog .sheet {
-    width: auto;
-  }
   .writing-workspace .writer-notice {
     margin: 12px;
   }

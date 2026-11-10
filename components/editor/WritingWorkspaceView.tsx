@@ -1,11 +1,13 @@
 'use client'
 /* Full document navigation resets draft state after the unsaved-changes guard. */
 /* eslint-disable @next/next/no-html-link-for-pages */
-/* User-selected cover URLs are displayed directly in the private preview. */
+/* User-selected cover URLs are displayed directly in article settings. */
 /* eslint-disable @next/next/no-img-element */
 import { useState, useRef, useEffect } from 'react'
 import { EditorContent } from '@tiptap/react'
-import { WritingPreview } from './WritingPreview'
+import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
+import { ArticleReaderHeader } from '@/components/articles/ArticleReaderHeader'
+import { EditorialSurface } from '@/components/layout/EditorialSurface'
 import {
   getArticleAppearance,
   setArticleAppearance,
@@ -30,6 +32,7 @@ import { WritingWallet } from './WritingWallet'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import {
   countWords,
+  estimateArticleReadingMinutes,
   estimateReadingMinutesFromWordCount,
 } from '@/lib/reading-time'
 
@@ -472,7 +475,7 @@ export function WritingWorkspaceView({
         kind="drawer"
         appearance={style}
       >
-        <p className="muted">Style your article. See it in your preview.</p>
+        <p className="muted">Choose how your writing desk looks.</p>
         <fieldset>
           <legend>Page color</legend>
           <div className="swatches">
@@ -540,8 +543,8 @@ export function WritingWorkspaceView({
           </p>
         </div>
         <p className="drawer-note">
-          These choices save with your draft and carry into your preview. Focus
-          mode only changes your writing workspace.
+          These choices save with your draft and style your writing workspace.
+          The article preview uses the published reader’s appearance.
         </p>
         <button id="appearance-done" className="wine wide" onClick={close}>
           Back to writing
@@ -577,7 +580,7 @@ export function WritingWorkspaceView({
         open={panel === 'preview'}
         onClose={close}
         title="Article preview"
-        kind="preview-dialog"
+        kind="preview-dialog reader-surface"
         appearance={style}
         header={false}
       >
@@ -592,23 +595,38 @@ export function WritingWorkspaceView({
             </button>
           </div>
         </div>
-        <article className="sheet">
-          <h1>{w.title || 'Untitled draft'}</h1>
-          {w.excerpt && <p className="preview-subtitle">{w.excerpt}</p>}
-          {w.coverImage && (
-            <img
-              className="article-cover"
-              src={w.coverImage}
-              alt={style.coverAlt}
-            />
-          )}
-          {w.editorContent && <WritingPreview content={w.editorContent} />}
-        </article>
-        <p className="preview-note">
-          {w.publishStatus.published
-            ? 'Preview of your published article. Changes save to the live article.'
-            : 'Preview only. Nothing has been published.'}
-        </p>
+        {panel === 'preview' && (
+          <EditorialSurface className="reader-layout">
+            {w.coverImage && (
+              <p className="preview-cover-note">
+                Your cover appears on article cards.
+              </p>
+            )}
+            <article className="reader-article reader-article-preview">
+              <ArticleReaderHeader
+                title={w.title.trim() ? w.title : 'Untitled draft'}
+                subtitle={w.excerpt}
+                topic={w.articleTags[0]}
+                author={
+                  w.currentUser && (
+                    <span>{w.currentUser.name || w.currentUser.username}</span>
+                  )
+                }
+                readingMinutes={estimateArticleReadingMinutes(w.editorContent)}
+              />
+              {w.editorContent && (
+                <div className="article-content">
+                  <ArticleReadOnlyBody content={w.editorContent} />
+                </div>
+              )}
+            </article>
+            <p className="preview-note">
+              {w.publishStatus.published
+                ? 'Preview of your published article. Changes save to the live article.'
+                : 'Preview only. Nothing has been published.'}
+            </p>
+          </EditorialSurface>
+        )}
       </WritingDialog>
       <WritingDialog
         open={panel === 'insert'}
