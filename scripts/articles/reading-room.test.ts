@@ -5,6 +5,7 @@ import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
 import { getArticleOpening } from '../../lib/articles/getArticleOpening'
 import { buildArticlesBrowseHref } from '../../lib/articles/buildArticlesBrowseHref'
+import { mapListArticlesToDisplay } from '../../lib/articles/mapListArticleToDisplay'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 const content = {
@@ -101,7 +102,67 @@ test('browse applies categories, writer/title search and bookmark IDs before sor
   ).toBe(1)
 })
 
-test('compact previews use the opening and browse links preserve active filters across pages', () => {
+test('Reading Room cards show the saved subtitle after publication and published edits', async () => {
+  const t = convexTest(schema, modules)
+  const authorId = await t.run((ctx) =>
+    ctx.db.insert('users', {
+      username: 'river-writer',
+      email: 'subtitle@example.test',
+      name: 'Marin River',
+      stellarAddress: 'G' + 'A'.repeat(55),
+      createdAt: 1,
+      updatedAt: 1,
+    })
+  )
+  const author = t.withIdentity({ subject: `${authorId}|session` })
+  const article = { title: 'River Notes', content, tags: ['stories'] }
+  const id = await author.mutation(api.articles.saveDraft, {
+    ...article,
+    excerpt: '  A field guide to quiet rivers. With notes from the bank.  ',
+  })
+  type BrowseFilters = Parameters<
+    typeof t.query<typeof api.articles.listArticles>
+  >[1]
+  const cards = async (filters: BrowseFilters = {}) => {
+    const result = await t.query(api.articles.listArticles, filters)
+    return mapListArticlesToDisplay(result.articles, { compact: true })
+  }
+  expect(await cards()).toEqual([])
+
+  // Suppress permanent storage in this isolated in-memory fixture.
+  await t.run((ctx) => ctx.db.patch(id, { arweaveStatus: 'verified' }))
+  await author.mutation(api.articles.publishArticle, { id })
+  expect(await cards()).toMatchObject([
+    {
+      id,
+      excerpt: 'A field guide to quiet rivers. With notes from the bank.',
+      author: { username: 'river-writer', name: 'Marin River' },
+    },
+  ])
+
+  const excerpt = 'An updated guide for the next trip downriver.'
+  await author.mutation(api.articles.saveDraft, { ...article, id, excerpt })
+  await t.mutation(internal.readingRoomIndex.backfill, {})
+  const views: BrowseFilters[] = [
+    { category: 'stories' },
+    { search: 'river notes', searchByWriterOrTitle: true },
+    { bookmarkIds: [id] },
+  ]
+  for (const filters of views) {
+    expect(await cards(filters)).toMatchObject([{ id, excerpt }])
+  }
+
+  for (const blank of [' \t ', undefined]) {
+    await author.mutation(api.articles.saveDraft, {
+      ...article,
+      id,
+      excerpt: blank,
+    })
+    expect(await cards()).toMatchObject([{ id, excerpt: 'First sentence.' }])
+  }
+})
+
+test('body openings stay compact and browse links preserve active filters across pages', () => {
   expect(getArticleOpening({ content, excerpt: 'Subtitle' })).toBe(
     'First sentence.'
   )

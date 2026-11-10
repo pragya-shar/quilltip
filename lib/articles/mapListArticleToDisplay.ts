@@ -13,7 +13,7 @@ export function mapListArticleRowToDisplay(
     title: article.title,
     excerpt:
       (options?.compact
-        ? getArticleOpening(article)
+        ? article.excerpt?.trim() || getArticleOpening(article)
         : getArticlePreview(article)) || null,
     coverImage: article.coverImage ?? null,
     publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
