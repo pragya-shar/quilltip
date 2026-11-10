@@ -1,0 +1,2 @@
+export const READING_ROOM_SCAN_SIZE = 128
+export const READING_ROOM_HYDRATION_SIZE = 4

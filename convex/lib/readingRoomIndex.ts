@@ -1,3 +1,4 @@
+import { v, type Infer } from 'convex/values'
 import type { Doc, Id } from '../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../_generated/server'
 import { isArticleListingReady } from './articleListingReady'
@@ -122,150 +123,256 @@ export async function syncReadingRoomEngagement(
   if (row) await ctx.db.patch(row._id, counts)
 }
 
-const SEARCH_LIMIT = 512
+const PROBE_LIMIT = 64
+const FINAL_PROBE_LIMIT = 512
+const CANDIDATE_LIMIT = 512
 
-export async function searchReadingRoomIndex(
+export const readingRoomRankValidator = v.object({
+  articleId: v.id('articles'),
+  writerId: v.optional(v.id('users')),
+  title: v.optional(v.string()),
+  publishedAt: v.optional(v.number()),
+  createdAt: v.number(),
+  tipCount: v.optional(v.number()),
+  highlightCount: v.optional(v.number()),
+  tagOrder: v.optional(
+    v.object({
+      date: v.number(),
+      created: v.number(),
+      id: v.id('articleTagLinks'),
+    })
+  ),
+})
+export type ReadingRoomRank = Infer<typeof readingRoomRankValidator>
+export type ReadingRoomFilters = {
+  authorId?: Id<'users'>
+  tag?: string
+  category?: string
+  bookmarkIds?: string[]
+}
+
+export function readingRoomTerms(search: string) {
+  return search.trim().slice(0, 200).toLowerCase().trim().split(/\s+/)
+}
+
+export async function hasReadingRoomReadBudget(ctx: QueryCtx) {
+  const { bytesRead, documentsRead, databaseQueries } =
+    await ctx.meta.getTransactionMetrics()
+  // Leave room for multiple reads of large legacy documents before checking again.
+  return (
+    bytesRead.remaining > 4 * 1024 * 1024 &&
+    documentsRead.remaining > 16 &&
+    databaseQueries.remaining > 16
+  )
+}
+
+async function readProbe<T>(
   ctx: QueryCtx,
-  search: string,
-  filters: {
-    authorId?: Id<'users'>
-    tag?: string
-    category?: string
-    bookmarkIds?: string[]
-  }
+  source: AsyncIterable<T>,
+  limit: number,
+  bounded: boolean
 ) {
-  const { authorId, tag, category, bookmarkIds } = filters
-  const terms = search.toLowerCase().trim().split(/\s+/)
-  // A single common prefix can hide a narrow query (e.g. “field 599”).
-  // Probe up to three independent necessary fragments and keep the first
-  // complete candidate set. A fragment can match in either title or writer.
+  const rows: T[] = []
+  if (bounded && !(await hasReadingRoomReadBudget(ctx))) return null
+  for await (const row of source) {
+    rows.push(row)
+    if (rows.length >= limit) return null
+    if (
+      bounded &&
+      rows.length % 4 === 0 &&
+      !(await hasReadingRoomReadBudget(ctx))
+    )
+      return null
+  }
+  return rows
+}
+
+export async function probeReadingRoomIndex(
+  ctx: QueryCtx,
+  terms: string[],
+  filters: ReadingRoomFilters,
+  bounded: boolean
+) {
+  const { authorId, bookmarkIds } = filters
+  if (bookmarkIds) {
+    const ids = [...new Set(bookmarkIds)]
+    if (bounded && ids.length >= PROBE_LIMIT) return null
+    const rows = []
+    for (const value of ids) {
+      if (bounded && !(await hasReadingRoomReadBudget(ctx))) return null
+      const id = ctx.db.normalizeId('articles', value)
+      const row = id && (await articleIndexRow(ctx, id))
+      if (row) rows.push(row)
+    }
+    return { rows }
+  }
+
+  // A common fragment can hide a narrow query such as “field 599”.
+  // Try up to three necessary fragments from either end of the terms.
   const ordered = [...terms].sort((a, b) => b.length - a.length)
   const probes = new Map<string, string>()
   for (const term of ordered) probes.set(token(term.slice(-3).split('')), term)
   for (const term of ordered)
     probes.set(token(term.slice(0, 3).split('')), term)
-  const selected = [...probes].slice(0, 3)
 
-  const byAuthor = (id: Id<'users'>) =>
-    ctx.db
-      .query('readingRoomArticles')
-      .withIndex('by_author', (q) => q.eq('authorId', id))
-
-  const authors = new Map<Id<'users'>, ReturnType<typeof enrichWithUser>>()
-  const candidates = new Map<Id<'articles'>, ArticleRow>()
-  if (bookmarkIds) {
-    for (const value of new Set(bookmarkIds)) {
-      const id = ctx.db.normalizeId('articles', value)
-      const row = id && (await articleIndexRow(ctx, id))
-      if (row) candidates.set(row.articleId, row)
-    }
-  } else {
-    const scopedWriter = authorId ? await enrichWithUser(ctx, authorId) : null
-    const oversizedWriters = authorId
-      ? []
-      : await ctx.db
+  const oversizedWriters = authorId
+    ? []
+    : await readProbe(
+        ctx,
+        ctx.db
           .query('readingRoomWriters')
-          .withIndex('by_oversized', (q) => q.eq('oversized', true))
-          .take(SEARCH_LIMIT)
-    let found = false
-    for (let i = 0; i < selected.length; i++) {
-      const [needle, term] = selected[i]!
-      const limit = i === selected.length - 1 ? SEARCH_LIMIT : 64
-      const titleRows = await ctx.db
+          .withIndex('by_oversized', (q) => q.eq('oversized', true)),
+        FINAL_PROBE_LIMIT,
+        bounded
+      )
+  const selected = oversizedWriters ? [...probes].slice(0, 3) : []
+  for (const [i, [needle, term]] of selected.entries()) {
+    const limit = i === selected.length - 1 ? FINAL_PROBE_LIMIT : PROBE_LIMIT
+    const articles = await readProbe(
+      ctx,
+      ctx.db.query('readingRoomArticles').withSearchIndex('by_grams', (q) => {
+        const matches = q.search('grams', needle)
+        return authorId ? matches.eq('authorId', authorId) : matches
+      }),
+      limit,
+      bounded
+    )
+    if (!articles) continue
+
+    const writers = authorId
+      ? []
+      : await readProbe(
+          ctx,
+          ctx.db
+            .query('readingRoomWriters')
+            .withSearchIndex('by_grams', (q) => q.search('grams', needle)),
+          limit,
+          bounded
+        )
+    if (!writers) continue
+
+    const oversizedArticles = await readProbe(
+      ctx,
+      ctx.db
         .query('readingRoomArticles')
-        .withSearchIndex('by_grams', (q) => {
-          const matches = q.search('grams', needle)
-          return authorId ? matches.eq('authorId', authorId) : matches
-        })
-        .take(limit)
+        .withIndex('by_oversized', (q) => q.eq('oversized', true)),
+      bounded ? PROBE_LIMIT : Infinity,
+      bounded
+    )
+    if (!oversizedArticles) return null
+
+    const candidates = new Map(
+      [...articles, ...oversizedArticles].map((row) => [row.articleId, row])
+    )
+    const writerIds = authorId
+      ? [authorId]
+      : new Set(
+          [...writers, ...(oversizedWriters ?? [])].map((row) => row.authorId)
+        )
+    const authors = new Map<
+      Id<'users'>,
+      Awaited<ReturnType<typeof enrichWithUser>>
+    >()
+    for (const id of writerIds) {
+      if (bounded && !(await hasReadingRoomReadBudget(ctx))) return null
+      const writer = await enrichWithUser(ctx, id)
+      authors.set(id, writer)
       if (
-        titleRows.length === limit ||
-        oversizedWriters.length === SEARCH_LIMIT
+        ![writer?.name, writer?.username].some((field) =>
+          field?.toLowerCase().includes(term)
+        )
       )
         continue
-      const writers = authorId
-        ? []
-        : await ctx.db
-            .query('readingRoomWriters')
-            .withSearchIndex('by_grams', (q) => q.search('grams', needle))
-            .take(limit)
-      if (writers.length === limit) continue
 
-      for (const row of titleRows) candidates.set(row.articleId, row)
-      const oversizedArticles = ctx.db
-        .query('readingRoomArticles')
-        .withIndex('by_oversized', (q) => q.eq('oversized', true))
-      for await (const row of oversizedArticles)
-        candidates.set(row.articleId, row)
-
-      const writerIds = authorId
-        ? [authorId]
-        : [
-            ...new Set(
-              [...writers, ...oversizedWriters].map((row) => row.authorId)
-            ),
-          ]
-      for (const id of writerIds) {
-        let lookup = authors.get(id)
-        if (!lookup) {
-          lookup =
-            id === authorId
-              ? Promise.resolve(scopedWriter)
-              : enrichWithUser(ctx, id)
-          authors.set(id, lookup)
-        }
-        const writer = await lookup
-        if (
-          ![writer?.name, writer?.username].some((field) =>
-            field?.toLowerCase().includes(term)
-          )
-        )
-          continue
-        for await (const row of byAuthor(id)) candidates.set(row.articleId, row)
-      }
-      found = true
-      break
+      const catalog = await readProbe(
+        ctx,
+        ctx.db
+          .query('readingRoomArticles')
+          .withIndex('by_author', (q) => q.eq('authorId', id)),
+        bounded ? CANDIDATE_LIMIT - candidates.size : Infinity,
+        bounded
+      )
+      if (!catalog) return null
+      for (const row of catalog) candidates.set(row.articleId, row)
     }
-
-    // Native text search has a result ceiling. Scan compact metadata when all
-    // probes are broad to preserve exact totals and sort order.
-    if (!found) {
-      const all = authorId
-        ? byAuthor(authorId)
-        : ctx.db.query('readingRoomArticles')
-      for await (const row of all) candidates.set(row.articleId, row)
-    }
+    return { rows: [...candidates.values()], authors }
   }
 
-  const rows = []
-  const tagOrder = new Map<
-    Id<'articles'>,
-    { date: number; created: number; id: string }
-  >()
-  for (const row of candidates.values()) {
+  // Keep the original result contract for frontend builds without the scan protocol.
+  if (!bounded) {
+    const source = authorId
+      ? ctx.db
+          .query('readingRoomArticles')
+          .withIndex('by_author', (q) => q.eq('authorId', authorId))
+      : ctx.db.query('readingRoomArticles')
+    const rows = []
+    for await (const row of source) rows.push(row)
+    return { rows }
+  }
+  return null
+}
+
+type MatchSource = Pick<
+  ArticleRow,
+  | 'articleId'
+  | 'authorId'
+  | 'authorName'
+  | 'authorUsername'
+  | 'title'
+  | 'tags'
+  | 'publishedAt'
+  | 'createdAt'
+  | 'tipCount'
+  | 'highlightCount'
+>
+
+export async function matchReadingRoomRows(
+  ctx: QueryCtx,
+  candidates: MatchSource[],
+  terms: string[],
+  { authorId, tag, category, bookmarkIds }: ReadingRoomFilters,
+  authors = new Map<Id<'users'>, Awaited<ReturnType<typeof enrichWithUser>>>(),
+  bounded = true
+) {
+  const rows: ReadingRoomRank[] = []
+  const bookmarks = bookmarkIds && new Set(bookmarkIds)
+  const writerTerms = new Map<Id<'users'>, string[]>()
+  for (const row of candidates) {
     if (authorId && row.authorId !== authorId) continue
-    if (tag && bookmarkIds && !row.tags?.includes(tag)) continue
+    if (bookmarks && !bookmarks.has(row.articleId)) continue
+    if (tag && bookmarks && !row.tags?.includes(tag)) continue
     if (
       category &&
       !row.tags?.some((tag) => tag.trim().toLowerCase() === category)
     )
       continue
-    let writer = authors.get(row.authorId)
-    if (!writer) {
-      writer = enrichWithUser(ctx, row.authorId)
-      authors.set(row.authorId, writer)
+
+    if (!authors.has(row.authorId)) {
+      if (bounded && !(await hasReadingRoomReadBudget(ctx))) return null
+      authors.set(row.authorId, await enrichWithUser(ctx, row.authorId))
     }
-    const author = await writer
+    const author = authors.get(row.authorId)
+    let remaining = writerTerms.get(row.authorId)
+    if (!remaining) {
+      const name = author?.name?.toLowerCase()
+      const username = author?.username?.toLowerCase()
+      remaining = terms.filter(
+        (term) => !name?.includes(term) && !username?.includes(term)
+      )
+      writerTerms.set(row.authorId, remaining)
+    }
     const text = [
       row.title,
-      author?.name ?? row.authorName,
-      author?.username ?? row.authorUsername,
+      author?.name == null ? row.authorName : undefined,
+      author?.username == null ? row.authorUsername : undefined,
     ]
       .join(' ')
       .toLowerCase()
-    if (!terms.every((term) => text.includes(term))) continue
-    if (tag && !bookmarkIds) {
-      // Legacy tag URLs are driven by the exact tag link and its index order.
+    if (!remaining.every((term) => text.includes(term))) continue
+
+    let tagOrder: ReadingRoomRank['tagOrder']
+    if (tag && !bookmarks) {
+      if (bounded && !(await hasReadingRoomReadBudget(ctx))) return null
       const link = await ctx.db
         .query('articleTagLinks')
         .withIndex('by_article_tag', (q) =>
@@ -273,37 +380,21 @@ export async function searchReadingRoomIndex(
         )
         .first()
       if (!link) continue
-      tagOrder.set(row.articleId, {
+      tagOrder = {
         date: link.publishedAt,
         created: link._creationTime,
         id: link._id,
-      })
+      }
     }
-    rows.push(row)
+    rows.push({
+      articleId: row.articleId,
+      title: row.title,
+      publishedAt: row.publishedAt,
+      createdAt: row.createdAt,
+      tipCount: row.tipCount,
+      highlightCount: row.highlightCount,
+      tagOrder,
+    })
   }
-  // Preserve the existing base order for stable ties in browse sorting.
-  const savedOrder = new Map(
-    bookmarkIds?.map((id, index) => [id, index] as const).reverse()
-  )
-  rows.sort((a, b) => {
-    if (bookmarkIds)
-      return (
-        (savedOrder.get(a.articleId) ?? 0) - (savedOrder.get(b.articleId) ?? 0)
-      )
-    const aTag = tagOrder.get(a.articleId)
-    const bTag = tagOrder.get(b.articleId)
-    if (aTag && bTag) {
-      return (
-        bTag.date - aTag.date ||
-        bTag.created - aTag.created ||
-        bTag.id.localeCompare(aTag.id)
-      )
-    }
-    return (
-      (authorId ? 0 : (b.publishedAt ?? 0) - (a.publishedAt ?? 0)) ||
-      b.createdAt - a.createdAt ||
-      b.articleId.localeCompare(a.articleId)
-    )
-  })
   return { rows, authors }
 }

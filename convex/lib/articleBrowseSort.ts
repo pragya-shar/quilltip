@@ -1,3 +1,5 @@
+import type { ReadingRoomRank } from './readingRoomIndex'
+
 export type BrowseView = 'latest' | 'trending' | 'featured'
 export type BrowseSort = 'newest' | 'oldest' | 'most_tipped' | 'title'
 
@@ -98,4 +100,105 @@ export function sortArticlesForBrowse<T extends BrowseSortableArticle>(
   }
 
   return { articles: scored, meta }
+}
+
+export function normalizeBrowsePage({
+  page,
+  limit,
+}: {
+  page?: number
+  limit?: number
+}) {
+  return {
+    page: Math.max(page || 1, 1),
+    limit: Math.min(Math.max(limit || 10, 1), 50),
+  }
+}
+
+export function paginateBrowseArticles<T extends BrowseSortableArticle>(
+  articles: T[],
+  view: BrowseView,
+  sort: BrowseSort,
+  offset: number,
+  limit: number
+) {
+  const { articles: sorted, meta } = sortArticlesForBrowse(articles, view, sort)
+  const total = sorted.length
+  const slice = sorted.slice(offset, offset + limit)
+  return {
+    slice,
+    total,
+    totalPages: total === 0 ? 0 : Math.ceil(total / limit),
+    browseMeta: meta,
+  }
+}
+
+export function paginateReadingRoomMatches(
+  rows: ReadingRoomRank[],
+  {
+    page = 1,
+    limit = 10,
+    view = 'latest',
+    sort = 'newest',
+    author,
+    bookmarkIds,
+  }: {
+    page?: number
+    limit?: number
+    view?: BrowseView
+    sort?: BrowseSort
+    author?: string
+    bookmarkIds?: string[]
+  }
+) {
+  // Stable ties inherit the same order as the original browse source.
+  const savedOrder = new Map(
+    bookmarkIds?.map((id, index) => [id, index] as const).reverse()
+  )
+  const ordered = [...rows].sort((a, b) => {
+    if (bookmarkIds)
+      return (
+        (savedOrder.get(a.articleId) ?? 0) - (savedOrder.get(b.articleId) ?? 0)
+      )
+
+    const aTag = a.tagOrder
+    const bTag = b.tagOrder
+    if (aTag && bTag) {
+      return (
+        bTag.date - aTag.date ||
+        bTag.created - aTag.created ||
+        bTag.id.localeCompare(aTag.id)
+      )
+    }
+    return (
+      (author ? 0 : (b.publishedAt ?? 0) - (a.publishedAt ?? 0)) ||
+      b.createdAt - a.createdAt ||
+      b.articleId.localeCompare(a.articleId)
+    )
+  })
+  return paginateBrowseArticles(ordered, view, sort, (page - 1) * limit, limit)
+}
+
+export function rankReadingRoomWriters(rows: ReadingRoomRank[], limit: number) {
+  // The former writer picker broke equal counts by latest published article.
+  const newestFirst = [...rows].sort(
+    (a, b) =>
+      (b.publishedAt ?? -Infinity) - (a.publishedAt ?? -Infinity) ||
+      b.createdAt - a.createdAt ||
+      b.articleId.localeCompare(a.articleId)
+  )
+  const counts = new Map<
+    NonNullable<ReadingRoomRank['writerId']>,
+    { articleId: ReadingRoomRank['articleId']; count: number }
+  >()
+  for (const { writerId, articleId } of newestFirst) {
+    if (!writerId) continue
+    const writer = counts.get(writerId)
+    if (writer) writer.count++
+    else counts.set(writerId, { articleId, count: 1 })
+  }
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+    .map(({ articleId }) => articleId)
 }

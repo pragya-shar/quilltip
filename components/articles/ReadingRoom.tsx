@@ -9,7 +9,10 @@ import {
 } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useBrowseAuthors, useListArticles } from '@/hooks/convex'
+import {
+  useReadingRoomArticles,
+  useReadingRoomWriterOptions,
+} from '@/hooks/convex'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { useAuth } from '@/components/providers/AuthContext'
 import { buildRegisterHref } from '@/lib/auth/safeReturnPath'
@@ -74,7 +77,7 @@ export function ReadingRoom() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didNavigate = useRef(false)
   const scrollKey = buildArticlesBrowseScrollStorageKey(pathname, searchString)
-  const result = useListArticles(
+  const result = useReadingRoomArticles(
     bookmarked && (authLoading || !bookmarkIds)
       ? 'skip'
       : {
@@ -90,7 +93,7 @@ export function ReadingRoom() {
           sort,
         }
   )
-  const authors = useBrowseAuthors()
+  const authors = useReadingRoomWriterOptions(!!author)
   const cancelSearch = useCallback(() => {
     if (searchTimer.current !== null) clearTimeout(searchTimer.current)
     searchTimer.current = null
