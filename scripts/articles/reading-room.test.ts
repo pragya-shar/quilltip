@@ -34,7 +34,10 @@ async function browseReadingRoom(
   t: ReturnType<typeof convexTest<typeof schema.tables>>,
   args: FunctionArgs<typeof api.articles.listArticles>
 ) {
-  const probe = await t.query(api.articles.listArticles, args)
+  const probe = await t.query(api.articles.listArticles, {
+    ...args,
+    allowSearchScan: true,
+  })
   if (!('scanRequired' in probe) || !probe.scanRequired) return probe
 
   const { search, author, tag, category, bookmarkIds } = args
@@ -330,6 +333,18 @@ test('search backfills a large catalog and follows public writes without changin
   expect(broad.total).toBe(540)
   expect(broad.totalPages).toBe(270)
   expect(broad.articles.map((article) => article._id)).toEqual(ids.slice(4, 6))
+  expect(
+    await t.query(api.articles.listArticles, {
+      search: 'field',
+      searchByWriterOrTitle: true,
+      sort: 'oldest',
+      page: 3,
+      limit: 2,
+    })
+  ).toEqual(broad)
+  expect(
+    await t.query(api.articles.listArticles, { bookmarkIds: [] })
+  ).toMatchObject({ supportsSearchScan: true, articles: [], total: 0 })
 
   await author.mutation(api.users.updateProfile, { name: 'Nereid Arc' })
   expect((await browse({ ...narrow, search: 'artz—win nereid' })).total).toBe(1)
@@ -419,7 +434,12 @@ test('broad titles and prolific writers stay within a transaction budget', async
       for (let i = start; i < start + 40; i++) {
         const id = await ctx.db.insert('articles', {
           slug: `field-${i}`,
-          title: i === 0 ? 'Field Quartz' : `Field ${i}`,
+          title:
+            i === 0
+              ? 'Field Quartz'
+              : i <= 70
+                ? `Column Field ${i}`
+                : `Field ${i}`,
           authorId,
           authorUsername: 'fixture-writer',
           content,
@@ -464,6 +484,15 @@ test('broad titles and prolific writers stay within a transaction budget', async
     expect(result.totalPages).toBe(150)
     expect(result.articles.map(({ _id }) => _id)).toEqual([ids[4], ids[6]])
   }
+
+  const selective = await t.query(api.articles.listArticles, {
+    search: 'column',
+    searchByWriterOrTitle: true,
+    allowSearchScan: true,
+    limit: 2,
+  })
+  expect(selective).not.toHaveProperty('scanRequired')
+  expect(selective.total).toBe(70)
 
   const tagResult = await browseReadingRoom(t, {
     author: 'fixture-writer',

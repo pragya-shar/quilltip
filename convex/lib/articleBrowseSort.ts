@@ -102,6 +102,19 @@ export function sortArticlesForBrowse<T extends BrowseSortableArticle>(
   return { articles: scored, meta }
 }
 
+export function normalizeBrowsePage({
+  page,
+  limit,
+}: {
+  page?: number
+  limit?: number
+}) {
+  return {
+    page: Math.max(page || 1, 1),
+    limit: Math.min(Math.max(limit || 10, 1), 50),
+  }
+}
+
 export function paginateBrowseArticles<
   T extends {
     title: string

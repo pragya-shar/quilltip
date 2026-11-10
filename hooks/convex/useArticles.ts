@@ -1,6 +1,9 @@
 import { usePaginatedQuery, useQueries, useQuery } from 'convex/react'
 import { useEffect, useMemo, useState } from 'react'
-import { paginateReadingRoomMatches } from '@/convex/lib/articleBrowseSort'
+import {
+  normalizeBrowsePage,
+  paginateReadingRoomMatches,
+} from '@/convex/lib/articleBrowseSort'
 import {
   READING_ROOM_HYDRATION_SIZE,
   READING_ROOM_SCAN_SIZE,
@@ -32,7 +35,6 @@ export function useListArticles(args: ListArticlesArgs | 'skip') {
 }
 
 export function useReadingRoomArticles(args: ListArticlesArgs | 'skip') {
-  const result = useListArticles(args)
   const filters =
     args !== 'skip' && args.search?.trim()
       ? {
@@ -43,6 +45,17 @@ export function useReadingRoomArticles(args: ListArticlesArgs | 'skip') {
           bookmarkIds: args.bookmarkIds,
         }
       : null
+  // An empty bookmark request works with both deployed API versions and reads
+  // no articles. Wait for it before selecting the search protocol.
+  const capability = useListArticles(filters ? { bookmarkIds: [] } : 'skip')
+  const result = useQuery(
+    api.articles.listArticles,
+    args === 'skip' || (filters && capability === undefined)
+      ? 'skip'
+      : capability && 'supportsSearchScan' in capability
+        ? { ...args, allowSearchScan: true }
+        : args
+  )
   const key = filters && JSON.stringify(filters)
   const [scanKey, setScanKey] = useState<string | null>(null)
   const requiresScan = !!(
@@ -63,10 +76,9 @@ export function useReadingRoomArticles(args: ListArticlesArgs | 'skip') {
     if (status === 'CanLoadMore') loadMore(READING_ROOM_SCAN_SIZE)
   }, [status, loadMore])
 
-  const page = args === 'skip' ? 1 : Math.max(args.page || 1, 1)
-  const limit =
-    args === 'skip' ? 10 : Math.min(Math.max(args.limit || 10, 1), 50)
-  const { author, bookmarkIds, view, sort } = args === 'skip' ? {} : args
+  const browse = args === 'skip' ? {} : args
+  const { page, limit } = normalizeBrowsePage(browse)
+  const { author, bookmarkIds, view, sort } = browse
   const ranked = useMemo(
     () =>
       scan && status === 'Exhausted'
@@ -124,8 +136,11 @@ export function useBrowseTags(limit = 12) {
   return useQuery(api.articles.listBrowseTags, { limit })
 }
 
-export function useBrowseAuthors(limit = 20) {
-  return useQuery(api.articles.listBrowseAuthors, { limit })
+export function useBrowseAuthors(limit: number | 'skip' = 20) {
+  return useQuery(
+    api.articles.listBrowseAuthors,
+    limit === 'skip' ? 'skip' : { limit }
+  )
 }
 
 export function useArticleBySlug(

@@ -1,4 +1,4 @@
-import { v } from 'convex/values'
+import { getConvexSize, v } from 'convex/values'
 import {
   paginationOptsValidator,
   paginationResultValidator,
@@ -51,6 +51,7 @@ import {
   searchListingArticles,
 } from './lib/articleSearch'
 import {
+  normalizeBrowsePage,
   paginateBrowseArticles,
   paginateReadingRoomMatches,
   type BrowseSort,
@@ -168,10 +169,10 @@ export const listArticles = query({
     view: v.optional(browseViewValidator),
     sort: v.optional(browseSortValidator),
     searchByWriterOrTitle: v.optional(v.boolean()),
+    allowSearchScan: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const page = Math.max(args.page || 1, 1)
-    const limit = Math.min(Math.max(args.limit || 10, 1), 50)
+    const { page, limit } = normalizeBrowsePage(args)
     const offset = (page - 1) * limit
     const view: BrowseView = args.view ?? 'latest'
     const sort: BrowseSort = args.sort ?? 'newest'
@@ -197,7 +198,26 @@ export const listArticles = query({
       authorId = author._id
     }
 
-    if (search && args.searchByWriterOrTitle) {
+    // Empty bookmarks also provide a cheap capability check on mixed deployments.
+    if (args.bookmarkIds?.length === 0 && !args.allowSearchScan && !search) {
+      return {
+        articles: [],
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+        browseMeta: paginateBrowseArticles([], view, sort, offset, limit)
+          .browseMeta,
+        supportsSearchScan: true as const,
+      }
+    }
+
+    const writerTitleSearch =
+      search && args.searchByWriterOrTitle ? search : undefined
+    const indexed =
+      writerTitleSearch && (await getReadingRoomIndexState(ctx))?.complete
+    const bounded = args.allowSearchScan === true
+    if (writerTitleSearch && (indexed || bounded)) {
       const scan = {
         articles: [],
         total: 0,
@@ -207,23 +227,24 @@ export const listArticles = query({
         scanRequired: true as const,
         browseMeta: undefined,
       }
-      if (!(await getReadingRoomIndexState(ctx))?.complete) return scan
+      if (!indexed) return scan
 
-      const terms = readingRoomTerms(search)
+      const terms = readingRoomTerms(writerTitleSearch)
       const filters = {
         authorId,
         tag,
         category: args.category,
         bookmarkIds: args.bookmarkIds,
       }
-      const probe = await probeReadingRoomIndex(ctx, terms, filters)
+      const probe = await probeReadingRoomIndex(ctx, terms, filters, bounded)
       if (!probe) return scan
       const matches = await matchReadingRoomRows(
         ctx,
         probe.rows,
         terms,
         filters,
-        probe.authors
+        probe.authors,
+        bounded
       )
       if (!matches) return scan
 
@@ -235,17 +256,25 @@ export const listArticles = query({
           view,
           sort,
         })
-      // The scan path can hydrate large pages in several transactions.
-      if (slice.length > 9) return scan
       const articles = []
+      let responseBytes = 0
       for (const row of slice) {
-        if (!(await hasReadingRoomReadBudget(ctx))) return scan
+        if (bounded && !(await hasReadingRoomReadBudget(ctx))) return scan
         const article = await loadReadingRoomArticle(
           ctx,
           row.articleId,
           matches.authors
         )
-        if (article) articles.push(article)
+        if (!article) continue
+        if (bounded) {
+          responseBytes += getConvexSize({
+            ...article,
+            author: article.author && { ...article.author },
+          })
+          // A prolific writer's profile can be repeated in every card.
+          if (responseBytes > 12 * 1024 * 1024) return scan
+        }
+        articles.push(article)
       }
       return { articles, total, page, limit, totalPages, browseMeta }
     }
@@ -262,7 +291,7 @@ export const listArticles = query({
           (!authorId || article.authorId === authorId) &&
           (!tag || article.tags?.includes(tag) === true)
       )
-    } else if (search) {
+    } else if (search && !writerTitleSearch) {
       rows = await searchListingArticles(ctx, {
         search,
         authorUsername: args.author,
@@ -293,6 +322,31 @@ export const listArticles = query({
       )
     }
 
+    const writers = new Map<
+      Id<'users'>,
+      Awaited<ReturnType<typeof enrichWithUser>>
+    >()
+    if (writerTitleSearch) {
+      await Promise.all(
+        [...new Set(rows.map((article) => article.authorId))].map(
+          async (id) => {
+            writers.set(id, await enrichWithUser(ctx, id))
+          }
+        )
+      )
+      const terms = readingRoomTerms(writerTitleSearch)
+      rows = rows.filter((article) => {
+        const writer = writers.get(article.authorId)
+        const text = [
+          article.title,
+          writer?.name ?? article.authorName,
+          writer?.username ?? article.authorUsername,
+        ]
+          .join(' ')
+          .toLowerCase()
+        return terms.every((term) => text.includes(term))
+      })
+    }
     const { slice, total, totalPages, browseMeta } = paginateBrowseArticles(
       rows,
       view,
@@ -304,7 +358,9 @@ export const listArticles = query({
       slice.map(async (article) => ({
         ...stripWriterNotes(article),
         readTime: estimateArticleReadingMinutes(article.content),
-        author: await enrichWithUser(ctx, article.authorId),
+        author: writers.has(article.authorId)
+          ? (writers.get(article.authorId) ?? null)
+          : await enrichWithUser(ctx, article.authorId),
       }))
     )
     return {
@@ -493,14 +549,20 @@ export const listBrowseAuthors = query({
   },
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 20, 1), 50)
-    const rows = await ctx.db
+    // The picker suggests writers from recent articles. Bound this separate
+    // read so it cannot prevent an exact author search on a large catalog.
+    const { page } = await ctx.db
       .query('articles')
       .withIndex('by_published_date', (q) => q.eq('published', true))
       .order('desc')
-      .collect()
+      .paginate({
+        cursor: null,
+        numItems: 8000,
+        maximumBytesRead: 8 * 1024 * 1024,
+      })
 
     const counts = new Map<Id<'users'>, number>()
-    for (const article of rows) {
+    for (const article of page) {
       if (!isArticleListingReady(article)) continue
       counts.set(article.authorId, (counts.get(article.authorId) ?? 0) + 1)
     }
@@ -516,6 +578,7 @@ export const listBrowseAuthors = query({
     }[] = []
 
     for (const [authorId, articleCount] of sorted) {
+      if (!(await hasReadingRoomReadBudget(ctx))) break
       const user = await ctx.db.get(authorId)
       const username = user?.username?.trim()
       if (!user || !username) continue

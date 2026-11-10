@@ -90,7 +90,7 @@ export function ReadingRoom() {
           sort,
         }
   )
-  const authors = useBrowseAuthors()
+  const authors = useBrowseAuthors(author ? 20 : 'skip')
   const cancelSearch = useCallback(() => {
     if (searchTimer.current !== null) clearTimeout(searchTimer.current)
     searchTimer.current = null

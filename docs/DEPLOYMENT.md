@@ -27,10 +27,15 @@ regenerate bindings, and push functions, schema, and indexes.
 
 The reading-room writer/title index backfills automatically after the Convex
 functions are deployed. The internal `readingRoomIndex:backfill` job checkpoints
-each batch; search keeps using the existing query until the state row reports
-`complete: true`. Check that state and verify a title and writer search against
-the intended backend after deploy. The job reads existing articles and writes
-search metadata only.
+each batch. The Reading Room scans published articles in bounded batches until
+the state row reports `complete: true`, then uses the compact index. Check that
+state and verify a narrow title search, a broad writer search, and pagination
+against the intended backend after deploy. The job reads existing articles and
+writes search metadata only.
+
+The frontend and Convex code negotiate support for cursor scans. Existing
+frontend sessions continue to use the legacy search contract. New frontend
+sessions enable bounded search when the backend advertises support.
 
 Convex environment is separate from Vercel/local environment. For an authorized
 production auth-origin change:

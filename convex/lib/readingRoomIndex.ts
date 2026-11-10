@@ -124,7 +124,8 @@ export async function syncReadingRoomEngagement(
 }
 
 const PROBE_LIMIT = 64
-const CANDIDATE_LIMIT = 128
+const FINAL_PROBE_LIMIT = 512
+const CANDIDATE_LIMIT = 512
 
 export const readingRoomRankValidator = v.object({
   articleId: v.id('articles'),
@@ -167,14 +168,19 @@ export async function hasReadingRoomReadBudget(ctx: QueryCtx) {
 async function readProbe<T>(
   ctx: QueryCtx,
   source: AsyncIterable<T>,
-  limit = PROBE_LIMIT
+  limit: number,
+  bounded: boolean
 ) {
   const rows: T[] = []
-  if (!(await hasReadingRoomReadBudget(ctx))) return null
+  if (bounded && !(await hasReadingRoomReadBudget(ctx))) return null
   for await (const row of source) {
     rows.push(row)
     if (rows.length >= limit) return null
-    if (rows.length % 4 === 0 && !(await hasReadingRoomReadBudget(ctx)))
+    if (
+      bounded &&
+      rows.length % 4 === 0 &&
+      !(await hasReadingRoomReadBudget(ctx))
+    )
       return null
   }
   return rows
@@ -183,15 +189,16 @@ async function readProbe<T>(
 export async function probeReadingRoomIndex(
   ctx: QueryCtx,
   terms: string[],
-  filters: ReadingRoomFilters
+  filters: ReadingRoomFilters,
+  bounded: boolean
 ) {
   const { authorId, bookmarkIds } = filters
   if (bookmarkIds) {
     const ids = [...new Set(bookmarkIds)]
-    if (ids.length >= PROBE_LIMIT) return null
+    if (bounded && ids.length >= PROBE_LIMIT) return null
     const rows = []
     for (const value of ids) {
-      if (!(await hasReadingRoomReadBudget(ctx))) return null
+      if (bounded && !(await hasReadingRoomReadBudget(ctx))) return null
       const id = ctx.db.normalizeId('articles', value)
       const row = id && (await articleIndexRow(ctx, id))
       if (row) rows.push(row)
@@ -213,17 +220,21 @@ export async function probeReadingRoomIndex(
         ctx,
         ctx.db
           .query('readingRoomWriters')
-          .withIndex('by_oversized', (q) => q.eq('oversized', true))
+          .withIndex('by_oversized', (q) => q.eq('oversized', true)),
+        FINAL_PROBE_LIMIT,
+        bounded
       )
-  if (!oversizedWriters) return null
-
-  for (const [needle, term] of [...probes].slice(0, 3)) {
+  const selected = oversizedWriters ? [...probes].slice(0, 3) : []
+  for (const [i, [needle, term]] of selected.entries()) {
+    const limit = i === selected.length - 1 ? FINAL_PROBE_LIMIT : PROBE_LIMIT
     const articles = await readProbe(
       ctx,
       ctx.db.query('readingRoomArticles').withSearchIndex('by_grams', (q) => {
         const matches = q.search('grams', needle)
         return authorId ? matches.eq('authorId', authorId) : matches
-      })
+      }),
+      limit,
+      bounded
     )
     if (!articles) continue
 
@@ -233,7 +244,9 @@ export async function probeReadingRoomIndex(
           ctx,
           ctx.db
             .query('readingRoomWriters')
-            .withSearchIndex('by_grams', (q) => q.search('grams', needle))
+            .withSearchIndex('by_grams', (q) => q.search('grams', needle)),
+          limit,
+          bounded
         )
     if (!writers) continue
 
@@ -241,7 +254,9 @@ export async function probeReadingRoomIndex(
       ctx,
       ctx.db
         .query('readingRoomArticles')
-        .withIndex('by_oversized', (q) => q.eq('oversized', true))
+        .withIndex('by_oversized', (q) => q.eq('oversized', true)),
+      bounded ? PROBE_LIMIT : Infinity,
+      bounded
     )
     if (!oversizedArticles) return null
 
@@ -250,13 +265,15 @@ export async function probeReadingRoomIndex(
     )
     const writerIds = authorId
       ? [authorId]
-      : new Set([...writers, ...oversizedWriters].map((row) => row.authorId))
+      : new Set(
+          [...writers, ...(oversizedWriters ?? [])].map((row) => row.authorId)
+        )
     const authors = new Map<
       Id<'users'>,
       Awaited<ReturnType<typeof enrichWithUser>>
     >()
     for (const id of writerIds) {
-      if (!(await hasReadingRoomReadBudget(ctx))) return null
+      if (bounded && !(await hasReadingRoomReadBudget(ctx))) return null
       const writer = await enrichWithUser(ctx, id)
       authors.set(id, writer)
       if (
@@ -271,7 +288,8 @@ export async function probeReadingRoomIndex(
         ctx.db
           .query('readingRoomArticles')
           .withIndex('by_author', (q) => q.eq('authorId', id)),
-        CANDIDATE_LIMIT - candidates.size
+        bounded ? CANDIDATE_LIMIT - candidates.size : Infinity,
+        bounded
       )
       if (!catalog) return null
       for (const row of catalog) candidates.set(row.articleId, row)
@@ -279,6 +297,17 @@ export async function probeReadingRoomIndex(
     return { rows: [...candidates.values()], authors }
   }
 
+  // Keep the original result contract for frontend builds without the scan protocol.
+  if (!bounded) {
+    const source = authorId
+      ? ctx.db
+          .query('readingRoomArticles')
+          .withIndex('by_author', (q) => q.eq('authorId', authorId))
+      : ctx.db.query('readingRoomArticles')
+    const rows = []
+    for await (const row of source) rows.push(row)
+    return { rows }
+  }
   return null
 }
 
@@ -301,10 +330,12 @@ export async function matchReadingRoomRows(
   candidates: MatchSource[],
   terms: string[],
   { authorId, tag, category, bookmarkIds }: ReadingRoomFilters,
-  authors = new Map<Id<'users'>, Awaited<ReturnType<typeof enrichWithUser>>>()
+  authors = new Map<Id<'users'>, Awaited<ReturnType<typeof enrichWithUser>>>(),
+  bounded = true
 ) {
   const rows: ReadingRoomRank[] = []
   const bookmarks = bookmarkIds && new Set(bookmarkIds)
+  const writerTerms = new Map<Id<'users'>, string[]>()
   for (const row of candidates) {
     if (authorId && row.authorId !== authorId) continue
     if (bookmarks && !bookmarks.has(row.articleId)) continue
@@ -316,22 +347,31 @@ export async function matchReadingRoomRows(
       continue
 
     if (!authors.has(row.authorId)) {
-      if (!(await hasReadingRoomReadBudget(ctx))) return null
+      if (bounded && !(await hasReadingRoomReadBudget(ctx))) return null
       authors.set(row.authorId, await enrichWithUser(ctx, row.authorId))
     }
     const author = authors.get(row.authorId)
+    let remaining = writerTerms.get(row.authorId)
+    if (!remaining) {
+      const name = author?.name?.toLowerCase()
+      const username = author?.username?.toLowerCase()
+      remaining = terms.filter(
+        (term) => !name?.includes(term) && !username?.includes(term)
+      )
+      writerTerms.set(row.authorId, remaining)
+    }
     const text = [
       row.title,
-      author?.name ?? row.authorName,
-      author?.username ?? row.authorUsername,
+      author?.name == null ? row.authorName : undefined,
+      author?.username == null ? row.authorUsername : undefined,
     ]
       .join(' ')
       .toLowerCase()
-    if (!terms.every((term) => text.includes(term))) continue
+    if (!remaining.every((term) => text.includes(term))) continue
 
     let tagOrder: ReadingRoomRank['tagOrder']
     if (tag && !bookmarks) {
-      if (!(await hasReadingRoomReadBudget(ctx))) return null
+      if (bounded && !(await hasReadingRoomReadBudget(ctx))) return null
       const link = await ctx.db
         .query('articleTagLinks')
         .withIndex('by_article_tag', (q) =>
