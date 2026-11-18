@@ -204,7 +204,6 @@ export class StellarClient {
         balance: balanceStroops,
         balanceXLM: balanceStroops / 10_000_000,
         balanceUSD: await this.convertStroopsToUSD(balanceStroops),
-        pendingWithdrawal: false,
       }
     } catch {
       return {
@@ -212,7 +211,6 @@ export class StellarClient {
         balance: 0,
         balanceXLM: 0,
         balanceUSD: 0,
-        pendingWithdrawal: false,
       }
     }
   }
@@ -576,13 +574,6 @@ export class StellarClient {
     } catch (error) {
       console.error('Error getting article tips:', error)
       return []
-    }
-  }
-
-  async withdrawEarnings(): Promise<TransactionResult> {
-    return {
-      success: true,
-      hash: `mock_withdraw_${Date.now()}`,
     }
   }
 

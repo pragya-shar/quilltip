@@ -1,38 +1,19 @@
 'use client'
 
-import type { RefObject } from 'react'
-import { Coins, Clock, DollarSign, Wallet } from 'lucide-react'
+import { Coins, DollarSign } from 'lucide-react'
 import type { Doc } from '@/types/convex'
 import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
 import { MonthlyEarningsChart } from '@/components/dashboard/monthly-earnings-chart'
 import { TopEarningArticles } from '@/components/dashboard/top-earning-articles'
-import { useDashboardNavigation } from '@/hooks/useDashboardNavigation'
 import { networkLabelLowercase } from '@/lib/copy/network-status'
 import { Card, CardContent } from '@/components/ui/card'
 
 export type EarningsStatsProps = {
   earnings: Doc<'authorEarnings'>
   userProfile: { stellarAddress?: string | null } | null | undefined
-  minWithdrawalUsd: number
-  onOpenWithdrawModal: () => void
-  withdrawTriggerRef?: RefObject<HTMLButtonElement | null>
 }
 
-export function EarningsStats({
-  earnings,
-  userProfile,
-  minWithdrawalUsd,
-  onOpenWithdrawModal,
-  withdrawTriggerRef,
-}: EarningsStatsProps) {
-  const navigateToDashboard = useDashboardNavigation()
-  const lastWithdrawal = earnings.lastWithdrawalAt
-  const belowWithdrawalMinimum = earnings.availableBalanceUsd < minWithdrawalUsd
-  const disableBalanceAction =
-    Boolean(userProfile?.stellarAddress) && belowWithdrawalMinimum
-  const showMinimumWithdrawalHelper =
-    belowWithdrawalMinimum && Boolean(userProfile?.stellarAddress)
-
+export function EarningsStats({ earnings, userProfile }: EarningsStatsProps) {
   return (
     <>
       {userProfile && !userProfile.stellarAddress && (
@@ -41,7 +22,7 @@ export function EarningsStats({
 
       <Card variant="quiet">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-muted-foreground">Total Earned</span>
@@ -63,44 +44,6 @@ export function EarningsStats({
               <p className="text-2xl font-bold text-foreground">
                 ${earnings.availableBalanceUsd.toFixed(2)}
               </p>
-              <button
-                ref={withdrawTriggerRef}
-                type="button"
-                onClick={() => {
-                  if (!userProfile?.stellarAddress) {
-                    navigateToDashboard('wallet')
-                  } else {
-                    onOpenWithdrawModal()
-                  }
-                }}
-                disabled={disableBalanceAction}
-                className="mt-3 w-full px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                <Wallet className="w-4 h-4" />
-                {!userProfile?.stellarAddress ? 'Set Up Wallet' : 'Withdraw'}
-              </button>
-              {showMinimumWithdrawalHelper && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Withdrawals require a minimum available balance of $
-                  {minWithdrawalUsd.toFixed(2)}. Add more tips until your
-                  balance reaches this amount.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-muted-foreground">Total Withdrawn</span>
-                <Clock className="w-5 h-5 text-info-foreground" />
-              </div>
-              <p className="text-2xl font-bold text-foreground">
-                ${earnings.withdrawnUsd.toFixed(2)}
-              </p>
-              {lastWithdrawal && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  Last: {new Date(lastWithdrawal).toLocaleDateString()}
-                </p>
-              )}
             </div>
           </div>
         </CardContent>

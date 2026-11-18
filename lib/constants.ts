@@ -4,9 +4,6 @@ export const TIP_MIN_USD = TIP_MIN_CENTS / 100
 export const TIP_MAX_CENTS = 10_000
 export const TIP_MAX_USD = TIP_MAX_CENTS / 100
 
-// Withdrawal
-export const MIN_WITHDRAWAL_USD = 10
-
 export const TIP_XLM_PRESETS = [1, 2, 5] as const
 export type TipXlmPreset = (typeof TIP_XLM_PRESETS)[number]
 
