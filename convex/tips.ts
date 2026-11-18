@@ -6,7 +6,6 @@ import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import { enrichWithUser } from './lib/enrich'
 import {
-  MIN_WITHDRAWAL_USD,
   HORIZON_VERIFY_INITIAL_DELAY_MS,
   ARTICLE_TIP_VERIFY_REQUEST_COOLDOWN_MS,
   getStellarNetwork,
@@ -807,125 +806,6 @@ export const getAuthorEarnings = query({
       .first()
 
     return earnings
-  },
-})
-
-// Withdraw earnings mutation
-export const withdrawEarnings = mutation({
-  args: {
-    amountUsd: v.number(),
-    stellarAddress: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx)
-    if (!userId) throw new Error('Not authenticated')
-
-    const user = await ctx.db.get(userId)
-    if (!user) throw new Error('User not found')
-
-    // Validate Stellar address format
-    if (!args.stellarAddress || !/^G[A-Z2-7]{55}$/.test(args.stellarAddress)) {
-      throw new Error('Invalid Stellar address format')
-    }
-
-    // Get author earnings
-    const earnings = await ctx.db
-      .query('authorEarnings')
-      .withIndex('by_user', (q) => q.eq('userId', userId))
-      .first()
-
-    if (!earnings) {
-      throw new Error('No earnings found')
-    }
-
-    // Validate withdrawal amount (reject NaN, Infinity, and non-positive)
-    if (!Number.isFinite(args.amountUsd) || args.amountUsd <= 0) {
-      throw new Error('Invalid withdrawal amount')
-    }
-
-    if (args.amountUsd > earnings.availableBalanceUsd) {
-      throw new Error('Insufficient balance')
-    }
-
-    if (args.amountUsd < MIN_WITHDRAWAL_USD) {
-      throw new Error(`Minimum withdrawal amount is $${MIN_WITHDRAWAL_USD}`)
-    }
-
-    const amountCents = Math.round(args.amountUsd * 100 + Number.EPSILON)
-    const now = Date.now()
-
-    // Create withdrawal record
-    const withdrawalId = await ctx.db.insert('withdrawals', {
-      userId,
-      amountUsd: args.amountUsd,
-      amountCents,
-      stellarAddress: args.stellarAddress,
-      status: 'PENDING',
-      createdAt: now,
-      updatedAt: now,
-    })
-
-    // Update earnings - move from available to pending (compute from cents)
-    const newAvailableCents = earnings.availableBalanceCents - amountCents
-    const newPendingCents = earnings.pendingBalanceCents + amountCents
-    await ctx.db.patch(earnings._id, {
-      availableBalanceCents: newAvailableCents,
-      availableBalanceUsd: newAvailableCents / 100,
-      pendingBalanceCents: newPendingCents,
-      pendingBalanceUsd: newPendingCents / 100,
-      updatedAt: now,
-    })
-
-    // In production, this would trigger a Stellar transaction
-    // For now, simulate success after delay
-    await ctx.scheduler.runAfter(2000, internal.tips.confirmWithdrawal, {
-      withdrawalId,
-      earningsId: earnings._id,
-    })
-
-    return withdrawalId
-  },
-})
-
-// Internal mutation to confirm withdrawal
-export const confirmWithdrawal = internalMutation({
-  args: {
-    withdrawalId: v.id('withdrawals'),
-    earningsId: v.id('authorEarnings'),
-    stellarTxId: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const withdrawal = await ctx.db.get(args.withdrawalId)
-    if (!withdrawal) throw new Error('Withdrawal not found')
-    if (withdrawal.status !== 'PENDING') return
-
-    const earnings = await ctx.db.get(args.earningsId)
-    if (!earnings) throw new Error('Earnings record not found')
-
-    const now = Date.now()
-
-    // Update withdrawal status
-    await ctx.db.patch(args.withdrawalId, {
-      status: 'COMPLETED',
-      stellarTxId: args.stellarTxId || `pending_${args.withdrawalId}`,
-      completedAt: now,
-      updatedAt: now,
-    })
-
-    // Update earnings - move from pending to withdrawn (compute from cents)
-    const newPendingCents =
-      earnings.pendingBalanceCents - withdrawal.amountCents
-    const newWithdrawnCents = earnings.withdrawnCents + withdrawal.amountCents
-    await ctx.db.patch(args.earningsId, {
-      pendingBalanceCents: newPendingCents,
-      pendingBalanceUsd: newPendingCents / 100,
-      withdrawnCents: newWithdrawnCents,
-      withdrawnUsd: newWithdrawnCents / 100,
-      lastWithdrawalAt: now,
-      updatedAt: now,
-    })
-
-    return { success: true }
   },
 })
 

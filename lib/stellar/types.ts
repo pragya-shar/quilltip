@@ -19,7 +19,6 @@ export interface AuthorBalance {
   balance: number // in stroops
   balanceXLM: number // in XLM
   balanceUSD: number // in USD
-  pendingWithdrawal: boolean
 }
 
 export interface TipParams {
@@ -64,11 +63,6 @@ export interface BatchTipTransactionResult<TItem extends BatchTipQuote> {
   authorReceived: number
   platformFee: number
   items: TItem[]
-}
-
-export interface WithdrawParams {
-  authorAddress: string
-  signerFn?: (txXDR: string) => Promise<string>
 }
 
 export interface StellarWallet {
