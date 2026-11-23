@@ -102,6 +102,29 @@ test('backfill rebuilds gross earnings rows from confirmed tips', async () => {
   await t.run(async ({ db }) => {
     const now = Date.now()
     await db.patch(tipId, { status: 'CONFIRMED', verifiedAt: now })
+    const tipperId = (await db.get(tipId))!.tipperId
+    // A confirmed tip whose USD amount could not be trusted stays out of earnings.
+    await db.insert('highlightTips', {
+      highlightId: 'flagged',
+      articleId,
+      tipperId,
+      authorId,
+      highlightText: 'Words',
+      articleTitle: 'Words',
+      articleSlug: 'words',
+      amountUsd: 50,
+      amountCents: 5000,
+      stellarTxId: 'tx-flagged',
+      stellarNetwork: 'TESTNET',
+      stellarMemo: 'flagged',
+      startOffset: 0,
+      endOffset: 5,
+      status: 'CONFIRMED',
+      amountUsdSuspicious: true,
+      createdAt: now,
+      processedAt: now,
+      updatedAt: now,
+    })
     await db.insert('authorEarnings', {
       userId: authorId,
       totalEarnedUsd: 1,
@@ -127,6 +150,7 @@ test('backfill rebuilds gross earnings rows from confirmed tips', async () => {
     dryRun: true,
     rows: 1,
     changedRows: 1,
+    skippedRows: 0,
     beforeTotalUsd: 1,
     afterTotalUsd: 0.975,
   })
