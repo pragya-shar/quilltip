@@ -14,11 +14,7 @@ export {
   type ListArticlesArgs,
   type CreatorRecentWorkArgs,
 } from './useArticles'
-export {
-  useArticleTipStats,
-  useAuthorEarnings,
-  useUserReceivedTips,
-} from './useTipsQueries'
+export { useArticleTipStats, useAuthorEarnings } from './useTipsQueries'
 export {
   useNFTByArticle,
   useNFTsByOwner,

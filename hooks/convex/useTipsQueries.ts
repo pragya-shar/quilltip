@@ -9,7 +9,3 @@ export function useArticleTipStats(articleId: Id<'articles'>) {
 export function useAuthorEarnings() {
   return useQuery(api.tips.getAuthorEarnings, {})
 }
-
-export function useUserReceivedTips() {
-  return useQuery(api.tips.getUserReceivedTips, {})
-}
