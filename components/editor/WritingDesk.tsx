@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useMutation } from 'convex/react'
+import { ConvexError } from 'convex/values'
 import { api } from '@/convex/_generated/api'
 import { useListArticles, useUserDrafts } from '@/hooks/convex/useArticles'
 import type { Id } from '@/types/convex'
@@ -45,8 +46,8 @@ export function WritingDesk({
       setPending(null)
     } catch (e) {
       setError(
-        e instanceof Error
-          ? e.message
+        e instanceof ConvexError && typeof e.data === 'string'
+          ? e.data
           : 'Could not delete this draft. Please try again.'
       )
     } finally {
