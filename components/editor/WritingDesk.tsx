@@ -6,6 +6,7 @@ import { useListArticles, useUserDrafts } from '@/hooks/convex/useArticles'
 import type { Id } from '@/types/convex'
 import { WritingDialog } from './WritingDialog'
 import type { ArticleStyle } from '@/lib/editor/articleAppearance'
+import { canDeleteDraft } from '@/lib/articles/articleDeletion'
 
 export function WritingDesk({
   articleId,
@@ -31,7 +32,6 @@ export function WritingDesk({
   const [pending, setPending] = useState<{
     id: Id<'articles'>
     title: string
-    published?: boolean
   } | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState('')
@@ -92,19 +92,22 @@ export function WritingDesk({
                   })}
                 </small>
               </a>
-              <button
-                className="draft-delete"
-                aria-label={`Delete ${draft.title}`}
-                onClick={() =>
-                  setPending({ id: draft._id, title: draft.title })
-                }
-              >
-                Delete
-              </button>
+              {canDeleteDraft(draft) && (
+                <button
+                  className="draft-delete"
+                  aria-label={`Delete ${draft.title}`}
+                  onClick={() =>
+                    setPending({ id: draft._id, title: draft.title })
+                  }
+                >
+                  Delete
+                </button>
+              )}
             </div>
           ))
       )}
       <h3 className="writing-group">Published</h3>
+      <p className="muted">Published articles cannot be deleted.</p>
       {!publications ? (
         <p className="empty-writing" role="status">
           Loading publications…
@@ -133,19 +136,6 @@ export function WritingDesk({
               >
                 View article ↗
               </a>
-              <button
-                aria-label={`Delete ${article.title}`}
-                onClick={() => {
-                  setError('')
-                  setPending({
-                    id: article._id,
-                    title: article.title,
-                    published: true,
-                  })
-                }}
-              >
-                Delete
-              </button>
             </div>
           </div>
         ))
@@ -169,9 +159,7 @@ export function WritingDesk({
       <WritingDialog
         open={!!pending}
         onClose={() => setPending(null)}
-        title={
-          pending?.published ? 'Delete this article?' : 'Delete this draft?'
-        }
+        title="Delete this draft?"
         appearance={appearance}
         busy={deleting}
       >
@@ -179,23 +167,13 @@ export function WritingDesk({
           “{pending?.title}” will be permanently deleted from your account.
           Download a copy first if you want to keep it.
         </p>
-        {pending?.published && (
-          <p className="muted">
-            This removes the article from QuillTip. Its permanent Arweave
-            snapshot cannot be removed.
-          </p>
-        )}
         {error && <p role="alert">{error}</p>}
         <button
           className="wine wide"
           disabled={deleting}
           onClick={() => void remove()}
         >
-          {deleting
-            ? 'Deleting…'
-            : pending?.published
-              ? 'Delete article'
-              : 'Delete draft'}
+          {deleting ? 'Deleting…' : 'Delete draft'}
         </button>
         <button
           className="wide"

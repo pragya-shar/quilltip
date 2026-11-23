@@ -4,6 +4,7 @@ import {
   paginationResultValidator,
 } from 'convex/server'
 import schema from './schema'
+import { canDeleteDraft } from '../lib/articles/articleDeletion'
 import type { Doc, Id } from './_generated/dataModel'
 import {
   query,
@@ -1091,11 +1092,12 @@ export const publishArticle = mutation({
     return { id: args.id, slug }
   },
 })
-// Delete article
+// Delete an unpublished draft; published articles remain in QuillTip.
 export const deleteArticle = mutation({
   args: {
     id: v.id('articles'),
   },
+  returns: v.object({ success: v.boolean() }),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
@@ -1103,6 +1105,10 @@ export const deleteArticle = mutation({
     const article = await ctx.db.get(args.id)
     if (!article) throw new Error('Article not found')
     if (article.authorId !== userId) throw new Error('Not authorized')
+
+    if (!canDeleteDraft(article)) {
+      throw new Error('Published articles cannot be deleted from QuillTip')
+    }
 
     // Check for tipped highlights before deleting
     const highlights = await ctx.db
@@ -1135,17 +1141,6 @@ export const deleteArticle = mutation({
 
     // Delete article
     await ctx.db.delete(args.id)
-
-    // Update user's article count if it was published
-    if (article.published) {
-      const user = await ctx.db.get(userId)
-      if (user) {
-        await ctx.db.patch(userId, {
-          articleCount: Math.max(0, (user.articleCount || 0) - 1),
-          updatedAt: Date.now(),
-        })
-      }
-    }
 
     return { success: true }
   },
