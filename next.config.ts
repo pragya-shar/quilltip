@@ -7,6 +7,10 @@ const withBundleAnalyzer = bundleAnalyzer({
 })
 
 const nextConfig: NextConfig = {
+  // Put page metadata in <head> for every client, not only Next's built-in bot
+  // list, so all crawlers and link previews see article titles and tags. Pages
+  // that set metadata already await the same data, so nothing is delayed.
+  htmlLimitedBots: /.*/,
   turbopack: {
     resolveAlias: {
       '@ngneat/elf-devtools': './lib/stubs/elf-devtools.ts',

@@ -1,35 +1,11 @@
-'use client'
-
-import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { ArticleReadNext } from '@/components/articles/ArticleReadNext'
-import { use, useMemo } from 'react'
+import type { Metadata } from 'next'
+import { ArticlePageClient } from '@/components/articles/ArticlePageClient'
+import { getPublishedArticle } from '@/lib/seo/publicContent'
 import {
-  useArticleBySlug,
-  useReadNextArticles,
-  useArticleHighlightTipStatsOptional,
-  useArticleHighlightsQuery,
-} from '@/hooks/convex'
-import ArticleDisplay from '@/components/articles/ArticleDisplay'
-import { ArticlePageLoadingSkeleton } from '@/components/articles/ArticlePageLoadingSkeleton'
-import { ArticleReaderSupport } from '@/components/articles/ArticleReaderSupport'
-import { ArticleDetailsPanel } from '@/components/articles/ArticleDetailsPanel'
-import AppNavigation from '@/components/layout/AppNavigation'
-import { SiteFooter } from '@/components/layout/SiteFooter'
-import { useAuth } from '@/components/providers/AuthContext'
-import type { Id } from '@/types/convex'
-import type { ArticleForDisplay } from '@/types/index'
-import { ErrorBoundary } from '@/components/error/ErrorBoundary'
-import {
-  ArticleDisplaySectionFallback,
-  ArticleSidebarSectionFallback,
-} from '@/components/error/SectionErrorFallback'
-import { ReadingProgressBar } from '@/components/articles/ReadingProgressBar'
-import { EditorialSurface } from '@/components/layout/EditorialSurface'
-import { extractH2HeadingsFromTiptapJson } from '@/lib/tiptap/headings'
-import { LoadingRegion } from '@/components/a11y/LoadingRegion'
-import { useStaleLoading } from '@/hooks/useStaleLoading'
-import { useRouter } from 'next/navigation'
+  SITE_NAME,
+  articleMetaDescription,
+  articlePath,
+} from '@/lib/seo/siteMetadata'
 
 interface ArticlePageProps {
   params: Promise<{
@@ -38,143 +14,55 @@ interface ArticlePageProps {
   }>
 }
 
-export default function ArticlePage({ params }: ArticlePageProps) {
-  const { username, slug } = use(params)
-  const { user } = useAuth()
-  const router = useRouter()
+export async function generateMetadata({
+  params,
+}: ArticlePageProps): Promise<Metadata> {
+  const { username, slug } = await params
+  const article = await getPublishedArticle(username, slug)
+  // Drafts and missing articles come back null; keep the site defaults for them.
+  if (!article) return {}
 
-  const article = useArticleBySlug(username, slug)
-  const nextArticles = useReadNextArticles(article?._id)
-  const { isStale, reset: resetStale } = useStaleLoading(article === undefined)
+  const authorName = article.author.name || article.author.username
+  const description = articleMetaDescription(article)
+  const url = articlePath(article.author.username, article.slug)
+  const images = article.coverImage ? [{ url: article.coverImage }] : undefined
 
-  const highlights = useArticleHighlightsQuery(article?._id)
-
-  const highlightTipStats = useArticleHighlightTipStatsOptional(article?._id)
-
-  const tocHeadings = useMemo(
-    () => extractH2HeadingsFromTiptapJson(article?.content),
-    [article?.content]
-  )
-
-  const tipsByHighlight = useMemo(() => {
-    if (!highlightTipStats?.topHighlights) return {}
-    return Object.fromEntries(
-      highlightTipStats.topHighlights.map((h) => [
-        h.highlightId,
-        { count: h.tipCount, totalUsd: h.totalAmountCents / 100 },
-      ])
-    )
-  }, [highlightTipStats])
-
-  if (article === null) {
-    notFound()
-  }
-
-  if (article === undefined) {
-    return (
-      <div className="min-h-screen reader-surface">
-        <AppNavigation />
-        <LoadingRegion
-          label="article"
-          isLoading
-          isStale={isStale}
-          onRetry={() => {
-            resetStale()
-            router.refresh()
-          }}
-          fallback={<ArticlePageLoadingSkeleton />}
-        >
-          <div />
-        </LoadingRegion>
-      </div>
-    )
-  }
-
-  const articleForDisplay: ArticleForDisplay = {
-    id: article._id,
-    slug: article.slug,
-    title: article.title,
-    content: article.content,
-    excerpt: article.excerpt,
-    coverImage: article.coverImage,
-    publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
-    author: {
-      id: article.author.id,
-      name: article.author.name ?? null,
-      username: article.author.username,
-      avatar: article.author.avatar ?? null,
-      bio: undefined,
+  return {
+    title: `${article.title} · ${SITE_NAME}`,
+    description,
+    authors: [{ name: authorName }],
+    alternates: { canonical: url },
+    openGraph: {
+      type: 'article',
+      siteName: SITE_NAME,
+      title: article.title,
+      description,
+      url,
+      images,
+      authors: [authorName],
+      publishedTime: article.publishedAt
+        ? new Date(article.publishedAt).toISOString()
+        : undefined,
     },
-    tags: (article.tags || []).map((tag: string, index: number) => ({
-      id: `tag-${index}`,
-      name: tag,
-      slug: tag.toLowerCase().replace(/\s+/g, '-'),
-    })),
-    tipStats: article.tipStats,
+    twitter: {
+      card: images ? 'summary_large_image' : 'summary',
+      title: article.title,
+      description,
+      images: images?.map((image) => image.url),
+    },
   }
+}
+
+export default async function ArticlePage({ params }: ArticlePageProps) {
+  const { username, slug } = await params
+  const initialArticle = await getPublishedArticle(username, slug)
 
   return (
-    <div className="flex min-h-screen flex-col reader-surface">
-      <AppNavigation />
-      <ReadingProgressBar articleId={article._id} />
-      <main className="flex-1 pt-20 w-full">
-        <EditorialSurface className="reader-layout">
-          <Link href="/articles" className="reader-return">
-            ← Articles
-          </Link>
-          <ErrorBoundary
-            fallback={({ reset }) => (
-              <ArticleDisplaySectionFallback onRetry={reset} />
-            )}
-          >
-            <ArticleDisplay
-              article={articleForDisplay}
-              tocHeadings={tocHeadings}
-              authorStellarAddress={article.author.stellarAddress}
-              readNext={
-                <ArticleReadNext
-                  currentArticleId={article._id}
-                  articles={nextArticles ?? []}
-                />
-              }
-              readerSupport={
-                <ArticleReaderSupport
-                  articleTitle={article.title}
-                  articleId={article._id}
-                  articleSlug={article.slug}
-                  authorName={article.author.name || article.author.username}
-                  authorStellarAddress={article.author.stellarAddress}
-                />
-              }
-            />
-          </ErrorBoundary>
-
-          <ErrorBoundary
-            fallback={({ reset }) => (
-              <ArticleSidebarSectionFallback onRetry={reset} />
-            )}
-          >
-            <ArticleDetailsPanel
-              articleId={article._id}
-              articleTitle={article.title}
-              articleExcerpt={article.excerpt}
-              articleSlug={article.slug}
-              authorId={article.author.id}
-              currentUserId={user?._id as Id<'users'> | undefined}
-              tocHeadings={tocHeadings}
-              highlights={highlights}
-              tipsByHighlight={tipsByHighlight}
-              tipStats={article.tipStats}
-              arweaveStatus={article.arweaveStatus}
-              arweaveTxId={article.arweaveTxId}
-              arweaveUrl={article.arweaveUrl}
-              arweaveTimestamp={article.arweaveTimestamp}
-            />
-          </ErrorBoundary>
-        </EditorialSurface>
-      </main>
-      <SiteFooter variant="default" />
-    </div>
+    <ArticlePageClient
+      username={username}
+      slug={slug}
+      initialArticle={initialArticle ?? undefined}
+    />
   )
 }
 

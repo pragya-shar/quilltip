@@ -3,7 +3,7 @@ import { LegalPageLayout } from '@/components/legal/LegalPageLayout'
 import { termsLastUpdated, termsSections } from '@/lib/copy/legal-terms'
 
 export const metadata: Metadata = {
-  title: 'Terms of Service | Quilltip',
+  title: 'Terms of Service | QuillTip',
   description:
     'Terms of Service for Quilltip, the decentralized publishing platform for writers and readers on Stellar testnet.',
 }

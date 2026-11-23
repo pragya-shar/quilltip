@@ -4,8 +4,8 @@ import { DashboardShell } from '@/components/dashboard/DashboardShell'
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | Dashboard | Quilltip',
-    default: 'Dashboard | Quilltip',
+    template: '%s | Dashboard | QuillTip',
+    default: 'Dashboard | QuillTip',
   },
   description: 'Manage your Stellar wallet and creator stats on Quilltip.',
 }
