@@ -22,6 +22,12 @@ import {
   shortArticleIdServer,
 } from './lib/articleTipExpectation'
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
+import {
+  creditAuthorEarnings,
+  getMonthKey,
+  roundCents,
+  writerShareCents,
+} from './lib/authorEarnings'
 
 const MAX_OUTSTANDING_ARTICLE_TIP_INTENTS = 5
 
@@ -550,84 +556,14 @@ export const confirmTip = internalMutation({
       await syncReadingRoomEngagement(ctx, tip.articleId, { tipCount })
     }
 
-    // Update author earnings
-    const earnings = await ctx.db
-      .query('authorEarnings')
-      .withIndex('by_user', (q) => q.eq('userId', tip.authorId))
-      .first()
-
-    if (!earnings) {
-      // Create earnings record
-      await ctx.db.insert('authorEarnings', {
-        userId: tip.authorId,
-        totalEarnedUsd: tip.amountUsd,
-        totalEarnedCents: tip.amountCents,
-        availableBalanceUsd: tip.amountUsd,
-        availableBalanceCents: tip.amountCents,
-        pendingBalanceUsd: 0,
-        pendingBalanceCents: 0,
-        withdrawnUsd: 0,
-        withdrawnCents: 0,
-        tipCount: 1,
-        lastTipAt: now,
-        monthlyEarnings: {
-          [getMonthKey(now)]: tip.amountUsd,
-        },
-        topArticles: [
-          {
-            articleId: tip.articleId,
-            title: tip.articleTitle,
-            earnings: tip.amountUsd,
-            tipCount: 1,
-          },
-        ],
-        createdAt: now,
-        updatedAt: now,
-      })
-    } else {
-      // Update earnings record
-      const monthKey = getMonthKey(now)
-      const monthlyEarnings = {
-        ...earnings.monthlyEarnings,
-        [monthKey]: (earnings.monthlyEarnings?.[monthKey] || 0) + tip.amountUsd,
-      }
-
-      // Update top articles
-      const topArticles = [...(earnings.topArticles || [])]
-      const articleIndex = topArticles.findIndex(
-        (a) => a.articleId === tip.articleId
-      )
-
-      if (articleIndex >= 0 && topArticles[articleIndex]) {
-        topArticles[articleIndex].earnings += tip.amountUsd
-        topArticles[articleIndex].tipCount += 1
-      } else {
-        topArticles.push({
-          articleId: tip.articleId,
-          title: tip.articleTitle,
-          earnings: tip.amountUsd,
-          tipCount: 1,
-        })
-      }
-
-      // Sort and keep top 10
-      topArticles.sort((a, b) => b.earnings - a.earnings)
-      topArticles.splice(10)
-
-      const newTotalCents = earnings.totalEarnedCents + tip.amountCents
-      const newAvailableCents = earnings.availableBalanceCents + tip.amountCents
-      await ctx.db.patch(earnings._id, {
-        totalEarnedCents: newTotalCents,
-        totalEarnedUsd: newTotalCents / 100,
-        availableBalanceCents: newAvailableCents,
-        availableBalanceUsd: newAvailableCents / 100,
-        tipCount: earnings.tipCount + 1,
-        lastTipAt: now,
-        monthlyEarnings,
-        topArticles,
-        updatedAt: now,
-      })
-    }
+    // Update author earnings with the writer's share of the tip
+    await creditAuthorEarnings(ctx, {
+      authorId: tip.authorId,
+      articleId: tip.articleId,
+      articleTitle: tip.articleTitle,
+      shareCents: writerShareCents(tip.amountCents, tip.expectedAmountStroops),
+      now,
+    })
 
     // Update user stats
     const [tipper, author] = await Promise.all([
@@ -709,11 +645,17 @@ export const markArticleTipFraudulent = internalMutation({
         { tipId: args.tipId, authorId: tip.authorId }
       )
     } else {
+      // Remove the same writer share that confirmation credited.
+      const shareCents = writerShareCents(
+        tip.amountCents,
+        tip.expectedAmountStroops
+      )
+      const shareUsd = shareCents / 100
       const monthKey = getMonthKey(tip.createdAt)
       const monthlyEarnings = { ...(earnings.monthlyEarnings || {}) }
       const newMonthlyValue = Math.max(
         0,
-        (monthlyEarnings[monthKey] || 0) - tip.amountUsd
+        (monthlyEarnings[monthKey] || 0) - shareUsd
       )
       if (newMonthlyValue === 0) {
         delete monthlyEarnings[monthKey]
@@ -731,7 +673,7 @@ export const markArticleTipFraudulent = internalMutation({
       )
       if (articleIndex >= 0 && topArticles[articleIndex]) {
         const entry = topArticles[articleIndex]
-        const newEarnings = Math.max(0, entry.earnings - tip.amountUsd)
+        const newEarnings = Math.max(0, entry.earnings - shareUsd)
         const newTipCount = Math.max(0, entry.tipCount - 1)
         if (newEarnings === 0 && newTipCount === 0) {
           topArticles.splice(articleIndex, 1)
@@ -744,11 +686,11 @@ export const markArticleTipFraudulent = internalMutation({
 
       const newTotalCents = Math.max(
         0,
-        earnings.totalEarnedCents - tip.amountCents
+        roundCents(earnings.totalEarnedCents - shareCents)
       )
       const newAvailableCents = Math.max(
         0,
-        earnings.availableBalanceCents - tip.amountCents
+        roundCents(earnings.availableBalanceCents - shareCents)
       )
       await ctx.db.patch(earnings._id, {
         totalEarnedCents: newTotalCents,
@@ -808,9 +750,3 @@ export const getAuthorEarnings = query({
     return earnings
   },
 })
-
-// Helper function to get month key
-function getMonthKey(timestamp: number): string {
-  const date = new Date(timestamp)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-}
