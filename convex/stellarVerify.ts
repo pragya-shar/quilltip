@@ -8,6 +8,7 @@ import {
 import { internal } from './_generated/api'
 import type { Doc } from './_generated/dataModel'
 import { verifyTipTransaction } from './lib/horizon'
+import { creditAuthorEarnings, writerShareCents } from './lib/authorEarnings'
 import {
   normalizeStellarTransactionHash,
   stellarTransactionHashLookupValues,
@@ -407,14 +408,10 @@ export const confirmVerifiedHighlightTip = internalMutation({
       return
     }
 
-    const [article, tipper, author, earnings] = await Promise.all([
+    const [article, tipper, author] = await Promise.all([
       ctx.db.get(intent.articleId),
       ctx.db.get(intent.tipperId),
       ctx.db.get(intent.authorId),
-      ctx.db
-        .query('authorEarnings')
-        .withIndex('by_user', (q) => q.eq('userId', intent.authorId))
-        .first(),
     ])
     if (!article || !tipper || !author) {
       await ctx.db.patch(args.id, {
@@ -426,71 +423,16 @@ export const confirmVerifiedHighlightTip = internalMutation({
       return
     }
 
-    const monthKey = getMonthKey(now)
-    if (!earnings) {
-      await ctx.db.insert('authorEarnings', {
-        userId: intent.authorId,
-        totalEarnedUsd: intent.amountUsd,
-        totalEarnedCents: intent.amountCents,
-        availableBalanceUsd: intent.amountUsd,
-        availableBalanceCents: intent.amountCents,
-        pendingBalanceUsd: 0,
-        pendingBalanceCents: 0,
-        withdrawnUsd: 0,
-        withdrawnCents: 0,
-        tipCount: 1,
-        lastTipAt: now,
-        monthlyEarnings: { [monthKey]: intent.amountUsd },
-        topArticles: [
-          {
-            articleId: intent.articleId,
-            title: intent.articleTitle,
-            earnings: intent.amountUsd,
-            tipCount: 1,
-          },
-        ],
-        createdAt: now,
-        updatedAt: now,
-      })
-    } else {
-      const monthlyEarnings = {
-        ...earnings.monthlyEarnings,
-        [monthKey]:
-          (earnings.monthlyEarnings?.[monthKey] || 0) + intent.amountUsd,
-      }
-      const topArticles = [...(earnings.topArticles || [])]
-      const articleIndex = topArticles.findIndex(
-        (entry) => entry.articleId === intent.articleId
-      )
-      if (articleIndex >= 0 && topArticles[articleIndex]) {
-        topArticles[articleIndex].earnings += intent.amountUsd
-        topArticles[articleIndex].tipCount += 1
-      } else {
-        topArticles.push({
-          articleId: intent.articleId,
-          title: intent.articleTitle,
-          earnings: intent.amountUsd,
-          tipCount: 1,
-        })
-      }
-      topArticles.sort((a, b) => b.earnings - a.earnings)
-      topArticles.splice(10)
-
-      const totalEarnedCents = earnings.totalEarnedCents + intent.amountCents
-      const availableBalanceCents =
-        earnings.availableBalanceCents + intent.amountCents
-      await ctx.db.patch(earnings._id, {
-        totalEarnedCents,
-        totalEarnedUsd: totalEarnedCents / 100,
-        availableBalanceCents,
-        availableBalanceUsd: availableBalanceCents / 100,
-        tipCount: earnings.tipCount + 1,
-        lastTipAt: now,
-        monthlyEarnings,
-        topArticles,
-        updatedAt: now,
-      })
-    }
+    await creditAuthorEarnings(ctx, {
+      authorId: intent.authorId,
+      articleId: intent.articleId,
+      articleTitle: intent.articleTitle,
+      shareCents: writerShareCents(
+        intent.amountCents,
+        intent.expectedAmountStroops
+      ),
+      now,
+    })
 
     const tipCount = (article.tipCount || 0) + 1
     await ctx.db.patch(intent.articleId, {
@@ -519,11 +461,6 @@ export const confirmVerifiedHighlightTip = internalMutation({
     })
   },
 })
-
-function getMonthKey(timestamp: number): string {
-  const date = new Date(timestamp)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-}
 
 /**
  * Historical entrypoint retained only to terminalize a legacy PENDING row.
