@@ -8,7 +8,7 @@ import {
 } from '@/lib/copy/support-page'
 
 export const metadata: Metadata = {
-  title: 'Help & Support | Quilltip',
+  title: 'Help & Support | QuillTip',
   description:
     'Get help using Quilltip on Stellar testnet. Wallet setup, practice tipping, and support channels.',
 }

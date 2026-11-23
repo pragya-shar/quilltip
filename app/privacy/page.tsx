@@ -3,7 +3,7 @@ import { LegalPageLayout } from '@/components/legal/LegalPageLayout'
 import { privacyLastUpdated, privacySections } from '@/lib/copy/legal-privacy'
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy | Quilltip',
+  title: 'Privacy Policy | QuillTip',
   description:
     'Privacy Policy for Quilltip, describing how we collect, use, and protect your information.',
 }

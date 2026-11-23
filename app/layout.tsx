@@ -4,9 +4,11 @@ import './highlights.css'
 import Providers from '@/components/providers/Providers'
 import { Analytics } from '@vercel/analytics/react'
 import { SITE_META_DESCRIPTION } from '@/lib/copy/landing-sections'
+import { SITE_NAME, SITE_ORIGIN } from '@/lib/seo/siteMetadata'
 
 export const metadata: Metadata = {
-  title: 'Quilltip - Decentralized Publishing Platform',
+  metadataBase: new URL(SITE_ORIGIN),
+  title: `${SITE_NAME} - Decentralized Publishing Platform`,
   description: SITE_META_DESCRIPTION,
 }
 

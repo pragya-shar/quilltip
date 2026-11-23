@@ -1,21 +1,13 @@
 'use client'
 
-import dynamic from 'next/dynamic'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { type JSONContent } from '@tiptap/core'
 import Link from 'next/link'
 import { ArticleReaderHeader } from './ArticleReaderHeader'
 import { ArticleSelectionHint } from './ArticleSelectionHint'
 import { BookmarkButton } from '@/components/library/BookmarkButton'
 import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
-import { ArticleBodySkeleton } from '@/components/articles/ArticleBodySkeleton'
-const HighlightableArticle = dynamic(
-  () =>
-    import('@/components/articles/HighlightableArticle').then((mod) => ({
-      default: mod.HighlightableArticle,
-    })),
-  { ssr: false, loading: () => <ArticleBodySkeleton /> }
-)
+import type { HighlightableArticle as HighlightableArticleComponent } from '@/components/articles/HighlightableArticle'
 import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
 import { estimateArticleReadingMinutes } from '@/lib/reading-time'
@@ -43,6 +35,26 @@ export default function ArticleDisplay({
 }: ArticleDisplayProps) {
   const [passageRailTarget, setPassageRailTarget] =
     useState<HTMLDivElement | null>(null)
+  // The highlight editor is browser-only. Until its code loads, show the same
+  // content as static HTML so the server response carries the article text.
+  const [HighlightableArticle, setHighlightableArticle] = useState<
+    typeof HighlightableArticleComponent | null
+  >(null)
+  useEffect(() => {
+    if (!showHighlights) return
+    let active = true
+    import('@/components/articles/HighlightableArticle')
+      .then((mod) => {
+        if (active) setHighlightableArticle(() => mod.HighlightableArticle)
+      })
+      .catch((error) => {
+        // The static body stays readable; only highlighting is unavailable.
+        console.error('Could not load the highlight editor', error)
+      })
+    return () => {
+      active = false
+    }
+  }, [showHighlights])
   const readingMinutes = estimateArticleReadingMinutes(article.content)
 
   useEnsureHeadingIds(tocHeadings, { rootSelector: '.article-content' })
@@ -80,7 +92,7 @@ export default function ArticleDisplay({
       {showHighlights && <ArticleSelectionHint />}
 
       <div className="article-content">
-        {showHighlights ? (
+        {showHighlights && HighlightableArticle ? (
           <>
             <HighlightableArticle
               articleId={article.id as Id<'articles'>}
