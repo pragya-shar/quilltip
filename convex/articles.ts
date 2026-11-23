@@ -1,4 +1,4 @@
-import { getConvexSize, v } from 'convex/values'
+import { ConvexError, getConvexSize, v } from 'convex/values'
 import {
   paginationOptsValidator,
   paginationResultValidator,
@@ -1110,6 +1110,17 @@ export const deleteArticle = mutation({
       throw new Error('Published articles cannot be deleted from QuillTip')
     }
 
+    // Tip rows are financial records; keep the article they point at.
+    const articleTip = await ctx.db
+      .query('tips')
+      .withIndex('by_article', (q) => q.eq('articleId', args.id))
+      .first()
+    if (articleTip) {
+      throw new ConvexError(
+        'Cannot delete: article has tips with financial records'
+      )
+    }
+
     // Check for tipped highlights before deleting
     const highlights = await ctx.db
       .query('highlights')
@@ -1124,7 +1135,7 @@ export const deleteArticle = mutation({
         )
         .first()
       if (tip) {
-        throw new Error(
+        throw new ConvexError(
           'Cannot delete: article has tipped highlights with financial records'
         )
       }

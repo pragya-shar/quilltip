@@ -141,3 +141,41 @@ test('draft deletion still preserves linked financial records', async () => {
   expect(await t.run((ctx) => ctx.db.get(highlight))).toEqual(saved)
   expect(await t.run((ctx) => ctx.db.get(tip))).toEqual(receipt)
 })
+
+test.each(['CONFIRMED', 'PENDING'])(
+  'draft deletion is refused when the article has a %s tip',
+  async (status) => {
+    const { t, ids, author, highlight } = await setup()
+    const tip = await t.run((ctx) =>
+      ctx.db.insert('tips', {
+        articleId: ids.article,
+        tipperId: ids.other,
+        authorId: ids.author,
+        articleTitle: 'Words to keep',
+        articleSlug: 'words-to-keep',
+        amountUsd: 1,
+        amountCents: 100,
+        stellarTxId: 'fixture-article-tip',
+        stellarNetwork: 'TESTNET',
+        status,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+    )
+    const before = await t.run(async (ctx) => ({
+      article: await ctx.db.get(ids.article),
+      highlight: await ctx.db.get(highlight),
+      tip: await ctx.db.get(tip),
+    }))
+    await expect(
+      author.mutation(api.articles.deleteArticle, { id: ids.article })
+    ).rejects.toThrow('Cannot delete: article has tips with financial records')
+    expect(
+      await t.run(async (ctx) => ({
+        article: await ctx.db.get(ids.article),
+        highlight: await ctx.db.get(highlight),
+        tip: await ctx.db.get(tip),
+      }))
+    ).toEqual(before)
+  }
+)
