@@ -55,3 +55,9 @@ export function publicContentPath(
   }
   return slug === undefined ? { username } : { username, slug }
 }
+
+/** The username a not-found URL was meant to show, if it is a writer page. */
+export function writerPathUsername(pathname: string): string | null {
+  const target = publicContentPath(pathname)
+  return target && target.slug === undefined ? target.username : null
+}

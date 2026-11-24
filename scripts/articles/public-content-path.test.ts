@@ -6,6 +6,7 @@ import { api } from '../../convex/_generated/api'
 import {
   APP_ROUTE_SEGMENTS,
   publicContentPath,
+  writerPathUsername,
 } from '../../lib/routing/publicContentPath'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
@@ -90,4 +91,18 @@ test('publicRouteExists matches what the pages can show', async () => {
   expect(await exists('writer', 'missing')).toBe(false)
   expect(await exists('nobody')).toBe(false)
   expect(await exists('nobody', 'live')).toBe(false)
+})
+
+test.each([
+  ['/nobody-here', 'nobody-here'],
+  ['/_writer', '_writer'],
+  ['/a%20b', 'a b'],
+  ['/nobody-here/missing-article', null],
+  ['/articles', null],
+  ['/dashboard/stats', null],
+  ['/robots.txt', null],
+  ['/a/b/c', null],
+  ['/', null],
+])('writerPathUsername(%s)', (path, expected) => {
+  expect(writerPathUsername(path)).toBe(expected)
 })
