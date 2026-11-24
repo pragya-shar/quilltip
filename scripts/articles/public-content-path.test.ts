@@ -44,6 +44,9 @@ test.each([
   ['/images/banner.png', null],
   ['/a/b/c', null],
   ['/_next', null],
+  ['/_vercel', null],
+  ['/_writer', { username: '_writer' }],
+  ['/_writer/missing', { username: '_writer', slug: 'missing' }],
   ['/%E0%A4%A', null],
 ])('publicContentPath(%s)', (path, expected) => {
   expect(publicContentPath(path)).toEqual(expected)

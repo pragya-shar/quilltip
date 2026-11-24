@@ -710,58 +710,52 @@ export const getArticleBySlug = query({
   },
 })
 
-const SITEMAP_ARTICLE_LIMIT = 5000
-
-// Public sitemap data: published articles and their writers, public fields only.
+// Public sitemap data, one page at a time so each call stays well inside
+// Convex read limits as articles grow. Published articles only, public fields.
 export const listSitemapEntries = query({
-  args: {},
+  args: { paginationOpts: paginationOptsValidator },
   returns: v.object({
-    articles: v.array(
+    page: v.array(
       v.object({
         username: v.string(),
         slug: v.string(),
         lastModified: v.number(),
       })
     ),
-    writers: v.array(
-      v.object({ username: v.string(), lastModified: v.number() })
-    ),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
   }),
-  handler: async (ctx) => {
-    const published = await ctx.db
+  handler: async (ctx, { paginationOpts }) => {
+    const result = await ctx.db
       .query('articles')
       .withIndex('by_published_date', (q) => q.eq('published', true))
       .order('desc')
-      .take(SITEMAP_ARTICLE_LIMIT)
+      .paginate({
+        ...paginationOpts,
+        numItems: Math.min(paginationOpts.numItems, 100),
+      })
 
     // Current usernames come from users, not the copy stored on each article.
     const usernames = new Map<Id<'users'>, string | null>()
-    for (const article of published) {
+    const page = []
+    for (const article of result.page) {
       if (!usernames.has(article.authorId)) {
         const author = await ctx.db.get(article.authorId)
         usernames.set(article.authorId, author?.username ?? null)
       }
-    }
-
-    const articles = []
-    const writerLastModified = new Map<string, number>()
-    for (const article of published) {
       const username = usernames.get(article.authorId)
       if (!username) continue
-      const lastModified = article.updatedAt
-      articles.push({ username, slug: article.slug, lastModified })
-      writerLastModified.set(
+      page.push({
         username,
-        Math.max(writerLastModified.get(username) ?? 0, lastModified)
-      )
+        slug: article.slug,
+        lastModified: article.updatedAt,
+      })
     }
 
     return {
-      articles,
-      writers: [...writerLastModified].map(([username, lastModified]) => ({
-        username,
-        lastModified,
-      })),
+      page,
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
     }
   },
 })

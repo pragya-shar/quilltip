@@ -23,6 +23,9 @@ export const APP_ROUTE_SEGMENTS = new Set([
   'write',
 ])
 
+/** Framework paths; usernames may otherwise start with an underscore. */
+const NEXT_INTERNAL_SEGMENTS = new Set(['_next', '_vercel'])
+
 /**
  * Returns the writer (and article slug) a path points at, or null for app
  * routes, files and anything deeper than two segments.
@@ -43,7 +46,7 @@ export function publicContentPath(
   if (
     !username ||
     APP_ROUTE_SEGMENTS.has(username) ||
-    username.startsWith('_') ||
+    NEXT_INTERNAL_SEGMENTS.has(username) ||
     // Files such as robots.txt, sitemap.xml and public/ assets. Article slugs
     // never contain a dot, so this cannot hide an article.
     decoded.some((segment) => segment.includes('.'))
