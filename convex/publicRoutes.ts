@@ -70,3 +70,22 @@ export const resolvePublicRoute = query({
     return { kind: 'moved' as const, username: target.username }
   },
 })
+
+/**
+ * Kept so a frontend deployed before resolvePublicRoute keeps answering 404s
+ * while Vercel and Convex deploys land at different times. Exact handles only.
+ * Remove once no deployed frontend calls it.
+ */
+export const publicRouteExists = query({
+  args: { username: v.string(), slug: v.optional(v.string()) },
+  returns: v.boolean(),
+  handler: async (ctx, { username, slug }) => {
+    const author = await ctx.db
+      .query('users')
+      .withIndex('by_username', (q) => q.eq('username', username))
+      .first()
+    if (!author) return false
+    if (slug === undefined) return true
+    return hasPublishedArticle(ctx, author._id, slug)
+  },
+})
