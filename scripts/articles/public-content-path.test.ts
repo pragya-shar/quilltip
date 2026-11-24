@@ -53,19 +53,26 @@ test.each([
   expect(publicContentPath(path)).toEqual(expected)
 })
 
-test('publicRouteExists matches what the pages can show', async () => {
+test('resolvePublicRoute matches what the pages can show', async () => {
   const t = convexTest(schema, modules)
   await t.run(async (ctx) => {
     const writer = await ctx.db.insert('users', {
       email: 'writer@example.test',
-      username: 'writer',
+      username: 'Writer',
+      usernameLower: 'writer',
       createdAt: 1,
       updatedAt: 1,
+    })
+    await ctx.db.insert('usernameHistory', {
+      userId: writer,
+      username: 'old_name',
+      usernameLower: 'old_name',
+      retiredAt: 1,
     })
     const base = {
       content: {},
       authorId: writer,
-      authorUsername: 'writer',
+      authorUsername: 'Writer',
       createdAt: 1,
       updatedAt: 1,
     }
@@ -82,15 +89,20 @@ test('publicRouteExists matches what the pages can show', async () => {
       published: false,
     })
   })
-  const exists = (username: string, slug?: string) =>
-    t.query(api.publicRoutes.publicRouteExists, { username, slug })
+  const resolve = (username: string, slug?: string) =>
+    t.query(api.publicRoutes.resolvePublicRoute, { username, slug })
 
-  expect(await exists('writer')).toBe(true)
-  expect(await exists('writer', 'live')).toBe(true)
-  expect(await exists('writer', 'draft')).toBe(false)
-  expect(await exists('writer', 'missing')).toBe(false)
-  expect(await exists('nobody')).toBe(false)
-  expect(await exists('nobody', 'live')).toBe(false)
+  expect(await resolve('Writer')).toEqual({ kind: 'found' })
+  expect(await resolve('Writer', 'live')).toEqual({ kind: 'found' })
+  expect(await resolve('Writer', 'draft')).toEqual({ kind: 'missing' })
+  expect(await resolve('nobody')).toEqual({ kind: 'missing' })
+  // Different letter case and earlier handles redirect to the current one.
+  expect(await resolve('writer')).toEqual({ kind: 'moved', username: 'Writer' })
+  expect(await resolve('Old_Name', 'live')).toEqual({
+    kind: 'moved',
+    username: 'Writer',
+  })
+  expect(await resolve('old_name', 'draft')).toEqual({ kind: 'missing' })
 })
 
 test.each([

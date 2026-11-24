@@ -11,6 +11,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           email: params.email as string,
           name: params.name as string,
           username: params.username as string,
+          usernameLower: (params.username as string).toLowerCase(),
           createdAt: now,
           updatedAt: now,
         }

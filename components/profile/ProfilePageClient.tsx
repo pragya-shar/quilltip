@@ -181,7 +181,9 @@ export function ProfilePageClient({ username }: { username: string }) {
           displayName={profileDisplayName}
         />
         <Link className="library-browse" href={`/${user.username}?tab=nfts`}>
-          {isOwnProfile ? 'Profile photo and NFT collection' : 'NFT collection'}{' '}
+          {isOwnProfile
+            ? 'Profile photo, handle and NFT collection'
+            : 'NFT collection'}{' '}
           ↗
         </Link>
       </main>

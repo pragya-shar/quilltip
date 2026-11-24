@@ -1,5 +1,6 @@
 import { UserAvatar } from '@/components/ui/user-avatar'
 import { ProfileAvatarEditor } from '@/components/profile/ProfileAvatarEditor'
+import { ProfileHandleEditor } from '@/components/profile/ProfileHandleEditor'
 import { formatDistanceToNow } from 'date-fns'
 import { useUserStats } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
@@ -46,7 +47,10 @@ export default function ProfileHeader({
       </div>
       <div className="profile-introduction">
         <h1>{user.name || user.username}</h1>
-        <p className="profile-handle">@{user.username}</p>
+        <p className="profile-handle">
+          @{user.username}
+          {isOwnProfile && <ProfileHandleEditor username={user.username} />}
+        </p>
         {user.bio && <p className="profile-bio">{user.bio}</p>}
         <div className="profile-member-info">
           <p>

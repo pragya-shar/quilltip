@@ -39,7 +39,7 @@ async function expectDestination(page: Page, label: string, path: string) {
     case 'Public profile':
       await expect(page.getByText('Writer', { exact: true })).toBeVisible()
       await page
-        .getByRole('link', { name: /Profile photo and NFT collection/ })
+        .getByRole('link', { name: /Profile photo, handle and NFT collection/ })
         .click()
       await expect(page).toHaveURL(
         (url) => url.pathname === path && url.searchParams.get('tab') === 'nfts'
