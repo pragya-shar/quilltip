@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { ArticlePageClient } from '@/components/articles/ArticlePageClient'
 import { getPublishedArticle } from '@/lib/seo/publicContent'
 import {
@@ -19,7 +20,8 @@ export async function generateMetadata({
 }: ArticlePageProps): Promise<Metadata> {
   const { username, slug } = await params
   const article = await getPublishedArticle(username, slug)
-  // Drafts and missing articles come back null; keep the site defaults for them.
+  // Missing article (null) or backend unreachable (undefined): site defaults.
+  // The page renders the not-found screen; proxy.ts sets the 404 status.
   if (!article) return {}
 
   const authorName = article.author.name || article.author.username
@@ -56,6 +58,7 @@ export async function generateMetadata({
 export default async function ArticlePage({ params }: ArticlePageProps) {
   const { username, slug } = await params
   const initialArticle = await getPublishedArticle(username, slug)
+  if (initialArticle === null) notFound()
 
   return (
     <ArticlePageClient

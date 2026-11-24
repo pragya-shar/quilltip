@@ -710,6 +710,56 @@ export const getArticleBySlug = query({
   },
 })
 
+// Public sitemap data, one page at a time so each call stays well inside
+// Convex read limits as articles grow. Published articles only, public fields.
+export const listSitemapEntries = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    page: v.array(
+      v.object({
+        username: v.string(),
+        slug: v.string(),
+        lastModified: v.number(),
+      })
+    ),
+    isDone: v.boolean(),
+    continueCursor: v.string(),
+  }),
+  handler: async (ctx, { paginationOpts }) => {
+    const result = await ctx.db
+      .query('articles')
+      .withIndex('by_published_date', (q) => q.eq('published', true))
+      .order('desc')
+      .paginate({
+        ...paginationOpts,
+        numItems: Math.min(paginationOpts.numItems, 100),
+      })
+
+    // Current usernames come from users, not the copy stored on each article.
+    const usernames = new Map<Id<'users'>, string | null>()
+    const page = []
+    for (const article of result.page) {
+      if (!usernames.has(article.authorId)) {
+        const author = await ctx.db.get(article.authorId)
+        usernames.set(article.authorId, author?.username ?? null)
+      }
+      const username = usernames.get(article.authorId)
+      if (!username) continue
+      page.push({
+        username,
+        slug: article.slug,
+        lastModified: article.updatedAt,
+      })
+    }
+
+    return {
+      page,
+      isDone: result.isDone,
+      continueCursor: result.continueCursor,
+    }
+  },
+})
+
 // Get article by ID
 export const getArticleById = query({
   args: { id: v.id('articles') },
