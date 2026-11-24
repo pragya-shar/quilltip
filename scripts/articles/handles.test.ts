@@ -1,11 +1,14 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test'
-import { expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
 import { handleFormatError } from '../../lib/profile/handleRules'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
+
+beforeEach(() => vi.useFakeTimers())
+afterEach(() => vi.useRealTimers())
 
 async function setup() {
   const t = convexTest(schema, modules)
@@ -98,6 +101,7 @@ test('a change updates the account, its articles and keeps the old handle', asyn
   expect(
     await writer.mutation(api.handles.changeHandle, { handle: ' Pragya_S ' })
   ).toEqual({ username: 'Pragya_S' })
+  await t.finishAllScheduledFunctions(vi.runAllTimers)
 
   const state = await t.run(async (ctx) => ({
     user: await ctx.db.get(ids.writer),
@@ -186,4 +190,36 @@ test('backfill reports accounts missing the lowercase copy and case collisions',
       (await ctx.db.query('users').collect()).filter((u) => !u.usernameLower)
     )
   ).toHaveLength(0)
+})
+
+test('article copies are updated in batches for large archives', async () => {
+  const { t, ids, writer } = await setup()
+  await t.run(async (ctx) => {
+    for (let i = 0; i < 60; i++) {
+      await ctx.db.insert('articles', {
+        title: `Draft ${i}`,
+        slug: `draft-${i}`,
+        content: {},
+        authorId: ids.writer,
+        authorUsername: 'q6da1413b91a046bf95c',
+        published: false,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+    }
+  })
+  await writer.mutation(api.handles.changeHandle, { handle: 'First' })
+  // A second rename before the batches finish: the latest handle wins.
+  await writer.mutation(api.handles.changeHandle, { handle: 'Second' })
+  await t.finishAllScheduledFunctions(vi.runAllTimers)
+  const handles = await t.run(async (ctx) =>
+    (
+      await ctx.db
+        .query('articles')
+        .withIndex('by_author', (q) => q.eq('authorId', ids.writer))
+        .collect()
+    ).map((article) => article.authorUsername)
+  )
+  expect(handles).toHaveLength(61)
+  expect(new Set(handles)).toEqual(new Set(['Second']))
 })

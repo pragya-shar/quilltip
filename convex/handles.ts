@@ -1,5 +1,6 @@
 import { ConvexError, v } from 'convex/values'
 import { internalMutation, mutation, query } from './_generated/server'
+import { internal } from './_generated/api'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import {
   MAX_RETIRED_HANDLES,
@@ -95,22 +96,50 @@ export const changeHandle = mutation({
       updatedAt: now,
     })
 
-    // Articles keep a copy of the handle for links and search.
-    const articles = await ctx.db
-      .query('articles')
-      .withIndex('by_author', (q) => q.eq('authorId', userId))
-      .collect()
-    for (const article of articles) {
-      await ctx.db.patch(article._id, { authorUsername: handle })
-      await syncReadingRoomArticle(ctx, article._id, {
-        ...article,
-        authorUsername: handle,
-      })
-    }
     const updated = await ctx.db.get(userId)
     if (updated) await syncReadingRoomWriter(ctx, updated)
+    // Articles keep a copy of the handle for links and search. Update them in
+    // small batches so a large archive cannot exceed transaction limits;
+    // until then, links with the old copy go through the redirect.
+    await ctx.scheduler.runAfter(0, internal.handles.syncAuthorHandle, {
+      userId,
+      cursor: null,
+    })
 
     return { username: handle }
+  },
+})
+
+const HANDLE_SYNC_BATCH = 25
+
+/** Copies the writer's current handle onto their articles, one batch a run. */
+export const syncAuthorHandle = internalMutation({
+  args: {
+    userId: v.id('users'),
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { userId, cursor }) => {
+    // Re-read each batch, so a later rename always wins.
+    const user = await ctx.db.get(userId)
+    if (!user) return null
+    const page = await ctx.db
+      .query('articles')
+      .withIndex('by_author', (q) => q.eq('authorId', userId))
+      .paginate({ numItems: HANDLE_SYNC_BATCH, cursor })
+    for (const article of page.page) {
+      if (article.authorUsername === user.username) continue
+      const next = { ...article, authorUsername: user.username }
+      await ctx.db.patch(article._id, { authorUsername: user.username })
+      await syncReadingRoomArticle(ctx, article._id, next)
+    }
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.handles.syncAuthorHandle, {
+        userId,
+        cursor: page.continueCursor,
+      })
+    }
+    return null
   },
 })
 

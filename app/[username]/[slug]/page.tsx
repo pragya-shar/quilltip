@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { notFound, permanentRedirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { ArticlePageClient } from '@/components/articles/ArticlePageClient'
 import { getPublishedArticle, movedPublicPath } from '@/lib/seo/publicContent'
 import {
@@ -13,6 +13,7 @@ interface ArticlePageProps {
     username: string
     slug: string
   }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 export async function generateMetadata({
@@ -55,12 +56,16 @@ export async function generateMetadata({
   }
 }
 
-export default async function ArticlePage({ params }: ArticlePageProps) {
+export default async function ArticlePage({
+  params,
+  searchParams,
+}: ArticlePageProps) {
   const { username, slug } = await params
   const initialArticle = await getPublishedArticle(username, slug)
   if (initialArticle === null) {
-    const moved = await movedPublicPath(username, slug)
-    if (moved) permanentRedirect(moved)
+    const moved = await movedPublicPath(username, slug, await searchParams)
+    // Temporary: writers can switch back to an earlier handle.
+    if (moved) redirect(moved)
     notFound()
   }
 

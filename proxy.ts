@@ -53,13 +53,19 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const check = await checkPublicContent(request)
   // Missing: the page still renders its not-found screen; only the status
-  // changes. Moved: a permanent redirect to the writer's current handle.
+  // changes. Moved: a temporary redirect to the writer's current handle.
+  // Writers can switch back to an earlier handle, so browsers must not cache
+  // the redirect (a cached Alice -> Bob would loop once Alice is current).
   const response =
     check?.kind === 'missing'
       ? NextResponse.rewrite(request.nextUrl, { status: 404 })
       : check?.kind === 'moved'
-        ? NextResponse.redirect(movedUrl(request, check.username), 308)
+        ? NextResponse.redirect(movedUrl(request, check.username), 307)
         : NextResponse.next()
+
+  if (check?.kind === 'moved') {
+    response.headers.set('Cache-Control', 'no-store')
+  }
 
   // Security headers (apply to all routes)
   response.headers.set('X-Frame-Options', 'DENY')

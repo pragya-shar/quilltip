@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { notFound, permanentRedirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { ProfilePageClient } from '@/components/profile/ProfilePageClient'
 import { getPublicProfile, movedPublicPath } from '@/lib/seo/publicContent'
 import {
@@ -12,6 +12,7 @@ interface ProfilePageProps {
   params: Promise<{
     username: string
   }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 export async function generateMetadata({
@@ -52,11 +53,15 @@ export async function generateMetadata({
   }
 }
 
-export default async function ProfilePage({ params }: ProfilePageProps) {
+export default async function ProfilePage({
+  params,
+  searchParams,
+}: ProfilePageProps) {
   const { username } = await params
   if ((await getPublicProfile(username)) === null) {
-    const moved = await movedPublicPath(username)
-    if (moved) permanentRedirect(moved)
+    const moved = await movedPublicPath(username, undefined, await searchParams)
+    // Temporary: writers can switch back to an earlier handle.
+    if (moved) redirect(moved)
     notFound()
   }
   return <ProfilePageClient username={username} />
