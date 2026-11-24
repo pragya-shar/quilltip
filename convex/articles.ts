@@ -710,6 +710,62 @@ export const getArticleBySlug = query({
   },
 })
 
+const SITEMAP_ARTICLE_LIMIT = 5000
+
+// Public sitemap data: published articles and their writers, public fields only.
+export const listSitemapEntries = query({
+  args: {},
+  returns: v.object({
+    articles: v.array(
+      v.object({
+        username: v.string(),
+        slug: v.string(),
+        lastModified: v.number(),
+      })
+    ),
+    writers: v.array(
+      v.object({ username: v.string(), lastModified: v.number() })
+    ),
+  }),
+  handler: async (ctx) => {
+    const published = await ctx.db
+      .query('articles')
+      .withIndex('by_published_date', (q) => q.eq('published', true))
+      .order('desc')
+      .take(SITEMAP_ARTICLE_LIMIT)
+
+    // Current usernames come from users, not the copy stored on each article.
+    const usernames = new Map<Id<'users'>, string | null>()
+    for (const article of published) {
+      if (!usernames.has(article.authorId)) {
+        const author = await ctx.db.get(article.authorId)
+        usernames.set(article.authorId, author?.username ?? null)
+      }
+    }
+
+    const articles = []
+    const writerLastModified = new Map<string, number>()
+    for (const article of published) {
+      const username = usernames.get(article.authorId)
+      if (!username) continue
+      const lastModified = article.updatedAt
+      articles.push({ username, slug: article.slug, lastModified })
+      writerLastModified.set(
+        username,
+        Math.max(writerLastModified.get(username) ?? 0, lastModified)
+      )
+    }
+
+    return {
+      articles,
+      writers: [...writerLastModified].map(([username, lastModified]) => ({
+        username,
+        lastModified,
+      })),
+    }
+  },
+})
+
 // Get article by ID
 export const getArticleById = query({
   args: { id: v.id('articles') },

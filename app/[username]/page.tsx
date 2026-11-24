@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { ProfilePageClient } from '@/components/profile/ProfilePageClient'
 import { getPublicProfile } from '@/lib/seo/publicContent'
 import {
@@ -18,6 +19,8 @@ export async function generateMetadata({
 }: ProfilePageProps): Promise<Metadata> {
   const { username } = await params
   const profile = await getPublicProfile(username)
+  // Unknown writer (null) or backend unreachable (undefined): site defaults.
+  // The page renders not-found.tsx; proxy.ts sets the 404 status.
   if (!profile) return {}
 
   const displayName = profile.name || profile.username
@@ -51,6 +54,7 @@ export async function generateMetadata({
 
 export default async function ProfilePage({ params }: ProfilePageProps) {
   const { username } = await params
+  if ((await getPublicProfile(username)) === null) notFound()
   return <ProfilePageClient username={username} />
 }
 

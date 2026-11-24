@@ -1,8 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchQuery } from 'convex/nextjs'
+import { api } from '@/convex/_generated/api'
+import { publicContentPath } from '@/lib/routing/publicContentPath'
 
-export function proxy(request: NextRequest) {
+const ROUTE_CHECK_TIMEOUT_MS = 1500
+
+/**
+ * Pages stream behind app/loading.tsx, which fixes the status at 200 before
+ * they can call notFound(). Check writer and article URLs here instead, so a
+ * missing one answers 404. Any failure lets the request through unchanged.
+ */
+async function isMissingPublicContent(request: NextRequest): Promise<boolean> {
+  // Only full page loads carry a status that crawlers read. Client navigations
+  // and link prefetches (RSC requests) skip the extra backend call.
+  if (request.headers.get('rsc') === '1') return false
+  const target = publicContentPath(request.nextUrl.pathname)
+  if (!target) return false
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const exists = await Promise.race([
+      fetchQuery(api.publicRoutes.publicRouteExists, target),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), ROUTE_CHECK_TIMEOUT_MS)
+      }),
+    ])
+    return exists === false
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const response = NextResponse.next()
+  // The page still renders its not-found screen; only the status changes.
+  const response = (await isMissingPublicContent(request))
+    ? NextResponse.rewrite(request.nextUrl, { status: 404 })
+    : NextResponse.next()
 
   // Security headers (apply to all routes)
   response.headers.set('X-Frame-Options', 'DENY')

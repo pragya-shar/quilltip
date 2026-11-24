@@ -1,0 +1,54 @@
+/**
+ * First path segments that belong to app routes, not to writers. Writer pages
+ * live at /<username> and /<username>/<slug>. Kept in sync with app/ by
+ * scripts/articles/public-content-path.test.ts.
+ */
+export const APP_ROUTE_SEGMENTS = new Set([
+  'articles',
+  'contact',
+  'dashboard',
+  'demo',
+  'drafts',
+  'guide',
+  'library',
+  'login',
+  'privacy',
+  'profile',
+  'register',
+  'settings',
+  'status',
+  'support',
+  'terms',
+  'wallet',
+  'write',
+])
+
+/**
+ * Returns the writer (and article slug) a path points at, or null for app
+ * routes, files and anything deeper than two segments.
+ */
+export function publicContentPath(
+  pathname: string
+): { username: string; slug?: string } | null {
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length < 1 || segments.length > 2) return null
+
+  let decoded: string[]
+  try {
+    decoded = segments.map((segment) => decodeURIComponent(segment))
+  } catch {
+    return null
+  }
+  const [username, slug] = decoded
+  if (
+    !username ||
+    APP_ROUTE_SEGMENTS.has(username) ||
+    username.startsWith('_') ||
+    // Files such as robots.txt, sitemap.xml and public/ assets. Article slugs
+    // never contain a dot, so this cannot hide an article.
+    decoded.some((segment) => segment.includes('.'))
+  ) {
+    return null
+  }
+  return slug === undefined ? { username } : { username, slug }
+}
