@@ -326,7 +326,7 @@ test('usage metrics count real activity and exclude test accounts by default', a
     })
   })
 
-  const metrics = await t.query(internal.betaMetrics.getUsageMetrics, {})
+  const metrics = await t.action(internal.betaMetrics.getUsageMetrics, {})
   expect(metrics).toMatchObject({
     excludeTestAccounts: true,
     testAccountsExcluded: 1,
@@ -346,12 +346,174 @@ test('usage metrics count real activity and exclude test accounts by default', a
     waitlist: { total: 1, byStatus: { invited: 1 } },
   })
 
-  const all = await t.query(internal.betaMetrics.getUsageMetrics, {
+  const all = await t.action(internal.betaMetrics.getUsageMetrics, {
     excludeTestAccounts: false,
   })
   expect(all).toMatchObject({
     users: { total: 3, withWallet: 2 },
     articles: { total: 3 },
     tips: { article: { total: 4, verified: 2 }, distinctTippers: 2 },
+  })
+})
+
+test('only waitlist join and feedback submit are callable from clients', async () => {
+  const modules = {
+    waitlist: await import('../../convex/waitlist'),
+    feedback: await import('../../convex/feedback'),
+    betaMetrics: await import('../../convex/betaMetrics'),
+    testAccounts: await import('../../convex/testAccounts'),
+  }
+  const exposure: Record<string, 'public' | 'internal'> = {}
+  for (const [file, exports] of Object.entries(modules)) {
+    for (const [name, value] of Object.entries(exports)) {
+      const fn = value as { isPublic?: boolean; isInternal?: boolean }
+      if (fn?.isPublic) exposure[`${file}:${name}`] = 'public'
+      else if (fn?.isInternal) exposure[`${file}:${name}`] = 'internal'
+    }
+  }
+  expect(exposure).toEqual({
+    'waitlist:join': 'public',
+    'waitlist:list': 'internal',
+    'waitlist:invite': 'internal',
+    'feedback:submit': 'public',
+    'feedback:listRecent': 'internal',
+    'feedback:markReviewed': 'internal',
+    'betaMetrics:countPage': 'internal',
+    'betaMetrics:getUsageMetrics': 'internal',
+    'testAccounts:setTestAccount': 'internal',
+    'testAccounts:listTestAccounts': 'internal',
+  })
+})
+
+test('a full waitlist window answers the same for listed and new emails', async () => {
+  const t = newTest()
+  await t.mutation(api.waitlist.join, {
+    ...human,
+    email: 'listed@example.test',
+  })
+  for (let i = 1; i < 30; i++) {
+    await t.mutation(api.waitlist.join, {
+      ...human,
+      email: `flood${i}@example.test`,
+    })
+  }
+  const listed = await errorData(
+    t.mutation(api.waitlist.join, { ...human, email: 'listed@example.test' })
+  )
+  const unlisted = await errorData(
+    t.mutation(api.waitlist.join, { ...human, email: 'new@example.test' })
+  )
+  expect(listed).toBe(unlisted)
+  expect(await waitlistRows(t)).toHaveLength(30)
+})
+
+test('waitlist caps oversized input and never returns stored data', async () => {
+  const t = newTest()
+  expect(
+    await errorData(
+      t.mutation(api.waitlist.join, {
+        ...human,
+        email: `${'a'.repeat(100_000)}@example.test`,
+      })
+    )
+  ).toBe('Enter a valid email address.')
+  const result = await t.mutation(api.waitlist.join, {
+    ...human,
+    email: 'long@example.test',
+    name: 'n'.repeat(100_000),
+    interest: 'i'.repeat(100_000),
+    source: 's'.repeat(100_000),
+  })
+  expect(result).toEqual({ ok: true })
+  const [row] = await waitlistRows(t)
+  expect(row?.name).toHaveLength(80)
+  expect(row?.interest).toHaveLength(280)
+  expect(row?.source).toHaveLength(40)
+})
+
+test('waitlist marks an email that already has an account as joined', async () => {
+  const t = newTest()
+  const userId = await seedUser(t, { email: 'member@example.test' })
+  expect(
+    await t.mutation(api.waitlist.join, {
+      ...human,
+      email: 'Member@Example.test',
+    })
+  ).toEqual({ ok: true })
+  expect((await waitlistRows(t))[0]).toMatchObject({
+    status: 'joined',
+    userId,
+  })
+})
+
+test('feedback rejects oversized messages and long paths from signed-in people', async () => {
+  const t = newTest()
+  const userId = await seedUser(t, { email: 'big@example.test' })
+  const reader = t.withIdentity({ subject: `${userId}|session` })
+  expect(
+    await errorData(
+      reader.mutation(api.feedback.submit, {
+        category: 'bug',
+        message: 'x'.repeat(500_000),
+      })
+    )
+  ).toMatch(/under 2,000 characters/)
+  await reader.mutation(api.feedback.submit, {
+    category: 'bug',
+    message: 'A message with a long path attached.',
+    pagePath: `/${'p'.repeat(10_000)}`,
+  })
+  await reader.mutation(api.feedback.submit, {
+    category: 'bug',
+    message: 'A message with an external address attached.',
+    pagePath: 'https://elsewhere.example/page',
+  })
+  const rows = await t.run((ctx) => ctx.db.query('feedback').collect())
+  expect(rows[0]?.pagePath).toHaveLength(200)
+  expect(rows[1]?.pagePath).toBeUndefined()
+})
+
+test('usage metrics read every page of large tables', async () => {
+  const t = newTest()
+  const qa = await seedUser(t, {
+    email: 'qa-bulk@example.test',
+    isTestAccount: true,
+  })
+  await t.run(async (ctx) => {
+    for (let i = 0; i < 250; i++) {
+      await ctx.db.insert('users', {
+        email: `bulk${i}@example.test`,
+        username: `bulk${i}`,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      await ctx.db.insert('waitlist', {
+        email: `wait${i}@example.test`,
+        status: i % 2 ? 'pending' : undefined,
+        createdAt: 1,
+      })
+    }
+    await ctx.db.insert('feedback', {
+      userId: qa,
+      category: 'bug',
+      message: 'From a test account.',
+      status: 'new',
+      createdAt: 1,
+    })
+  })
+  const metrics = await t.action(internal.betaMetrics.getUsageMetrics, {})
+  expect(metrics).toMatchObject({
+    testAccountsExcluded: 1,
+    users: { total: 250 },
+    waitlist: { total: 250, byStatus: { pending: 250 } },
+    feedback: { total: 0 },
+  })
+  const all = await t.action(internal.betaMetrics.getUsageMetrics, {
+    excludeTestAccounts: false,
+  })
+  expect(all).toMatchObject({
+    testAccountsExcluded: 0,
+    users: { total: 251 },
+    feedback: { total: 1 },
   })
 })
