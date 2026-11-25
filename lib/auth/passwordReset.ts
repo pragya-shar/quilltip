@@ -44,7 +44,7 @@ export function resetRequestErrorCopy(code: unknown): string {
 /** Maps a server error to copy for the reset step. */
 export function resetVerifyErrorCopy(code: unknown): string {
   if (code === 'PASSWORD_RESET_INVALID_CODE') {
-    return 'That code is wrong, already used, or expired. Check the email and code, or request a new code.'
+    return 'That code didn’t work. It may be wrong, used or expired. Check the email and code, or request a new code. After many tries, wait an hour.'
   }
   if (code === 'INVALID_PASSWORD') {
     return 'Choose a password that meets every requirement below.'

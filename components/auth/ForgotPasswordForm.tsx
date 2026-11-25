@@ -37,6 +37,11 @@ export function ForgotPasswordForm() {
   useEffect(() => {
     if (sentTo) sentHeading.current?.focus()
   }, [sentTo])
+  // A failed submit disables the button, so move focus to the error.
+  const errorBanner = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (formError) errorBanner.current?.focus()
+  }, [formError])
   useEffect(() => {
     if (cooldown <= 0) return
     const timer = setTimeout(() => setCooldown((s) => s - 1), 1000)
@@ -91,9 +96,14 @@ export function ForgotPasswordForm() {
           Enter your code <ArrowRight size={20} />
         </Link>
         {formError && (
-          <p className="account-error account-error-banner" role="alert">
-            {formError.message}
-          </p>
+          <div
+            ref={errorBanner}
+            tabIndex={-1}
+            className="account-error account-error-banner"
+            role="alert"
+          >
+            <p>{formError.message}</p>
+          </div>
         )}
         <p className="account-hint">
           No email after a few minutes? Check spam, or{' '}
@@ -128,7 +138,12 @@ export function ForgotPasswordForm() {
   return (
     <form noValidate onSubmit={request} aria-busy={submitting}>
       {formError && (
-        <div className="account-error account-error-banner" role="alert">
+        <div
+          ref={errorBanner}
+          tabIndex={-1}
+          className="account-error account-error-banner"
+          role="alert"
+        >
           <p>{formError.message}</p>
           {formError.unavailable && (
             <Link href="/contact">Contact QuillTip</Link>
