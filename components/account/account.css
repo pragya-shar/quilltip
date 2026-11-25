@@ -743,3 +743,106 @@
     gap: 12px;
   }
 }
+.account-feedback-page {
+  max-width: 720px;
+  padding-bottom: 48px;
+}
+.account-feedback {
+  display: grid;
+  gap: 28px;
+}
+.account-feedback fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.account-feedback legend {
+  font-weight: 600;
+  margin-bottom: 10px;
+  padding: 0;
+}
+.account-feedback-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.account-feedback-option input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--account-wine);
+  flex: none;
+  cursor: pointer;
+}
+.account-feedback-field label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.account-feedback textarea {
+  width: 100%;
+  min-height: 160px;
+  resize: vertical;
+  background: var(--account-paper);
+  color: var(--account-ink);
+  border: 1px solid var(--account-rule);
+  border-radius: 2px;
+  padding: 12px;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.55;
+}
+.account-feedback textarea:focus-visible,
+.account-feedback-option input:focus-visible {
+  outline: 2px solid var(--account-wine);
+  outline-offset: 3px;
+}
+.account-feedback textarea[aria-invalid='true'] {
+  border-color: #962e41;
+}
+.account-feedback-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px !important;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.account-feedback-count {
+  flex: none;
+  white-space: nowrap;
+}
+.account-feedback-error {
+  color: #942339;
+  font-size: 14px;
+  margin-top: 8px !important;
+}
+.account-feedback > .account-feedback-error {
+  margin-top: 0 !important;
+  border-left: 2px solid #942339;
+  padding: 8px 12px;
+  background: #9423390d;
+}
+.account-feedback .account-primary {
+  justify-self: start;
+  min-width: 180px;
+}
+.account-feedback-sent {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding: 8px 0 32px;
+}
+.account-feedback-sent h2 {
+  font-size: 24px;
+  outline: none;
+}
+@media (max-width: 600px) {
+  .account-feedback .account-primary {
+    justify-self: stretch;
+  }
+}

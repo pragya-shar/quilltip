@@ -42,12 +42,13 @@ Avoid launching a duplicate backend or stopping another chat's server.
 `SITE_URL` is the app/auth redirect origin on Convex; `CONVEX_SITE_URL` is Convex's
 own HTTP-action origin, provided by Convex and used in `convex/auth.config.ts`.
 
-| Feature                | Local Next.js environment                                              | Convex deployment environment                                      |
-| ---------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| App/auth               | Generated Convex URL                                                   | `SITE_URL`; Auth signing configuration                             |
-| Article/highlight tips | `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`      | `TIPPING_CONTRACT_ID`, `STELLAR_NETWORK=TESTNET`                   |
-| NFT                    | `NEXT_PUBLIC_NFT_CONTRACT_ID`; optional `NEXT_PUBLIC_NFT_METADATA_URL` | Check the affected backend function's requirements                 |
-| Permanent publishing   | `ARWEAVE_ENABLED=false` by default                                     | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY` when intentionally enabled |
+| Feature                | Local Next.js environment                                                                                                | Convex deployment environment                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| App/auth               | Generated Convex URL                                                                                                     | `SITE_URL`; Auth signing configuration                             |
+| Article/highlight tips | `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`                                                        | `TIPPING_CONTRACT_ID`, `STELLAR_NETWORK=TESTNET`                   |
+| NFT                    | `NEXT_PUBLIC_NFT_CONTRACT_ID`; optional `NEXT_PUBLIC_NFT_METADATA_URL`                                                   | Check the affected backend function's requirements                 |
+| Permanent publishing   | `ARWEAVE_ENABLED=false` by default                                                                                       | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY` when intentionally enabled |
+| Product analytics      | `NEXT_PUBLIC_ANALYTICS_ENABLED=false` by default; server-only `ANALYTICS_POSTHOG_KEY`, optional `ANALYTICS_POSTHOG_HOST` | None                                                               |
 
 Frontend/backend tipping IDs and network must match. The browser's Stellar
 endpoints/passphrase default to testnet in `lib/stellar/config.ts`; backend
@@ -55,6 +56,30 @@ verification configuration lives in `convex/lib/constants.ts`. Missing backend
 contract configuration blocks quote preparation before wallet approval.
 Arweave wallet configuration is required by `convex/arweave.ts` when enabled,
 including for small uploads; keep it only on the backend.
+
+### Beta programme
+
+- **Waitlist:** `/waitlist` stores one row per email in the `waitlist` table
+  with status `pending`. Spam protection is a honeypot field, a minimum fill
+  time, and a global limit of 30 new rows per minute; responses are the same
+  for new and existing emails. Mark entries invited with
+  `waitlist:invite` (dry run unless `"apply": true`) and send the invitation
+  yourself. A new account with the same email marks the entry `joined`.
+- **Feedback:** signed-in people send feedback from `/dashboard/feedback`
+  (5 per person per hour). Read it with `feedback:listRecent`.
+- **Usage metrics:** `betaMetrics:getUsageMetrics` is an internal query for
+  people with deployment access. It excludes test accounts unless called with
+  `{"excludeTestAccounts": false}`.
+- **Test accounts:** flag QA and demo accounts with
+  `testAccounts:setTestAccount '{"email":"…","isTestAccount":true}'`. Only
+  internal functions can set the flag.
+- **Product analytics:** PostHog (EU cloud), off by default. Set
+  `NEXT_PUBLIC_ANALYTICS_ENABLED=true` and the server-only
+  `ANALYTICS_POSTHOG_KEY` (the project API key) on the Next.js deployment.
+  Visitors see a consent prompt; nothing is sent until they allow it, and Do
+  Not Track or Global Privacy Control count as a refusal. Events go through
+  `/api/analytics`, so visitor IP addresses are not shared with PostHog, and
+  only `$pageview`, `waitlist_joined` and `feedback_sent` are accepted.
 
 ## Checks and browser tests
 

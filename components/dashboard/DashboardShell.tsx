@@ -20,8 +20,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <AccountSurface>
       {isLoading ? (
-        pathname === '/dashboard/stats' ||
-        pathname === '/dashboard/earnings' ? (
+        pathname === '/dashboard/feedback' ? (
+          <p className="account-muted" role="status">
+            Loading…
+          </p>
+        ) : pathname === '/dashboard/stats' ||
+          pathname === '/dashboard/earnings' ? (
           <DashboardStatsSkeleton />
         ) : (
           <DashboardWalletSkeleton />

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { SiteHeader } from '@/components/layout/SiteHeader'
 import { Button } from '@/components/ui/button'
 import { SiteFooter } from '@/components/layout/SiteFooter'
@@ -13,6 +14,8 @@ type LegalPageLayoutProps = {
     href: '/terms' | '/privacy'
     label: string
   }
+  /** Extra sections rendered after the policy text. */
+  children?: ReactNode
 }
 
 export function LegalPageLayout({
@@ -20,6 +23,7 @@ export function LegalPageLayout({
   lastUpdated,
   sections,
   alternatePolicy,
+  children,
 }: LegalPageLayoutProps) {
   return (
     <div className="legal-page">
@@ -46,6 +50,7 @@ export function LegalPageLayout({
                 </div>
               </section>
             ))}
+            {children}
           </div>
 
           <footer className="legal-footer">

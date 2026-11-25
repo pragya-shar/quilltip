@@ -3,6 +3,8 @@ import './globals.css'
 import './highlights.css'
 import Providers from '@/components/providers/Providers'
 import { Analytics } from '@vercel/analytics/react'
+import { AnalyticsConsent } from '@/components/analytics/AnalyticsConsent'
+import { ANALYTICS_ENABLED } from '@/lib/analytics/config'
 import { SITE_META_DESCRIPTION } from '@/lib/copy/landing-sections'
 import { SITE_NAME, SITE_ORIGIN } from '@/lib/seo/siteMetadata'
 
@@ -38,6 +40,7 @@ export default function RootLayout({
       <body className="font-sans antialiased bg-background text-foreground">
         <Providers>{children}</Providers>
         <Analytics />
+        {ANALYTICS_ENABLED && <AnalyticsConsent />}
       </body>
     </html>
   )
