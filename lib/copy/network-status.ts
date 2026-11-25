@@ -49,3 +49,39 @@ export const TESTNET_TIP_SPEED_NOTE = tipSpeedNote()
 
 export const MAINNET_COMING_NOTE =
   'We are working toward a mainnet launch where tips will use real funds. Until then, everything on Quilltip is testnet practice.'
+
+/** True while tips run on Stellar testnet and amounts have no real value. */
+export function isTestnetValue(): boolean {
+  return getNetwork() !== 'MAINNET'
+}
+
+/** Heading for any earnings figure, for example "Earned (testnet)". */
+export function earningsLabel(base = 'Earned'): string {
+  return isTestnetValue() ? `${base} (testnet)` : base
+}
+
+/** Secondary note for USD estimates of testnet amounts. */
+export const TESTNET_NO_VALUE_NOTE = 'testnet, no real value'
+
+/**
+ * Formats stroops as an XLM amount, rounded half up to at most
+ * `maxDecimals` places (7 keeps full stroop precision).
+ */
+export function formatXlmFromStroops(stroops: string, maxDecimals = 7): string {
+  const decimals = Math.min(Math.max(Math.trunc(maxDecimals), 0), 7)
+  const raw = /^\d+$/.test(stroops) ? BigInt(stroops) : BigInt(0)
+  const step = BigInt(10) ** BigInt(7 - decimals)
+  const value = ((raw + step / BigInt(2)) / step) * step
+  const whole = value / BigInt(10_000_000)
+  const fraction = (value % BigInt(10_000_000))
+    .toString()
+    .padStart(7, '0')
+    .slice(0, decimals)
+    .replace(/0+$/, '')
+  const wholeText = whole.toLocaleString('en-US')
+  return `${fraction ? `${wholeText}.${fraction}` : wholeText} XLM`
+}
+
+export function formatUsd(amount: number): string {
+  return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+}

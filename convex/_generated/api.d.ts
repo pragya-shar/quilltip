@@ -19,6 +19,7 @@ import type * as handles from "../handles.js";
 import type * as highlightTips from "../highlightTips.js";
 import type * as highlights from "../highlights.js";
 import type * as http from "../http.js";
+import type * as legacyTipCleanup from "../legacyTipCleanup.js";
 import type * as lib_articleBrowseSort from "../lib/articleBrowseSort.js";
 import type * as lib_articleListing from "../lib/articleListing.js";
 import type * as lib_articleListingReady from "../lib/articleListingReady.js";
@@ -43,6 +44,7 @@ import type * as lib_stellarTransactionHash from "../lib/stellarTransactionHash.
 import type * as lib_tipArticleSummary from "../lib/tipArticleSummary.js";
 import type * as lib_tiptapContent from "../lib/tiptapContent.js";
 import type * as lib_uploadReferences from "../lib/uploadReferences.js";
+import type * as lib_verifiedTips from "../lib/verifiedTips.js";
 import type * as lib_wikimediaFileUrl from "../lib/wikimediaFileUrl.js";
 import type * as lib_xlmPrice from "../lib/xlmPrice.js";
 import type * as nftMetadataUpload from "../nftMetadataUpload.js";
@@ -78,6 +80,7 @@ declare const fullApi: ApiFromModules<{
   highlightTips: typeof highlightTips;
   highlights: typeof highlights;
   http: typeof http;
+  legacyTipCleanup: typeof legacyTipCleanup;
   "lib/articleBrowseSort": typeof lib_articleBrowseSort;
   "lib/articleListing": typeof lib_articleListing;
   "lib/articleListingReady": typeof lib_articleListingReady;
@@ -102,6 +105,7 @@ declare const fullApi: ApiFromModules<{
   "lib/tipArticleSummary": typeof lib_tipArticleSummary;
   "lib/tiptapContent": typeof lib_tiptapContent;
   "lib/uploadReferences": typeof lib_uploadReferences;
+  "lib/verifiedTips": typeof lib_verifiedTips;
   "lib/wikimediaFileUrl": typeof lib_wikimediaFileUrl;
   "lib/xlmPrice": typeof lib_xlmPrice;
   nftMetadataUpload: typeof nftMetadataUpload;

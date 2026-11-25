@@ -1,3 +1,4 @@
+import { confirmedTipPatch } from './lib/verifiedTips'
 import { syncReadingRoomEngagement } from './lib/readingRoomIndex'
 import { v } from 'convex/values'
 import {
@@ -198,12 +199,9 @@ export const confirmVerifiedArticleTip = internalMutation({
 
     const now = Date.now()
     await ctx.db.patch(args.tipId, {
-      status: 'CONFIRMED',
+      ...confirmedTipPatch(now),
       stellarLedger: args.stellarLedger,
       failureReason: undefined,
-      verifiedAt: now,
-      processedAt: now,
-      updatedAt: now,
     })
 
     const article = await ctx.db.get(tip.articleId)

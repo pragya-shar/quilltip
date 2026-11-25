@@ -1,6 +1,7 @@
 'use client'
 
 import './nft.css'
+import { isTestnetValue } from '@/lib/copy/network-status'
 import { Badge } from '@/components/ui/badge'
 import { Sparkles, TrendingUp } from 'lucide-react'
 import {
@@ -124,7 +125,8 @@ export function NFTBadge({
                 {totalTips !== undefined && (
                   <div>
                     <span className="text-ui-muted-foreground">Value:</span> $
-                    {totalTips.toFixed(2)} in tips
+                    {totalTips.toFixed(2)} in{' '}
+                    {isTestnetValue() ? 'testnet ' : ''}tips
                   </div>
                 )}
                 {mintDate && (

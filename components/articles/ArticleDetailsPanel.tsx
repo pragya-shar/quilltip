@@ -1,6 +1,7 @@
 'use client'
 
 import nextDynamic from 'next/dynamic'
+import { earningsLabel } from '@/lib/copy/network-status'
 import { useEffect, useState } from 'react'
 import ShareButtons from './ShareButtons'
 import {
@@ -156,7 +157,9 @@ export function ArticleDetailsPanel({
                     <span className="font-semibold">{tipStats.count || 0}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total Earned</span>
+                    <span className="text-muted-foreground">
+                      {earningsLabel('Total earned')}
+                    </span>
                     <span className="font-semibold">
                       ${(tipStats.total || 0).toFixed(2)}
                     </span>

@@ -1,4 +1,5 @@
 import { ConvexError, getConvexSize, v } from 'convex/values'
+import { verifiedTipFilter } from './lib/verifiedTips'
 import {
   paginationOptsValidator,
   paginationResultValidator,
@@ -689,7 +690,7 @@ export const getArticleBySlug = query({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', article._id))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const tipStats = {
