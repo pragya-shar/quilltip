@@ -14,8 +14,8 @@ import {
   normalizeStellarTransactionHash,
   stellarTransactionHashLookupValues,
 } from './lib/stellarTransactionHash'
+import { backendVerificationHorizonUrl } from './lib/networkGuard'
 import {
-  HORIZON_URLS,
   ARTICLE_TIP_TX_EARLY_GRACE_MS,
   ARTICLE_TIP_TX_LATE_GRACE_MS,
   HORIZON_VERIFY_MAX_ATTEMPTS,
@@ -49,16 +49,15 @@ export const getHighlightTipForVerify = internalQuery({
   },
 })
 
+// Both resolvers go through the testnet guard: a row recorded on any other
+// network, or a mainnet HORIZON_URL override, throws instead of reaching a
+// mainnet endpoint.
 export function resolveHorizonUrl(network: string | undefined): string {
-  const override = process.env.HORIZON_URL
-  if (override) return override
-  if (network === 'MAINNET') return HORIZON_URLS.MAINNET
-  return HORIZON_URLS.TESTNET
+  return backendVerificationHorizonUrl(network, { allowOverride: true })
 }
 
 export function resolveIntentHorizonUrl(network: string): string {
-  if (network === 'MAINNET') return HORIZON_URLS.MAINNET
-  return HORIZON_URLS.TESTNET
+  return backendVerificationHorizonUrl(network, { allowOverride: false })
 }
 
 /**
