@@ -398,7 +398,7 @@ export default defineSchema({
     verificationRequestedAt: v.optional(v.number()),
 
     // Status
-    status: v.string(), // PENDING, CONFIRMING, CONFIRMED, FAILED, FRAUDULENT
+    status: v.string(), // PENDING, CONFIRMING, CONFIRMED, FAILED, FRAUDULENT, UNVERIFIED
     failureReason: v.optional(v.string()), // Error message if failed
     platformFee: v.optional(v.number()),
     authorShare: v.optional(v.number()),
@@ -476,7 +476,7 @@ export default defineSchema({
     endContainerPath: v.optional(v.string()),
 
     // Status
-    status: v.string(), // PENDING, CONFIRMED, FAILED
+    status: v.string(), // PENDING, CONFIRMED, FAILED, UNVERIFIED
     failureReason: v.optional(v.string()),
     // Set when verification confirms the tip but could not fully validate the
     // claimed USD amount — e.g. XLM price oracle was unreachable, or the

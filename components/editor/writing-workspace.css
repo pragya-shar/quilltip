@@ -1199,3 +1199,62 @@
 .writing-workspace .writing-image[data-selected='true'] .writing-image-tools {
   display: flex;
 }
+.writing-workspace .locked-main {
+  padding: 32px 24px 64px;
+}
+.writing-workspace .locked-notice {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  max-width: 720px;
+  margin: 0 auto 32px;
+  padding: 20px 24px;
+  border: 1px solid #66003333;
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.writing-workspace .locked-notice svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 3px;
+  fill: none;
+  stroke: var(--wine);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.writing-workspace .locked-notice h1 {
+  margin: 0 0 6px;
+  font: 600 18px/1.35 var(--title-font);
+  text-wrap: balance;
+}
+.writing-workspace .locked-notice p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 15px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+.writing-workspace .locked-article-link,
+.writing-workspace .locked-desk-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--wine);
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+.writing-workspace .locked-article-link {
+  margin-top: 8px;
+}
+@media (max-width: 640px) {
+  .writing-workspace .locked-main {
+    padding: 20px 16px 48px;
+  }
+  .writing-workspace .locked-notice {
+    padding: 16px;
+    gap: 12px;
+  }
+}

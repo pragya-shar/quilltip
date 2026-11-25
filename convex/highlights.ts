@@ -1,4 +1,5 @@
 import { syncReadingRoomEngagement } from './lib/readingRoomIndex'
+import { verifiedTipFilter } from './lib/verifiedTips'
 import { v } from 'convex/values'
 import { query, mutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -222,7 +223,7 @@ export const getUserHighlightsWithTips = query({
           .withIndex('by_highlight', (q) =>
             q.eq('highlightId', highlight.highlightId)
           )
-          .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+          .filter(verifiedTipFilter)
           .collect()
 
         const tipCount = tips.length
