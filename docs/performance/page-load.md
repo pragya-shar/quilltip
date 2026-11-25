@@ -116,7 +116,7 @@
 ## Notes
 
 - `/dashboard` redirects in the browser to `/dashboard/stats`; its timings cover that redirect, and LCP covers the stats content.
-- Every run is a first visit, so the landing page plays its opening animation (about 6.2 s, skippable, once per browser session, not shown with reduced motion). The page stays inert until it ends, so landing content ready includes it; the page itself paints in under 2 s.
+- Every run is a first visit, so the landing page plays its opening animation (about 6.2 s, skippable, once per browser session, not shown with reduced motion). The page stays inert until it ends, so landing content ready includes it; the page itself paints in under 2 s. Visitors who scroll or swipe jump to the last 2.1 s of the intro, and Escape or Skip ends it; the intro is kept as designed.
 - The dashboard was measured with a new test account that has no articles or tips, so its stats are empty; an active writer's dashboard loads more data.
 - Production was serving `bbb7d82` (latest successful Vercel production deployment), which includes the server-rendered article and profile pages from #383. This run is the re-measurement after #383.
 - Compared with ENG-238 (localhost, no throttling, load event 45 to 141 ms), these numbers include real network round trips; throttled mobile also slows the CPU 4x.
