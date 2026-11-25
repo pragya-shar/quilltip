@@ -71,7 +71,7 @@ async function main(): Promise<number> {
       const code = await run(
         process.execPath,
         ['x', 'playwright', 'test', fixture.spec],
-        { ...process.env, ...fixture.env }
+        { ...process.env, ...fixture.env, QUILLTIP_E2E_FIXTURES: '1' }
       )
       if (code !== 0) failed = code
     }

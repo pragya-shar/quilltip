@@ -26,8 +26,8 @@ Convex Auth signing-key setup is covered by the
 [auth setup guide](https://labs.convex.dev/auth/setup). Existing deployments may
 already have it; keep keys on Convex, never in tracked files.
 
-`bun run dev` first runs `predev` (the Convex guard, then
-`convex dev --until-success`), then starts Next.js and Convex together. This can push functions/schema to the configured
+`bun run dev` first runs `predev` (`scripts/convex-dev.ts`: the Convex guard,
+then `convex dev --until-success`), then starts Next.js and Convex together. This can push functions/schema to the configured
 backend. For UI-only work against an already configured backend, use
 `bun run dev:frontend`. Start `bun run dev:backend` separately only when needed.
 
@@ -60,8 +60,8 @@ QUILLTIP_NETWORK_GUARD_OPT_IN=testnet
 ```
 
 Data on this deployment is disposable test data. Pushing functions to it with
-`bun run dev:backend` or `bunx convex dev --once` updates the shared integration
-backend, so coordinate before pushing schema changes.
+`bun run dev:backend` (add `--once` for a single push) updates the shared
+integration backend, so coordinate before pushing schema changes.
 
 ## Testnet guard
 
@@ -72,7 +72,15 @@ testnet guard before doing any work. Each call states its kind:
   Use `assertScriptTestnetOnly(operation)` or `bun run guard:testnet`.
 - **Deploy** work pushes functions or schema, imports data, runs migrations, or
   changes deployment env. Use `assertScriptConvexDeployAllowed(operation)` or
-  `bun run guard:convex`. `predev` and `dev:backend` run this check.
+  `bun run guard:convex`. `predev` and `dev:backend` run `scripts/convex-dev.ts`,
+  which runs this check and then `convex dev`. It refuses flags that can select
+  another deployment (`--prod`, `--url`, `--admin-key`, `--deployment`,
+  `--deployment-name`, `--env-file`, `--configure`, and others). Run other
+  Convex CLI commands only after `bun run guard:convex` passes in the same
+  environment.
+- Playwright runs must target a local app server. Suites that use a Convex
+  backend also run the operational guard; `bun run test:e2e:fixtures` needs no
+  backend.
 - Convex functions: `assertBackendTestnet()` for network checks, and
   `assertNonProductionBackend(operation)` for maintenance functions (deploy kind).
 

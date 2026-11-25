@@ -68,10 +68,52 @@ export function assertScriptConvexDeployAllowed(
   operation: string,
   env: EnvLike = process.env
 ): NetworkGuardResult {
+  // The Convex CLI chooses its target from these values, not from
+  // NEXT_PUBLIC_CONVEX_URL, so one of them must name the checked deployment.
+  const cliTargets = [
+    env.CONVEX_DEPLOYMENT,
+    env.CONVEX_DEPLOY_KEY,
+    env.CONVEX_SELF_HOSTED_URL,
+  ]
+  if (!cliTargets.some((value) => value?.trim())) {
+    throw new NetworkGuardError(operation, [
+      {
+        code: 'UNKNOWN_CONVEX',
+        message:
+          'No Convex CLI target is set. Set CONVEX_DEPLOYMENT (or CONVEX_SELF_HOSTED_URL for a local backend) to an allowlisted deployment.',
+      },
+    ])
+  }
   return assertTestnetOnly({
     operation,
     kind: 'deploy',
     checkStellar: false,
     ...convexInputs(env),
   })
+}
+
+const LOCAL_URL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+/**
+ * Browser test runs must target a local app server. Test suites that sign in
+ * or write data never run against a deployed site.
+ */
+export function assertLocalBaseUrl(
+  operation: string,
+  url: string | undefined
+): void {
+  let host = ''
+  try {
+    host = url ? new URL(url).hostname.toLowerCase() : ''
+  } catch {
+    host = ''
+  }
+  if (!LOCAL_URL_HOSTS.has(host)) {
+    throw new NetworkGuardError(operation, [
+      {
+        code: 'UNTRUSTED_URL',
+        message: `Base URL "${url ?? ''}" is not a local app server (localhost or 127.0.0.1).`,
+      },
+    ])
+  }
 }
