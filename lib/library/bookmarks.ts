@@ -45,3 +45,17 @@ export function toggleBookmark(userId: string, article: Bookmark): Bookmark[] {
   window.dispatchEvent(new Event(BOOKMARK_EVENT))
   return next
 }
+// Keep a saved bookmark's details in step with the article the reader is
+// viewing (for example a corrected category). Returns whether it changed.
+export function refreshBookmark(userId: string, article: Bookmark) {
+  if (!valid(article)) return false
+  const saved = readBookmarks(userId)
+  const index = saved.findIndex((b) => b.id === article.id)
+  if (index < 0) return false
+  const current = saved[index]!
+  const fields = Object.keys(article) as (keyof Bookmark)[]
+  if (fields.every((field) => current[field] === article[field])) return false
+  saved[index] = article
+  localStorage.setItem(key(userId), JSON.stringify(saved))
+  return true
+}

@@ -20,6 +20,10 @@ import { api, internal } from '../../convex/_generated/api'
 import { getArticleOpening } from '../../lib/articles/getArticleOpening'
 import { buildArticlesBrowseHref } from '../../lib/articles/buildArticlesBrowseHref'
 import { mapListArticlesToDisplay } from '../../lib/articles/mapListArticleToDisplay'
+import {
+  articleCategory,
+  articleCategoryLabel,
+} from '../../lib/articles/browseDiscovery'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 const content = {
@@ -132,7 +136,7 @@ test('browse applies categories, writer/title search and bookmark IDs before sor
     return {
       z: await insert('Zebra', 4, [' Stories ', 'other']),
       a: await insert('apple', 2, ['stories', 'Thoughts']),
-      other: await insert('Birch', 3, ['unclassified']),
+      other: await insert('Birch', 3, ['anecdotes', 'unclassified']),
       draft: await insert('Draft', 5, ['Stories'], false),
     }
   })
@@ -178,6 +182,60 @@ test('browse applies categories, writer/title search and bookmark IDs before sor
       })
     ).total
   ).toBe(1)
+})
+
+test('articles without a category tag are labelled and filtered as Stories', async () => {
+  expect(articleCategory(['ancient', 'architecture'])).toBe('stories')
+  expect(articleCategory([])).toBe('stories')
+  expect(articleCategory(undefined)).toBe('stories')
+  expect(articleCategory(['history', ' Thoughts '])).toBe('thoughts')
+  expect(articleCategoryLabel(['ancient'])).toBe('Stories')
+  expect(articleCategoryLabel(['Anecdotes', 'travel'])).toBe('Anecdotes')
+
+  const t = convexTest(schema, modules)
+  const ids = await t.run(async (ctx) => {
+    const authorId = await ctx.db.insert('users', {
+      username: 'stone-writer',
+      email: 'stone@example.test',
+      name: 'Ada Stone',
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    const insert = (title: string, publishedAt: number, tags: string[]) =>
+      ctx.db.insert('articles', {
+        slug: title.toLowerCase(),
+        title,
+        content,
+        published: true,
+        publishedAt,
+        tags,
+        authorId,
+        authorName: 'Ada Stone',
+        authorUsername: 'stone-writer',
+        createdAt: 1,
+        updatedAt: 1,
+      })
+    return {
+      legacy: await insert('Ancient', 3, ['ancient', 'architecture']),
+      untagged: await insert('Moments', 2, []),
+      thought: await insert('Musing', 1, ['Thoughts', 'history']),
+    }
+  })
+  await t.mutation(internal.readingRoomIndex.backfill, {})
+  const matches = async (
+    args: FunctionArgs<typeof api.articles.listArticles>
+  ) => (await browseReadingRoom(t, args)).articles.map((article) => article._id)
+
+  for (const search of [{}, { search: 'stone', searchByWriterOrTitle: true }]) {
+    expect(await matches({ ...search, category: 'stories' })).toEqual([
+      ids.legacy,
+      ids.untagged,
+    ])
+    expect(await matches({ ...search, category: 'thoughts' })).toEqual([
+      ids.thought,
+    ])
+    expect(await matches({ ...search, category: 'anecdotes' })).toEqual([])
+  }
 })
 
 test('Reading Room cards show the saved subtitle after publication and published edits', async () => {

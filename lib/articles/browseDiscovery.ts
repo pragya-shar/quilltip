@@ -32,3 +32,22 @@ export type ReadingRoomCategory = (typeof READING_ROOM_CATEGORIES)[number]
 export function parseReadingRoomCategory(value: string | null | undefined) {
   return READING_ROOM_CATEGORIES.find((category) => category === value)
 }
+
+// Older articles may carry no category tag; publish defaults those to Stories,
+// so cards, the reader and the Reading Room filters treat them the same way.
+export const DEFAULT_READING_ROOM_CATEGORY: ReadingRoomCategory = 'stories'
+
+export function articleCategory(
+  tags: readonly string[] | undefined
+): ReadingRoomCategory {
+  for (const tag of tags ?? []) {
+    const category = parseReadingRoomCategory(tag.trim().toLowerCase())
+    if (category) return category
+  }
+  return DEFAULT_READING_ROOM_CATEGORY
+}
+
+export function articleCategoryLabel(tags: readonly string[] | undefined) {
+  const category = articleCategory(tags)
+  return category.charAt(0).toUpperCase() + category.slice(1)
+}

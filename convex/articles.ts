@@ -19,6 +19,7 @@ import {
   READING_ROOM_SCAN_SIZE,
 } from '../lib/articles/readingRoomSearchBatch'
 import { estimateArticleReadingMinutes } from '../lib/reading-time'
+import { articleCategory } from '../lib/articles/browseDiscovery'
 import { enrichWithUser, type PublicUser } from './lib/enrich'
 import {
   getReadingRoomIndexState,
@@ -318,8 +319,8 @@ export const listArticles = query({
     }
     rows = rows.filter(isArticleListingReady)
     if (args.category) {
-      rows = rows.filter((article) =>
-        article.tags?.some((tag) => tag.trim().toLowerCase() === args.category)
+      rows = rows.filter(
+        (article) => articleCategory(article.tags) === args.category
       )
     }
 
