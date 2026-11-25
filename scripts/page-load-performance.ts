@@ -19,7 +19,7 @@ const DEFAULT_BASE_URL =
   process.env.BASE_URL ??
   process.env.PLAYWRIGHT_BASE_URL ??
   'https://www.quilltip.me'
-const DEFAULT_OUTPUT_PATH = 'docs/performance/page-load.md'
+const DEFAULT_OUTPUT_PATH = 'docs/performance/page-load-live.md'
 const DEFAULT_RUNS = 3
 
 const RESERVED_TOP_LEVEL_ROUTES = new Set([
