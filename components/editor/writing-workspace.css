@@ -1,10 +1,10 @@
 @font-face {
   font-family: 'Writing Work';
-  src: url(/prototype/writing/fonts/reading-work-sans.woff2);
+  src: url(/landing/fonts/work-sans-latin-400-normal.woff2);
 }
 @font-face {
   font-family: 'Writing Syne';
-  src: url('/prototype/writing/fonts/reading-syne.woff2');
+  src: url('/landing/fonts/syne-latin-600-normal.woff2');
 }
 @font-face {
   font-family: 'Writing Literata';
@@ -12,7 +12,7 @@
 }
 @font-face {
   font-family: 'Writing Alegreya';
-  src: url('/prototype/writing/fonts/alegreya-latin-400-italic.woff');
+  src: url('/landing/fonts/alegreya-latin-400-italic.woff');
   font-style: italic;
 }
 .writing-workspace * {

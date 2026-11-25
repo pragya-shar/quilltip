@@ -20,16 +20,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Syne 600 is the one face every page uses above the fold. Pages
+            preload their other first-screen faces themselves (lib/fonts/preloadFonts.ts). */}
         <link
           rel="preload"
-          href="/landing/fonts/work-sans-latin-400-normal.woff2"
-          as="font"
-          type="font/woff2"
-          crossOrigin="anonymous"
-        />
-        <link
-          rel="preload"
-          href="/account/fonts/syne-variable.woff2"
+          href="/landing/fonts/syne-latin-600-normal.woff2"
           as="font"
           type="font/woff2"
           crossOrigin="anonymous"

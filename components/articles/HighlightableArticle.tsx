@@ -83,6 +83,10 @@ interface HighlightableArticleProps {
   className?: string
   tocHeadings?: TocHeading[]
   passageRailTarget?: HTMLElement | null
+  /** Keeps the editor out of layout while a static copy is still shown. */
+  hidden?: boolean
+  /** Called once the editor has rendered the article into the page. */
+  onReady?: () => void
 }
 
 export function HighlightableArticle({
@@ -94,6 +98,8 @@ export function HighlightableArticle({
   className,
   tocHeadings = [],
   passageRailTarget,
+  hidden,
+  onReady,
 }: HighlightableArticleProps) {
   const [selectedText, setSelectedText] = useState<{
     text: string
@@ -742,10 +748,17 @@ export function HighlightableArticle({
     highlightTooltip &&
     highlights?.find((h) => h._id === highlightTooltip.highlight._id)
 
+  // EditorContent mounts the editor DOM during commit, so by this effect the
+  // article is rendered and the parent can swap it in for the static copy.
+  useEffect(() => {
+    if (editor) onReady?.()
+  }, [editor, onReady])
+
   return (
     <div
       className={cn('highlightable-article relative', className)}
       ref={editorRef}
+      hidden={hidden}
     >
       <EditorContent editor={editor} />
 

@@ -1,5 +1,7 @@
 import { cache } from 'react'
+import { unstable_cache } from 'next/cache'
 import { fetchQuery } from 'convex/nextjs'
+import type { FunctionArgs } from 'convex/server'
 import { api } from '@/convex/_generated/api'
 
 /**
@@ -8,11 +10,37 @@ import { api } from '@/convex/_generated/api'
  * returns published articles only. `undefined` means the backend could not be
  * reached; the page then falls back to loading on the client.
  */
+/** Thrown inside the cached read so a missing article is never cached. */
+class ArticleMissing extends Error {}
+
+/**
+ * Seconds a server copy of a published article may be reused. The reader page
+ * subscribes to the live article on load, so a newer edit replaces this copy
+ * in the browser right away; the cache only spares the backend round trip that
+ * delays the first HTML.
+ */
+const PUBLISHED_ARTICLE_REVALIDATE_SECONDS = 60
+
+const fetchPublishedArticleCached = unstable_cache(
+  async (username: string, slug: string) => {
+    const article = await fetchQuery(api.articles.getArticleBySlug, {
+      username,
+      slug,
+    })
+    // Not cached: a newly published article must appear immediately.
+    if (article === null) throw new ArticleMissing()
+    return article
+  },
+  ['published-article-v1'],
+  { revalidate: PUBLISHED_ARTICLE_REVALIDATE_SECONDS }
+)
+
 export const getPublishedArticle = cache(
   async (username: string, slug: string) => {
     try {
-      return await fetchQuery(api.articles.getArticleBySlug, { username, slug })
+      return await fetchPublishedArticleCached(username, slug)
     } catch (error) {
+      if (error instanceof ArticleMissing) return null
       console.error('Server article fetch failed', error)
       return undefined
     }
@@ -59,3 +87,27 @@ export async function movedPublicPath(
     return null
   }
 }
+
+/**
+ * First page of the Reading Room for the server HTML. Search and bookmark
+ * lists need the browser (scan protocol, local bookmarks), so they return
+ * undefined and load on the client as before.
+ */
+const fetchReadingRoomCached = unstable_cache(
+  async (args: FunctionArgs<typeof api.articles.listArticles>) =>
+    fetchQuery(api.articles.listArticles, args),
+  ['reading-room-list-v1'],
+  { revalidate: PUBLISHED_ARTICLE_REVALIDATE_SECONDS }
+)
+
+export const getReadingRoomList = cache(
+  async (args: FunctionArgs<typeof api.articles.listArticles>) => {
+    if (args.search || args.bookmarkIds) return undefined
+    try {
+      return await fetchReadingRoomCached(args)
+    } catch (error) {
+      console.error('Server reading room fetch failed', error)
+      return undefined
+    }
+  }
+)

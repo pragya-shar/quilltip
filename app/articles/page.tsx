@@ -1,25 +1,38 @@
-'use client'
-
 import { ReadingRoomShell } from '@/components/articles/ReadingRoomShell'
-
-import { ErrorBoundary } from '@/components/error/ErrorBoundary'
-import { ReadingRoom } from '@/components/articles/ReadingRoom'
+import { ReadingRoomPage } from '@/components/articles/ReadingRoomPage'
+import {
+  readingRoomListArgs,
+  readingRoomListKey,
+} from '@/lib/articles/readingRoomListArgs'
+import { searchParamsRecordReader } from '@/lib/auth/safeReturnPath'
+import { getReadingRoomList } from '@/lib/seo/publicContent'
+import { preloadUiFont } from '@/lib/fonts/preloadFonts'
 import '@/components/articles/reading-room.css'
 
-export default function ArticlesPage() {
+/**
+ * Renders the first article list on the server, so the first HTML already
+ * shows the cards and their cover images are found without waiting for the
+ * page script. The live query takes over in the browser.
+ */
+export default async function ArticlesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  preloadUiFont()
+  const params = searchParamsRecordReader(await searchParams)
+  const args = readingRoomListArgs(params)
+  const initialList =
+    params.get('bookmarked') === '1'
+      ? undefined
+      : await getReadingRoomList(args)
+
   return (
     <ReadingRoomShell>
-      <ErrorBoundary
-        fallback={({ reset }) => (
-          <main className="reading-room-main empty">
-            <h1>Articles couldn’t load.</h1>
-            <p>Your filters are still here.</p>
-            <button onClick={reset}>Try again</button>
-          </main>
-        )}
-      >
-        <ReadingRoom />
-      </ErrorBoundary>
+      <ReadingRoomPage
+        initialList={initialList}
+        initialListKey={initialList ? readingRoomListKey(args) : undefined}
+      />
     </ReadingRoomShell>
   )
 }

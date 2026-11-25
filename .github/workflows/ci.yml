@@ -83,6 +83,44 @@ jobs:
           NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
           NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
 
+  perf-budget:
+    name: Page-load Budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
+      # Fixture data from a local stand-in (scripts/perf/convex-fixture.ts);
+      # no backend or secrets.
+      - name: Build against the fixture backend
+        run: bun run build
+        env:
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      - name: Check page-load budget
+        run: bun run perf:budget
+
   audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
