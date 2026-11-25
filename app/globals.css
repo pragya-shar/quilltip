@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import '../components/landing/landing-blend.css';
+@import '../components/landing/landing-fonts.css';
 @import '../components/layout/site-chrome.css';
 @import '../components/error/failure.css';
 
