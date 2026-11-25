@@ -1,3 +1,4 @@
+import { isVerifiedTip } from './lib/verifiedTips'
 import { v } from 'convex/values'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
@@ -15,7 +16,8 @@ import {
 
 // One-time correction for earnings rows that were credited with the full tip
 // instead of the writer's share. Each row is rebuilt from the author's
-// CONFIRMED article and highlight tips, so running it again is a no-op.
+// server-verified CONFIRMED article and highlight tips, so running it again
+// is a no-op.
 // Tips flagged with an untrusted USD amount stay out of earnings.
 //
 // Tip histories are read in pages and each row is written once, only if it
@@ -67,7 +69,7 @@ type ConfirmedTip = {
 function toConfirmedTip(
   tip: Doc<'tips'> | Doc<'highlightTips'>
 ): ConfirmedTip | null {
-  if (tip.status !== 'CONFIRMED') return null
+  if (!isVerifiedTip(tip)) return null
   if ('amountUsdSuspicious' in tip && tip.amountUsdSuspicious) return null
   return {
     articleId: tip.articleId,

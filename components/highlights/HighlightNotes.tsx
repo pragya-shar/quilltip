@@ -1,6 +1,7 @@
 'use client'
 
 import { Id } from '@/convex/_generated/dataModel'
+import { isTestnetValue } from '@/lib/copy/network-status'
 import { formatDistanceToNow } from 'date-fns'
 import { MessageSquare, Coins, Lock, ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -103,6 +104,7 @@ export function HighlightNotes({
                   <Coins className="h-3 w-3" aria-hidden />
                   {tipData.count} tip{tipData.count > 1 ? 's' : ''}
                   {' · '}${tipData.totalUsd.toFixed(2)}
+                  {isTestnetValue() ? ' testnet' : ''}
                 </span>
               )}
               <span className="ml-auto inline-flex items-center gap-1 text-ui-primary">

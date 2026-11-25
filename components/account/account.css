@@ -191,6 +191,15 @@
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
+.account-stat-note {
+  display: block;
+  margin-top: 6px;
+  color: var(--account-muted);
+  font:
+    400 14px/1.45 'Account Syne',
+    sans-serif;
+  letter-spacing: 0;
+}
 .account-stat-placeholder {
   height: 55px;
   max-width: 120px;

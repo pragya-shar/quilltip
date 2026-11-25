@@ -15,6 +15,7 @@ export function tipStatusLabel(status: string) {
     CONFIRMING: 'Confirming',
     FAILED: 'Failed',
     FRAUDULENT: 'Rejected',
+    UNVERIFIED: 'Not verified',
   }
   return labels[status] ?? `Unrecognized status (${status})`
 }

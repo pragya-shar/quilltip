@@ -4,6 +4,7 @@ import { useArticleTipStats } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Coins, Users } from 'lucide-react'
+import { isTestnetValue } from '@/lib/copy/network-status'
 
 interface TipStatsProps {
   articleId: Id<'articles'>
@@ -38,11 +39,11 @@ export function TipStats({ articleId, className = '' }: TipStatsProps) {
       className={`flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground ${className}`}
     >
       <div className="flex items-center gap-1">
-        <Coins className="w-4 h-4 text-muted-foreground" />
+        <Coins className="w-4 h-4 text-muted-foreground" aria-hidden />
         <span className="font-medium">
           ${(stats?.totalAmountUsd ?? 0).toFixed(2)}
         </span>
-        <span>earned</span>
+        <span>{isTestnetValue() ? 'in testnet tips' : 'in tips'}</span>
       </div>
       <div className="flex items-center gap-1">
         <Users className="w-4 h-4 text-muted-foreground" />

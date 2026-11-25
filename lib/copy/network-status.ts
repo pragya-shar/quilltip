@@ -49,3 +49,32 @@ export const TESTNET_TIP_SPEED_NOTE = tipSpeedNote()
 
 export const MAINNET_COMING_NOTE =
   'We are working toward a mainnet launch where tips will use real funds. Until then, everything on Quilltip is testnet practice.'
+
+/** True while tips run on Stellar testnet and amounts have no real value. */
+export function isTestnetValue(): boolean {
+  return getNetwork() !== 'MAINNET'
+}
+
+/** Heading for any earnings figure, for example "Earned (testnet)". */
+export function earningsLabel(base = 'Earned'): string {
+  return isTestnetValue() ? `${base} (testnet)` : base
+}
+
+/** Secondary note for USD estimates of testnet amounts. */
+export const TESTNET_NO_VALUE_NOTE = 'testnet, no real value'
+
+/** Formats stroops as an XLM amount with up to 7 decimals. */
+export function formatXlmFromStroops(stroops: string): string {
+  const value = /^\d+$/.test(stroops) ? BigInt(stroops) : BigInt(0)
+  const whole = value / BigInt(10_000_000)
+  const fraction = (value % BigInt(10_000_000))
+    .toString()
+    .padStart(7, '0')
+    .replace(/0+$/, '')
+  const wholeText = whole.toLocaleString('en-US')
+  return `${fraction ? `${wholeText}.${fraction}` : wholeText} XLM`
+}
+
+export function formatUsd(amount: number): string {
+  return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+}

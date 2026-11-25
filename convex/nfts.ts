@@ -1,4 +1,5 @@
 import { v } from 'convex/values'
+import { verifiedTipFilter } from './lib/verifiedTips'
 import { query, mutation, internalQuery } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { enrichWithUser } from './lib/enrich'
@@ -123,7 +124,7 @@ export const getNFTByArticle = query({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const totalTipsUsd = tips.reduce((sum, tip) => sum + tip.amountUsd, 0)
@@ -280,7 +281,7 @@ export const loadArticleTipsForNftMetadata = internalQuery({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
     return { article, tips }
   },
@@ -330,7 +331,7 @@ export const mintNFT = mutation({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const totalTipsUsd = tips.reduce((sum, tip) => sum + tip.amountUsd, 0)
@@ -572,7 +573,7 @@ export const generateNFTMetadata = query({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     return buildNftMetadataPayload(article, tips, args.xlmPrice)

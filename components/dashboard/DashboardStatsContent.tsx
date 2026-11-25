@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/components/providers/AuthContext'
 import {
-  useAuthorEarnings,
+  useMyEarningsSummary,
   useUserByUsername,
   useUserStats,
 } from '@/hooks/convex'
@@ -13,7 +13,7 @@ export function DashboardStatsContent() {
   const { user: currentUser } = useAuth()
   const user = useUserByUsername(currentUser?.username)
   const userStats = useUserStats(user?._id)
-  const earnings = useAuthorEarnings()
+  const earnings = useMyEarningsSummary()
 
   if (!currentUser || user === null) {
     return null
@@ -33,7 +33,9 @@ export function DashboardStatsContent() {
       <CreatorStatsPanel
         articleCount={userStats?.articleCount ?? 0}
         tipsReceivedCount={userStats?.tipsReceivedCount ?? 0}
-        totalEarnedUsd={earnings?.totalEarnedUsd ?? 0}
+        earnedStroops={earnings?.writerShareStroops ?? '0'}
+        estimatedUsd={earnings?.estimatedUsd ?? 0}
+        isTestnet={earnings?.network !== 'MAINNET'}
         nftsOwned={user?.nftsOwned ?? 0}
       />
     </div>
