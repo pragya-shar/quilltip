@@ -281,6 +281,8 @@ export function useWritingWorkspace() {
     if (editor && !editor.isDestroyed && editor.isEditable === articleLocked) {
       editor.setEditable(!articleLocked)
     }
+    // Typing that lands while publishing completes can't be saved.
+    if (articleLocked) setHasUnsavedChanges(false)
   }, [editor, articleLocked])
 
   const { isSaving, lastSavedAt, error, saveNow } = useAutoSave({
@@ -383,6 +385,13 @@ export function useWritingWorkspace() {
         router.replace(url, { scroll: false })
         return
       }
+    }
+
+    // A published article can't take local changes, so its backup is stale.
+    if (draft?.published && backup.articleId === draft._id) {
+      clearDraftBackup()
+      setBackupRecoveryStatus('resolved')
+      return
     }
 
     const serverDraft =
