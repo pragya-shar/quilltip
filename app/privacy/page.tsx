@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { LegalPageLayout } from '@/components/legal/LegalPageLayout'
 import { privacyLastUpdated, privacySections } from '@/lib/copy/legal-privacy'
 import { AnalyticsPreferences } from '@/components/analytics/AnalyticsPreferences'
+import { analyticsServerKey } from '@/lib/analytics/config'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy | QuillTip',
@@ -33,7 +34,7 @@ export default function PrivacyPage() {
             or read. Do Not Track and Global Privacy Control are treated as a
             refusal.
           </p>
-          <AnalyticsPreferences />
+          <AnalyticsPreferences enabled={analyticsServerKey() !== null} />
         </div>
       </section>
     </LegalPageLayout>
