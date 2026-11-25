@@ -36,13 +36,18 @@ export default defineSchema({
     nftsCreated: v.optional(v.number()),
     nftsOwned: v.optional(v.number()),
 
+    // Accounts used for QA and demos. Missing means false. Set only by
+    // internal functions; public metrics can exclude or label them.
+    isTestAccount: v.optional(v.boolean()),
+
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_email', ['email'])
     .index('by_username', ['username'])
-    .index('by_username_lower', ['usernameLower']),
+    .index('by_username_lower', ['usernameLower'])
+    .index('by_test_account', ['isTestAccount']),
 
   // Handles a writer used before. Each stays reserved for that writer and its
   // URLs redirect to the writer's current handle.
@@ -680,21 +685,52 @@ export default defineSchema({
     fetchedAt: v.number(),
   }),
 
-  // Waitlist table
+  // Waitlist table. Status flow: pending -> invited -> joined. A row is
+  // marked joined when an account is created with the same email.
   waitlist: defineTable({
+    // Lowercased, trimmed email
     email: v.string(),
+    name: v.optional(v.string()),
+    // What the person wants to read or write about (optional, short)
+    interest: v.optional(v.string()),
 
     // Status tracking
     status: v.optional(v.string()), // "pending", "invited", "joined"
 
     // Metadata
-    source: v.optional(v.string()), // "landing_page", "referral", etc.
+    source: v.optional(v.string()), // "waitlist_page", "referral", etc.
     invitedAt: v.optional(v.number()),
     joinedAt: v.optional(v.number()),
+    userId: v.optional(v.id('users')),
 
     // Timestamps
     createdAt: v.number(),
   })
     .index('by_email', ['email'])
     .index('by_status', ['status']),
+
+  // In-product feedback from signed-in readers and writers.
+  feedback: defineTable({
+    userId: v.id('users'),
+    category: v.union(
+      v.literal('bug'),
+      v.literal('idea'),
+      v.literal('question'),
+      v.literal('other')
+    ),
+    message: v.string(),
+    // Path the person was on, without query string
+    pagePath: v.optional(v.string()),
+    status: v.union(v.literal('new'), v.literal('reviewed')),
+    createdAt: v.number(),
+  })
+    .index('by_user_created', ['userId', 'createdAt'])
+    .index('by_status_created', ['status', 'createdAt']),
+
+  // Fixed-window counters for rate limiting public and signed-in writes.
+  rateLimits: defineTable({
+    key: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  }).index('by_key', ['key']),
 })
