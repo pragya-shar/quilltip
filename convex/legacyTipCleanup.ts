@@ -59,10 +59,10 @@ export const run = internalMutation({
   }),
   handler: async (ctx, args) => {
     const apply = args.apply === true
-    const numItems = Math.min(
-      Math.max(1, Math.floor(args.pageSize ?? DEFAULT_PAGE_SIZE)),
-      500
-    )
+    const requested = Number.isFinite(args.pageSize)
+      ? Math.floor(args.pageSize!)
+      : DEFAULT_PAGE_SIZE
+    const numItems = Math.min(Math.max(1, requested), 500)
     const page = await ctx.db
       .query(args.table)
       .withIndex('by_status', (q) => q.eq('status', CONFIRMED_TIP_STATUS))
