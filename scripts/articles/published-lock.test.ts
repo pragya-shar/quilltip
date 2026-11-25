@@ -140,3 +140,97 @@ test('readers can still highlight a published article', async () => {
   })
   expect(highlight).toBeTruthy()
 })
+
+test('a save that arrives after publishing is rejected and keeps the slug', async () => {
+  const { t, ids, author } = await setup(false)
+  await t.run((ctx) =>
+    ctx.db.patch(ids.author, {
+      stellarAddress:
+        'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H',
+    })
+  )
+  await author.mutation(api.articles.publishArticle, { id: ids.article })
+  const published = await t.run((ctx) => ctx.db.get(ids.article))
+  expect(published?.published).toBe(true)
+
+  await expectLocked(
+    author.mutation(api.articles.saveDraft, {
+      id: ids.article,
+      title: 'A late title',
+      content: body('Typed while publishing.'),
+      writerNotes: 'late note',
+    })
+  )
+  await expectLocked(
+    author.mutation(api.articles.updateArticle, {
+      id: ids.article,
+      title: 'A late title',
+    })
+  )
+  await expect(
+    author.mutation(api.articles.publishArticle, { id: ids.article })
+  ).rejects.toThrow('Already published')
+
+  const after = await t.run((ctx) => ctx.db.get(ids.article))
+  expect(after).toMatchObject({
+    title: published?.title,
+    slug: published?.slug,
+    content: published?.content,
+    updatedAt: published?.updatedAt,
+  })
+  expect(after?.writerNotes).toBeUndefined()
+})
+
+test('a locked article keeps its tag links and reading-room entry', async () => {
+  const { t, ids, author } = await setup(false)
+  await t.run((ctx) =>
+    ctx.db.patch(ids.author, {
+      stellarAddress:
+        'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H',
+    })
+  )
+  await author.mutation(api.articles.publishArticle, { id: ids.article })
+  const snapshot = () =>
+    t.run(async (ctx) => ({
+      links: await ctx.db.query('articleTagLinks').collect(),
+      room: await ctx.db.query('readingRoomArticles').collect(),
+    }))
+  const before = await snapshot()
+  expect(before.links.length).toBeGreaterThan(0)
+  await expectLocked(
+    author.mutation(api.articles.updateArticle, {
+      id: ids.article,
+      tags: ['Thoughts', 'Essays'],
+    })
+  )
+  expect(await snapshot()).toEqual(before)
+})
+
+test.each([true, false])(
+  'edits keep authentication and ownership checks (published=%s)',
+  async (published) => {
+    const { t, ids, reader } = await setup(published)
+    await expect(
+      reader.mutation(api.articles.updateArticle, {
+        id: ids.article,
+        title: 'Not mine',
+      })
+    ).rejects.toThrow('Not authorized')
+    await expect(
+      reader.mutation(api.articles.saveDraft, {
+        id: ids.article,
+        title: 'Not mine',
+        content: body('Not mine.'),
+      })
+    ).rejects.toThrow('Not authorized')
+    await expect(
+      t.mutation(api.articles.saveDraft, {
+        id: ids.article,
+        title: 'Anonymous',
+        content: body('Anonymous.'),
+      })
+    ).rejects.toThrow('Not authenticated')
+    const article = await t.run((ctx) => ctx.db.get(ids.article))
+    expect(article?.title).toBe('Words to keep')
+  }
+)
