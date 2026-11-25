@@ -1,0 +1,6 @@
+# Pinned so contract builds stay reproducible. Newer toolchains fail to
+# compile the locked ethnum 1.5.2 dependency (E0512).
+[toolchain]
+channel = "1.94.1"
+profile = "minimal"
+targets = ["wasm32v1-none"]
