@@ -22,7 +22,7 @@
     "eng-224:console-baseline": "node scripts/eng-224-console-baseline.mjs",
     "eng-235:batch-evidence": "bun scripts/eng-235-batch-evidence-runner.ts",
     "eng-236:batch-evidence": "bun scripts/eng-236-batch-evidence-runner.ts",
-    "eng-238:page-load": "bun scripts/eng-238-page-load-performance.ts",
+    "perf:page-load": "bun scripts/page-load-performance.ts",
     "audit:dependencies": "bun run security:audit",
     "security:audit": "bun scripts/security/audit.ts",
     "test:security": "vitest run scripts/security/audit.test.ts",
