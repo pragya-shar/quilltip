@@ -3,14 +3,6 @@
   "outputDirectory": ".next",
   "framework": "nextjs",
   "installCommand": "bun install --frozen-lockfile",
-  "functions": {
-    "app/api/**/*.ts": {
-      "maxDuration": 15
-    },
-    "app/[username]/[slug]/page.tsx": {
-      "maxDuration": 15
-    }
-  },
   "env": {
     "SKIP_ENV_VALIDATION": "1"
   },
@@ -20,12 +12,6 @@
     }
   },
   "regions": ["cle1"],
-  "rewrites": [
-    {
-      "source": "/health",
-      "destination": "/api/health"
-    }
-  ],
   "headers": [
     {
       "source": "/((?!api).*)",

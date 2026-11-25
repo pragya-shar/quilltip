@@ -1,7 +1,7 @@
 /**
  * Regression check for #237 against a disposable anonymous local backend.
  * Start it with CONVEX_AGENT_MODE=anonymous bunx convex dev, then run:
- * bun scripts/verify-upload-ownership.ts
+ * QUILLTIP_NETWORK_GUARD_OPT_IN=testnet bun scripts/verify-upload-ownership.ts
  * Synthetic users and drafts remain in that disposable backend.
  */
 import assert from 'node:assert/strict'
@@ -15,6 +15,8 @@ import { ConvexHttpClient } from 'convex/browser'
 import { z } from 'zod'
 import { api } from '../convex/_generated/api'
 import type { Id } from '../convex/_generated/dataModel'
+import { NETWORK_GUARD_OPT_IN_ENV } from '../convex/lib/networkGuard'
+import { assertScriptConvexDeployAllowed } from './lib/network-guard'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const config = z
@@ -32,6 +34,11 @@ const config = z
     )
   )
 const url = `http://127.0.0.1:${config.ports.cloud}`
+// This tool imports rows, so it must only ever reach the local backend.
+assertScriptConvexDeployAllowed('upload ownership regression import', {
+  CONVEX_SELF_HOSTED_URL: url,
+  [NETWORK_GUARD_OPT_IN_ENV]: process.env[NETWORK_GUARD_OPT_IN_ENV],
+})
 const scratch = mkdtempSync(path.join(tmpdir(), 'quilltip-upload-qa-'))
 const runId = randomUUID().slice(0, 8)
 const ownerName = `upload-owner-${runId}`
