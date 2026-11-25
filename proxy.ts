@@ -5,6 +5,15 @@ import { publicContentPath } from '@/lib/routing/publicContentPath'
 
 const ROUTE_CHECK_TIMEOUT_MS = 1500
 
+// A writer page's name and article titles repaint when these typefaces arrive,
+// which sets the largest paint on slow phones. The stylesheet only reveals them
+// after the content renders, and app/loading.tsx keeps a page's own preload
+// hints out of the HTML head, so send them with the response instead.
+const WRITER_PAGE_FONT_PRELOADS = [
+  '</prototype/fonts/library-syne.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin',
+  '</prototype/fonts/library-alegreya.woff>; rel=preload; as=font; type="font/woff"; crossorigin',
+].join(', ')
+
 type RouteCheck =
   | { kind: 'found' }
   | { kind: 'missing' }
@@ -65,6 +74,9 @@ export async function proxy(request: NextRequest) {
 
   if (check?.kind === 'moved') {
     response.headers.set('Cache-Control', 'no-store')
+  }
+  if (check?.kind === 'found' && !publicContentPath(pathname)?.slug) {
+    response.headers.append('Link', WRITER_PAGE_FONT_PRELOADS)
   }
 
   // Security headers (apply to all routes)

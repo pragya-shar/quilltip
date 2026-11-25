@@ -354,3 +354,118 @@
     animation: none;
   }
 }
+/* Writer page (articles view): photo, name and the owner's edit link. */
+.writer-collection .writer-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin: 14px 0 18px;
+}
+.writer-collection .writer-identity h1 {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+}
+.writer-avatar {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border: 1px solid #71384950;
+}
+.writer-avatar-fallback {
+  background: #ecdfcc;
+  color: #660033;
+  font:
+    28px/1 'Library Alegreya',
+    Georgia,
+    serif;
+}
+.writer-edit {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+@media (hover: hover) and (pointer: fine) {
+  .writer-edit:hover {
+    background: #66003310;
+  }
+}
+.handle-banner {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 0 0 20px;
+  padding: 14px 8px 14px 18px;
+  border: 1px solid #66003340;
+  border-radius: 4px;
+  background: #f3e6dc;
+  color: #410d23;
+}
+.handle-banner-title {
+  margin: 0;
+  font-weight: 700;
+}
+.handle-banner-text {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: #6a3e4c;
+}
+.handle-banner-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 3px;
+  background: #660033;
+  color: #fff3e2;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.handle-banner-dismiss {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.handle-banner-dismiss:focus-visible,
+.handle-banner-action:focus-visible,
+.writer-edit:focus-visible {
+  outline: 3px solid #660033;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .handle-banner {
+    grid-template-columns: 1fr auto;
+  }
+  .handle-banner > div {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding-right: 44px;
+  }
+  .handle-banner {
+    position: relative;
+  }
+  .handle-banner-dismiss {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+  }
+  .writer-avatar {
+    width: 52px;
+    height: 52px;
+  }
+}

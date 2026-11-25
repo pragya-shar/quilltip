@@ -25,29 +25,50 @@ import { AuthorNotFoundPage } from '@/components/profile/AuthorNotFoundPage'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
 import Link from 'next/link'
 import { CollectionShell } from '@/components/library/CollectionShell'
+import { HandleSetupBanner } from '@/components/profile/HandleSetupBanner'
+import { UserAvatar } from '@/components/ui/user-avatar'
+import { isGeneratedHandle } from '@/lib/profile/handleRules'
+import {
+  parseProfilePage,
+  type ProfileArticlesPage,
+} from '@/lib/profile/profileArticles'
+import { SETTINGS_PATH } from '@/lib/navigation/siteNavigation'
+import type { FunctionReturnType } from 'convex/server'
+import type { api } from '@/convex/_generated/api'
 import { Skeleton } from '@/components/ui/skeleton'
 import '@/components/library/library.css'
 import '@/components/articles/reading-room.css'
 import '@/components/profile/public-profile.css'
 
-export function ProfilePageClient({ username }: { username: string }) {
+export type PublicProfile = FunctionReturnType<
+  typeof api.users.getUserByUsername
+>
+
+export function ProfilePageClient({
+  username,
+  initialProfile,
+  initialArticles,
+}: {
+  username: string
+  /** From the server render; undefined when the backend was unreachable. */
+  initialProfile?: PublicProfile
+  initialArticles?: ProfileArticlesPage
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user: currentUser, isLoading: authLoading } = useAuth()
-  const parsePositivePage = (raw: string | null) => {
-    const n = parseInt(raw || '1', 10)
-    return Number.isSafeInteger(n) && n >= 1 ? n : 1
-  }
-  const page = parsePositivePage(searchParams?.get('page') ?? null)
-  const nftOwnedPage = parsePositivePage(
+  const page = parseProfilePage(searchParams?.get('page') ?? null)
+  const nftOwnedPage = parseProfilePage(
     searchParams?.get('nftOwnedPage') ?? null
   )
-  const nftMintedPage = parsePositivePage(
+  const nftMintedPage = parseProfilePage(
     searchParams?.get('nftMintedPage') ?? null
   )
 
-  const user = useUserByUsername(username)
+  // Live results replace the server-rendered profile as soon as they arrive.
+  const liveUser = useUserByUsername(username)
+  const user = liveUser === undefined ? initialProfile : liveUser
   const { isStale, reset: resetStale } = useStaleLoading(user === undefined)
 
   const profilePending = user === undefined
@@ -96,7 +117,9 @@ export function ProfilePageClient({ username }: { username: string }) {
     return <AuthorNotFoundPage username={username} />
   }
 
-  if (authLoading || user === undefined) {
+  // The page renders without waiting for sign-in; own-profile actions appear
+  // once auth resolves.
+  if (user === undefined) {
     const loading = (
       <LoadingRegion
         label="profile"
@@ -169,8 +192,25 @@ export function ProfilePageClient({ username }: { username: string }) {
         <Link className="back" href="/articles">
           ← Articles
         </Link>
+        {isOwnProfile && isGeneratedHandle(user.username) && (
+          <HandleSetupBanner userId={user._id} />
+        )}
         <span className="eyebrow">Writer</span>
-        <h1>{profileDisplayName}</h1>
+        <div className="writer-identity">
+          <UserAvatar
+            src={user.avatar}
+            alt=""
+            name={profileDisplayName}
+            className="writer-avatar"
+            fallbackClassName="writer-avatar-fallback"
+          />
+          <h1>{profileDisplayName}</h1>
+          {isOwnProfile && (
+            <Link className="writer-edit" href={SETTINGS_PATH}>
+              Edit profile
+            </Link>
+          )}
+        </div>
         {user.bio?.trim() && <p className="writer-biography">{user.bio}</p>}
         <h2>Articles</h2>
         <ProfileArticlesTabContent
@@ -179,12 +219,10 @@ export function ProfilePageClient({ username }: { username: string }) {
           page={page}
           isOwnProfile={isOwnProfile}
           displayName={profileDisplayName}
+          initialData={initialArticles}
         />
         <Link className="library-browse" href={`/${user.username}?tab=nfts`}>
-          {isOwnProfile
-            ? 'Profile photo, handle and NFT collection'
-            : 'NFT collection'}{' '}
-          ↗
+          NFT collection ↗
         </Link>
       </main>
     </CollectionShell>
