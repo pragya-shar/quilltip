@@ -14,6 +14,13 @@ const WRITER_PAGE_FONT_PRELOADS = [
   '</prototype/fonts/library-alegreya.woff>; rel=preload; as=font; type="font/woff"; crossorigin',
 ].join(', ')
 
+// Profile settings and new-writer setup lay out in this typeface once the
+// signed-in content renders. Fetching it with the response keeps the headings
+// from reflowing when it arrives.
+const ACCOUNT_FONT_PRELOAD =
+  '</account/fonts/syne-variable.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin'
+const ACCOUNT_FONT_PATHS = new Set(['/settings', '/welcome'])
+
 type RouteCheck =
   | { kind: 'found' }
   | { kind: 'missing' }
@@ -77,6 +84,9 @@ export async function proxy(request: NextRequest) {
   }
   if (check?.kind === 'found' && !publicContentPath(pathname)?.slug) {
     response.headers.append('Link', WRITER_PAGE_FONT_PRELOADS)
+  }
+  if (ACCOUNT_FONT_PATHS.has(pathname) && request.headers.get('rsc') !== '1') {
+    response.headers.append('Link', ACCOUNT_FONT_PRELOAD)
   }
 
   // Security headers (apply to all routes)

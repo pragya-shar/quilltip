@@ -15,12 +15,19 @@
 .welcome-card ::selection {
   background: #79033326;
 }
+/* A grid, not a wrapping flex row: whether the link fits beside the text must
+   not depend on which font has loaded, or the form below jumps. */
 .settings-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 12px 32px;
+}
+@media (max-width: 600px) {
+  .settings-heading {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
 }
 .settings-heading p {
   max-width: 48ch;

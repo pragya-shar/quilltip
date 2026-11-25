@@ -354,13 +354,30 @@
     animation: none;
   }
 }
-/* Writer page (articles view): photo, name and the owner's edit link. */
+/* Writer page (articles view): the eyebrow row holds the owner's edit link and
+   keeps one height for every visitor, then the photo and name. */
+.writer-collection .writer-eyebrow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  margin: 8px 0 0;
+}
+.writer-collection .writer-eyebrow-row .eyebrow {
+  display: block;
+  margin: 0;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
 .writer-collection .writer-identity {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 12px 20px;
-  margin: 14px 0 18px;
+  margin: 6px 0 18px;
 }
 .writer-collection .writer-identity h1 {
   flex: 1 1 12rem;
@@ -397,17 +414,44 @@
     background: #66003310;
   }
 }
+/* The handle reminder sits over the bottom of the viewport. It appears only
+   after sign-in resolves, so in the page flow it would push the writer's
+   server-rendered name and articles down. */
 .handle-banner {
+  position: fixed;
+  z-index: 30;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
   display: grid;
   grid-template-columns: 1fr auto auto;
   align-items: center;
   gap: 8px 16px;
-  margin: 0 0 20px;
+  width: min(600px, calc(100% - 32px));
   padding: 14px 8px 14px 18px;
   border: 1px solid #66003340;
   border-radius: 4px;
   background: #f3e6dc;
   color: #410d23;
+  box-shadow:
+    0 1px 2px #410d231a,
+    0 12px 32px -12px #410d2359;
+  transform: translateX(-50%);
+  animation: handle-banner-in 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+@keyframes handle-banner-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .handle-banner {
+    animation: none;
+  }
+}
+/* Room to scroll the last links clear of the reminder. */
+.writer-collection:has(.handle-banner) {
+  padding-bottom: 200px;
 }
 .handle-banner-title {
   margin: 0;
@@ -455,9 +499,6 @@
     grid-column: 1 / -1;
     grid-row: 1;
     padding-right: 44px;
-  }
-  .handle-banner {
-    position: relative;
   }
   .handle-banner-dismiss {
     position: absolute;

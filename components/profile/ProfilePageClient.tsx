@@ -192,10 +192,16 @@ export function ProfilePageClient({
         <Link className="back" href="/articles">
           ← Articles
         </Link>
-        {isOwnProfile && isGeneratedHandle(user.username) && (
-          <HandleSetupBanner userId={user._id} />
-        )}
-        <span className="eyebrow">Writer</span>
+        {/* Own-profile actions appear once sign-in resolves. The row keeps its
+            height for every visitor so the server-rendered page does not move. */}
+        <div className="writer-eyebrow-row">
+          <span className="eyebrow">Writer</span>
+          {isOwnProfile && (
+            <Link className="writer-edit" href={SETTINGS_PATH}>
+              Edit profile
+            </Link>
+          )}
+        </div>
         <div className="writer-identity">
           <UserAvatar
             src={user.avatar}
@@ -205,11 +211,6 @@ export function ProfilePageClient({
             fallbackClassName="writer-avatar-fallback"
           />
           <h1>{profileDisplayName}</h1>
-          {isOwnProfile && (
-            <Link className="writer-edit" href={SETTINGS_PATH}>
-              Edit profile
-            </Link>
-          )}
         </div>
         {user.bio?.trim() && <p className="writer-biography">{user.bio}</p>}
         <h2>Articles</h2>
@@ -224,6 +225,10 @@ export function ProfilePageClient({
         <Link className="library-browse" href={`/${user.username}?tab=nfts`}>
           NFT collection ↗
         </Link>
+        {/* Fixed to the viewport, so it does not push the page down. */}
+        {isOwnProfile && isGeneratedHandle(user.username) && (
+          <HandleSetupBanner userId={user._id} />
+        )}
       </main>
     </CollectionShell>
   )
