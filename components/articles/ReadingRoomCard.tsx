@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { BookmarkButton } from '@/components/library/BookmarkButton'
 import { articleHref } from '@/lib/library/bookmarks'
 import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
+import { articleCategoryLabel } from '@/lib/articles/browseDiscovery'
 import type { ArticleForDisplay } from '@/types/index'
 import { formatListingReadTime } from '@/lib/articles/articleListingMeta'
 import { ArticleCoverDoodles } from './ArticleCoverDoodles'
@@ -46,7 +47,7 @@ export function ReadingRoomCard({
     author: name,
     username: article.author.username,
     slug: article.slug,
-    topic: article.tags[0]?.name || 'Writing',
+    topic: articleCategoryLabel(article.tags.map((tag) => tag.name)),
     minutes: article.readTime || 0,
   }
   return (

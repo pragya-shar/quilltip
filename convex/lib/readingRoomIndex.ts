@@ -2,6 +2,7 @@ import { v, type Infer } from 'convex/values'
 import type { Doc, Id } from '../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../_generated/server'
 import { isArticleListingReady } from './articleListingReady'
+import { articleCategory } from '../../lib/articles/browseDiscovery'
 import { enrichWithUser } from './enrich'
 
 type ArticleRow = Doc<'readingRoomArticles'>
@@ -341,11 +342,7 @@ export async function matchReadingRoomRows(
     if (authorId && row.authorId !== authorId) continue
     if (bookmarks && !bookmarks.has(row.articleId)) continue
     if (tag && bookmarks && !row.tags?.includes(tag)) continue
-    if (
-      category &&
-      !row.tags?.some((tag) => tag.trim().toLowerCase() === category)
-    )
-      continue
+    if (category && articleCategory(row.tags) !== category) continue
 
     if (!authors.has(row.authorId)) {
       if (bounded && !(await hasReadingRoomReadBudget(ctx))) return null

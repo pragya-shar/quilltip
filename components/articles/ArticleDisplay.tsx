@@ -11,6 +11,7 @@ import type { HighlightableArticle as HighlightableArticleComponent } from '@/co
 import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
 import { estimateArticleReadingMinutes } from '@/lib/reading-time'
+import { articleCategoryLabel } from '@/lib/articles/browseDiscovery'
 import type { TocHeading } from '@/lib/tiptap/headings'
 import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
 
@@ -58,6 +59,7 @@ export default function ArticleDisplay({
   const readingMinutes = estimateArticleReadingMinutes(article.content)
 
   useEnsureHeadingIds(tocHeadings, { rootSelector: '.article-content' })
+  const topic = articleCategoryLabel(article.tags.map((tag) => tag.name))
 
   return (
     <article className="reader-article">
@@ -67,7 +69,7 @@ export default function ArticleDisplay({
       <ArticleReaderHeader
         title={article.title}
         subtitle={article.excerpt}
-        topic={article.tags[0]?.name}
+        topic={topic}
         author={
           <Link href={`/${encodeURIComponent(article.author.username)}`}>
             {article.author.name || article.author.username}
@@ -82,7 +84,7 @@ export default function ArticleDisplay({
               author: article.author.name || article.author.username,
               username: article.author.username,
               slug: article.slug,
-              topic: article.tags[0]?.name || 'Article',
+              topic,
               minutes: readingMinutes,
             }}
           />
