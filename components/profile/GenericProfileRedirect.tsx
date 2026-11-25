@@ -3,13 +3,18 @@
 import { useEffect } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
-import AppNavigation from '@/components/layout/AppNavigation'
-import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
+import { AccountSurface } from '@/components/account/AccountSurface'
+import { ProfileSettingsSkeleton } from '@/components/settings/ProfileSettingsSkeleton'
 import { buildLoginHref } from '@/lib/auth/safeReturnPath'
 import { resolveProfileAliasPath } from '@/lib/profile/profileDestination'
-import '@/components/articles/reading-room.css'
-import '@/components/profile/public-profile.css'
+import { SETTINGS_PATH } from '@/lib/navigation/siteNavigation'
+import '@/components/account/account.css'
+import '@/components/settings/profile-settings.css'
 
+/**
+ * `/profile` and `/settings/profile` open profile settings. Older links with a
+ * `?tab=` keep going to that view of the writer page or dashboard.
+ */
 export function GenericProfileRedirect() {
   const router = useRouter()
   const pathname = usePathname()
@@ -26,8 +31,8 @@ export function GenericProfileRedirect() {
       return
     }
 
-    if (!user?.username) {
-      router.replace('/')
+    if (!params.has('tab') || !user?.username) {
+      router.replace(SETTINGS_PATH)
       return
     }
 
@@ -42,9 +47,11 @@ export function GenericProfileRedirect() {
   ])
 
   return (
-    <div className="profile-page min-h-screen">
-      <AppNavigation />
-      <ProfilePageLoadingSkeleton />
-    </div>
+    <AccountSurface>
+      <p className="sr-only" role="status">
+        Opening your profile settings.
+      </p>
+      <ProfileSettingsSkeleton />
+    </AccountSurface>
   )
 }

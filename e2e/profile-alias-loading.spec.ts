@@ -2,11 +2,10 @@ import { test, expect } from '@playwright/test'
 
 for (const path of ['/profile', '/settings/profile']) {
   for (const width of [375, 1280]) {
-    test(`${path} preserves its initial loading layout at ${width}px`, async ({
+    test(`${path} shows the settings loading layout at ${width}px`, async ({
       browser,
       baseURL,
     }) => {
-      // A fresh context prevents styles from a prior username visit hiding bugs.
       const context = await browser.newContext({
         baseURL,
         viewport: { width, height: 900 },
@@ -29,25 +28,16 @@ for (const path of ['/profile', '/settings/profile']) {
         })
         const page = await context.newPage()
         await page.goto(path)
-        const folio = page.locator('main.profile-folio')
+        await expect(page.locator('header.app-site-header')).toBeVisible()
+        const folio = page.locator('main.account-folio')
         await expect(folio).toBeVisible()
         await expect(folio).toHaveCSS('background-color', 'rgb(250, 245, 236)')
-        const avatar = folio.locator('.profile-avatar')
-        const avatarSize = width <= 640 ? '88px' : '104px'
-        await expect(avatar).toHaveCSS('width', avatarSize)
-        await expect(avatar).toHaveCSS('height', avatarSize)
-        const cards = folio.locator('.skeleton-row')
-        await expect(cards).toHaveCSS('display', 'grid')
-        await expect(cards.locator('i').first()).toHaveCSS('height', '420px')
-        await expect(cards.locator('i').first()).toHaveCSS(
-          'background-color',
-          'rgba(117, 55, 68, 0.07)'
-        )
-        const columns = await cards.evaluate(
-          (element) =>
-            getComputedStyle(element).gridTemplateColumns.split(' ').length
-        )
-        expect(columns).toBe(width <= 640 ? 1 : 3)
+        await expect(folio.locator('.settings-skeleton-block')).toHaveCount(2)
+        await expect(
+          page
+            .getByRole('status')
+            .filter({ hasText: 'Opening your profile settings.' })
+        ).toHaveCount(1)
         expect(
           await page.evaluate(() => document.documentElement.scrollWidth)
         ).toBeLessThanOrEqual(width)
