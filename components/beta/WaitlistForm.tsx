@@ -106,10 +106,6 @@ export function WaitlistForm() {
           required
           aria-invalid={!!emailError}
           aria-describedby={emailError ? 'email-error' : undefined}
-          onBlur={(e) => {
-            if (e.currentTarget.value)
-              setEmailError(validateEmail(e.currentTarget.value))
-          }}
           onChange={(e) => {
             if (emailError) setEmailError(validateEmail(e.currentTarget.value))
           }}

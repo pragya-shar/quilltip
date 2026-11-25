@@ -131,9 +131,6 @@ export function FeedbackForm({ fromPath }: { fromPath?: string }) {
             setMessage(e.target.value)
             if (messageError) setMessageError(validate(e.target.value))
           }}
-          onBlur={() => {
-            if (message) setMessageError(validate(message))
-          }}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault()
