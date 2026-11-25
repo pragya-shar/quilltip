@@ -5,40 +5,67 @@ import { publicContentPath } from '@/lib/routing/publicContentPath'
 
 const ROUTE_CHECK_TIMEOUT_MS = 1500
 
+type RouteCheck =
+  | { kind: 'found' }
+  | { kind: 'missing' }
+  | { kind: 'moved'; username: string }
+
 /**
  * Pages stream behind app/loading.tsx, which fixes the status at 200 before
  * they can call notFound(). Check writer and article URLs here instead, so a
- * missing one answers 404. Any failure lets the request through unchanged.
+ * missing one answers 404 and an earlier handle redirects. Any failure lets
+ * the request through unchanged.
  */
-async function isMissingPublicContent(request: NextRequest): Promise<boolean> {
+async function checkPublicContent(
+  request: NextRequest
+): Promise<RouteCheck | null> {
   // Only full page loads carry a status that crawlers read. Client navigations
   // and link prefetches (RSC requests) skip the extra backend call.
-  if (request.headers.get('rsc') === '1') return false
+  if (request.headers.get('rsc') === '1') return null
   const target = publicContentPath(request.nextUrl.pathname)
-  if (!target) return false
+  if (!target) return null
 
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    const exists = await Promise.race([
-      fetchQuery(api.publicRoutes.publicRouteExists, target),
+    return await Promise.race([
+      fetchQuery(api.publicRoutes.resolvePublicRoute, target),
       new Promise<null>((resolve) => {
         timer = setTimeout(() => resolve(null), ROUTE_CHECK_TIMEOUT_MS)
       }),
     ])
-    return exists === false
   } catch {
-    return false
+    return null
   } finally {
     clearTimeout(timer)
   }
 }
 
+function movedUrl(request: NextRequest, username: string) {
+  const url = request.nextUrl.clone()
+  const target = publicContentPath(url.pathname)
+  url.pathname = target?.slug
+    ? `/${encodeURIComponent(username)}/${encodeURIComponent(target.slug)}`
+    : `/${encodeURIComponent(username)}`
+  return url
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  // The page still renders its not-found screen; only the status changes.
-  const response = (await isMissingPublicContent(request))
-    ? NextResponse.rewrite(request.nextUrl, { status: 404 })
-    : NextResponse.next()
+  const check = await checkPublicContent(request)
+  // Missing: the page still renders its not-found screen; only the status
+  // changes. Moved: a temporary redirect to the writer's current handle.
+  // Writers can switch back to an earlier handle, so browsers must not cache
+  // the redirect (a cached Alice -> Bob would loop once Alice is current).
+  const response =
+    check?.kind === 'missing'
+      ? NextResponse.rewrite(request.nextUrl, { status: 404 })
+      : check?.kind === 'moved'
+        ? NextResponse.redirect(movedUrl(request, check.username), 307)
+        : NextResponse.next()
+
+  if (check?.kind === 'moved') {
+    response.headers.set('Cache-Control', 'no-store')
+  }
 
   // Security headers (apply to all routes)
   response.headers.set('X-Frame-Options', 'DENY')

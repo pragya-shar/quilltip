@@ -27,3 +27,35 @@ export const getPublicProfile = cache(async (username: string) => {
     return undefined
   }
 })
+
+/**
+ * When a writer page is missing, checks whether the handle moved (an earlier
+ * handle or different letter case). Returns the new path, or null.
+ */
+export async function movedPublicPath(
+  username: string,
+  slug: string | undefined,
+  searchParams: Record<string, string | string[] | undefined>
+): Promise<string | null> {
+  try {
+    const route = await fetchQuery(api.publicRoutes.resolvePublicRoute, {
+      username,
+      slug,
+    })
+    if (route.kind !== 'moved') return null
+    const base = `/${encodeURIComponent(route.username)}`
+    const path =
+      slug === undefined ? base : `${base}/${encodeURIComponent(slug)}`
+    // Keep the view and page (for example ?tab=nfts&page=2).
+    const query = new URLSearchParams()
+    for (const [key, value] of Object.entries(searchParams)) {
+      for (const item of Array.isArray(value) ? value : [value]) {
+        if (item !== undefined) query.append(key, item)
+      }
+    }
+    const search = query.toString()
+    return search ? `${path}?${search}` : path
+  } catch {
+    return null
+  }
+}

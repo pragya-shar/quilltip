@@ -11,6 +11,8 @@ export default defineSchema({
     // Unique identifiers
     email: v.string(),
     username: v.string(),
+    // Lowercase copy of username for case-insensitive uniqueness and lookup.
+    usernameLower: v.optional(v.string()),
 
     // Profile
     name: v.optional(v.string()),
@@ -39,7 +41,19 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_email', ['email'])
-    .index('by_username', ['username']),
+    .index('by_username', ['username'])
+    .index('by_username_lower', ['usernameLower']),
+
+  // Handles a writer used before. Each stays reserved for that writer and its
+  // URLs redirect to the writer's current handle.
+  usernameHistory: defineTable({
+    userId: v.id('users'),
+    username: v.string(),
+    usernameLower: v.string(),
+    retiredAt: v.number(),
+  })
+    .index('by_username_lower', ['usernameLower'])
+    .index('by_user', ['userId']),
 
   // Articles table
   articles: defineTable({

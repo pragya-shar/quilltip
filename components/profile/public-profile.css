@@ -57,6 +57,13 @@
   font-size: 15px;
   overflow-wrap: anywhere;
 }
+.profile-handle-edit {
+  margin-left: 12px;
+  color: var(--profile-wine);
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .profile-bio {
   max-width: 65ch;
   margin-top: 24px;
@@ -112,7 +119,12 @@
   font-variant-numeric: tabular-nums;
 }
 .profile-page
-  :is(.profile-tab, .profile-action, .profile-photo-trigger):focus-visible {
+  :is(
+    .profile-tab,
+    .profile-action,
+    .profile-photo-trigger,
+    .profile-handle-edit
+  ):focus-visible {
   outline: 2px solid var(--profile-wine);
   outline-offset: 4px;
 }
