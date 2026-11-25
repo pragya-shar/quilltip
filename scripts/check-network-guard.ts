@@ -2,8 +2,8 @@
  * Command-line testnet guard. Package scripts that push Convex functions or
  * run operational tools call this first:
  *
- *   bun scripts/check-network-guard.ts            # Stellar + Convex checks
- *   bun scripts/check-network-guard.ts --convex   # Convex-only checks
+ *   bun scripts/check-network-guard.ts            # operational run: Stellar + Convex
+ *   bun scripts/check-network-guard.ts --convex   # deploy-kind: Convex only, never live
  *
  * Bun loads .env and .env.local automatically. Exits 1 on any refusal.
  */
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url'
 
 import {
   NetworkGuardError,
-  assertScriptNonProductionConvex,
+  assertScriptConvexDeployAllowed,
   assertScriptTestnetOnly,
 } from './lib/network-guard'
 
@@ -31,12 +31,17 @@ export function runNetworkGuardCli(
 
   try {
     const result = convexOnly
-      ? assertScriptNonProductionConvex(operation, env)
+      ? assertScriptConvexDeployAllowed(operation, env)
       : assertScriptTestnetOnly(operation, env)
     const target = result.convexDeployments.join(', ') || 'none'
     console.log(
       `Network guard passed for "${operation}" (Convex: ${target}${convexOnly ? '' : ', Stellar: TESTNET'}).`
     )
+    if (result.liveBackendApproved) {
+      console.warn(
+        'This operational run targets the live backend under an explicit approval.'
+      )
+    }
     return 0
   } catch (error) {
     if (error instanceof NetworkGuardError) {

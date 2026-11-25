@@ -6,7 +6,9 @@
  * functions before it does any work. See docs/SETUP.md ("Testnet guard").
  */
 import {
+  CONVEX_ALLOWLIST_ENV,
   EXTRA_PRODUCTION_DEPLOYMENTS_ENV,
+  LIVE_BACKEND_APPROVAL_ENV,
   NETWORK_GUARD_OPT_IN_ENV,
   NetworkGuardError,
   assertTestnetOnly,
@@ -17,9 +19,27 @@ export { NetworkGuardError }
 
 type EnvLike = Record<string, string | undefined>
 
+function convexInputs(env: EnvLike) {
+  return {
+    optIn: env[NETWORK_GUARD_OPT_IN_ENV],
+    convexUrls: [
+      env.NEXT_PUBLIC_CONVEX_URL,
+      env.CONVEX_URL,
+      env.CONVEX_SELF_HOSTED_URL,
+    ],
+    convexDeployment: env.CONVEX_DEPLOYMENT,
+    convexDeployKey: env.CONVEX_DEPLOY_KEY,
+    extraAllowedDeployments: env[CONVEX_ALLOWLIST_ENV],
+    extraProductionDeployments: env[EXTRA_PRODUCTION_DEPLOYMENTS_ENV],
+    liveBackendApproval: env[LIVE_BACKEND_APPROVAL_ENV],
+  }
+}
+
 /**
- * Refuse unless the environment targets Stellar TESTNET, a non-production
- * Convex deployment, and carries the explicit opt-in.
+ * Operational runs that submit testnet transactions or record test activity.
+ * Refuses unless the environment targets Stellar TESTNET, carries the opt-in,
+ * and targets an allowlisted (or local) Convex backend. A live backend is
+ * accepted only with QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL naming it.
  */
 export function assertScriptTestnetOnly(
   operation: string,
@@ -27,7 +47,8 @@ export function assertScriptTestnetOnly(
 ): NetworkGuardResult {
   return assertTestnetOnly({
     operation,
-    optIn: env[NETWORK_GUARD_OPT_IN_ENV],
+    kind: 'operational',
+    ...convexInputs(env),
     stellarNetworks: [env.NEXT_PUBLIC_STELLAR_NETWORK, env.STELLAR_NETWORK],
     networkPassphrase: env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
     stellarUrls: [
@@ -35,37 +56,22 @@ export function assertScriptTestnetOnly(
       env.NEXT_PUBLIC_SOROBAN_RPC_URL,
       env.HORIZON_URL,
     ],
-    convexUrls: [
-      env.NEXT_PUBLIC_CONVEX_URL,
-      env.CONVEX_URL,
-      env.CONVEX_SELF_HOSTED_URL,
-    ],
-    convexDeployment: env.CONVEX_DEPLOYMENT,
-    convexDeployKey: env.CONVEX_DEPLOY_KEY,
-    extraProductionDeployments: env[EXTRA_PRODUCTION_DEPLOYMENTS_ENV],
   })
 }
 
 /**
- * Convex-only variant for tools that change a deployment but never touch
- * Stellar (for example pushing functions with `convex dev`).
+ * Deploy-kind tools: function or schema pushes (`convex dev`), imports,
+ * migrations, and env changes. Never allowed on a live backend, and the live
+ * backend approval variable must not be set.
  */
-export function assertScriptNonProductionConvex(
+export function assertScriptConvexDeployAllowed(
   operation: string,
   env: EnvLike = process.env
 ): NetworkGuardResult {
   return assertTestnetOnly({
     operation,
+    kind: 'deploy',
     checkStellar: false,
-    requireConvexTarget: true,
-    optIn: env[NETWORK_GUARD_OPT_IN_ENV],
-    convexUrls: [
-      env.NEXT_PUBLIC_CONVEX_URL,
-      env.CONVEX_URL,
-      env.CONVEX_SELF_HOSTED_URL,
-    ],
-    convexDeployment: env.CONVEX_DEPLOYMENT,
-    convexDeployKey: env.CONVEX_DEPLOY_KEY,
-    extraProductionDeployments: env[EXTRA_PRODUCTION_DEPLOYMENTS_ENV],
+    ...convexInputs(env),
   })
 }

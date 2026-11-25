@@ -46,7 +46,7 @@ Avoid launching a duplicate backend or stopping another chat's server.
 | Deployment               | Type | Use                                                       |
 | ------------------------ | ---- | --------------------------------------------------------- |
 | `efficient-tern-39`      | dev  | v2 integration and operational testing on Stellar testnet |
-| `upbeat-mockingbird-579` | —    | Serves the live site. Never target it from local tools.   |
+| `upbeat-mockingbird-579` | —    | Serves the live site. Guarded tools refuse it by default. |
 
 `efficient-tern-39` (`https://efficient-tern-39.convex.cloud`) is the shared
 non-production backend for v2 work. It is configured with `STELLAR_NETWORK=TESTNET`,
@@ -66,22 +66,34 @@ backend, so coordinate before pushing schema changes.
 ## Testnet guard
 
 Tools that submit Stellar transactions or change a Convex deployment must call the
-testnet guard before doing any work:
+testnet guard before doing any work. Each call states its kind:
 
-- Scripts: `assertScriptTestnetOnly(operation)` or, for Convex-only tools,
-  `assertScriptNonProductionConvex(operation)` from `scripts/lib/network-guard.ts`.
-- Package scripts and shell steps: `bun run guard:testnet` or `bun run guard:convex`.
-- Convex functions: `assertBackendTestnet()` for network checks and
-  `assertNonProductionBackend(operation)` for operational functions, from
-  `convex/lib/networkGuard.ts`.
+- **Operational** runs exercise app or backend flows that record testnet activity.
+  Use `assertScriptTestnetOnly(operation)` or `bun run guard:testnet`.
+- **Deploy** work pushes functions or schema, imports data, runs migrations, or
+  changes deployment env. Use `assertScriptConvexDeployAllowed(operation)` or
+  `bun run guard:convex`. `predev` and `dev:backend` run this check.
+- Convex functions: `assertBackendTestnet()` for network checks, and
+  `assertNonProductionBackend(operation)` for maintenance functions (deploy kind).
 
-The guard refuses to continue when `QUILLTIP_NETWORK_GUARD_OPT_IN` is not
-`testnet`; when the Stellar network is missing or not `TESTNET`; when the
-passphrase or a Horizon/RPC URL is a mainnet value or an unknown host; or when the
-Convex URL, `CONVEX_DEPLOYMENT`, or deploy key names a production-type deployment or
-a deployment in the production list in `convex/lib/networkGuard.ts`. Add more names
-with `QUILLTIP_PRODUCTION_CONVEX_DEPLOYMENTS` (comma-separated). It never bypasses:
-change the configuration instead.
+Script helpers live in `scripts/lib/network-guard.ts`; the shared logic is in
+`convex/lib/networkGuard.ts`. Every run needs `QUILLTIP_NETWORK_GUARD_OPT_IN=testnet`.
+The guard applies two separate controls:
+
+1. **Stellar network.** Only `TESTNET` is accepted. A missing or conflicting
+   network, the mainnet passphrase, an unknown passphrase, a mainnet Horizon or RPC
+   URL, or an unknown endpoint is refused. Mainnet has no override.
+2. **Convex backend allowlist.** The target must be a local backend or a
+   deployment on the allowlist in `convex/lib/networkGuard.ts`. Add a personal
+   non-production deployment with `QUILLTIP_CONVEX_ALLOWLIST` (comma-separated).
+   Production-type deployments are refused. The live backend is refused by
+   default and cannot be added to the allowlist. An owner-approved operational
+   run may target it only when `QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL` is set
+   to the live deployment name for that run. Deploy work is refused on the live
+   backend even with that variable, and deploy work refuses to run while the
+   variable is set. Never put it in a shared `.env` file.
+
+The guard has no bypass: change the configuration instead.
 
 Production releases follow [deployment](DEPLOYMENT.md) and are outside the guard.
 
