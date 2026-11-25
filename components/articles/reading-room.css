@@ -68,52 +68,6 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
-.reading-room-header {
-  max-width: 1500px;
-  margin: auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 18px;
-  padding: 24px 5%;
-  border-bottom: 1px solid var(--line);
-}
-.reading-room .wordmark {
-  display: flex;
-  flex-shrink: 0;
-  color: var(--accent);
-}
-.reading-room .logo-study {
-  display: inline-flex;
-  align-items: center;
-  min-height: 60px;
-  font:
-    600 37px/1 'Reading Room Syne',
-    sans-serif;
-  letter-spacing: -0.055em;
-}
-.reading-room .logo-study svg {
-  width: 64px;
-  height: 70px;
-  margin-right: -3px;
-  flex: none;
-}
-.reading-room-header nav {
-  display: flex;
-  gap: 30px;
-}
-.reading-room-header nav a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  border-bottom: 1px solid transparent;
-}
-.reading-room-header nav a[aria-current='page'] {
-  border-bottom-color: currentColor;
-}
-.reading-room-header nav a:hover {
-  color: var(--accent);
-}
 .reading-room-main {
   max-width: 1500px;
   margin: auto;
@@ -632,23 +586,6 @@
   }
 }
 @media (max-width: 600px) {
-  .reading-room-header {
-    padding: 16px 5%;
-    gap: 14px;
-  }
-  .reading-room .logo-study {
-    font-size: 29px;
-  }
-  .reading-room .logo-study svg {
-    width: 49px;
-    height: 55px;
-  }
-  .reading-room-header nav {
-    gap: 10px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    font-size: 12px;
-  }
   .reading-room-main {
     padding: 16px 6% 28px;
   }

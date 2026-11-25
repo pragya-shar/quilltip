@@ -121,6 +121,9 @@
   border-radius: 5px;
   padding: 16px 54px 48px;
 }
+.account-folio-under-header {
+  margin-top: 24px;
+}
 .account-nav {
   display: flex;
   align-items: center;
@@ -270,14 +273,16 @@
 }
 .account-footer span {
   align-self: center;
-  color: var(--account-muted);
+  /* Muted grey fails contrast on the rose page background. */
+  color: var(--account-ink);
 }
 .account-skip {
   position: fixed;
   top: -100px;
   left: 24px;
   z-index: 60;
-  background: var(--account-paper);
+  background: #faf5ec;
+  color: #790333;
   padding: 12px;
 }
 .account-skip:focus {

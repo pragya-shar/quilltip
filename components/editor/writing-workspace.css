@@ -1199,3 +1199,20 @@
 .writing-workspace .writing-image[data-selected='true'] .writing-image-tools {
   display: flex;
 }
+/* The shared account menu trigger keeps its round shape in the topbar. */
+.writing-workspace button.editor-account-trigger {
+  min-width: 44px;
+  padding: 4px;
+  border-radius: 999px;
+}
+@media (max-width: 650px) {
+  /* Sit beside the wordmark instead of taking a row of its own. */
+  .writing-workspace .topbar {
+    position: relative;
+  }
+  .writing-workspace button.editor-account-trigger {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+  }
+}
