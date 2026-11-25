@@ -10,6 +10,8 @@ import type { DemoReceipt } from '@/components/landing/LandingTippingDemo'
 import { LandingOrnaments } from '@/components/landing/LandingOrnaments'
 import { OpeningStage } from '@/components/landing/OpeningStage'
 import { useLandingOpening } from '@/components/landing/useLandingOpening'
+// Loaded with the landing page only; the typefaces stay global (landing-fonts.css).
+import '@/components/landing/landing-blend.css'
 
 const LandingBelowFold = dynamic(
   () => import('@/components/landing/LandingBelowFold'),
