@@ -274,6 +274,15 @@ export function useWritingWorkspace() {
     draftIdParam ? (draftIdParam as Id<'articles'>) : undefined
   )
 
+  // Published articles are permanent; the editor becomes read-only and
+  // autosave stops. The server rejects changes as well.
+  const articleLocked = publishStatus.published
+  useEffect(() => {
+    if (editor && !editor.isDestroyed && editor.isEditable === articleLocked) {
+      editor.setEditable(!articleLocked)
+    }
+  }, [editor, articleLocked])
+
   const { isSaving, lastSavedAt, error, saveNow } = useAutoSave({
     content: editorContent,
     articleId,
@@ -287,6 +296,7 @@ export function useWritingWorkspace() {
       hasUnsavedChanges &&
       backupRecoveryStatus === 'resolved' &&
       !backupPrompt &&
+      !publishStatus.published &&
       (!draftIdParam || (!!draft && draft.authorId === currentUser?._id)),
     onSaveSuccess: (response) => {
       hydratedDraftIdRef.current = response.id
@@ -551,6 +561,7 @@ export function useWritingWorkspace() {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
         if (
+          !articleLocked &&
           backupRecoveryStatus === 'resolved' &&
           !backupPrompt &&
           (!draftIdParam || (draft && draft.authorId === currentUser?._id))
@@ -561,6 +572,7 @@ export function useWritingWorkspace() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [
+    articleLocked,
     saveNow,
     backupRecoveryStatus,
     backupPrompt,
@@ -917,6 +929,7 @@ export function useWritingWorkspace() {
     setSaveErrorDismissed,
     publishFeedback,
     publishStatus,
+    articleLocked,
     publishSuccessVisible,
     setPublishSuccessVisible,
     publishConfirmOpen,
