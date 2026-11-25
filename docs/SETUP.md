@@ -49,6 +49,7 @@ own HTTP-action origin, provided by Convex and used in `convex/auth.config.ts`.
 | NFT                    | `NEXT_PUBLIC_NFT_CONTRACT_ID`; optional `NEXT_PUBLIC_NFT_METADATA_URL`                                                   | Check the affected backend function's requirements                 |
 | Permanent publishing   | `ARWEAVE_ENABLED=false` by default                                                                                       | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY` when intentionally enabled |
 | Product analytics      | `NEXT_PUBLIC_ANALYTICS_ENABLED=false` by default; server-only `ANALYTICS_POSTHOG_KEY`, optional `ANALYTICS_POSTHOG_HOST` | None                                                               |
+| Password reset         | None                                                                                                                     | `AUTH_RESEND_KEY`, `AUTH_EMAIL_FROM`; uses `SITE_URL` for the link |
 
 Frontend/backend tipping IDs and network must match. The browser's Stellar
 endpoints/passphrase default to testnet in `lib/stellar/config.ts`; backend
@@ -80,6 +81,24 @@ including for small uploads; keep it only on the backend.
   Not Track or Global Privacy Control count as a refusal. Events go through
   `/api/analytics`, so visitor IP addresses are not shared with PostHog, and
   only `$pageview`, `waitlist_joined` and `feedback_sent` are accepted.
+
+### Password reset
+
+`/forgot-password` asks for an email and `/reset-password` takes the emailed
+8-digit code and a new password. Codes come from Convex Auth's reset flow,
+expire after 15 minutes, and work once. Email goes through
+[Resend](https://resend.com) over HTTPS, so no SDK is installed:
+
+- `AUTH_RESEND_KEY`: Resend API key, set on the Convex deployment.
+- `AUTH_EMAIL_FROM`: sender such as `QuillTip <no-reply@your-domain>`, on a
+  domain verified in Resend. Without it, Resend's shared test sender is used,
+  which delivers only to the Resend account owner.
+
+Without `AUTH_RESEND_KEY` the request step says reset email is unavailable and
+sends nothing. The response is the same for known and unknown emails; requests
+are limited to 3 per email per hour and 50 per 10 minutes overall, and wrong
+codes count toward Convex Auth's failed sign-in limit. A completed reset signs
+out other sessions and returns the person to log in.
 
 ## Checks and browser tests
 
