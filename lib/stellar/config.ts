@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { resolveStellarNetwork } from './network'
+import { TESTNET_FALLBACK_XLM_TO_USD_RATE } from './price-fallback'
 
 // Stellar address pattern (G... for accounts, C... for contracts)
 const stellarAddressSchema = z
@@ -53,18 +55,22 @@ function validateStellarEnv() {
 // Run validation
 validateStellarEnv()
 
+// Next.js inlines NEXT_PUBLIC_* values only for literal property access, so
+// each value is read explicitly here. Invalid combinations throw at load.
+export const STELLAR_NETWORK_CONFIG = resolveStellarNetwork({
+  network: process.env.NEXT_PUBLIC_STELLAR_NETWORK,
+  passphrase: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
+  horizonUrl: process.env.NEXT_PUBLIC_HORIZON_URL,
+  rpcUrl: process.env.NEXT_PUBLIC_SOROBAN_RPC_URL,
+})
+
 export const STELLAR_CONFIG = {
-  // Network configuration
-  NETWORK: process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'TESTNET',
-  HORIZON_URL:
-    process.env.NEXT_PUBLIC_HORIZON_URL ||
-    'https://horizon-testnet.stellar.org',
-  SOROBAN_RPC_URL:
-    process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ||
-    'https://soroban-testnet.stellar.org',
-  NETWORK_PASSPHRASE:
-    process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE ||
-    'Test SDF Network ; September 2015',
+  // Network configuration (see lib/stellar/network.ts)
+  NETWORK: STELLAR_NETWORK_CONFIG.network,
+  HORIZON_URL: STELLAR_NETWORK_CONFIG.horizonUrl,
+  SOROBAN_RPC_URL: STELLAR_NETWORK_CONFIG.rpcUrl,
+  NETWORK_PASSPHRASE: STELLAR_NETWORK_CONFIG.passphrase,
+  WALLET_NETWORK: STELLAR_NETWORK_CONFIG.walletNetwork,
 
   // Contract addresses (2 contracts - Unified Tipping + NFT)
   // TIPPING_CONTRACT_ID handles BOTH article AND highlight tipping
@@ -87,7 +93,8 @@ export const STELLAR_CONFIG = {
     'https://quilltip.me/api/nft/metadata',
   NFT_ROYALTY_BPS: 500, // 5% royalty in basis points
 
-  // Fallback conversion rate (used only when all price oracles fail)
+  // Fallback conversion rate, used only on TESTNET when all price oracles
+  // fail. On any other network the client refuses to quote instead.
   // Updated: Jan 2026 - Conservative rate based on recent market (~$0.21-0.24)
-  XLM_TO_USD_RATE: 0.22,
+  XLM_TO_USD_RATE: TESTNET_FALLBACK_XLM_TO_USD_RATE,
 } as const
