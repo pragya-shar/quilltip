@@ -1,10 +1,15 @@
 import { ConvexError, getConvexSize, v } from 'convex/values'
+import { verifiedTipFilter } from './lib/verifiedTips'
 import {
   paginationOptsValidator,
   paginationResultValidator,
 } from 'convex/server'
 import schema from './schema'
 import { canDeleteDraft } from '../lib/articles/articleDeletion'
+import {
+  PUBLISHED_ARTICLE_LOCKED_MESSAGE,
+  isArticleLocked,
+} from '../lib/articles/publishedLock'
 import type { Doc, Id } from './_generated/dataModel'
 import {
   query,
@@ -689,7 +694,7 @@ export const getArticleBySlug = query({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', article._id))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const tipStats = {
@@ -967,6 +972,9 @@ export const updateArticle = mutation({
     const article = await ctx.db.get(args.id)
     if (!article) throw new Error('Article not found')
     if (article.authorId !== userId) throw new Error('Not authorized')
+    if (isArticleLocked(article)) {
+      throw new ConvexError(PUBLISHED_ARTICLE_LOCKED_MESSAGE)
+    }
 
     // Validate input
     validateArticleInput({
@@ -1231,6 +1239,9 @@ export const saveDraft = mutation({
       const article = await ctx.db.get(args.id)
       if (!article) throw new Error('Draft not found')
       if (article.authorId !== userId) throw new Error('Not authorized')
+      if (isArticleLocked(article)) {
+        throw new ConvexError(PUBLISHED_ARTICLE_LOCKED_MESSAGE)
+      }
 
       const patch: {
         title: string

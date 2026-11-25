@@ -1,3 +1,5 @@
+import { earningsLabel } from '@/lib/copy/network-status'
+
 export function DashboardStatsSkeleton() {
   return (
     <div className="account-stats" role="status" aria-label="Loading stats">
@@ -7,7 +9,7 @@ export function DashboardStatsSkeleton() {
       </div>
       <span className="sr-only">Loading stats…</span>
       <div className="account-stat-grid" aria-hidden="true">
-        {['Articles', 'Tips received', 'NFTs owned', 'Earned (USD)'].map(
+        {['Articles', 'Tips received', 'NFTs owned', earningsLabel()].map(
           (label) => (
             <div className="account-stat" key={label}>
               <div>{label}</div>

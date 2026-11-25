@@ -1,6 +1,7 @@
 'use client'
 
 import { useArticleHighlightTipStats } from '@/hooks/convex'
+import { earningsLabel } from '@/lib/copy/network-status'
 import type { Id } from '@/types/convex'
 import {
   HEATMAP_GRADIENT_CSS,
@@ -120,7 +121,7 @@ export function HighlightHeatmap({
             </div>
             <div>
               <strong>${(stats.totalAmountUsd || 0).toFixed(2)}</strong>
-              <span>Total tipped</span>
+              <span>{earningsLabel('Total tipped')}</span>
             </div>
             <div>
               <strong>{stats.uniqueTippers}</strong>

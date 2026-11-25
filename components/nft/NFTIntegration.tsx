@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { earningsLabel } from '@/lib/copy/network-status'
 import { useNFTByArticle } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
 import { MintButton } from './MintButton'
@@ -112,7 +113,7 @@ export function NFTIntegration({
                 <div className="nft-tab-content">
                   <div>
                     <div className="nft-row mb-2 text-sm">
-                      <span>Minting Progress</span>
+                      <span>{earningsLabel('Minting progress')}</span>
                       <span className="font-medium">
                         ${(nftStatus.totalTips / 100).toFixed(2)} / $
                         {(nftStatus.tipThreshold / 100).toFixed(2)}
@@ -193,7 +194,9 @@ export function NFTIntegration({
             <TabsContent value="stats" className="nft-tab-content">
               <div className="nft-stats">
                 <div className="space-y-2">
-                  <p className="text-sm text-ui-muted-foreground">Total Tips</p>
+                  <p className="text-sm text-ui-muted-foreground">
+                    {earningsLabel('Total tips')}
+                  </p>
                   <p className="nft-stat-value">
                     ${(nftStatus.totalTips / 100).toFixed(2)}
                   </p>
