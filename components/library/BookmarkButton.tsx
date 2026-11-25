@@ -6,6 +6,7 @@ import { buildRegisterHref } from '@/lib/auth/safeReturnPath'
 import {
   articleHref,
   readBookmarks,
+  refreshBookmark,
   toggleBookmark,
   BOOKMARK_EVENT,
   type Bookmark,
@@ -43,6 +44,13 @@ export function BookmarkButton({
             'Browser storage is unavailable. This bookmark was not saved.'
           )
         }
+      }
+    }
+    if (user) {
+      try {
+        refreshBookmark(user._id, article)
+      } catch {
+        // Storage may be unavailable; the saved copy simply stays as it was.
       }
     }
     refresh()
