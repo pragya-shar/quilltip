@@ -129,3 +129,5 @@ These pages missed the 2000 ms goal in this run:
 - article (`/q6da1413b91a046bf95c/she-signed-for-a-postcard`, mobile): median LCP 5512 ms is above 2000 ms
 - profile (`/q6da1413b91a046bf95c`, mobile): median LCP 4368 ms is above 2000 ms
 - dashboard (`/dashboard`, mobile): median content ready 3528 ms is above 2000 ms
+
+Follow-up: #405 covers all four pages.
