@@ -9,6 +9,7 @@ import {
   isVerifiedTip,
   UNVERIFIED_TIP_STATUS,
 } from '../../convex/lib/verifiedTips'
+import { formatXlmFromStroops } from '../../lib/copy/network-status'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 const newTest = () => convexTest(schema, modules)
@@ -289,4 +290,243 @@ test('earnings backfill ignores unverified confirmed tips', async () => {
     }
   )
   expect(page.tips).toEqual([])
+})
+
+const convexSources = import.meta.glob('../../convex/**/*.ts', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>
+
+test('only confirmedTipPatch writes the CONFIRMED status', () => {
+  const offenders = Object.entries(convexSources)
+    .filter(([path]) => !path.includes('/_generated/'))
+    .filter(([path]) => !path.endsWith('/lib/verifiedTips.ts'))
+    .filter(([, source]) =>
+      /status:\s*['"]CONFIRMED['"]|status:\s*CONFIRMED_TIP_STATUS/.test(source)
+    )
+    .map(([path]) => path)
+  expect(offenders).toEqual([])
+})
+
+test('legacy cleanup is internal and never scheduled', () => {
+  const cleanup = convexSources['../../convex/legacyTipCleanup.ts']
+  expect(cleanup).toMatch(/export const run = internalMutation\(/)
+  const others = Object.entries(convexSources).filter(
+    ([path]) =>
+      !path.includes('/_generated/') && !path.endsWith('/legacyTipCleanup.ts')
+  )
+  for (const [path, source] of others) {
+    expect(source, path).not.toMatch(/legacyTipCleanup/)
+  }
+})
+
+test('the retired client confirmation path is rejected', async () => {
+  const t = newTest()
+  const ids = await seed(t)
+  const tipper = t.withIdentity({ subject: `${ids.tipperId}|session` })
+  await expect(
+    tipper.mutation(api.tips.sendTip, {
+      articleId: ids.articleId,
+      amountUsd: 1,
+      stellarTxId: 'a'.repeat(64),
+    })
+  ).rejects.toThrow(/disabled/)
+  const rows = await t.run(({ db }) => db.query('tips').collect())
+  expect(rows).toEqual([])
+})
+
+test('the legacy highlight confirm entrypoint never confirms', async () => {
+  const t = newTest()
+  const ids = await seed(t)
+  const tipId = await insertPassageTip(t, ids, { status: 'PENDING' })
+  await t.mutation(internal.stellarVerify.markHighlightTipConfirmed, {
+    id: tipId,
+  })
+  const tip = await t.run(({ db }) => db.get(tipId))
+  expect(tip?.status).toBe('FAILED')
+  expect(tip?.verifiedAt).toBeUndefined()
+})
+
+test('server verification stamps verifiedAt on highlight tips', async () => {
+  const t = newTest()
+  const ids = await seed(t)
+  const tipId = await t.run(async ({ db }) => {
+    const snapshot = {
+      articleId: ids.articleId,
+      tipperId: ids.tipperId,
+      authorId: ids.authorId,
+      articleTitle: 'Words',
+      articleSlug: 'words',
+      highlightText: 'Words',
+      startOffset: 0,
+      endOffset: 5,
+      amountUsd: 2,
+      amountCents: 200,
+      quotePriceUsd: 0.5,
+      quoteSource: 'test',
+      quoteFetchedAt: ids.now,
+    }
+    const expected = {
+      expectedSourceAccount: 'G'.padEnd(56, 'A'),
+      expectedDestinationAccount: 'G'.padEnd(56, 'B'),
+      expectedHighlightId: 'passage',
+      expectedArticleSymbol: 'words',
+      expectedAmountStroops: '40000000',
+      expectedContractId: 'C'.padEnd(56, 'C'),
+      expectedFunction: 'tip_highlight_direct',
+      expectedMinTime: '0',
+      expectedMaxTime: String(Math.floor(ids.now / 1000) + 300),
+    }
+    const intentId = await db.insert('highlightTipIntents', {
+      ...snapshot,
+      ...expected,
+      expectedStellarNetwork: 'TESTNET',
+      expiresAt: ids.now + 60_000,
+      createdAt: ids.now,
+      updatedAt: ids.now,
+    })
+    const id = await db.insert('highlightTips', {
+      ...snapshot,
+      ...expected,
+      highlightId: 'passage',
+      highlightTipIntentId: intentId,
+      stellarTxId: 'f'.repeat(64),
+      stellarNetwork: 'TESTNET',
+      stellarMemo: 'passage',
+      stellarSourceAccount: expected.expectedSourceAccount,
+      stellarDestinationAccount: expected.expectedDestinationAccount,
+      stellarAmountXlm: '4',
+      status: 'PENDING',
+      createdAt: ids.now,
+      processedAt: ids.now,
+      updatedAt: ids.now,
+    })
+    await db.patch(intentId, { tipId: id })
+    return id
+  })
+
+  await t.mutation(internal.stellarVerify.confirmVerifiedHighlightTip, {
+    id: tipId,
+    stellarLedger: 42,
+  })
+  const after = await t.run(async ({ db }) => ({
+    tip: await db.get(tipId),
+    article: await db.get(ids.articleId),
+  }))
+  expect(after.tip?.status).toBe('CONFIRMED')
+  expect(after.tip?.verifiedAt).toBeGreaterThan(0)
+  expect(after.article?.tipCount).toBe(1)
+})
+
+test('fraud reversal leaves unverified rows and counters alone', async () => {
+  const t = newTest()
+  const ids = await seed(t)
+  const tipId = await insertArticleTip(t, ids, {
+    status: UNVERIFIED_TIP_STATUS,
+  })
+  await t.run(({ db }) => db.patch(ids.articleId, { tipCount: 3 }))
+  await t.mutation(internal.tips.markArticleTipFraudulent, {
+    tipId,
+    reason: 'test',
+  })
+  const after = await t.run(async ({ db }) => ({
+    tip: await db.get(tipId),
+    article: await db.get(ids.articleId),
+  }))
+  expect(after.tip?.status).toBe(UNVERIFIED_TIP_STATUS)
+  expect(after.article?.tipCount).toBe(3)
+})
+
+test('NFT minting threshold uses verified tips, not the counter', async () => {
+  const t = newTest()
+  const ids = await seed(t)
+  await insertArticleTip(t, ids, { status: 'CONFIRMED', amountCents: 5000 })
+  await insertArticleTip(t, ids, { status: UNVERIFIED_TIP_STATUS })
+  await insertArticleTip(t, ids, {
+    status: 'CONFIRMED',
+    verifiedAt: ids.now,
+    amountCents: 300,
+  })
+  await t.run(({ db }) =>
+    db.patch(ids.articleId, { tipCount: 3, totalTipsUsd: 54 })
+  )
+  const threshold = await t.query(api.nfts.checkMintingThreshold, {
+    articleId: ids.articleId,
+  })
+  expect(threshold).toMatchObject({ eligible: false, totalTips: 3 })
+  const nft = await t.query(api.nfts.getNFTByArticle, {
+    articleId: ids.articleId,
+  })
+  expect(nft).toMatchObject({ totalTips: 300 })
+})
+
+test('legacy cleanup pages through every row and a second pass is empty', async () => {
+  const t = newTest()
+  const ids = await seed(t)
+  const legacy = []
+  for (let i = 0; i < 3; i++) {
+    legacy.push(await insertArticleTip(t, ids, { status: 'CONFIRMED' }))
+    await insertArticleTip(t, ids, {
+      status: 'CONFIRMED',
+      verifiedAt: ids.now,
+    })
+  }
+  await t.run(async ({ db }) => {
+    await db.patch(ids.articleId, { tipCount: 6, totalTipsUsd: 6 })
+    await db.patch(ids.authorId, { tipsReceivedCount: 6 })
+    await db.patch(ids.tipperId, { tipsSentCount: 6 })
+  })
+
+  const pass = async () => {
+    const found: string[] = []
+    let cursor: string | null = null
+    let pages = 0
+    for (;;) {
+      const report: {
+        unverified: { id: string }[]
+        isDone: boolean
+        continueCursor: string
+      } = await t.mutation(internal.legacyTipCleanup.run, {
+        table: 'tips',
+        apply: true,
+        pageSize: 1,
+        cursor,
+      })
+      found.push(...report.unverified.map((row) => row.id))
+      pages += 1
+      if (report.isDone) break
+      cursor = report.continueCursor
+      expect(pages).toBeLessThan(20)
+    }
+    return found
+  }
+
+  expect((await pass()).sort()).toEqual([...legacy].sort())
+  expect(await pass()).toEqual([])
+
+  const after = await t.run(async ({ db }) => ({
+    article: await db.get(ids.articleId),
+    author: await db.get(ids.authorId),
+    tipper: await db.get(ids.tipperId),
+  }))
+  expect(after.article).toMatchObject({ tipCount: 3, totalTipsUsd: 3 })
+  expect(after.author?.tipsReceivedCount).toBe(3)
+  expect(after.tipper?.tipsSentCount).toBe(3)
+
+  const nan = await t.mutation(internal.legacyTipCleanup.run, {
+    table: 'tips',
+    pageSize: Number.NaN,
+  })
+  expect(nan.isDone).toBe(true)
+})
+
+test('XLM amounts format exactly or rounded for display', () => {
+  expect(formatXlmFromStroops('58500000')).toBe('5.85 XLM')
+  expect(formatXlmFromStroops('9750000')).toBe('0.975 XLM')
+  expect(formatXlmFromStroops('9750000', 2)).toBe('0.98 XLM')
+  expect(formatXlmFromStroops('1234567891234567', 2)).toBe('123,456,789.12 XLM')
+  expect(formatXlmFromStroops('19999999', 2)).toBe('2 XLM')
+  expect(formatXlmFromStroops('0', 2)).toBe('0 XLM')
+  expect(formatXlmFromStroops('-5', 2)).toBe('0 XLM')
 })
