@@ -46,11 +46,23 @@ afterEach(() => {
   delete process.env.AUTH_RESEND_KEY
 })
 
-const signIn = (t: T, params: Record<string, string>) =>
-  t.action(api.auth.signIn, { provider: 'password', params })
+// Runs a sign-in action, then lets any scheduled reset email go out.
+async function signIn(t: T, params: Record<string, string>) {
+  const result = await t.action(api.auth.signIn, {
+    provider: 'password',
+    params,
+  })
+  await flush(t)
+  return result
+}
 
-async function signUp(t: T) {
-  await signIn(t, { email: EMAIL, password: OLD_PASSWORD, flow: 'signUp' })
+async function flush(t: T) {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  await t.finishInProgressScheduledFunctions()
+}
+
+async function signUp(t: T, email = EMAIL) {
+  return await signIn(t, { email, password: OLD_PASSWORD, flow: 'signUp' })
 }
 
 function lastCode() {
@@ -85,7 +97,7 @@ test('reset requests answer the same for known and unknown emails', async () => 
   expect(lastCode()).toMatch(/^\d{8}$/)
   // The link carries the code, never the email address.
   expect(sent[0]?.text).toContain(
-    `https://app.example.test/reset-password?code=${lastCode()}`
+    `https://app.example.test/reset-password#code=${lastCode()}`
   )
   expect(sent[0]?.text).not.toContain(encodeURIComponent(EMAIL))
 })
@@ -208,6 +220,9 @@ test('without email credentials the request fails honestly before any lookup', a
     )
   }
   expect(sent).toEqual([])
+  expect(
+    await t.run((ctx) => ctx.db.query('authVerificationCodes').collect())
+  ).toEqual([])
 })
 
 test('a delivery failure looks like a normal request to the caller', async () => {
@@ -222,4 +237,211 @@ test('a delivery failure looks like a normal request to the caller', async () =>
     flow: 'reset',
   })
   expect(await signIn(t, { email: EMAIL, flow: 'reset' })).toEqual(unknown)
+})
+
+test('a reset request does not wait for email delivery', async () => {
+  const t = newTest()
+  await signUp(t)
+  let release: (response: Response) => void = () => undefined
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => new Promise<Response>((resolve) => (release = resolve)))
+  )
+  // Delivery never finishes here, yet the request answers like any other.
+  const known = await t.action(api.auth.signIn, {
+    provider: 'password',
+    params: { email: EMAIL, flow: 'reset' },
+  })
+  const unknown = await t.action(api.auth.signIn, {
+    provider: 'password',
+    params: { email: 'nobody@example.test', flow: 'reset' },
+  })
+  expect(known).toEqual(unknown)
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  release(new Response('{}', { status: 200 }))
+  await t.finishInProgressScheduledFunctions()
+})
+
+test('the reset link always uses SITE_URL', async () => {
+  const t = newTest()
+  await signUp(t)
+  // A foreign redirect is refused, and nothing is sent.
+  const refused = await signIn(t, {
+    email: EMAIL,
+    flow: 'reset',
+    redirectTo: 'https://attacker.example/steal',
+  })
+  expect(refused).toEqual(
+    await signIn(t, { email: 'nobody@example.test', flow: 'reset' })
+  )
+  expect(sent).toEqual([])
+  // A same-site redirect does not change the link either.
+  await signIn(t, { email: EMAIL, flow: 'reset', redirectTo: '/elsewhere' })
+  const text = sent.at(-1)?.text ?? ''
+  expect(text).toContain(
+    `https://app.example.test/reset-password#code=${lastCode()}`
+  )
+  expect(text).not.toContain('elsewhere')
+  expect(text).not.toContain('?code=')
+})
+
+test('a reset signs out every other session and revokes refresh tokens', async () => {
+  const t = newTest()
+  const first = await signUp(t)
+  const second = await signIn(t, {
+    email: EMAIL,
+    password: OLD_PASSWORD,
+    flow: 'signIn',
+  })
+  expect(first.tokens?.refreshToken).toBeTruthy()
+  expect(second.tokens?.refreshToken).toBeTruthy()
+  const before = await t.run((ctx) => ctx.db.query('authSessions').collect())
+  expect(before).toHaveLength(2)
+
+  await signIn(t, { email: EMAIL, flow: 'reset' })
+  await signIn(t, {
+    email: EMAIL,
+    code: lastCode()!,
+    newPassword: NEW_PASSWORD,
+    flow: 'reset-verification',
+  })
+
+  const sessions = await t.run((ctx) => ctx.db.query('authSessions').collect())
+  expect(sessions).toHaveLength(1)
+  expect(before.map((s) => s._id)).not.toContain(sessions[0]!._id)
+  const tokens = await t.run((ctx) =>
+    ctx.db.query('authRefreshTokens').collect()
+  )
+  expect(tokens.every((row) => row.sessionId === sessions[0]!._id)).toBe(true)
+
+  // Old refresh tokens no longer mint sessions.
+  for (const old of [first, second]) {
+    const refreshed = await t.action(api.auth.signIn, {
+      refreshToken: old.tokens!.refreshToken,
+    })
+    expect(refreshed.tokens).toBeNull()
+  }
+})
+
+test('wrong codes lock the email out, even for the right code', async () => {
+  const t = newTest()
+  await signUp(t)
+  await signIn(t, { email: EMAIL, flow: 'reset' })
+  const code = lastCode()!
+  const wrong = code === '00000000' ? '11111111' : '00000000'
+  for (let i = 0; i < 10; i++) {
+    expect(
+      await errorData(
+        signIn(t, {
+          email: EMAIL,
+          code: wrong,
+          newPassword: NEW_PASSWORD,
+          flow: 'reset-verification',
+        })
+      )
+    ).toBe('PASSWORD_RESET_INVALID_CODE')
+  }
+  // Locked: the right code gets the same answer, and nothing changes.
+  expect(
+    await errorData(
+      signIn(t, {
+        email: EMAIL,
+        code,
+        newPassword: NEW_PASSWORD,
+        flow: 'reset-verification',
+      })
+    )
+  ).toBe('PASSWORD_RESET_INVALID_CODE')
+  expect(
+    (await signIn(t, { email: EMAIL, password: OLD_PASSWORD, flow: 'signIn' }))
+      .tokens
+  ).toBeTruthy()
+})
+
+test('a code only works for the account it was sent to', async () => {
+  const t = newTest()
+  const other = 'other@example.test'
+  await signUp(t)
+  await signUp(t, other)
+  await signIn(t, { email: EMAIL, flow: 'reset' })
+  const code = lastCode()!
+  expect(
+    await errorData(
+      signIn(t, {
+        email: other,
+        code,
+        newPassword: NEW_PASSWORD,
+        flow: 'reset-verification',
+      })
+    )
+  ).toBe('PASSWORD_RESET_INVALID_CODE')
+  // The other account keeps its password, and the code still works for its owner.
+  expect(
+    (await signIn(t, { email: other, password: OLD_PASSWORD, flow: 'signIn' }))
+      .tokens
+  ).toBeTruthy()
+  expect(
+    (
+      await signIn(t, {
+        email: EMAIL,
+        code,
+        newPassword: NEW_PASSWORD,
+        flow: 'reset-verification',
+      })
+    ).tokens
+  ).toBeTruthy()
+})
+
+test('reset requests are limited overall', async () => {
+  const t = newTest()
+  for (let i = 0; i < 50; i++) {
+    await signIn(t, { email: `reader${i}@example.test`, flow: 'reset' })
+  }
+  expect(
+    await errorData(
+      signIn(t, { email: 'reader50@example.test', flow: 'reset' })
+    )
+  ).toBe('PASSWORD_RESET_RATE_LIMITED')
+})
+
+test('codes and addresses never reach the logs', async () => {
+  const t = newTest()
+  const lines: string[] = []
+  const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map(
+    (level) =>
+      vi.spyOn(console, level).mockImplementation((...args: unknown[]) => {
+        lines.push(JSON.stringify(args))
+      })
+  )
+  try {
+    await signUp(t)
+    await signIn(t, { email: EMAIL, flow: 'reset' })
+    const code = lastCode()!
+    await signIn(t, { email: 'nobody@example.test', flow: 'reset' })
+    await errorOf(
+      signIn(t, {
+        email: EMAIL,
+        code: '12345678',
+        newPassword: NEW_PASSWORD,
+        flow: 'reset-verification',
+      })
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('nope', { status: 500 }))
+    )
+    await signIn(t, { email: EMAIL, flow: 'reset' })
+    await signIn(t, {
+      email: EMAIL,
+      code,
+      newPassword: NEW_PASSWORD,
+      flow: 'reset-verification',
+    }).catch(() => undefined)
+    const output = lines.join('\n')
+    expect(output).not.toContain(code)
+    expect(output).not.toContain(EMAIL)
+    expect(output).not.toContain('test-key')
+  } finally {
+    for (const spy of spies) spy.mockRestore()
+  }
 })
