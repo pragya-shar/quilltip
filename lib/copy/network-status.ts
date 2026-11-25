@@ -63,13 +63,20 @@ export function earningsLabel(base = 'Earned'): string {
 /** Secondary note for USD estimates of testnet amounts. */
 export const TESTNET_NO_VALUE_NOTE = 'testnet, no real value'
 
-/** Formats stroops as an XLM amount with up to 7 decimals. */
-export function formatXlmFromStroops(stroops: string): string {
-  const value = /^\d+$/.test(stroops) ? BigInt(stroops) : BigInt(0)
+/**
+ * Formats stroops as an XLM amount, rounded half up to at most
+ * `maxDecimals` places (7 keeps full stroop precision).
+ */
+export function formatXlmFromStroops(stroops: string, maxDecimals = 7): string {
+  const decimals = Math.min(Math.max(Math.trunc(maxDecimals), 0), 7)
+  const raw = /^\d+$/.test(stroops) ? BigInt(stroops) : BigInt(0)
+  const step = BigInt(10) ** BigInt(7 - decimals)
+  const value = ((raw + step / BigInt(2)) / step) * step
   const whole = value / BigInt(10_000_000)
   const fraction = (value % BigInt(10_000_000))
     .toString()
     .padStart(7, '0')
+    .slice(0, decimals)
     .replace(/0+$/, '')
   const wholeText = whole.toLocaleString('en-US')
   return `${fraction ? `${wholeText}.${fraction}` : wholeText} XLM`

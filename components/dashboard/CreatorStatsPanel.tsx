@@ -32,7 +32,7 @@ export function CreatorStatsPanel({
     { label: 'NFTs owned', value: nftsOwned.toLocaleString('en-US') },
     {
       label: isTestnet ? 'Earned (testnet)' : earningsLabel(),
-      value: formatXlmFromStroops(earnedStroops),
+      value: formatXlmFromStroops(earnedStroops, 2),
       note: isTestnet
         ? `${usdEstimate}, ${TESTNET_NO_VALUE_NOTE}`
         : usdEstimate,

@@ -74,7 +74,7 @@ export function CompactEarningsCard({ user }: CompactEarningsCardProps) {
         <Coins className="h-4 w-4 text-success-foreground" aria-hidden />
       </div>
       <p className="text-2xl font-bold text-foreground tabular-nums">
-        {formatXlmFromStroops(earnings?.writerShareStroops ?? '0')}
+        {formatXlmFromStroops(earnings?.writerShareStroops ?? '0', 2)}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
         {isTestnet ? `${usdEstimate}, ${TESTNET_NO_VALUE_NOTE}` : usdEstimate}

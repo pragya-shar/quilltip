@@ -32,7 +32,7 @@ export function DashboardStatsContent() {
 
       <CreatorStatsPanel
         articleCount={userStats?.articleCount ?? 0}
-        tipsReceivedCount={userStats?.tipsReceivedCount ?? 0}
+        tipsReceivedCount={earnings?.tipCount ?? 0}
         earnedStroops={earnings?.writerShareStroops ?? '0'}
         estimatedUsd={earnings?.estimatedUsd ?? 0}
         isTestnet={earnings?.network !== 'MAINNET'}

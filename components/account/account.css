@@ -189,7 +189,7 @@
     Georgia,
     serif;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .account-stat-note {
   display: block;
