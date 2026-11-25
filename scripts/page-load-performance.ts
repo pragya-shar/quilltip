@@ -122,6 +122,7 @@ type CliOptions = {
   articlePath?: string
   profilePath?: string
   authStatePath?: string
+  commit?: string
   login: boolean
   help: boolean
 }
@@ -242,7 +243,7 @@ export function buildPerformanceReportMarkdown(report: {
     `- **Tool:** ${report.tool}`,
     `- **Runs:** ${report.runs} cold loads per page and device; tables show the median`,
     `- **Goal:** median load event, largest contentful paint (LCP) and, where measured, content ready all at or under ${TARGET_MS} ms`,
-    '- **Content ready:** time until data-driven content appears (measured for the dashboard, whose stats render after client data loads)',
+    '- **Content ready:** time until the page can be used: the landing intro has finished, or the dashboard stats have loaded',
     '',
     '## Devices and networks',
     '',
@@ -318,6 +319,7 @@ function parseCliArgs(argv: string[]): CliOptions {
     articlePath: process.env.PAGE_LOAD_ARTICLE_PATH,
     profilePath: process.env.PAGE_LOAD_PROFILE_PATH,
     authStatePath: process.env.PAGE_LOAD_AUTH_STATE,
+    commit: process.env.PAGE_LOAD_COMMIT,
     login: false,
     help: false,
   }
@@ -345,6 +347,9 @@ function parseCliArgs(argv: string[]): CliOptions {
     } else if (arg === '--profile-path' && next) {
       options.profilePath = next
       i++
+    } else if (arg === '--commit' && next) {
+      options.commit = next
+      i++
     } else if (arg === '--auth-state' && next) {
       options.authStatePath = next
       i++
@@ -366,6 +371,8 @@ function buildHelpText(): string {
     `  --runs <n>             Cold loads per page and device. Default: ${DEFAULT_RUNS}`,
     '  --article-path <path>  Article route. Default: first article on /articles',
     "  --profile-path <path>  Profile route. Default: the article's writer",
+    '  --commit <sha>         Commit the measured site serves (check the hosting\n' +
+      '                         dashboard). Default for remote sites: unknown',
     '  --auth-state <file>    Saved browser session for /dashboard. Keep it outside',
     '                         the repository: it holds sign-in tokens.',
     '  --login                Open a browser window, wait for you to sign in, and',
@@ -554,9 +561,12 @@ async function measureRun(
 }
 
 async function run(options: CliOptions): Promise<void> {
-  const signedIn = Boolean(
-    options.authStatePath && existsSync(options.authStatePath)
-  )
+  if (options.authStatePath && !existsSync(options.authStatePath)) {
+    throw new Error(
+      `No saved session at ${options.authStatePath}. Create it with --login.`
+    )
+  }
+  const signedIn = Boolean(options.authStatePath)
   const browser = await chromium.launch()
 
   try {
@@ -570,7 +580,12 @@ async function run(options: CliOptions): Promise<void> {
     }
 
     const targets: MeasurementTarget[] = [
-      { name: 'landing', path: '/' },
+      // First visits play a skippable intro; the page stays inert until it ends.
+      {
+        name: 'landing',
+        path: '/',
+        contentSelector: '[data-opening-ready="true"]',
+      },
       { name: 'article', path: articlePath },
       { name: 'profile', path: profilePath },
     ]
@@ -635,7 +650,7 @@ async function run(options: CliOptions): Promise<void> {
 
     const report = buildPerformanceReportMarkdown({
       capturedAt: new Date().toISOString(),
-      commit: measuredCommit(options.baseUrl),
+      commit: measuredCommit(options.baseUrl, options.commit),
       baseUrl: options.baseUrl,
       runs: options.runs,
       tool: `Playwright ${chromium.name()} (headless) with Navigation Timing, Paint Timing and LCP APIs`,
@@ -652,16 +667,13 @@ async function run(options: CliOptions): Promise<void> {
   }
 }
 
-// Production deploys main; local runs record the checkout's own commit.
-function measuredCommit(baseUrl: string) {
+// A remote site may serve any build, so only a commit passed in is recorded.
+function measuredCommit(baseUrl: string, commit?: string) {
+  if (commit) return commit
   const local = /^https?:\/\/(localhost|127\.0\.0\.1)/.test(baseUrl)
-  const commit = readGitValue(
-    ['rev-parse', '--short', local ? 'HEAD' : 'origin/main'],
-    'unknown'
-  )
   return local
-    ? `${commit} (local checkout)`
-    : `${commit} (origin/main when measured)`
+    ? `${readGitValue(['rev-parse', '--short', 'HEAD'], 'unknown')} (local checkout)`
+    : 'unknown (pass --commit)'
 }
 
 async function main() {

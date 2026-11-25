@@ -1,12 +1,12 @@
 # Page-Load Performance
 
-- **Captured:** 2026-11-25T17:21:21.872Z
-- **Commit:** bbb7d82 (origin/main when measured)
+- **Captured:** 2026-11-25T17:30:39.518Z
+- **Commit:** bbb7d82 (Vercel production deployment of main)
 - **Base URL:** https://www.quilltip.me
 - **Tool:** Playwright chromium (headless) with Navigation Timing, Paint Timing and LCP APIs
 - **Runs:** 3 cold loads per page and device; tables show the median
 - **Goal:** median load event, largest contentful paint (LCP) and, where measured, content ready all at or under 2000 ms
-- **Content ready:** time until data-driven content appears (measured for the dashboard, whose stats render after client data loads)
+- **Content ready:** time until the page can be used: the landing intro has finished, or the dashboard stats have loaded
 
 ## Devices and networks
 
@@ -17,19 +17,19 @@
 
 | Page      | Path                                              | Load event (ms) | FCP (ms) | LCP (ms) | Content ready (ms) | DOM content loaded (ms) | Network idle (ms) | Goal |
 | --------- | ------------------------------------------------- | --------------: | -------: | -------: | -----------------: | ----------------------: | ----------------: | ---- |
-| landing   | `/`                                               |             220 |      164 |      164 |                n/a |                     125 |              1032 | Pass |
-| article   | `/q6da1413b91a046bf95c/she-signed-for-a-postcard` |             913 |      784 |      784 |                n/a |                     841 |              2568 | Pass |
-| profile   | `/q6da1413b91a046bf95c`                           |             802 |      680 |      772 |                n/a |                     660 |              1426 | Pass |
-| dashboard | `/dashboard`                                      |             145 |      140 |     1188 |               1452 |                     115 |              1453 | Pass |
+| landing   | `/`                                               |             223 |      148 |      148 |               6558 |                     151 |              6559 | Over |
+| article   | `/q6da1413b91a046bf95c/she-signed-for-a-postcard` |            1106 |     1112 |     1208 |                n/a |                    1050 |              2735 | Pass |
+| profile   | `/q6da1413b91a046bf95c`                           |             782 |      644 |      644 |                n/a |                     654 |              1410 | Pass |
+| dashboard | `/dashboard`                                      |             142 |      120 |     1272 |               1495 |                     107 |              1497 | Pass |
 
 ## Throttled mobile
 
 | Page      | Path                                              | Load event (ms) | FCP (ms) | LCP (ms) | Content ready (ms) | DOM content loaded (ms) | Network idle (ms) | Goal |
 | --------- | ------------------------------------------------- | --------------: | -------: | -------: | -----------------: | ----------------------: | ----------------: | ---- |
-| landing   | `/`                                               |            5173 |     1988 |     1988 |                n/a |                    1976 |              5574 | Over |
-| article   | `/q6da1413b91a046bf95c/she-signed-for-a-postcard` |            5441 |     3268 |     5512 |                n/a |                    3215 |              7233 | Over |
-| profile   | `/q6da1413b91a046bf95c`                           |            2727 |     2480 |     4368 |                n/a |                    2447 |              6005 | Over |
-| dashboard | `/dashboard`                                      |            2178 |     1888 |     3328 |               3528 |                    1866 |              5223 | Over |
+| landing   | `/`                                               |            5250 |     1992 |     1992 |              10080 |                    1928 |             10081 | Over |
+| article   | `/q6da1413b91a046bf95c/she-signed-for-a-postcard` |            5365 |     3168 |     5436 |                n/a |                    3108 |              7179 | Over |
+| profile   | `/q6da1413b91a046bf95c`                           |            2711 |     2456 |     4468 |                n/a |                    2432 |              6038 | Over |
+| dashboard | `/dashboard`                                      |            2187 |     1888 |     3356 |               3527 |                    1872 |              5291 | Over |
 
 ## Console and network watch
 
@@ -116,18 +116,20 @@
 ## Notes
 
 - `/dashboard` redirects in the browser to `/dashboard/stats`; its timings cover that redirect, and LCP covers the stats content.
+- Every run is a first visit, so the landing page plays its opening animation (about 6.2 s, skippable, once per browser session, not shown with reduced motion). The page stays inert until it ends, so landing content ready includes it; the page itself paints in under 2 s.
 - The dashboard was measured with a new test account that has no articles or tips, so its stats are empty; an active writer's dashboard loads more data.
-- Production was serving `bbb7d82` (Vercel production deployment of `main`), which includes the server-rendered article and profile pages from #383. This run is the re-measurement after #383.
+- Production was serving `bbb7d82` (latest successful Vercel production deployment), which includes the server-rendered article and profile pages from #383. This run is the re-measurement after #383.
 - Compared with ENG-238 (localhost, no throttling, load event 45 to 141 ms), these numbers include real network round trips; throttled mobile also slows the CPU 4x.
-- Re-run with `bun run perf:page-load -- --auth-state <file outside the repo>`; create the file with `--login` and a test account.
+- Re-run with `bun run perf:page-load -- --commit <deployed sha> --auth-state <file outside the repo>`; create the session file with `--login` and a test account.
 
 ## Result
 
 These pages missed the 2000 ms goal in this run:
 
-- landing (`/`, mobile): median load event 5173 ms is above 2000 ms
-- article (`/q6da1413b91a046bf95c/she-signed-for-a-postcard`, mobile): median LCP 5512 ms is above 2000 ms
-- profile (`/q6da1413b91a046bf95c`, mobile): median LCP 4368 ms is above 2000 ms
-- dashboard (`/dashboard`, mobile): median content ready 3528 ms is above 2000 ms
+- landing (`/`, desktop): median content ready 6558 ms is above 2000 ms
+- landing (`/`, mobile): median content ready 10080 ms is above 2000 ms
+- article (`/q6da1413b91a046bf95c/she-signed-for-a-postcard`, mobile): median LCP 5436 ms is above 2000 ms
+- profile (`/q6da1413b91a046bf95c`, mobile): median LCP 4468 ms is above 2000 ms
+- dashboard (`/dashboard`, mobile): median content ready 3527 ms is above 2000 ms
 
-Follow-up: #405 covers all four pages.
+Follow-up: #405 covers the slow pages.
