@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { flushSync } from 'react-dom'
 import { useMutation } from 'convex/react'
 import { ConvexError } from 'convex/values'
 import { api } from '@/convex/_generated/api'
@@ -42,7 +43,9 @@ export function FeedbackForm({ fromPath }: { fromPath?: string }) {
     event?.preventDefault()
     if (submitting) return
     const error = validate(message)
-    setMessageError(error)
+    // Render the error before moving focus, so the field is announced with
+    // its error description.
+    flushSync(() => setMessageError(error))
     if (error) {
       formRef.current
         ?.querySelector<HTMLTextAreaElement>('#feedback-message')
