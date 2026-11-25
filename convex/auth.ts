@@ -91,7 +91,8 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           try {
             return await baseAuthorize(params, ctx)
           } catch (error) {
-            // Unknown email or a delivery failure: log, answer as usual.
+            // Unknown email: log, answer as usual. Delivery is scheduled
+            // separately, so it cannot change this response or its timing.
             console.warn('[passwordReset] request not sent', {
               reason: error instanceof Error ? error.message : 'unknown',
             })

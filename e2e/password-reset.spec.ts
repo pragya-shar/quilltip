@@ -62,7 +62,7 @@ for (const viewport of [
     test('reset step reads the code from the link and hides it from history', async ({
       page,
     }) => {
-      await page.goto('/reset-password?code=12345678')
+      await page.goto('/reset-password#code=12345678')
       await expect(page.getByLabel('Reset code')).toHaveValue('12345678')
       await expect(page).toHaveURL(/\/reset-password$/)
 

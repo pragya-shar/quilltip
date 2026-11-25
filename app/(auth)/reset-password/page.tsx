@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { AccountShell } from '@/components/auth/AccountShell'
@@ -24,9 +23,7 @@ export default function ResetPasswordPage() {
         </p>
       }
     >
-      <Suspense fallback={null}>
-        <ResetPasswordForm />
-      </Suspense>
+      <ResetPasswordForm />
     </AccountShell>
   )
 }

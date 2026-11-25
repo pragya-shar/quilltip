@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { ConvexError } from 'convex/values'
 import { ArrowRight } from '@/components/landing/LandingIcons'
@@ -25,7 +24,6 @@ type Errors = Partial<Record<Field, string>>
 
 export function ResetPasswordForm() {
   const { signIn, signOut } = useAuthActions()
-  const searchParams = useSearchParams()
   const formRef = useRef<HTMLFormElement>(null)
   const doneHeading = useRef<HTMLHeadingElement>(null)
   const [values, setValues] = useState({
@@ -43,22 +41,28 @@ export function ResetPasswordForm() {
 
   const prefilled = useRef(false)
   useEffect(() => {
-    // Read the link once; removing the code from the URL updates
-    // searchParams, which must not clear the field.
+    // The emailed link carries the code in the fragment, which is never sent
+    // to the server. Read it once, then drop it from the address bar and
+    // browser history.
     if (prefilled.current) return
     prefilled.current = true
-    const code = (searchParams.get('code') ?? '').replace(/\D/g, '').slice(0, 8)
+    const fragment = new URLSearchParams(window.location.hash.slice(1))
+    const code = (fragment.get('code') ?? '').replace(/\D/g, '').slice(0, 8)
     setValues((v) => ({ ...v, email: recallResetEmail(), code }))
-    // Keep the code out of browser history once it has been read.
-    if (searchParams.has('code')) {
-      window.history.replaceState(null, '', '/reset-password')
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname)
     }
-  }, [searchParams])
+  }, [])
 
   // Move focus to the confirmation once it has rendered.
   useEffect(() => {
     if (done) doneHeading.current?.focus()
   }, [done])
+  // A failed submit disables the button, so move focus to the error.
+  const errorBanner = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (formError) errorBanner.current?.focus()
+  }, [formError])
 
   function validate(next = values): Errors {
     const result: Errors = {}
@@ -145,7 +149,12 @@ export function ResetPasswordForm() {
   return (
     <form ref={formRef} noValidate onSubmit={onSubmit} aria-busy={submitting}>
       {formError && (
-        <div className="account-error account-error-banner" role="alert">
+        <div
+          ref={errorBanner}
+          tabIndex={-1}
+          className="account-error account-error-banner"
+          role="alert"
+        >
           <p>{formError}</p>
           {codeRejected && (
             <Link href="/forgot-password">Request a new code</Link>
@@ -157,7 +166,7 @@ export function ResetPasswordForm() {
           id="reset-email"
           type="email"
           inputMode="email"
-          autoComplete="email"
+          autoComplete="username"
           value={values.email}
           aria-invalid={!!errors.email}
           aria-describedby={describedBy('email')}

@@ -1,7 +1,8 @@
 import { v } from 'convex/values'
-import { internalMutation } from './_generated/server'
+import { internalAction, internalMutation } from './_generated/server'
 import { normalizeEmail } from './lib/email'
 import { consumeFixedWindow } from './lib/fixedWindowLimit'
+import { deliverResetEmail } from './lib/passwordResetEmail'
 
 // Limits on reset requests. They apply whether or not an account exists, so
 // they reveal nothing about which emails have accounts. Wrong codes are
@@ -30,5 +31,21 @@ export const consumeRequest = internalMutation({
       RESET_GLOBAL_WINDOW_MS
     )
     return global.ok
+  },
+})
+
+export const sendResetEmail = internalAction({
+  args: { to: v.string(), code: v.string() },
+  returns: v.null(),
+  handler: async (_ctx, args) => {
+    try {
+      await deliverResetEmail(args.to, args.code)
+    } catch (error) {
+      // Never log the code or the address.
+      console.warn('[passwordReset] email not sent', {
+        reason: error instanceof Error ? error.message : 'unknown',
+      })
+    }
+    return null
   },
 })
