@@ -5,7 +5,7 @@
   "scripts": {
     "check": "bun scripts/check-bun-version.ts && bun run format:check && bun run lint && bun run test:component-organization && bun run test:unit && bun run test:highlights && bun run test:reader && bun run typecheck && bun run test:security && bun run test:dependency-compatibility && bun run security:audit && bun run build:check",
     "dev": "npm-run-all --parallel dev:frontend dev:backend",
-    "dev:frontend": "next dev --turbopack",
+    "dev:frontend": "bun scripts/check-network-guard.ts --operation \"next dev\" && next dev --turbopack",
     "dev:backend": "bun scripts/convex-dev.ts",
     "predev": "bun scripts/convex-dev.ts --until-success",
     "build": "next build",

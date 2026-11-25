@@ -29,7 +29,7 @@ already have it; keep keys on Convex, never in tracked files.
 `bun run dev` first runs `predev` (`scripts/convex-dev.ts`: the Convex guard,
 then `convex dev --until-success`), then starts Next.js and Convex together. This can push functions/schema to the configured
 backend. For UI-only work against an already configured backend, use
-`bun run dev:frontend`. Start `bun run dev:backend` separately only when needed.
+`bun run dev:frontend`; it runs the operational guard before starting Next.js. Start `bun run dev:backend` separately only when needed.
 
 Before reusing `http://localhost:3000`, inspect the listener and its checkout:
 
