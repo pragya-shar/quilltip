@@ -140,6 +140,7 @@
   background: transparent;
   color: var(--ui-foreground);
   font: inherit;
+  font-family: var(--ui-font);
   cursor: pointer;
 }
 .legal-analytics-actions button[aria-pressed='true'] {
