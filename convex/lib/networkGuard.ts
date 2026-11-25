@@ -395,6 +395,16 @@ function collectConvexRefusals(input: NetworkGuardInput): {
     ['CONVEX_DEPLOY_KEY', input.convexDeployKey],
   ] as const) {
     if (!present(value)) continue
+    if (label === 'CONVEX_DEPLOY_KEY' && !value.includes('|')) {
+      // Without the `type:name|` prefix the whole value is secret material;
+      // refuse without echoing it.
+      refusals.push({
+        code: 'CONVEX_NOT_ALLOWLISTED',
+        message:
+          'CONVEX_DEPLOY_KEY does not name its deployment (expected "type:name|..."), so its target cannot be checked.',
+      })
+      continue
+    }
     const ref = parseConvexDeploymentRef(value)
     if (ref.type === 'local' || ref.type === 'anonymous') {
       hasLocalTarget = true
@@ -492,6 +502,53 @@ export function assertBackendTestnet(env: EnvLike = process.env): 'TESTNET' {
     allowUnlistedUrls: true,
     stellarNetworks: [env.STELLAR_NETWORK ?? 'TESTNET'],
     stellarUrls: [env.HORIZON_URL],
+  })
+  return 'TESTNET'
+}
+
+/**
+ * Backend check for the network stored on a tip row before it is verified.
+ * Rows without a network predate the field and were recorded on TESTNET.
+ * Returns the Horizon URL to use: the HORIZON_URL override when
+ * `allowOverride` is true, otherwise the TESTNET default.
+ */
+export function backendVerificationHorizonUrl(
+  recordedNetwork: string | null | undefined,
+  options: { allowOverride: boolean },
+  env: EnvLike = process.env
+): string {
+  assertBackendTestnet(env)
+  assertTestnetOnly({
+    operation: 'tip verification',
+    requireOptIn: false,
+    checkConvex: false,
+    stellarNetworks: [recordedNetwork ?? 'TESTNET'],
+  })
+  const override = env.HORIZON_URL?.trim()
+  return options.allowOverride && override
+    ? override
+    : STELLAR_NETWORK_DEFAULTS.TESTNET.horizonUrl
+}
+
+/**
+ * Client check: the browser app signs and submits TESTNET transactions only.
+ * A MAINNET setting, a mainnet passphrase, or a mainnet endpoint fails at
+ * load, before any wallet or network call.
+ */
+export function assertClientTestnet(config: {
+  network: string
+  passphrase: string
+  horizonUrl: string
+  rpcUrl: string
+}): 'TESTNET' {
+  assertTestnetOnly({
+    operation: 'client Stellar configuration',
+    requireOptIn: false,
+    checkConvex: false,
+    allowUnlistedUrls: true,
+    stellarNetworks: [config.network],
+    networkPassphrase: config.passphrase,
+    stellarUrls: [config.horizonUrl, config.rpcUrl],
   })
   return 'TESTNET'
 }

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { resolveStellarNetwork } from './network'
+import { assertClientTestnet } from './network-guard'
 import { TESTNET_FALLBACK_XLM_TO_USD_RATE } from './price-fallback'
 
 // Stellar address pattern (G... for accounts, C... for contracts)
@@ -63,6 +64,10 @@ export const STELLAR_NETWORK_CONFIG = resolveStellarNetwork({
   horizonUrl: process.env.NEXT_PUBLIC_HORIZON_URL,
   rpcUrl: process.env.NEXT_PUBLIC_SOROBAN_RPC_URL,
 })
+
+// The app signs and submits TESTNET transactions only. Any other network,
+// passphrase, or a mainnet endpoint throws here, before any wallet call.
+assertClientTestnet(STELLAR_NETWORK_CONFIG)
 
 export const STELLAR_CONFIG = {
   // Network configuration (see lib/stellar/network.ts)

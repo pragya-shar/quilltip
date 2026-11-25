@@ -148,16 +148,24 @@ describe('STELLAR_CONFIG', () => {
     expect(config.NETWORK_PASSPHRASE).toBe(TESTNET_PASSPHRASE)
   })
 
-  it('selects the PUBLIC wallet network for MAINNET', async () => {
-    const config = await loadConfig({
-      NEXT_PUBLIC_STELLAR_NETWORK: 'MAINNET',
-      NEXT_PUBLIC_NETWORK_PASSPHRASE: '',
-      NEXT_PUBLIC_HORIZON_URL: '',
-      NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://rpc.example.org',
-    })
-    expect(config.WALLET_NETWORK).toBe('PUBLIC')
-    expect(config.NETWORK_PASSPHRASE).toBe(MAINNET_PASSPHRASE)
-    expect(config.HORIZON_URL).toBe('https://horizon.stellar.org')
+  it('fails at load for MAINNET: the app signs TESTNET transactions only', async () => {
+    await expect(
+      loadConfig({
+        NEXT_PUBLIC_STELLAR_NETWORK: 'MAINNET',
+        NEXT_PUBLIC_NETWORK_PASSPHRASE: '',
+        NEXT_PUBLIC_HORIZON_URL: '',
+        NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://rpc.example.org',
+      })
+    ).rejects.toThrow(/NOT_TESTNET/)
+  })
+
+  it('fails at load for a mainnet endpoint on TESTNET', async () => {
+    await expect(
+      loadConfig({
+        NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
+        NEXT_PUBLIC_HORIZON_URL: 'https://horizon.stellar.org',
+      })
+    ).rejects.toThrow(/MAINNET_URL/)
   })
 
   it('fails at load for NEXT_PUBLIC_STELLAR_NETWORK=PUBLIC', async () => {
