@@ -8,10 +8,9 @@ import {
   writeConsent,
   type AnalyticsConsent,
 } from '@/lib/analytics/consent'
-import { ANALYTICS_ENABLED } from '@/lib/analytics/config'
 
 /** Lets a visitor change their analytics choice from the privacy page. */
-export function AnalyticsPreferences() {
+export function AnalyticsPreferences({ enabled }: { enabled: boolean }) {
   const [consent, setConsent] = useState<AnalyticsConsent | null>(null)
   const [optedOut, setOptedOut] = useState(false)
 
@@ -23,7 +22,7 @@ export function AnalyticsPreferences() {
     return () => window.removeEventListener(CONSENT_EVENT, onChange)
   }, [])
 
-  if (!ANALYTICS_ENABLED) {
+  if (!enabled) {
     return <p>Product analytics is turned off on this site.</p>
   }
   if (optedOut) {

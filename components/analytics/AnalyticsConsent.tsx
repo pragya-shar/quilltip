@@ -9,7 +9,7 @@ import {
   writeConsent,
   type AnalyticsConsent as Consent,
 } from '@/lib/analytics/consent'
-import { track } from '@/lib/analytics/track'
+import { activateAnalytics, track } from '@/lib/analytics/track'
 import './analytics.css'
 
 /**
@@ -23,6 +23,7 @@ export function AnalyticsConsent() {
   const lastPath = useRef<string | null>(null)
 
   useEffect(() => {
+    activateAnalytics()
     setConsent(readConsent())
     const onChange = () => setConsent(readConsent())
     window.addEventListener(CONSENT_EVENT, onChange)

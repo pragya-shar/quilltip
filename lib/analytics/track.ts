@@ -1,6 +1,13 @@
 import { ANALYTICS_ENABLED, type AnalyticsEvent } from './config'
 import { analyticsId } from './consent'
 
+// Set by the consent prompt, which renders only when the deployment has both
+// the public flag and the server key. Until then nothing is sent.
+let active = false
+export function activateAnalytics() {
+  active = true
+}
+
 /**
  * Records one product event when analytics is enabled and the visitor has
  * allowed it. Sends only the event name, the page path without its query
@@ -10,7 +17,7 @@ export function track(
   event: AnalyticsEvent,
   properties: Record<string, string | number | boolean> = {}
 ) {
-  if (!ANALYTICS_ENABLED || typeof window === 'undefined') return
+  if (!ANALYTICS_ENABLED || !active || typeof window === 'undefined') return
   const distinctId = analyticsId()
   if (!distinctId) return
   const body = JSON.stringify({

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { flushSync } from 'react-dom'
 import Link from 'next/link'
 import { useMutation } from 'convex/react'
 import { ConvexError } from 'convex/values'
@@ -39,9 +40,12 @@ export function WaitlistForm() {
     const data = new FormData(event.currentTarget)
     const email = String(data.get('email') ?? '')
     const error = validateEmail(email)
-    setEmailError(error)
+    const form = event.currentTarget
+    // Render the error before moving focus, so the field is announced with
+    // its error description.
+    flushSync(() => setEmailError(error))
     if (error) {
-      event.currentTarget.querySelector<HTMLInputElement>('#email')?.focus()
+      form.querySelector<HTMLInputElement>('#email')?.focus()
       return
     }
     setSubmitting(true)
@@ -102,10 +106,6 @@ export function WaitlistForm() {
           required
           aria-invalid={!!emailError}
           aria-describedby={emailError ? 'email-error' : undefined}
-          onBlur={(e) => {
-            if (e.currentTarget.value)
-              setEmailError(validateEmail(e.currentTarget.value))
-          }}
           onChange={(e) => {
             if (emailError) setEmailError(validateEmail(e.currentTarget.value))
           }}

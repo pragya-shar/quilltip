@@ -51,11 +51,6 @@
   touch-action: manipulation;
   transition: transform 120ms ease-out;
 }
-.analytics-consent-actions button:first-child {
-  background: var(--ui-primary);
-  border-color: var(--ui-primary);
-  color: var(--ui-primary-foreground);
-}
 .analytics-consent-actions button:active {
   transform: scale(0.97);
 }

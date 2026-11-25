@@ -43,12 +43,9 @@ export const join = mutation({
       return { ok: true as const }
     }
 
-    const existing = await ctx.db
-      .query('waitlist')
-      .withIndex('by_email', (q) => q.eq('email', email))
-      .first()
-    if (existing) return { ok: true as const }
-
+    // Count every accepted attempt, including repeats, before looking the
+    // email up. Otherwise a full window would answer differently for listed
+    // and unlisted addresses.
     const limit = await consumeFixedWindow(
       ctx,
       'waitlist:join',
@@ -60,6 +57,12 @@ export const join = mutation({
         'Lots of people are joining right now. Try again in a minute.'
       )
     }
+
+    const existing = await ctx.db
+      .query('waitlist')
+      .withIndex('by_email', (q) => q.eq('email', email))
+      .first()
+    if (existing) return { ok: true as const }
 
     const name = args.name?.trim().slice(0, MAX_NAME) || undefined
     const interest = args.interest?.trim().slice(0, MAX_INTEREST) || undefined

@@ -68,9 +68,9 @@ including for small uploads; keep it only on the backend.
   yourself. A new account with the same email marks the entry `joined`.
 - **Feedback:** signed-in people send feedback from `/dashboard/feedback`
   (5 per person per hour). Read it with `feedback:listRecent`.
-- **Usage metrics:** `betaMetrics:getUsageMetrics` is an internal query for
-  people with deployment access. It excludes test accounts unless called with
-  `{"excludeTestAccounts": false}`.
+- **Usage metrics:** `betaMetrics:getUsageMetrics` is an internal action for
+  people with deployment access. It reads each table in pages and excludes
+  test accounts unless called with `{"excludeTestAccounts": false}`.
 - **Test accounts:** flag QA and demo accounts with
   `testAccounts:setTestAccount '{"email":"…","isTestAccount":true}'`. Only
   internal functions can set the flag.
@@ -80,7 +80,9 @@ including for small uploads; keep it only on the backend.
   Visitors see a consent prompt; nothing is sent until they allow it, and Do
   Not Track or Global Privacy Control count as a refusal. Events go through
   `/api/analytics`, so visitor IP addresses are not shared with PostHog, and
-  only `$pageview`, `waitlist_joined` and `feedback_sent` are accepted.
+  only `$pageview`, `waitlist_joined` and `feedback_sent` are accepted, with
+  no free-text properties. The prompt and relay stay off until both variables
+  are set.
 
 ### Password reset
 
