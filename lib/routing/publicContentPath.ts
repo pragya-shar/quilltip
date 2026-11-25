@@ -20,6 +20,7 @@ export const APP_ROUTE_SEGMENTS = new Set([
   'support',
   'terms',
   'wallet',
+  'welcome',
   'write',
 ])
 

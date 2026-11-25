@@ -1,9 +1,10 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { query, mutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { syncReadingRoomWriter } from './lib/readingRoomIndex'
 import { isArticleListingReady } from './lib/articleListingReady'
 import { syncAvatarUploadReference } from './lib/uploadReferences'
+import { profileBioError, profileNameError } from '../lib/profile/profileRules'
 
 /**
  * Validate Stellar address format
@@ -73,6 +74,18 @@ export const updateProfile = mutation({
       )
     }
 
+    // The same rules as the profile forms, so a direct call cannot skip them.
+    const name = args.name === undefined ? undefined : args.name.trim()
+    const bio = args.bio === undefined ? undefined : args.bio.trim()
+    if (name !== undefined) {
+      const message = profileNameError(name)
+      if (message) throw new ConvexError(message)
+    }
+    if (bio !== undefined) {
+      const message = profileBioError(bio)
+      if (message) throw new ConvexError(message)
+    }
+
     const updates: {
       name?: string
       bio?: string
@@ -82,8 +95,9 @@ export const updateProfile = mutation({
     } = {}
     // Use 'in' operator to check if property exists in args
     // This allows setting fields to null (needed for wallet disconnect)
-    if ('name' in args) updates.name = args.name
-    if ('bio' in args) updates.bio = args.bio
+    if ('name' in args) updates.name = name
+    // An empty bio removes it (patching a field to undefined clears it).
+    if ('bio' in args) updates.bio = bio || undefined
     if ('avatar' in args) updates.avatar = args.avatar
     if ('stellarAddress' in args) updates.stellarAddress = args.stellarAddress
 

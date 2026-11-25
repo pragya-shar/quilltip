@@ -13,6 +13,7 @@ import {
 } from '../../lib/articles/readingRoomSearchBatch'
 import {
   syncReadingRoomArticle,
+  syncReadingRoomWriter,
   type ReadingRoomRank,
 } from '../../convex/lib/readingRoomIndex'
 
@@ -422,8 +423,12 @@ test('search backfills a large catalog and follows public writes without changin
   await author.mutation(api.users.updateProfile, { name: 'Nereid Arc' })
   expect((await browse({ ...narrow, search: 'artz—win nereid' })).total).toBe(1)
   expect((await browse(narrow)).total).toBe(0)
-  await author.mutation(api.users.updateProfile, {
-    name: `${'a'.repeat(1100)} Umbrella`,
+  // Profile saves now cap names at 50 characters; older accounts can still
+  // hold longer ones, so write it directly and resync the writer index.
+  await t.run(async (ctx) => {
+    await ctx.db.patch(authorId, { name: `${'a'.repeat(1100)} Umbrella` })
+    const user = await ctx.db.get(authorId)
+    if (user) await syncReadingRoomWriter(ctx, user)
   })
   expect((await browse({ search: 'umbrella quartz' })).total).toBe(1)
 

@@ -9,3 +9,6 @@ contracts/*/target
 
 # Local Superpowers execution ledgers are not project source.
 .superpowers
+
+# Local Convex deployment state (convex dev with a local backend).
+.convex
