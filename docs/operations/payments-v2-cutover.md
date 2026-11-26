@@ -54,28 +54,34 @@ the cutover tracking issue.
 | #448  | Client tip flows (direct, highlight, batch)                   | Merged to `overhaul/v2`                                               |
 | #449  | Tab UI                                                        | Merged to `overhaul/v2`                                               |
 | #450  | NFT UI and NFT event handlers                                 | Merged to `overhaul/v2`                                               |
+| #517  | v1 prepare switch and a separate v2 NFT variable              | Merged to `overhaul/v2`                                               |
 
 ### 1.2 Code that the cutover itself needs
 
 These items are part of the release commit. Check each one in the code before
 stage 1.
 
-1. **v1 prepare switch.** `CHAIN_V1_PREPARES_ENABLED` exists and gates the v1
-   prepare functions (`tips:prepareArticleTip`, `tips:sendTip`,
-   `highlightTips:prepareHighlightTip`, `highlightTips:create`,
-   `nfts:mintNFT`, `nfts:transferNFT`), as section 6.8 specifies. Submit,
-   verification and recovery functions stay open, so records prepared before
-   the freeze still resolve. Check:
-   `git grep -n CHAIN_V1_PREPARES_ENABLED -- convex` lists the gate in each of
-   those functions. At the time of writing, `overhaul/v2` does not contain this
-   switch yet; without it, stage 5 and the rollback in section 6 cannot be done
-   with a setting.
+1. **v1 prepare switch** (#517). `CHAIN_V1_PREPARES_ENABLED`
+   (`convex/lib/v1Prepares.ts`) gates the functions that start a new v1
+   record: `tips:prepareArticleTip`, `highlightTips:prepareHighlightTip`,
+   `highlightTips:create`, `nfts:mintNFT`, `nfts:transferNFT` and
+   `nftMetadataUpload:uploadNftMetadataForMint`. `tips:sendTip` already
+   refuses every call. Submit, retry, verification, recovery and read
+   functions do not read the switch, so records prepared before the freeze
+   still resolve. Unset, empty or `true` keeps v1 running; `false` pauses it;
+   any other value also pauses. Check:
+   `git grep -n requireV1PreparesEnabled -- convex` lists those six functions,
+   and `scripts/tips/v1-prepare-switch.test.ts` passes.
 2. **Client behaviour while `CHAIN_V2_ENABLED=false`.** With the v2 switch off,
    the release frontend either keeps the v1 tip and NFT flows or shows payments
    as unavailable. It never shows a v2 action that the backend refuses.
    Verify this on the integration deployment with the switch off.
 3. **Client behaviour while `CHAIN_V1_PREPARES_ENABLED=false` and
-   `CHAIN_V2_ENABLED=false`.** The site shows payments as paused, not an error.
+   `CHAIN_V2_ENABLED=false`.** `chain/articles:getArticleTipAvailability`
+   returns `paused`. The article tip area and the passage tip action show
+   "Tips are paused for a short time while payments are updated." instead of
+   the tip button. A direct call to a gated function returns the same message
+   and creates nothing.
 4. **Client behaviour while `CHAIN_V2_ENABLED=true`.** On a registered
    article, the tip buttons use the v2 flow (`tipsV2`), and the mint and
    transfer actions use the v2 NFT functions. Today
@@ -131,7 +137,26 @@ once, including the rollback in section 6:
   `bunx convex export --path <file>` with the owner's credentials). Keep it
   outside the repository.
 - Authors were told in advance that they must verify their wallet and press
-  **Enable tips** on each article after the switch (section 4.3).
+  **Enable tips** on each article after the switch (section 4.3). The owner
+  decides who sends this notice and when, relative to stage 6.
+
+### 1.6 Owner decisions recorded before stage 0
+
+Record each answer in the cutover tracking issue.
+
+1. **Backend push method.** How the release functions reach the live
+   deployment (deploy key, CLI login or another method). Stage 1 uses it.
+2. **Earlier v1 maintenance.** Whether the internal functions
+   `legacyTipCleanup:run` and `authorEarningsBackfill:run` were applied on the
+   live deployment. If not, v1 tip counts and earnings may include tips that
+   were never verified; run them (dry run first) before stage 4.
+3. **v1 admin key.** Whether the v1 tipping contract's admin key is available.
+   Without it, stage 7 is skipped and section 4.2 applies.
+4. **Release scope.** Whether the non-payment work on `overhaul/v2` reaches
+   `main` in an earlier release, so that the cutover release holds only the
+   payment change.
+5. **Author notice.** Who tells authors to verify their wallet and enable
+   tips, and when.
 
 ## 2. Schema and API compatibility
 
@@ -212,7 +237,13 @@ frontend does not handle:
 
 Consequence: deploy the release frontend (stage 2) right after the release
 backend (stage 1). Keep the gap to minutes, and do not leave `main`'s frontend
-serving against the release backend.
+serving against the release backend. Run both stages in one announced window
+at a low-traffic time, with the Vercel build of the release commit ready to
+promote before the backend push starts.
+
+The backend is not changed to accept unverified wallets during this gap. That
+would undo the wallet ownership check, and it would stay in effect until v2 is
+switched on, not only for the gap.
 
 ### 2.4 The release frontend against `main`'s backend
 
@@ -221,13 +252,14 @@ The release frontend calls functions that `main`'s backend does not have
 others). It fails on those pages. Therefore the backend always goes first, and
 a frontend rollback in Vercel never needs a backend rollback.
 
-### 2.5 Shared variable name
+### 2.5 NFT contract variables
 
-`NEXT_PUBLIC_NFT_CONTRACT_ID` is read by the v1 NFT client
-(`lib/stellar/config.ts`) and by the v2 client (`lib/stellar/v2/config.ts`).
-Setting it to the v2 NFT contract also points the v1 NFT code at the v2
-contract. Set it in stage 6, together with `CHAIN_V2_ENABLED=true`, and set it
-back in the rollback.
+The v1 NFT client (`lib/stellar/config.ts`) reads
+`NEXT_PUBLIC_NFT_CONTRACT_ID`. The v2 client (`lib/stellar/v2/config.ts`)
+reads `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` (#517), so neither can point at
+the other's contract. Leave `NEXT_PUBLIC_NFT_CONTRACT_ID` at its v1 value
+until the v1 code is removed. On Convex, only v2 code reads
+`NFT_CONTRACT_ID`.
 
 ## 3. Environment variables and switches
 
@@ -265,13 +297,13 @@ secret in `.env.example`, a commit, a PR or a log.
 `NEXT_PUBLIC_*` values are built into the site, so a change needs a new
 deployment. Set these on the production environment before stage 2:
 
-| Variable                                                                                       | Value                                   | When                                        |
-| ---------------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------- |
-| `NEXT_PUBLIC_STELLAR_NETWORK`                                                                  | `TESTNET`                               | Already set                                 |
-| `NEXT_PUBLIC_STELLAR_RPC_URL`, `NEXT_PUBLIC_NETWORK_PASSPHRASE`                                | Testnet values                          | Stage 2                                     |
-| `NEXT_PUBLIC_CORE_CONTRACT_ID`, `NEXT_PUBLIC_TAB_CONTRACT_ID`, `NEXT_PUBLIC_TOKEN_CONTRACT_ID` | The `live` set                          | Stage 2 (after stage 3 when the set is new) |
-| `NEXT_PUBLIC_NFT_CONTRACT_ID`                                                                  | v1 value until stage 6, then `live` set | Stage 6 (section 2.5)                       |
-| `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`, `NEXT_PUBLIC_HORIZON_URL`   | Unchanged                               | Removed with the v1 code                    |
+| Variable                                                                                                                              | Value          | When                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------- |
+| `NEXT_PUBLIC_STELLAR_NETWORK`                                                                                                         | `TESTNET`      | Already set                                 |
+| `NEXT_PUBLIC_STELLAR_RPC_URL`, `NEXT_PUBLIC_NETWORK_PASSPHRASE`                                                                       | Testnet values | Stage 2                                     |
+| `NEXT_PUBLIC_CORE_CONTRACT_ID`, `NEXT_PUBLIC_TAB_CONTRACT_ID`, `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID`, `NEXT_PUBLIC_TOKEN_CONTRACT_ID` | The `live` set | Stage 2 (after stage 3 when the set is new) |
+| `NEXT_PUBLIC_NFT_CONTRACT_ID` (v1 NFT)                                                                                                | Unchanged      | Removed with the v1 code (section 2.5)      |
+| `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`, `NEXT_PUBLIC_HORIZON_URL`                                          | Unchanged      | Removed with the v1 code                    |
 
 If the live contract set is deployed after the site, rebuild the site once the
 contract IDs are set.
@@ -364,6 +396,10 @@ rollback. Do not start a stage until the previous stage's check passes.
 - Convex dashboard, **Functions**: `chain/indexer:pollEvents`,
   `tabSettler:settleDue` and `tipEarnings:syncV2TipEarnings` exist. Their
   cron logs show that they return without work (no contract configured).
+  Without v2 settings the five v2 crons make no RPC call and write no row
+  (`scripts/chain/crons-unconfigured.test.ts`). Together they add about
+  4,300 short function calls a day (indexer and earnings sync every minute,
+  recheck every 2 minutes, settler every 10 minutes, config refresh hourly).
 - `GET https://www.quilltip.me/api/health` returns 200.
 
 **Rollback:** set `CHAIN_V2_ENABLED=false` (already) and leave the code. The
@@ -474,9 +510,7 @@ not as an error.
 ### Stage 6. Switch on v2
 
 1. Set `CHAIN_V2_ENABLED=true` on the live deployment. Record the time.
-2. Set `NEXT_PUBLIC_NFT_CONTRACT_ID` on Vercel to the `live` NFT contract and
-   redeploy the site (section 2.5).
-3. Run the post-cutover verification (section 7) at once.
+2. Run the post-cutover verification (section 7) at once.
 
 **Check:** section 7.1 passes.
 **Rollback:** section 6, stage B.
@@ -501,11 +535,11 @@ the rollback in section 6 stays available. Then run the removal PRs
 
 ## 6. Rollback plan
 
-| Stage reached                      | Rollback                                                                                                                                                                                                                                                                                                                                          | Data step                                                                                                                                                                                                                                                                                                                                                                                                          |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A. Stages 1 to 5                   | Reverse the last setting: `CHAIN_V1_PREPARES_ENABLED=true`, `SETTLEMENT_ENABLED=false`, remove the v2 contract IDs. Frontend: Vercel Instant Rollback only if the site is broken.                                                                                                                                                                 | None                                                                                                                                                                                                                                                                                                                                                                                                               |
-| B. Stage 6 or 7                    | 1. Set `CHAIN_V2_ENABLED=false` and `CHAIN_V1_PREPARES_ENABLED=true`; set `NEXT_PUBLIC_NFT_CONTRACT_ID` back and redeploy. 2. Unpause v1 if it was paused. 3. Keep the indexer, the settler and `SETTLEMENT_ENABLED=true`. 4. Pause the v2 Tab: `bun run contracts:roles-v2 --set live --keys-dir <dir> --action pause --contracts tab --submit`. | None. v2 rows stay and remain visible. Accepted vouchers still settle. The contract still lets readers withdraw and revoke keys and writers claim (I-27), but the app's tab operations (`tabs:prepareWithdrawStart`, `prepareWithdraw`, `prepareRevokeKey` and the others) refuse with `CHAIN_V2_DISABLED` while `CHAIN_V2_ENABLED=false`, so during this rollback those actions need a wallet or the Stellar CLI. |
-| C. After stage 8 (v1 code removed) | No switch rollback. A return to v1 means restoring the removed code from Git in a new release.                                                                                                                                                                                                                                                    | Yes: any v2 activity since the switch must be kept; nothing is migrated back.                                                                                                                                                                                                                                                                                                                                      |
+| Stage reached                      | Rollback                                                                                                                                                                                                                                                                                     | Data step                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A. Stages 1 to 5                   | Reverse the last setting: `CHAIN_V1_PREPARES_ENABLED=true`, `SETTLEMENT_ENABLED=false`, remove the v2 contract IDs. Frontend: Vercel Instant Rollback only if the site is broken.                                                                                                            | None                                                                                                                                                                                                                                                                                                                                                                                                               |
+| B. Stage 6 or 7                    | 1. Set `CHAIN_V2_ENABLED=false` and `CHAIN_V1_PREPARES_ENABLED=true`. 2. Unpause v1 if it was paused. 3. Keep the indexer, the settler and `SETTLEMENT_ENABLED=true`. 4. Pause the v2 Tab: `bun run contracts:roles-v2 --set live --keys-dir <dir> --action pause --contracts tab --submit`. | None. v2 rows stay and remain visible. Accepted vouchers still settle. The contract still lets readers withdraw and revoke keys and writers claim (I-27), but the app's tab operations (`tabs:prepareWithdrawStart`, `prepareWithdraw`, `prepareRevokeKey` and the others) refuse with `CHAIN_V2_DISABLED` while `CHAIN_V2_ENABLED=false`, so during this rollback those actions need a wallet or the Stellar CLI. |
+| C. After stage 8 (v1 code removed) | No switch rollback. A return to v1 means restoring the removed code from Git in a new release.                                                                                                                                                                                               | Yes: any v2 activity since the switch must be kept; nothing is migrated back.                                                                                                                                                                                                                                                                                                                                      |
 
 **Point after which rollback needs a data step:** the first removal PR that
 drops v1 code or tables (section 8). Until then every rollback is a setting.
@@ -574,9 +608,12 @@ No entry is `archived`. Extend `due` entries with `--submit`.
 The removal follows section 8.6 of the specification, in separate PRs to
 `overhaul/v2` or `main`, each passing `bun run check` and the Playwright
 fixture suites. v1 rows are kept and stay labelled. The v1 tables
-`articleTipIntents` and `highlightTipIntents` are dropped only after stage 5
-showed that no v1 record is pending. Variables removed with the v1 code:
+`articleTipIntents` and `highlightTipIntents` are kept read-only as an audit
+trail: existing tip rows refer to them. The v1 read queries stay until every
+screen reads through the combined v1 and v2 queries; only unused ones are
+removed. Variables removed with the v1 code:
 `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`,
+`NEXT_PUBLIC_NFT_CONTRACT_ID`,
 `NEXT_PUBLIC_HORIZON_URL`, `NEXT_PUBLIC_SOROBAN_RPC_URL`,
 `TIPPING_CONTRACT_ID`, `HORIZON_URL`, `RECONCILE_TIPS_ENABLED` and
 `CHAIN_V1_PREPARES_ENABLED`. Remove each from Vercel and Convex only after the
