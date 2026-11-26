@@ -68,7 +68,8 @@ async function expectCleanLoad(page: Page, path: string) {
   }
 
   // Let hydration, lazy chunks and live queries run.
-  await page.waitForLoadState('networkidle').catch(() => {})
+  // A route may keep a request open, so the idle wait is bounded.
+  await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
   await page.waitForTimeout(1000)
   expect(await violations(), `${path} CSP violations`).toEqual([])
 }

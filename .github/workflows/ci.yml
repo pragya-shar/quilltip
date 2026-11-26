@@ -130,6 +130,48 @@ jobs:
       - name: Check page-load budget
         run: bun run perf:budget
 
+  csp:
+    name: Content Security Policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
+      # Production build against the local fixture backend
+      # (scripts/perf/fixture-backend.ts); no backend or secrets.
+      - name: Build against the fixture backend
+        run: bun run build
+        env:
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      - name: Load the main routes with no CSP violations
+        run: bun run test:e2e:csp
+        env:
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
   audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
@@ -205,13 +247,14 @@ jobs:
     name: Required
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [quality, build, audit, contracts, e2e-fixtures]
+    needs: [quality, build, csp, audit, contracts, e2e-fixtures]
     if: always()
     steps:
       - name: Check required CI jobs
         env:
           QUALITY_RESULT: ${{ needs.quality.result }}
           BUILD_RESULT: ${{ needs.build.result }}
+          CSP_RESULT: ${{ needs.csp.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           E2E_FIXTURES_RESULT: ${{ needs.e2e-fixtures.result }}
@@ -230,6 +273,7 @@ jobs:
 
           check_result "Lint & Typecheck" "$QUALITY_RESULT"
           check_result "Build" "$BUILD_RESULT"
+          check_result "Content Security Policy" "$CSP_RESULT"
           check_result "Dependency Audit" "$AUDIT_RESULT"
           check_result "Contracts" "$CONTRACTS_RESULT"
           check_result "Playwright (fixtures)" "$E2E_FIXTURES_RESULT"

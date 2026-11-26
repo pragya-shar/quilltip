@@ -11,11 +11,10 @@
 
 import { chromium, type Browser, type Page } from '@playwright/test'
 import { spawn, type ChildProcess } from 'child_process'
-import { createHash } from 'crypto'
-import { createServer } from 'http'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
-import { answerFixtureQuery, FIXTURE_ARTICLE_PATH } from './convex-fixture'
+import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
+import { startFixtureBackend } from './fixture-backend'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
 const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
@@ -88,50 +87,6 @@ type Run = {
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b)
   return sorted[Math.floor(sorted.length / 2)] ?? 0
-}
-
-function startFixtureBackend() {
-  const server = createServer(async (request, response) => {
-    if (request.method === 'POST' && request.url === '/api/query') {
-      const chunks: Buffer[] = []
-      for await (const chunk of request) chunks.push(chunk as Buffer)
-      const body = JSON.parse(Buffer.concat(chunks).toString()) as {
-        path: string
-        args: Record<string, unknown> | Record<string, unknown>[]
-      }
-      const args = Array.isArray(body.args) ? (body.args[0] ?? {}) : body.args
-      const answer = answerFixtureQuery(body.path, args)
-      response.writeHead(answer ? 200 : 560, {
-        'content-type': 'application/json',
-      })
-      response.end(
-        JSON.stringify(
-          answer
-            ? { status: 'success', value: answer.value }
-            : { status: 'error', errorMessage: `No fixture for ${body.path}` }
-        )
-      )
-      return
-    }
-    response.writeHead(404).end()
-  })
-  // The browser client opens a sync socket. Accept it and stay quiet, so pages
-  // keep the server-rendered data, as they do until live data arrives.
-  server.on('upgrade', (request, socket) => {
-    const key = request.headers['sec-websocket-key']
-    if (!key) return socket.destroy()
-    const accept = createHash('sha1')
-      .update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
-      .digest('base64')
-    socket.write(
-      'HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n' +
-        `Connection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`
-    )
-    socket.on('data', () => {})
-    socket.on('error', () => {})
-  })
-  server.listen(CONVEX_PORT, '127.0.0.1')
-  return server
 }
 
 async function startApp(): Promise<ChildProcess | undefined> {
@@ -253,7 +208,7 @@ async function measure(
 }
 
 async function main() {
-  const backend = startFixtureBackend()
+  const backend = startFixtureBackend(CONVEX_PORT)
   const app = await startApp()
   const browser = await chromium.launch()
   const failures: string[] = []
