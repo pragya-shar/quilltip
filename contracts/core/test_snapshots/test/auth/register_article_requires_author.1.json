@@ -123,7 +123,7 @@
                     "symbol": "Article"
                   },
                   {
-                    "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                    "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                   }
                 ]
               },
@@ -751,7 +751,7 @@
                 "symbol": "article_registered"
               },
               {
-                "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
               },
               {
                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
@@ -759,6 +759,14 @@
             ],
             "data": {
               "map": [
+                {
+                  "key": {
+                    "symbol": "article_ref"
+                  },
+                  "val": {
+                    "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                  }
+                },
                 {
                   "key": {
                     "symbol": "content_hash"

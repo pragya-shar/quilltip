@@ -58,15 +58,17 @@ fn registration_events() {
     let e = &f.e;
     let author = Address::generate(e);
     let co = Address::generate(e);
-    let id = random_id(e);
+    let article_ref = random_id(e);
     let s = splits(e, &[author.clone(), co.clone()], &[8_000, 2_000]);
-    f.core
-        .register_article(&author, &id, &hash(e, 1), &Some(hash(e, 2)), &s);
+    let id = f
+        .core
+        .register_article(&author, &article_ref, &hash(e, 1), &Some(hash(e, 2)), &s);
     assert_events(
         &f,
         &[&ArticleRegistered {
             article_id: id.clone(),
             author: author.clone(),
+            article_ref: article_ref.clone(),
             content_hash: hash(e, 1),
             arweave_id: Some(hash(e, 2)),
             splits: s.clone(),

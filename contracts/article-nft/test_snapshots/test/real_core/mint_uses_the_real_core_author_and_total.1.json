@@ -91,7 +91,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVAX5"
                 },
                 {
-                  "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                  "bytes": "83bac7408da57195f1d3a04a70697123071736291ec52928a591f1659c7cba9f"
                 },
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
@@ -167,7 +167,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVAX5"
                 },
                 {
-                  "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                  "bytes": "83bac7408da57195f1d3a04a70697123071736291ec52928a591f1659c7cba9f"
                 },
                 {
                   "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
@@ -238,7 +238,7 @@
               "function_name": "mint",
               "args": [
                 {
-                  "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                  "bytes": "83bac7408da57195f1d3a04a70697123071736291ec52928a591f1659c7cba9f"
                 }
               ]
             }
@@ -337,7 +337,7 @@
                     "symbol": "Article"
                   },
                   {
-                    "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                    "bytes": "83bac7408da57195f1d3a04a70697123071736291ec52928a591f1659c7cba9f"
                   }
                 ]
               },
@@ -704,7 +704,7 @@
                     "symbol": "Total"
                   },
                   {
-                    "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                    "bytes": "83bac7408da57195f1d3a04a70697123071736291ec52928a591f1659c7cba9f"
                   },
                   {
                     "address": "CACMVW2KK4H5FZDFF2AUCAKQTEJMZZWJUIZF23XMRVYQBSXYLHZ6BKWN"
@@ -960,7 +960,7 @@
                     "symbol": "MintedArticle"
                   },
                   {
-                    "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                    "bytes": "83bac7408da57195f1d3a04a70697123071736291ec52928a591f1659c7cba9f"
                   }
                 ]
               },
@@ -1162,7 +1162,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                "bytes": "83bac7408da57195f1d3a04a70697123071736291ec52928a591f1659c7cba9f"
               }
             }
           },

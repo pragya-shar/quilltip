@@ -310,7 +310,7 @@
                             "symbol": "article_id"
                           },
                           "val": {
-                            "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                            "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
                           }
                         },
                         {
@@ -346,7 +346,7 @@
                             "symbol": "article_id"
                           },
                           "val": {
-                            "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                            "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
                           }
                         },
                         {
@@ -382,7 +382,7 @@
                             "symbol": "article_id"
                           },
                           "val": {
-                            "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                            "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
                           }
                         },
                         {
@@ -418,7 +418,7 @@
                             "symbol": "article_id"
                           },
                           "val": {
-                            "bytes": "f209d4d32c0cef032794edd46f6655fe2e39160e5c2cfeb71a3c274af254a7b6"
+                            "bytes": "576da35eab98ff9acf4b4abd560cc4a7c9344d93102bd431eb9feaa701989739"
                           }
                         },
                         {
@@ -454,7 +454,7 @@
                             "symbol": "article_id"
                           },
                           "val": {
-                            "bytes": "f209d4d32c0cef032794edd46f6655fe2e39160e5c2cfeb71a3c274af254a7b6"
+                            "bytes": "576da35eab98ff9acf4b4abd560cc4a7c9344d93102bd431eb9feaa701989739"
                           }
                         },
                         {
@@ -490,7 +490,7 @@
                             "symbol": "article_id"
                           },
                           "val": {
-                            "bytes": "f209d4d32c0cef032794edd46f6655fe2e39160e5c2cfeb71a3c274af254a7b6"
+                            "bytes": "576da35eab98ff9acf4b4abd560cc4a7c9344d93102bd431eb9feaa701989739"
                           }
                         },
                         {
@@ -1086,122 +1086,7 @@
                     "symbol": "Article"
                   },
                   {
-                    "bytes": "38229a7cfd67ce91e0669dddb77797ff29237f9d48fea30c3f59a2c89b949ab7"
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "map": [
-                  {
-                    "key": {
-                      "symbol": "arweave_id"
-                    },
-                    "val": "void"
-                  },
-                  {
-                    "key": {
-                      "symbol": "author"
-                    },
-                    "val": {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "content_hash"
-                    },
-                    "val": {
-                      "bytes": "ab01010101010101010101010101010101010101010101010101010101010101"
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "content_version"
-                    },
-                    "val": {
-                      "u32": 1
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "registered_ledger"
-                    },
-                    "val": {
-                      "u32": 1000000
-                    }
-                  },
-                  {
-                    "key": {
-                      "symbol": "splits"
-                    },
-                    "val": {
-                      "vec": [
-                        {
-                          "map": [
-                            {
-                              "key": {
-                                "symbol": "bps"
-                              },
-                              "val": {
-                                "u32": 5000
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "recipient"
-                              },
-                              "val": {
-                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5"
-                              }
-                            }
-                          ]
-                        },
-                        {
-                          "map": [
-                            {
-                              "key": {
-                                "symbol": "bps"
-                              },
-                              "val": {
-                                "u32": 5000
-                              }
-                            },
-                            {
-                              "key": {
-                                "symbol": "recipient"
-                              },
-                              "val": {
-                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6J5N"
-                              }
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 3073600
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "Article"
-                  },
-                  {
-                    "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                    "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
                   }
                 ]
               },
@@ -1376,7 +1261,7 @@
                     "symbol": "Article"
                   },
                   {
-                    "bytes": "f209d4d32c0cef032794edd46f6655fe2e39160e5c2cfeb71a3c274af254a7b6"
+                    "bytes": "576da35eab98ff9acf4b4abd560cc4a7c9344d93102bd431eb9feaa701989739"
                   }
                 ]
               },
@@ -1427,6 +1312,121 @@
                     },
                     "val": {
                       "vec": []
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "ext": "v0"
+        },
+        "live_until": 3073600
+      },
+      {
+        "entry": {
+          "last_modified_ledger_seq": 0,
+          "data": {
+            "contract_data": {
+              "ext": "v0",
+              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAOLZM",
+              "key": {
+                "vec": [
+                  {
+                    "symbol": "Article"
+                  },
+                  {
+                    "bytes": "c1ba58bfd84026a07942ea62b6efa9628a631ef8ec12d4d95f292d19667c04c7"
+                  }
+                ]
+              },
+              "durability": "persistent",
+              "val": {
+                "map": [
+                  {
+                    "key": {
+                      "symbol": "arweave_id"
+                    },
+                    "val": "void"
+                  },
+                  {
+                    "key": {
+                      "symbol": "author"
+                    },
+                    "val": {
+                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "content_hash"
+                    },
+                    "val": {
+                      "bytes": "ab01010101010101010101010101010101010101010101010101010101010101"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "content_version"
+                    },
+                    "val": {
+                      "u32": 1
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "registered_ledger"
+                    },
+                    "val": {
+                      "u32": 1000000
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "splits"
+                    },
+                    "val": {
+                      "vec": [
+                        {
+                          "map": [
+                            {
+                              "key": {
+                                "symbol": "bps"
+                              },
+                              "val": {
+                                "u32": 5000
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "recipient"
+                              },
+                              "val": {
+                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "map": [
+                            {
+                              "key": {
+                                "symbol": "bps"
+                              },
+                              "val": {
+                                "u32": 5000
+                              }
+                            },
+                            {
+                              "key": {
+                                "symbol": "recipient"
+                              },
+                              "val": {
+                                "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6J5N"
+                              }
+                            }
+                          ]
+                        }
+                      ]
                     }
                   }
                 ]
@@ -1863,7 +1863,7 @@
                     "symbol": "Total"
                   },
                   {
-                    "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                    "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
                   },
                   {
                     "address": "CAJS4RVGLFL2ANWW7W6Q4RGOZQXSVXW5BQKJ7A3ISE4EOUM5HHO77CQL"
@@ -1893,7 +1893,7 @@
                     "symbol": "Total"
                   },
                   {
-                    "bytes": "f209d4d32c0cef032794edd46f6655fe2e39160e5c2cfeb71a3c274af254a7b6"
+                    "bytes": "576da35eab98ff9acf4b4abd560cc4a7c9344d93102bd431eb9feaa701989739"
                   },
                   {
                     "address": "CAJS4RVGLFL2ANWW7W6Q4RGOZQXSVXW5BQKJ7A3ISE4EOUM5HHO77CQL"
@@ -2820,7 +2820,7 @@
                 "symbol": "tipped"
               },
               {
-                "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
               },
               {
                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
@@ -3109,7 +3109,7 @@
                 "symbol": "tipped"
               },
               {
-                "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
               },
               {
                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
@@ -3398,7 +3398,7 @@
                 "symbol": "tipped"
               },
               {
-                "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
               },
               {
                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
@@ -3571,7 +3571,7 @@
                 "symbol": "tipped"
               },
               {
-                "bytes": "f209d4d32c0cef032794edd46f6655fe2e39160e5c2cfeb71a3c274af254a7b6"
+                "bytes": "576da35eab98ff9acf4b4abd560cc4a7c9344d93102bd431eb9feaa701989739"
               },
               {
                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABDWC6"
@@ -3744,7 +3744,7 @@
                 "symbol": "tipped"
               },
               {
-                "bytes": "f209d4d32c0cef032794edd46f6655fe2e39160e5c2cfeb71a3c274af254a7b6"
+                "bytes": "576da35eab98ff9acf4b4abd560cc4a7c9344d93102bd431eb9feaa701989739"
               },
               {
                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABDWC6"
@@ -3917,7 +3917,7 @@
                 "symbol": "tipped"
               },
               {
-                "bytes": "f209d4d32c0cef032794edd46f6655fe2e39160e5c2cfeb71a3c274af254a7b6"
+                "bytes": "576da35eab98ff9acf4b4abd560cc4a7c9344d93102bd431eb9feaa701989739"
               },
               {
                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABDWC6"

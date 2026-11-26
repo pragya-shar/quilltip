@@ -24,5 +24,7 @@ pub mod roles;
 pub mod ttl;
 
 pub use constants::*;
-pub use ids::{ArticleId, ArweaveId, ClientRef, ContentHash, HighlightId, ReceiptsRoot};
+pub use ids::{
+    ArticleId, ArticleRef, ArweaveId, ClientRef, ContentHash, HighlightId, ReceiptsRoot,
+};
 pub use payload::{AcceptancePayload, TipReceipt, VoucherPayload};

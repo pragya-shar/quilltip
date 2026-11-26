@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  CanonicalArticleError,
   articleIdHex,
+  articleRefHex,
   highlightIdHex,
   isHexOfLength,
   newClientRefHex,
@@ -44,7 +46,12 @@ const vectors = JSON.parse(
   )
 ) as {
   identifiers: {
-    article_ids: Array<{ article_id: string; convex_id: string }>
+    article_refs: Array<{ article_ref: string; convex_id: string }>
+    article_ids: Array<{
+      author: string
+      article_ref: string
+      article_id: string
+    }>
     highlight_ids: Array<{
       highlight_id: string
       source: string
@@ -87,12 +94,30 @@ function event(overrides: Parameters<typeof tippedEventXdr>[0] | object = {}) {
 }
 
 describe('identifiers match the shared test vectors', () => {
-  it.each(vectors.identifiers.article_ids)(
-    'article_id for $convex_id',
-    async ({ convex_id, article_id }) => {
-      expect(await articleIdHex(convex_id)).toBe(article_id)
+  it.each(vectors.identifiers.article_refs)(
+    'article_ref for $convex_id',
+    async ({ convex_id, article_ref }) => {
+      expect(await articleRefHex(convex_id)).toBe(article_ref)
     }
   )
+
+  it.each(vectors.identifiers.article_ids)(
+    'article_id for $author',
+    async ({ author, article_ref, article_id }) => {
+      expect(await articleIdHex(author, article_ref)).toBe(article_id)
+    }
+  )
+
+  it('binds article_id to the author address', async () => {
+    const [a, b] = vectors.identifiers.article_ids
+    if (!a || !b) throw new Error('vectors need two article_ids')
+    expect(a.article_ref).toBe(b.article_ref)
+    expect(a.author).not.toBe(b.author)
+    expect(a.article_id).not.toBe(b.article_id)
+    await expect(articleIdHex('not-an-address', a.article_ref)).rejects.toThrow(
+      CanonicalArticleError
+    )
+  })
 
   it.each(vectors.identifiers.highlight_ids)(
     'highlight_id for $source',

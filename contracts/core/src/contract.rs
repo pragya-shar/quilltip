@@ -162,20 +162,25 @@ impl QuillTipCore {
 
     // ---------------- Article registration ----------------
 
+    /// Registers an article for `author` and returns its `article_id`.
+    ///
+    /// The ID is derived from `author` and `article_ref`
+    /// ([`ids::article_id`]), so only the author can register it.
     #[when_not_paused]
     pub fn register_article(
         e: &Env,
         author: Address,
-        article_id: BytesN<32>,
+        article_ref: BytesN<32>,
         content_hash: BytesN<32>,
         arweave_id: Option<BytesN<32>>,
         splits: Vec<Split>,
-    ) {
+    ) -> BytesN<32> {
         author.require_auth();
+        require_valid_hash(e, &article_ref);
+        let article_id = ids::article_id(e, &author, &article_ref);
         if storage::article(e, &article_id).is_some() {
             panic_with_error!(e, CoreError::AlreadyRegistered);
         }
-        require_valid_hash(e, &article_id);
         require_valid_hash(e, &content_hash);
         require_valid_arweave(e, &arweave_id);
         split::validate(e, &author, &storage::treasury(e), &splits);
@@ -192,13 +197,15 @@ impl QuillTipCore {
         ttl::extend_instance(e);
 
         ArticleRegistered {
-            article_id,
+            article_id: article_id.clone(),
             author,
+            article_ref,
             content_hash,
             arweave_id,
             splits,
         }
         .publish(e);
+        article_id
     }
 
     #[when_not_paused]
@@ -394,6 +401,11 @@ impl QuillTipCore {
     }
 
     // ---------------- Views ----------------
+
+    /// The `article_id` that `register_article(author, article_ref, ..)` uses.
+    pub fn article_id(e: &Env, author: Address, article_ref: BytesN<32>) -> BytesN<32> {
+        ids::article_id(e, &author, &article_ref)
+    }
 
     pub fn get_article(e: &Env, article_id: BytesN<32>) -> Option<ArticleRecord> {
         storage::article(e, &article_id)

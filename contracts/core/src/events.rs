@@ -12,6 +12,7 @@ pub struct ArticleRegistered {
     pub article_id: BytesN<32>,
     #[topic]
     pub author: Address,
+    pub article_ref: BytesN<32>,
     pub content_hash: BytesN<32>,
     pub arweave_id: Option<BytesN<32>>,
     pub splits: Vec<Split>,

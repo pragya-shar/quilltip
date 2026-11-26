@@ -153,9 +153,13 @@ impl Fixture {
     /// Registers an article with no splits and returns `(article_id, author)`.
     pub fn article(&self) -> (BytesN<32>, Address) {
         let author = Address::generate(&self.e);
-        let id = random_id(&self.e);
-        self.core
-            .register_article(&author, &id, &hash(&self.e, 1), &None, &vec![&self.e]);
+        let id = self.core.register_article(
+            &author,
+            &random_id(&self.e),
+            &hash(&self.e, 1),
+            &None,
+            &vec![&self.e],
+        );
         (id, author)
     }
 
@@ -163,10 +167,9 @@ impl Fixture {
     pub fn article_with_splits(&self, bps: &[u32]) -> (BytesN<32>, std::vec::Vec<Address>) {
         let recipients: std::vec::Vec<Address> =
             bps.iter().map(|_| Address::generate(&self.e)).collect();
-        let id = random_id(&self.e);
-        self.core.register_article(
+        let id = self.core.register_article(
             &recipients[0],
-            &id,
+            &random_id(&self.e),
             &hash(&self.e, 1),
             &None,
             &splits(&self.e, &recipients, bps),
