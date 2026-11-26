@@ -507,3 +507,11 @@
     padding-bottom: 4px;
   }
 }
+.reader-tips-unavailable {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--ui-muted-foreground);
+  font:
+    400 15px/1.5 'Reader Syne',
+    sans-serif;
+}
