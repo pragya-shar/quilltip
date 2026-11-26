@@ -541,7 +541,7 @@ impl AccessControl for QuillTipCore {
     }
 
     fn renounce_role(e: &Env, role: Symbol, caller: Address) {
-        access_control::renounce_role(e, &role, &caller);
+        roles::renounce_role(e, &role, &caller);
         ttl::extend_instance(e);
     }
 

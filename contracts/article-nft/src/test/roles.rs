@@ -89,3 +89,46 @@ fn upgrader_role_admin_cannot_be_set() {
     );
     assert_eq!(s.nft.get_role_admin(&role), None);
 }
+
+/// The admin cannot restore `upgrader`, so its last holder can neither be
+/// revoked nor renounce. A successor must be granted first.
+#[test]
+fn last_upgrader_cannot_leave() {
+    let s = setup();
+    let role = Symbol::new(&s.e, UPGRADER_ROLE);
+    s.allow(
+        &s.upgrader,
+        "revoke_role",
+        (s.upgrader.clone(), role.clone(), s.upgrader.clone()).into_val(&s.e),
+    );
+    assert_fails(
+        s.nft.try_revoke_role(&s.upgrader, &role, &s.upgrader),
+        AccessControlError::Unauthorized,
+    );
+    s.allow(
+        &s.upgrader,
+        "renounce_role",
+        (role.clone(), s.upgrader.clone()).into_val(&s.e),
+    );
+    assert_fails(
+        s.nft.try_renounce_role(&role, &s.upgrader),
+        AccessControlError::Unauthorized,
+    );
+    assert!(s.nft.has_role(&s.upgrader, &role).is_some());
+
+    let next = Address::generate(&s.e);
+    s.allow(
+        &s.upgrader,
+        "grant_role",
+        (next.clone(), role.clone(), s.upgrader.clone()).into_val(&s.e),
+    );
+    s.nft.grant_role(&next, &role, &s.upgrader);
+    s.allow(
+        &s.upgrader,
+        "renounce_role",
+        (role.clone(), s.upgrader.clone()).into_val(&s.e),
+    );
+    s.nft.renounce_role(&role, &s.upgrader);
+    assert!(s.nft.has_role(&s.upgrader, &role).is_none());
+    assert!(s.nft.has_role(&next, &role).is_some());
+}

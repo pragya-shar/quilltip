@@ -645,6 +645,11 @@ impl AccessControl for QuillTipTab {
         ttl::extend_instance(e);
     }
 
+    fn renounce_role(e: &Env, role: Symbol, caller: Address) {
+        roles::renounce_role(e, &role, &caller);
+        ttl::extend_instance(e);
+    }
+
     fn set_role_admin(e: &Env, role: Symbol, admin_role: Symbol) {
         roles::set_role_admin(e, &role, &admin_role);
         ttl::extend_instance(e);

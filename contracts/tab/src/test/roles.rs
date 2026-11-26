@@ -103,3 +103,49 @@ fn upgrader_role_admin_cannot_be_set() {
     f.client().grant_role(&relayer, &ROLE_SETTLER, &f.admin);
     assert!(f.client().has_role(&relayer, &ROLE_SETTLER).is_some());
 }
+
+/// The admin cannot restore `upgrader`, so its last holder can neither be
+/// revoked nor renounce. A successor must be granted first.
+#[test]
+fn last_upgrader_cannot_leave() {
+    let f = Fixture::new();
+    f.auth(
+        &f.upgrader,
+        "revoke_role",
+        (f.upgrader.clone(), ROLE_UPGRADER, f.upgrader.clone()).into_val(&f.e),
+    );
+    assert_eq!(
+        f.client()
+            .try_revoke_role(&f.upgrader, &ROLE_UPGRADER, &f.upgrader)
+            .err(),
+        unauthorized()
+    );
+    f.auth(
+        &f.upgrader,
+        "renounce_role",
+        (ROLE_UPGRADER, f.upgrader.clone()).into_val(&f.e),
+    );
+    assert_eq!(
+        f.client()
+            .try_renounce_role(&ROLE_UPGRADER, &f.upgrader)
+            .err(),
+        unauthorized()
+    );
+    assert!(f.client().has_role(&f.upgrader, &ROLE_UPGRADER).is_some());
+
+    let next = Address::generate(&f.e);
+    f.auth(
+        &f.upgrader,
+        "grant_role",
+        (next.clone(), ROLE_UPGRADER, f.upgrader.clone()).into_val(&f.e),
+    );
+    f.client().grant_role(&next, &ROLE_UPGRADER, &f.upgrader);
+    f.auth(
+        &f.upgrader,
+        "renounce_role",
+        (ROLE_UPGRADER, f.upgrader.clone()).into_val(&f.e),
+    );
+    f.client().renounce_role(&ROLE_UPGRADER, &f.upgrader);
+    assert!(f.client().has_role(&f.upgrader, &ROLE_UPGRADER).is_none());
+    assert!(f.client().has_role(&next, &ROLE_UPGRADER).is_some());
+}

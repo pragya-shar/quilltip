@@ -6,6 +6,9 @@
 //! The admin alone cannot change it. On mainnet the upgrader is a timelock,
 //! so this keeps every code change behind the timelock delay.
 //!
+//! Because the admin cannot restore the role, the last `upgrader` can neither
+//! be revoked nor renounce. Grant a successor first, then remove the old one.
+//!
 //! All other roles keep the OpenZeppelin rules: the admin, or a holder of the
 //! role's admin role, grants and revokes them.
 
@@ -37,14 +40,33 @@ pub fn grant_role(e: &Env, account: &Address, role: &Symbol, caller: &Address) {
     }
 }
 
-/// OpenZeppelin `revoke_role`, except that only an upgrader revokes `upgrader`.
+/// Fails when `account` holds `upgrader` and is its only holder.
+fn require_not_last_upgrader(e: &Env, account: &Address, role: &Symbol) {
+    if access_control::has_role(e, account, role).is_some()
+        && access_control::get_role_member_count(e, role) <= 1
+    {
+        panic_with_error!(e, AccessControlError::Unauthorized);
+    }
+}
+
+/// OpenZeppelin `revoke_role`, except that only an upgrader revokes `upgrader`,
+/// and never its last holder.
 pub fn revoke_role(e: &Env, account: &Address, role: &Symbol, caller: &Address) {
     if is_upgrader_role(e, role) {
         require_upgrader(e, caller);
+        require_not_last_upgrader(e, account, role);
         access_control::revoke_role_no_auth(e, account, role, caller);
     } else {
         access_control::revoke_role(e, account, role, caller);
     }
+}
+
+/// OpenZeppelin `renounce_role`, except that the last `upgrader` cannot renounce.
+pub fn renounce_role(e: &Env, role: &Symbol, caller: &Address) {
+    if is_upgrader_role(e, role) {
+        require_not_last_upgrader(e, caller, role);
+    }
+    access_control::renounce_role(e, role, caller);
 }
 
 /// OpenZeppelin `set_role_admin`, except that the role admin of `upgrader`
