@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PaymentNotice, WalletGate } from '@/components/payments'
 import { useTabServices } from '@/hooks/tab/TabServicesContext'
 import { useReaderTab } from '@/hooks/tab/useReaderTab'
@@ -42,6 +42,19 @@ export function TabHome() {
     device,
   })
   const [form, setForm] = useState<'open' | 'top-up' | null>(null)
+  // Closing the form returns focus to the button that opened it.
+  const trigger = useRef<HTMLButtonElement>(null)
+  const [refocus, setRefocus] = useState(false)
+  useEffect(() => {
+    if (refocus && form === null) {
+      trigger.current?.focus()
+      setRefocus(false)
+    }
+  }, [refocus, form])
+  const cancelForm = () => {
+    setForm(null)
+    setRefocus(true)
+  }
 
   const start = (request: OperationRequest) => {
     setForm(null)
@@ -150,11 +163,12 @@ export function TabHome() {
                     address={access.address}
                     tabBalance={tab?.confirmedBalance ?? '0'}
                     onSubmit={(amount) => start({ flow: 'tab-open', amount })}
-                    onCancel={() => setForm(null)}
+                    onCancel={cancelForm}
                   />
                 ) : (
                   <div className="tab-actions">
                     <button
+                      ref={trigger}
                       type="button"
                       className="tab-primary"
                       onClick={() => setForm('open')}
@@ -187,11 +201,12 @@ export function TabHome() {
                   tabBalance={tab.confirmedBalance}
                   closing={tab.status === 'CLOSING'}
                   onSubmit={(amount) => start({ flow: 'tab-top-up', amount })}
-                  onCancel={() => setForm(null)}
+                  onCancel={cancelForm}
                 />
               ) : (
                 <div className="tab-actions">
                   <button
+                    ref={trigger}
                     type="button"
                     className="tab-primary"
                     onClick={() => setForm('top-up')}

@@ -50,6 +50,7 @@
 }
 .tab-section > header p {
   color: var(--tab-muted);
+  text-wrap: pretty;
 }
 .tab-section-title {
   text-wrap: balance;

@@ -397,6 +397,24 @@ test('closing states the waiting period and the estimated date first', async ({
   await shot(page, 'close-started')
 })
 
+test('Escape and Cancel return focus to the button that opened the step', async ({
+  page,
+}) => {
+  await open(page, 'home-open')
+  const topUp = page.getByRole('button', { name: 'Top up', exact: true })
+  await topUp.click()
+  await expect(page.getByLabel('Amount in XLM')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(topUp).toBeFocused()
+  const close = page.getByRole('button', { name: 'Close tab' })
+  await close.click()
+  await expect(
+    page.getByRole('heading', { name: 'Close your tab?' })
+  ).toBeFocused()
+  await page.getByRole('button', { name: 'Keep my tab open' }).click()
+  await expect(close).toBeFocused()
+})
+
 test('withdraws once the unlock ledger has passed', async ({ page }) => {
   await open(page, 'home-withdraw-ready')
   await page.getByRole('button', { name: /^Withdraw / }).click()

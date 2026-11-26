@@ -110,6 +110,12 @@ export function TabFundForm({
       className="tab-form"
       aria-labelledby={`${id}-title`}
       noValidate
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onCancel()
+        }
+      }}
       onSubmit={(event) => {
         event.preventDefault()
         if (problem) {

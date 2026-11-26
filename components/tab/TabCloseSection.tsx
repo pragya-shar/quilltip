@@ -35,8 +35,17 @@ export function TabCloseSection({
 }: TabCloseSectionProps) {
   const [confirming, setConfirming] = useState(false)
   const confirmRef = useRef<HTMLHeadingElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const opened = useRef(false)
   useEffect(() => {
-    if (confirming) confirmRef.current?.focus()
+    if (confirming) {
+      opened.current = true
+      confirmRef.current?.focus()
+    } else if (opened.current) {
+      // Back from the confirmation: focus returns to "Close tab".
+      opened.current = false
+      closeRef.current?.focus()
+    }
   }, [confirming])
 
   if (status.kind === 'open') {
@@ -54,6 +63,9 @@ export function TabCloseSection({
             className="tab-form"
             role="group"
             aria-labelledby="tab-close-confirm"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setConfirming(false)
+            }}
           >
             <h3
               id="tab-close-confirm"
@@ -71,6 +83,8 @@ export function TabCloseSection({
                 className="tab-primary"
                 disabled={busy}
                 onClick={() => {
+                  // The payment view takes focus from here, not "Close tab".
+                  opened.current = false
                   setConfirming(false)
                   onClose()
                 }}
@@ -89,6 +103,7 @@ export function TabCloseSection({
         ) : (
           <div className="tab-actions">
             <button
+              ref={closeRef}
               type="button"
               className="tab-secondary"
               disabled={busy}
