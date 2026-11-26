@@ -1,0 +1,296 @@
+/* Profile settings and new-writer setup. Lives inside .account-surface (or
+   .welcome-surface) and reuses the account palette. */
+.profile-settings,
+.welcome-card {
+  --profile-paper: #faf5ec;
+  --profile-ink: #390c18;
+  --profile-wine: #790333;
+  --profile-muted: #5e535a;
+  --profile-line: #cdb9b4;
+  --settings-field: #f6eddf;
+  --settings-error: #942339;
+  max-width: 720px;
+}
+.profile-settings ::selection,
+.welcome-card ::selection {
+  background: #79033326;
+}
+/* A grid, not a wrapping flex row: whether the link fits beside the text must
+   not depend on which font has loaded, or the form below jumps. */
+.settings-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px 32px;
+}
+@media (max-width: 600px) {
+  .settings-heading {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+}
+.settings-heading p {
+  max-width: 48ch;
+}
+.settings-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  font-size: 15px;
+  text-decoration: underline;
+  text-underline-offset: 5px;
+}
+.settings-identity {
+  border-top: 1px solid var(--profile-line);
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 16px 28px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--profile-line);
+}
+.settings-row-text {
+  flex: 1;
+  min-width: 0;
+}
+.account-surface .settings-row-title,
+.welcome-card .settings-row-title {
+  font:
+    600 16px/1.4 'Account Syne',
+    sans-serif;
+  letter-spacing: 0;
+  margin: 0 0 4px;
+}
+.settings-portrait {
+  flex-shrink: 0;
+  padding: 6px;
+}
+.settings-portrait .profile-avatar {
+  width: 88px;
+  height: 88px;
+}
+.settings-portrait .profile-photo-trigger {
+  background: var(--profile-paper);
+  border-radius: 999px;
+  color: var(--profile-wine);
+  cursor: pointer;
+}
+.settings-url {
+  font-size: 17px;
+  overflow-wrap: anywhere;
+  margin-bottom: 6px;
+}
+.settings-url strong {
+  color: var(--profile-wine);
+  font-weight: 600;
+}
+.profile-settings .profile-handle-edit,
+.welcome-card .profile-handle-edit {
+  flex-shrink: 0;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 16px;
+  border: 1px solid var(--profile-wine);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--profile-wine);
+  font-size: 15px;
+  text-decoration: none;
+}
+.settings-form {
+  display: grid;
+  gap: 24px;
+  padding-top: 28px;
+}
+.settings-field {
+  display: grid;
+  gap: 8px;
+}
+.settings-field label {
+  font-size: 15px;
+  font-weight: 600;
+}
+.settings-optional {
+  margin-left: 6px;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--profile-muted);
+}
+.settings-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-count {
+  font-size: 13px;
+  color: var(--profile-muted);
+  font-variant-numeric: tabular-nums;
+}
+.settings-count[data-over] {
+  color: var(--settings-error);
+  font-weight: 600;
+}
+.settings-field :is(input, textarea),
+.settings-prefixed {
+  width: 100%;
+  border: 1px solid #98747b;
+  border-radius: 4px;
+  background: var(--settings-field);
+  color: var(--profile-ink);
+  font:
+    16px/1.5 'Account Syne',
+    sans-serif;
+  caret-color: var(--profile-wine);
+}
+.settings-field input {
+  height: 48px;
+  padding: 10px 13px;
+}
+.settings-field textarea {
+  min-height: 132px;
+  padding: 12px 13px;
+  resize: vertical;
+}
+.settings-field :is(input, textarea)::placeholder {
+  color: #7a6168;
+}
+.settings-field :is(input, textarea):focus-visible,
+.settings-prefixed:focus-within {
+  outline: 2px solid var(--profile-wine);
+  outline-offset: 2px;
+  border-color: var(--profile-wine);
+}
+.settings-field :is(input, textarea)[aria-invalid='true'],
+.settings-prefixed[data-invalid] {
+  border-color: var(--settings-error);
+}
+.settings-prefixed {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  padding-left: 13px;
+  cursor: text;
+}
+.settings-field label.settings-prefixed {
+  font-weight: 400;
+  font-size: 16px;
+}
+.settings-prefixed span {
+  flex-shrink: 0;
+  color: var(--profile-muted);
+  user-select: none;
+}
+.settings-field .settings-prefixed input {
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  padding-left: 1px;
+  border: 0;
+  background: transparent;
+  outline: none;
+}
+.settings-hint {
+  font-size: 14px;
+  color: var(--profile-muted);
+  max-width: 60ch;
+}
+.settings-error {
+  font-size: 14px;
+  color: var(--settings-error);
+}
+.settings-error-banner {
+  padding: 10px 12px;
+  border: 1px solid #94233940;
+  border-radius: 4px;
+  background: #9423390d;
+}
+.settings-status[data-tone='good'] {
+  color: #2d5b3a;
+}
+.settings-primary,
+.settings-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 3px;
+  font:
+    600 15px/1 'Account Syne',
+    sans-serif;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color 150ms ease-out,
+    transform 120ms ease-out;
+}
+.settings-primary {
+  justify-self: start;
+  border: 1px solid var(--profile-wine);
+  background: var(--profile-wine);
+  color: #fff3e2;
+}
+.settings-secondary {
+  border: 1px solid var(--profile-wine);
+  background: transparent;
+  color: var(--profile-wine);
+}
+.settings-primary:active:not(:disabled),
+.settings-secondary:active:not(:disabled) {
+  transform: scale(0.97);
+}
+@media (hover: hover) and (pointer: fine) {
+  .settings-primary:hover:not(:disabled) {
+    background: #8f1a4c;
+  }
+  .settings-secondary:hover:not(:disabled) {
+    background: #79033310;
+  }
+}
+.settings-primary:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.settings-skeleton-line {
+  height: 18px;
+  max-width: 420px;
+  margin-top: 12px;
+  border-radius: 2px;
+  background: #eee4db;
+}
+.settings-skeleton-title {
+  height: 44px;
+  max-width: 200px;
+}
+.settings-skeleton-block {
+  height: 120px;
+  margin-top: 12px;
+  border-radius: 3px;
+  background: #f1e8df;
+}
+@media (max-width: 600px) {
+  .settings-row {
+    flex-wrap: wrap;
+  }
+  .settings-portrait .profile-avatar {
+    width: 72px;
+    height: 72px;
+  }
+  .profile-settings .profile-handle-edit {
+    width: 100%;
+  }
+  .settings-primary {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-primary,
+  .settings-secondary {
+    transition: none;
+  }
+}

@@ -18,6 +18,31 @@ const RESERVED_HANDLES = new Set([
   'system',
 ])
 
+// Handles given to new accounts until the writer picks one (see convex/auth.ts).
+const GENERATED_HANDLE_PATTERN = /^q[0-9a-f]{19}$/
+
+/** True for a handle QuillTip generated at signup, not one the writer chose. */
+export function isGeneratedHandle(handle: string) {
+  return GENERATED_HANDLE_PATTERN.test(handle)
+}
+
+/**
+ * A handle-shaped starting point from a display name, e.g. "Anaïs O'Neil" →
+ * "anais_oneil". Returns null when the name has nothing usable.
+ */
+export function handleBaseFromName(name: string | null | undefined) {
+  const base = (name ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, HANDLE_MAX_LENGTH - 2)
+    .replace(/_+$/g, '')
+  return base.length >= HANDLE_MIN_LENGTH ? base : null
+}
+
 /** Uniqueness and redirects ignore letter case. */
 export function handleKey(handle: string) {
   return handle.toLowerCase()
