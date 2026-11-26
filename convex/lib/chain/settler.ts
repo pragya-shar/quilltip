@@ -386,6 +386,25 @@ export function settleArgs(
 export class TransientSettlementError extends Error {}
 
 /**
+ * A single voucher failed simulation for a reason no voucher can cause on its
+ * own (a missing settler role, a wrong contract, a host or network limit).
+ * Nothing is rejected: rejecting would close every due pair.
+ */
+export class SystemicSettlementError extends TransientSettlementError {}
+
+/**
+ * Failures that one voucher causes by itself, so rejecting it for review is
+ * right: an invalid signature (the host's ed25519 check traps), a missing
+ * reader account (`AccountMissing`, 47) and arithmetic overflow (`Overflow`, 43).
+ */
+export function isVoucherFailure(message: string): boolean {
+  return (
+    /Error\(Crypto, /.test(message) ||
+    /Error\(Contract, #(43|47)\)/.test(message)
+  )
+}
+
+/**
  * Splits a failing batch until each failure is isolated. Returns the vouchers
  * that simulate together and the ones that fail on their own.
  */
@@ -403,6 +422,9 @@ export async function bisect<T>(
   if (r.ok) return { good: items, rejected: [] }
   if (r.kind === 'transient') throw new TransientSettlementError(r.message)
   if (items.length === 1) {
+    if (!isVoucherFailure(r.message)) {
+      throw new SystemicSettlementError(r.message)
+    }
     return { good: [], rejected: [{ item: items[0]!, message: r.message }] }
   }
   const mid = Math.ceil(items.length / 2)
@@ -628,10 +650,24 @@ export async function runSettlementCycle(
       else checked.push(c)
     }
 
-    // 5. Simulate, bisecting on failure.
-    const { good, rejected } = await settleableSet(checked, (items) =>
-      deps.submitter.simulate(items.map(toSettleVoucher))
-    )
+    // 5. Simulate, bisecting on failure. A failure no single voucher explains
+    // stops the run without rejecting anything.
+    let simulated: Awaited<ReturnType<typeof settleableSet<SettleCandidate>>>
+    try {
+      simulated = await settleableSet(checked, (items) =>
+        deps.submitter.simulate(items.map(toSettleVoucher))
+      )
+    } catch (error) {
+      if (error instanceof SystemicSettlementError) {
+        deps.log('TAB_SETTLER_SIMULATION_FAILED', {
+          message: errorText(error),
+          vouchers: checked.length,
+        })
+        return { ...result, status: 'failed' }
+      }
+      throw error
+    }
+    const { good, rejected } = simulated
     for (const r of rejected) {
       rejections.push({
         voucherId: r.item.voucherId,

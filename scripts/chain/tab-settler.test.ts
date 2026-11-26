@@ -371,6 +371,8 @@ class FakeTab {
   sendTransient = 0
   prepareThrows = false
   simulateTransient = 0
+  /** Every simulation fails with this contract error (a batch-wide cause). */
+  simulateSystemic: string | null = null
   /** A sent transaction is included only after this many more lookups. */
   includeAfter = 0
   txSeq = 0
@@ -467,6 +469,9 @@ class FakeTab {
           this.simulateTransient--
           return { ok: false, kind: 'transient', message: 'RPC 503' }
         }
+        if (this.simulateSystemic) {
+          return { ok: false, kind: 'contract', message: this.simulateSystemic }
+        }
         if (vouchers.some((v) => this.poisoned.has(v.writer))) {
           return {
             ok: false,
@@ -529,6 +534,26 @@ function ledgerOf(t: T) {
   } as unknown as ActionCtx)
 }
 
+/** Sets the indexer cursor to `ledger` (inserting it if needed). */
+async function indexedThrough(t: T, ledger: number) {
+  await run(t, async (ctx) => {
+    const cursor = await ctx.db.query('chainCursor').first()
+    const fields = {
+      network: 'TESTNET' as const,
+      chainEpoch: EPOCH,
+      lastLedger: ledger,
+      lastLedgerCloseTime: Math.floor(Date.now() / 1000),
+      latestLedger: ledger,
+      oldestLedger: ledger - 100_000,
+      lagLedgers: 0,
+      status: 'OK' as const,
+      updatedAt: Date.now(),
+    }
+    if (cursor) await ctx.db.patch(cursor._id, fields)
+    else await ctx.db.insert('chainCursor', fields)
+  })
+}
+
 function depsFor(
   t: T,
   fake: FakeTab,
@@ -540,10 +565,11 @@ function depsFor(
     passphrase: PASSPHRASE,
     tabContractId: TAB,
     ledger: ledgerOf(t),
-    latestLedger: async () => ({
-      sequence: fake.ledger,
-      closeTime: fake.closeTime,
-    }),
+    latestLedger: async () => {
+      // A caught-up indexer: its cursor has processed the latest ledger.
+      if (!over.latestLedger) await indexedThrough(t, fake.ledger)
+      return { sequence: fake.ledger, closeTime: fake.closeTime }
+    },
     submitter: fake.submitter(),
     now: () => Date.now(),
     log: (code, details) => logs.push({ code, ...details }),
@@ -791,6 +817,33 @@ describe('settlement', () => {
     }
   })
 
+  it('rejects nothing when every voucher fails for a reason no voucher explains', async () => {
+    const t = convexTest(schema, modules)
+    const fake = new FakeTab()
+    const pairs = await Promise.all(
+      Array.from({ length: 4 }, () => seedPair(t, { ageMs: OLD }))
+    )
+    // For example the settler role was revoked: every simulation traps alike.
+    fake.simulateSystemic = 'HostError: Error(Contract, #2000)'
+    const deps = depsFor(t, fake)
+    const r = await runSettlementCycle(deps)
+    expect(r).toMatchObject({ status: 'failed', submitted: 0, rejected: 0 })
+    expect(deps.logs).toContainEqual(
+      expect.objectContaining({ code: 'TAB_SETTLER_SIMULATION_FAILED' })
+    )
+    for (const p of pairs) {
+      expect(await voucher(t, p.voucherId)).toMatchObject({
+        state: 'ACTIVE',
+        settleQueue: 'ready',
+      })
+    }
+    expect(fake.calls.send).toBe(0)
+    // Once the cause is fixed, the same pairs settle.
+    fake.simulateSystemic = null
+    const again = await runSettlementCycle(depsFor(t, fake))
+    expect(again).toMatchObject({ status: 'confirmed', submitted: 4 })
+  })
+
   it('applies partial outcomes: SHORTFALL parks the pair until a deposit, KEY_EXPIRED is UNPAID, STALE counts as paid', async () => {
     const t = convexTest(schema, modules)
     const fake = new FakeTab()
@@ -1011,6 +1064,26 @@ describe('key windows and starvation', () => {
     expect((await voucher(t, soon.voucherId)).paidOnChain).toBe(
       (BigInt(2) * XLM).toString()
     )
+  })
+
+  it('closes nothing as UNPAID until the indexer has passed the window end', async () => {
+    const t = convexTest(schema, modules)
+    const fake = new FakeTab()
+    const gone = await seedPair(t, { windowLedgers: -1 })
+    // The chain is past the window, but the indexer is behind it: a settlement
+    // in the window's last ledgers may not be applied yet.
+    await indexedThrough(t, LEDGER - 10)
+    const lagging = depsFor(t, fake, {
+      latestLedger: async () => ({
+        sequence: fake.ledger,
+        closeTime: fake.closeTime,
+      }),
+    })
+    expect(await runSettlementCycle(lagging)).toMatchObject({ swept: 0 })
+    expect((await voucher(t, gone.voucherId)).state).toBe('ACTIVE')
+    await indexedThrough(t, fake.ledger)
+    expect(await runSettlementCycle(lagging)).toMatchObject({ swept: 1 })
+    expect((await voucher(t, gone.voucherId)).state).toBe('UNPAID')
   })
 
   it('a revoked key shortens the window', async () => {

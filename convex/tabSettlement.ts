@@ -4,7 +4,11 @@
  * `convex/tabSettler.ts` calls them; nothing here touches the network.
  */
 import { v } from 'convex/values'
-import { internalMutation, internalQuery } from './_generated/server'
+import {
+  internalMutation,
+  internalQuery,
+  type QueryCtx,
+} from './_generated/server'
 import { readChainEnv } from './lib/chain/env'
 import { acquireLease, releaseLease } from './lib/chain/lease'
 import {
@@ -62,11 +66,30 @@ export const sweepExpired = internalMutation({
   args: { ledger: v.number(), limit: v.optional(v.number()) },
   handler: async (ctx, args) =>
     sweepExpiredPairs(ctx, {
-      ledger: args.ledger,
+      ledger: await indexedLedgerAtMost(ctx, args.ledger),
       limit: Math.min(Math.max(1, args.limit ?? SWEEP_LIMIT), 500),
       now: Date.now(),
     }),
 })
+
+/**
+ * The sweep closes a pair only once the indexer has applied every ledger up to
+ * the end of its window, so a settlement that landed in the last ledgers of
+ * the window (for example a writer's `settle_own`) is counted before the pair
+ * becomes `UNPAID`. Without an indexer cursor for this epoch, nothing closes.
+ */
+async function indexedLedgerAtMost(
+  ctx: QueryCtx,
+  ledger: number
+): Promise<number> {
+  const chain = readChainEnv()
+  const cursor = await ctx.db
+    .query('chainCursor')
+    .withIndex('by_network', (q) => q.eq('network', chain.network))
+    .first()
+  if (!cursor || cursor.chainEpoch !== chain.chainEpoch) return 0
+  return Math.min(ledger, cursor.lastLedger)
+}
 
 export const selectCandidates = internalQuery({
   args: { ledger: v.number(), now: v.number() },
