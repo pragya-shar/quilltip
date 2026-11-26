@@ -193,6 +193,12 @@ export function useLiveTabServices(): TabServices {
               (await wallet.signTransaction(xdr, { address: request.source }))
                 .signedTxXdr,
             onStep,
+            // Decode an error code only when it was raised by the Tab
+            // contract the call names, or by the token it moves.
+            contracts: {
+              tab: request.tabContractId,
+              token: v2Config().tokenContractId,
+            },
           },
           tabContractCall(request)
         ),

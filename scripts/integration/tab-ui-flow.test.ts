@@ -135,6 +135,8 @@ async function call(
         tx.sign(kp)
         return tx.toXDR()
       },
+      // As the app's services do: decode codes raised by this Tab or token.
+      contracts: { tab: tabId, token: h.nativeSac },
     },
     tabContractCall({
       call: tabCall,
