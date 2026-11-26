@@ -1,9 +1,9 @@
 # Payments v2 contract deployments (testnet)
 
-QuillTip payments v2 contracts deployed to the **Stellar testnet**. Testnet XLM has no monetary value, by
+QuillTip payments v2 contracts deployed to the **Stellar testnet** by
 `scripts/contracts/deploy-v2-testnet.ts`
-(docs/architecture/v2/08-testing-and-deployment.md, section 8.4). Each contract
-set has its own keys and contracts. This file contains no secrets.
+(docs/architecture/v2/08-testing-and-deployment.md, section 8.4). Testnet XLM has no monetary value. Each
+contract set has its own keys and contracts. This file contains no secrets.
 
 <!-- contract-set:integration:start -->
 

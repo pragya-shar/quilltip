@@ -30,14 +30,16 @@ function txCell(net: DeployNetwork, hash: string | undefined | null): string {
 function header(net: DeployNetwork): string {
   const where =
     net.network === 'TESTNET'
-      ? 'the **Stellar testnet**. Testnet XLM has no monetary value'
+      ? 'the **Stellar testnet**'
       : 'a **local standalone Stellar network** (a rehearsal, not testnet)'
+  const value =
+    net.network === 'TESTNET' ? ' Testnet XLM has no monetary value.' : ''
   return `# Payments v2 contract deployments (${net.network === 'TESTNET' ? 'testnet' : 'local network'})
 
-QuillTip payments v2 contracts deployed to ${where}, by
+QuillTip payments v2 contracts deployed to ${where} by
 \`scripts/contracts/deploy-v2-testnet.ts\`
-(docs/architecture/v2/08-testing-and-deployment.md, section 8.4). Each contract
-set has its own keys and contracts. This file contains no secrets.
+(docs/architecture/v2/08-testing-and-deployment.md, section 8.4).${value} Each
+contract set has its own keys and contracts. This file contains no secrets.
 `
 }
 
