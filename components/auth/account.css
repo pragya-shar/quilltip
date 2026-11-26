@@ -79,8 +79,11 @@
   line-height: 1.65;
   margin: 25px 0 0;
 }
-.account-page .account-recovery-notice {
-  margin: 0 0 20px;
+.account-page .account-forgot-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-size: 13px;
 }
 @media (max-width: 760px) {
   .account-page .logo-study {
@@ -91,7 +94,8 @@
     height: 62px;
     margin-right: -2px;
   }
-  .account-page .account-switch a {
+  .account-page .account-switch a,
+  .account-page .account-forgot-link {
     min-height: 44px;
   }
 }

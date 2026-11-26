@@ -21,6 +21,8 @@ export default defineSchema({
 
     // Authentication
     hashedPassword: v.optional(v.string()),
+    // Set by Convex Auth when an emailed code is verified (password reset).
+    emailVerificationTime: v.optional(v.number()),
 
     // Stellar integration (optional, can be null to explicitly clear)
     stellarAddress: v.optional(v.union(v.string(), v.null())),
