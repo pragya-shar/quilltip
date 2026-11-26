@@ -21,7 +21,7 @@ type TipTable = 'tips' | 'highlightTips'
 
 /** Statuses a flagged row can have. */
 const FLAGGED_STATUSES = ['MISMATCH', 'FAILED', 'SUBMITTED', 'EXPIRED'] as const
-const PER_STATUS = 50
+const PER_TABLE = 200
 
 /**
  * Mismatch reasons where the decoded event is a payment to the intended
@@ -97,17 +97,20 @@ export const getFlaggedTips = query({
     if (!(await requireOps(ctx))) return null
     readChainEnv()
     const rows: Array<{ table: TipTable; row: TipRow }> = []
+    // Read flagged rows directly: a status index would let unrelated rows
+    // (for example v1 FAILED tips) crowd flagged v2 rows out of the sample.
     for (const table of ['tips', 'highlightTips'] as const) {
-      for (const status of FLAGGED_STATUSES) {
-        const page = await ctx.db
-          .query(table)
-          .withIndex('by_status', (q) => q.eq('status', status))
-          .order('desc')
-          .take(PER_STATUS)
-        for (const row of page) {
-          if (row.contractVersion === 'v2' && row.needsReview === true) {
-            rows.push({ table, row })
-          }
+      const page = await ctx.db
+        .query(table)
+        .withIndex('by_needs_review', (q) => q.eq('needsReview', true))
+        .order('desc')
+        .take(PER_TABLE)
+      for (const row of page) {
+        if (
+          row.contractVersion === 'v2' &&
+          (FLAGGED_STATUSES as readonly string[]).includes(row.status)
+        ) {
+          rows.push({ table, row })
         }
       }
     }
@@ -130,7 +133,7 @@ export const getFlaggedTips = query({
           CREDITABLE_REASONS.includes(row.mismatchReason ?? ''),
         updatedAt: row.updatedAt,
       })),
-      sampleLimit: PER_STATUS * FLAGGED_STATUSES.length * 2,
+      sampleLimit: PER_TABLE * 2,
     }
   },
 })
