@@ -32,6 +32,37 @@ type RouteCheck =
  * missing one answers 404 and an earlier handle redirects. Any failure lets
  * the request through unchanged.
  */
+/**
+ * Recent "found" answers, per server instance. A found writer or article page
+ * renders normally, so reusing the answer briefly only skips a backend round
+ * trip before the HTML starts. Missing and moved answers are never reused, so
+ * new articles and handle changes take effect at once.
+ */
+const FOUND_TTL_MS = 60_000
+const FOUND_CACHE_LIMIT = 500
+const recentlyFound = new Map<string, number>()
+
+function foundKey(target: { username: string; slug?: string }) {
+  return `${target.username}\u0000${target.slug ?? ''}`
+}
+
+function wasRecentlyFound(key: string) {
+  const expires = recentlyFound.get(key)
+  if (expires === undefined) return false
+  if (expires > Date.now()) return true
+  recentlyFound.delete(key)
+  return false
+}
+
+function rememberFound(key: string) {
+  if (recentlyFound.size >= FOUND_CACHE_LIMIT) {
+    // Maps keep insertion order: drop the oldest entry.
+    const oldest = recentlyFound.keys().next().value
+    if (oldest !== undefined) recentlyFound.delete(oldest)
+  }
+  recentlyFound.set(key, Date.now() + FOUND_TTL_MS)
+}
+
 async function checkPublicContent(
   request: NextRequest
 ): Promise<RouteCheck | null> {
@@ -40,15 +71,19 @@ async function checkPublicContent(
   if (request.headers.get('rsc') === '1') return null
   const target = publicContentPath(request.nextUrl.pathname)
   if (!target) return null
+  const key = foundKey(target)
+  if (wasRecentlyFound(key)) return { kind: 'found' }
 
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    return await Promise.race([
+    const check = await Promise.race([
       fetchQuery(api.publicRoutes.resolvePublicRoute, target),
       new Promise<null>((resolve) => {
         timer = setTimeout(() => resolve(null), ROUTE_CHECK_TIMEOUT_MS)
       }),
     ])
+    if (check?.kind === 'found') rememberFound(key)
+    return check
   } catch {
     return null
   } finally {
