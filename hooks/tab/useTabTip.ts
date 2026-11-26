@@ -113,13 +113,17 @@ export function useTabTip(target: TabTipTarget) {
   const reset = useCallback(() => setState({ phase: 'idle' }), [])
 
   const outcome = state.phase === 'done' ? state.outcome : null
-  const receiptStatus = useMemo(() => {
+  const receipt = useMemo(() => {
     if (outcome?.kind !== 'accepted') return null
-    const row = reader.activity?.tips.find(
-      (t) => t.receiptId === outcome.receiptId
+    return (
+      reader.activity?.tips.find((t) => t.receiptId === outcome.receiptId) ??
+      null
     )
-    return row?.status ?? 'ACCEPTED'
   }, [outcome, reader.activity])
+  const receiptStatus =
+    outcome?.kind === 'accepted' ? (receipt?.status ?? 'ACCEPTED') : null
+  /** The settlement transaction, once the receipt settled. */
+  const settledTxHash = receipt?.settledTxHash ?? null
 
   /** For `TransactionProgress`: one line while sending, then the receipt. */
   const progress = useMemo<ProgressSource | null>(() => {
@@ -139,6 +143,7 @@ export function useTabTip(target: TabTipTarget) {
     state,
     outcome,
     receiptStatus,
+    settledTxHash,
     progress,
     refusal,
     send,

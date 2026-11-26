@@ -171,6 +171,7 @@ export function TabTipAction({
         <TransactionProgress
           flow="tab-tip"
           source={progress}
+          txHash={tip.settledTxHash}
           audience="reader"
           summary={
             outcome?.kind === 'accepted'

@@ -123,7 +123,8 @@ const ZERO = BigInt(0)
 export const STROOPS_PER_CENT = BigInt(1_000_000)
 export const LEDGER = 1_000_000
 const DAY = 17_280
-export const NOW = Date.UTC(2026, 10, 27, 12, 0, 0)
+/** Server start: scenario times are relative to the real clock. */
+export const NOW = Date.now()
 
 export function baseState(scenario: string): FixtureState {
   return {

@@ -255,11 +255,28 @@ test('keyboard only: the top-up form submits with Enter and focus follows the pa
   await page.keyboard.press('Enter')
   const result = page.getByRole('heading', { name: 'Top-up confirmed' })
   await expect(result).toBeVisible()
+  // The start button is gone, so focus moves to the result title; a
+  // focused title is not also announced (payment-states.md, Accessibility).
   await expect(result).toBeFocused()
-  const live = page
-    .locator('.tab-ui [aria-live="polite"]')
-    .filter({ hasText: 'Top-up confirmed' })
-  await expect(live.first()).toBeAttached()
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('button', { name: 'Done' })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('button', { name: 'Top up', exact: true })).toBeVisible()
+})
+
+test('live regions are mounted empty and announce a result that keeps focus', async ({
+  page,
+}) => {
+  await open(page, 'home-open')
+  const regions = page.locator('.tab-ui [aria-live]')
+  expect(await regions.count()).toBeGreaterThan(0)
+  for (const text of await regions.allInnerTexts()) expect(text.trim()).toBe('')
+  // A quick tip result arrives while focus stays on the page (no button removed).
+  await page.goto('/?state=tip-ready')
+  await page.getByRole('button', { name: /from tab$/ }).click()
+  await expect(
+    page.locator('.tab-ui').getByText('Tip sent from your tab').first()
+  ).toBeVisible()
 })
 
 test('reload in the middle of a top-up resumes it and then confirms', async ({
