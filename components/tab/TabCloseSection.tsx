@@ -36,6 +36,17 @@ export function TabCloseSection({
   const [confirming, setConfirming] = useState(false)
   const confirmRef = useRef<HTMLHeadingElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  // Escape in the confirmation keeps the tab open.
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!confirming || !panel) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setConfirming(false)
+    }
+    panel.addEventListener('keydown', onKey)
+    return () => panel.removeEventListener('keydown', onKey)
+  }, [confirming])
   const opened = useRef(false)
   useEffect(() => {
     if (confirming) {
@@ -61,11 +72,9 @@ export function TabCloseSection({
         {confirming ? (
           <div
             className="tab-form"
+            ref={panelRef}
             role="group"
             aria-labelledby="tab-close-confirm"
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') setConfirming(false)
-            }}
           >
             <h3
               id="tab-close-confirm"

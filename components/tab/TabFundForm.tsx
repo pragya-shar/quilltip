@@ -61,6 +61,21 @@ export function TabFundForm({
   const services = useTabServices()
   const id = useId()
   const inputRef = useRef<HTMLInputElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+  const cancelRef = useRef(onCancel)
+  cancelRef.current = onCancel
+  // Escape anywhere in the form cancels it.
+  useEffect(() => {
+    const form = formRef.current
+    if (!form) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      cancelRef.current()
+    }
+    form.addEventListener('keydown', onKey)
+    return () => form.removeEventListener('keydown', onKey)
+  }, [])
   const [value, setValue] = useState('10')
   const [funds, setFunds] = useState<WalletFunds | null | undefined>(undefined)
   const [limits, setLimits] = useState<TabLimits | null | undefined>(undefined)
@@ -107,15 +122,10 @@ export function TabFundForm({
 
   return (
     <form
+      ref={formRef}
       className="tab-form"
       aria-labelledby={`${id}-title`}
       noValidate
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          event.preventDefault()
-          onCancel()
-        }
-      }}
       onSubmit={(event) => {
         event.preventDefault()
         if (problem) {
