@@ -7,7 +7,8 @@ use soroban_sdk::{Address, Bytes, BytesN, Env};
 
 use crate::constants::{ARTICLE_ID_PREFIX, ARTICLE_REF_PREFIX};
 
-/// `SHA-256(UTF-8("quilltip:article:v1:" + <Convex articles _id>))`.
+/// `SHA-256(UTF-8("quilltip:article:v2:" + <author address>) ‖ article_ref)`
+/// (see [`article_id`]). Fixed at registration; an author change keeps it.
 pub type ArticleId = BytesN<32>;
 
 /// The app's reference to an article, 32 bytes (see [`article_ref`]).
