@@ -20,6 +20,7 @@ import {
 import type { RawRpcEvent } from './rpc'
 import { CORE_EVENT_HANDLERS } from './coreEventHandlers'
 import { NFT_EVENT_HANDLERS } from './nftEventHandlers'
+import { TAB_EVENT_HANDLERS } from './tabEventHandlers'
 
 /** About one hour of ledgers. Beyond this lag the cursor is `LAGGING`. */
 export const LAG_ALERT_LEDGERS = 720
@@ -52,12 +53,12 @@ export type ChainEventHandler = (
 ) => Promise<HandlerResult>
 
 /**
- * Handler registry keyed by `<role>:<event name>`. Tab handlers (#447) and
- * NFT handlers (#450) add their entries here. An event without a handler is
- * stored as `pending` and dispatched again by `redispatchPending`.
+ * Handler registry keyed by `<role>:<event name>`. An event without a
+ * handler is stored as `pending` and dispatched again by `redispatchPending`.
  */
 export const EVENT_HANDLERS: Readonly<Record<string, ChainEventHandler>> = {
   ...CORE_EVENT_HANDLERS,
+  ...TAB_EVENT_HANDLERS,
   ...NFT_EVENT_HANDLERS,
 }
 
