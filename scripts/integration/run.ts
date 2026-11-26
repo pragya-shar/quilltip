@@ -123,6 +123,12 @@ async function main(argv: string[]) {
   }
 
   try {
+    const env = {
+      ...localEnv(),
+      QUILLTIP_WASM_DIR: wasmDir,
+      QUILLTIP_CORE_UPGRADE_WASM: upgradeWasm,
+      QUILLTIP_INTEGRATION_OUT: out,
+    }
     run(
       'bun',
       [
@@ -132,14 +138,19 @@ async function main(argv: string[]) {
         '--config',
         'scripts/integration/vitest.config.mts',
       ],
-      {
-        env: {
-          ...localEnv(),
-          QUILLTIP_WASM_DIR: wasmDir,
-          QUILLTIP_CORE_UPGRADE_WASM: upgradeWasm,
-          QUILLTIP_INTEGRATION_OUT: out,
-        },
-      }
+      { env }
+    )
+    // Tab settlement with the Convex ledger in convex-test (edge runtime).
+    run(
+      'bun',
+      [
+        'x',
+        'vitest',
+        'run',
+        '--config',
+        'scripts/integration/settlement.config.mts',
+      ],
+      { env }
     )
   } finally {
     if (argv.includes('--stop'))

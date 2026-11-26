@@ -7,6 +7,7 @@
  */
 import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Buffer } from 'buffer'
 import { Address, nativeToScVal, xdr } from '@stellar/stellar-sdk'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
@@ -28,6 +29,12 @@ import {
 } from '../../convex/lib/chain/voucher'
 import { hexToBytes, bytesToHex } from '../../convex/lib/chain/ids'
 import { signEd25519 } from '../../lib/stellar/v2/tab/encoding'
+import {
+  commitAcceptedTip,
+  signTabTip,
+  type SessionKeyScope,
+} from '../../lib/stellar/v2/tab'
+import { depsFor, freshDb, plantKey } from '../tab/helpers'
 import shared from '../../contracts/shared/test-vectors.json'
 import { rpcEventId } from './coreEvents'
 import { seedAddress } from './fixtures'
@@ -40,6 +47,10 @@ const TAB = shared.tab_contract
 const TOKEN = 'CAJS4RVGLFL2ANWW7W6Q4RGOZQXSVXW5BQKJ7A3ISE4EOUM5HHO77CQL'
 const READER = shared.vouchers[0]!.reader
 const WRITER = shared.vouchers[0]!.writer
+const CLIENT_SCOPE: SessionKeyScope = {
+  tabContractId: TAB,
+  readerAddress: READER,
+}
 const OTHER_WRITER = seedAddress(41)
 const SESSION_SEED = hexToBytes(shared.keys.session.seed)
 const SESSION_PUBLIC = shared.keys.session.public_key
@@ -309,6 +320,7 @@ async function seed(t: T, options: { open?: boolean } = {}) {
       tokenContractId: TOKEN,
       minTip: '100000',
       feeBps: 250,
+      tabAcceptorKeys: [ACCEPTOR_PUBLIC],
       paused: {},
       refreshedAt: now,
     })
@@ -589,6 +601,61 @@ describe('acceptance against the shared vectors', () => {
     for (const root of shared.receipts.roots) {
       expect(receiptsRootHex(leaves.slice(0, root.count))).toBe(root.root)
     }
+  })
+})
+
+describe('the browser tab library', () => {
+  it('signs prepared tips that Convex accepts, and keeps its ledger in step', async () => {
+    // fake-indexeddb runs its callbacks on timers; fake only the clock.
+    vi.useRealTimers()
+    vi.useFakeTimers({ now: T0, toFake: ['Date'] })
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    useVectorClientRefs()
+    const db = freshDb()
+    await plantKey(db, CLIENT_SCOPE, SESSION_SEED, 'noble', [0])
+    const deps = depsFor(db, { now: () => Date.now() })
+
+    let last: Awaited<ReturnType<typeof submit>> | null = null
+    for (const [i, o] of [
+      { cents: 10 },
+      { cents: 25, highlight: HIGHLIGHT },
+      { cents: 4 },
+    ].entries()) {
+      // The real prepareTip result type, not the suite's narrowed `Prepared`.
+      const p = await as(t, s.readerId).mutation(api.tabs.prepareTip, {
+        requestId: `lib-${i}`,
+        articleId: s.articleId,
+        amountCents: o.cents,
+        keyId: 0,
+        ...(o.highlight ? { highlight: o.highlight } : {}),
+      })
+      const signed = await signTabTip(p, deps)
+      if (signed.kind !== 'signed')
+        throw new Error(`not signed: ${signed.kind}`)
+      const accepted = await as(t, s.readerId).mutation(
+        api.tabs.submitTip,
+        signed.submit
+      )
+      expect(accepted.status).toBe('ACCEPTED')
+      expect(accepted.voucher.receiptsRoot).toBe(signed.voucher.receiptsRoot)
+      expect((await commitAcceptedTip(accepted, deps)).status).toBe('committed')
+      last = accepted
+    }
+
+    const vector = shared.vouchers[0]!
+    expect(last!.voucher).toMatchObject({
+      signature: vector.signature,
+      acceptanceSignature: vector.acceptance_signature,
+      receiptsRoot: vector.receipts_root,
+    })
+    expect(await deps.ledger.read(CLIENT_SCOPE, 0, WRITER)).toMatchObject({
+      committed: {
+        seq: 3,
+        cumulative: vector.cumulative,
+        leafHashes: VECTOR_RECEIPTS.map((r) => r.leaf),
+      },
+    })
   })
 })
 
@@ -1101,22 +1168,28 @@ describe('event handlers', () => {
     expect((await earnings(t, s.authorId))?.pendingBaseUnits?.[TOKEN]).toBe('0')
   })
 
-  it('sweeps unpaid pairs from the cursor ledger', async () => {
+  it('sweeps pairs whose window ended to UNPAID, also for an open tab', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
     await tip(t, s)
-    await ingest(t, ev.withdrawStarted(BigInt(10) * XLM, LEDGER + 1))
-    await ingest(t, ev.withdrawn(BigInt(10) * XLM))
     expect(await t.mutation(internal.tabs.sweepUnpaid, {})).toEqual({
-      checked: 1,
       closed: 0,
+      more: false,
     })
+    await setLedger(t, VALID_UNTIL + SETTLE_GRACE_LEDGERS)
+    expect((await t.mutation(internal.tabs.sweepUnpaid, {})).closed).toBe(0)
     await setLedger(t, VALID_UNTIL + SETTLE_GRACE_LEDGERS + 1)
     expect(await t.mutation(internal.tabs.sweepUnpaid, {})).toEqual({
-      checked: 1,
       closed: 1,
+      more: false,
     })
     expect(await receiptStatuses(t)).toEqual(['UNPAID'])
+    expect(await account(t)).toMatchObject({ status: 'OPEN', outstanding: '0' })
+    expect(await voucherRow(t)).toMatchObject({
+      state: 'UNPAID',
+      settleQueue: 'done',
+      pendingNet: '0',
+    })
   })
 
   it('voids unsettled receipts of a closed epoch', async () => {
@@ -1176,14 +1249,17 @@ describe('settler inputs', () => {
     await tip(t, s, { cents: 10 })
     await tip(t, s, { cents: 25, highlight: HIGHLIGHT })
     await tip(t, s, { cents: 4 })
-    const due = await t.query(internal.tabs.listUnsettledVouchers, {})
+    const { candidates: due } = await t.query(
+      internal.tabSettlement.selectCandidates,
+      { ledger: LEDGER, now: Date.now() }
+    )
     expect(due).toHaveLength(1)
     expect(due[0]).toMatchObject({
       chainEpoch: EPOCH,
       unsettledAmount: '3900000',
       paidOnChain: '0',
       accountStatus: 'OPEN',
-      keyValidUntilLedger: VALID_UNTIL,
+      settleBy: VALID_UNTIL + SETTLE_GRACE_LEDGERS,
       voucher: {
         reader: READER,
         writer: WRITER,
@@ -1201,6 +1277,30 @@ describe('settler inputs', () => {
       earned: '0',
       pending: netOf(BigInt(3_900_000)).toString(),
     })
+  })
+
+  it('refuses acceptance when the Tab does not list the acceptor key', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const p = await prepare(t, s)
+    await t.run(async (ctx) => {
+      const c = await ctx.db.query('chainConfig').first()
+      await ctx.db.patch(c!._id, { tabAcceptorKeys: ['ab'.repeat(32)] })
+    })
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_ACCEPTOR_MISMATCH')
+    await t.run(async (ctx) => {
+      const c = await ctx.db.query('chainConfig').first()
+      await ctx.db.patch(c!._id, { tabAcceptorKeys: undefined })
+    })
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_ACCEPTOR_MISMATCH')
+    await t.run(async (ctx) => {
+      const c = await ctx.db.query('chainConfig').first()
+      await ctx.db.patch(c!._id, {
+        tabAcceptorKeys: ['ab'.repeat(32), ACCEPTOR_PUBLIC],
+      })
+    })
+    expect((await submit(t, s, p)).status).toBe('ACCEPTED')
+    expect((await account(t)).outstanding).toBe('1000000')
   })
 
   it('refuses acceptance when settlement is disabled or the acceptor key is missing', async () => {
