@@ -21,6 +21,7 @@ mod edge;
 mod props;
 mod reader;
 mod resource;
+mod roles;
 mod settle;
 mod upgrade;
 mod vectors;

@@ -9,10 +9,12 @@ use crate::{CoreError, MAX_PROPOSAL_LIFETIME};
 fn register_article_stores_record() {
     let f = Fixture::new();
     let author = Address::generate(&f.e);
-    let id = random_id(&f.e);
+    let article_ref = random_id(&f.e);
     let arweave = Some(hash(&f.e, 9));
-    f.core
-        .register_article(&author, &id, &hash(&f.e, 1), &arweave, &vec![&f.e]);
+    let id = f
+        .core
+        .register_article(&author, &article_ref, &hash(&f.e, 1), &arweave, &vec![&f.e]);
+    assert_eq!(id, f.core.article_id(&author, &article_ref));
 
     let record = f.core.get_article(&id).unwrap();
     assert_eq!(record.author, author);
@@ -27,12 +29,54 @@ fn register_article_stores_record() {
 #[test]
 fn register_article_already_registered() {
     let f = Fixture::new();
-    let (id, author) = f.article();
+    let author = Address::generate(&f.e);
+    let article_ref = random_id(&f.e);
+    f.core
+        .register_article(&author, &article_ref, &hash(&f.e, 1), &None, &vec![&f.e]);
     assert_core_err!(
         f.core
-            .try_register_article(&author, &id, &hash(&f.e, 2), &None, &vec![&f.e]),
+            .try_register_article(&author, &article_ref, &hash(&f.e, 2), &None, &vec![&f.e]),
         CoreError::AlreadyRegistered
     );
+}
+
+/// Another account cannot claim an author's article ID first. Registering
+/// the same `article_ref` under another address yields a different ID, and
+/// the author still registers theirs.
+#[test]
+fn register_article_id_is_bound_to_the_author() {
+    let f = Fixture::new();
+    let e = &f.e;
+    let author = Address::generate(e);
+    let other = Address::generate(e);
+    let article_ref = random_id(e);
+    let expected = f.core.article_id(&author, &article_ref);
+
+    let other_id = f
+        .core
+        .register_article(&other, &article_ref, &hash(e, 9), &None, &vec![e]);
+    assert_ne!(other_id, expected);
+    assert!(f.core.get_article(&expected).is_none());
+
+    let id = f
+        .core
+        .register_article(&author, &article_ref, &hash(e, 1), &None, &vec![e]);
+    assert_eq!(id, expected);
+    assert_eq!(f.core.article_author(&id), author);
+    assert_eq!(f.core.article_author(&other_id), other);
+}
+
+/// The ID stays the same after an author change, so tips, totals and the
+/// NFT keep using it.
+#[test]
+fn article_id_is_stable_across_author_change() {
+    let f = Fixture::new();
+    let (id, _author) = f.article();
+    let next = Address::generate(&f.e);
+    f.core.propose_author(&id, &next, &(START_LEDGER + 10));
+    f.core.accept_author(&id);
+    assert_eq!(f.core.article_author(&id), next);
+    assert!(f.core.get_article(&id).is_some());
 }
 
 #[test]

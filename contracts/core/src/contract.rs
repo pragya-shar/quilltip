@@ -1,6 +1,6 @@
 //! Entry points (`02-core-contract.md`, section 2.2).
 
-use quilltip_shared::{ids, ttl, FEE_BPS, MIN_FEE_BEARING_AMOUNT};
+use quilltip_shared::{ids, roles, ttl, FEE_BPS, MIN_FEE_BEARING_AMOUNT};
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, token, Address, BytesN, Env, MuxedAddress, Symbol,
     Vec,
@@ -162,20 +162,25 @@ impl QuillTipCore {
 
     // ---------------- Article registration ----------------
 
+    /// Registers an article for `author` and returns its `article_id`.
+    ///
+    /// The ID is derived from `author` and `article_ref`
+    /// ([`ids::article_id`]), so only the author can register it.
     #[when_not_paused]
     pub fn register_article(
         e: &Env,
         author: Address,
-        article_id: BytesN<32>,
+        article_ref: BytesN<32>,
         content_hash: BytesN<32>,
         arweave_id: Option<BytesN<32>>,
         splits: Vec<Split>,
-    ) {
+    ) -> BytesN<32> {
         author.require_auth();
+        require_valid_hash(e, &article_ref);
+        let article_id = ids::article_id(e, &author, &article_ref);
         if storage::article(e, &article_id).is_some() {
             panic_with_error!(e, CoreError::AlreadyRegistered);
         }
-        require_valid_hash(e, &article_id);
         require_valid_hash(e, &content_hash);
         require_valid_arweave(e, &arweave_id);
         split::validate(e, &author, &storage::treasury(e), &splits);
@@ -192,13 +197,15 @@ impl QuillTipCore {
         ttl::extend_instance(e);
 
         ArticleRegistered {
-            article_id,
+            article_id: article_id.clone(),
             author,
+            article_ref,
             content_hash,
             arweave_id,
             splits,
         }
         .publish(e);
+        article_id
     }
 
     #[when_not_paused]
@@ -395,6 +402,11 @@ impl QuillTipCore {
 
     // ---------------- Views ----------------
 
+    /// The `article_id` that `register_article(author, article_ref, ..)` uses.
+    pub fn article_id(e: &Env, author: Address, article_ref: BytesN<32>) -> BytesN<32> {
+        ids::article_id(e, &author, &article_ref)
+    }
+
     pub fn get_article(e: &Env, article_id: BytesN<32>) -> Option<ArticleRecord> {
         storage::article(e, &article_id)
     }
@@ -526,21 +538,22 @@ impl Pausable for QuillTipCore {
 }
 
 /// OpenZeppelin access control. State-changing functions also extend the
-/// instance TTL (I-25); `renounce_admin` always fails (I-26).
+/// instance TTL (I-25); `renounce_admin` always fails (I-26). Only an
+/// upgrader can change the `upgrader` role (`quilltip_shared::roles`).
 #[contractimpl(contracttrait)]
 impl AccessControl for QuillTipCore {
     fn grant_role(e: &Env, account: Address, role: Symbol, caller: Address) {
-        access_control::grant_role(e, &account, &role, &caller);
+        roles::grant_role(e, &account, &role, &caller);
         ttl::extend_instance(e);
     }
 
     fn revoke_role(e: &Env, account: Address, role: Symbol, caller: Address) {
-        access_control::revoke_role(e, &account, &role, &caller);
+        roles::revoke_role(e, &account, &role, &caller);
         ttl::extend_instance(e);
     }
 
     fn renounce_role(e: &Env, role: Symbol, caller: Address) {
-        access_control::renounce_role(e, &role, &caller);
+        roles::renounce_role(e, &role, &caller);
         ttl::extend_instance(e);
     }
 
@@ -555,7 +568,7 @@ impl AccessControl for QuillTipCore {
     }
 
     fn set_role_admin(e: &Env, role: Symbol, admin_role: Symbol) {
-        access_control::set_role_admin(e, &role, &admin_role);
+        roles::set_role_admin(e, &role, &admin_role);
         ttl::extend_instance(e);
     }
 
