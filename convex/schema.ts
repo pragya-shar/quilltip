@@ -2,6 +2,7 @@ import { tipXlmPresetValidator } from './lib/articleTipExpectation'
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { authTables } from '@convex-dev/auth/server'
+import { nftChainFields, nftTransferChainFields } from './lib/chain/nftSchema'
 import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
 
 export default defineSchema({
@@ -626,14 +627,17 @@ export default defineSchema({
     // Article reference
     articleId: v.id('articles'),
 
-    // NFT data
+    // NFT data. v2 rows: `tokenId` is the contract's u32 token ID in decimal.
     tokenId: v.string(),
     contractAddress: v.optional(v.string()),
     metadataUrl: v.string(),
 
     // Ownership. For v2 rows `ownerAddress` is the source of truth and
-    // `currentOwner` is set only when it resolves to a QuillTip user.
-    mintedBy: v.id('users'),
+    // `currentOwner` is set only when it resolves to a QuillTip user. Only
+    // the NFT event handlers (convex/lib/chain/nftEventHandlers.ts) write
+    // ownership of a v2 row.
+    // v2 rows: the user whose verified address minted, when there is one.
+    mintedBy: v.optional(v.id('users')),
     currentOwner: v.optional(v.id('users')),
     ownerAddress: v.optional(v.string()),
 
@@ -641,10 +645,12 @@ export default defineSchema({
     contractVersion: v.optional(v.union(v.literal('v1'), v.literal('v2'))),
     txHash: v.optional(v.string()),
     chainVerifiedAt: v.optional(v.number()),
+    ...nftChainFields,
 
-    // Minting criteria
-    tipThreshold: v.number(),
-    totalTipsAtMint: v.number(),
+    // Minting criteria (v1 rows, in USD cents; v2 rows use the base-unit
+    // fields in `nftChainFields`)
+    tipThreshold: v.optional(v.number()),
+    totalTipsAtMint: v.optional(v.number()),
 
     // Timestamps
     mintedAt: v.number(),
@@ -653,28 +659,33 @@ export default defineSchema({
     .index('by_token_id', ['tokenId'])
     .index('by_article', ['articleId'])
     .index('by_current_owner', ['currentOwner'])
-    .index('by_minted_by', ['mintedBy']),
+    .index('by_minted_by', ['mintedBy'])
+    .index('by_owner_address', ['ownerAddress']),
 
   // NFT Transfers table
   nftTransfers: defineTable({
     // NFT reference
     nftId: v.id('articleNFTs'),
 
-    // Transfer parties
-    fromUserId: v.id('users'),
+    // Transfer parties. v2 rows: the addresses come from the verified
+    // `transfer` event; the user IDs are set only for QuillTip users.
+    fromUserId: v.optional(v.id('users')),
     toUserId: v.optional(v.id('users')),
     fromAddress: v.optional(v.string()),
     toAddress: v.optional(v.string()),
 
-    // Transaction data
+    // Transaction data. Required for v2 rows (checked in
+    // convex/lib/chain/nftStore.ts).
     transactionId: v.optional(v.string()),
+    ...nftTransferChainFields,
 
     // Timestamp
     transferredAt: v.number(),
   })
     .index('by_nft', ['nftId'])
     .index('by_from_user', ['fromUserId'])
-    .index('by_to_user', ['toUserId']),
+    .index('by_to_user', ['toUserId'])
+    .index('by_chain_event', ['chainEventId']),
 
   // Withdrawals table
   withdrawals: defineTable({

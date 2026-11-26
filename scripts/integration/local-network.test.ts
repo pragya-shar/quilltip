@@ -41,6 +41,17 @@ import {
   systemEventCount,
   type TxMetrics,
 } from './harness'
+import { bytesToHex, hexToBytes } from '../../convex/lib/chain/ids'
+import { decodeRpcEvent } from '../../convex/lib/chain/events'
+import { toStoredValue } from '../../convex/lib/chain/indexerStore'
+import { createRpcClient, type RpcFetch } from '../../convex/lib/chain/rpc'
+import {
+  matchNftEvent,
+  nftEventFacts,
+  verifyNftTransaction,
+  type ExpectedNft,
+} from '../../convex/lib/chain/nftEvents'
+import type { PreparedNftMint, PreparedNftTransfer } from '../../convex/nftsV2'
 
 const FEE_BPS = BigInt(250)
 const DENOM = BigInt(10_000)
@@ -725,6 +736,54 @@ describe('5.5 to 5.9 tab', () => {
   })
 })
 
+/**
+ * The server side of #450 on real transactions: the call is built from the
+ * values `nftsV2.prepareMint` / `prepareTransfer` return, rule (a) runs
+ * `verifyNftTransaction` on the `getTransaction` response through the Convex
+ * RPC client, and the indexer path decodes the `getEvents` page into the
+ * facts the NFT handlers apply. The Convex mutations themselves do not run
+ * here: the backend network guard accepts TESTNET only, so Convex functions
+ * cannot target a LOCAL network (scripts/chain/nft-v2.test.ts covers them).
+ */
+const backendRpc = () =>
+  createRpcClient({ url: h.net.rpcUrl, fetch: fetch as unknown as RpcFetch })
+
+async function serverVerifies(
+  hash: string,
+  expected: ExpectedNft,
+  createdLedger: number
+) {
+  const tx = await backendRpc().getTransaction(hash)
+  expect(tx.status).toBe('SUCCESS')
+  return verifyNftTransaction({
+    expected,
+    nftContractId: nftId,
+    contractEventsXdr: tx.contractEventsXdr,
+    ledger: tx.ledger!,
+    createdLedger,
+  })
+}
+
+/** The NFT facts of the transaction, as the indexer stores and parses them. */
+async function indexedFacts(hash: string, ledger: number) {
+  const page = await backendRpc().getEvents({
+    startLedger: ledger,
+    filters: [{ type: 'contract', contractIds: [nftId] }],
+    pagination: { limit: 100 },
+  })
+  return page.events
+    .filter((e) => e.txHash === hash)
+    .map((e) => {
+      const d = decodeRpcEvent(e)
+      return nftEventFacts({
+        name: d.name,
+        topics: toStoredValue(d.topics) as unknown[],
+        data: toStoredValue(d.data),
+      })
+    })
+    .filter((f) => f !== null)
+}
+
 describe('5.10 NFT', () => {
   it('mints at the Core threshold and transfers on chain', async () => {
     await expectContractError(nft(author2).mint({ article_id: A2 }), 70)
@@ -739,12 +798,57 @@ describe('5.10 NFT', () => {
         client_ref: rand(16),
       })
     )
+    // The values prepareMint returns for this article.
+    const startLedger = (await h.server.getLatestLedger()).sequence
+    const preparedMint: Pick<
+      PreparedNftMint,
+      'contractId' | 'signer' | 'method' | 'args' | 'articleKey'
+    > = {
+      contractId: nftId,
+      signer: author2.publicKey(),
+      method: 'mint',
+      args: { article_id: bytesToHex(A2) },
+      articleKey: bytesToHex(A2),
+    }
     const { res, result } = await send(
       'nft_mint',
-      nft(author2).mint({ article_id: A2 })
+      nft(author2).mint({
+        article_id: hexToBytes(preparedMint.args.article_id),
+      })
     )
     expect(named(res, nftId, 'article_nft_minted')).toHaveLength(1)
     const tokenId = result as number
+    const mintExpected: ExpectedNft = {
+      action: 'mint',
+      articleKey: preparedMint.articleKey,
+      signer: preparedMint.signer,
+    }
+    const totalAtMint = (
+      await core(author2).article_total({ article_id: A2, token })
+    ).result
+    expect(
+      await serverVerifies(res.txHash, mintExpected, startLedger)
+    ).toMatchObject({
+      status: 'CONFIRMED',
+      facts: {
+        name: 'article_nft_minted',
+        articleKey: bytesToHex(A2),
+        author: author2.publicKey(),
+        tokenId,
+        totalAtMint: String(totalAtMint),
+      },
+    })
+    // A mint verified against another author is a MISMATCH, never CONFIRMED.
+    expect(
+      await serverVerifies(
+        res.txHash,
+        { ...mintExpected, signer: collector.publicKey() },
+        startLedger
+      )
+    ).toMatchObject({ status: 'MISMATCH', mismatchReason: 'author' })
+    const mintFacts = await indexedFacts(res.txHash, res.ledger)
+    expect(mintFacts.map((f) => f!.name)).toEqual(['article_nft_minted'])
+    expect(matchNftEvent(mintExpected, mintFacts[0]!).status).toBe('CONFIRMED')
     expect((await nft(author2).owner_of({ token_id: tokenId })).result).toBe(
       author2.publicKey()
     )
@@ -755,17 +859,60 @@ describe('5.10 NFT', () => {
       })
     ).result
     expect([receiver, royalty]).toEqual([author2.publicKey(), BigInt(100)])
-    await send(
-      'nft_transfer',
-      nft(author2).transfer({
+    // The values prepareTransfer returns for a recipient address.
+    const preparedTransfer: Pick<
+      PreparedNftTransfer,
+      'contractId' | 'signer' | 'method' | 'args'
+    > = {
+      contractId: nftId,
+      signer: author2.publicKey(),
+      method: 'transfer',
+      args: {
         from: author2.publicKey(),
         to: collector.publicKey(),
         token_id: tokenId,
-      })
+      },
+    }
+    const moved = await send(
+      'nft_transfer',
+      nft(author2).transfer(preparedTransfer.args)
     )
     expect((await nft(collector).owner_of({ token_id: tokenId })).result).toBe(
       collector.publicKey()
     )
+    const transferExpected: ExpectedNft = {
+      action: 'transfer',
+      tokenId,
+      from: preparedTransfer.args.from,
+      to: preparedTransfer.args.to,
+    }
+    expect(
+      await serverVerifies(moved.res.txHash, transferExpected, startLedger)
+    ).toMatchObject({
+      status: 'CONFIRMED',
+      facts: {
+        name: 'transfer',
+        from: author2.publicKey(),
+        to: collector.publicKey(),
+        tokenId,
+      },
+    })
+    expect(
+      await serverVerifies(
+        moved.res.txHash,
+        { ...transferExpected, to: tipper.publicKey() },
+        startLedger
+      )
+    ).toMatchObject({ status: 'MISMATCH', mismatchReason: 'field:to' })
+    const transferFacts = await indexedFacts(moved.res.txHash, moved.res.ledger)
+    expect(transferFacts).toEqual([
+      {
+        name: 'transfer',
+        from: author2.publicKey(),
+        to: collector.publicKey(),
+        tokenId,
+      },
+    ])
     await expectContractError(nft(author2).mint({ article_id: A2 }), 71)
   })
 })
