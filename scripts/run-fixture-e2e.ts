@@ -1,8 +1,8 @@
 /**
  * Run the Playwright suites that need no secrets and no backend: the NFT,
- * recovery, avatar, wallet and tab session-key fixture pages. Each fixture
- * server bundles production components with stubbed wallet and Convex
- * collaborators.
+ * recovery, avatar, wallet, article tips and tab session-key fixture pages.
+ * Each fixture server bundles production components with stubbed wallet and
+ * Convex collaborators.
  *
  *   bun run test:e2e:fixtures
  */
@@ -37,6 +37,15 @@ const FIXTURES = [
     env: {
       WALLET_FIXTURES: '1',
       PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4177',
+    },
+  },
+  {
+    server: 'e2e/fixtures/article-tips/server.mjs',
+    port: 4178,
+    spec: 'e2e/article-tips.spec.ts',
+    env: {
+      ARTICLE_TIPS_FIXTURES: '1',
+      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4178',
     },
   },
   {

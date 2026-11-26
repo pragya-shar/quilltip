@@ -2,7 +2,7 @@ import { tipXlmPresetValidator } from './lib/articleTipExpectation'
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { authTables } from '@convex-dev/auth/server'
-import { chainTables, tipChainFields } from './lib/chain/schema'
+import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
 
 export default defineSchema({
   ...authTables,
@@ -145,6 +145,9 @@ export default defineSchema({
     contentVersion: v.optional(v.number()),
     contentHash: v.optional(v.string()),
     contentHashSchema: v.optional(v.string()),
+    // The contentHash the Arweave upload body reproduces. Registration passes
+    // arweaveTxId on chain only when this equals contentHash.
+    arweaveContentHash: v.optional(v.string()),
 
     // Timestamps
     createdAt: v.number(),
@@ -462,7 +465,8 @@ export default defineSchema({
     .index('by_stellar_tx', ['stellarTxId'])
     .index('by_client_ref', ['clientRef'])
     // Rows flagged for operator review (convex/chain/review.ts).
-    .index('by_needs_review', ['needsReview', 'updatedAt']),
+    .index('by_needs_review', ['needsReview', 'updatedAt'])
+    .index('by_request', ['requestId']),
 
   // Highlight Tips table (NEW - granular tipping)
   highlightTips: defineTable({
@@ -565,7 +569,8 @@ export default defineSchema({
     .index('by_stellar_tx', ['stellarTxId'])
     .index('by_client_ref', ['clientRef'])
     // Rows flagged for operator review (convex/chain/review.ts).
-    .index('by_needs_review', ['needsReview', 'updatedAt']),
+    .index('by_needs_review', ['needsReview', 'updatedAt'])
+    .index('by_request', ['requestId']),
 
   // Author Earnings table
   authorEarnings: defineTable({
@@ -820,4 +825,5 @@ export default defineSchema({
 
   // Payments v2 chain layer (docs/architecture/v2/06-app-integration.md, 6.2)
   ...chainTables,
+  ...tabTables,
 })
