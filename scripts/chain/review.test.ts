@@ -61,6 +61,9 @@ async function seed(t: T) {
       username: 'writer',
       email: 'writer@example.test',
       stellarAddress: AUTHOR,
+      // Proved control of the address on testnet.
+      stellarAddressVerifiedAt: now,
+      stellarAddressVerifiedNetwork: 'Test SDF Network ; September 2015',
       createdAt: now,
       updatedAt: now,
     })
@@ -68,6 +71,9 @@ async function seed(t: T) {
       username: 'reader',
       email: 'reader@example.test',
       stellarAddress: TIPPER,
+      // Proved control of the address on testnet.
+      stellarAddressVerifiedAt: now,
+      stellarAddressVerifiedNetwork: 'Test SDF Network ; September 2015',
       createdAt: now,
       updatedAt: now,
     })
@@ -456,6 +462,100 @@ describe('resolving a flagged row', () => {
     await earnings(t, s)
     return prepared
   }
+
+  it('lists a flagged row even behind many newer unflagged FAILED rows', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // A FAILED row flagged because its payment landed after all.
+    const prepared = await prepare(t, s)
+    await t
+      .withIdentity({ subject: `${s.readerId}|session` })
+      .mutation(api.chain.submissions.recordSendFailed, {
+        submissionId: prepared.submissionId,
+        reason: 'send_error',
+      })
+    await t.run((ctx) =>
+      applyStoredTippedEvent(ctx, {
+        contractId: CORE,
+        txHash: HASH,
+        ledger: 6_000_010,
+        eventId: 'evt-after-failure',
+        event: {
+          article_id: ARTICLE_KEY,
+          author: AUTHOR,
+          tipper: TIPPER,
+          token: TOKEN,
+          gross: '1000000',
+          fee: '25000',
+          net: '975000',
+          highlight_id: null,
+          content_hash: 'ab'.repeat(32),
+          content_version: 1,
+          client_ref: prepared.clientRefs[0]!,
+          total_after: '1000000',
+          split_count: 0,
+        },
+        now: Date.now(),
+      })
+    )
+    // Newer v1 FAILED tips share the status but are not flagged.
+    vi.setSystemTime(Date.now() + 60_000)
+    await t.run(async ({ db }) => {
+      for (let i = 0; i < 60; i++) {
+        await db.insert('tips', {
+          articleId: s.articleId,
+          tipperId: s.readerId,
+          authorId: s.authorId,
+          articleTitle: 'Words',
+          articleSlug: 'words',
+          amountUsd: 1,
+          amountCents: 100,
+          stellarNetwork: 'TESTNET',
+          status: 'FAILED',
+          createdAt: Date.now() + i,
+          updatedAt: Date.now() + i,
+        })
+      }
+    })
+    const list = await flagged(t, s)
+    expect(list!.rows.map((r) => r.id)).toContain(prepared.related[0]!.id)
+  })
+
+  it('credits with the splits of the row’s chain epoch, not an earlier one', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const other = seedAddress(77)
+    // After a testnet reset an earlier epoch's row with the same article key
+    // exists first, with splits that no longer apply.
+    await t.run(async ({ db }) => {
+      await db.insert('chainArticles', {
+        network: 'TESTNET',
+        chainEpoch: 'testnet-before-reset',
+        articleId: s.articleId,
+        articleKey: ARTICLE_KEY,
+        authorAddress: AUTHOR,
+        contentHash: '00'.repeat(32),
+        contentVersion: 1,
+        splits: [
+          { recipient: AUTHOR, bps: 5_000 },
+          { recipient: other, bps: 5_000 },
+        ],
+        totals: {},
+        status: 'REGISTERED',
+        updatedAt: Date.now(),
+      })
+    })
+    const prepared = await flaggedGross(t, s, { gross: BigInt(3_000_000) })
+    await t.mutation(internal.chain.review.resolveFlaggedTip, {
+      table: 'tips',
+      rowId: prepared.related[0]!.id,
+      resolution: 'credit_decoded',
+      note: 'Amount verified on chain.',
+    })
+    const credited = await earnings(t, s)
+    // No current-epoch row: the whole net goes to the on-chain author.
+    expect(credited!.earnedBaseUnits).toEqual({ [TOKEN]: '2925000' })
+  })
 
   it('credit_decoded counts the row and credits the decoded net and token', async () => {
     const t = convexTest(schema, modules)
