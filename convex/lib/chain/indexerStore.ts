@@ -172,10 +172,14 @@ export async function ingestEvents(
     if (!result.maxEventId || raw.id > result.maxEventId) {
       result.maxEventId = raw.id
     }
-    const existing = await ctx.db
-      .query('chainEvents')
-      .withIndex('by_event_id', (q) => q.eq('eventId', raw.id))
-      .first()
+    // Event ids restart after a testnet reset, so an id is unique only
+    // within one chain epoch.
+    const existing = (
+      await ctx.db
+        .query('chainEvents')
+        .withIndex('by_event_id', (q) => q.eq('eventId', raw.id))
+        .take(20)
+    ).find((row) => row.chainEpoch === args.chainEpoch)
     if (existing) {
       result.duplicates++
       continue

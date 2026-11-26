@@ -306,6 +306,33 @@ describe('paging and the cursor', () => {
     expect(ledgerOfCursor('not-a-cursor')).toBeNull()
   })
 
+  it('an event id seen in an earlier chain epoch is a new event', async () => {
+    const t = convexTest(schema, modules)
+    const chain = fakeChain()
+    const event = tippedEvent(START + 5, { clientRef: 'c'.repeat(32) })
+    chain.state.events = [event]
+    // The same id stored by a previous testnet (before a reset).
+    await t.run((ctx) =>
+      ctx.db.insert('chainEvents', {
+        network: 'TESTNET',
+        chainEpoch: 'testnet-before-reset',
+        eventId: event.id,
+        contractId: event.contractId,
+        ledger: event.ledger,
+        ledgerCloseTime: 0,
+        txHash: event.txHash,
+        type: 'tipped',
+        topics: [],
+        data: null,
+        handled: 'orphan',
+      })
+    )
+    expect(await poll(t)).toMatchObject({ stored: 1, duplicates: 0 })
+    expect(
+      (await events(t)).filter((e) => e.chainEpoch === 'testnet-idx')
+    ).toHaveLength(1)
+  })
+
   it('claims coverage only when the RPC scan window reached the latest ledger', async () => {
     const t = convexTest(schema, modules)
     const chain = fakeChain()
