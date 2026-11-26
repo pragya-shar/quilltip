@@ -8,6 +8,7 @@ import {
   isValidArweaveNftMetadataUrl,
 } from './lib/nftMetadata'
 import { verifiedStellarAddress } from './lib/walletVerification'
+import { requireV1PreparesEnabled } from './lib/v1Prepares'
 import type { Doc, Id } from './_generated/dataModel'
 import type { QueryCtx } from './_generated/server'
 import { userForAddress } from './lib/chain/nftStore'
@@ -360,6 +361,8 @@ export const mintNFT = mutation({
     metadataUrl: v.string(),
   },
   handler: async (ctx, args) => {
+    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
+    requireV1PreparesEnabled()
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
@@ -441,6 +444,8 @@ export const transferNFT = mutation({
     toUsername: v.string(),
   },
   handler: async (ctx, args) => {
+    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
+    requireV1PreparesEnabled()
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 

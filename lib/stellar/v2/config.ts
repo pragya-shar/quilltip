@@ -70,7 +70,10 @@ export function readV2Config(env: V2ConfigEnv): V2ClientConfig {
       env.coreContractId
     ),
     tabContractId: contractId('NEXT_PUBLIC_TAB_CONTRACT_ID', env.tabContractId),
-    nftContractId: contractId('NEXT_PUBLIC_NFT_CONTRACT_ID', env.nftContractId),
+    nftContractId: contractId(
+      'NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID',
+      env.nftContractId
+    ),
     tokenContractId: contractId(
       'NEXT_PUBLIC_TOKEN_CONTRACT_ID',
       env.tokenContractId
@@ -94,7 +97,9 @@ export function v2Config(): V2ClientConfig {
     convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
     coreContractId: process.env.NEXT_PUBLIC_CORE_CONTRACT_ID,
     tabContractId: process.env.NEXT_PUBLIC_TAB_CONTRACT_ID,
-    nftContractId: process.env.NEXT_PUBLIC_NFT_CONTRACT_ID,
+    // Not NEXT_PUBLIC_NFT_CONTRACT_ID: that name holds the v1 NFT contract
+    // until the v1 code is removed, so the two can never point at each other.
+    nftContractId: process.env.NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID,
     tokenContractId: process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ID,
   })
   return cached
