@@ -1,4 +1,21 @@
 import { test, expect, type Page } from '@playwright/test'
+import path from 'node:path'
+
+const SHOTS = process.env.TAB_UI_SCREENSHOTS
+
+/** Saves the state at 375, 768 and 1440 px (Chromium only) when TAB_UI_SCREENSHOTS is set. */
+async function shot(page: Page, id: string) {
+  if (!SHOTS || page.context().browser()?.browserType().name() !== 'chromium')
+    return
+  for (const w of [375, 768, 1440]) {
+    await page.setViewportSize({ width: w, height: 900 })
+    await page.screenshot({
+      path: path.join(SHOTS, `${id}-${w}.png`),
+      fullPage: true,
+      animations: 'disabled',
+    })
+  }
+}
 
 /**
  * Quick tips from the tab (issue #449) in Chromium, Firefox and WebKit: the
@@ -39,6 +56,7 @@ test('tips with no wallet prompt: accepted, then settled', async ({ page }) => {
   await tip(page)
   await expect(text(page, 'Tip sent from your tab')).toBeVisible()
   await expect(text(page, 'Tip settled')).toBeVisible({ timeout: 10_000 })
+  await shot(page, 'tip-settled')
   await expect(
     page.getByRole('link', { name: /View the transaction/ })
   ).toBeVisible()
@@ -59,6 +77,7 @@ for (const [id, title] of RESULTS) {
     await expect(page.getByRole('heading', { name: title })).toBeVisible({
       timeout: 10_000,
     })
+    await shot(page, `${id}-result`)
     await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0)
   })
 }
@@ -99,6 +118,7 @@ for (const [id, title] of REFUSALS) {
     await open(page, id)
     await tip(page)
     await expect(text(page, title)).toBeVisible()
+    await shot(page, `${id}-refused`)
   })
 }
 

@@ -484,3 +484,14 @@
   text-align: right;
   font-weight: 500;
 }
+
+/* The kit's key row draws its own bottom rule; the list keeps only the top. */
+.tab-list > li.tab-key-item {
+  border-top: 0;
+}
+.tab-list > li.tab-key-item:first-child {
+  border-top: 1px solid var(--tab-rule);
+}
+.tab-list > li.tab-key-item:last-child {
+  border-bottom: 0;
+}

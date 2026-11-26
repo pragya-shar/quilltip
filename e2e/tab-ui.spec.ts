@@ -124,6 +124,21 @@ async function backend(page: Page): Promise<{ calls: string[] }> {
   return res.json()
 }
 
+/** Saves the current state at 375, 768 and 1440 px when TAB_UI_SCREENSHOTS is set. */
+async function shot(page: Page, id: string) {
+  if (!SHOTS) return
+  const { width, height } = page.viewportSize()!
+  for (const w of [375, 768, 1440]) {
+    await page.setViewportSize({ width: w, height: 900 })
+    await page.screenshot({
+      path: path.join(SHOTS, `${id}-${w}.png`),
+      fullPage: true,
+      animations: 'disabled',
+    })
+  }
+  await page.setViewportSize({ width, height })
+}
+
 const visibleText = (page: Page, text: string | RegExp) =>
   page.locator('.tab-ui').getByText(text).first()
 
@@ -193,6 +208,7 @@ for (const [id, text] of STEPS) {
     await expect(
       page.getByRole('heading', { name: 'Payment progress' })
     ).toBeAttached()
+    await shot(page, id)
     expect(await axe(page)).toEqual([])
   })
 }
@@ -216,6 +232,7 @@ for (const [id, text, retry] of RESULTS) {
     const tryAgain = page.getByRole('button', { name: 'Try again' })
     if (retry) await expect(tryAgain).toBeVisible()
     else await expect(tryAgain).toHaveCount(0)
+    await shot(page, id)
     expect(await amountsLabelled(page)).toBe(true)
     expect(await axe(page)).toEqual([])
   })
@@ -234,6 +251,7 @@ test('top-up refuses an amount the wallet cannot spend before any prompt', async
   const input = page.getByLabel('Amount in XLM')
   await expect(input).toHaveAttribute('aria-invalid', 'true')
   await expect(input).toBeFocused()
+  await shot(page, 'op-low-funds-error')
   const calls = (await backend(page)).calls
   expect(calls.filter((c) => c.startsWith('send:'))).toEqual([])
 })
@@ -245,8 +263,10 @@ test('opens a tab with a new key in one approval, then tips from it', async ({
   await page.getByRole('button', { name: 'Open a tab' }).click()
   await expect(visibleText(page, /Your wallet can spend 119 XLM/)).toBeVisible()
   await expect(visibleText(page, /Your tab will hold 10 XLM/)).toBeVisible()
+  await shot(page, 'open-form')
   await page.getByRole('button', { name: 'Open tab with 10 XLM' }).click()
   await expect(visibleText(page, 'Your tab is open')).toBeVisible()
+  await shot(page, 'open-confirmed')
   await expect(
     page.locator('.tab-ui').getByText('This device', { exact: true })
   ).toBeVisible()
@@ -300,6 +320,7 @@ test('reload in the middle of a top-up resumes it and then confirms', async ({
   await startTopUp(page)
   await expect(visibleText(page, /Waiting for confirmation/)).toBeVisible()
   await page.reload()
+  await shot(page, 'op-reload-resumed')
   await expect(
     visibleText(
       page,
@@ -336,11 +357,13 @@ test('sets up quick tips on this device, then revokes them', async ({
   await expect(
     visibleText(page, 'Quick tips are on for this device')
   ).toBeVisible()
+  await shot(page, 'key-new-confirmed')
   await page.getByRole('button', { name: 'Done' }).click()
   await page.getByRole('button', { name: 'Revoke' }).first().click()
   await expect(
     visibleText(page, 'Quick tips are off for this device')
   ).toBeVisible()
+  await shot(page, 'key-revoke-confirmed')
 })
 
 test('renews an expiring key with a new one', async ({ page }) => {
@@ -359,6 +382,7 @@ test('closing states the waiting period and the estimated date first', async ({
   await open(page, 'home-open')
   await page.getByRole('button', { name: 'Close tab' }).click()
   await expect(visibleText(page, 'Close your tab?')).toBeVisible()
+  await shot(page, 'close-confirm')
   await expect(
     visibleText(page, /locked until around .+ \(an estimate/)
   ).toBeVisible()
@@ -366,12 +390,14 @@ test('closing states the waiting period and the estimated date first', async ({
     .getByRole('button', { name: 'Close tab and start the wait' })
     .click()
   await expect(visibleText(page, 'Withdrawal started')).toBeVisible()
+  await shot(page, 'close-started')
 })
 
 test('withdraws once the unlock ledger has passed', async ({ page }) => {
   await open(page, 'home-withdraw-ready')
   await page.getByRole('button', { name: /^Withdraw / }).click()
   await expect(visibleText(page, 'Withdrawal complete')).toBeVisible()
+  await shot(page, 'withdraw-confirmed')
 })
 
 // --- Collect -----------------------------------------------------------------
@@ -382,6 +408,7 @@ test('the writer collects with the fee from chain values', async ({ page }) => {
   await expect(visibleText(page, '0.3 XLM')).toBeVisible()
   await page.getByRole('button', { name: 'Collect 3.9 XLM' }).click()
   await expect(visibleText(page, 'Earnings collected')).toBeVisible()
+  await shot(page, 'collect-confirmed')
   expect(await amountsLabelled(page)).toBe(true)
 })
 
