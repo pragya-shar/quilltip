@@ -106,12 +106,13 @@ async function registerArticle(
     status?: 'REGISTERED' | 'SUBMITTED'
     totals?: Record<string, string>
     splits?: Array<{ recipient: string; bps: number }>
+    chainEpoch?: string
   } = {}
 ) {
   await t.run(({ db }) =>
     db.insert('chainArticles', {
       network: 'TESTNET',
-      chainEpoch: 'testnet-test',
+      chainEpoch: opts.chainEpoch ?? 'testnet-test',
       articleId: s.articleId,
       articleKey: ARTICLE_KEY,
       authorAddress: AUTHOR,
@@ -653,6 +654,36 @@ describe('canTip', () => {
       })
     ).toEqual({ allowed: true })
     expect(await t.query(api.tips.canTip, {})).toEqual({ allowed: true })
+  })
+
+  it('ignores a registration from an earlier chain epoch', async () => {
+    const t = newTest()
+    const s = await seed(t)
+    await registerArticle(t, s, {
+      chainEpoch: 'testnet-previous',
+      totals: { [TOKEN]: '5000000' },
+    })
+    expect(await t.query(api.tips.canTip, { articleId: s.articleId })).toEqual({
+      allowed: false,
+      waitSec: 0,
+      reason: 'NOT_REGISTERED',
+    })
+    expect(
+      await t.query(api.tips.getArticleTipStats, { articleId: s.articleId })
+    ).toMatchObject({ totalsBaseUnits: {}, registered: false })
+
+    // A registration in the current epoch is used, even when the old row
+    // comes first in the index.
+    await registerArticle(t, s, { totals: { [TOKEN]: '7000000' } })
+    expect(await t.query(api.tips.canTip, { articleId: s.articleId })).toEqual({
+      allowed: true,
+    })
+    expect(
+      await t.query(api.tips.getArticleTipStats, { articleId: s.articleId })
+    ).toMatchObject({
+      totalsBaseUnits: { [TOKEN]: '7000000' },
+      registered: true,
+    })
   })
 })
 

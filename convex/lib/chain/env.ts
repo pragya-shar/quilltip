@@ -40,6 +40,14 @@ function contractIdOrNull(name: string, env: EnvLike): string | null {
   return value
 }
 
+/**
+ * The current `CHAIN_EPOCH`. No network guard, so read paths that must keep
+ * working on any network can scope rows to the epoch.
+ */
+export function currentChainEpoch(env: EnvLike = process.env): string {
+  return env.CHAIN_EPOCH?.trim() || UNSET_CHAIN_EPOCH
+}
+
 /** The RPC URL for backend reads, after the network guard. */
 export function backendRpcUrl(env: EnvLike = process.env): string {
   assertBackendTestnet(env)
@@ -50,7 +58,7 @@ export function readChainEnv(env: EnvLike = process.env): ChainEnv {
   const network = assertBackendTestnet(env)
   return {
     network,
-    chainEpoch: env.CHAIN_EPOCH?.trim() || UNSET_CHAIN_EPOCH,
+    chainEpoch: currentChainEpoch(env),
     rpcUrl: backendRpcUrl(env),
     passphrase:
       env.NETWORK_PASSPHRASE?.trim() ||
