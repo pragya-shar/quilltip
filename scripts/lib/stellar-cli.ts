@@ -8,9 +8,31 @@
  */
 import { spawnSync, type SpawnSyncReturns } from 'child_process'
 
-import { NetworkGuardError, resolveScriptStellarNetwork } from './network-guard'
+import {
+  NetworkGuardError,
+  resolveScriptStellarNetwork,
+  resolveScriptStellarOnlyNetwork,
+} from './network-guard'
 
 type EnvLike = Record<string, string | undefined>
+
+/**
+ * Which guard runs before a command. `convex` (the default) is
+ * `assertScriptTestnetOnly`, which also checks the Convex target.
+ * `stellar-only` is `assertScriptStellarTestnetOnly`, for tools that touch no
+ * Convex backend. Both refuse mainnet.
+ */
+export type StellarCliGuardScope = 'convex' | 'stellar-only'
+
+function resolveNetwork(
+  operation: string,
+  env: EnvLike,
+  scope: StellarCliGuardScope
+) {
+  return scope === 'stellar-only'
+    ? resolveScriptStellarOnlyNetwork(operation, env)
+    : resolveScriptStellarNetwork(operation, env)
+}
 
 /** Long flags the wrapper sets itself. Callers must not pass them. */
 const NETWORK_FLAGS = ['--network', '--rpc-url', '--network-passphrase']
@@ -76,9 +98,10 @@ function refuseNetworkFlags(operation: string, options: string[]): void {
  */
 export function stellarCliNetworkArgs(
   operation: string,
-  env: EnvLike = process.env
+  env: EnvLike = process.env,
+  scope: StellarCliGuardScope = 'convex'
 ): string[] {
-  const network = resolveScriptStellarNetwork(operation, env)
+  const network = resolveNetwork(operation, env, scope)
   return [
     '--network',
     network.cliNetwork,
@@ -98,12 +121,13 @@ export function stellarCliNetworkArgs(
 export function buildStellarCliCommand(
   operation: string,
   args: string[],
-  env: EnvLike = process.env
+  env: EnvLike = process.env,
+  scope: StellarCliGuardScope = 'convex'
 ): StellarCliCommand {
   // Arguments after `--` belong to the contract function, not to the CLI.
   const [options, functionArgs] = splitAtOptionsEnd(args)
   refuseNetworkFlags(operation, options)
-  const network = resolveScriptStellarNetwork(operation, env)
+  const network = resolveNetwork(operation, env, scope)
   const childEnv: EnvLike = { ...env }
   for (const name of CLI_NETWORK_ENV) delete childEnv[name]
   childEnv.STELLAR_NETWORK = network.cliNetwork
@@ -136,9 +160,14 @@ type Spawn = (
 export function runStellarCli(
   operation: string,
   args: string[],
-  options: { env?: EnvLike; spawn?: Spawn } = {}
+  options: { env?: EnvLike; spawn?: Spawn; scope?: StellarCliGuardScope } = {}
 ): SpawnSyncReturns<string> {
-  const built = buildStellarCliCommand(operation, args, options.env)
+  const built = buildStellarCliCommand(
+    operation,
+    args,
+    options.env,
+    options.scope
+  )
   const spawn = options.spawn ?? (spawnSync as unknown as Spawn)
   return spawn(built.command, built.args, {
     env: built.env,

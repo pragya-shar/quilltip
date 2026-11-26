@@ -271,6 +271,17 @@ dispatches it, and saves the cursor in the same mutation. Statuses:
 
 `chain/indexer:redispatch` dispatches stored events that had no handler yet.
 
+**Payments flagged for review.** When a successful transaction paid something
+other than the prepared values, had no `Tipped` event, or an event contradicts
+the recorded state, the row is flagged (`needsReview`) and keeps the decoded
+on-chain payer, payee, token and amounts (`onChain*`, `feeBaseUnits`,
+`netBaseUnits`) next to the expected values. `/ops/chain` lists them side by
+side. Flagged rows stay out of tip counts and earnings until an operator runs
+`chain/review:resolveFlaggedTip` with `credit_decoded` (counts and credits the
+decoded token and amounts; only for `field:gross`, `field:token`, `field:fee`,
+`field:tipper`, `field:highlight_id` and `field:ledger`) or `no_credit`, and a
+note.
+
 **Tab ledger.** `convex/tabs.ts` accepts tab tips (`prepareTip`, `submitTip`)
 and mirrors Tab events through the indexer. Its Convex variables, all testnet:
 
