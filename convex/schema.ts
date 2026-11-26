@@ -50,7 +50,9 @@ export default defineSchema({
     .index('by_email', ['email'])
     .index('by_username', ['username'])
     .index('by_username_lower', ['usernameLower'])
-    .index('by_test_account', ['isTestAccount']),
+    .index('by_test_account', ['isTestAccount'])
+    // Resolves an on-chain recipient address to a QuillTip user (earnings).
+    .index('by_stellar_address', ['stellarAddress']),
 
   // Handles a writer used before. Each stays reserved for that writer and its
   // URLs redirect to the writer's current handle.
@@ -411,6 +413,10 @@ export default defineSchema({
 
     // Payments v2 fields (optional; v1 rows leave them unset)
     ...tipChainFields,
+    // Set once the earnings sync has handled this v2 row. A row it did not
+    // credit carries `earningsSkipReason` (for example `needs_review`).
+    earningsAppliedAt: v.optional(v.number()),
+    earningsSkipReason: v.optional(v.string()),
 
     // Timestamps
     createdAt: v.number(),
@@ -423,6 +429,12 @@ export default defineSchema({
     .index('by_status', ['status'])
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
     .index('by_status_updated', ['status', 'updatedAt']) // For stuck verification recovery
+    // v2 paid rows not yet handled by the earnings sync.
+    .index('by_version_status_earnings', [
+      'contractVersion',
+      'status',
+      'earningsAppliedAt',
+    ])
     .index('by_article_tip_intent', ['articleTipIntentId'])
     // Not unique for v2: batch rows share one hash.
     .index('by_stellar_tx', ['stellarTxId'])
@@ -502,6 +514,10 @@ export default defineSchema({
 
     // Payments v2 fields (optional; v1 rows leave them unset)
     ...tipChainFields,
+    // Set once the earnings sync has handled this v2 row. A row it did not
+    // credit carries `earningsSkipReason` (for example `needs_review`).
+    earningsAppliedAt: v.optional(v.number()),
+    earningsSkipReason: v.optional(v.string()),
 
     // Timestamps
     createdAt: v.number(),
@@ -515,6 +531,12 @@ export default defineSchema({
     .index('by_status', ['status'])
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
     .index('by_status_updated', ['status', 'updatedAt']) // For stuck verification recovery
+    // v2 paid rows not yet handled by the earnings sync.
+    .index('by_version_status_earnings', [
+      'contractVersion',
+      'status',
+      'earningsAppliedAt',
+    ])
     .index('by_highlight_tip_intent', ['highlightTipIntentId'])
     .index('by_stellar_tx', ['stellarTxId'])
     .index('by_client_ref', ['clientRef']),
@@ -541,6 +563,15 @@ export default defineSchema({
 
     // Monthly breakdown (denormalized)
     monthlyEarnings: v.optional(v.any()),
+
+    // Payments v2 (docs/architecture/v2/06-app-integration.md, section 6.2).
+    // Decimal strings of base units, keyed by token contract ID.
+    earnedBaseUnits: v.optional(v.record(v.string(), v.string())),
+    pendingBaseUnits: v.optional(v.record(v.string(), v.string())),
+    collectedBaseUnits: v.optional(v.record(v.string(), v.string())),
+    // The v2 part of tipCount and totalEarnedCents.
+    v2TipCount: v.optional(v.number()),
+    v2EarnedCents: v.optional(v.number()),
 
     // Top articles (denormalized)
     topArticles: v.optional(

@@ -59,6 +59,9 @@ jobs:
       - name: Payments v2 chain layer regressions
         run: bun run test:chain
 
+      - name: Tip read queries and earnings regressions
+        run: bun run test:tips
+
       - name: Dependency compatibility regressions
         run: bun run test:dependency-compatibility
 

@@ -139,7 +139,11 @@ test('public and writer stats count verified tips only', async () => {
   const stats = await t.query(api.tips.getArticleTipStats, {
     articleId: ids.articleId,
   })
-  expect(stats).toEqual({ totalTips: 1, totalAmountUsd: 1, uniqueTippers: 1 })
+  expect(stats).toMatchObject({
+    totalTips: 1,
+    totalAmountUsd: 1,
+    uniqueTippers: 1,
+  })
 
   const tips = await t.query(api.tips.getArticleTips, {
     articleId: ids.articleId,
@@ -173,6 +177,9 @@ test('public and writer stats count verified tips only', async () => {
     tipCount: 2,
     writerShareStroops: '58500000',
     estimatedUsd: 2.925,
+    earnedBaseUnits: {},
+    v2TipCount: 0,
+    complete: true,
   })
 })
 
