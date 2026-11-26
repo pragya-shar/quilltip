@@ -78,6 +78,10 @@ docker run --rm --platform "$PLATFORM" \
   --workdir /build/contracts \
   "$BUILD_IMAGE" \
   bash -euo pipefail -c '
+    # The Linux CLI binary links libdbus (hardware-wallet support). It does not
+    # take part in compiling or optimizing the Wasm.
+    apt-get update -qq >/dev/null
+    apt-get install -y -qq --no-install-recommends libdbus-1-3 >/dev/null
     rustc --version
     stellar --version | head -n 1
     stellar contract build --locked --optimize --out-dir /out \
