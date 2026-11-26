@@ -15,6 +15,8 @@
  * 3. If the submit response is lost, resubmit the same `result.submit`;
  *    Convex returns the same acceptance.
  */
+import type { V2ClientConfig } from '../config'
+import { tabConfig } from './config'
 import { TabClientError } from './errors'
 import {
   createLocalLedger,
@@ -86,15 +88,20 @@ export type SignTabTipResult<Id extends string = string> =
     }
   | { kind: 'stop'; reason: StopReason; message: string }
 
-/** Default dependencies over the real IndexedDB and WebCrypto. */
-export function defaultTabSigningDeps(config: {
-  networkPassphrase: string
-  tabContractId: string
+/**
+ * Default dependencies over the real IndexedDB and WebCrypto. The network
+ * passphrase and Tab contract id come from `v2Config()`; pass `config` only
+ * in tests and fixtures.
+ */
+export function defaultTabSigningDeps(options: {
   readerAddress: string
   maxAmount?: bigint
+  config?: Pick<V2ClientConfig, 'passphrase' | 'tabContractId'>
 }): SignTabTipDeps {
   return {
-    ...config,
+    ...tabConfig(options.config),
+    readerAddress: options.readerAddress,
+    maxAmount: options.maxAmount,
     keys: createSessionKeyStore(),
     ledger: createLocalLedger(),
   }

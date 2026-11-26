@@ -72,4 +72,5 @@ export {
   type SignTabTipResult,
   type StopReason,
 } from './sign-tip'
+export { tabConfig, tabScope, type TabConfig } from './config'
 export { TAB_DB_NAME, closeTabDb, type TabDbOptions } from './idb'

@@ -15,6 +15,8 @@ export type TabClientErrorCode =
   | 'INVALID_INPUT'
   /** An accepted tip does not extend the local ledger. */
   | 'LEDGER_CONFLICT'
+  /** No Tab contract is configured for this network. */
+  | 'NOT_CONFIGURED'
 
 export class TabClientError extends Error {
   readonly code: TabClientErrorCode

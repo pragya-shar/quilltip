@@ -15,6 +15,7 @@ Spec: [03 Tab contract](../../../../docs/architecture/v2/03-tab-contract.md)
 | File              | Responsibility                                                                    |
 | ----------------- | --------------------------------------------------------------------------------- |
 | `encoding.ts`     | Shared byte encoders (voucher, acceptance, receipt, Merkle). Also used by Convex. |
+| `config.ts`       | Passphrase and Tab contract id from `v2Config()`.                                 |
 | `session-key.ts`  | Key generation, storage, binding to `key_id`, signing, status.                    |
 | `merkle.ts`       | Receipts and roots in the hex form Convex stores.                                 |
 | `voucher.ts`      | Prepare checks, receipt and payload builders, `submitTip` argument.               |
@@ -27,10 +28,10 @@ Spec: [03 Tab contract](../../../../docs/architecture/v2/03-tab-contract.md)
 ### Opening a tab or adding a key (spec 5.5)
 
 ```ts
-import { createSessionKeyStore } from '@/lib/stellar/v2/tab'
+import { createSessionKeyStore, tabScope } from '@/lib/stellar/v2/tab'
 
 const keys = createSessionKeyStore()
-const scope = { tabContractId, readerAddress } // config + verified address
+const scope = tabScope(readerAddress) // Tab contract from v2Config()
 
 const key = await keys.generate(scope) // pending: key.info.keyIds is []
 await prepareOpen({
@@ -57,11 +58,8 @@ import {
   signTabTip,
 } from '@/lib/stellar/v2/tab'
 
-const deps = defaultTabSigningDeps({
-  networkPassphrase, // from config, never from a server response
-  tabContractId,
-  readerAddress,
-})
+// Passphrase and Tab contract id from v2Config(), never from a response.
+const deps = defaultTabSigningDeps({ readerAddress })
 
 let prepared = await prepareTip({ requestId, articleId, amountCents, keyId })
 let result = await signTabTip(prepared, deps)
@@ -122,6 +120,7 @@ Expected outcomes are results, not exceptions. `TabClientError` has a `code`:
 | `KEY_NOT_FOUND`       | `markUnusable` on a key this browser does not hold.          |
 | `INVALID_INPUT`       | Malformed argument.                                          |
 | `LEDGER_CONFLICT`     | An acceptance does not extend this browser's signed history. |
+| `NOT_CONFIGURED`      | `NEXT_PUBLIC_TAB_CONTRACT_ID` is not set.                    |
 
 ## How the UI presents each state
 
@@ -214,8 +213,9 @@ vouchers this browser signed can be promoted, so this adds no exposure.
   `submit` argument (the ledger keeps the signature for replays).
 - **Content security policy.** The modules need no inline script,
   `'unsafe-eval'` or WebAssembly. `@noble/curves` is plain JavaScript.
-- **`Buffer`.** `encoding.ts` uses the global `Buffer`. `buffer-global.ts`
-  fills it from the `buffer` package when the bundler has not.
+- **`Buffer`.** `encoding.ts` imports `Buffer` from the `buffer` package.
+  Do not use the global `Buffer` in code that runs in the browser or in the
+  Convex default runtime: neither has one.
 
 ## Tests
 
