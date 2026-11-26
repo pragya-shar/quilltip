@@ -17,10 +17,10 @@ Actors:
 1. **C:** The author publishes. **X** `articles.publishArticle` stores the article and computes `content_hash` from `canonicalArticleBytes` ([section 1.4](01-architecture.md#canonical-article-bytes)).
    - If Arweave upload is enabled, the upload body is the same bytes.
    - **X** stores `arweave_id` once the upload completes.
-2. **C:** After publish, the editor shows "Enable tips" when the article has no registration. **C** calls **X** `chainArticles.prepareRegistration(articleId)`. It returns `{article_id, content_hash, arweave_id, splits, contractId, clientRef}` and creates a `chainSubmissions` row (`kind: register`, status `PREPARED`).
-3. **C:** Builds `Core.register_article(author, …)` with the generated bindings, then simulates. **W** signs.
+2. **C:** After publish, the editor shows "Enable tips" when the article has no registration. **C** calls **X** `chainArticles.prepareRegistration(articleId)`. It computes `article_ref` from the Convex article ID and `article_id` from the author's linked address and `article_ref` ([section 1.4](01-architecture.md#14-identifiers)), stores `article_id` as `chainArticles.articleKey`, returns `{article_ref, article_id, content_hash, arweave_id, splits, contractId, clientRef}` and creates a `chainSubmissions` row (`kind: register`, status `PREPARED`). If the linked address changes before registration succeeds, prepare computes a new `article_id` for the new address.
+3. **C:** Builds `Core.register_article(author, article_ref, …)` with the generated bindings, then simulates. **W** signs.
 4. **C:** Sends the transaction. **X** `chainSubmissions.recordSubmitted(id, txHash, envelopeXdr)`.
-5. **X:** The verifier polls `getTransaction`. It requires `SUCCESS` and an `ArticleRegistered` event whose `article_id`, `author` and `content_hash` equal the prepared values. It then sets `chainArticles.status = REGISTERED`.
+5. **X:** The verifier polls `getTransaction`. It requires `SUCCESS` and an `ArticleRegistered` event whose `article_id`, `author`, `article_ref` and `content_hash` equal the prepared values. It then sets `chainArticles.status = REGISTERED`.
 6. **Gate:** tip buttons for an article stay disabled until step 5. The indexer reconciles the same event ([section 6.5](06-app-integration.md#65-event-indexer)).
 
 **Content changes** follow the same sequence with `Core.update_content`.
