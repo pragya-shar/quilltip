@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { resolveStellarNetwork } from './network'
-import { assertClientTestnet } from './network-guard'
+import { pickRpcUrl, resolveStellarNetwork } from './network'
+import { assertClientNetwork } from './network-guard'
 import { TESTNET_FALLBACK_XLM_TO_USD_RATE } from './price-fallback'
 
 // Stellar address pattern (G... for accounts, C... for contracts)
@@ -62,12 +62,21 @@ export const STELLAR_NETWORK_CONFIG = resolveStellarNetwork({
   network: process.env.NEXT_PUBLIC_STELLAR_NETWORK,
   passphrase: process.env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
   horizonUrl: process.env.NEXT_PUBLIC_HORIZON_URL,
-  rpcUrl: process.env.NEXT_PUBLIC_SOROBAN_RPC_URL,
+  // NEXT_PUBLIC_SOROBAN_RPC_URL is the earlier name; both may be set only to
+  // the same value.
+  rpcUrl: pickRpcUrl(
+    process.env.NEXT_PUBLIC_STELLAR_RPC_URL,
+    process.env.NEXT_PUBLIC_SOROBAN_RPC_URL
+  ),
 })
 
-// The app signs and submits TESTNET transactions only. Any other network,
+// The app signs and submits TESTNET transactions, or LOCAL ones against a
+// local standalone network and local Convex backend. Any other network,
 // passphrase, or a mainnet endpoint throws here, before any wallet call.
-assertClientTestnet(STELLAR_NETWORK_CONFIG)
+assertClientNetwork({
+  ...STELLAR_NETWORK_CONFIG,
+  convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
+})
 
 export const STELLAR_CONFIG = {
   // Network configuration (see lib/stellar/network.ts)

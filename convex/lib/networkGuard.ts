@@ -7,13 +7,18 @@
  *
  * It applies two separate controls:
  *
- * 1. Stellar network. Only TESTNET is accepted. Mainnet networks,
- *    passphrases, and endpoints are refused always; nothing overrides this.
+ * 1. Stellar network. Only TESTNET, or LOCAL (a standalone network on this
+ *    machine), is accepted. Mainnet networks, passphrases, and endpoints are
+ *    refused always; nothing overrides this.
  * 2. Convex backend. Targets must be local or on an allowlist. The live
  *    backend is refused by default. An operational run (kind `operational`)
  *    may target it only when LIVE_BACKEND_APPROVAL_ENV names that deployment.
  *    Deploy-kind work (function pushes, schema pushes, imports, migrations,
  *    env changes) is refused on the live backend even with that approval.
+ *
+ * LOCAL mode needs the `local` opt-in, the standalone passphrase, Stellar
+ * endpoints on localhost or 127.0.0.1, and a local Convex backend. It is never
+ * valid with a Convex cloud deployment or with the live backend approval.
  *
  * This module has no imports outside convex/lib so Convex, Next.js, and Bun
  * scripts can share it. Client code imports it through
@@ -21,6 +26,7 @@
  */
 
 import {
+  LOCAL_PASSPHRASE,
   MAINNET_PASSPHRASE,
   STELLAR_NETWORK_DEFAULTS,
   TESTNET_PASSPHRASE,
@@ -33,6 +39,9 @@ import {
  *   changes deployment env. Never allowed on a live backend.
  */
 export type GuardedOperationKind = 'operational' | 'deploy'
+
+/** Network modes the guard accepts. */
+export type GuardedNetwork = 'TESTNET' | 'LOCAL'
 
 /** Non-production Convex deployments any guarded tool may target. */
 export const ALLOWED_CONVEX_DEPLOYMENTS: readonly string[] = [
@@ -50,9 +59,18 @@ export const LIVE_CONVEX_DEPLOYMENTS: readonly string[] = [
 /** Kept for callers of the earlier name. */
 export const PRODUCTION_CONVEX_DEPLOYMENTS = LIVE_CONVEX_DEPLOYMENTS
 
-/** Env var that must equal OPT_IN_VALUE before a guarded operation runs. */
+/**
+ * Env var that confirms the network mode before a guarded operation runs:
+ * `testnet` for TESTNET, `local` for LOCAL.
+ */
 export const NETWORK_GUARD_OPT_IN_ENV = 'QUILLTIP_NETWORK_GUARD_OPT_IN'
 export const NETWORK_GUARD_OPT_IN_VALUE = 'testnet'
+export const NETWORK_GUARD_LOCAL_OPT_IN_VALUE = 'local'
+
+const OPT_IN_VALUES: Record<GuardedNetwork, string> = {
+  TESTNET: NETWORK_GUARD_OPT_IN_VALUE,
+  LOCAL: NETWORK_GUARD_LOCAL_OPT_IN_VALUE,
+}
 
 /**
  * Optional comma-separated list of extra non-production deployments (for
@@ -78,7 +96,11 @@ const TESTNET_HOSTS = new Set([
   'friendbot.stellar.org',
 ])
 
+/** Hosts that count as a local Convex backend or local Stellar endpoint. */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
+
+/** LOCAL-mode Stellar endpoints must be on one of these hosts. */
+const LOCAL_STELLAR_HOSTS = new Set(['localhost', '127.0.0.1'])
 
 const KNOWN_MAINNET_HOSTS = new Set([
   new URL(STELLAR_NETWORK_DEFAULTS.MAINNET.horizonUrl).hostname,
@@ -88,14 +110,20 @@ const KNOWN_MAINNET_HOSTS = new Set([
 
 export type NetworkGuardCode =
   | 'MISSING_OPT_IN'
+  | 'OPT_IN_MISMATCH'
   | 'MISSING_NETWORK'
   | 'NOT_TESTNET'
   | 'CONFLICTING_NETWORK'
   | 'MAINNET_PASSPHRASE'
   | 'UNKNOWN_PASSPHRASE'
+  | 'CONFLICTING_PASSPHRASE'
   | 'MAINNET_URL'
   | 'UNTRUSTED_URL'
   | 'INVALID_URL'
+  | 'LOCAL_REMOTE_URL'
+  | 'LOCAL_CLOUD_CONVEX'
+  | 'LOCAL_LIVE_APPROVAL'
+  | 'CLI_NETWORK_FLAG'
   | 'PROD_CONVEX_TYPE'
   | 'UNKNOWN_CONVEX'
   | 'CONVEX_NOT_ALLOWLISTED'
@@ -116,7 +144,7 @@ export class NetworkGuardError extends Error {
   constructor(operation: string, refusals: NetworkGuardRefusal[]) {
     super(
       [
-        `Network guard refused "${operation}". Guarded tools run on Stellar TESTNET and allowlisted Convex deployments only.`,
+        `Network guard refused "${operation}". Guarded tools run on Stellar TESTNET (or a local standalone network) and allowlisted Convex deployments only.`,
         ...refusals.map((r) => `  - [${r.code}] ${r.message}`),
       ].join('\n')
     )
@@ -134,9 +162,12 @@ export type NetworkGuardInput = {
   operation: string
   /** Defaults to `deploy`, the stricter kind. */
   kind?: GuardedOperationKind
-  /** Stellar network values from every source in use; all must be TESTNET. */
+  /** Stellar network values from every source in use; all must agree. */
   stellarNetworks?: Array<string | null | undefined>
+  /** Single passphrase value. Kept for earlier callers; merged with the list. */
   networkPassphrase?: string | null
+  /** Passphrase values from every source in use; all must agree. */
+  networkPassphrases?: Array<string | null | undefined>
   /** Horizon, RPC, or friendbot URLs the operation will contact. */
   stellarUrls?: Array<string | null | undefined>
   /** Convex URLs (`https://<name>.convex.cloud`, `.convex.site`, or local). */
@@ -160,15 +191,16 @@ export type NetworkGuardInput = {
   /** Set false to skip the opt-in check (backend runtime checks only). */
   requireOptIn?: boolean
   /**
-   * Accept Stellar URLs on hosts outside the testnet allowlist (mainnet hosts
-   * are still refused). Only the backend runtime check uses this, so a custom
-   * testnet Horizon provider keeps working on deployed backends.
+   * Accept TESTNET-mode Stellar URLs on hosts outside the testnet allowlist
+   * (mainnet hosts are still refused). Only the backend and client runtime
+   * checks use this, so a custom testnet provider keeps working on deployed
+   * backends. It never applies in LOCAL mode.
    */
   allowUnlistedUrls?: boolean
 }
 
 export type NetworkGuardResult = {
-  network: 'TESTNET'
+  network: GuardedNetwork
   convexDeployments: string[]
   /** True when an approved operational run targets a live backend. */
   liveBackendApproved: boolean
@@ -199,6 +231,24 @@ export function productionDeploymentDenylist(
   return nameList(LIVE_CONVEX_DEPLOYMENTS, extra)
 }
 
+/** Lower-case host without IPv6 brackets or trailing dots. */
+function normalizedHost(url: URL): string {
+  return url.hostname
+    .toLowerCase()
+    .replace(/^\[(.*)\]$/, '$1')
+    .replace(/\.+$/, '')
+}
+
+/** True for a URL on a local host (localhost, 127.0.0.1, ::1). */
+export function isLocalUrl(url: string | null | undefined): boolean {
+  if (!present(url)) return false
+  try {
+    return LOCAL_HOSTS.has(new URL(url.trim()).hostname.toLowerCase())
+  } catch {
+    return false
+  }
+}
+
 /** Deployment name from a Convex cloud/site URL, or null for local/other URLs. */
 export function convexDeploymentNameFromUrl(url: string): string | null {
   let host: string
@@ -226,21 +276,45 @@ export function parseConvexDeploymentRef(value: string): {
   return { type, name }
 }
 
-function checkStellarUrl(url: string): NetworkGuardRefusal | null {
+/** Passphrase form used to detect mainnet in any casing or spacing. */
+function loosePassphrase(value: string): string {
+  return value.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+function checkStellarUrl(
+  url: string,
+  mode: GuardedNetwork | null,
+  allowUnlistedUrls: boolean
+): NetworkGuardRefusal | null {
   let parsed: URL
   try {
     parsed = new URL(url)
   } catch {
     return { code: 'INVALID_URL', message: `"${url}" is not a valid URL.` }
   }
-  const host = parsed.hostname.toLowerCase()
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return {
+      code: 'INVALID_URL',
+      message: `"${parsed.protocol}" is not an HTTP(S) endpoint.`,
+    }
+  }
+  const host = normalizedHost(parsed)
   if (KNOWN_MAINNET_HOSTS.has(host) || /(^|[.-])mainnet([.-]|$)/.test(host)) {
     return {
       code: 'MAINNET_URL',
       message: `${parsed.origin} is a Stellar mainnet endpoint.`,
     }
   }
-  if (TESTNET_HOSTS.has(host) || LOCAL_HOSTS.has(host)) return null
+  const exactHost = parsed.hostname.toLowerCase()
+  if (mode === 'LOCAL') {
+    if (LOCAL_STELLAR_HOSTS.has(exactHost)) return null
+    return {
+      code: 'LOCAL_REMOTE_URL',
+      message: `${parsed.origin} is not on localhost or 127.0.0.1. LOCAL mode uses local endpoints only.`,
+    }
+  }
+  if (TESTNET_HOSTS.has(exactHost) || LOCAL_HOSTS.has(exactHost)) return null
+  if (allowUnlistedUrls) return null
   return {
     code: 'UNTRUSTED_URL',
     message: `${parsed.origin} is not a known testnet or local endpoint.`,
@@ -248,89 +322,156 @@ function checkStellarUrl(url: string): NetworkGuardRefusal | null {
 }
 
 /**
+ * Network mode from the network values (Stellar checks on) or from the
+ * opt-in (Convex-only checks). Null when the values do not name one mode.
+ */
+function guardMode(input: NetworkGuardInput): GuardedNetwork | null {
+  if (input.checkStellar ?? true) {
+    const distinct = new Set(
+      (input.stellarNetworks ?? []).filter(present).map((n) => n.trim())
+    )
+    if (distinct.size !== 1) return null
+    const [network] = [...distinct]
+    return network === 'TESTNET' || network === 'LOCAL' ? network : null
+  }
+  const optIn = input.optIn?.trim()
+  if (optIn === NETWORK_GUARD_LOCAL_OPT_IN_VALUE) return 'LOCAL'
+  if (optIn === NETWORK_GUARD_OPT_IN_VALUE) return 'TESTNET'
+  return null
+}
+
+type Evaluation = {
+  refusals: NetworkGuardRefusal[]
+  mode: GuardedNetwork | null
+  deployments: string[]
+  liveBackendApproved: boolean
+}
+
+/**
  * Collect every reason the operation must not run. Returns an empty list when
- * the inputs describe TESTNET and a non-production Convex deployment.
+ * the inputs describe TESTNET (or LOCAL) and a permitted Convex target.
  */
 export function collectNetworkGuardRefusals(
   input: NetworkGuardInput
 ): NetworkGuardRefusal[] {
-  const refusals: NetworkGuardRefusal[] = []
-  const checkStellar = input.checkStellar ?? true
-  const requireOptIn = input.requireOptIn ?? true
+  return evaluate(input).refusals
+}
 
-  if (requireOptIn && input.optIn?.trim() !== NETWORK_GUARD_OPT_IN_VALUE) {
+function evaluate(input: NetworkGuardInput): Evaluation {
+  const refusals: NetworkGuardRefusal[] = []
+  const mode = guardMode(input)
+
+  if (input.requireOptIn ?? true) {
+    const optIn = input.optIn?.trim() ?? ''
+    const expected = OPT_IN_VALUES[mode ?? 'TESTNET']
+    if (optIn === '') {
+      refusals.push({
+        code: 'MISSING_OPT_IN',
+        message: `Set ${NETWORK_GUARD_OPT_IN_ENV}=${expected} to confirm the network this run targets.`,
+      })
+    } else if (optIn !== expected) {
+      refusals.push({
+        code: 'OPT_IN_MISMATCH',
+        message: `${NETWORK_GUARD_OPT_IN_ENV} is "${optIn}", but this run needs "${expected}"${mode ? ` for ${mode}` : ''}.`,
+      })
+    }
+  }
+
+  if (input.checkStellar ?? true) {
+    refusals.push(...collectStellarRefusals(input, mode))
+  }
+
+  if (!(input.checkConvex ?? true)) {
+    return { refusals, mode, deployments: [], liveBackendApproved: false }
+  }
+  const convex = collectConvexRefusals(input, mode)
+  return {
+    refusals: [...refusals, ...convex.refusals],
+    mode,
+    deployments: convex.deployments,
+    liveBackendApproved: convex.liveBackendApproved,
+  }
+}
+
+function collectStellarRefusals(
+  input: NetworkGuardInput,
+  mode: GuardedNetwork | null
+): NetworkGuardRefusal[] {
+  const refusals: NetworkGuardRefusal[] = []
+  const networks = new Set(
+    (input.stellarNetworks ?? []).filter(present).map((n) => n.trim())
+  )
+  if (networks.size === 0) {
     refusals.push({
-      code: 'MISSING_OPT_IN',
-      message: `Set ${NETWORK_GUARD_OPT_IN_ENV}=${NETWORK_GUARD_OPT_IN_VALUE} to confirm this run targets testnet.`,
+      code: 'MISSING_NETWORK',
+      message:
+        'No Stellar network is set. Set NEXT_PUBLIC_STELLAR_NETWORK=TESTNET (scripts) or STELLAR_NETWORK=TESTNET (Convex).',
+    })
+  } else if (networks.size > 1) {
+    refusals.push({
+      code: 'CONFLICTING_NETWORK',
+      message: `Stellar network values disagree: ${[...networks].join(', ')}.`,
     })
   }
-
-  if (checkStellar) {
-    const networks = (input.stellarNetworks ?? []).filter(present)
-    const distinct = new Set(networks.map((n) => n.trim()))
-    if (distinct.size === 0) {
+  for (const network of networks) {
+    if (network !== 'TESTNET' && network !== 'LOCAL') {
       refusals.push({
-        code: 'MISSING_NETWORK',
-        message:
-          'No Stellar network is set. Set NEXT_PUBLIC_STELLAR_NETWORK=TESTNET (scripts) or STELLAR_NETWORK=TESTNET (Convex).',
+        code: 'NOT_TESTNET',
+        message: `Stellar network is "${network}"; only TESTNET (or LOCAL for a local standalone network) is allowed.`,
       })
-    } else if (distinct.size > 1) {
-      refusals.push({
-        code: 'CONFLICTING_NETWORK',
-        message: `Stellar network values disagree: ${[...distinct].join(', ')}.`,
-      })
-    }
-    for (const network of distinct) {
-      if (network !== 'TESTNET') {
-        refusals.push({
-          code: 'NOT_TESTNET',
-          message: `Stellar network is "${network}"; only TESTNET is allowed.`,
-        })
-      }
-    }
-
-    if (present(input.networkPassphrase)) {
-      const passphrase = input.networkPassphrase.trim()
-      if (passphrase === MAINNET_PASSPHRASE) {
-        refusals.push({
-          code: 'MAINNET_PASSPHRASE',
-          message: 'The network passphrase is the Stellar mainnet passphrase.',
-        })
-      } else if (passphrase !== TESTNET_PASSPHRASE) {
-        refusals.push({
-          code: 'UNKNOWN_PASSPHRASE',
-          message: `The network passphrase is not "${TESTNET_PASSPHRASE}".`,
-        })
-      }
-    }
-
-    for (const url of (input.stellarUrls ?? []).filter(present)) {
-      const refusal = checkStellarUrl(url.trim())
-      if (
-        refusal &&
-        !(input.allowUnlistedUrls && refusal.code === 'UNTRUSTED_URL')
-      ) {
-        refusals.push(refusal)
-      }
     }
   }
 
-  if (input.checkConvex ?? true) {
-    refusals.push(...collectConvexRefusals(input).refusals)
+  const passphrases = new Set(
+    [input.networkPassphrase, ...(input.networkPassphrases ?? [])]
+      .filter(present)
+      .map((p) => p.trim())
+  )
+  if (passphrases.size > 1) {
+    refusals.push({
+      code: 'CONFLICTING_PASSPHRASE',
+      message: 'Network passphrase values disagree.',
+    })
+  }
+  const expected = mode === 'LOCAL' ? LOCAL_PASSPHRASE : TESTNET_PASSPHRASE
+  for (const passphrase of passphrases) {
+    if (loosePassphrase(passphrase) === loosePassphrase(MAINNET_PASSPHRASE)) {
+      refusals.push({
+        code: 'MAINNET_PASSPHRASE',
+        message: 'The network passphrase is the Stellar mainnet passphrase.',
+      })
+    } else if (passphrase !== expected) {
+      refusals.push({
+        code: 'UNKNOWN_PASSPHRASE',
+        message: `The network passphrase is not "${expected}"${mode ? ` (${mode})` : ''}.`,
+      })
+    }
   }
 
+  for (const url of (input.stellarUrls ?? []).filter(present)) {
+    const refusal = checkStellarUrl(
+      url.trim(),
+      mode,
+      input.allowUnlistedUrls ?? false
+    )
+    if (refusal) refusals.push(refusal)
+  }
   return refusals
 }
 
 type ConvexTarget = { label: string; type: string | null; name: string }
 
-function collectConvexRefusals(input: NetworkGuardInput): {
+function collectConvexRefusals(
+  input: NetworkGuardInput,
+  mode: GuardedNetwork | null
+): {
   refusals: NetworkGuardRefusal[]
   deployments: string[]
   liveBackendApproved: boolean
 } {
   const refusals: NetworkGuardRefusal[] = []
   const kind = input.kind ?? 'deploy'
+  const local = mode === 'LOCAL'
   const live = productionDeploymentDenylist(input.extraProductionDeployments)
   const extraAllowed = nameList(input.extraAllowedDeployments)
   const allowed = nameList(ALLOWED_CONVEX_DEPLOYMENTS)
@@ -348,6 +489,12 @@ function collectConvexRefusals(input: NetworkGuardInput): {
   }
 
   if (approval) {
+    if (local) {
+      refusals.push({
+        code: 'LOCAL_LIVE_APPROVAL',
+        message: `${LIVE_BACKEND_APPROVAL_ENV} is set. LOCAL mode runs against a local backend only. Unset it.`,
+      })
+    }
     if (kind === 'deploy') {
       refusals.push({
         code: 'APPROVAL_NOT_FOR_DEPLOY',
@@ -381,10 +528,17 @@ function collectConvexRefusals(input: NetworkGuardInput): {
     }
     const name = convexDeploymentNameFromUrl(trimmed)
     if (!name) {
-      refusals.push({
-        code: 'CONVEX_NOT_ALLOWLISTED',
-        message: `${host} is not a Convex deployment URL on the allowlist.`,
-      })
+      refusals.push(
+        local
+          ? {
+              code: 'LOCAL_CLOUD_CONVEX',
+              message: `${host} is not a local Convex backend. LOCAL mode needs a local backend.`,
+            }
+          : {
+              code: 'CONVEX_NOT_ALLOWLISTED',
+              message: `${host} is not a Convex deployment URL on the allowlist.`,
+            }
+      )
       continue
     }
     targets.push({ label: 'Convex URL', type: null, name })
@@ -416,8 +570,9 @@ function collectConvexRefusals(input: NetworkGuardInput): {
   if (targets.length === 0 && !hasLocalTarget) {
     refusals.push({
       code: 'UNKNOWN_CONVEX',
-      message:
-        'No Convex deployment is selected. Set CONVEX_DEPLOYMENT and NEXT_PUBLIC_CONVEX_URL to an allowlisted deployment.',
+      message: local
+        ? 'No Convex backend is selected. LOCAL mode needs a local backend (CONVEX_DEPLOYMENT=local:... or a 127.0.0.1 URL).'
+        : 'No Convex deployment is selected. Set CONVEX_DEPLOYMENT and NEXT_PUBLIC_CONVEX_URL to an allowlisted deployment.',
     })
   }
 
@@ -428,13 +583,20 @@ function collectConvexRefusals(input: NetworkGuardInput): {
     if (seen.has(key)) continue
     seen.add(key)
 
+    if (local) {
+      refusals.push({
+        code: 'LOCAL_CLOUD_CONVEX',
+        message: `${target.label} targets Convex cloud deployment "${target.name}". LOCAL mode is never valid for a cloud deployment.`,
+      })
+    }
+
     if (live.has(target.name)) {
       if (kind === 'deploy') {
         refusals.push({
           code: 'LIVE_BACKEND_DEPLOY',
           message: `${target.label} targets live deployment "${target.name}". Deploys, schema pushes, imports, and migrations from developer tooling are never allowed there.`,
         })
-      } else if (approval === target.name) {
+      } else if (approval === target.name && !local) {
         liveBackendApproved = true
       } else {
         refusals.push({
@@ -472,37 +634,81 @@ function collectConvexRefusals(input: NetworkGuardInput): {
 export function assertTestnetOnly(
   input: NetworkGuardInput
 ): NetworkGuardResult {
-  const refusals = collectNetworkGuardRefusals(input)
-  if (refusals.length > 0) {
-    throw new NetworkGuardError(input.operation, refusals)
+  const result = evaluate(input)
+  if (result.refusals.length > 0) {
+    throw new NetworkGuardError(input.operation, result.refusals)
   }
-  const convex =
-    (input.checkConvex ?? true)
-      ? collectConvexRefusals(input)
-      : { deployments: [], liveBackendApproved: false }
   return {
-    network: 'TESTNET',
-    convexDeployments: convex.deployments,
-    liveBackendApproved: convex.liveBackendApproved,
+    // A passing run always has a mode, except Convex-only checks without the
+    // opt-in requirement, which only run on TESTNET backends.
+    network: result.mode ?? 'TESTNET',
+    convexDeployments: result.deployments,
+    liveBackendApproved: result.liveBackendApproved,
   }
 }
 
 type EnvLike = Record<string, string | undefined>
 
+function localConvexRefusal(
+  label: string,
+  url: string | undefined
+): NetworkGuardRefusal | null {
+  if (!present(url)) {
+    return {
+      code: 'UNKNOWN_CONVEX',
+      message: `${label} is not set, so a local backend cannot be confirmed. LOCAL mode needs a local Convex backend.`,
+    }
+  }
+  if (isLocalUrl(url)) return null
+  return {
+    code: 'LOCAL_CLOUD_CONVEX',
+    message: `${label} is not a local backend. LOCAL mode is never valid for a Convex cloud deployment.`,
+  }
+}
+
 /**
- * Convex runtime check: the backend may only verify and record TESTNET
- * activity. It does not need the opt-in and does not check the deployment
- * name, because the live deployment legitimately runs this code.
+ * Convex runtime check for the network setting. TESTNET needs no opt-in and
+ * does not check the deployment name, because the live deployment runs this
+ * code. LOCAL needs `QUILLTIP_NETWORK_GUARD_OPT_IN=local`, the standalone
+ * passphrase, local endpoints, and a local backend (`CONVEX_CLOUD_URL`).
+ * Checks STELLAR_NETWORK, NETWORK_PASSPHRASE, STELLAR_RPC_URL, and HORIZON_URL.
  */
-export function assertBackendTestnet(env: EnvLike = process.env): 'TESTNET' {
-  assertTestnetOnly({
+export function assertBackendNetwork(
+  env: EnvLike = process.env
+): GuardedNetwork {
+  const network = env.STELLAR_NETWORK ?? 'TESTNET'
+  const result = assertTestnetOnly({
     operation: 'convex backend',
-    requireOptIn: false,
+    requireOptIn: network.trim() === 'LOCAL',
+    optIn: env[NETWORK_GUARD_OPT_IN_ENV],
     checkConvex: false,
     allowUnlistedUrls: true,
-    stellarNetworks: [env.STELLAR_NETWORK ?? 'TESTNET'],
-    stellarUrls: [env.HORIZON_URL],
+    stellarNetworks: [network],
+    networkPassphrases: [env.NETWORK_PASSPHRASE],
+    stellarUrls: [env.HORIZON_URL, env.STELLAR_RPC_URL],
   })
+  if (result.network === 'LOCAL') {
+    const refusal = localConvexRefusal('CONVEX_CLOUD_URL', env.CONVEX_CLOUD_URL)
+    if (refusal) throw new NetworkGuardError('convex backend', [refusal])
+  }
+  return result.network
+}
+
+/**
+ * Convex runtime check for TESTNET payment flows: the backend may only verify
+ * and record TESTNET activity. Runs `assertBackendNetwork()` and also refuses
+ * LOCAL; code that supports LOCAL calls `assertBackendNetwork()` instead.
+ */
+export function assertBackendTestnet(env: EnvLike = process.env): 'TESTNET' {
+  if (assertBackendNetwork(env) !== 'TESTNET') {
+    throw new NetworkGuardError('convex backend', [
+      {
+        code: 'NOT_TESTNET',
+        message:
+          'STELLAR_NETWORK is LOCAL. This flow records TESTNET activity only.',
+      },
+    ])
+  }
   return 'TESTNET'
 }
 
@@ -518,30 +724,40 @@ export function backendVerificationHorizonUrl(
   env: EnvLike = process.env
 ): string {
   assertBackendTestnet(env)
-  assertTestnetOnly({
-    operation: 'tip verification',
-    requireOptIn: false,
-    checkConvex: false,
-    stellarNetworks: [recordedNetwork ?? 'TESTNET'],
-  })
+  const recorded = recordedNetwork ?? 'TESTNET'
+  if (recorded.trim() !== 'TESTNET') {
+    throw new NetworkGuardError('tip verification', [
+      {
+        code: 'NOT_TESTNET',
+        message: `The tip was recorded on "${recorded}"; only TESTNET rows are verified.`,
+      },
+    ])
+  }
   const override = env.HORIZON_URL?.trim()
   return options.allowOverride && override
     ? override
     : STELLAR_NETWORK_DEFAULTS.TESTNET.horizonUrl
 }
 
-/**
- * Client check: the browser app signs and submits TESTNET transactions only.
- * A MAINNET setting, a mainnet passphrase, or a mainnet endpoint fails at
- * load, before any wallet or network call.
- */
-export function assertClientTestnet(config: {
+export type ClientNetworkConfig = {
   network: string
   passphrase: string
   horizonUrl: string
   rpcUrl: string
-}): 'TESTNET' {
-  assertTestnetOnly({
+  /** NEXT_PUBLIC_CONVEX_URL. Required for LOCAL, which needs a local backend. */
+  convexUrl?: string
+}
+
+/**
+ * Client check: the browser app signs and submits TESTNET transactions, or
+ * LOCAL ones against a local standalone network and a local Convex backend.
+ * A MAINNET setting, a mainnet passphrase, or a mainnet endpoint fails at
+ * load, before any wallet or network call.
+ */
+export function assertClientNetwork(
+  config: ClientNetworkConfig
+): GuardedNetwork {
+  const result = assertTestnetOnly({
     operation: 'client Stellar configuration',
     requireOptIn: false,
     checkConvex: false,
@@ -550,13 +766,32 @@ export function assertClientTestnet(config: {
     networkPassphrase: config.passphrase,
     stellarUrls: [config.horizonUrl, config.rpcUrl],
   })
+  if (result.network === 'LOCAL') {
+    const refusal = localConvexRefusal(
+      'NEXT_PUBLIC_CONVEX_URL',
+      config.convexUrl
+    )
+    if (refusal) {
+      throw new NetworkGuardError('client Stellar configuration', [refusal])
+    }
+  }
+  return result.network
+}
+
+/** TESTNET-only form of `assertClientNetwork`. */
+export function assertClientTestnet(config: ClientNetworkConfig): 'TESTNET' {
+  if (assertClientNetwork(config) !== 'TESTNET') {
+    throw new NetworkGuardError('client Stellar configuration', [
+      { code: 'NOT_TESTNET', message: 'Only TESTNET is accepted here.' },
+    ])
+  }
   return 'TESTNET'
 }
 
 /**
  * Convex runtime check for maintenance functions (seeding, test fixtures,
  * migrations). These are deploy-kind work, so they never run on a live
- * deployment and only run on allowlisted ones.
+ * deployment and only run on allowlisted or local ones.
  */
 export function assertNonProductionBackend(
   operation: string,
@@ -571,12 +806,15 @@ export function assertNonProductionBackend(
       },
     ])
   }
+  const network = env.STELLAR_NETWORK ?? 'TESTNET'
   assertTestnetOnly({
     operation,
     kind: 'deploy',
-    requireOptIn: false,
-    stellarNetworks: [env.STELLAR_NETWORK ?? 'TESTNET'],
-    stellarUrls: [env.HORIZON_URL],
+    requireOptIn: network.trim() === 'LOCAL',
+    optIn: env[NETWORK_GUARD_OPT_IN_ENV],
+    stellarNetworks: [network],
+    networkPassphrases: [env.NETWORK_PASSPHRASE],
+    stellarUrls: [env.HORIZON_URL, env.STELLAR_RPC_URL],
     convexUrls: [env.CONVEX_CLOUD_URL],
     extraAllowedDeployments: env[CONVEX_ALLOWLIST_ENV],
     extraProductionDeployments: env[EXTRA_PRODUCTION_DEPLOYMENTS_ENV],

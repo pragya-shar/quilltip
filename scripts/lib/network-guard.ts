@@ -14,6 +14,11 @@ import {
   assertTestnetOnly,
   type NetworkGuardResult,
 } from '../../convex/lib/networkGuard'
+import {
+  pickRpcUrl,
+  resolveStellarNetwork,
+  type ResolvedStellarNetwork,
+} from '../../convex/lib/stellarNetwork'
 
 export { NetworkGuardError }
 
@@ -35,11 +40,37 @@ function convexInputs(env: EnvLike) {
   }
 }
 
+/** RPC URL variables, most specific first. */
+export const SCRIPT_RPC_URL_VARIABLES = [
+  'STELLAR_RPC_URL',
+  'NEXT_PUBLIC_STELLAR_RPC_URL',
+  'NEXT_PUBLIC_SOROBAN_RPC_URL',
+] as const
+
+/** Network passphrase variables. All set values must agree. */
+export const SCRIPT_PASSPHRASE_VARIABLES = [
+  'NETWORK_PASSPHRASE',
+  'NEXT_PUBLIC_NETWORK_PASSPHRASE',
+] as const
+
+function stellarInputs(env: EnvLike) {
+  return {
+    stellarNetworks: [env.NEXT_PUBLIC_STELLAR_NETWORK, env.STELLAR_NETWORK],
+    networkPassphrases: SCRIPT_PASSPHRASE_VARIABLES.map((name) => env[name]),
+    stellarUrls: [
+      ...SCRIPT_RPC_URL_VARIABLES.map((name) => env[name]),
+      env.NEXT_PUBLIC_HORIZON_URL,
+      env.HORIZON_URL,
+    ],
+  }
+}
+
 /**
  * Operational runs that submit testnet transactions or record test activity.
- * Refuses unless the environment targets Stellar TESTNET, carries the opt-in,
- * and targets an allowlisted (or local) Convex backend. A live backend is
- * accepted only with QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL naming it.
+ * Refuses unless the environment targets Stellar TESTNET (or LOCAL), carries
+ * the matching opt-in, and targets an allowlisted (or local) Convex backend.
+ * A live backend is accepted only with QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL
+ * naming it, and never in LOCAL mode.
  */
 export function assertScriptTestnetOnly(
   operation: string,
@@ -49,14 +80,37 @@ export function assertScriptTestnetOnly(
     operation,
     kind: 'operational',
     ...convexInputs(env),
-    stellarNetworks: [env.NEXT_PUBLIC_STELLAR_NETWORK, env.STELLAR_NETWORK],
-    networkPassphrase: env.NEXT_PUBLIC_NETWORK_PASSPHRASE,
-    stellarUrls: [
-      env.NEXT_PUBLIC_HORIZON_URL,
-      env.NEXT_PUBLIC_SOROBAN_RPC_URL,
-      env.HORIZON_URL,
-    ],
+    ...stellarInputs(env),
   })
+}
+
+export type ScriptStellarNetwork = ResolvedStellarNetwork & {
+  guard: NetworkGuardResult
+}
+
+/**
+ * Run the operational guard, then resolve the network, RPC URL, passphrase,
+ * and Horizon URL the script must use. Scripts pass these values on
+ * explicitly and never rely on tool defaults.
+ */
+export function resolveScriptStellarNetwork(
+  operation: string,
+  env: EnvLike = process.env
+): ScriptStellarNetwork {
+  const guard = assertScriptTestnetOnly(operation, env)
+  const rpcUrl =
+    env.STELLAR_RPC_URL?.trim() ||
+    pickRpcUrl(env.NEXT_PUBLIC_STELLAR_RPC_URL, env.NEXT_PUBLIC_SOROBAN_RPC_URL)
+  const passphrase = SCRIPT_PASSPHRASE_VARIABLES.map((name) =>
+    env[name]?.trim()
+  ).find(Boolean)
+  const resolved = resolveStellarNetwork({
+    network: guard.network,
+    passphrase,
+    rpcUrl,
+    horizonUrl: env.HORIZON_URL?.trim() || env.NEXT_PUBLIC_HORIZON_URL,
+  })
+  return { ...resolved, guard }
 }
 
 /**
