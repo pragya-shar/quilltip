@@ -12,6 +12,7 @@ import {
   sha256,
 } from '../../convex/lib/chain/ids'
 import type { ArticleUpload } from '../../lib/arweave/articleUpload'
+import vectorsFile from '../../contracts/shared/test-vectors.json'
 
 // No network: the Turbo upload is replaced by a recorder.
 const uploads = vi.hoisted(() => [] as ArticleUpload[])
@@ -86,6 +87,18 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllEnvs()
 })
+
+// This suite runs in the edge runtime that Convex tests use; the shared
+// vectors must give the same bytes and digests here as in Node.
+test.each(vectorsFile.canonical_articles.cases)(
+  'shared vector $name matches in the Convex test runtime',
+  async (vector) => {
+    const bytes = canonicalArticleBytes(vector.input)
+    expect(new TextDecoder().decode(bytes)).toBe(vector.canonical)
+    expect(bytes.length).toBe(vector.byte_length)
+    expect(bytesToHex(await sha256(bytes))).toBe(vector.sha256)
+  }
+)
 
 test('publish records content_hash over the canonical article bytes', async () => {
   const { t, author, authorId, id } = await setup()

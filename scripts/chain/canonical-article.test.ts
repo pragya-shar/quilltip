@@ -17,7 +17,7 @@ import {
 } from '../../convex/lib/chain/ids'
 import { buildArticleUpload } from '../../lib/arweave/articleUpload'
 
-const vectors = vectorsFile.canonicalArticleBytes.vectors
+const vectors = vectorsFile.canonical_articles.cases
 const nodeSha256 = (bytes: Uint8Array) =>
   createHash('sha256').update(bytes).digest('hex')
 const utf8 = (bytes: Uint8Array) => new TextDecoder().decode(bytes)
@@ -110,7 +110,7 @@ describe('shared test vectors', () => {
     const input = vector.input as CanonicalArticleInput
     const bytes = canonicalArticleBytes(input)
     expect(utf8(bytes)).toBe(vector.canonical)
-    expect(bytes.length).toBe(vector.byteLength)
+    expect(bytes.length).toBe(vector.byte_length)
     expect(await articleContentHashHex(input)).toBe(vector.sha256)
     // Web Crypto and node:crypto agree on the digest.
     expect(nodeSha256(bytes)).toBe(vector.sha256)

@@ -1,8 +1,8 @@
 {
-  "canonicalArticleBytes": {
+  "canonical_articles": {
     "spec": "docs/architecture/v2/01-architecture.md section 1.4",
-    "description": "canonical is the RFC 8785 serialisation of {schema: \"quilltip-article-v1\", articleId, authorId, title, content, contentVersion}; its UTF-8 encoding is the canonical article bytes (byteLength bytes) and sha256 is content_hash in lower-case hex.",
-    "vectors": [
+    "description": "canonical is the RFC 8785 serialisation of {schema: \"quilltip-article-v1\", articleId, authorId, title, content, contentVersion}; its UTF-8 encoding is the canonical article bytes (byte_length bytes) and sha256 is content_hash in lower-case hex.",
+    "cases": [
       {
         "name": "nested-marks",
         "note": "Nested TipTap marks, a heading, a list and a link.",
@@ -150,7 +150,7 @@
           }
         },
         "canonical": "{\"articleId\":\"k57f3m2r8w6x1c4v9b0n5p7q3s2t6y8z\",\"authorId\":\"j97d2h5k1m8n4p6q3r9s0t7v2w5x8y1z\",\"content\":{\"content\":[{\"attrs\":{\"level\":2,\"textAlign\":null},\"content\":[{\"text\":\"A first draft\",\"type\":\"text\"}],\"type\":\"heading\"},{\"content\":[{\"text\":\"Plain, then \",\"type\":\"text\"},{\"marks\":[{\"type\":\"bold\"},{\"type\":\"italic\"}],\"text\":\"bold italic\",\"type\":\"text\"},{\"text\":\" and a \",\"type\":\"text\"},{\"marks\":[{\"attrs\":{\"class\":null,\"href\":\"https://example.com/a?b=1&c=2\",\"rel\":\"noopener noreferrer nofollow\",\"target\":\"_blank\"},\"type\":\"link\"},{\"type\":\"bold\"},{\"type\":\"code\"}],\"text\":\"linked phrase\",\"type\":\"text\"},{\"text\":\".\",\"type\":\"text\"}],\"type\":\"paragraph\"},{\"content\":[{\"content\":[{\"content\":[{\"marks\":[{\"type\":\"italic\"}],\"text\":\"one\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"listItem\"},{\"content\":[{\"content\":[{\"text\":\"two\",\"type\":\"text\"}],\"type\":\"paragraph\"},{\"attrs\":{\"start\":1,\"type\":null},\"content\":[{\"content\":[{\"content\":[{\"marks\":[{\"type\":\"strike\"},{\"type\":\"underline\"}],\"text\":\"two-a\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"listItem\"}],\"type\":\"orderedList\"}],\"type\":\"listItem\"}],\"type\":\"bulletList\"}],\"type\":\"doc\"},\"contentVersion\":1,\"schema\":\"quilltip-article-v1\",\"title\":\"Notes on paper\"}",
-        "byteLength": 1201,
+        "byte_length": 1201,
         "sha256": "03b671c8d6a5949874231e5cf3b053aa1f953c29e5b7d81ffa2a6f459d5235e5"
       },
       {
@@ -186,7 +186,7 @@
           }
         },
         "canonical": "{\"articleId\":\"k57f3m2r8w6x1c4v9b0n5p7q3s2t6y8z\",\"authorId\":\"j97d2h5k1m8n4p6q3r9s0t7v2w5x8y1z\",\"content\":{\"content\":[{\"content\":[{\"text\":\"Ünïcödé façade, 日本語のテキスト, हिन्दी, العربية.\",\"type\":\"text\"}],\"type\":\"paragraph\"},{\"content\":[{\"text\":\"Family: 👩‍👩‍👧, flags: 🇮🇳, math: 𝔘𝔫𝔦.\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"contentVersion\":1,\"schema\":\"quilltip-article-v1\",\"title\":\"Café 東京 — नमस्ते 🌸\"}",
-        "byteLength": 496,
+        "byte_length": 496,
         "sha256": "adc944c6b1a053856ff1ff49891c140dacf4fa41b1b86e0d10b8cad0d0b2855e"
       },
       {
@@ -213,7 +213,7 @@
           }
         },
         "canonical": "{\"articleId\":\"k57f3m2r8w6x1c4v9b0n5p7q3s2t6y8z\",\"authorId\":\"j97d2h5k1m8n4p6q3r9s0t7v2w5x8y1z\",\"content\":{\"content\":[{\"content\":[{\"text\":\"café\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"contentVersion\":1,\"schema\":\"quilltip-article-v1\",\"title\":\"Résumé\"}",
-        "byteLength": 264,
+        "byte_length": 264,
         "sha256": "876deeec925bf586dcc0830618a25667c3ef6f386ba557ae675c369c73112f78"
       },
       {
@@ -240,7 +240,7 @@
           }
         },
         "canonical": "{\"articleId\":\"k57f3m2r8w6x1c4v9b0n5p7q3s2t6y8z\",\"authorId\":\"j97d2h5k1m8n4p6q3r9s0t7v2w5x8y1z\",\"content\":{\"content\":[{\"content\":[{\"text\":\"café\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"contentVersion\":1,\"schema\":\"quilltip-article-v1\",\"title\":\"Résumé\"}",
-        "byteLength": 267,
+        "byte_length": 267,
         "sha256": "ffabccbaaa345ff2664a382a52f1b056fc376dd4cdeb13a5a729911bb26668a5"
       },
       {
@@ -288,7 +288,7 @@
           }
         },
         "canonical": "{\"articleId\":\"k57f3m2r8w6x1c4v9b0n5p7q3s2t6y8z\",\"authorId\":\"j97d2h5k1m8n4p6q3r9s0t7v2w5x8y1z\",\"content\":{\"content\":[{\"content\":[{\"text\":\"crlf\\r\\nlf\\ncr\\r end\",\"type\":\"text\"}],\"type\":\"paragraph\"},{\"content\":[{\"text\":\"ctl \\u0000\\u0001\\b\\u000b\\f\\u001f del  ls   ps   quote \\\" backslash \\\\ slash /\",\"type\":\"text\"}],\"type\":\"paragraph\"},{\"attrs\":{\"language\":\"js\"},\"content\":[{\"text\":\"if (a) {\\r\\n  b()\\r\\n}\",\"type\":\"text\"}],\"type\":\"codeBlock\"}],\"type\":\"doc\"},\"contentVersion\":1,\"schema\":\"quilltip-article-v1\",\"title\":\"Line\\tendings\"}",
-        "byteLength": 532,
+        "byte_length": 532,
         "sha256": "519a16de72d856d9e30469771360fc2d056ab1b0485141610d2cd051f6df4cb3"
       },
       {
@@ -327,7 +327,7 @@
           }
         },
         "canonical": "{\"articleId\":\"k57f3m2r8w6x1c4v9b0n5p7q3s2t6y8z\",\"authorId\":\"j97d2h5k1m8n4p6q3r9s0t7v2w5x8y1z\",\"content\":{\"attrs\":{},\"content\":[{\"attrs\":{\"textAlign\":null},\"type\":\"paragraph\"},{\"content\":[],\"type\":\"paragraph\"},{\"content\":[{\"marks\":[],\"text\":\"\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"contentVersion\":1,\"schema\":\"quilltip-article-v1\",\"title\":\"\"}",
-        "byteLength": 355,
+        "byte_length": 355,
         "sha256": "fbd74f07657b342e13457c5ce592d872f6ac23261297b2f8f7892df5fd664a63"
       },
       {
@@ -380,7 +380,7 @@
           }
         },
         "canonical": "{\"articleId\":\"k57f3m2r8w6x1c4v9b0n5p7q3s2t6y8z\",\"authorId\":\"j97d2h5k1m8n4p6q3r9s0t7v2w5x8y1z\",\"content\":{\"content\":[{\"attrs\":{\"alt\":\"Harbour at dusk <night>\",\"height\":800,\"src\":\"https://files.example.com/uploads/k57f/photo.webp?w=1200&q=80\",\"title\":null,\"width\":1200},\"type\":\"image\"},{\"attrs\":{\"height\":360,\"src\":\"https://www.youtube-nocookie.com/embed/abc123?start=30\",\"width\":640},\"type\":\"youtube\"},{\"content\":[{\"marks\":[{\"attrs\":{\"href\":\"ar://bNbA3TEQVL60xlgCcqdz4ZPHFZ711cZ3hmkpGttDt_U\"},\"type\":\"link\"}],\"text\":\"Caption with an arweave link\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"contentVersion\":1,\"schema\":\"quilltip-article-v1\",\"title\":\"Pictures & sound\"}",
-        "byteLength": 674,
+        "byte_length": 674,
         "sha256": "d4a71043ac0ded8c0e9222788737a9151a3ca778ac2125a53d4bd0568903fd79"
       },
       {
@@ -437,8 +437,43 @@
           }
         },
         "canonical": "{\"articleId\":\"k57f3m2r8w6x1c4v9b0n5p7q3s2t6y8z\",\"authorId\":\"j97d2h5k1m8n4p6q3r9s0t7v2w5x8y1z\",\"content\":{\"attrs\":{\"\":\"empty\",\"\\r\":\"cr\",\"1\":\"one\",\"10\":\"ten\",\"2\":\"two\",\"Z\":\"upper\",\"a\":\"lower\",\"\":\"c1\",\"ö\":\"o\",\"€\":\"euro\",\"😀\":\"emoji\",\"דּ\":\"hebrew\"},\"content\":[{\"content\":[{\"text\":\"x\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"flags\":[true,false,null],\"nested\":[[[[{\"deep\":[[]]}]]]],\"numbers\":[0,1,-1,1.5,0.1,100,1e+21,1e-7,9007199254740991,-9007199254740991,123456789.123],\"type\":\"doc\"},\"contentVersion\":3,\"schema\":\"quilltip-article-v1\",\"title\":\"Edges\"}",
-        "byteLength": 553,
+        "byte_length": 553,
         "sha256": "1a72e40fd4267110e068551a2621cf5bb13e02d20ddc92a73876c8b7b463d03d"
+      },
+      {
+        "name": "number-and-astral-boundaries",
+        "note": "Astral characters (surrogate pairs) in the title and body, U+FFFF and U+10FFFF, the maximum contentVersion, and number boundaries: -0, the smallest subnormal, the largest double, 1e-6 versus 1e-7 and 1e21 versus 999999999999999900000 (where ECMAScript switches to exponent form).",
+        "input": {
+          "articleId": "k57f3m2r8w6x1c4v9b0n5p7q3s2t6y8z",
+          "authorId": "j97d2h5k1m8n4p6q3r9s0t7v2w5x8y1z",
+          "title": "𝄞 Score 😀",
+          "contentVersion": 4294967295,
+          "content": {
+            "type": "doc",
+            "attrs": {
+              "numbers": [
+                -0, 5e-324, 1.7976931348623157e308, 0.000001, 1e-7,
+                999999999999999900000, 1e21, 100000000000000000000,
+                0.30000000000000004, -1.5e-10, 9007199254740992,
+                333333333.3333333
+              ]
+            },
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "astral 𝄞 after ￿ and 􏿿"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "canonical": "{\"articleId\":\"k57f3m2r8w6x1c4v9b0n5p7q3s2t6y8z\",\"authorId\":\"j97d2h5k1m8n4p6q3r9s0t7v2w5x8y1z\",\"content\":{\"attrs\":{\"numbers\":[0,5e-324,1.7976931348623157e+308,0.000001,1e-7,999999999999999900000,1e+21,100000000000000000000,0.30000000000000004,-1.5e-10,9007199254740992,333333333.3333333]},\"content\":[{\"content\":[{\"text\":\"astral 𝄞 after ￿ and 􏿿\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"contentVersion\":4294967295,\"schema\":\"quilltip-article-v1\",\"title\":\"𝄞 Score 😀\"}",
+        "byte_length": 488,
+        "sha256": "d0b46f32245756dbdcb778c39b4633d4a068e979cbc973be823bf9ecb40c3f21"
       }
     ]
   }
