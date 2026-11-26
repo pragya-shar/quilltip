@@ -615,6 +615,59 @@ test('internal domains match exactly, ignoring case only', () => {
   expect(internalAccountDomains(undefined).size).toBe(0)
 })
 
+test('internal domains reject look-alikes and malformed values', () => {
+  const domains = internalAccountDomains('members.example')
+  // Plus addressing and surrounding whitespace still match.
+  expect(isInternalAccountEmail('a+qa@members.example', domains)).toBe(true)
+  expect(isInternalAccountEmail('\ta@Members.Example\n', domains)).toBe(true)
+  // Suffix and prefix look-alikes.
+  expect(isInternalAccountEmail('a@evil-members.example', domains)).toBe(false)
+  expect(isInternalAccountEmail('a@members.example.evil', domains)).toBe(false)
+  expect(isInternalAccountEmail('a@members-example', domains)).toBe(false)
+  // A trailing dot is not the configured value.
+  expect(isInternalAccountEmail('a@members.example.', domains)).toBe(false)
+  expect(isInternalAccountEmail('a@@members.example', domains)).toBe(false)
+  expect(isInternalAccountEmail('a@members .example', domains)).toBe(false)
+  expect(isInternalAccountEmail('', domains)).toBe(false)
+  // Unicode look-alikes: Cyrillic "е", full-width letters, and the Kelvin
+  // sign, which lower-cases to an ASCII "k".
+  expect(isInternalAccountEmail('a@m\u0435mbers.example', domains)).toBe(false)
+  expect(isInternalAccountEmail('a@\uff4d\uff45mbers.example', domains)).toBe(
+    false
+  )
+  const kelvin = internalAccountDomains('key.example')
+  expect(isInternalAccountEmail('a@\u212aey.example', kelvin)).toBe(false)
+  expect(isInternalAccountEmail('a@KEY.example', kelvin)).toBe(true)
+  // Malformed or empty configuration classifies nothing.
+  for (const raw of [
+    '',
+    ' ',
+    ',,,',
+    '*',
+    '.',
+    '@',
+    'members.example.',
+    '.members.example',
+    'members',
+    'a@members.example',
+    'members.example;other.example',
+    '\u212aey.example',
+  ]) {
+    expect(internalAccountDomains(raw).size, raw).toBe(0)
+  }
+})
+
+test('sign-up with malformed internal domains flags nothing', async () => {
+  vi.stubEnv('INTERNAL_ACCOUNT_EMAIL_DOMAINS', ' , *, @, members.example.')
+  try {
+    const t = newTest()
+    const userId = await createAccount(t, 'staff@members.example')
+    expect(await flagOf(t, userId)).toBe('unset')
+  } finally {
+    vi.unstubAllEnvs()
+  }
+})
+
 test('sign-in and password reset never change the flag', async () => {
   vi.stubEnv('INTERNAL_ACCOUNT_EMAIL_DOMAINS', 'example.test')
   try {

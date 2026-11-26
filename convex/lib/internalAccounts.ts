@@ -16,9 +16,15 @@ export const INTERNAL_DOMAINS_ENV = 'INTERNAL_ACCOUNT_EMAIL_DOMAINS'
 const DOMAIN =
   /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/
 
+// Checked before lower-casing: some non-ASCII letters lower-case to ASCII
+// (the Kelvin sign becomes "k"), so a look-alike could otherwise match.
+const ASCII = /^[\x21-\x7e]+$/
+
 /** A lower-case domain, or null when the value is not a plain domain name. */
 export function normalizeDomain(value: string): string | null {
-  const domain = value.trim().toLowerCase().replace(/^@/, '')
+  const trimmed = value.trim().replace(/^@/, '')
+  if (!ASCII.test(trimmed)) return null
+  const domain = trimmed.toLowerCase()
   return DOMAIN.test(domain) ? domain : null
 }
 
@@ -34,11 +40,14 @@ export function internalAccountDomains(
   return domains
 }
 
-/** The lower-case domain of an email, or null when it is not an email. */
+/**
+ * The lower-case domain of an email, or null when it is not an email or its
+ * domain is not a plain ASCII domain name.
+ */
 export function emailDomain(rawEmail: string | undefined): string | null {
-  const email = rawEmail ? normalizeEmail(rawEmail) : null
-  if (!email) return null
-  return email.slice(email.lastIndexOf('@') + 1)
+  if (!rawEmail || !normalizeEmail(rawEmail)) return null
+  const trimmed = rawEmail.trim()
+  return normalizeDomain(trimmed.slice(trimmed.lastIndexOf('@') + 1))
 }
 
 export function isInternalAccountEmail(
