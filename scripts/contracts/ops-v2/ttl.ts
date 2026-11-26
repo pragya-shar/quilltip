@@ -30,6 +30,9 @@ import {
 /** Keys per extend or restore transaction. */
 export const KEYS_PER_TX = 20
 
+/** Ledgers the RPC methods may disagree on before a drop counts as a reset. */
+const RESET_MARGIN_LEDGERS = 100
+
 function contractIds(o: OpsContext): Record<ContractName, string> {
   return {
     core: contractId(o, 'core'),
@@ -64,7 +67,9 @@ export async function refreshRegistry(
   if (options.scan) {
     const { latestLedger, oldestLedger } = await health(o.net)
     // A ledger sequence below the scanned one means the network was reset.
-    if (registry.scannedToLedger > latestLedger) {
+    // getEvents can report a ledger or two newer than getHealth, so a small
+    // difference is not a reset; a reset restarts the sequence near 1.
+    if (registry.scannedToLedger > latestLedger + RESET_MARGIN_LEDGERS) {
       throw new Error(
         `The registry was scanned to ledger ${registry.scannedToLedger}, but the network is at ${latestLedger}. The network was reset; run redeploy-v2-testnet.ts.`
       )
@@ -80,7 +85,12 @@ export async function refreshRegistry(
       )
       from = oldestLedger
     }
-    const scan = await eventTxHashes(o.net, Object.values(ids), from)
+    // No ledger closed since the last scan: RPC refuses a start ledger
+    // after the latest one, and there is nothing new to read.
+    const scan =
+      from > latestLedger
+        ? { hashes: [], toLedger: registry.scannedToLedger }
+        : await eventTxHashes(o.net, Object.values(ids), from)
     for (const h of scan.hashes) hashes.add(h)
     let missing = 0
     let added = 0
@@ -97,7 +107,9 @@ export async function refreshRegistry(
     }
     registry.scannedToLedger = scan.toLedger
     o.log(
-      `scan: ledgers ${from} to ${scan.toLedger}, ${hashes.size} transactions, ${added} new entries`
+      from > latestLedger
+        ? `scan: no ledger closed since ledger ${registry.scannedToLedger}`
+        : `scan: ledgers ${from} to ${scan.toLedger}, ${hashes.size} transactions, ${added} new entries`
     )
     if (missing > 0)
       notes.push(

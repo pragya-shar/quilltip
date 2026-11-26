@@ -90,8 +90,11 @@ export function decideReset(
     reset = true
     reason = `the ledger sequence dropped from ${recorded} to ${latest}`
   } else if (present.length === 0) {
-    reset = true
-    reason = 'none of the three contract instances exists'
+    // A reset always restarts the ledger sequence. Without that, missing
+    // instances point to wrong IDs, a wrong RPC server or archived state, and
+    // a redeploy would replace a deployment that may still exist.
+    reset = false
+    reason = `none of the three contract instances was found, but the ledger sequence did not drop (${latest} >= ${recorded}). This is not a reset. Check the contract IDs, the RPC server and the TTL report before deploying anything.`
   } else if (present.length < CONTRACTS.length) {
     reset = false
     reason = `only ${present.join(', ')} exist; a partial loss is not a reset. Check the IDs and the network before deploying anything.`
@@ -255,7 +258,16 @@ export async function main(
       ? ['--base-ref', args.values.get('base-ref')!]
       : []),
   ]
-  await deployMain(deployArgs, env)
+  try {
+    await deployMain(deployArgs, env)
+  } catch (error) {
+    // The old state is kept aside and the new one is partial, so this tool
+    // no longer applies. The deployment tool resumes from the new state.
+    console.error(
+      `\nThe redeploy stopped. The state before the reset is kept aside, and ${o.statePath} holds the progress so far. Fix the cause, then resume with the deployment tool (it skips the steps already done):\n\n  bun scripts/contracts/deploy-v2-testnet.ts ${deployArgs.join(' ')}\n`
+    )
+    throw error
+  }
 
   const now = JSON.parse(readFileSync(o.statePath, 'utf8')) as DeployState
   const coreLedger = now.contracts?.core?.tx?.ledger
