@@ -26,14 +26,16 @@ import {
   MAX_SETTLED_SINCE_BALANCE,
   adjustBaseUnitEarnings,
   applyPairPayment,
+  applyPairSettlement,
   insertTabAccount,
-  pairOutstanding,
-  recomputePairEarnings,
+  refreshSettleQueue,
   resolveUnpaidPairs,
   tabAccountForReader,
   tabKey,
   tabVoucher,
+  unblockAccountPairs,
   uniqueVerifiedUser,
+  updateKeySettleBy,
 } from './tabLedger'
 
 type Data = Record<string, unknown>
@@ -183,6 +185,7 @@ const deposited: ChainEventHandler = async (ctx, event) => {
     absoluteBalance(account, event.doc.eventId, balance),
     statusChange(account, event.doc.eventId, 'OPEN', undefined)
   )
+  await unblockAccountPairs(ctx, account._id, event.now)
   return 'done'
 }
 
@@ -297,6 +300,13 @@ const keyRevoked: ChainEventHandler = async (ctx, event) => {
       validUntilLedger: Math.min(key.validUntilLedger, validUntil),
       updatedAt: event.now,
     })
+    await updateKeySettleBy(
+      ctx,
+      account._id,
+      keyId,
+      Math.min(key.validUntilLedger, validUntil),
+      event.now
+    )
   } else {
     await ctx.db.insert('tabSessionKeys', {
       network: event.doc.network,
@@ -338,45 +348,13 @@ const tabSettled: ChainEventHandler = async (ctx, event) => {
   const voucher = await tabVoucher(ctx, account._id, keyId, writer)
   // A voucher accepted outside this deployment: the balance is still applied.
   if (!voucher) return 'orphan'
-  const oldPaid = BigInt(voucher.paidOnChain)
-  const newPaid = paidAfter > oldPaid ? paidAfter : oldPaid
-  if (newPaid > oldPaid) {
-    const owedBefore = pairOutstanding(voucher)
-    const owedAfter = pairOutstanding({
-      cumulative: voucher.cumulative,
-      paidOnChain: newPaid.toString(),
-    })
-    await ctx.db.patch(voucher._id, {
-      paidOnChain: newPaid.toString(),
-      lastSettledEventId:
-        !voucher.lastSettledEventId ||
-        voucher.lastSettledEventId < event.doc.eventId
-          ? event.doc.eventId
-          : voucher.lastSettledEventId,
-      updatedAt: event.now,
-    })
-    const fresh = (await ctx.db.get(account._id))!
-    if (voucher.state === 'ACTIVE') {
-      const outstanding = BigInt(fresh.outstanding) - (owedBefore - owedAfter)
-      await ctx.db.patch(account._id, {
-        outstanding: (outstanding > ZERO ? outstanding : ZERO).toString(),
-        updatedAt: event.now,
-      })
-    }
-    const key = await tabKey(ctx, account._id, keyId)
-    if (key) {
-      await ctx.db.patch(key._id, {
-        spentOnChain: (BigInt(key.spentOnChain) + newPaid - oldPaid).toString(),
-        updatedAt: event.now,
-      })
-    }
-  }
-  await applyPairPayment(ctx, voucher._id, {
-    shortfallUpTo: paidAfter < cumulative ? cumulative : undefined,
-    settledEventId: event.doc.eventId,
+  await applyPairSettlement(ctx, {
+    voucherId: voucher._id,
+    paidAfter,
+    cumulative,
+    eventId: event.doc.eventId,
     now: event.now,
   })
-  await recomputePairEarnings(ctx, voucher._id, event.now)
   return 'done'
 }
 
@@ -414,6 +392,11 @@ const voucherSkipped: ChainEventHandler = async (ctx, event) => {
       shortfallUpTo: cumulative,
       now: event.now,
     })
+    // Nothing more can settle until the reader deposits.
+    const fresh = (await ctx.db.get(account._id))!
+    if (!fresh.balanceEventId || fresh.balanceEventId < event.doc.eventId) {
+      await refreshSettleQueue(ctx, voucher._id, event.now, { block: true })
+    }
   }
   if (reason === 'KEY_EXPIRED' || reason === 'KEY_UNKNOWN') {
     await resolveUnpaidPairs(ctx, account._id, event.doc.ledger, event.now)
