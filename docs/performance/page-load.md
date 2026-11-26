@@ -94,8 +94,10 @@ with every byte that finishes before the paint (see below).
   - The public article read is cached for 60 s and the proxy reuses a "found"
     route check for 60 s per instance, so article HTML no longer waits for two
     backend round trips (about 500 ms to under 20 ms on a warm cache).
-    Missing articles are never cached, and the page subscribes to the live
-    article on load, so edits still appear at once.
+    Missing articles are never cached, and no cached copy is used once it is
+    more than 60 s old, so an unpublished article leaves the server HTML within
+    a minute. The page subscribes to the live article on load, so edits still
+    appear at once.
 - **Every page:** the root 404 screen imported the writer-not-found page and the
   full site header, so every route downloaded dialog and menu code. That
   screen now loads on demand.

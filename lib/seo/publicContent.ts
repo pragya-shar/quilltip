@@ -21,7 +21,34 @@ class ArticleMissing extends Error {}
  */
 const PUBLISHED_ARTICLE_REVALIDATE_SECONDS = 60
 
-const fetchPublishedArticleCached = unstable_cache(
+/**
+ * Caches `read` for at most `seconds`. `unstable_cache` alone serves an expired
+ * entry while it refreshes in the background, and keeps that entry when the
+ * refresh throws (as it does once an article is unpublished). Each entry
+ * records when it was read, and an older one is replaced by a direct read, so
+ * no copy is ever more than `seconds` old.
+ */
+function cachedFor<Args extends unknown[], Result>(
+  read: (...args: Args) => Promise<Result>,
+  key: string,
+  seconds: number
+) {
+  const cached = unstable_cache(
+    async (...args: Args) => ({
+      value: await read(...args),
+      readAt: Date.now(),
+    }),
+    [key],
+    { revalidate: seconds }
+  )
+  return async (...args: Args): Promise<Result> => {
+    const entry = await cached(...args)
+    if (Date.now() - entry.readAt <= seconds * 1000) return entry.value
+    return read(...args)
+  }
+}
+
+const fetchPublishedArticleCached = cachedFor(
   async (username: string, slug: string) => {
     const article = await fetchQuery(api.articles.getArticleBySlug, {
       username,
@@ -31,8 +58,8 @@ const fetchPublishedArticleCached = unstable_cache(
     if (article === null) throw new ArticleMissing()
     return article
   },
-  ['published-article-v1'],
-  { revalidate: PUBLISHED_ARTICLE_REVALIDATE_SECONDS }
+  'published-article-v2',
+  PUBLISHED_ARTICLE_REVALIDATE_SECONDS
 )
 
 export const getPublishedArticle = cache(
@@ -93,11 +120,11 @@ export async function movedPublicPath(
  * lists need the browser (scan protocol, local bookmarks), so they return
  * undefined and load on the client as before.
  */
-const fetchReadingRoomCached = unstable_cache(
+const fetchReadingRoomCached = cachedFor(
   async (args: FunctionArgs<typeof api.articles.listArticles>) =>
     fetchQuery(api.articles.listArticles, args),
-  ['reading-room-list-v1'],
-  { revalidate: PUBLISHED_ARTICLE_REVALIDATE_SECONDS }
+  'reading-room-list-v2',
+  PUBLISHED_ARTICLE_REVALIDATE_SECONDS
 )
 
 export const getReadingRoomList = cache(
