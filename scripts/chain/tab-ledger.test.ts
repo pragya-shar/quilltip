@@ -1216,3 +1216,130 @@ describe('settler inputs', () => {
     expect(await errorCode(submit(t, s, p))).not.toBe('no error')
   })
 })
+
+describe('signature bytes and key state at acceptance', () => {
+  /** The session signature over the prepared voucher with one field changed. */
+  function signVariant(
+    p: Prepared,
+    change: Partial<Parameters<typeof voucherPayloadBytes>[0]>,
+    edit: (bytes: Uint8Array) => Uint8Array = (b) => b
+  ) {
+    const leaves = [...p.leafHashes, receiptLeafHex(p.receipt)]
+    const payload = voucherPayloadBytes({
+      tab: p.tabContractId,
+      networkId: networkIdOf(PASSPHRASE),
+      reader: READER,
+      writer: p.writer,
+      keyId: p.keyId,
+      publicKey: hexToBytes(SESSION_PUBLIC),
+      cumulative: BigInt(p.receipt.cumulativeAfter),
+      receiptsRoot: hexToBytes(receiptsRootHex(leaves)),
+      ...change,
+    })
+    return bytesToHex(signEd25519(SESSION_SEED, edit(payload)))
+  }
+
+  it('refuses signatures over any other network, contract, reader, writer or byte length', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const p = await prepare(t, s)
+    const variants: Record<string, string> = {
+      network: signVariant(p, {
+        networkId: networkIdOf(
+          'Public Global Stellar Network ; September 2015'
+        ),
+      }),
+      contract: signVariant(p, { tab: TOKEN }),
+      reader: signVariant(p, { reader: OTHER_WRITER }),
+      writer: signVariant(p, { writer: OTHER_WRITER }),
+      key: signVariant(p, { keyId: 1 }),
+      truncated: signVariant(p, {}, (b) => b.slice(0, -1)),
+      extended: signVariant(p, {}, (b) => {
+        const out = new Uint8Array(b.length + 1)
+        out.set(b)
+        return out
+      }),
+      short: sign(p).slice(0, 126),
+      long: `${sign(p)}00`,
+    }
+    for (const [name, signature] of Object.entries(variants)) {
+      expect([name, await errorCode(submit(t, s, p, { signature }))]).toEqual([
+        name,
+        'TAB_INVALID_SIGNATURE',
+      ])
+    }
+    expect((await account(t)).outstanding).toBe('0')
+    // The exact bytes are accepted.
+    await submit(t, s, p)
+    expect(await receiptStatuses(t)).toEqual(['ACCEPTED'])
+  })
+
+  it('verifies strictly, as the contract host does: no small-order key, no non-canonical S', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // A reader registers the identity point as a session key. A permissive
+    // verifier accepts R = identity, S = 0 for every message under it; the host
+    // refuses it, so such a voucher could never settle.
+    const identity = `01${'00'.repeat(31)}`
+    await ingest(
+      t,
+      tabEvent(
+        'key_registered',
+        [READER],
+        [
+          ['key_id', u32(1)],
+          ['public_key', bytes(identity)],
+          ['valid_until', u32(VALID_UNTIL)],
+          ['spend_limit', i128(BigInt(50) * XLM)],
+        ]
+      )
+    )
+    const weak = await prepare(t, s, { keyId: 1 })
+    expect(
+      await errorCode(submit(t, s, weak, { signature: `01${'00'.repeat(63)}` }))
+    ).toBe('TAB_INVALID_SIGNATURE')
+
+    // S + L of a valid signature satisfies the same equation.
+    const p = await prepare(t, s)
+    const good = hexToBytes(sign(p))
+    const L =
+      (BigInt(1) << BigInt(252)) +
+      BigInt('27742317777372353535851937790883648493')
+    let scalar = BigInt(0)
+    for (let i = 31; i >= 0; i--)
+      scalar = (scalar << BigInt(8)) | BigInt(good[32 + i]!)
+    const bumped = scalar + L
+    const malleated = new Uint8Array(good)
+    for (let i = 0; i < 32; i++)
+      malleated[32 + i] = Number((bumped >> BigInt(8 * i)) & BigInt(255))
+    expect(
+      await errorCode(submit(t, s, p, { signature: bytesToHex(malleated) }))
+    ).toBe('TAB_INVALID_SIGNATURE')
+    expect((await account(t)).outstanding).toBe('0')
+  })
+
+  it('refuses a key the app declared but the indexer has not seen', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query('tabAccounts').first())!
+      await ctx.db.patch(row._id, {
+        pendingKeys: [
+          { publicKey: SESSION_PUBLIC, extractable: false, declaredAt: T0 },
+        ],
+      })
+    })
+    expect(await errorCode(prepare(t, s, { keyId: 1 }))).toBe('TAB_KEY_UNKNOWN')
+  })
+
+  it('refuses tips when the configured Tab contract is not the account contract', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const p = await prepare(t, s)
+    // The Tab contract changes without a new chain epoch.
+    vi.stubEnv('TAB_CONTRACT_ID', TOKEN)
+    expect(await errorCode(prepare(t, s))).toBe('TAB_CONTRACT_MISMATCH')
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_CONTRACT_MISMATCH')
+    expect((await account(t)).outstanding).toBe('0')
+  })
+})

@@ -325,6 +325,18 @@ export async function checkTabTip(
       'This tab is closing and accepts no new tips.'
     )
   }
+  // The voucher binds the Tab contract. The reader's balance lives in the
+  // account's contract, so a voucher for any other contract could never settle.
+  if (
+    account.tabContractId !== chain.tabContractId ||
+    (config.tabContractId !== undefined &&
+      config.tabContractId !== chain.tabContractId)
+  ) {
+    tabError(
+      'TAB_CONTRACT_MISMATCH',
+      'The tab contract changed. Tips are paused until the tab ledger is reset.'
+    )
+  }
 
   const article = await ctx.db.get(args.articleId)
   if (!article) tabError('TAB_ARTICLE_UNKNOWN', 'Article not found.')
