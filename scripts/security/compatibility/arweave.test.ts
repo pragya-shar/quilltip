@@ -3,6 +3,7 @@ import { DataItem } from '@dha-team/arbundles/node'
 import { build } from 'esbuild'
 import { afterEach, expect, it, vi } from 'vitest'
 import { uploadArticle, uploadJsonWithTurbo } from '../../../lib/arweave/client'
+import { buildArticleUpload } from '../../../lib/arweave/articleUpload'
 import { ARWEAVE_CONFIG } from '../../../lib/arweave/config'
 import type { JWKInterface } from 'arweave/node/lib/wallet'
 
@@ -24,7 +25,7 @@ it('bundles the Convex Arweave action without the optional payment stack', async
   )
 }, 20_000)
 
-it('uploads RSA-signed article and metadata JSON through the real Turbo SDK without network writes', async () => {
+it('uploads RSA-signed canonical article bytes and metadata JSON through the real Turbo SDK without network writes', async () => {
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 4096 })
   const jwk = privateKey.export({ format: 'jwk' }) as JWKInterface
   const items: DataItem[] = []
@@ -43,14 +44,15 @@ it('uploads RSA-signed article and metadata JSON through the real Turbo SDK with
   })
   vi.stubGlobal('fetch', transport)
 
-  const article = {
+  const article = await buildArticleUpload({
+    articleId: 'local-article',
+    authorId: 'local-author',
     title: 'Dependency compatibility',
-    body: { type: 'doc', content: [] },
-    author: 'QA',
-    authorId: 'local-only',
-    timestamp: 1,
-    version: 1,
-  }
+    content: { type: 'doc', content: [] },
+    contentVersion: 1,
+    authorUsername: 'QA',
+    uploadedAt: 1,
+  })
   const metadata = { name: 'Local metadata', description: 'Never published' }
   const results = [
     await uploadArticle(article, jwk),
@@ -59,38 +61,55 @@ it('uploads RSA-signed article and metadata JSON through the real Turbo SDK with
     ]),
   ]
   expect(transport).toHaveBeenCalledTimes(2)
-  for (const [index, payload] of [article, metadata].entries()) {
-    const item = items[index]!
-    const hash = createHash('sha256')
-      .update(JSON.stringify(payload))
-      .digest('hex')
-    expect(item.rawData.toString()).toBe(JSON.stringify(payload))
-    expect(item.tags).toEqual(
-      expect.arrayContaining([
-        { name: 'Content-Type', value: 'application/json' },
-        { name: 'App-Name', value: 'Quilltip' },
-        { name: 'Content-Hash', value: hash },
-      ])
-    )
-    expect(results[index]).toEqual({
-      success: true,
-      txId: item.id,
-      url: `https://arweave.net/${item.id}`,
-      contentHash: hash,
-    })
-  }
-  expect(items[0]!.tags).toContainEqual({
-    name: 'Article-Title',
-    value: article.title,
+
+  // The signed article body is exactly the canonical article bytes.
+  const articleItem = items[0]!
+  expect(new Uint8Array(articleItem.rawData)).toEqual(article.body)
+  const articleHash = createHash('sha256')
+    .update(articleItem.rawData)
+    .digest('hex')
+  expect(articleHash).toBe(article.contentHash)
+  expect(articleItem.tags).toEqual(article.tags)
+  expect(articleItem.tags).toContainEqual({
+    name: 'Content-Hash',
+    value: articleHash,
   })
-  expect(items[1]!.tags).toContainEqual({
-    name: 'Data-Type',
-    value: 'quilltip-nft-metadata',
+  expect(articleItem.tags).toContainEqual({ name: 'Timestamp', value: '1' })
+  expect(results[0]).toEqual({
+    success: true,
+    txId: articleItem.id,
+    url: `https://arweave.net/${articleItem.id}`,
+    contentHash: articleHash,
   })
-  expect(items[1]!.tags).toContainEqual({
-    name: 'Article-Id',
-    value: 'local-only',
+
+  const metadataItem = items[1]!
+  const metadataHash = createHash('sha256')
+    .update(JSON.stringify(metadata))
+    .digest('hex')
+  expect(metadataItem.rawData.toString()).toBe(JSON.stringify(metadata))
+  expect(metadataItem.tags).toEqual(
+    expect.arrayContaining([
+      { name: 'Content-Type', value: 'application/json' },
+      { name: 'App-Name', value: 'Quilltip' },
+      { name: 'Content-Hash', value: metadataHash },
+      { name: 'Data-Type', value: 'quilltip-nft-metadata' },
+      { name: 'Article-Id', value: 'local-only' },
+    ])
+  )
+  expect(results[1]).toEqual({
+    success: true,
+    txId: metadataItem.id,
+    url: `https://arweave.net/${metadataItem.id}`,
+    contentHash: metadataHash,
   })
+
+  // A body that does not match its hash is refused before any request.
+  const tampered = await uploadArticle(
+    { ...article, body: new TextEncoder().encode('{}') },
+    jwk
+  )
+  expect(tampered.success).toBe(false)
+  expect(transport).toHaveBeenCalledTimes(2)
 
   const tooLarge = await uploadJsonWithTurbo(
     'x'.repeat(ARWEAVE_CONFIG.HARD_LIMIT_BYTES),

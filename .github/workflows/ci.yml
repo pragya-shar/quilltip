@@ -165,6 +165,8 @@ jobs:
       - name: Build and test each contract
         run: |
           for dir in contracts/*/; do
+            # contracts/shared/ holds the shared test vectors, not a crate.
+            [ -f "$dir/Cargo.toml" ] || continue
             echo "::group::$dir"
             (
               cd "$dir"
