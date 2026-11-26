@@ -239,7 +239,7 @@ test('articles without a category tag are labelled and filtered as Stories', asy
   }
 })
 
-test('Reading Room cards show the saved subtitle after publication and published edits', async () => {
+test('Reading Room cards show the saved subtitle after publication and keep it when edits are rejected', async () => {
   const t = convexTest(schema, modules)
   const authorId = await t.run((ctx) =>
     ctx.db.insert('users', {
@@ -277,8 +277,14 @@ test('Reading Room cards show the saved subtitle after publication and published
     },
   ])
 
-  const excerpt = 'An updated guide for the next trip downriver.'
-  await author.mutation(api.articles.saveDraft, { ...article, id, excerpt })
+  const excerpt = 'A field guide to quiet rivers. With notes from the bank.'
+  await expect(
+    author.mutation(api.articles.saveDraft, {
+      ...article,
+      id,
+      excerpt: 'An updated guide for the next trip downriver.',
+    })
+  ).rejects.toThrow()
   await t.mutation(internal.readingRoomIndex.backfill, {})
   const views: BrowseFilters[] = [
     { category: 'stories' },
@@ -287,15 +293,6 @@ test('Reading Room cards show the saved subtitle after publication and published
   ]
   for (const filters of views) {
     expect(await cards(filters)).toMatchObject([{ id, excerpt }])
-  }
-
-  for (const blank of [' \t ', undefined]) {
-    await author.mutation(api.articles.saveDraft, {
-      ...article,
-      id,
-      excerpt: blank,
-    })
-    expect(await cards()).toMatchObject([{ id, excerpt: 'First sentence.' }])
   }
 })
 
@@ -432,15 +429,18 @@ test('search backfills a large catalog and follows public writes without changin
   })
   expect((await browse({ search: 'umbrella quartz' })).total).toBe(1)
 
-  await author.mutation(api.articles.updateArticle, {
-    id: ids[13]!,
-    title: 'Blue Lantern',
-  })
+  // Published titles are fixed, so search keeps matching the original title.
+  await expect(
+    author.mutation(api.articles.updateArticle, {
+      id: ids[13]!,
+      title: 'Blue Lantern',
+    })
+  ).rejects.toThrow()
   expect(
     (await browse({ search: 'lue lan', bookmarkIds: [ids[13]!, ids[0]!] }))
       .total
-  ).toBe(1)
-  expect((await browse({ search: 'quartz' })).total).toBe(0)
+  ).toBe(0)
+  expect((await browse({ search: 'quartz' })).total).toBe(1)
 
   const id = await author.mutation(api.articles.createArticle, {
     title: 'Narrow Mangrove',

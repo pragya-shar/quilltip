@@ -43,7 +43,7 @@ export const privacySections: LegalSection[] = [
       'Service providers: We use infrastructure providers (including hosting, database, and authentication services such as Convex) to operate the Service. They process data on our behalf under contractual safeguards.',
       'Blockchain networks: Tips, withdrawals, and NFT activity are recorded on the Stellar network and may be visible to anyone via public explorers.',
       'Decentralized storage: When enabled, article content may be stored on networks such as Arweave, where data may be permanent and publicly accessible.',
-      'Analytics: We use Vercel Analytics to understand how the Service is used. Analytics data is generally aggregated and does not include article body text.',
+      'Analytics: We use Vercel Analytics to understand how the Service is used. Analytics data is generally aggregated and does not include article body text. Optional product analytics runs only with your permission; see "Optional product analytics" below.',
       'Legal requirements: We may disclose information if required by law, court order, or to protect the rights, safety, and security of Quilltip, our users, or others.',
     ],
   },

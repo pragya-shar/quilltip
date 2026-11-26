@@ -10,5 +10,18 @@ contracts/*/target
 # Local Superpowers execution ledgers are not project source.
 .superpowers
 
-# Local Convex deployment state (convex dev with a local backend).
+# Local tool, agent, and editor caches. Prettier reads only .gitignore and this
+# file, not global Git excludes, so list them here.
 .convex
+.vercel
+.claude
+.serena
+.agents
+.gstack
+.impeccable
+.playwright-mcp
+.stellar
+**/.stellar
+test-results
+playwright-report
+contracts/*/target

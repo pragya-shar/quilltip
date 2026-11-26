@@ -30,6 +30,7 @@ import { WritingToolbar } from './WritingToolbar'
 import { WritingDesk } from './WritingDesk'
 import { WritingMedia } from './WritingMedia'
 import { WritingWallet } from './WritingWallet'
+import { PublishedArticleLocked } from './PublishedArticleLocked'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import {
   countWords,
@@ -265,6 +266,18 @@ export function WritingWorkspaceView({
     w.publishUsername && w.publishSlug
       ? `/${w.publishUsername}/${w.publishSlug}`
       : undefined
+  if (w.articleLocked && !w.publishSuccessVisible)
+    return (
+      <PublishedArticleLocked
+        className={articleAppearanceClasses(style)}
+        title={w.title}
+        excerpt={w.excerpt}
+        topic={w.articleTags[0]}
+        authorName={w.currentUser?.name || w.currentUser?.username}
+        content={w.editorContent}
+        articleHref={publicationHref}
+      />
+    )
   return (
     <div
       className={`writing-workspace ${articleAppearanceClasses(style)} ${focus ? 'focus-mode' : ''}`}
@@ -461,7 +474,7 @@ export function WritingWorkspaceView({
             </span>
             <span>
               {w.publishStatus.published
-                ? 'Changes save to your live article'
+                ? 'Published · can’t be changed'
                 : 'Only you can see this draft'}
             </span>
           </footer>
@@ -624,7 +637,7 @@ export function WritingWorkspaceView({
             </article>
             <p className="preview-note">
               {w.publishStatus.published
-                ? 'Preview of your published article. Changes save to the live article.'
+                ? 'Preview of your published article. It can’t be changed.'
                 : 'Preview only. Nothing has been published.'}
             </p>
           </EditorialSurface>
@@ -724,10 +737,7 @@ export function WritingWorkspaceView({
           id="publish-form"
           onSubmit={(e) => {
             e.preventDefault()
-            if (w.publishStatus.published) {
-              void w.saveNow()
-              return
-            }
+            if (w.publishStatus.published) return
             if (
               !w.tags
                 .split(',')
@@ -851,10 +861,11 @@ export function WritingWorkspaceView({
             className="wine wide"
             disabled={
               w.isSaving ||
-              (!w.publishStatus.published && !w.receivingWalletAddress)
+              w.publishStatus.published ||
+              !w.receivingWalletAddress
             }
           >
-            {w.publishStatus.published ? 'Save changes' : 'Review publication'}
+            {w.publishStatus.published ? 'Published' : 'Review publication'}
           </button>
         </form>
       </WritingDialog>
@@ -869,7 +880,8 @@ export function WritingWorkspaceView({
         <p>{w.excerpt}</p>
         <p className="muted">
           Publishing stores your content on Arweave (permanent storage). You
-          cannot undo this or remove that snapshot from Arweave.
+          cannot undo this or remove that snapshot from Arweave. You won&rsquo;t
+          be able to edit it after publishing.
         </p>
         {w.publishFeedback && (
           <p role="alert">

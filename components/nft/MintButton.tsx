@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { earningsLabel } from '@/lib/copy/network-status'
 import { useAction, useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { Id } from '@/convex/_generated/dataModel'
@@ -241,7 +242,9 @@ export function MintButton({
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-ui-muted-foreground">NFT Minting Progress</span>
+          <span className="text-ui-muted-foreground">
+            {earningsLabel('NFT minting progress')}
+          </span>
           <span className="font-medium">
             ${totalTips.toFixed(2)} / ${threshold.toFixed(2)}
           </span>
@@ -322,7 +325,9 @@ export function MintButton({
               <h4 className="nft-article-title">{articleTitle}</h4>
               <div className="text-sm space-y-1">
                 <div className="flex justify-between">
-                  <span className="text-ui-muted-foreground">Total Tips:</span>
+                  <span className="text-ui-muted-foreground">
+                    {earningsLabel('Total tips')}:
+                  </span>
                   <span className="font-medium">${totalTips.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">

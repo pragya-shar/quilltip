@@ -1,4 +1,5 @@
 import { syncReadingRoomEngagement } from './lib/readingRoomIndex'
+import { verifiedTipFilter } from './lib/verifiedTips'
 import { getTipArticleSummary } from './lib/tipArticleSummary'
 import { ConvexError, v } from 'convex/values'
 import { query, mutation, internalMutation } from './_generated/server'
@@ -22,12 +23,7 @@ import {
   shortArticleIdServer,
 } from './lib/articleTipExpectation'
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
-import {
-  creditAuthorEarnings,
-  getMonthKey,
-  roundCents,
-  writerShareCents,
-} from './lib/authorEarnings'
+import { getMonthKey, roundCents, writerShareCents } from './lib/authorEarnings'
 
 const MAX_OUTSTANDING_ARTICLE_TIP_INTENTS = 5
 
@@ -40,7 +36,7 @@ export const getArticleTips = query({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .order('desc')
       .collect()
 
@@ -65,7 +61,7 @@ export const getArticleTipStats = query({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const totalTips = tips.length
@@ -130,7 +126,7 @@ export const getUserReceivedTips = query({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_author', (q) => q.eq('authorId', userId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .order('desc')
       .collect()
 
@@ -526,69 +522,8 @@ export const sendTip = mutation({
   },
 })
 
-// Internal mutation to confirm tip
-export const confirmTip = internalMutation({
-  args: {
-    tipId: v.id('tips'),
-  },
-  handler: async (ctx, args) => {
-    const tip = await ctx.db.get(args.tipId)
-    if (!tip) throw new Error('Tip not found')
-    if (tip.status !== 'PENDING') return
-
-    const now = Date.now()
-
-    // Flip status to CONFIRMED. stellarTxId was stored at insert time by
-    // sendTip, so there's nothing to stamp here.
-    await ctx.db.patch(args.tipId, {
-      status: 'CONFIRMED',
-      updatedAt: now,
-    })
-
-    // Update article stats
-    const article = await ctx.db.get(tip.articleId)
-    if (article) {
-      const tipCount = (article.tipCount || 0) + 1
-      await ctx.db.patch(tip.articleId, {
-        tipCount,
-        totalTipsUsd: (article.totalTipsUsd || 0) + tip.amountUsd,
-      })
-      await syncReadingRoomEngagement(ctx, tip.articleId, { tipCount })
-    }
-
-    // Update author earnings with the writer's share of the tip
-    await creditAuthorEarnings(ctx, {
-      authorId: tip.authorId,
-      articleId: tip.articleId,
-      articleTitle: tip.articleTitle,
-      shareCents: writerShareCents(tip.amountCents, tip.expectedAmountStroops),
-      now,
-    })
-
-    // Update user stats
-    const [tipper, author] = await Promise.all([
-      ctx.db.get(tip.tipperId),
-      ctx.db.get(tip.authorId),
-    ])
-
-    if (tipper) {
-      await ctx.db.patch(tip.tipperId, {
-        tipsSentCount: (tipper.tipsSentCount || 0) + 1,
-      })
-    }
-
-    if (author) {
-      await ctx.db.patch(tip.authorId, {
-        tipsReceivedCount: (author.tipsReceivedCount || 0) + 1,
-      })
-    }
-
-    return { success: true }
-  },
-})
-
 // Internal mutation: mark a previously-CONFIRMED tip as FRAUDULENT and reverse
-// every counter/earnings increment that confirmTip applied. Called exclusively
+// every counter/earnings increment that confirmation applied. Called exclusively
 // by the reconciliation action when on-chain verification proves the tip was
 // faked (e.g., no matching Stellar tx, wrong contract, wrong recipient).
 //
@@ -748,5 +683,77 @@ export const getAuthorEarnings = query({
       .first()
 
     return earnings
+  },
+})
+
+const STROOPS_PER_XLM = BigInt(10_000_000)
+const PLATFORM_FEE_BPS = BigInt(250)
+const BPS_DENOMINATOR = BigInt(10_000)
+
+function writerShareStroops(tip: {
+  expectedAmountStroops?: string
+  stellarAmountXlm?: string
+}): bigint | null {
+  let stroops: bigint | null = null
+  if (
+    tip.expectedAmountStroops &&
+    /^[1-9]\d*$/.test(tip.expectedAmountStroops)
+  ) {
+    stroops = BigInt(tip.expectedAmountStroops)
+  } else if (
+    tip.stellarAmountXlm &&
+    /^\d+(\.\d{1,7})?$/.test(tip.stellarAmountXlm)
+  ) {
+    const [whole, fraction = ''] = tip.stellarAmountXlm.split('.')
+    stroops =
+      BigInt(whole ?? '0') * STROOPS_PER_XLM + BigInt(fraction.padEnd(7, '0'))
+  }
+  if (!stroops || stroops <= BigInt(0)) return null
+  return stroops - (stroops * PLATFORM_FEE_BPS) / BPS_DENOMINATOR
+}
+
+// The caller's verified earnings as a writer: the XLM writer share actually
+// paid on chain plus the USD estimate recorded at tip time. The network is
+// returned so the UI can label testnet amounts as having no real value.
+export const getMyEarningsSummary = query({
+  args: {},
+  returns: v.union(
+    v.null(),
+    v.object({
+      network: v.union(v.literal('TESTNET'), v.literal('MAINNET')),
+      tipCount: v.number(),
+      writerShareStroops: v.string(),
+      estimatedUsd: v.number(),
+    })
+  ),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return null
+    const [articleTips, passageTips] = await Promise.all([
+      ctx.db
+        .query('tips')
+        .withIndex('by_author', (q) => q.eq('authorId', userId))
+        .filter(verifiedTipFilter)
+        .collect(),
+      ctx.db
+        .query('highlightTips')
+        .withIndex('by_author', (q) => q.eq('authorId', userId))
+        .filter(verifiedTipFilter)
+        .collect(),
+    ])
+    let stroops = BigInt(0)
+    let cents = 0
+    for (const tip of [...articleTips, ...passageTips]) {
+      stroops += writerShareStroops(tip) ?? BigInt(0)
+      if (!('amountUsdSuspicious' in tip && tip.amountUsdSuspicious)) {
+        cents += writerShareCents(tip.amountCents, tip.expectedAmountStroops)
+      }
+    }
+    return {
+      network: getStellarNetwork(),
+      tipCount: articleTips.length + passageTips.length,
+      writerShareStroops: stroops.toString(),
+      estimatedUsd: roundCents(cents) / 100,
+    }
   },
 })

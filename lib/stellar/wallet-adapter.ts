@@ -18,6 +18,7 @@ import type {
 } from '@creit.tech/stellar-wallets-kit'
 import { toast } from 'sonner'
 import { hasInstalledWalletForKitModal as supportedWalletsAllowKitModal } from '@/lib/stellar/wallet-availability'
+import { STELLAR_CONFIG } from '@/lib/stellar/config'
 import { loadWalletKit } from '@/lib/stellar/wallet-kit-loader'
 import { setWalletPickerOpen } from '@/lib/stellar/wallet-picker-state'
 import {
@@ -227,15 +228,13 @@ class StellarWalletAdapter {
   }
 
   /**
-   * Get network from environment variable
+   * Wallet network for the configured Stellar network (TESTNET → TESTNET,
+   * MAINNET → PUBLIC). The mapping lives in lib/stellar/network.ts.
    */
   private getNetworkFromEnv(
     WalletNetwork: Awaited<ReturnType<typeof loadWalletKit>>['WalletNetwork']
   ): WalletNetworkValue {
-    const envNetwork = process.env.NEXT_PUBLIC_STELLAR_NETWORK
-    return envNetwork === 'PUBLIC'
-      ? WalletNetwork.PUBLIC
-      : WalletNetwork.TESTNET
+    return WalletNetwork[STELLAR_CONFIG.WALLET_NETWORK]
   }
 
   /**
