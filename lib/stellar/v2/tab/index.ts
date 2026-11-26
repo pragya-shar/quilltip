@@ -2,8 +2,6 @@
  * Browser-side tab (prepaid quick tip) modules. See `README.md` in this
  * folder for the API, the storage layout and how the UI presents each state.
  */
-import './buffer-global'
-
 export {
   TabClientError,
   isTabClientError,

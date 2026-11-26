@@ -5,8 +5,6 @@
  * The types mirror `tabs.prepareTip` and `tabs.submitTip` in Convex. The id
  * type parameter lets a caller keep Convex's `Id<'tips'> | Id<'highlightTips'>`.
  */
-import './buffer-global'
-
 import { StrKey } from '@stellar/stellar-sdk'
 
 import { bytesToHex, hexToBytes, isHexOfLength, parseAmount } from './bytes'
