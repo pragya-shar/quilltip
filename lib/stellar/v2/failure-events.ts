@@ -39,7 +39,14 @@ function asJson(event: unknown): JsonEvent | null {
   }
   if (!value || typeof value !== 'object') return null
   const withJson = value as { toJSON?: () => unknown }
-  const json = typeof withJson.toJSON === 'function' ? withJson.toJSON() : value
+  let json: unknown = value
+  if (typeof withJson.toJSON === 'function') {
+    try {
+      json = withJson.toJSON()
+    } catch {
+      return null
+    }
+  }
   return json && typeof json === 'object' ? (json as JsonEvent) : null
 }
 
@@ -51,11 +58,14 @@ export type ContractErrorEvent = {
 
 /**
  * The first diagnostic `error` event with a contract code, from
- * `DiagnosticEvent` objects, their JSON, or base64 XDR strings.
+ * `DiagnosticEvent` objects, their JSON, or base64 XDR strings. The RPC
+ * server may return no diagnostic events (`diagnosticEventsXdr` is then
+ * undefined); the result is then null.
  */
 export function contractErrorEvent(
-  events: readonly unknown[]
+  events: readonly unknown[] | null | undefined
 ): ContractErrorEvent | null {
+  if (!Array.isArray(events)) return null
   for (const raw of events) {
     const json = asJson(raw)
     const topics = json?.event?.body?.v0?.topics
@@ -73,11 +83,11 @@ const GENERIC: V2ErrorInfo = contractErrorMessage(0, null)
 
 /**
  * A user message for a transaction that failed on chain, from its
- * diagnostic events. Generic when no event carries a contract code or the
- * raising contract is not one of `contracts`.
+ * diagnostic events. Generic when there are no events, no event carries a
+ * contract code, or the raising contract is not one of `contracts`.
  */
 export function describeTransactionFailure(
-  events: readonly unknown[],
+  events: readonly unknown[] | null | undefined,
   contracts: KnownContracts
 ): V2ErrorInfo {
   const found = contractErrorEvent(events)

@@ -8,6 +8,7 @@ import { xdr } from '@stellar/stellar-sdk'
 import { describe, expect, it } from 'vitest'
 
 import {
+  contractErrorMessage,
   describeContractFailure,
   raisingContract,
   type ContractKind,
@@ -162,6 +163,54 @@ describe('recorded transaction result', () => {
     expect(describeTransactionFailure(['not xdr', null], CONTRACTS)).toEqual(
       describeTransactionFailure([], CONTRACTS)
     )
+  })
+
+  it('is generic when the RPC server returns no diagnostic events', () => {
+    const none = describeTransactionFailure([], CONTRACTS)
+    expect(describeTransactionFailure(undefined, CONTRACTS)).toEqual(none)
+    expect(describeTransactionFailure(null, CONTRACTS)).toEqual(none)
+    expect(contractErrorEvent(undefined)).toBeNull()
+    const broken = {
+      toJSON: () => {
+        throw new Error('bad event')
+      },
+    }
+    expect(describeTransactionFailure([broken], CONTRACTS)).toEqual(none)
+  })
+})
+
+describe('shared error numbers', () => {
+  // The token codes 1 to 15 reuse Core numbers; only the raising contract
+  // tells them apart.
+  const TOKEN_NAMES: Record<number, string> = {
+    6: 'AccountMissingError',
+    8: 'NegativeAmountError',
+    10: 'BalanceError',
+    12: 'OverflowError',
+    14: 'InsufficientAccountReserve',
+  }
+
+  it('decodes each code with the table of the contract that raised it', () => {
+    for (const [code, name] of Object.entries(TOKEN_NAMES)) {
+      const token = contractErrorMessage(Number(code), 'token')
+      const core = contractErrorMessage(Number(code), 'core')
+      expect(token).toMatchObject({ contract: 'token', name })
+      expect(core.contract).toBe('core')
+      expect(core.name).not.toBe(name)
+      expect(contractErrorMessage(Number(code), null)).toMatchObject({
+        name: null,
+        message: GENERIC,
+      })
+    }
+  })
+
+  it('does not read a code from another contract’s range', () => {
+    expect(contractErrorMessage(32, 'tab').name).toBe('BalanceCapExceeded')
+    expect(contractErrorMessage(32, 'core').name).toBeNull()
+    expect(contractErrorMessage(71, 'nft').name).toBe('AlreadyMinted')
+    expect(contractErrorMessage(71, 'tab').name).toBeNull()
+    expect(contractErrorMessage(1, 'core').name).toBe('NotRegistered')
+    expect(contractErrorMessage(1, 'nft').name).toBeNull()
   })
 })
 
