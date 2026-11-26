@@ -197,7 +197,7 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
   },
   {
     id: WALLET_IDS.lobstr,
-    name: 'LOBSTR',
+    name: 'LOBSTR extension',
     kind: 'extension',
     url: 'https://lobstr.co',
     icon: `${KIT_ICONS}/lobstr.png`,
@@ -306,8 +306,22 @@ export const BROWSER_WALLETS = OFFERED_WALLETS.filter(
   (entry) => entry.id !== WALLET_IDS.walletConnect
 )
 
-/** Stellar wallets that connect over WalletConnect, for the picker's copy. */
-export const WALLETCONNECT_WALLETS = ['Varial', 'LOBSTR', 'Scopuly'] as const
+/**
+ * Phone wallet apps that connect to QuillTip over WalletConnect on Stellar
+ * (the kit's featured WalletConnect wallets). Each must be set to testnet.
+ */
+export const WALLETCONNECT_APPS = [
+  {
+    name: 'Varial',
+    url: 'https://varialwallet.com',
+    icon: `${KIT_ICONS}/varial.png`,
+  },
+  { name: 'LOBSTR', url: 'https://lobstr.co', icon: `${KIT_ICONS}/lobstr.png` },
+  { name: 'Scopuly', url: 'https://scopuly.com' },
+] as const
+
+/** Their names, for the picker's copy. */
+export const WALLETCONNECT_WALLETS = WALLETCONNECT_APPS.map((app) => app.name)
 
 /** The name readers see for a wallet, falling back to the kit's name. */
 export function walletDisplayName(

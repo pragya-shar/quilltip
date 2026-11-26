@@ -97,7 +97,6 @@ state, with the reason, for wallets that need HTTPS.
 | Fordefi, Cactus Link                   | Institutional custody extensions that need an organisation account.                                                                                                                                                                                                                                                                                            |
 | GHOSTSIG                               | Beta passkey web wallet. Soroban calls are signed without being decoded (a checkbox).                                                                                                                                                                                                                                                                          |
 | Solar                                  | No dApp connection and no release since February 2022.                                                                                                                                                                                                                                                                                                         |
-| Mobile wallets over WalletConnect      | Kept off by `lib/stellar/v2/walletconnect-gate.ts`. See below.                                                                                                                                                                                                                                                                                                 |
 
 ### Hardware wallets
 
@@ -117,28 +116,81 @@ release whose converter supports Soroban.
 
 ## WalletConnect
 
-Mobile wallets (Varial mobile, LOBSTR mobile, Scopuly and others) connect
-through the kit's WalletConnect module, which loads Reown AppKit 1.8.21 and
-`@walletconnect/sign-client` 2.23.0. Enabling it needs:
+Mobile wallets (Varial, LOBSTR, Scopuly and others on a phone) connect over
+WalletConnect when `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` holds a Reown
+project ID. Unset or blank turns it off; a value that is not 32 lowercase
+hexadecimal characters stops the build, the dev server and the wallet
+(`lib/stellar/v2/walletconnect-gate.ts`).
 
-- A Reown project ID (owner action) and app metadata. The module requests
-  `stellar:pubnet` unless it is given
-  `allowedChains: [WalletConnectTargetChain.TESTNET]`.
-- AppKit's email and social login turned off (`appKitOptions.features`, and
-  in the Reown dashboard). Reown's only zod code is that login's frame
-  messages. Under the app's zod 4 override they parse as under zod 3 except
-  one case: zod 4 refuses an object whose `z.any()` field is absent, so a
-  frame answer with no payload would be dropped and its request would never
-  settle (`scripts/security/compatibility/reown-zod.test.ts`).
-- Relay and verification hosts in `connect-src` and `frame-src`
-  (`wss://relay.walletconnect.org`, `https://verify.walletconnect.org`,
-  Reown's API and pulse hosts), and image hosts for the wallet list.
-- Lazy loading on choice: the module adds about 567 KB gzipped (2.0 MB
-  minified) to the wallet chunk, against 68 KB for the kit and the seven
-  offered modules.
-- Session handling: the kit keeps WalletConnect sessions across reloads and
-  handles `session_delete` only. Expiry, `session_update` and a wallet on the
-  wrong network need app code and tests.
+### Dependency decision
+
+QuillTip does **not** use the kit's WalletConnect module. It has its own
+module, `lib/stellar/v2/walletconnect-module.ts`, on
+`@walletconnect/sign-client` 2.23.0 (the version the kit uses).
+
+- **zod.** Reown AppKit pins zod 3.22.4 in every release up to the latest
+  (2.0.0). Zod 3 has a high-severity advisory with no zod 3 fix
+  (GHSA-mrhx-c7xc-m3w5, fixed in 4.6.6), so letting AppKit keep zod 3 would
+  fail the dependency audit. The app's override resolves it to zod 4.6.7,
+  which behaves the same for AppKit's schemas except one rule: zod 4 refuses
+  an object whose `z.any()` field is absent, and zod 3 accepted it (3 of 2,586
+  generated inputs differ; `scripts/security/compatibility/reown-zod.test.ts`).
+  AppKit's only zod code is its embedded email and social login. The sign
+  client has no zod. With QuillTip's module, AppKit is never loaded, so no
+  zod-dependent code runs; the override stays only for the audit, because
+  the kit still installs AppKit.
+- **Size.** The sign client adds about 141 KB gzipped, loaded only when a
+  reader chooses a mobile wallet; the kit's module with AppKit adds about
+  567 KB.
+- **Connections.** The kit's module starts the sign client and AppKit when it
+  is constructed, which opens a relay connection whenever the picker lists
+  wallets. QuillTip's module connects only when a reader chooses it, with
+  WalletConnect telemetry off.
+- **Pairing step.** QuillTip draws its own: a QR code on a computer, an
+  "Open in your wallet app" link on a phone, a copy button, and a way back.
+
+### Behaviour
+
+| Event                                            | App state                                              |
+| ------------------------------------------------ | ------------------------------------------------------ |
+| Pairing approved on the phone, `stellar:testnet` | Connected; the network is checked on each signature    |
+| Paired, but the wallet offers mainnet only       | `wrong-network`; the session is closed                 |
+| The phone declines the pairing (5000)            | `rejected`                                             |
+| The pairing proposal expires (5 minutes)         | `timeout`                                              |
+| The reader goes back or closes the picker        | Not an error; the pairing stops                        |
+| A live session from earlier                      | Reused without a new code                              |
+| The phone ends the session, or it expires        | The app disconnects; a later request is `disconnected` |
+| Disconnect in QuillTip                           | The session is ended on the phone too                  |
+| A request refused on the phone (5000, 4001)      | `rejected`                                             |
+| "Please switch to … in Varial Settings"; 5100    | `wrong-network`                                        |
+| A signature made for mainnet                     | `wrong-network`, nothing sent                          |
+| No `stellar_signMessage` in the session          | `unsupported`; the address proof signs a transaction   |
+| No `stellar_signXDR` in the session; 5101        | `unsupported`                                          |
+| The phone never answers a request                | `timeout` after 5 minutes                              |
+
+Every request names `stellar:testnet` and signs as the source account only.
+Deep links use the `wc:` URI, which Android hands to an installed wallet; on
+iOS a wallet's own universal link is more reliable and is not used yet.
+
+### Content security policy
+
+With a project ID only: `connect-src wss://relay.walletconnect.org` (the
+relay) and `frame-src https://verify.walletconnect.org
+https://verify.walletconnect.com` (Verify registers the page's origin from a
+hidden iframe; the client tries both hosts). No Reown AppKit, API, font,
+image or analytics host is allowed.
+
+### Reown project settings
+
+Allowed origins (the app sends its own origin as the WalletConnect metadata
+URL, so each origin a reader can pair from must be listed):
+
+- Production: `https://www.quilltip.me` (`https://quilltip.me` redirects to it).
+- Integration preview (`overhaul/v2` branch alias):
+  `https://quilltip-git-overhaul-v2-pragya-sharmas-projects-a6320130.vercel.app`.
+  Per-deployment preview URLs change with each build and are not listed.
+- Local development: `http://localhost:3000` and `http://127.0.0.1:3000`, plus
+  any other port a developer runs on.
 
 ## Sources
 
