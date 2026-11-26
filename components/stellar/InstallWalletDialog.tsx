@@ -17,23 +17,19 @@ type WalletInstallLink = {
   note?: string
 }
 
+// Official sites, as listed by Stellar Wallets Kit 2.x.
 const WALLET_INSTALL_LINKS: WalletInstallLink[] = [
   {
-    name: 'Freighter',
-    href: 'https://chromewebstore.google.com/detail/freighter/bcacfldlkkdogcmkkibnjlakofdplcbk',
+    name: 'Varial',
+    href: 'https://varialwallet.com',
+    note: 'Formerly Freighter',
   },
-  {
-    name: 'xBull',
-    href: 'https://chromewebstore.google.com/detail/xbull-wallet/omajpeaffjgmlpmhbfdjepdejoemifpe',
-  },
+  { name: 'xBull', href: 'https://xbull.app' },
+  { name: 'LOBSTR', href: 'https://lobstr.co' },
   {
     name: 'Albedo',
-    href: 'https://chrome.google.com/webstore/detail/albedo-signer-for-stellar/kbojmmmibkfijmjgnfgfpngmmgkkpncl/',
-    note: 'Requires HTTPS for some flows',
-  },
-  {
-    name: 'HOT Wallet',
-    href: 'https://chromewebstore.google.com/detail/hot-wallet/mpeengabcnhhjjgleiodimegnkpcenbk',
+    href: 'https://albedo.link',
+    note: 'Web wallet; needs an HTTPS page',
   },
 ]
 
@@ -96,7 +92,7 @@ export function InstallWalletDialog({
                     ) : null}
                   </div>
                   <span className="wallet-install-destination">
-                    Open store
+                    Open site
                     <ArrowUpRight size={18} aria-hidden />
                   </span>
                 </div>
