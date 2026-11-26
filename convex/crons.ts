@@ -90,6 +90,14 @@ crons.interval(
   internal.chain.config.refreshChainConfig
 )
 
+// Payments v2: settle due tab vouchers (section 3.8) under the settler lease.
+// Does nothing unless SETTLEMENT_ENABLED=true and TAB_CONTRACT_ID is set.
+crons.interval(
+  'settle due tab vouchers',
+  { minutes: 10 },
+  internal.tabSettler.settleDue
+)
+
 // Payments v2: credit CONFIRMED and MISMATCH direct and batch tips to
 // authorEarnings (section 6.2). Each row is credited once.
 crons.interval(
