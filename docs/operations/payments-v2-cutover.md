@@ -102,9 +102,9 @@ git grep -nE 'NEXT_PUBLIC_TIPPING_CONTRACT_ID|TIPPING_CONTRACT_ID' -- app compon
 - `bun run check` and both Playwright commands pass.
 - The local network suites pass against a Stellar Quickstart standalone
   network (`QUILLTIP_NETWORK_GUARD_OPT_IN=local`).
-- The last command prints only references that the v1 code still needs
-  (`lib/stellar/client.ts`, `lib/stellar/config.ts`). No v2 module reads a v1
-  variable.
+- The last command prints nothing: no page, component or v2 module reads a
+  v1 variable. The v1 code that still needs them (`lib/stellar/client.ts`,
+  `lib/stellar/config.ts`) is outside the searched paths.
 - CI on the release PR is green.
 
 ### 1.4 Integration rehearsal
@@ -135,8 +135,9 @@ once, including the rollback in section 6:
 
 ## 2. Schema and API compatibility
 
-Checked by comparing `convex/schema.ts`, `convex/lib/chain/schema.ts` and the
-exported Convex functions between `main` and `overhaul/v2`.
+Checked by comparing `convex/schema.ts`, `convex/lib/chain/schema.ts`,
+`convex/lib/chain/nftSchema.ts` and the exported Convex functions between
+`main` and `overhaul/v2`.
 
 ### 2.1 Schema changes
 
@@ -151,16 +152,21 @@ Every v2 change to an existing table is additive or relaxes a field:
   (`contractVersion`, `channel`, `clientRef`, base-unit amounts, review
   fields and others, from `tipChainFields`), `earningsAppliedAt` and
   `earningsSkipReason`; the base-unit fields on `authorEarnings`;
-  `ownerAddress`, `contractVersion`, `txHash` and `chainVerifiedAt` on
-  `articleNFTs`; `fromAddress` and `toAddress` on `nftTransfers`;
-  `stellarAddressVerifiedAt`, `stellarAddressVerifiedNetwork`,
+  `ownerAddress`, `contractVersion`, `txHash`, `chainVerifiedAt` and the v2
+  mint fields (`nftChainFields`) on `articleNFTs`; `fromAddress`,
+  `toAddress` and the v2 event fields (`nftTransferChainFields`) on
+  `nftTransfers`; `stellarAddressVerifiedAt`, `stellarAddressVerifiedNetwork`,
   `emailVerificationTime` and `isTestAccount` on `users`;
-  `contentHashSchema` and `arweaveContentHash` on `articles`.
+  `contentHashSchema` and `arweaveContentHash` on `articles`; `name`,
+  `interest` and `userId` on `waitlist`.
 - **Fields that become optional:** `highlightTips.stellarTxId`,
   `highlightTips.stellarNetwork`, `highlightTips.stellarMemo`,
-  `highlightTips.processedAt`, `articleNFTs.currentOwner` and
+  `highlightTips.processedAt`, `articleNFTs.mintedBy`,
+  `articleNFTs.currentOwner`, `articleNFTs.tipThreshold`,
+  `articleNFTs.totalTipsAtMint`, `nftTransfers.fromUserId` and
   `nftTransfers.toUserId`.
-- **New indexes** on `users`, `tips` and `highlightTips`. No index is removed.
+- **New indexes** on `users`, `tips`, `highlightTips`, `articleNFTs` and
+  `nftTransfers`. No index is removed.
 - **Nothing is removed or narrowed.** No required field is added to an
   existing table.
 
@@ -176,9 +182,12 @@ schema:
 
 - a `highlightTips` row without `stellarTxId`, `stellarNetwork`, `stellarMemo`
   or `processedAt` (v2 batch and tab rows);
-- an `articleNFTs` row without `currentOwner` (a v2 NFT whose owner address is
-  not a QuillTip user);
-- an `nftTransfers` row without `toUserId`.
+- an `articleNFTs` row without `mintedBy` or `currentOwner` (a v2 NFT whose
+  minter or owner address is not a QuillTip user), or without `tipThreshold`
+  or `totalTipsAtMint` (every v2 NFT row, which keeps base-unit totals
+  instead);
+- an `nftTransfers` row without `fromUserId` or `toUserId` (a v2 transfer
+  between addresses that are not QuillTip users).
 
 Rows in the new tables are also outside `main`'s schema. Roll back with the
 switches (section 6), and keep the release code deployed.
@@ -392,11 +401,16 @@ then apply, so roll forward again as soon as possible.
    bun run contracts:deploy-v2 --set live --commit <sha> --keys-dir <dir>
    ```
 
-   The command is a dry run until `--submit` is added. With `--submit` it
-   builds reproducibly, uploads, deploys, reads back every view, runs the smoke
-   flows and writes the `live` section of
-   `docs/contracts/v2-testnet-deployment.md`. Commit that document in a
-   docs-only PR.
+   The command has no dry run: the `keys` step funds new accounts with
+   Friendbot and the later steps send testnet transactions. It runs the steps
+   `build`, `keys`, `upload`, `deploy`, `verify`, `smoke` and `evidence` in
+   order: it builds reproducibly, uploads, deploys, reads back every view, runs
+   the smoke flows and writes the `live` section of
+   `docs/contracts/v2-testnet-deployment.md`.
+   Each step is recorded in `<dir>/live/deploy-state.json`, so a rerun resumes
+   after the last completed step; `--steps` runs a subset (for example
+   `--steps build` to check the build first). Commit the evidence document in
+   a docs-only PR.
 
 2. The owner sets variables 2 to 12 of section 3.1 on the live deployment, in
    that order, with `CHAIN_V2_ENABLED=false`.
@@ -487,11 +501,11 @@ the rollback in section 6 stays available. Then run the removal PRs
 
 ## 6. Rollback plan
 
-| Stage reached                      | Rollback                                                                                                                                                                                                                                                                                                                                          | Data step                                                                                                                      |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| A. Stages 1 to 5                   | Reverse the last setting: `CHAIN_V1_PREPARES_ENABLED=true`, `SETTLEMENT_ENABLED=false`, remove the v2 contract IDs. Frontend: Vercel Instant Rollback only if the site is broken.                                                                                                                                                                 | None                                                                                                                           |
-| B. Stage 6 or 7                    | 1. Set `CHAIN_V2_ENABLED=false` and `CHAIN_V1_PREPARES_ENABLED=true`; set `NEXT_PUBLIC_NFT_CONTRACT_ID` back and redeploy. 2. Unpause v1 if it was paused. 3. Keep the indexer, the settler and `SETTLEMENT_ENABLED=true`. 4. Pause the v2 Tab: `bun run contracts:roles-v2 --set live --keys-dir <dir> --action pause --contracts tab --submit`. | None. v2 rows stay and remain visible. Accepted vouchers still settle, and readers can claim, withdraw and revoke keys (I-27). |
-| C. After stage 8 (v1 code removed) | No switch rollback. A return to v1 means restoring the removed code from Git in a new release.                                                                                                                                                                                                                                                    | Yes: any v2 activity since the switch must be kept; nothing is migrated back.                                                  |
+| Stage reached                      | Rollback                                                                                                                                                                                                                                                                                                                                          | Data step                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A. Stages 1 to 5                   | Reverse the last setting: `CHAIN_V1_PREPARES_ENABLED=true`, `SETTLEMENT_ENABLED=false`, remove the v2 contract IDs. Frontend: Vercel Instant Rollback only if the site is broken.                                                                                                                                                                 | None                                                                                                                                                                                                                                                                                                                                                                                                               |
+| B. Stage 6 or 7                    | 1. Set `CHAIN_V2_ENABLED=false` and `CHAIN_V1_PREPARES_ENABLED=true`; set `NEXT_PUBLIC_NFT_CONTRACT_ID` back and redeploy. 2. Unpause v1 if it was paused. 3. Keep the indexer, the settler and `SETTLEMENT_ENABLED=true`. 4. Pause the v2 Tab: `bun run contracts:roles-v2 --set live --keys-dir <dir> --action pause --contracts tab --submit`. | None. v2 rows stay and remain visible. Accepted vouchers still settle. The contract still lets readers withdraw and revoke keys and writers claim (I-27), but the app's tab operations (`tabs:prepareWithdrawStart`, `prepareWithdraw`, `prepareRevokeKey` and the others) refuse with `CHAIN_V2_DISABLED` while `CHAIN_V2_ENABLED=false`, so during this rollback those actions need a wallet or the Stellar CLI. |
+| C. After stage 8 (v1 code removed) | No switch rollback. A return to v1 means restoring the removed code from Git in a new release.                                                                                                                                                                                                                                                    | Yes: any v2 activity since the switch must be kept; nothing is migrated back.                                                                                                                                                                                                                                                                                                                                      |
 
 **Point after which rollback needs a data step:** the first removal PR that
 drops v1 code or tables (section 8). Until then every rollback is a setting.
