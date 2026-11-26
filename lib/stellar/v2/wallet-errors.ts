@@ -27,6 +27,8 @@ export type WalletErrorKind =
   | 'unsupported'
   /** The browser blocked the window a web wallet opens. */
   | 'popup-blocked'
+  /** The wallet ended the connection (a WalletConnect session closed or expired). */
+  | 'disconnected'
   /** The wallet signed with a different account from the connected one. */
   | 'wrong-account'
   /** Anything else the wallet reported. */
@@ -275,6 +277,11 @@ export function walletErrorMessage(error: WalletError): WalletMessage | null {
         title: 'Your wallet signed with another account',
         detail:
           'Switch back to the connected account in your wallet, or reconnect. Nothing was sent.',
+      }
+    case 'disconnected':
+      return {
+        title: 'Your wallet disconnected',
+        detail: `${Name} ended the connection. Connect again, then try again. Nothing was sent.`,
       }
     case 'cancelled':
       return null

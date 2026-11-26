@@ -81,6 +81,13 @@ export type WalletCatalogEntry = {
   /** The wallet opens its own window, which a pop-up blocker can stop. */
   opensWindow: boolean
   capabilities: WalletCapabilities
+  /**
+   * How long connecting may take before it times out, when longer than the
+   * adapter's default (a phone wallet: scan, open, approve).
+   */
+  connectTimeoutMs?: number
+  /** How long a signature may take, when longer than the default. */
+  signTimeoutMs?: number
   /** Offered in the picker. When false, `notOfferedReason` says why. */
   offered: boolean
   notOfferedReason?: string
@@ -264,16 +271,19 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
   },
   {
     id: WALLET_IDS.walletConnect,
-    name: 'Mobile wallets (WalletConnect)',
+    name: 'Mobile wallet',
     kind: 'mobile',
     url: 'https://walletconnect.network',
     icon: `${KIT_ICONS}/walletconnect.png`,
-    needsHttps: true,
+    needsHttps: false,
     opensWindow: false,
-    capabilities: { ...FULL, reportsNetwork: false },
-    offered: false,
-    notOfferedReason:
-      'WalletConnect needs a Reown project and checks of Reown AppKit with the app’s zod 4 override.',
+    // The session must include Stellar testnet; the network is checked on the
+    // signature, as for other wallets that cannot report it.
+    capabilities: { ...FULL, authEntry: false, reportsNetwork: false },
+    connectTimeoutMs: 5 * 60_000,
+    signTimeoutMs: 5 * 60_000,
+    // Shown only when NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set.
+    offered: true,
   },
 ]
 
@@ -290,6 +300,14 @@ export function walletEntry(
 
 /** The wallets QuillTip offers, in picker order. */
 export const OFFERED_WALLETS = WALLET_CATALOG.filter((entry) => entry.offered)
+
+/** Offered wallets that work without WalletConnect configured. */
+export const BROWSER_WALLETS = OFFERED_WALLETS.filter(
+  (entry) => entry.id !== WALLET_IDS.walletConnect
+)
+
+/** Stellar wallets that connect over WalletConnect, for the picker's copy. */
+export const WALLETCONNECT_WALLETS = ['Varial', 'LOBSTR', 'Scopuly'] as const
 
 /** The name readers see for a wallet, falling back to the kit's name. */
 export function walletDisplayName(
