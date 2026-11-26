@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { CircleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   checkRecipient,
@@ -98,6 +99,7 @@ export function RecipientForm({
           name="recipient"
           type="text"
           inputMode="text"
+          enterKeyHint="next"
           className="nft-v2-input"
           value={value}
           onChange={(event) => setValue(event.target.value)}
@@ -119,7 +121,8 @@ export function RecipientForm({
         </p>
         {error ? (
           <p id={errorId} className="nft-v2-error" role="alert">
-            {error}
+            <CircleAlert aria-hidden="true" />
+            <span>{error}</span>
           </p>
         ) : null}
       </div>

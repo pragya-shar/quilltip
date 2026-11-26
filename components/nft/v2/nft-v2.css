@@ -18,10 +18,6 @@
   font-size: 15px;
   line-height: 1.4;
 }
-.nft-v2-loading {
-  color: var(--ui-muted-foreground);
-  font: 400 14px/1.6 var(--ui-font);
-}
 .nft-v2-body,
 .nft-v2-flow,
 .nft-v2-action,
@@ -46,9 +42,12 @@
   height: 6px;
   border-radius: 999px;
 }
-.nft-v2-figures .nft-progress-fill {
+.nft-v2-figures .nft-v2-fill {
+  width: 100%;
   border-radius: inherit;
-  transition: width 300ms var(--pay-ease-out, ease-out);
+  transform-origin: left center;
+  /* Composite-only: the bar grows with transform, never width. */
+  transition: transform 300ms var(--pay-ease-out, ease-out);
 }
 .nft-v2-note {
   color: var(--ui-muted-foreground);
@@ -197,10 +196,19 @@
   border-color: var(--ui-danger);
 }
 .nft-v2-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   color: var(--ui-danger);
   font-size: 13px;
   font-weight: 600;
   line-height: 1.5;
+}
+.nft-v2-error svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
 }
 .nft-v2-footer {
   display: flex;
@@ -212,6 +220,7 @@
   flex: 1 1 160px;
 }
 .nft-v2-step-title {
+  text-wrap: balance;
   font-size: 17px;
   font-weight: 600;
   line-height: 1.4;
@@ -276,6 +285,7 @@
   gap: 4px 12px;
 }
 .nft-v2-copy {
+  min-height: 44px;
   border: 0;
   background: none;
   padding: 0;
@@ -318,7 +328,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nft-v2-figures .nft-progress-fill,
+  .nft-v2-figures .nft-v2-fill,
   .nft-v2 .nft-button,
   .nft-v2-dialog .nft-button {
     transition: none;
@@ -326,5 +336,29 @@
   .nft-v2 .nft-button:active,
   .nft-v2-dialog .nft-button:active {
     transform: none;
+  }
+}
+
+/* Touch: no double-tap zoom on controls, and no hover left stuck after a tap. */
+.nft-v2 :is(button, a, input),
+.nft-v2-dialog :is(button, a, input) {
+  touch-action: manipulation;
+}
+/* A long press on a control must not select its label. Addresses stay selectable. */
+.nft-v2 button,
+.nft-v2-dialog button {
+  -webkit-user-select: none;
+  user-select: none;
+}
+@media (hover: none) {
+  .nft-v2 .nft-button:not(.nft-button-secondary):hover,
+  .nft-v2-dialog .nft-button:not(.nft-button-secondary):hover {
+    background: var(--ui-primary);
+    color: var(--ui-primary-foreground);
+  }
+  .nft-v2 .nft-button-secondary:hover,
+  .nft-v2-dialog .nft-button-secondary:hover {
+    background: transparent;
+    color: var(--ui-foreground);
   }
 }

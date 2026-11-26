@@ -38,7 +38,10 @@ export function Figures({
         aria-valuenow={Math.floor(shown)}
         aria-valuetext={`${shown.toFixed(0)}% of the mint threshold`}
       >
-        <div className="nft-progress-fill" style={{ width: `${shown}%` }} />
+        <div
+          className="nft-progress-fill nft-v2-fill"
+          style={{ transform: `scaleX(${shown / 100})` }}
+        />
       </div>
       <p className="nft-v2-note">{NFT_COPY.directTipsOnly}</p>
     </div>

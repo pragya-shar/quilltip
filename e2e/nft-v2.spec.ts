@@ -855,3 +855,99 @@ test.describe('motion and live regions', () => {
     )
   })
 })
+
+test.describe('reflow at 320px (400% zoom of 1280)', () => {
+  test.use({ viewport: { width: 320, height: 640 } })
+  for (const id of [
+    'author-below',
+    'owner',
+    'transfer-review-user',
+    'transfer-invalid-length',
+    'mint-under-review',
+  ]) {
+    test(id, async ({ page }) => {
+      const scene = SCENES.find((s) => s.id === id)!
+      await open(page, scene.query, scene.mode)
+      await scene.act?.(page)
+      await expect(page.getByText(scene.expect).first()).toBeVisible({
+        timeout: 10_000,
+      })
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+      // Text spacing overrides (WCAG 1.4.12) must not clip content either.
+      await page.addStyleTag({
+        content:
+          '* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }',
+      })
+      expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+    })
+  }
+})
+
+test.describe('worst-case data', () => {
+  for (const width of [320, 1440]) {
+    test.describe(`at ${width}px`, () => {
+      test.use({ viewport: { width, height: 800 } })
+      const cases: Scene[] = [
+        {
+          id: 'worst-author-huge-total',
+          query: 'state=author-eligible&data=worst',
+          expect: /1,234,567,890\.1234567 XLM/,
+        },
+        {
+          id: 'worst-reader-one-stroop-short',
+          query: 'state=reader-below&data=worst',
+          expect: /49\.9999999 XLM of 50 XLM tipped/,
+        },
+        {
+          id: 'worst-reader-nothing-tipped',
+          query: 'state=reader-below&data=empty',
+          expect: /0 XLM of 50 XLM tipped/,
+        },
+        {
+          id: 'worst-not-owner-long-name',
+          query: 'state=not-owner&data=worst',
+          expect: '@bartholomew_fitzgera',
+        },
+        {
+          id: 'worst-owner-max-token',
+          query: 'state=owner&data=worst',
+          expect: '#4294967295',
+        },
+        {
+          id: 'worst-review-long-user',
+          query: 'state=owner&data=worst',
+          act: (page) => toReview(page, '@bartholomew_fitzgera'),
+          expect: 'QuillTip account @bartholomew_fitzgera',
+        },
+      ]
+      for (const scene of cases) {
+        test(scene.id, async ({ page }) => {
+          const errors = await open(page, scene.query, scene.mode)
+          await scene.act?.(page)
+          await expect(page.getByText(scene.expect).first()).toBeVisible()
+          expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+          // Nothing inside the panel or dialog spills out of its box.
+          const spill = await page.evaluate(() =>
+            [...document.querySelectorAll('.nft-v2 *, .nft-v2-dialog *')]
+              .filter(
+                (el) =>
+                  el.scrollWidth > el.clientWidth + 1 &&
+                  getComputedStyle(el).overflowX === 'visible' &&
+                  el.clientWidth > 0
+              )
+              .map((el) => `${el.tagName.toLowerCase()}.${el.className}`)
+          )
+          expect(spill).toEqual([])
+          if (SHOTS) {
+            await page.screenshot({
+              path: path.join(SHOTS, `${scene.id}-${width}.png`),
+              fullPage: true,
+              animations: 'disabled',
+            })
+          }
+          expect(errors).toEqual([])
+        })
+      }
+    })
+  }
+})

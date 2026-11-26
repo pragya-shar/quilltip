@@ -2,6 +2,7 @@
 
 import { useId, useRef, useState } from 'react'
 import { TestnetLabel } from '@/components/payments'
+import { NftSidebarSkeleton } from '@/components/articles/NftSidebarSkeleton'
 import type { Id } from '@/types/convex'
 import { useArticleNftV2 } from '@/hooks/useArticleNftV2'
 import { NFT_COPY } from '@/lib/copy/nft-v2'
@@ -42,11 +43,8 @@ export default function ArticleNftV2({
   const { panel, flow, status } = nft
 
   if (panel.kind === 'loading') {
-    return (
-      <p className="nft-v2-loading" role="status">
-        Loading the NFT status…
-      </p>
-    )
+    // The same placeholder as the lazy boundary, so nothing jumps.
+    return <NftSidebarSkeleton />
   }
   if (panel.kind === 'v1') return renderV1 ? <>{renderV1()}</> : null
   // An unpublished or missing article shows no NFT.

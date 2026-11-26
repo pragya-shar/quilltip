@@ -45,7 +45,11 @@ export function MintedView({
                 ) : (
                   <span className="nft-muted">{NFT_COPY.ownerOutside}</span>
                 )}
-                <ShortAddress address={token.ownerAddress} />
+                <span aria-hidden="true">
+                  <ShortAddress address={token.ownerAddress} />
+                </span>
+                {/* The full address for assistive tech; the short form is visual. */}
+                <span className="sr-only">{token.ownerAddress}</span>
               </span>
             ) : (
               <span className="nft-muted">{NFT_COPY.updatingOwner}</span>

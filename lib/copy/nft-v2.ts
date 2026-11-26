@@ -12,19 +12,14 @@ export const NFT_WALLET_PAGE = '/dashboard/wallet'
 
 export const NFT_COPY = {
   sectionTitle: 'Article NFT',
-  testnetNote: 'On Stellar testnet. Practice tokens only.',
   /** Under the progress figures, always: the total counts direct tips only. */
   directTipsOnly: 'Counts tips sent from a wallet. Tab tips don’t count.',
-  readerUnlock: 'The writer can mint this article’s NFT once it reaches',
   progressLabel: 'Tips toward the NFT',
   reachedReader: 'This article has reached the mint threshold.',
-  reachedAuthorStale:
-    'The latest figures show the threshold is reached. Check again to mint.',
   checkAgain: 'Check again',
   mintAction: 'Mint article NFT',
   mintHint:
     'Mints one NFT for this article to your wallet on Stellar testnet. You pay only the network fee.',
-  mintedTitle: 'Minted',
   token: 'Token',
   owner: 'Owner',
   you: 'You',
@@ -34,7 +29,6 @@ export const NFT_COPY = {
   updatingOwnerDetail:
     'Stellar testnet confirmed it. The owner shown here updates in a moment.',
   transferAction: 'Transfer NFT',
-  notOwner: 'Only the wallet that owns this NFT can transfer it.',
   v1Label: 'v1 record',
   v1Detail:
     'An earlier testnet version recorded this NFT. It is kept for reference and can’t be transferred here.',
@@ -44,7 +38,6 @@ export const NFT_COPY = {
     'Turn on tips for this article first. The NFT unlocks from tips on Stellar testnet.',
   unavailable: 'The NFT status can’t be read right now. Try again in a minute.',
   rateLimited: 'Too many checks in a row. Try again in a minute.',
-  pendingMint: 'A mint for this article is in progress.',
 } as const
 
 /** Author-only eligibility states with their own message (`getMintEligibility`). */

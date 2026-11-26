@@ -68,6 +68,12 @@ export const state = params.get('state') ?? 'author-eligible'
 const server = params.get('server') ?? 'ok'
 const confirm = params.get('confirm') ?? 'indexed'
 const confirmDelay = Number(params.get('confirmDelay') ?? 600)
+// `data=worst`: the longest values the schema allows (20-character
+// usernames, the largest u32 token ID, a total far past the threshold);
+// `data=empty`: nothing tipped yet.
+const data = params.get('data') ?? 'demo'
+const LONG_USER = 'bartholomew_fitzgera'
+const TOKEN_ID = data === 'worst' ? 4_294_967_295 : 7
 
 // A throwaway key for the emulated wallet: the article's author and, once
 // minted, the owner in the owner states.
@@ -129,7 +135,7 @@ function mintedProgress(owner: string, extra: Record<string, unknown> = {}) {
     threshold: null,
     remaining: null,
     reached: null,
-    tokenId: 7,
+    tokenId: TOKEN_ID,
     nftId: NFT_ID,
     ownerAddress: owner,
     ...extra,
@@ -142,14 +148,14 @@ function v2Row(owner: string) {
     isMinted: true,
     contractVersion: 'v2',
     recordLabel: null,
-    tokenId: '7',
+    tokenId: String(TOKEN_ID),
     contractAddress: NFT,
     ownerAddress: owner,
     txHash: TX,
     mintedAt: '2026-11-20T10:00:00.000Z',
     ownerInfo:
       owner === WALLET
-        ? { id: AUTHOR_ID, username: 'writer' }
+        ? { id: AUTHOR_ID, username: data === 'worst' ? LONG_USER : 'writer' }
         : owner === ADA
           ? { id: 'u-ada', username: 'ada' }
           : null,
@@ -182,7 +188,7 @@ function eligibility(stateName: string, extra: Record<string, unknown> = {}) {
     coreContractId: CORE,
     thresholdToken: XLM,
     threshold: THRESHOLD,
-    total: '512500000',
+    total: data === 'worst' ? '12345678901234567' : '512500000',
     remaining: '0',
     onChainAuthor: WALLET,
     callerAddress: WALLET,
@@ -197,7 +203,12 @@ function eligibility(stateName: string, extra: Record<string, unknown> = {}) {
   }
 }
 
-const below = { total: '187500000', remaining: '312500000' }
+const below =
+  data === 'empty'
+    ? { total: '0', remaining: '500000000' }
+    : data === 'worst'
+      ? { total: '499999999', remaining: '1' }
+      : { total: '187500000', remaining: '312500000' }
 
 type Store = {
   config: { v2Enabled: boolean; paused: Record<string, boolean> }
@@ -523,6 +534,7 @@ export function useAction(ref: unknown) {
 let counter = 0
 const RECIPIENT_USERS: Record<string, string | null> = {
   ada: ADA,
+  [LONG_USER]: ADA,
   nowallet: null,
 }
 
@@ -569,7 +581,7 @@ function settle(id: string, action: 'mint' | 'transfer', to?: string) {
           indexed: true,
           nft: {
             nftId: NFT_ID,
-            tokenId: 7,
+            tokenId: TOKEN_ID,
             ownerAddress: action === 'mint' ? WALLET : to,
             contractId: NFT,
           },
@@ -662,10 +674,10 @@ export function useMutation(ref: unknown) {
         args: {
           from: WALLET,
           to: server === 'swap' ? OUTSIDE : to,
-          token_id: 7,
+          token_id: TOKEN_ID,
         },
         nftId: NFT_ID,
-        tokenId: 7,
+        tokenId: TOKEN_ID,
         recipient: {
           address: server === 'swap' ? OUTSIDE : to,
           userId: username ? `u-${username}` : null,
