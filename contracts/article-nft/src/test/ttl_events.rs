@@ -276,15 +276,17 @@ fn mint_resources() {
     measure_mint(&setup(), "native");
 }
 
-/// The same measurement on the optimized Wasm. Run after the reproducible
-/// build:
-/// `QUILLTIP_NFT_WASM=<out>/quilltip_article_nft.wasm cargo test -p
-/// quilltip-article-nft mint_resources_on_wasm -- --ignored --nocapture`.
+/// The same measurement on the optimized Wasm. CI runs it after the
+/// reproducible build, as the Core Wasm tests do:
+/// `QUILLTIP_WASM_DIR=<out> cargo test -p quilltip-article-nft
+/// mint_resources_on_wasm -- --ignored --nocapture`.
 #[test]
-#[ignore = "needs QUILLTIP_NFT_WASM, the optimized Wasm from the reproducible build"]
+#[ignore = "needs QUILLTIP_WASM_DIR with the optimized quilltip_article_nft.wasm"]
 fn mint_resources_on_wasm() {
-    let path = std::env::var("QUILLTIP_NFT_WASM").expect("QUILLTIP_NFT_WASM");
-    let wasm = std::fs::read(path).expect("read the Wasm");
+    let dir = std::env::var("QUILLTIP_WASM_DIR")
+        .expect("set QUILLTIP_WASM_DIR to the directory of the reproducible build");
+    let path = std::path::Path::new(&dir).join("quilltip_article_nft.wasm");
+    let wasm = std::fs::read(&path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
     measure_mint(&setup_wasm(&wasm), "wasm");
 }
 
