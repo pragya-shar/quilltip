@@ -137,7 +137,7 @@ describe('nftContractCall', () => {
       networkPassphrase: Networks.TESTNET,
     })
     expect(call.args).toHaveLength(1)
-    const bytes = scValToNative(call.args[0]) as Buffer
+    const bytes = scValToNative(call.args[0]!) as Buffer
     expect(Buffer.from(bytes).toString('hex')).toBe(KEY)
   })
 
@@ -150,14 +150,14 @@ describe('nftContractCall', () => {
       4,
     ])
     // token_id is a u32, not an i128 or a u64.
-    expect(call.args[2].toXDR('base64')).toBe(
+    expect(call.args[2]!.toXDR('base64')).toBe(
       xdr.ScVal.scvU32(4).toXDR('base64')
     )
   })
 
   it('encodes a contract recipient', () => {
     const call = nftContractCall(transfer({}, { to: OTHER_CONTRACT }))
-    expect(scValToNative(call.args[1])).toBe(OTHER_CONTRACT)
+    expect(scValToNative(call.args[1]!)).toBe(OTHER_CONTRACT)
   })
 
   it('refuses an article_id that is not 32 bytes of hex', () => {
@@ -499,7 +499,7 @@ describe('runNftCall', () => {
       status: 'wallet_failed',
       error: { kind: 'cancelled' },
     })
-    expect(d.recorded[0].args).toEqual([
+    expect(d.recorded[0]!.args).toEqual([
       'sub-transfer',
       'wallet_rejected',
       'cancelled',
@@ -545,7 +545,7 @@ describe('runNftCall', () => {
       status: 'wallet_failed',
       error: { kind: 'rejected' },
     })
-    expect(d.recorded[0].args).toEqual([
+    expect(d.recorded[0]!.args).toEqual([
       'sub-transfer',
       'wallet_rejected',
       'rejected',
@@ -565,7 +565,7 @@ describe('runNftCall', () => {
       status: 'simulation_failed',
       error: { name: 'BelowThreshold' },
     })
-    expect(d.recorded[0].args).toEqual([
+    expect(d.recorded[0]!.args).toEqual([
       'sub-mint',
       'simulation_failed',
       'BelowThreshold',
@@ -584,8 +584,8 @@ describe('runNftCall', () => {
     })
     const result = await runNftCall(d)
     expect(result.status).toBe('send_error')
-    expect(d.recorded[0].kind).toBe('failed')
-    expect(d.recorded[0].args[1]).toBe('send_error')
+    expect(d.recorded[0]!.kind).toBe('failed')
+    expect(d.recorded[0]!.args[1]).toBe('send_error')
   })
 
   it('still returns sent when recording the hash fails', async () => {
