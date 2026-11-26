@@ -11,6 +11,10 @@
 #   the size gate.
 #
 # Usage: scripts/contracts/build-reproducible.sh [--commit <rev>] [--out <dir>]
+#          [--package <crate>] [--features <list>]
+#
+# --package and --features are for test builds (for example the Core
+# upgrade-test Wasm). Never deploy a Wasm built with test features.
 #
 # The script makes no network call to Stellar and needs no keys.
 set -euo pipefail
@@ -27,11 +31,15 @@ readonly MAX_WASM_BYTES=120000
 
 commit="HEAD"
 out_dir=""
+package=""
+features=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --commit) commit="$2"; shift 2 ;;
     --out) out_dir="$2"; shift 2 ;;
-    -h | --help) sed -n '2,16p' "$0"; exit 0 ;;
+    --package) package="$2"; shift 2 ;;
+    --features) features="$2"; shift 2 ;;
+    -h | --help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -71,6 +79,8 @@ docker run --rm --platform "$PLATFORM" \
   --env HOST_UID="$(id -u)" \
   --env HOST_GID="$(id -g)" \
   --env COMMIT_SHA="$commit_sha" \
+  --env BUILD_PACKAGE="$package" \
+  --env BUILD_FEATURES="$features" \
   --env SOURCE_REPO="$SOURCE_REPO" \
   --volume "$work/src:/build" \
   --volume "$work/cli/stellar:/usr/local/bin/stellar:ro" \
@@ -84,9 +94,13 @@ docker run --rm --platform "$PLATFORM" \
     apt-get install -y -qq --no-install-recommends libdbus-1-3 >/dev/null
     rustc --version
     stellar --version | head -n 1
+    extra=()
+    if [ -n "${BUILD_PACKAGE}" ]; then extra+=(--package "${BUILD_PACKAGE}"); fi
+    if [ -n "${BUILD_FEATURES}" ]; then extra+=(--features "${BUILD_FEATURES}"); fi
     stellar contract build --locked --optimize --out-dir /out \
       --meta "source_repo=${SOURCE_REPO}" \
-      --meta "commit_sha=${COMMIT_SHA}"
+      --meta "commit_sha=${COMMIT_SHA}" \
+      "${extra[@]}"
     chown -R "${HOST_UID}:${HOST_GID}" /out /build
   '
 
