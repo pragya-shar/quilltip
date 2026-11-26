@@ -152,7 +152,7 @@ export function ReceivingWalletVerification({
       {(connectError ??
         (ownership.status === 'error' ? ownership.error : null)) && (
         <div className="account-notice" role="alert">
-          <strong>{(connectError ?? ownership.error)!.title}</strong>{' '}
+          <strong>{(connectError ?? ownership.error)!.title}.</strong>{' '}
           {(connectError ?? ownership.error)!.detail}
         </div>
       )}
