@@ -134,7 +134,8 @@ export function useArticleNftV2({
     }
     let cancelled = false
     setEligibility(undefined)
-    readEligibility.current({ articleId })
+    readEligibility
+      .current({ articleId })
       .then((result) => {
         if (!cancelled) setEligibility(result as MintEligibilityLike)
       })

@@ -119,6 +119,7 @@ export function ProfileNftsTabContent({
               coverImage={nft.article?.coverImage}
               excerpt={nft.article?.excerpt}
               tokenId={nft.tokenId}
+              recordLabel={nft.recordLabel}
               footerLabel="Minted by"
               footerUsername={nft.minter?.username}
             />
@@ -151,6 +152,7 @@ export function ProfileNftsTabContent({
               coverImage={nft.article?.coverImage}
               excerpt={nft.article?.excerpt}
               tokenId={nft.tokenId}
+              recordLabel={nft.recordLabel}
               footerLabel="Owner"
               footerUsername={nft.currentOwnerInfo?.username}
             />
