@@ -19,12 +19,16 @@ import { SCENARIOS } from './fixtures/tab-ui/scenarios'
 
 const SHOTS = process.env.TAB_UI_SCREENSHOTS
 if (SHOTS) mkdirSync(SHOTS, { recursive: true })
-const WIDTHS = SHOTS ? ([375, 768, 1440] as const) : ([375, 1440] as const)
+const WIDTHS = SHOTS
+  ? ([320, 375, 768, 1440] as const)
+  : ([320, 375, 1440] as const)
 
 /** What each state shows first: a heading or notice title. */
 const EXPECT: Record<string, string | RegExp> = {
   'home-no-tab': 'You don’t have a tab yet',
   'home-open': 'Free to tip',
+  'home-worst': 'Free to tip',
+  'collect-worst': 'Ready to collect',
   'home-empty-history': 'Tips you send from your tab show here',
   'home-loading': 'Loading your tab…',
   'home-signed-out': 'Sign in to continue',

@@ -273,6 +273,54 @@ const S: Scenario[] = [
       s.tab!.status = 'CLOSED'
     },
   },
+  {
+    id: 'home-worst',
+    title: 'Worst case: long titles and names, extreme amounts, many keys',
+    view: 'home',
+    device: 'ready',
+    seed: (s) => {
+      // 999.9999999 XLM: one stroop under the Tab contract's max_balance.
+      openTab(s, BigInt('9999999999'), [
+        serverKey(7, 'ab'.repeat(32), {
+          spent: BigInt('499999999'),
+          limit: BigInt('500000000'),
+        }),
+        serverKey(8, 'cd'.repeat(32)),
+        serverKey(9, 'ef'.repeat(32), { validUntil: LEDGER + 10 }),
+      ])
+      s.tips = Array.from({ length: 20 }, (_, i) =>
+        tipRow(
+          i,
+          (
+            [
+              'ACCEPTED',
+              'SETTLED',
+              'SHORTFALL',
+              'UNPAID',
+              'REJECTED',
+              'VOID_RESET',
+            ] as const
+          )[i % 6],
+          {
+            amount: i % 2 ? '1' : '499999999',
+            articleTitle:
+              i % 3 === 0
+                ? 'Notes from Przemyśl–Lwów: what a fourteen-hour night train teaches about attention, patience, and the economics of the timetable'
+                : i % 3 === 1
+                  ? 'Ψ'
+                  : 'Über die Unverzichtbarkeitserklärungsverfahrensbestimmungen',
+            authorName:
+              i % 2
+                ? 'Aleksandra Wiśniewska-Kowalczyk von Hohenzollern-Sigmaringen'
+                : 'Jo',
+            authorUsername:
+              i % 4 === 0 ? null : 'aleksandra-wisniewska-kowalczyk',
+          }
+        )
+      )
+      recomputeTab(s)
+    },
+  },
   // --- Reader: device key -----------------------------------------------
   {
     id: 'key-none',

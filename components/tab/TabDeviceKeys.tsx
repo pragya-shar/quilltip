@@ -35,7 +35,9 @@ function deviceNotice(
       return (
         <PaymentNotice
           kind="session-key-none"
-          action={action ? { ...action, label: TAB_ACTIONS.setUpKey } : undefined}
+          action={
+            action ? { ...action, label: TAB_ACTIONS.setUpKey } : undefined
+          }
         />
       )
     case 'gone':
@@ -46,28 +48,40 @@ function deviceNotice(
       return (
         <PaymentNotice
           kind="refused"
-          copy={{ title: TAB_KEYS.revokedTitle, detail: TAB_KEYS.revokedDetail }}
+          copy={{
+            title: TAB_KEYS.revokedTitle,
+            detail: TAB_KEYS.revokedDetail,
+          }}
         />
       )
     case 'stopped':
       return (
         <PaymentNotice
           kind="refused"
-          copy={{ title: TAB_KEYS.stoppedTitle, detail: TAB_KEYS.stoppedDetail }}
+          copy={{
+            title: TAB_KEYS.stoppedTitle,
+            detail: TAB_KEYS.stoppedDetail,
+          }}
         />
       )
     case 'storage-unavailable':
       return (
         <PaymentNotice
           kind="refused"
-          copy={{ title: TAB_KEYS.storageTitle, detail: TAB_KEYS.storageDetail }}
+          copy={{
+            title: TAB_KEYS.storageTitle,
+            detail: TAB_KEYS.storageDetail,
+          }}
         />
       )
     case 'pending':
       return (
         <PaymentNotice
           kind="refused"
-          copy={{ title: TAB_KEYS.pendingTitle, detail: TAB_KEYS.pendingDetail }}
+          copy={{
+            title: TAB_KEYS.pendingTitle,
+            detail: TAB_KEYS.pendingDetail,
+          }}
         />
       )
     case 'ready':

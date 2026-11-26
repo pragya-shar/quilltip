@@ -28,7 +28,9 @@ export function TabTipRow({ tip }: { tip: Row }) {
           {tip.articleTitle ?? TAB_HISTORY.heading}
         </p>
         <p className="tab-tip-meta">
-          {tip.authorName ? <span>{TAB_HISTORY.to(tip.authorName)}</span> : null}
+          {tip.authorName ? (
+            <span>{TAB_HISTORY.to(tip.authorName)}</span>
+          ) : null}
           {tip.highlight ? <span>{TAB_HISTORY.highlight}</span> : null}
           <time dateTime={new Date(tip.acceptedAt).toISOString()}>
             {time.format(tip.acceptedAt)}

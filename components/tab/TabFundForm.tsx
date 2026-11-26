@@ -165,7 +165,10 @@ export function TabFundForm({
         <p id={`${id}-range`} className="tab-subtle">
           {limits
             ? max !== null
-              ? TAB_FUND_FORM.range(formatXlm(limits.minDeposit), formatXlm(max))
+              ? TAB_FUND_FORM.range(
+                  formatXlm(limits.minDeposit),
+                  formatXlm(max)
+                )
               : TAB_FUND_FORM.rangeMin(formatXlm(limits.minDeposit))
             : null}
         </p>

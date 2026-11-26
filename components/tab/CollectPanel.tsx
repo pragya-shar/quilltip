@@ -86,7 +86,12 @@ export function CollectPanel() {
           state={
             access.gate.kind === 'signed-out'
               ? access.gate
-              : { kind: 'unverified', ...(access.gate.kind === 'unverified' && access.gate.address ? { address: access.gate.address } : {}) }
+              : {
+                  kind: 'unverified',
+                  ...(access.gate.kind === 'unverified' && access.gate.address
+                    ? { address: access.gate.address }
+                    : {}),
+                }
           }
           onSignIn={access.onSignIn}
           verifyHref={access.verifyHref}
@@ -112,7 +117,10 @@ export function CollectPanel() {
       {!earnings.settlementEnabled && isPositive(earnings.pendingNet) ? (
         <PaymentNotice
           kind="refused"
-          copy={{ title: TAB_SETTLEMENT.offTitle, detail: TAB_SETTLEMENT.offWriter }}
+          copy={{
+            title: TAB_SETTLEMENT.offTitle,
+            detail: TAB_SETTLEMENT.offWriter,
+          }}
         />
       ) : delayed ? (
         <PaymentNotice kind="settlement-delayed" audience="writer" />

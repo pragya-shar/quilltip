@@ -1,6 +1,10 @@
 'use client'
 
-import { PaymentNotice, TransactionProgress, WalletGate } from '@/components/payments'
+import {
+  PaymentNotice,
+  TransactionProgress,
+  WalletGate,
+} from '@/components/payments'
 import { TAB_FUND_FORM } from '@/lib/copy/tab'
 import type { OperationView } from '@/hooks/tab/useTabOperation'
 
@@ -36,7 +40,11 @@ export function TabOperationProgress({
       )
     case 'notice':
       return view.notice.kind === 'tips-unavailable' ? (
-        <PaymentNotice kind="tips-unavailable" reason={view.notice.reason} announce />
+        <PaymentNotice
+          kind="tips-unavailable"
+          reason={view.notice.reason}
+          announce
+        />
       ) : view.notice.kind === 'insufficient-balance' ? (
         <PaymentNotice
           kind="insufficient-balance"
@@ -47,9 +55,17 @@ export function TabOperationProgress({
       ) : view.notice.kind === 'paused' ? (
         <PaymentNotice kind="paused" audience={audience} announce />
       ) : view.notice.kind === 'withdrawal-pending' ? (
-        <PaymentNotice kind="withdrawal-pending" unlockDate={unlocksAround} announce />
+        <PaymentNotice
+          kind="withdrawal-pending"
+          unlockDate={unlocksAround}
+          announce
+        />
       ) : view.notice.kind === 'session-key-missing' ? (
-        <PaymentNotice kind="session-key-missing" announce action={{ onClick: onRetry }} />
+        <PaymentNotice
+          kind="session-key-missing"
+          announce
+          action={{ onClick: onRetry }}
+        />
       ) : (
         <PaymentNotice kind="basket-item-unavailable" announce />
       )
@@ -58,7 +74,9 @@ export function TabOperationProgress({
       if (r.kind === 'refused')
         return <PaymentNotice kind="refused" copy={r.copy} announce />
       if (r.kind === 'tips-unavailable')
-        return <PaymentNotice kind="tips-unavailable" reason={r.reason} announce />
+        return (
+          <PaymentNotice kind="tips-unavailable" reason={r.reason} announce />
+        )
       if (r.kind === 'gate')
         return (
           <WalletGate state={r.gate} onRecheck={onRetry}>

@@ -70,7 +70,10 @@ export function TabTipAction({
         return (
           <PaymentNotice
             kind="refused"
-            copy={{ title: TAB_TIP.unavailable, detail: TAB_PAGE.unavailableDetail }}
+            copy={{
+              title: TAB_TIP.unavailable,
+              detail: TAB_PAGE.unavailableDetail,
+            }}
           />
         )
       case 'settlement-off':
@@ -87,7 +90,12 @@ export function TabTipAction({
           </WalletGate>
         )
       case 'tab-none':
-        return <PaymentNotice kind="tab-none" action={{ ...manage, label: TAB_ACTIONS.open }} />
+        return (
+          <PaymentNotice
+            kind="tab-none"
+            action={{ ...manage, label: TAB_ACTIONS.open }}
+          />
+        )
       case 'tab-closing':
         return <PaymentNotice kind="tab-closing" action={walletAction} />
       case 'key': {
@@ -105,7 +113,8 @@ export function TabTipAction({
 
   const ready = availability.kind === 'ready'
   const running = state.phase === 'running'
-  const showForm = ready && !progress && !(outcome && outcome.kind !== 'accepted')
+  const showForm =
+    ready && !progress && !(outcome && outcome.kind !== 'accepted')
 
   return (
     <section className="tab-tip-action" aria-labelledby={`${id}-title`}>
@@ -132,14 +141,27 @@ export function TabTipAction({
             />
           ) : refusal.notice.kind === 'daily-limit' ||
             refusal.notice.kind === 'tab-closing' ? (
-            <PaymentNotice kind={refusal.notice.kind} action={walletAction} announce />
+            <PaymentNotice
+              kind={refusal.notice.kind}
+              action={walletAction}
+              announce
+            />
           ) : (
-            <PaymentNotice kind={refusal.notice.kind} action={manage} announce />
+            <PaymentNotice
+              kind={refusal.notice.kind}
+              action={manage}
+              announce
+            />
           )
         ) : refusal.kind === 'refused' ? (
           <PaymentNotice kind="refused" copy={refusal.copy} announce />
         ) : refusal.kind === 'tips-unavailable' ? (
-          <PaymentNotice kind="tips-unavailable" reason={refusal.reason} action={walletAction} announce />
+          <PaymentNotice
+            kind="tips-unavailable"
+            reason={refusal.reason}
+            action={walletAction}
+            announce
+          />
         ) : (
           <WalletGate state={refusal.gate} verifyHref="/dashboard/wallet">
             {null}
@@ -156,14 +178,20 @@ export function TabTipAction({
       {outcome?.kind === 'unconfirmed' ? (
         <PaymentNotice
           kind="refused"
-          copy={{ title: TAB_TIP.unconfirmedTitle, detail: TAB_TIP.unconfirmedDetail }}
+          copy={{
+            title: TAB_TIP.unconfirmedTitle,
+            detail: TAB_TIP.unconfirmedDetail,
+          }}
           announce
         />
       ) : null}
       {outcome?.kind === 'unreachable' ? (
         <PaymentNotice
           kind="refused"
-          copy={{ title: TAB_TIP.unreachableTitle, detail: TAB_TIP.unreachableDetail }}
+          copy={{
+            title: TAB_TIP.unreachableTitle,
+            detail: TAB_TIP.unreachableDetail,
+          }}
           announce
         />
       ) : null}
@@ -182,7 +210,11 @@ export function TabTipAction({
           headingLevel={4}
           doneAction={
             outcome?.kind === 'accepted'
-              ? { onClick: tip.reset, label: TAB_TIP.another, emphasis: 'secondary' }
+              ? {
+                  onClick: tip.reset,
+                  label: TAB_TIP.another,
+                  emphasis: 'secondary',
+                }
               : undefined
           }
         />
@@ -221,7 +253,11 @@ export function TabTipAction({
           <TestnetLabel detail />
         </form>
       ) : null}
-      {(refusal || outcome?.kind === 'stopped' || outcome?.kind === 'unconfirmed' || outcome?.kind === 'unreachable') && ready ? (
+      {(refusal ||
+        outcome?.kind === 'stopped' ||
+        outcome?.kind === 'unconfirmed' ||
+        outcome?.kind === 'unreachable') &&
+      ready ? (
         <div className="tab-actions">
           <button type="button" className="tab-secondary" onClick={tip.reset}>
             {TAB_TIP.another}

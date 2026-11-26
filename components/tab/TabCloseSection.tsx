@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import { PaymentNotice } from '@/components/payments'
 import { TAB_ACTIONS, TAB_CLOSE } from '@/lib/copy/tab'
-import { closeUnlockEstimate, type TabStatusView } from '@/lib/tab-ui/tab-status'
+import {
+  closeUnlockEstimate,
+  type TabStatusView,
+} from '@/lib/tab-ui/tab-status'
 import type { LedgerClock } from '@/lib/tab-ui/types'
 
 type TabCloseSectionProps = {
@@ -47,7 +50,11 @@ export function TabCloseSection({
           <p>{TAB_CLOSE.intro}</p>
         </header>
         {confirming ? (
-          <div className="tab-form" role="group" aria-labelledby="tab-close-confirm">
+          <div
+            className="tab-form"
+            role="group"
+            aria-labelledby="tab-close-confirm"
+          >
             <h3
               id="tab-close-confirm"
               ref={confirmRef}

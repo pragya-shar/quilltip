@@ -8,7 +8,12 @@ import {
   useTabOperation,
   type OperationRequest,
 } from '@/hooks/tab/useTabOperation'
-import { TAB_ACTIONS, TAB_EMPTY, TAB_PAGE, TAB_SETTLEMENT } from '@/lib/copy/tab'
+import {
+  TAB_ACTIONS,
+  TAB_EMPTY,
+  TAB_PAGE,
+  TAB_SETTLEMENT,
+} from '@/lib/copy/tab'
 import { tabBalances } from '@/lib/tab-ui/tab-status'
 import { TabBalance } from './TabBalance'
 import { TabCloseSection } from './TabCloseSection'
@@ -55,7 +60,10 @@ export function TabHome() {
       />
     )
   }
-  if (access.gate.kind === 'checking' || (access.address && status.kind === 'loading')) {
+  if (
+    access.gate.kind === 'checking' ||
+    (access.address && status.kind === 'loading')
+  ) {
     return <TabSkeleton />
   }
   if (!access.address) {
@@ -100,7 +108,10 @@ export function TabHome() {
       {settlement.kind === 'off' ? (
         <PaymentNotice
           kind="refused"
-          copy={{ title: TAB_SETTLEMENT.offTitle, detail: TAB_SETTLEMENT.offReader }}
+          copy={{
+            title: TAB_SETTLEMENT.offTitle,
+            detail: TAB_SETTLEMENT.offReader,
+          }}
         />
       ) : settlement.kind === 'delayed' ? (
         <PaymentNotice kind="settlement-delayed" audience="reader" />
