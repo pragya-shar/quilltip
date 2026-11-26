@@ -9,7 +9,15 @@
   font-display: swap;
 }
 
-:where(.pay-panel, .pay-progress, .pay-amount, .pay-gate, .pay-note) {
+:where(
+  .pay-panel,
+  .pay-progress,
+  .pay-amount,
+  .pay-gate,
+  .pay-note,
+  .pay-notice,
+  .pay-key
+) {
   --pay-amount-font: 'Tip Alegreya', Georgia, serif;
   --pay-ease-out: cubic-bezier(0.32, 0.72, 0, 1);
   font-family: var(--ui-font);
@@ -188,6 +196,11 @@
   border-radius: 50%;
   animation: pay-spin 0.9s linear infinite;
 }
+/* Inside a button the ring takes the button's text colour (S7). */
+.pay-action .pay-spinner {
+  border-color: color-mix(in oklab, currentColor 30%, transparent);
+  border-top-color: currentColor;
+}
 @keyframes pay-spin {
   to {
     transform: rotate(360deg);
@@ -209,6 +222,12 @@
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
+}
+/* The progress heading is visually hidden; show where focus is. */
+.pay-progress:has(.pay-progress-heading:focus-visible) {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 6px;
+  border-radius: var(--ui-radius);
 }
 .pay-progress > .pay-link {
   align-self: flex-start;
@@ -357,6 +376,68 @@
   color: var(--ui-foreground);
 }
 
+/* Basket rows with their own state. */
+.pay-amount-item-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin-top: -2px;
+}
+.pay-amount-item-note {
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Inline amounts and addresses ------------------------------------------- */
+
+.pay-xlm {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pay-address {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Result meta: amount, recipient and the testnet label ------------------- */
+
+.pay-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+}
+.pay-result-summary {
+  color: var(--ui-foreground);
+  font-weight: 600;
+}
+.pay-result-reference {
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+}
+.pay-result-reference code {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+/* Wallet prompt help --------------------------------------------------------- */
+
+.pay-signing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.pay-signing-help {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* Testnet label ------------------------------------------------------------ */
 
 .pay-network {
@@ -399,13 +480,71 @@
   margin-top: 2px;
 }
 
+.pay-note .reader-tips-unavailable {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--ui-muted-foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Quick-tip key row --------------------------------------------------------- */
+
+.pay-key {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ui-border);
+}
+.pay-key-icon {
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  color: var(--ui-muted-foreground);
+  stroke-width: 1.75;
+}
+.pay-key-body {
+  min-width: 0;
+}
+.pay-key-body p {
+  margin: 0;
+}
+.pay-key-label {
+  font: 600 14px/1.45 var(--ui-font);
+}
+.pay-key-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pay-key-spend {
+  font-variant-numeric: tabular-nums;
+}
+.pay-key-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pay-key-actions:empty {
+  display: none;
+}
+.pay-key[data-state='revoked'] .pay-key-label {
+  color: var(--ui-muted-foreground);
+}
+
 /* History status ----------------------------------------------------------- */
 
 .pay-status {
   --pay-dot: var(--ui-muted-foreground);
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
+  white-space: nowrap;
   font: 500 13px/1.4 var(--ui-font);
   color: var(--ui-foreground);
 }
@@ -423,6 +562,7 @@
 }
 .pay-status-dot {
   flex: none;
+  align-self: center;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -443,7 +583,7 @@
 }
 .pay-panel[data-enter] .pay-check path {
   stroke-dasharray: 12;
-  animation: pay-draw 260ms 120ms ease-out both;
+  animation: pay-draw 200ms 80ms ease-out both;
 }
 @keyframes pay-draw {
   from {

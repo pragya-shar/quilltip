@@ -1,12 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { BadgeCheck, Globe, Lock, LogIn, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { gateCopy } from '@/lib/copy/payment-states'
+import { GATE_BUSY, gateCopy } from '@/lib/copy/payment-states'
+import { shortAddress } from '@/lib/payments/format'
 import { cn } from '@/lib/utils'
 import { PaymentPanel } from './PaymentPanel'
 import { PaymentSpinner } from './PaymentSpinner'
+import { useAnnouncement } from './useAnnouncement'
 import type {
   PaymentTone,
   WalletGateKind,
@@ -77,22 +79,21 @@ export function WalletGate({
   help,
   className,
 }: WalletGateProps) {
-  const [announcement, setAnnouncement] = useState('')
+  const address = state.kind === 'unverified' ? state.address : undefined
   const copy =
     state.kind === 'ready'
       ? null
       : gateCopy(state.kind, {
           walletNetwork:
             state.kind === 'wrong-network' ? state.walletNetwork : undefined,
-          address: state.kind === 'unverified' ? state.address : undefined,
+          address: address ? shortAddress(address) : undefined,
         })
 
-  // Announce each new blocked state once, after mount, through a region that
-  // already exists; a region created with its text is often not read.
+  // Announce a change of state once, through a region that already exists;
+  // a region created with its text is often not read. The state present at
+  // page load is not announced: it is read with the page.
   const message = copy ? `${copy.title}. ${copy.detail}` : ''
-  useEffect(() => {
-    setAnnouncement(message)
-  }, [message])
+  const announcement = useAnnouncement(message)
 
   // When the gate opens after the user acted inside it, move focus to the
   // first control of the content (for example "Send tip"), so keyboard users
@@ -150,7 +151,7 @@ export function WalletGate({
     unverified: onVerify,
   }[kind]
   const href = kind === 'unverified' && !onVerify ? verifyHref : undefined
-  const label = busy ? 'Waiting for your wallet…' : copy!.action
+  const label = busy ? GATE_BUSY : copy!.action
 
   let action: ReactNode = null
   if (label && href) {
@@ -184,7 +185,7 @@ export function WalletGate({
       actions={action}
       data-state={kind}
     >
-      <p>{copy!.detail}</p>
+      <p title={address}>{copy!.detail}</p>
       {help}
     </PaymentPanel>
   )

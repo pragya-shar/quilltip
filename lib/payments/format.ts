@@ -22,16 +22,53 @@ export function formatXlm(stroops: string, maxDecimals = 7): string {
 }
 
 /**
- * "$0.50" from 50, "under $0.01" for a fraction of a cent. `null` when no
+ * "$0.50" from 50, `under-a-cent` for a fraction of a cent. `null` when no
  * quote is available, so the caller shows nothing rather than "$0.00".
  */
-export function formatCentsQuote(cents: number | null | undefined) {
+export function formatCentsQuote(
+  cents: number | null | undefined
+): string | 'under-a-cent' | null {
   if (cents === null || cents === undefined || !Number.isFinite(cents)) {
     return null
   }
   if (cents <= 0) return null
-  if (cents < 1) return 'under $0.01'
+  if (cents < 1) return 'under-a-cent'
   return formatUsd(Math.round(cents) / 100)
+}
+
+/**
+ * "GBZX…MADI" for a Stellar address: the first and last four characters,
+ * which wallets show too. Short values pass through.
+ */
+export function shortAddress(address: string): string {
+  return address.length > 12
+    ? `${address.slice(0, 4)}…${address.slice(-4)}`
+    : address
+}
+
+/** Testnet ledgers close about every 5 seconds. */
+export const LEDGER_SECONDS = 5
+
+/**
+ * When a future ledger (for example `withdrawUnlockLedger` or a key's
+ * `validUntilLedger`) is expected to close, from the latest ledger and its
+ * close time. An estimate: ledger times vary, so the copy says "around".
+ */
+export function estimateLedgerTime(
+  ledger: number,
+  latest: { sequence: number; closedAt: number }
+): Date {
+  const ahead = Math.max(0, ledger - latest.sequence)
+  return new Date(latest.closedAt + ahead * LEDGER_SECONDS * 1000)
+}
+
+/** "Saturday 30 November" in the reader's locale. */
+export function formatDay(date: Date, locale?: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  }).format(date)
 }
 
 /** Fee in basis points of the Core contract (`FEE_BPS`, 2.5%). */
@@ -40,9 +77,9 @@ const BPS_DENOMINATOR = BigInt(10_000)
 
 /**
  * The Core split of one tip, mirroring the contract: the fee rounds down and
- * the writer side gets the remainder (I-1). Use it only for a preview before
- * the server returns its expected values; after confirmation show the
- * amounts from the `Tipped` event.
+ * the writer side gets the remainder (I-1). For an estimate only: render it
+ * with `AmountSummary estimate`, and replace it with the prepare response
+ * or the `Tipped` event values once they exist.
  */
 export function coreTipSplit(gross: string): {
   gross: string
