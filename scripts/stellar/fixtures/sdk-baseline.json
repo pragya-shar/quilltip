@@ -1,0 +1,773 @@
+{
+  "build": {
+    "articleTip": {
+      "xdr": "AAAAAgAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAAAAGQAAAAAB1vNFgAAAAEAAAAAahik4gAAAABqGKW0AAAAAAAAAAEAAAAAAAAAGAAAAAAAAAABvw2cd4HZJGrUJ4WlC32cVvXrU92IbPvgD9SuvGNJ4PwAAAALdGlwX2FydGljbGUAAAAABAAAABIAAAAAAAAAAIqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29cAAAADwAAAAphMWIyYzNkNGU1AAAAAAASAAAAAAAAAACBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAoAAAAAAAAAAAAAAAAAQBZAAAAAAAAAAAAAAAAA",
+      "stroops": 4200000,
+      "authorReceived": 4095000,
+      "platformFee": 105000,
+      "tx": {
+        "hash": "34a17793c188f1a29d87fab375d9188eca03f7d9e1a02c6c24f9aca6a05858c0",
+        "source": "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR",
+        "sequence": "123456790",
+        "fee": "100",
+        "timeBounds": {
+          "minTime": "1779999970",
+          "maxTime": "1780000180"
+        },
+        "memoType": "none",
+        "memoValue": null,
+        "operations": [
+          {
+            "type": "invokeHostFunction",
+            "invocation": {
+              "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+              "fnName": "tip_article",
+              "args": [
+                "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR",
+                "a1b2c3d4e5",
+                "GCATS5YOVB6ROX2WUNKGNQ2MP3GMXDMKSG2O4N5CLX3A6W4PZGZZI55U",
+                "4200000n"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "highlightTip": {
+      "xdr": "AAAAAgAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAAAAGQAAAAAB1vNFgAAAAEAAAAAahik4gAAAABqGKW0AAAAAAAAAAEAAAAAAAAAGAAAAAAAAAABvw2cd4HZJGrUJ4WlC32cVvXrU92IbPvgD9SuvGNJ4PwAAAAUdGlwX2hpZ2hsaWdodF9kaXJlY3QAAAAFAAAAEgAAAAAAAAAAiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wAAAAOAAAAB2hsLTAwMDEAAAAADwAAAAphMWIyYzNkNGU1AAAAAAASAAAAAAAAAACBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAoAAAAAAAAAAAAAAAAAmJZ/AAAAAAAAAAAAAAAA",
+      "stroops": 9999999,
+      "authorReceived": 9750000,
+      "platformFee": 249999,
+      "tx": {
+        "hash": "f7873766082d610d777ddf540888ceb418d01c1e691548f69eed21bfe437c065",
+        "source": "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR",
+        "sequence": "123456790",
+        "fee": "100",
+        "timeBounds": {
+          "minTime": "1779999970",
+          "maxTime": "1780000180"
+        },
+        "memoType": "none",
+        "memoValue": null,
+        "operations": [
+          {
+            "type": "invokeHostFunction",
+            "invocation": {
+              "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+              "fnName": "tip_highlight_direct",
+              "args": [
+                "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR",
+                "hl-0001",
+                "a1b2c3d4e5",
+                "GCATS5YOVB6ROX2WUNKGNQ2MP3GMXDMKSG2O4N5CLX3A6W4PZGZZI55U",
+                "9999999n"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "articleBatch": {
+      "xdr": "AAAAAgAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAAAAGQAAAAAB1vNFgAAAAEAAAAAAAAAAAAAAABqGKW0AAAAAAAAAAEAAAAAAAAAGAAAAAAAAAABvw2cd4HZJGrUJ4WlC32cVvXrU92IbPvgD9SuvGNJ4PwAAAAJYmF0Y2hfdGlwAAAAAAAAAgAAABIAAAAAAAAAAIqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29cAAAAEAAAAAEAAAACAAAAEQAAAAEAAAADAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAAAAAAmJaAAAAADwAAAAphcnRpY2xlX2lkAAAAAAAPAAAACjBhNzQ4MGZhNmMAAAAAAA8AAAAGYXV0aG9yAAAAAAASAAAAAAAAAACBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAABEAAAABAAAAAwAAAA8AAAAGYW1vdW50AAAAAAAKAAAAAAAAAAAAAAAAAmJaAAAAAA8AAAAKYXJ0aWNsZV9pZAAAAAAADwAAAApiNjI3NmVmNDI5AAAAAAAPAAAABmF1dGhvcgAAAAAAEgAAAAAAAAAA7UkoxijRwsbq6QM4kFmVYSlZJzpcY/k2NsFGFKyHN9EAAAAAAAAAAAAAAAA=",
+      "stroops": 50000000,
+      "authorReceived": 48750000,
+      "platformFee": 1250000,
+      "items": [
+        {
+          "articleId": "article-one",
+          "authorAddress": "GCATS5YOVB6ROX2WUNKGNQ2MP3GMXDMKSG2O4N5CLX3A6W4PZGZZI55U",
+          "amountCents": 25,
+          "stroops": 10000000,
+          "authorReceived": 9750000,
+          "platformFee": 250000
+        },
+        {
+          "articleId": "article-two",
+          "authorAddress": "GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG",
+          "amountCents": 100,
+          "stroops": 40000000,
+          "authorReceived": 39000000,
+          "platformFee": 1000000
+        }
+      ],
+      "tx": {
+        "hash": "4a4d0ba1d613cb5ae65803c3597feacd63efabf41a5f9246587f7703251d4b13",
+        "source": "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR",
+        "sequence": "123456790",
+        "fee": "100",
+        "timeBounds": {
+          "minTime": "0",
+          "maxTime": "1780000180"
+        },
+        "memoType": "none",
+        "memoValue": null,
+        "operations": [
+          {
+            "type": "invokeHostFunction",
+            "invocation": {
+              "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+              "fnName": "batch_tip",
+              "args": [
+                "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR",
+                [
+                  {
+                    "amount": "10000000n",
+                    "article_id": "0a7480fa6c",
+                    "author": "GCATS5YOVB6ROX2WUNKGNQ2MP3GMXDMKSG2O4N5CLX3A6W4PZGZZI55U"
+                  },
+                  {
+                    "amount": "40000000n",
+                    "article_id": "b6276ef429",
+                    "author": "GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG"
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "highlightBatch": {
+      "xdr": "AAAAAgAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAAAAGQAAAAAB1vNFgAAAAEAAAAAAAAAAAAAAABqGKW0AAAAAAAAAAEAAAAAAAAAGAAAAAAAAAABvw2cd4HZJGrUJ4WlC32cVvXrU92IbPvgD9SuvGNJ4PwAAAAUYmF0Y2hfdGlwX2hpZ2hsaWdodHMAAAACAAAAEgAAAAAAAAAAiojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1wAAAAQAAAAAQAAAAIAAAARAAAAAQAAAAQAAAAPAAAABmFtb3VudAAAAAAACgAAAAAAAAAAAAAAAAAehIAAAAAPAAAACmFydGljbGVfaWQAAAAAAA8AAAAKMGE3NDgwZmE2YwAAAAAADwAAAAZhdXRob3IAAAAAABIAAAAAAAAAAIE5dw6ofRdfVqNUZsNMfszLjYqRtO43ol32D1uPybOUAAAADwAAAAxoaWdobGlnaHRfaWQAAAAOAAAABGhsLTEAAAARAAAAAQAAAAQAAAAPAAAABmFtb3VudAAAAAAACgAAAAAAAAAAAAAAAAExLQAAAAAPAAAACmFydGljbGVfaWQAAAAAAA8AAAAKYjYyNzZlZjQyOQAAAAAADwAAAAZhdXRob3IAAAAAABIAAAAAAAAAAO1JKMYo0cLG6ukDOJBZlWEpWSc6XGP5NjbBRhSshzfRAAAADwAAAAxoaWdobGlnaHRfaWQAAAAOAAAABGhsLTIAAAAAAAAAAAAAAAA=",
+      "stroops": 22000000,
+      "authorReceived": 21450000,
+      "platformFee": 550000,
+      "items": [
+        {
+          "articleId": "article-one",
+          "highlightId": "hl-1",
+          "authorAddress": "GCATS5YOVB6ROX2WUNKGNQ2MP3GMXDMKSG2O4N5CLX3A6W4PZGZZI55U",
+          "amountCents": 5,
+          "stroops": 2000000,
+          "authorReceived": 1950000,
+          "platformFee": 50000
+        },
+        {
+          "articleId": "article-two",
+          "highlightId": "hl-2",
+          "authorAddress": "GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG",
+          "amountCents": 50,
+          "stroops": 20000000,
+          "authorReceived": 19500000,
+          "platformFee": 500000
+        }
+      ],
+      "tx": {
+        "hash": "1c1d67d76fa51d29307c2235eef0937c0e208a18cc4beefbfb3a4babea0cdc5a",
+        "source": "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR",
+        "sequence": "123456790",
+        "fee": "100",
+        "timeBounds": {
+          "minTime": "0",
+          "maxTime": "1780000180"
+        },
+        "memoType": "none",
+        "memoValue": null,
+        "operations": [
+          {
+            "type": "invokeHostFunction",
+            "invocation": {
+              "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+              "fnName": "batch_tip_highlights",
+              "args": [
+                "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR",
+                [
+                  {
+                    "amount": "2000000n",
+                    "article_id": "0a7480fa6c",
+                    "author": "GCATS5YOVB6ROX2WUNKGNQ2MP3GMXDMKSG2O4N5CLX3A6W4PZGZZI55U",
+                    "highlight_id": "hl-1"
+                  },
+                  {
+                    "amount": "20000000n",
+                    "article_id": "b6276ef429",
+                    "author": "GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG",
+                    "highlight_id": "hl-2"
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "extendTtl": {
+      "xdr": "AAAAAgAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAAAAGQAAAAAB1vNFgAAAAEAAAAAAAAAAAAAAABqGKW0AAAAAAAAAAEAAAAAAAAAGQAAAAAACCyAAAAAAQAAAAAAAAABAAAABgAAAAG/DZx3gdkkatQnhaULfZxW9etT3Yhs++AP1K68Y0ng/AAAABQAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+      "contractId": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+      "tx": {
+        "hash": "e3ed9dd5bd8ca452c7213cce9b6cc24fecf7e9b1b827f20fe118accba6ce2775",
+        "source": "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR",
+        "sequence": "123456790",
+        "fee": "100",
+        "timeBounds": {
+          "minTime": "0",
+          "maxTime": "1780000180"
+        },
+        "memoType": "none",
+        "memoValue": null,
+        "operations": [
+          {
+            "type": "extendFootprintTtl",
+            "extendTo": 535680
+          }
+        ]
+      }
+    },
+    "mint": {
+      "xdr": "AAAAAgAAAACBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAGQAAAAAB1vNFgAAAAEAAAAAAAAAAAAAAABqGKW0AAAAAAAAAAEAAAAAAAAAGAAAAAAAAAAB15KLcsJwPM/q9+uf9O9NUEpVqLl5/JtFDqLIQrTRzmEAAAAQbWludF9hcnRpY2xlX25mdAAAAAQAAAASAAAAAAAAAACBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAA8AAAAKYTFiMmMzZDRlNQAAAAAACgAAAAAAAAAAAAAAAAX14QAAAAAOAAAAL2h0dHBzOi8vcXVpbGx0aXAubWUvYXBpL25mdC9tZXRhZGF0YS9hMWIyYzNkNGU1AAAAAAAAAAAAAAAAAA==",
+      "tx": {
+        "hash": "03d31922b42993e1bb55c7e94145e4451e0444a8b36087304313805c529975db",
+        "source": "GCATS5YOVB6ROX2WUNKGNQ2MP3GMXDMKSG2O4N5CLX3A6W4PZGZZI55U",
+        "sequence": "123456790",
+        "fee": "100",
+        "timeBounds": {
+          "minTime": "0",
+          "maxTime": "1780000180"
+        },
+        "memoType": "none",
+        "memoValue": null,
+        "operations": [
+          {
+            "type": "invokeHostFunction",
+            "invocation": {
+              "contract": "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC",
+              "fnName": "mint_article_nft",
+              "args": [
+                "GCATS5YOVB6ROX2WUNKGNQ2MP3GMXDMKSG2O4N5CLX3A6W4PZGZZI55U",
+                "a1b2c3d4e5",
+                "100000000n",
+                "https://quilltip.me/api/nft/metadata/a1b2c3d4e5"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "practice": {
+      "xdr": "AAAAAgAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAAAJxAAAAAAB1vNFgAAAAEAAAAAAAAAAAAAAABqGKW0AAAAAQAAABhRdWlsbFRpcCB3YWxsZXQgcHJhY3RpY2UAAAABAAAAAAAAAAEAAAAApduJCkBztfRUUljAG8igQtEJ8+yLO5bdRweXMnyKebEAAAAAAAAAAACYloAAAAAAAAAAAA==",
+      "tx": {
+        "hash": "d18fc184b532447af7fd573dddb5e493ea32afdd44496111c5a1c56b8a00118c",
+        "source": "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR",
+        "sequence": "123456790",
+        "fee": "10000",
+        "timeBounds": {
+          "minTime": "0",
+          "maxTime": "1780000180"
+        },
+        "memoType": "text",
+        "memoValue": "QuillTip wallet practice",
+        "operations": [
+          {
+            "type": "payment",
+            "destination": "GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR",
+            "asset": {
+              "code": "XLM"
+            },
+            "amount": "1.0000000"
+          }
+        ]
+      }
+    }
+  },
+  "submit": {
+    "signedXdr": "AAAAAgAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAAAAGQAAAAAB1vNFgAAAAEAAAAAahik4gAAAABqGKW0AAAAAAAAAAEAAAAAAAAAGAAAAAAAAAABvw2cd4HZJGrUJ4WlC32cVvXrU92IbPvgD9SuvGNJ4PwAAAALdGlwX2FydGljbGUAAAAABAAAABIAAAAAAAAAAIqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29cAAAADwAAAAphMWIyYzNkNGU1AAAAAAASAAAAAAAAAACBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAoAAAAAAAAAAAAAAAAAQBZAAAAAAAAAAAAAAAABtA9vXAAAAEALflmyVzteUyGwOjOwG2Z/UIICxFFe48oVfMl82W5bSsJ3+m69l8JPV2CPGY/BxcEH8xNIAVlArqMBQilPimIF",
+    "derivedHash": "34a17793c188f1a29d87fab375d9188eca03f7d9e1a02c6c24f9aca6a05858c0",
+    "receipt": {
+      "transactionHash": "34a17793c188f1a29d87fab375d9188eca03f7d9e1a02c6c24f9aca6a05858c0"
+    },
+    "sentEnvelope": "AAAAAgAAAACKiOPddAnxlf1S2y08ul1yymcJvx2UEhvzdIgBtA9vXAAAAGQAAAAAB1vNFgAAAAEAAAAAahik4gAAAABqGKW0AAAAAAAAAAEAAAAAAAAAGAAAAAAAAAABvw2cd4HZJGrUJ4WlC32cVvXrU92IbPvgD9SuvGNJ4PwAAAALdGlwX2FydGljbGUAAAAABAAAABIAAAAAAAAAAIqI4910CfGV/VLbLTy6XXLKZwm/HZQSG/N0iAG0D29cAAAADwAAAAphMWIyYzNkNGU1AAAAAAASAAAAAAAAAACBOXcOqH0XX1ajVGbDTH7My42KkbTuN6Jd9g9bj8mzlAAAAAoAAAAAAAAAAAAAAAAAQBZAAAAAAAAAAAAAAAABtA9vXAAAAEALflmyVzteUyGwOjOwG2Z/UIICxFFe48oVfMl82W5bSsJ3+m69l8JPV2CPGY/BxcEH8xNIAVlArqMBQilPimIF",
+    "mintResult": {
+      "success": true,
+      "tokenId": 7,
+      "transactionHash": "03d31922b42993e1bb55c7e94145e4451e0444a8b36087304313805c529975db"
+    }
+  },
+  "read": {
+    "articleTips": [],
+    "tipThreshold": 100000000,
+    "minted": true
+  },
+  "memos": [
+    {
+      "type": "text",
+      "value": "a:efghijklmnopqrstuvwxyz0123",
+      "xdr": "AAAAAQAAABxhOmVmZ2hpamtsbW5vcHFyc3R1dnd4eXowMTIz"
+    },
+    {
+      "type": "text",
+      "value": "h:short",
+      "xdr": "AAAAAQAAAAdoOnNob3J0AA=="
+    },
+    {
+      "type": "text",
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "xdr": "AAAAAQAAABx4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4"
+    }
+  ],
+  "practice": {
+    "validHash": "d18fc184b532447af7fd573dddb5e493ea32afdd44496111c5a1c56b8a00118c",
+    "unsigned": "The wallet returned a different or unsigned transaction. Nothing was submitted.",
+    "otherTransaction": "The wallet returned a different or unsigned transaction. Nothing was submitted."
+  },
+  "accountIds": [true, true, false, false, false],
+  "verification": {
+    "tip_article": {
+      "decoded": {
+        "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+        "fnName": "tip_article",
+        "args": [
+          "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+          "e71aa429be",
+          "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+          "20000000n"
+        ]
+      },
+      "transaction": {
+        "hash": "311693d7aeb19bdb62ebda4ae6c9e5ae8dce3d4e81491478f4ba9fd272b0ce80",
+        "source": "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+        "sequence": "7051992702648339",
+        "fee": "98710",
+        "timeBounds": {
+          "minTime": "951488524",
+          "maxTime": "1793718875"
+        },
+        "memoType": "none",
+        "memoValue": null,
+        "operations": [
+          {
+            "type": "invokeHostFunction",
+            "invocation": {
+              "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+              "fnName": "tip_article",
+              "args": [
+                "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+                "e71aa429be",
+                "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+                "20000000n"
+              ]
+            }
+          }
+        ]
+      },
+      "match": {
+        "ok": true,
+        "ledger": 5538870,
+        "onChainStroops": "20000000n"
+      },
+      "timeBoundsMatch": {
+        "ok": true,
+        "ledger": 5538870,
+        "onChainStroops": "20000000n"
+      },
+      "timeBoundsMismatch": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "timebounds_mismatch"
+      },
+      "wrongContract": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "contract_mismatch"
+      },
+      "wrongFunction": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "function_mismatch"
+      },
+      "wrongAuthor": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "author_mismatch"
+      },
+      "wrongAmount": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "amount_mismatch"
+      },
+      "wrongArticle": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "article_mismatch"
+      },
+      "wrongTipper": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "tipper_mismatch"
+      },
+      "wrongSource": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "source_mismatch"
+      },
+      "feeBumpWrapped": {
+        "ok": true,
+        "ledger": 5538870,
+        "onChainStroops": "20000000n"
+      },
+      "malformedEnvelope": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "malformed_response"
+      },
+      "truncatedEnvelope": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "malformed_response"
+      }
+    },
+    "tip_highlight_direct": {
+      "decoded": {
+        "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+        "fnName": "tip_highlight_direct",
+        "args": [
+          "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+          "430e6aa8ad2121e570e5cd16e385",
+          "f92d69a8f6",
+          "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+          "5814528n"
+        ]
+      },
+      "transaction": {
+        "hash": "4e1ddf8e30c8e3e2e3d763f0ff9f7021752c7ab234bf11739c2f21f531f7de3d",
+        "source": "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+        "sequence": "7051992702648337",
+        "fee": "12589054",
+        "timeBounds": {
+          "minTime": "966486656",
+          "maxTime": "1793294038"
+        },
+        "memoType": "none",
+        "memoValue": null,
+        "operations": [
+          {
+            "type": "invokeHostFunction",
+            "invocation": {
+              "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+              "fnName": "tip_highlight_direct",
+              "args": [
+                "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+                "430e6aa8ad2121e570e5cd16e385",
+                "f92d69a8f6",
+                "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+                "5814528n"
+              ]
+            }
+          }
+        ]
+      },
+      "match": {
+        "ok": true,
+        "ledger": 5453902,
+        "onChainStroops": "5814528n"
+      },
+      "timeBoundsMatch": {
+        "ok": true,
+        "ledger": 5453902,
+        "onChainStroops": "5814528n"
+      },
+      "timeBoundsMismatch": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "timebounds_mismatch"
+      },
+      "wrongContract": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "contract_mismatch"
+      },
+      "wrongFunction": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "function_mismatch"
+      },
+      "wrongAuthor": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "author_mismatch"
+      },
+      "wrongAmount": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "amount_mismatch"
+      },
+      "wrongArticle": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "article_mismatch"
+      },
+      "wrongTipper": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "tipper_mismatch"
+      },
+      "wrongSource": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "source_mismatch"
+      },
+      "feeBumpWrapped": {
+        "ok": true,
+        "ledger": 5453902,
+        "onChainStroops": "5814528n"
+      },
+      "malformedEnvelope": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "malformed_response"
+      },
+      "truncatedEnvelope": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "malformed_response"
+      }
+    },
+    "batch_tip": {
+      "decoded": {
+        "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+        "fnName": "batch_tip",
+        "args": [
+          "GCSWYK4SLUPH3ZBNUNC3M7ZBMXATEITWLLGOJEZZHF56LTAX4BI2N32W",
+          [
+            {
+              "amount": "534159n",
+              "article_id": "42227514a3",
+              "author": "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG"
+            },
+            {
+              "amount": "534159n",
+              "article_id": "03fcd9cc73",
+              "author": "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG"
+            }
+          ]
+        ]
+      },
+      "transaction": {
+        "hash": "9730c7c6bdf96b64c180fdf2b0c23ecc15aec1c2fc4055deecc6d5bac338e449",
+        "source": "GCSWYK4SLUPH3ZBNUNC3M7ZBMXATEITWLLGOJEZZHF56LTAX4BI2N32W",
+        "sequence": "12799638197239859",
+        "fee": "161977",
+        "timeBounds": {
+          "minTime": "0",
+          "maxTime": "1781109226"
+        },
+        "memoType": "none",
+        "memoValue": null,
+        "operations": [
+          {
+            "type": "invokeHostFunction",
+            "invocation": {
+              "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+              "fnName": "batch_tip",
+              "args": [
+                "GCSWYK4SLUPH3ZBNUNC3M7ZBMXATEITWLLGOJEZZHF56LTAX4BI2N32W",
+                [
+                  {
+                    "amount": "534159n",
+                    "article_id": "42227514a3",
+                    "author": "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG"
+                  },
+                  {
+                    "amount": "534159n",
+                    "article_id": "03fcd9cc73",
+                    "author": "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG"
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "match": {
+        "ok": true,
+        "ledger": 3019370,
+        "onChainStroops": "1068318n"
+      },
+      "timeBoundsMatch": {
+        "ok": true,
+        "ledger": 3019370,
+        "onChainStroops": "1068318n"
+      },
+      "timeBoundsMismatch": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "timebounds_mismatch"
+      },
+      "wrongContract": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "contract_mismatch"
+      },
+      "wrongFunction": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "function_mismatch"
+      },
+      "wrongAuthor": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "author_mismatch"
+      },
+      "wrongAmount": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "amount_mismatch"
+      },
+      "wrongArticle": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "article_mismatch"
+      },
+      "wrongTipper": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "tipper_mismatch"
+      },
+      "wrongSource": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "source_mismatch"
+      },
+      "feeBumpWrapped": {
+        "ok": true,
+        "ledger": 3019370,
+        "onChainStroops": "1068318n"
+      },
+      "malformedEnvelope": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "malformed_response"
+      },
+      "truncatedEnvelope": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "malformed_response"
+      }
+    },
+    "batch_tip_highlights": {
+      "decoded": {
+        "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+        "fnName": "batch_tip_highlights",
+        "args": [
+          "GCSWYK4SLUPH3ZBNUNC3M7ZBMXATEITWLLGOJEZZHF56LTAX4BI2N32W",
+          [
+            {
+              "amount": "534933n",
+              "article_id": "932126b7cf",
+              "author": "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+              "highlight_id": "eng236-highlight-050-1"
+            },
+            {
+              "amount": "534933n",
+              "article_id": "932126b7cf",
+              "author": "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+              "highlight_id": "eng236-highlight-050-2"
+            }
+          ]
+        ]
+      },
+      "transaction": {
+        "hash": "fbf8f15db55787ef2141919129445a4be1ef7885a2940cec99e4f6008997bb49",
+        "source": "GCSWYK4SLUPH3ZBNUNC3M7ZBMXATEITWLLGOJEZZHF56LTAX4BI2N32W",
+        "sequence": "12799638197239909",
+        "fee": "146336",
+        "timeBounds": {
+          "minTime": "0",
+          "maxTime": "1781109492"
+        },
+        "memoType": "none",
+        "memoValue": null,
+        "operations": [
+          {
+            "type": "invokeHostFunction",
+            "invocation": {
+              "contract": "CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY",
+              "fnName": "batch_tip_highlights",
+              "args": [
+                "GCSWYK4SLUPH3ZBNUNC3M7ZBMXATEITWLLGOJEZZHF56LTAX4BI2N32W",
+                [
+                  {
+                    "amount": "534933n",
+                    "article_id": "932126b7cf",
+                    "author": "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+                    "highlight_id": "eng236-highlight-050-1"
+                  },
+                  {
+                    "amount": "534933n",
+                    "article_id": "932126b7cf",
+                    "author": "GAJ3FOZR5H6DBYRI277RS5OB3ZOX6CRAPVPCTF5VBF4IEVHZZZ4MZ3FG",
+                    "highlight_id": "eng236-highlight-050-2"
+                  }
+                ]
+              ]
+            }
+          }
+        ]
+      },
+      "match": {
+        "ok": true,
+        "ledger": 3019423,
+        "onChainStroops": "1069866n"
+      },
+      "timeBoundsMatch": {
+        "ok": true,
+        "ledger": 3019423,
+        "onChainStroops": "1069866n"
+      },
+      "timeBoundsMismatch": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "timebounds_mismatch"
+      },
+      "wrongContract": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "contract_mismatch"
+      },
+      "wrongFunction": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "function_mismatch"
+      },
+      "wrongAuthor": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "author_mismatch"
+      },
+      "wrongAmount": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "amount_mismatch"
+      },
+      "wrongArticle": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "article_mismatch"
+      },
+      "wrongTipper": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "tipper_mismatch"
+      },
+      "wrongSource": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "source_mismatch"
+      },
+      "feeBumpWrapped": {
+        "ok": true,
+        "ledger": 3019423,
+        "onChainStroops": "1069866n"
+      },
+      "malformedEnvelope": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "malformed_response"
+      },
+      "truncatedEnvelope": {
+        "ok": false,
+        "kind": "permanent",
+        "reason": "malformed_response"
+      }
+    }
+  }
+}

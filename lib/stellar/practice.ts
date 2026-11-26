@@ -6,9 +6,10 @@ import {
   Operation,
   StrKey,
   TransactionBuilder,
-  type Account,
   type Transaction,
+  type TransactionSource,
 } from '@stellar/stellar-sdk'
+import { bytesToHex } from './bytes'
 import { loadWalletKit } from './wallet-kit-loader'
 export const RECIPIENT =
   'GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR'
@@ -22,7 +23,7 @@ export type PracticeRecord = {
   status: PracticeStatus
 }
 export const server = new Horizon.Server('https://horizon-testnet.stellar.org')
-export function buildPractice(account: Account) {
+export function buildPractice(account: TransactionSource) {
   if (account.accountId() === RECIPIENT)
     throw new Error(
       'Use a different wallet for practice; this is the receiving account.'
@@ -43,9 +44,9 @@ export function buildPractice(account: Account) {
     .build()
 }
 export function validateSigned(xdr: string, original: Transaction) {
-  const signed = TransactionBuilder.fromXDR(xdr, Networks.TESTNET)
+  const signed = TransactionBuilder.fromXdr(xdr, Networks.TESTNET)
   if (
-    signed.hash().toString('hex') !== original.hash().toString('hex') ||
+    bytesToHex(signed.hash()) !== bytesToHex(original.hash()) ||
     !signed.signatures.length
   )
     throw new Error(

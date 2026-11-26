@@ -1,6 +1,8 @@
 # Local setup
 
 Use Node.js 24 LTS and the Bun version in `package.json`'s `packageManager` field.
+`@stellar/stellar-sdk` 17 needs Node.js 22.12 or later; `package.json` `engines`
+states this for hosting builds.
 Install from `bun.lock`; do not mix package-manager lockfiles. A Convex account
 and development deployment are required. Wallet/contract tools are needed only
 for payment or contract work.

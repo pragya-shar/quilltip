@@ -61,18 +61,16 @@ it('connects and forwards valid testnet XDR and passphrase to the signing adapte
     )
     .setTimeout(30)
     .build()
-  const unsigned = tx.toXDR()
+  const unsigned = tx.toXdr()
   tx.sign(key)
-  wallet.signTransaction.mockResolvedValue({ signedTxXdr: tx.toXDR() })
+  wallet.signTransaction.mockResolvedValue({ signedTxXdr: tx.toXdr() })
   const signed = await walletAdapter.signTransaction(unsigned, Networks.TESTNET)
   expect(wallet.signTransaction).toHaveBeenCalledWith(unsigned, {
     address: key.publicKey(),
     networkPassphrase: Networks.TESTNET,
   })
-  const parsed = TransactionBuilder.fromXDR(signed, Networks.TESTNET)
-  expect(key.verify(parsed.hash(), parsed.signatures[0]!.signature())).toBe(
-    true
-  )
+  const parsed = TransactionBuilder.fromXdr(signed, Networks.TESTNET)
+  expect(key.verify(parsed.hash(), parsed.signatures[0]!.signature)).toBe(true)
   wallet.signTransaction.mockRejectedValue(new Error('User declined'))
   await expect(
     walletAdapter.signTransaction(unsigned, Networks.TESTNET)
