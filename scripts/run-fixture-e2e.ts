@@ -1,7 +1,8 @@
 /**
  * Run the Playwright suites that need no secrets and no backend: the NFT,
- * recovery, avatar, wallet and article tips fixture pages. Each fixture server bundles production
- * components with stubbed wallet and Convex collaborators.
+ * recovery, avatar, wallet, article tips and tab session-key fixture pages.
+ * Each fixture server bundles production components with stubbed wallet and
+ * Convex collaborators.
  *
  *   bun run test:e2e:fixtures
  */
@@ -47,7 +48,22 @@ const FIXTURES = [
       PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4178',
     },
   },
-] as const
+  {
+    // Chromium, Firefox and WebKit (its own config); key storage and
+    // WebCrypto Ed25519 differ between engines.
+    server: 'e2e/fixtures/tab/server.mjs',
+    port: 4181,
+    spec: 'e2e/tab-session-keys.spec.ts',
+    config: 'e2e/fixtures/tab/playwright.config.ts',
+    env: {},
+  },
+] as const satisfies readonly {
+  server: string
+  port: number
+  spec: string
+  config?: string
+  env: Record<string, string>
+}[]
 
 const READY_TIMEOUT_MS = 120_000
 
@@ -86,11 +102,15 @@ async function main(): Promise<number> {
     )
     let failed = 0
     for (const fixture of FIXTURES) {
-      const code = await run(
-        process.execPath,
-        ['x', 'playwright', 'test', fixture.spec],
-        { ...process.env, ...fixture.env, QUILLTIP_E2E_FIXTURES: '1' }
-      )
+      const args =
+        'config' in fixture
+          ? ['x', 'playwright', 'test', '--config', fixture.config]
+          : ['x', 'playwright', 'test', fixture.spec]
+      const code = await run(process.execPath, args, {
+        ...process.env,
+        ...fixture.env,
+        QUILLTIP_E2E_FIXTURES: '1',
+      })
       if (code !== 0) failed = code
     }
     return failed
