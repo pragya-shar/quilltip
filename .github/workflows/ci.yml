@@ -328,13 +328,14 @@ jobs:
     name: Required
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [quality, build, csp, audit, contracts, e2e-fixtures]
+    needs: [quality, build, perf-budget, csp, audit, contracts, e2e-fixtures]
     if: always()
     steps:
       - name: Check required CI jobs
         env:
           QUALITY_RESULT: ${{ needs.quality.result }}
           BUILD_RESULT: ${{ needs.build.result }}
+          PERF_BUDGET_RESULT: ${{ needs.perf-budget.result }}
           CSP_RESULT: ${{ needs.csp.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
@@ -354,6 +355,7 @@ jobs:
 
           check_result "Lint & Typecheck" "$QUALITY_RESULT"
           check_result "Build" "$BUILD_RESULT"
+          check_result "Page-load Budget" "$PERF_BUDGET_RESULT"
           check_result "Content Security Policy" "$CSP_RESULT"
           check_result "Dependency Audit" "$AUDIT_RESULT"
           check_result "Contracts" "$CONTRACTS_RESULT"

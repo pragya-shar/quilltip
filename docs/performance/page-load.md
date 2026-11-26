@@ -186,7 +186,7 @@ secrets:
    | Gate                                         | Budget | Heaviest route |
    | -------------------------------------------- | -----: | -------------: |
    | Scripts referenced by the server HTML        | 280 KB |         261 KB |
-   | Stylesheets referenced by the server HTML    |  60 KB |          43 KB |
+   | Stylesheets referenced by the server HTML    |  50 KB |          43 KB |
    | Fonts the page requests                      | 220 KB |         181 KB |
    | Render-blocking stylesheets                  |      6 |              4 |
    | CLS (median of 3)                            |    0.1 |          0.016 |

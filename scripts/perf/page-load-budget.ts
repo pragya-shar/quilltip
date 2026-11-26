@@ -79,7 +79,7 @@ const BUDGETS = {
   // Heaviest route: 261 KB (article).
   scriptKb: 280,
   // Heaviest route: 43 KB (landing).
-  cssKb: 60,
+  cssKb: 50,
   // Heaviest route: 181 KB (landing, ten faces).
   fontKb: 220,
   // Heaviest route: 4 (landing).
