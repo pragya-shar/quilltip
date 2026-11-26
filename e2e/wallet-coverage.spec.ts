@@ -144,6 +144,8 @@ for (const c of CASES) {
       await installed.getByRole('button', { name: c.name }).click()
       const account = page.getByRole('button', { name: 'Open wallet menu' })
       await expect(account).toContainText(c.shown)
+      // Shown for wallets that cannot report a network too.
+      await expect(account).toContainText(/testnet/i)
 
       const dialog = await openCheckout(page)
       await dialog.getByRole('button', { name: 'Review in wallet' }).click()
@@ -256,6 +258,9 @@ test.describe('xBull web wallet (no extension)', () => {
     await expect(
       page.getByRole('button', { name: 'Open wallet menu' })
     ).toContainText('xBull')
+    await expect(
+      page.getByRole('button', { name: 'Open wallet menu' })
+    ).toContainText(/testnet/i)
 
     const dialog = await openCheckout(page)
     await dialog.getByRole('button', { name: 'Review in wallet' }).click()
