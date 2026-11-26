@@ -23,6 +23,7 @@ import {
   shortArticleIdServer,
 } from './lib/articleTipExpectation'
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
+import { verifiedStellarAddress } from './lib/walletVerification'
 import { getMonthKey, roundCents, writerShareCents } from './lib/authorEarnings'
 import {
   AGGREGATE_LIMIT,
@@ -215,7 +216,7 @@ export const getUserReceivedTips = query({
       .order('desc')
       .take(AGGREGATE_LIMIT)
     const tips = rows
-      .filter((tip) => paidToExpectedAuthor(tip, user?.stellarAddress))
+      .filter((tip) => paidToExpectedAuthor(tip, verifiedStellarAddress(user)))
       .slice(0, LIST_LIMIT)
 
     return await Promise.all(
@@ -259,7 +260,9 @@ export const listMyReceivedTips = query({
       })
     const page = await Promise.all(
       result.page
-        .filter((tip) => paidToExpectedAuthor(tip, user?.stellarAddress))
+        .filter((tip) =>
+          paidToExpectedAuthor(tip, verifiedStellarAddress(user))
+        )
         .map(async (tip) => ({
           ...ownTipFields(tip),
           tipper: await withTipper(ctx.db, tip),
@@ -345,8 +348,10 @@ export const prepareArticleTip = mutation({
 
     const author = await ctx.db.get(article.authorId)
     if (!author) throw new Error('Author not found')
-    if (!author.stellarAddress || typeof author.stellarAddress !== 'string') {
-      throw new Error('Author has not configured a receiving wallet')
+    // New tips go only to an address the author proved control of.
+    const authorAddress = verifiedStellarAddress(author)
+    if (!authorAddress) {
+      throw new Error('Author has not verified a receiving wallet')
     }
 
     const now = Date.now()
@@ -372,7 +377,7 @@ export const prepareArticleTip = mutation({
         (amountXlm !== undefined || intent.amountCents === usdCents) &&
         intent.message === args.message &&
         intent.expectedSourceAccount === args.stellarSourceAccount &&
-        intent.expectedDestinationAccount === author.stellarAddress &&
+        intent.expectedDestinationAccount === authorAddress &&
         intent.expectedArticleSymbol === expectedArticleSymbol &&
         intent.expectedStellarNetwork === expectedStellarNetwork &&
         intent.expectedContractId === expectedContractId &&
@@ -427,7 +432,7 @@ export const prepareArticleTip = mutation({
       amountXlm,
       message: args.message,
       expectedSourceAccount: args.stellarSourceAccount,
-      expectedDestinationAccount: author.stellarAddress,
+      expectedDestinationAccount: authorAddress,
       expectedArticleSymbol,
       expectedAmountStroops: expectedAmountStroops.toString(),
       expectedStellarNetwork,
@@ -451,7 +456,7 @@ export const prepareArticleTip = mutation({
     return {
       intentId,
       articleSymbol: expectedArticleSymbol,
-      authorAddress: author.stellarAddress,
+      authorAddress: authorAddress,
       amountStroops: expectedAmountStroops,
       amountCents,
       stellarNetwork: expectedStellarNetwork,

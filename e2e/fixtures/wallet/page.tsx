@@ -5,7 +5,11 @@ import { WalletProvider } from '../../../components/providers/WalletProvider'
 import { WalletConnectButton } from '../../../components/stellar/WalletConnectButton'
 import { TipButton } from '../../../components/tipping/TipButton'
 import type { Id } from '../../../types/convex'
+import { ReceivingWalletVerification } from '../../../components/stellar/ReceivingWalletVerification'
+import '../../../components/account/account.css'
 import { AUTHOR } from './runtime'
+
+const view = new URLSearchParams(location.search).get('view')
 
 function Fixture() {
   return (
@@ -14,6 +18,15 @@ function Fixture() {
       style={{ maxWidth: 720, margin: 'auto', padding: '24px 16px' }}
     >
       <h1 className="text-xl mb-4">Wallet fixtures</h1>
+      {view === 'verify' && (
+        <section
+          aria-label="Receiving wallet"
+          className="account-surface mb-8"
+          style={{ padding: 16 }}
+        >
+          <ReceivingWalletVerification />
+        </section>
+      )}
       <section aria-label="Wallet" className="mb-8">
         <WalletConnectButton />
       </section>

@@ -7,7 +7,7 @@ import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { useWallet } from '@/components/providers/WalletProvider'
 import { ContextualWalletSetup } from '@/components/stellar/ContextualWalletSetup'
 import { networkLabelLowercase } from '@/lib/copy/network-status'
-import { isValidStellarAccountId } from '@/lib/stellar/is-valid-stellar-account-id'
+import { ReceivingWalletVerification } from '@/components/stellar/ReceivingWalletVerification'
 import {
   Dialog,
   DialogContent,
@@ -25,8 +25,6 @@ export function OwnerWalletSettings({
   const { isConnected, publicKey, network, disconnect } = useWallet({
     activateOnMount: true,
   })
-  const [draft, setDraft] = useState(walletAddress ?? '')
-  const [saving, setSaving] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,10 +37,7 @@ export function OwnerWalletSettings({
       mounted.current = false
     }
   }, [])
-  useEffect(() => {
-    setDraft(walletAddress ?? '')
-  }, [walletAddress])
-  const busy = saving || removing
+  const busy = removing
   const appNetwork = networkLabelLowercase()
   const explorerNetwork =
     appNetwork === 'mainnet'
@@ -51,34 +46,6 @@ export function OwnerWalletSettings({
         ? 'testnet'
         : null
 
-  async function saveAddress() {
-    if (busy) return
-    const next = draft.trim()
-    if (!isValidStellarAccountId(next)) {
-      setError(
-        'Enter a valid Stellar public address starting with G (56 characters).'
-      )
-      return
-    }
-    setSaving(true)
-    setError(null)
-    setFeedback(null)
-    try {
-      await updateProfile({ stellarAddress: next })
-      if (!mounted.current) return
-      onAddressChange?.(next)
-      setFeedback('Receiving wallet saved.')
-    } catch (cause) {
-      if (mounted.current)
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : 'Couldn’t save the address. Please try again.'
-        )
-    } finally {
-      if (mounted.current) setSaving(false)
-    }
-  }
   async function removeAddress() {
     if (busy) return
     setRemoving(true)
@@ -88,7 +55,6 @@ export function OwnerWalletSettings({
       await updateProfile({ stellarAddress: null })
       if (!mounted.current) return
       onAddressChange?.(null)
-      setDraft('')
       setConfirmRemove(false)
       setFeedback(
         'Receiving address removed. Your wallet connection is unchanged.'
@@ -183,62 +149,11 @@ export function OwnerWalletSettings({
         <div className="account-address-content">
           <p className="account-muted">
             This is where tips to your writing are sent. Connecting a wallet
-            does not change it.
+            does not change it until you verify the connected wallet.
           </p>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              void saveAddress()
-            }}
-          >
-            <label htmlFor="receiving-wallet">Receiving wallet address</label>
-            <input
-              id="receiving-wallet"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              disabled={busy}
-              spellCheck={false}
-              autoComplete="off"
-              placeholder="G…"
-              aria-describedby="receiving-address-help"
-            />
-            <p id="receiving-address-help" className="account-muted">
-              Use a Stellar public address. Never enter a secret key.
-            </p>
-            <div className="account-address-actions">
-              <button
-                type="submit"
-                className="account-primary"
-                disabled={busy || draft.trim() === (walletAddress ?? '')}
-              >
-                {saving ? 'Saving…' : 'Save receiving wallet'}
-              </button>
-              <button
-                type="button"
-                className="account-text-link"
-                disabled={busy || draft === (walletAddress ?? '')}
-                onClick={() => {
-                  setDraft(walletAddress ?? '')
-                  setError(null)
-                }}
-              >
-                Reset changes
-              </button>
-              {isConnected && publicKey && publicKey !== draft && (
-                <button
-                  type="button"
-                  className="account-text-link"
-                  disabled={busy}
-                  onClick={() => {
-                    setDraft(publicKey)
-                    setError(null)
-                  }}
-                >
-                  Use connected wallet
-                </button>
-              )}
-            </div>
-          </form>
+          <ReceivingWalletVerification
+            onVerified={(address) => onAddressChange?.(address)}
+          />
           {walletAddress && (
             <div className="account-address-actions">
               <button

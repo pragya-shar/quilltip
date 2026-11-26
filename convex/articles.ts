@@ -36,6 +36,7 @@ import {
   syncReadingRoomArticle,
 } from './lib/readingRoomIndex'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
+import { verifiedStellarAddress } from './lib/walletVerification'
 import {
   ARTICLE_SCHEMA,
   CanonicalArticleError,
@@ -715,7 +716,8 @@ export const getArticleBySlug = query({
         name: author.name,
         username: author.username,
         avatar: author.avatar,
-        stellarAddress: author.stellarAddress,
+        // Tips go only to a verified address.
+        stellarAddress: verifiedStellarAddress(author),
       },
       tipStats,
     }
@@ -795,7 +797,7 @@ export const getArticleById = query({
             name: author.name,
             username: author.username,
             avatar: author.avatar,
-            stellarAddress: author.stellarAddress,
+            stellarAddress: verifiedStellarAddress(author),
           }
         : null,
     }
