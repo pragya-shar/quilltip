@@ -1457,6 +1457,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "soroban-sdk",
+ "stellar-access",
  "stellar-contract-utils",
  "stellar-strkey 0.0.16",
 ]

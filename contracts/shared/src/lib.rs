@@ -20,6 +20,7 @@ pub mod fee;
 pub mod ids;
 pub mod merkle;
 pub mod payload;
+pub mod roles;
 pub mod ttl;
 
 pub use constants::*;
