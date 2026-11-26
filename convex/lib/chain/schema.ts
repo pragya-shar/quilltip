@@ -48,6 +48,27 @@ export const chainSubmissionKindValidator = v.union(
   v.literal('nft')
 )
 
+/**
+ * Expected on-chain values of an article submission (register, content
+ * update, author change), fixed at prepare. Verification compares the
+ * transaction's Core event with them. Bytes are lowercase hex.
+ */
+export const expectedArticleValidator = v.object({
+  articleKey: v.string(),
+  /** The address that signs: the transaction source and the authorising address. */
+  signer: v.string(),
+  author: v.optional(v.string()),
+  articleRef: v.optional(v.string()),
+  contentHash: v.optional(v.string()),
+  arweaveId: v.optional(v.union(v.string(), v.null())),
+  splits: v.optional(
+    v.array(v.object({ recipient: v.string(), bps: v.number() }))
+  ),
+  contentVersion: v.optional(v.number()),
+  newAuthor: v.optional(v.string()),
+  liveUntilLedger: v.optional(v.number()),
+})
+
 /** A row a chain submission links to. */
 export const chainRelatedValidator = v.union(
   v.object({ table: v.literal('tips'), id: v.id('tips') }),
@@ -359,6 +380,12 @@ export const chainTables = {
     ),
     registeredLedger: v.optional(v.number()),
     txHash: v.optional(v.string()),
+    /** `article_ref`, 32 bytes, lowercase hex. */
+    articleRef: v.optional(v.string()),
+    /** Ledger until which `pendingAuthor` may accept. */
+    pendingAuthorLiveUntil: v.optional(v.number()),
+    /** The latest article submission (register, update or author change). */
+    lastSubmissionId: v.optional(v.id('chainSubmissions')),
     /** RPC id of the last event applied; older events are ignored. */
     lastEventId: v.optional(v.string()),
     updatedAt: v.number(),
@@ -386,6 +413,8 @@ export const chainTables = {
     mismatchReason: v.optional(v.string()),
     needsReview: v.optional(v.boolean()),
     related: v.array(chainRelatedValidator),
+    /** Article submissions only: the values verification expects. */
+    expectedArticle: v.optional(expectedArticleValidator),
     ledger: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),

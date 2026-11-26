@@ -48,6 +48,15 @@ const HEADER =
 const repoRoot = resolve(__dirname, '../..')
 export const BINDINGS_DIR = join(repoRoot, 'lib/stellar/v2/bindings')
 
+/**
+ * The generator writes ESM imports such as `from './types.js'`. The app's
+ * bundler (Turbopack) does not map `.js` to the `.ts` sources, so relative
+ * imports between the generated files drop the extension.
+ */
+export function withoutJsExtensions(text: string): string {
+  return text.replace(/(from\s+['"]\.\/[A-Za-z0-9_-]+)\.js(['"])/g, '$1$2')
+}
+
 function generate(wasmPath: string, className: string): Map<string, string> {
   const out = mkdtempSync(join(tmpdir(), 'quilltip-bindings-'))
   try {
@@ -72,7 +81,8 @@ function generate(wasmPath: string, className: string): Map<string, string> {
     }
     const files = new Map<string, string>()
     for (const file of GENERATED_FILES) {
-      files.set(file, HEADER + readFileSync(join(out, 'src', file), 'utf8'))
+      const text = readFileSync(join(out, 'src', file), 'utf8')
+      files.set(file, HEADER + withoutJsExtensions(text))
     }
     return files
   } finally {
