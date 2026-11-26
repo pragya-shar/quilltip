@@ -354,6 +354,12 @@ signature, submit, then server verification against Horizon.
 - A v1 tip sent directly to the v1 contract outside the app after the switch
   is not recorded. Stage 7 pauses the v1 contract to stop this when the v1
   admin key is available.
+- A v1 NFT mint uploads its metadata, mints on the v1 NFT contract, then
+  records the mint with `nfts:mintNFT`. The upload and the record are both
+  refused while v1 is paused. A mint whose upload ran before the freeze and
+  whose record arrives after it exists on the v1 contract without a database
+  record; the author sees an error. The window is the time the author takes
+  to sign.
 
 ### 4.3 Articles and authors after the switch
 
@@ -398,7 +404,7 @@ rollback. Do not start a stage until the previous stage's check passes.
   cron logs show that they return without work (no contract configured).
   Without v2 settings the five v2 crons make no RPC call and write no row
   (`scripts/chain/crons-unconfigured.test.ts`). Together they add about
-  4,300 short function calls a day (indexer and earnings sync every minute,
+  3,800 short function calls a day (indexer and earnings sync every minute,
   recheck every 2 minutes, settler every 10 minutes, config refresh hourly).
 - `GET https://www.quilltip.me/api/health` returns 200.
 
@@ -505,7 +511,9 @@ reads as `v1`.
 
 **Check:** every filter returns 0 rows. An article page shows "Tips are
 paused for a short time while payments are updated." in place of the tip
-button, and so does the passage tip action.
+button, and so does the passage tip action. For the article's author or NFT
+owner, the NFT actions tab shows "NFT actions are paused for a short time
+while payments are updated." instead of the mint and transfer buttons.
 **Rollback:** set `CHAIN_V1_PREPARES_ENABLED=true`. No data step.
 
 ### Stage 6. Switch on v2
