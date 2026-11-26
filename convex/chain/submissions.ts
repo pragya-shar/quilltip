@@ -40,6 +40,8 @@ import {
   storeVerification,
 } from '../lib/chain/submissionStore'
 import { verifyTippedTransaction } from '../lib/chain/verify'
+import { resolveNftSubmissionFromState } from '../lib/chain/nftStore'
+import { checkNftSubmission } from '../nftsV2'
 
 const TX_HASH = /^[0-9a-f]{64}$/
 const RECHECK_LEASE_TTL_MS = 110_000
@@ -283,11 +285,21 @@ export const noteAttempt = internalMutation({
 
 export const resolveUnfound = internalMutation({
   args: { submissionId: v.id('chainSubmissions') },
-  handler: async (ctx, args) =>
-    resolveWithoutTransaction(ctx, {
+  handler: async (ctx, args) => {
+    // Rule (b) for NFT submissions: the indexer already recorded the mint or
+    // transfer the submission expects.
+    const submission = await ctx.db.get(args.submissionId)
+    if (
+      submission?.kind === 'nft' &&
+      (await resolveNftSubmissionFromState(ctx, submission, Date.now()))
+    ) {
+      return 'linked' as const
+    }
+    return resolveWithoutTransaction(ctx, {
       submissionId: args.submissionId,
       now: Date.now(),
-    }),
+    })
+  },
 })
 
 type CheckResult =
@@ -318,6 +330,9 @@ export async function checkSubmission(
     !['SUBMITTED', 'EXPIRED', 'PREPARED'].includes(submission.status)
   ) {
     return { result: 'skipped', maxTime }
+  }
+  if (submission.kind === 'nft') {
+    return checkNftSubmission(ctx, submission, fetchImpl)
   }
 
   const rpc = createBackendRpcClient(fetchImpl)

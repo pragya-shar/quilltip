@@ -19,6 +19,7 @@ import {
 } from './events'
 import type { RawRpcEvent } from './rpc'
 import { CORE_EVENT_HANDLERS } from './coreEventHandlers'
+import { NFT_EVENT_HANDLERS } from './nftEventHandlers'
 
 /** About one hour of ledgers. Beyond this lag the cursor is `LAGGING`. */
 export const LAG_ALERT_LEDGERS = 720
@@ -57,6 +58,7 @@ export type ChainEventHandler = (
  */
 export const EVENT_HANDLERS: Readonly<Record<string, ChainEventHandler>> = {
   ...CORE_EVENT_HANDLERS,
+  ...NFT_EVENT_HANDLERS,
 }
 
 export type ContractRoles = Partial<Record<ContractRole, string>>
