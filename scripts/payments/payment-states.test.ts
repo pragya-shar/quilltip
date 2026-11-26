@@ -1,0 +1,934 @@
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import path from 'node:path'
+import { describe, expect, test } from 'vitest'
+import {
+  CHAIN_RECORD_STATUSES,
+  TAB_RECEIPT_STATUSES,
+  type ChainRecordStatus,
+  type TabReceiptStatus,
+} from '../../convex/lib/chain/schema'
+import {
+  CHECKING_SLOW,
+  ESTIMATE,
+  FAILURE_COPY,
+  FLOW_COPY,
+  GATE_BUSY,
+  NOTICE_ACTION,
+  NOTICE_COPY,
+  PROGRESS_HEADING,
+  RESULT_COPY,
+  RESUMING_COPY,
+  SESSION_KEY_COPY,
+  SIGNING_HELP,
+  STATUS_LABEL,
+  STEP_COPY,
+  STEP_LABEL,
+  TAB_REFUSAL_COPY,
+  TAB_TIP_RESULT,
+  TAB_TIP_SENDING,
+  TESTNET_LABEL,
+  TESTNET_LABEL_DETAIL,
+  WALLET_FAILURE_COPY,
+  basketConfirmed,
+  gateCopy,
+  quoteCopy,
+  tabCloseConfirmed,
+  CANCEL_LABEL,
+  DONE_LABEL,
+  HELP_LABEL,
+  REFERENCE_LABEL,
+  RETRY_LABEL,
+  VIEW_TRANSACTION,
+} from '../../lib/copy/payment-states'
+import { TIPS_UNAVAILABLE_COPY } from '../../lib/copy/tips-unavailable'
+import {
+  coreTipSplit,
+  estimateLedgerTime,
+  explorerTxUrl,
+  formatCentsQuote,
+  formatDay,
+  formatXlm,
+  shortAddress,
+} from '../../lib/payments/format'
+import {
+  TAB_REFUSAL_CODES,
+  failureFromContract,
+  failureFromWalletError,
+  gateFromWalletError,
+  noticeFromContractFailure,
+  refusalFromTabError,
+  viewFromTxOutcome,
+  walletNetworkLabel,
+} from '../../lib/payments/failures'
+import {
+  PAYMENT_FLOWS,
+  SETTLEMENT_DELAYED_AFTER_MS,
+  deriveProgress,
+  isSettlementDelayed,
+  phaseFromBatch,
+  phaseFromRecord,
+  phaseFromTabOperation,
+  phaseAllowsRetry,
+  phaseFromTabTip,
+  recordAllowsRetry,
+  resolvePaymentView,
+  type PaymentPhase,
+  type TabSnapshot,
+} from '../../lib/payments/ui-state'
+import {
+  describeContractFailure,
+  raisingContract,
+} from '../../lib/stellar/v2/errors'
+import { networkLabel } from '../../lib/stellar/v2/wallet-errors'
+
+const ROOT = path.join(__dirname, '../..')
+const ALL_PHASES = Object.keys(STATUS_LABEL) as PaymentPhase[]
+const TESTNET = 'Test SDF Network ; September 2015'
+const PUBLIC = 'Public Global Stellar Network ; September 2015'
+const CORE = 'CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY'
+const TOKEN = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'
+const READY = { kind: 'ready' } as const
+
+function errorEvent(contractId: string, code: number) {
+  return {
+    event: {
+      contract_id: contractId,
+      body: {
+        v0: { topics: [{ symbol: 'error' }, { error: { contract: code } }] },
+      },
+    },
+  }
+}
+
+describe('server status to phase', () => {
+  test('maps every chain record status', () => {
+    const expected: Record<ChainRecordStatus, PaymentPhase> = {
+      PREPARED: 'resuming',
+      SUBMITTED: 'checking',
+      CONFIRMED: 'confirmed',
+      MISMATCH: 'under-review',
+      FAILED: 'failed',
+      EXPIRED: 'expired',
+    }
+    for (const status of CHAIN_RECORD_STATUSES) {
+      expect(phaseFromRecord({ status })).toBe(expected[status])
+    }
+  })
+
+  test('an unknown status is safe: resuming, no retry, never confirmed', () => {
+    for (const status of [
+      'PENDING',
+      'CONFIRMING',
+      'FRAUDULENT',
+      '',
+      'confirmed',
+    ]) {
+      const view = deriveProgress({ record: { status } })
+      expect(view.phase).toBe('resuming')
+      expect(view.retry).toBe(false)
+    }
+  })
+
+  test('an author mismatch is a completed payment to the registered address', () => {
+    expect(
+      phaseFromRecord({ status: 'MISMATCH', mismatchReason: 'author' })
+    ).toBe('sent-to-registered')
+    for (const reason of [
+      'field:gross',
+      'field:ledger',
+      'no_event',
+      null,
+      'AUTHOR',
+    ]) {
+      expect(
+        phaseFromRecord({ status: 'MISMATCH', mismatchReason: reason })
+      ).toBe('under-review')
+    }
+  })
+
+  test('a live client step shows only while the record is PREPARED', () => {
+    expect(phaseFromRecord({ status: 'PREPARED' }, { step: 'signing' })).toBe(
+      'signing'
+    )
+    expect(phaseFromRecord({ status: 'SUBMITTED' }, { step: 'signing' })).toBe(
+      'checking'
+    )
+    expect(phaseFromRecord({ status: 'CONFIRMED' }, { step: 'sending' })).toBe(
+      'confirmed'
+    )
+    expect(phaseFromRecord({ status: 'FAILED' }, { step: 'simulating' })).toBe(
+      'failed'
+    )
+  })
+
+  test('a reloaded PREPARED record claims no step as done', () => {
+    expect(phaseFromRecord({ status: 'PREPARED' })).toBe('resuming')
+    expect(phaseFromRecord({ status: 'PREPARED' }, { step: null })).toBe(
+      'resuming'
+    )
+  })
+
+  test('maps every tab tip status', () => {
+    const expected: Record<TabReceiptStatus, PaymentPhase> = {
+      ACCEPTED: 'accepted',
+      SETTLED: 'settled',
+      SHORTFALL: 'shortfall',
+      UNPAID: 'unpaid',
+      REJECTED: 'rejected',
+      VOID_RESET: 'void-reset',
+    }
+    for (const status of TAB_RECEIPT_STATUSES) {
+      expect(phaseFromTabTip(status)).toBe(expected[status])
+    }
+    expect(phaseFromTabTip('PREPARED')).toBe('resuming')
+    expect(deriveProgress({ tabTip: { status: 'NEW' } })).toEqual({
+      phase: 'resuming',
+      retry: false,
+      redirected: 0,
+    })
+  })
+})
+
+describe('wallet refusal, as the server records it', () => {
+  test('declined shows at once and allows retry only after FAILED is recorded', () => {
+    const before = deriveProgress({
+      record: { status: 'PREPARED' },
+      declined: true,
+    })
+    expect(before).toMatchObject({ phase: 'declined', retry: false })
+    const after = deriveProgress({
+      record: { status: 'FAILED' },
+      declined: true,
+    })
+    expect(after).toMatchObject({ phase: 'declined', retry: true })
+  })
+
+  test('the wallet outcome is recorded as wallet_rejected', () => {
+    expect(
+      viewFromTxOutcome({
+        status: 'wallet_failed',
+        error: { kind: 'rejected' },
+      })
+    ).toEqual({
+      show: { kind: 'declined' },
+      record: { reason: 'wallet_rejected', detail: 'rejected' },
+    })
+    expect(RESULT_COPY.declined.detail).toBe('Nothing was signed or sent.')
+  })
+})
+
+describe('retry rule', () => {
+  test('only failed, expired and declined phases can retry', () => {
+    const retryable = ALL_PHASES.filter(phaseAllowsRetry)
+    expect(retryable.sort()).toEqual(['declined', 'expired', 'failed'])
+  })
+
+  test('the record decides: FAILED and EXPIRED, never under review', () => {
+    expect(recordAllowsRetry({ status: 'FAILED' })).toBe(true)
+    expect(recordAllowsRetry({ status: 'EXPIRED' })).toBe(true)
+    expect(recordAllowsRetry({ status: 'FAILED', needsReview: true })).toBe(
+      false
+    )
+    for (const status of ['PREPARED', 'SUBMITTED', 'CONFIRMED', 'MISMATCH']) {
+      expect(recordAllowsRetry({ status })).toBe(false)
+    }
+  })
+
+  test('no mismatch outcome can offer retry', () => {
+    for (const reason of ['author', 'field:gross', 'no_event']) {
+      expect(
+        deriveProgress({
+          record: { status: 'MISMATCH', mismatchReason: reason },
+        }).retry
+      ).toBe(false)
+    }
+  })
+})
+
+describe('batches', () => {
+  test('a row under review puts the payment under review', () => {
+    expect(
+      phaseFromBatch({ status: 'MISMATCH', mismatchReason: 'field:amount' }, [
+        { status: 'CONFIRMED' },
+        { status: 'MISMATCH', mismatchReason: 'field:amount' },
+      ])
+    ).toEqual({ phase: 'under-review', redirected: 0 })
+  })
+
+  test('redirected rows still confirm the payment and are counted', () => {
+    const view = deriveProgress({
+      record: { status: 'MISMATCH', mismatchReason: 'author' },
+      rows: [
+        { status: 'CONFIRMED' },
+        { status: 'MISMATCH', mismatchReason: 'author' },
+        { status: 'MISMATCH', mismatchReason: 'author' },
+      ],
+    })
+    expect(view).toEqual({ phase: 'confirmed', redirected: 2, retry: false })
+    expect(basketConfirmed(2).detail).toMatch(/2 went to/)
+    expect(basketConfirmed(1).detail).toMatch(/One went to/)
+    expect(basketConfirmed(0)).toEqual(FLOW_COPY['tip-basket'])
+  })
+
+  test('rows still pending leave the record in charge', () => {
+    expect(
+      phaseFromBatch({ status: 'SUBMITTED' }, [
+        { status: 'CONFIRMED' },
+        { status: 'SUBMITTED' },
+      ]).phase
+    ).toBe('checking')
+    expect(phaseFromBatch({ status: 'FAILED' }, []).phase).toBe('failed')
+  })
+})
+
+describe('tab operations confirm from indexed tab state', () => {
+  const tab: NonNullable<TabSnapshot> = {
+    status: 'OPEN',
+    confirmedBalance: '200',
+    keys: [
+      { keyId: 'a', revoked: false },
+      { keyId: 'b', revoked: true },
+    ],
+  }
+
+  test('each operation confirms only when the state shows it', () => {
+    expect(phaseFromTabOperation({ flow: 'tab-open' }, tab)).toBe('confirmed')
+    expect(phaseFromTabOperation({ flow: 'tab-open' }, null)).toBe('resuming')
+    expect(
+      phaseFromTabOperation({ flow: 'tab-top-up', before: '100' }, tab)
+    ).toBe('confirmed')
+    expect(
+      phaseFromTabOperation({ flow: 'tab-top-up', before: '200' }, tab, {
+        sent: true,
+      })
+    ).toBe('checking')
+    expect(
+      phaseFromTabOperation({ flow: 'tab-new-key', keyId: 'a' }, tab)
+    ).toBe('confirmed')
+    expect(
+      phaseFromTabOperation({ flow: 'tab-new-key', keyId: 'b' }, tab, {
+        step: 'signing',
+      })
+    ).toBe('signing')
+    expect(
+      phaseFromTabOperation({ flow: 'tab-revoke-key', keyId: 'b' }, tab)
+    ).toBe('confirmed')
+    expect(
+      phaseFromTabOperation(
+        { flow: 'tab-close' },
+        { ...tab, status: 'CLOSING' }
+      )
+    ).toBe('confirmed')
+    expect(phaseFromTabOperation({ flow: 'tab-close' }, tab)).toBe('resuming')
+    expect(
+      phaseFromTabOperation(
+        { flow: 'tab-withdraw' },
+        { ...tab, status: 'CLOSED' }
+      )
+    ).toBe('confirmed')
+  })
+
+  test('RPC failure and a timeout allow retry; indexed state still wins', () => {
+    const op = { flow: 'tab-top-up', before: '200' } as const
+    expect(
+      deriveProgress({ tabOperation: op, tab, sent: true, poll: 'FAILED' })
+    ).toMatchObject({ phase: 'failed', retry: true })
+    expect(
+      deriveProgress({ tabOperation: op, tab, sent: true, poll: 'TIMEOUT' })
+    ).toMatchObject({ phase: 'expired', retry: true })
+    expect(
+      deriveProgress({
+        tabOperation: op,
+        tab: { ...tab, confirmedBalance: '300' },
+        poll: 'TIMEOUT',
+      })
+    ).toMatchObject({ phase: 'confirmed', retry: false })
+    // Polling SUCCESS alone never confirms.
+    expect(
+      deriveProgress({ tabOperation: op, tab, sent: true, poll: 'SUCCESS' })
+        .phase
+    ).toBe('checking')
+  })
+})
+
+describe('resolvePaymentView: one precedence rule', () => {
+  const checking = { record: { status: 'SUBMITTED' } }
+
+  test('a payment in progress always renders; conditions only sit beside it', () => {
+    const paused = resolvePaymentView({
+      source: checking,
+      gate: { kind: 'locked' },
+      notice: { kind: 'paused' },
+    })
+    expect(paused.progress?.phase).toBe('checking')
+    expect(paused.condition).toEqual({
+      kind: 'notice',
+      notice: { kind: 'paused' },
+    })
+    expect(paused.showStart).toBe(false)
+
+    const gated = resolvePaymentView({
+      source: { record: { status: 'CONFIRMED' } },
+      gate: { kind: 'wrong-network' },
+    })
+    expect(gated.progress?.phase).toBe('confirmed')
+    expect(gated.condition?.kind).toBe('gate')
+  })
+
+  test('order without a payment: tips unavailable, paused, gate, other notice', () => {
+    const all = {
+      source: null,
+      gate: { kind: 'locked' } as const,
+      notice: { kind: 'paused' } as const,
+      tipsUnavailable: 'unregistered' as const,
+    }
+    expect(resolvePaymentView(all).condition?.kind).toBe('tips-unavailable')
+    expect(
+      resolvePaymentView({ ...all, tipsUnavailable: null }).condition
+    ).toEqual({ kind: 'notice', notice: { kind: 'paused' } })
+    expect(
+      resolvePaymentView({
+        ...all,
+        tipsUnavailable: null,
+        notice: { kind: 'insufficient-balance' },
+      }).condition?.kind
+    ).toBe('gate')
+    const short = resolvePaymentView({
+      source: null,
+      gate: READY,
+      notice: { kind: 'insufficient-balance' },
+    })
+    expect(short.condition?.kind).toBe('notice')
+    // A short balance keeps the form so the reader can choose less.
+    expect(short).toMatchObject({ showStart: true, canStart: false })
+  })
+
+  test('the start form runs only with nothing in the way', () => {
+    expect(resolvePaymentView({ source: null, gate: READY })).toMatchObject({
+      progress: null,
+      condition: null,
+      showStart: true,
+      canStart: true,
+      canRetry: false,
+    })
+    expect(
+      resolvePaymentView({ source: null, gate: { kind: 'signed-out' } })
+    ).toMatchObject({ showStart: false, canStart: false })
+  })
+
+  test('retry waits while a condition blocks it', () => {
+    const failed = { record: { status: 'FAILED' } }
+    expect(resolvePaymentView({ source: failed, gate: READY }).canRetry).toBe(
+      true
+    )
+    expect(
+      resolvePaymentView({
+        source: failed,
+        gate: READY,
+        notice: { kind: 'paused' },
+      }).canRetry
+    ).toBe(false)
+    expect(
+      resolvePaymentView({ source: failed, gate: { kind: 'locked' } }).canRetry
+    ).toBe(false)
+    expect(
+      resolvePaymentView({
+        source: { record: { status: 'MISMATCH', mismatchReason: 'no_event' } },
+        gate: READY,
+      }).canRetry
+    ).toBe(false)
+  })
+})
+
+describe('settlement delay', () => {
+  test('waits past the 6 h due time and two settler runs', () => {
+    const now = Date.UTC(2026, 10, 27, 12)
+    const hours = (h: number) => now - h * 60 * 60 * 1000
+    expect(SETTLEMENT_DELAYED_AFTER_MS).toBe(8 * 60 * 60 * 1000)
+    expect(isSettlementDelayed(hours(6.2), now)).toBe(false)
+    expect(isSettlementDelayed(hours(7.9), now)).toBe(false)
+    expect(isSettlementDelayed(hours(8.1), now)).toBe(true)
+    expect(isSettlementDelayed(null, now)).toBe(false)
+  })
+})
+
+describe('wallet failures', () => {
+  test('connection failures become gate states', () => {
+    expect(gateFromWalletError({ kind: 'no-wallet' })).toEqual({
+      kind: 'no-wallet',
+    })
+    expect(gateFromWalletError({ kind: 'locked' })).toEqual({ kind: 'locked' })
+    expect(
+      gateFromWalletError({ kind: 'wrong-network', walletPassphrase: PUBLIC })
+    ).toEqual({ kind: 'wrong-network', walletNetwork: 'Mainnet' })
+  })
+
+  test('the network label matches the wallet adapter', () => {
+    for (const passphrase of [
+      TESTNET,
+      PUBLIC,
+      'Test SDF Future Network ; October 2022',
+      'Standalone Network ; February 2017',
+      'Something else',
+      undefined,
+    ]) {
+      expect(walletNetworkLabel(passphrase)).toBe(networkLabel(passphrase))
+    }
+  })
+
+  test('signing failures stay in the progress view with fixed titles', () => {
+    for (const kind of [
+      'rejected',
+      'timeout',
+      'wrong-account',
+      'unsupported',
+      'failed',
+      'cancelled',
+    ] as const) {
+      expect(gateFromWalletError({ kind })).toBeNull()
+    }
+    expect(failureFromWalletError({ kind: 'rejected' })).toEqual(
+      RESULT_COPY.declined
+    )
+    expect(failureFromWalletError({ kind: 'cancelled' })).toBeNull()
+    expect(failureFromWalletError({ kind: 'failed' })?.title).toBe(
+      'Your wallet reported a problem'
+    )
+  })
+})
+
+describe('contract failures, decoded with the raising contract', () => {
+  const contracts = { core: CORE, token: TOKEN }
+  const decode = (code: number, raiser: string | null) =>
+    describeContractFailure(`HostError: Error(Contract, #${code})`, {
+      raisedBy: raiser,
+      contracts,
+    })
+
+  test('a native XLM shortfall is the not-enough-XLM notice', () => {
+    const failure = describeContractFailure('HostError: Error(Contract, #10)', {
+      raisedBy: raisingContract([errorEvent(TOKEN, 10), errorEvent(CORE, 10)]),
+      contracts,
+    })
+    expect(noticeFromContractFailure(failure)).toEqual({
+      kind: 'insufficient-balance',
+      source: 'wallet',
+    })
+    expect(failureFromContract(failure).detail).not.toMatch(/already sent/)
+  })
+
+  test('a fee shortfall at send is the same notice', () => {
+    expect(
+      noticeFromContractFailure(
+        describeContractFailure('txInsufficientBalance')
+      )
+    ).toEqual({ kind: 'insufficient-balance', source: 'wallet' })
+  })
+
+  test('Core codes keep their meaning; unknown raisers are plain failures', () => {
+    expect(noticeFromContractFailure(decode(1000, CORE))).toEqual({
+      kind: 'paused',
+    })
+    expect(noticeFromContractFailure(decode(1, CORE))).toEqual({
+      kind: 'tips-unavailable',
+      reason: 'unregistered',
+    })
+    expect(noticeFromContractFailure(decode(1, CORE), { batch: true })).toEqual(
+      { kind: 'basket-item-unavailable' }
+    )
+    // Core #10 is a duplicate tip, not a balance problem.
+    expect(noticeFromContractFailure(decode(10, CORE))).toBeNull()
+    for (const raiser of [null, 'CBOTHER']) {
+      const failure = decode(10, raiser)
+      expect(noticeFromContractFailure(failure)).toBeNull()
+      expect(failureFromContract(failure)).toEqual({
+        title: 'Not sent',
+        detail:
+          'Stellar testnet refused the transaction. Nothing was sent. Nothing was paid.',
+      })
+    }
+  })
+
+  test('tab codes become their notices only when the tab raised them', () => {
+    const tabContracts = { tab: 'CTAB' }
+    const tab = (code: number, raiser: string) =>
+      describeContractFailure(`Error(Contract, #${code})`, {
+        raisedBy: raiser,
+        contracts: tabContracts,
+      })
+    expect(noticeFromContractFailure(tab(35, 'CTAB'))).toEqual({
+      kind: 'session-key-missing',
+    })
+    expect(noticeFromContractFailure(tab(41, 'CTAB'))).toEqual({
+      kind: 'withdrawal-pending',
+    })
+    expect(noticeFromContractFailure(tab(35, 'CNOPE'))).toBeNull()
+  })
+})
+
+describe('transaction outcomes map once for every flow', () => {
+  test('each status shows and records one thing', () => {
+    expect(viewFromTxOutcome({ status: 'sent', hash: 'ab' })).toEqual({
+      show: { kind: 'sent', hash: 'ab' },
+      record: null,
+    })
+    expect(
+      viewFromTxOutcome({
+        status: 'wallet_failed',
+        error: { kind: 'cancelled' },
+      })
+    ).toEqual({
+      show: { kind: 'cancelled' },
+      record: { reason: 'wallet_rejected', detail: 'cancelled' },
+    })
+    expect(
+      viewFromTxOutcome({
+        status: 'wallet_failed',
+        error: { kind: 'wrong-network', walletPassphrase: PUBLIC },
+      }).show
+    ).toEqual({
+      kind: 'gate',
+      gate: { kind: 'wrong-network', walletNetwork: 'Mainnet' },
+    })
+    expect(
+      viewFromTxOutcome({ status: 'wallet_failed', error: { kind: 'timeout' } })
+        .show
+    ).toEqual({ kind: 'failed', failure: WALLET_FAILURE_COPY.timeout })
+    const paused = viewFromTxOutcome({
+      status: 'simulation_failed',
+      error: {
+        code: 1000,
+        name: 'EnforcedPause',
+        contract: 'core',
+        message: '',
+      },
+      detail: 'HostError: Error(Contract, #1000)',
+    })
+    expect(paused).toEqual({
+      show: { kind: 'notice', notice: { kind: 'paused' } },
+      record: { reason: 'simulation_failed', detail: 'EnforcedPause' },
+    })
+    expect(
+      viewFromTxOutcome({
+        status: 'send_error',
+        error: { code: null, name: null, contract: null, message: 'Refused.' },
+        detail: 'txFailed',
+      })
+    ).toEqual({
+      show: {
+        kind: 'failed',
+        failure: { title: 'Not sent', detail: 'Refused. Nothing was paid.' },
+      },
+      record: { reason: 'send_error' },
+    })
+    expect(
+      viewFromTxOutcome({ status: 'not_sent', detail: 'TRY_AGAIN_LATER' })
+    ).toEqual({
+      show: { kind: 'failed', failure: FAILURE_COPY.notSentBusy },
+      record: { reason: 'send_error', detail: 'TRY_AGAIN_LATER' },
+    })
+  })
+})
+
+describe('Convex tab refusals', () => {
+  test('each code has its state', () => {
+    const expected: Record<string, string> = {
+      TAB_OVER_BALANCE: 'notice:insufficient-balance',
+      TAB_OVER_KEY_LIMIT: 'notice:key-limit',
+      TAB_RECEIPT_CAP: 'notice:key-limit',
+      TAB_DAILY_LIMIT: 'notice:daily-limit',
+      TAB_KEY_EXPIRED: 'notice:session-key-expired',
+      TAB_KEY_UNKNOWN: 'notice:session-key-none',
+      TAB_KEY_REVOKED: 'notice:session-key-none',
+      TAB_PAIR_CLOSED: 'notice:session-key-none',
+      TAB_NO_ACCOUNT: 'notice:tab-none',
+      TAB_CLOSED: 'notice:tab-none',
+      TAB_CLOSING: 'notice:tab-closing',
+      TAB_READER_UNVERIFIED: 'gate:unverified',
+      TAB_ARTICLE_HAS_SPLITS: 'tips-unavailable:splits',
+      TAB_ARTICLE_NOT_REGISTERED: 'tips-unavailable:unregistered',
+      TAB_ARTICLE_UNKNOWN: 'tips-unavailable:unregistered',
+      TAB_WRITER_UNVERIFIED: 'tips-unavailable:payout_outdated',
+      TAB_ABOVE_TIP_MAX: 'refused:aboveMax',
+      TAB_BELOW_MINIMUM: 'refused:belowMinimum',
+      TAB_SELF_TIP: 'refused:selfTip',
+      TAB_PRICE_UNAVAILABLE: 'refused:noPrice',
+      TAB_PREPARE_EXPIRED: 'refused:timedOut',
+      TAB_DUPLICATE_REFERENCE: 'refused:duplicate',
+      TAB_NO_WITHDRAWAL: 'refused:noWithdrawal',
+    }
+    const key = (code: string) => {
+      const r = refusalFromTabError(code)
+      switch (r.kind) {
+        case 'notice':
+          return `notice:${r.notice.kind}`
+        case 'gate':
+          return `gate:${r.gate.kind}`
+        case 'tips-unavailable':
+          return `tips-unavailable:${r.reason}`
+        case 'refused': {
+          const name = Object.entries(TAB_REFUSAL_COPY).find(
+            ([, copy]) => copy === r.copy
+          )?.[0]
+          return `refused:${name}`
+        }
+      }
+    }
+    for (const [code, want] of Object.entries(expected)) {
+      expect([code, key(code)]).toEqual([code, want])
+    }
+    expect(key('TAB_SOMETHING_NEW')).toBe('refused:generic')
+  })
+
+  test('every TAB_ code the tab functions throw is mapped', () => {
+    const files = [
+      'convex/tabs.ts',
+      'convex/lib/chain/tabLedger.ts',
+      'convex/lib/chain/voucher.ts',
+      'convex/chain/config.ts',
+    ]
+    const thrown = new Set<string>()
+    for (const file of files) {
+      const text = readFileSync(path.join(ROOT, file), 'utf8')
+      for (const match of text.matchAll(
+        /(?:tabError\(\s*|code:\s*)['"](TAB_[A-Z_]+)['"]/g
+      )) {
+        thrown.add(match[1]!)
+      }
+      // Codes chosen by a ternary inside tabError(...).
+      for (const match of text.matchAll(
+        /\?\s*'(TAB_[A-Z_]+)'\s*:\s*'(TAB_[A-Z_]+)'/g
+      )) {
+        thrown.add(match[1]!)
+        thrown.add(match[2]!)
+      }
+    }
+    expect(thrown.size).toBeGreaterThan(20)
+    const unmapped = [...thrown].filter(
+      (code) => !TAB_REFUSAL_CODES.includes(code)
+    )
+    expect(unmapped).toEqual([])
+  })
+})
+
+describe('amounts and dates', () => {
+  test('formats stroops with full precision', () => {
+    expect(formatXlm('10000000')).toBe('1 XLM')
+    expect(formatXlm('9750000')).toBe('0.975 XLM')
+    expect(formatXlm('39')).toBe('0.0000039 XLM')
+    expect(formatXlm('123456789012345678')).toBe('12,345,678,901.2345678 XLM')
+    expect(formatXlm('-5')).toBe('–')
+    expect(formatXlm('1.5')).toBe('–')
+  })
+
+  test('the cents quote is optional and reads as real XLM', () => {
+    expect(formatCentsQuote(50)).toBe('$0.50')
+    expect(formatCentsQuote(null)).toBeNull()
+    expect(formatCentsQuote(Number.NaN)).toBeNull()
+    expect(formatCentsQuote(0)).toBeNull()
+    expect(formatCentsQuote(0.4)).toBe('under-a-cent')
+    expect(quoteCopy('$0.12')).toBe('About $0.12 in real XLM')
+    expect(quoteCopy('under-a-cent')).toBe('Under $0.01 in real XLM')
+  })
+
+  test('the Core split rounds the fee down and gives the writer the rest', () => {
+    expect(coreTipSplit('40')).toEqual({ gross: '40', writer: '39', fee: '1' })
+    expect(coreTipSplit('10000000')).toEqual({
+      gross: '10000000',
+      writer: '9750000',
+      fee: '250000',
+    })
+    expect(coreTipSplit('39')).toEqual({ gross: '39', writer: '39', fee: '0' })
+    const big = '170141183460469231731687303715884105727'
+    const split = coreTipSplit(big)!
+    expect(BigInt(split.writer) + BigInt(split.fee)).toBe(BigInt(big))
+    expect(coreTipSplit('abc')).toBeNull()
+  })
+
+  test('addresses shorten in the middle', () => {
+    expect(
+      shortAddress('GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI')
+    ).toBe('GBZX…MADI')
+    expect(shortAddress('Ada')).toBe('Ada')
+  })
+
+  test('a future ledger becomes an estimated date', () => {
+    const closedAt = Date.UTC(2026, 10, 27, 12)
+    const unlock = estimateLedgerTime(1_000 + 3 * 17_280, {
+      sequence: 1_000,
+      closedAt,
+    })
+    expect(unlock.getTime() - closedAt).toBe(3 * 24 * 60 * 60 * 1000)
+    expect(estimateLedgerTime(10, { sequence: 20, closedAt }).getTime()).toBe(
+      closedAt
+    )
+    expect(formatDay(new Date(Date.UTC(2026, 10, 30, 12)), 'en-GB')).toBe(
+      'Monday 30 November'
+    )
+  })
+
+  test('explorer links go to the testnet explorer', () => {
+    expect(explorerTxUrl('ab12')).toBe(
+      'https://stellar.expert/explorer/testnet/tx/ab12'
+    )
+  })
+})
+
+describe('first load', () => {
+  // scripts/perf forbids lib/stellar/v2 and the SDK in the article page's
+  // first load. Walk the kit's value imports and check none reach them.
+  const FORBIDDEN = [/lib\/stellar\/v2\//, /^@stellar\//, /^@creit\.tech\//]
+
+  function resolve(from: string, spec: string): string | null {
+    let base: string
+    if (spec.startsWith('@/')) base = path.join(ROOT, spec.slice(2))
+    else if (spec.startsWith('.')) base = path.join(path.dirname(from), spec)
+    else return null
+    for (const ext of ['', '.ts', '.tsx', '/index.ts', '/index.tsx']) {
+      const file = base + ext
+      if (existsSync(file) && !file.endsWith('/')) {
+        try {
+          readFileSync(file)
+          return file
+        } catch {
+          // a directory
+        }
+      }
+    }
+    return null
+  }
+
+  function valueImports(file: string): string[] {
+    const text = readFileSync(file, 'utf8')
+    const specs: string[] = []
+    for (const match of text.matchAll(
+      /^(?:import|export)\s+(?!type\b)[^'"]*?from\s+['"]([^'"]+)['"]/gm
+    )) {
+      specs.push(match[1]!)
+    }
+    for (const match of text.matchAll(/^import\s+['"]([^'"]+)['"]/gm)) {
+      specs.push(match[1]!)
+    }
+    return specs
+  }
+
+  test('no kit module reaches v2 payment code, the SDK or Convex', () => {
+    const entries = [
+      ...readdirSync(path.join(ROOT, 'components/payments'))
+        .filter((f) => /\.tsx?$/.test(f))
+        .map((f) => path.join(ROOT, 'components/payments', f)),
+      path.join(ROOT, 'lib/payments/ui-state.ts'),
+      path.join(ROOT, 'lib/payments/failures.ts'),
+      path.join(ROOT, 'lib/payments/format.ts'),
+    ]
+    const seen = new Set<string>()
+    const bad: string[] = []
+    const stack = [...entries]
+    while (stack.length) {
+      const file = stack.pop()!
+      if (seen.has(file)) continue
+      seen.add(file)
+      for (const spec of valueImports(file)) {
+        const rel = path.relative(ROOT, resolve(file, spec) ?? spec)
+        if (FORBIDDEN.some((re) => re.test(spec) || re.test(rel))) {
+          bad.push(`${path.relative(ROOT, file)} -> ${spec}`)
+          continue
+        }
+        const next = resolve(file, spec)
+        if (next && /\.tsx?$/.test(next)) stack.push(next)
+      }
+    }
+    expect(seen.size).toBeGreaterThan(15)
+    expect(bad).toEqual([])
+  })
+})
+
+describe('copy', () => {
+  test('every flow has confirmed copy', () => {
+    for (const flow of PAYMENT_FLOWS) {
+      expect(FLOW_COPY[flow].title.length).toBeGreaterThan(0)
+    }
+  })
+
+  test('the testnet label text is fixed', () => {
+    expect(TESTNET_LABEL).toBe('Stellar testnet')
+  })
+
+  test('the design doc quotes every string the kit shows', () => {
+    const doc = readFileSync(
+      path.join(ROOT, 'docs/design-system/payment-states.md'),
+      'utf8'
+    )
+    const strings = new Set<string>()
+    const add = (value: unknown) => {
+      if (typeof value === 'string') strings.add(value)
+      else if (typeof value === 'function') return
+      else if (value && typeof value === 'object') {
+        for (const inner of Object.values(value)) add(inner)
+      }
+    }
+    add([TESTNET_LABEL, TESTNET_LABEL_DETAIL, ESTIMATE, GATE_BUSY])
+    add([PROGRESS_HEADING, SIGNING_HELP, CANCEL_LABEL, RESUMING_COPY])
+    add([
+      RETRY_LABEL,
+      DONE_LABEL,
+      VIEW_TRANSACTION,
+      REFERENCE_LABEL,
+      HELP_LABEL,
+    ])
+    add(FLOW_COPY)
+    add(RESULT_COPY)
+    add(TAB_TIP_RESULT)
+    add(STEP_COPY)
+    add(STEP_COPY.checking())
+    add(STEP_LABEL)
+    add(STATUS_LABEL)
+    add(CHECKING_SLOW)
+    add(TAB_TIP_SENDING)
+    add(FAILURE_COPY)
+    add(WALLET_FAILURE_COPY)
+    add(TAB_REFUSAL_COPY)
+    add(NOTICE_ACTION)
+    add(NOTICE_COPY)
+    add(TIPS_UNAVAILABLE_COPY)
+    add(NOTICE_COPY.insufficientWallet())
+    add(NOTICE_COPY.insufficientTab())
+    add(NOTICE_COPY.withdrawalPending())
+    add([
+      SESSION_KEY_COPY.label,
+      SESSION_KEY_COPY.expired,
+      SESSION_KEY_COPY.revoked,
+      SESSION_KEY_COPY.revoke,
+      SESSION_KEY_COPY.renew,
+    ])
+    add(quoteCopy('under-a-cent'))
+    for (const kind of [
+      'checking',
+      'signed-out',
+      'no-wallet',
+      'disconnected',
+      'locked',
+      'unverified',
+    ] as const) {
+      add(gateCopy(kind))
+    }
+    add(gateCopy('wrong-network', { walletNetwork: 'Mainnet' }))
+    // Templates: the doc shows them with {placeholders}.
+    const templates = [
+      tabCloseConfirmed('{date}').detail,
+      NOTICE_COPY.withdrawalPending('{date}').title,
+      NOTICE_COPY.insufficientWallet('{needed}', '{available}').detail,
+      NOTICE_COPY.insufficientTab('{available}').detail,
+      NOTICE_COPY.nftThreshold('{tipped}', '{threshold}').title,
+      NOTICE_COPY.nftThreshold('{tipped}', '{threshold}').detail,
+      basketConfirmed(2).detail.replace('2', '{n}'),
+      STEP_COPY.checking('{place}'),
+      SESSION_KEY_COPY.expires('{date}'),
+      SESSION_KEY_COPY.used('{used}', '{limit}'),
+      quoteCopy('{usd}'),
+    ]
+    for (const t of templates) strings.add(t)
+    const missing = [...strings].filter((value) => !doc.includes(value))
+    expect(missing).toEqual([])
+  })
+})
