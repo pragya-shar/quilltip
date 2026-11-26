@@ -8,6 +8,7 @@
  */
 import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Buffer } from 'buffer'
 import {
   Address,
   Keypair,

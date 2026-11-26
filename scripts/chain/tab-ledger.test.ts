@@ -7,6 +7,7 @@
  */
 import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Buffer } from 'buffer'
 import { Address, nativeToScVal, xdr } from '@stellar/stellar-sdk'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
