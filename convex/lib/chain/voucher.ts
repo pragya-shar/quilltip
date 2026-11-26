@@ -11,6 +11,7 @@
  */
 import { ConvexError } from 'convex/values'
 import { Keypair, StrKey, hash } from '@stellar/stellar-sdk'
+import { Buffer } from 'buffer'
 import {
   acceptancePayloadBytes,
   merkleRoot,

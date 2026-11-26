@@ -8,6 +8,7 @@
  *   contract's own `voucher_payload` output.
  */
 import { describe, expect, it } from 'vitest'
+import { Buffer } from 'buffer'
 
 import shared from '../../contracts/shared/test-vectors.json'
 import tab from '../../contracts/tab/test-vectors.json'
