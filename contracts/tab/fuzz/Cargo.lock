@@ -1308,6 +1308,7 @@ name = "quilltip-shared"
 version = "2.0.0"
 dependencies = [
  "soroban-sdk",
+ "stellar-access",
  "stellar-contract-utils",
 ]
 
