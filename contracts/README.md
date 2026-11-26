@@ -153,3 +153,53 @@ skeletons. CI builds each commit twice and compares the hashes.
 | `quilltip_core.wasm`        |   576 |
 | `quilltip_tab.wasm`         |   572 |
 | `quilltip_article_nft.wasm` | 33853 |
+
+## TypeScript bindings
+
+`lib/stellar/v2/bindings/{core,tab,nft}` holds client bindings generated from
+the built Wasm with the SDK's `stellar-js generate`. Do not edit them by hand.
+After a contract interface change, build the Wasm and regenerate:
+
+```bash
+bun scripts/contracts/bindings.ts --wasm-dir contracts/target/wasm32v1-none/release
+```
+
+CI regenerates the bindings from the reproducible build with `--check` and
+fails when the committed files differ.
+
+`lib/stellar/v2/tab/encoding.ts` builds voucher payloads, acceptance payloads,
+tip receipts and Merkle proofs in TypeScript. `scripts/chain/tab-encoding.test.ts`
+checks it against the Rust test vectors.
+
+`lib/stellar/v2/ids.ts` derives `article_ref` and the author-bound
+`article_id` as bytes for calls through the bindings.
+`scripts/chain/v2-ids.test.ts` checks it against the same vectors and against
+`convex/lib/chain/ids.ts`.
+
+## Local network integration
+
+The suite in `scripts/integration` deploys Core, Tab and the article NFT to a
+local Stellar Quickstart network and runs every flow through the generated
+bindings: registration, direct, highlight, split and batch tips, tab deposits,
+session keys, vouchers, `settle`, `settle_own`, claims, the withdrawal lock,
+NFT mint and transfer, pause, and an upgrade with `migrate`. It asserts events
+and balances to the stroop and records fees and resource use. It needs Docker
+and the Stellar CLI 30.x.
+
+```bash
+bun run test:local-network
+```
+
+The runner refuses to start unless the network guard resolves to `LOCAL`
+(standalone passphrase, RPC on localhost). It starts a digest-pinned Quickstart
+container named `quilltip-local-network` when no local RPC answers. Add
+`--stop` to remove the container afterwards. It writes `measurements.json`,
+`events.json` and `event-fixtures.json` to `contracts/target/integration`, or
+to the directory given with `--out <dir>`.
+`scripts/integration/summary.ts <dir>` prints the fee table.
+`scripts/chain/fixtures/v2-local-events.json` is a copy of
+`event-fixtures.json` for the Convex tests.
+
+A local network cannot reach the 120-day TTL or the three-day withdrawal
+delay, so archived-entry restores and completed withdrawals stay covered by
+the contract unit tests.
