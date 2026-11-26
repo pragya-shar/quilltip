@@ -30,6 +30,13 @@ import {
 import { canonical, deploySalt } from './deploy-v2/steps'
 import type { DeployState } from './deploy-v2/state'
 import { main, parseArgs } from './deploy-v2-testnet'
+import {
+  CONVEX_ENV_NAMES,
+  INTEGRATION_CONVEX_DEPLOYMENT,
+  convexCliEnv,
+  stepConvexEnv,
+} from './deploy-v2/convex-env'
+import * as keys from './deploy-v2/keys'
 
 const TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015'
 const MAINNET_PASSPHRASE = 'Public Global Stellar Network ; September 2015'
@@ -437,5 +444,89 @@ describe('the evidence document', () => {
     expect(doc).toContain(secret.publicKey())
     expect(doc).not.toContain(secret.secret())
     expect(doc).toContain('testnet')
+  })
+})
+
+describe('the integration Convex env step', () => {
+  const ctx = {
+    net: resolveDeployNetwork(TESTNET_ENV),
+    configDir: '/keys',
+    env: TESTNET_ENV,
+  }
+  const settler = Keypair.random()
+  const acceptor = Keypair.random()
+  const verified = {
+    version: 1 as const,
+    set: 'integration' as const,
+    network: 'TESTNET' as const,
+    passphrase: TESTNET_PASSPHRASE,
+    nativeSac: 'CSAC',
+    contracts: {
+      core: {
+        id: 'CCORE',
+        salt: '',
+        tx: { hash: 'h', ledger: 4242, feeCharged: '1' },
+      },
+      tab: { id: 'CTAB', salt: '', tx: null },
+      nft: { id: 'CNFT', salt: '', tx: null },
+    },
+    verify: { at: '', checks: [], ok: true },
+  }
+
+  it('never targets the live deployment', () => {
+    expect(() => convexCliEnv('upbeat-mockingbird-579', TESTNET_ENV)).toThrow(
+      /live deployment/
+    )
+    expect(
+      convexCliEnv(INTEGRATION_CONVEX_DEPLOYMENT, TESTNET_ENV).CONVEX_DEPLOYMENT
+    ).toBe(`dev:${INTEGRATION_CONVEX_DEPLOYMENT}`)
+  })
+
+  it('runs only for the integration set on testnet', async () => {
+    await expect(
+      stepConvexEnv(ctx, { ...verified, set: 'live' }, () => {})
+    ).rejects.toThrow(/integration set on testnet/)
+    await expect(
+      stepConvexEnv(ctx, { ...verified, network: 'LOCAL' }, () => {})
+    ).rejects.toThrow(/integration set on testnet/)
+  })
+
+  it('sets nothing when the backend is not on testnet', async () => {
+    const run = vi.fn(() => ({ status: 0, stdout: 'MAINNET' }))
+    await expect(stepConvexEnv(ctx, verified, () => {}, run)).rejects.toThrow(
+      /STELLAR_NETWORK=TESTNET/
+    )
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+
+  it('passes values on stdin and never logs them', async () => {
+    vi.spyOn(keys, 'signer').mockImplementation((_ctx, name) =>
+      name.endsWith('settler') ? settler : acceptor
+    )
+    const calls: Array<{ args: string[]; input?: string }> = []
+    const run = vi.fn((args: string[], _env: unknown, input?: string) => {
+      calls.push({ args, input })
+      return { status: 0, stdout: args[1] === 'get' ? 'TESTNET' : '' }
+    })
+    const logs: string[] = []
+    await expect(
+      stepConvexEnv(ctx, verified, (l) => logs.push(l), run)
+    ).resolves.toEqual([...CONVEX_ENV_NAMES])
+    const sets = calls.filter((c) => c.args[1] === 'set')
+    expect(sets.map((c) => c.args)).toEqual(
+      CONVEX_ENV_NAMES.map((n) => ['env', 'set', n])
+    )
+    expect(sets.map((c) => c.input)).toEqual([
+      'CCORE',
+      'CTAB',
+      'CNFT',
+      'CSAC',
+      '4242',
+      settler.secret(),
+      acceptor.secret(),
+    ])
+    const printed = JSON.stringify({ logs, args: calls.map((c) => c.args) })
+    expect(printed).not.toContain(settler.secret())
+    expect(printed).not.toContain(acceptor.secret())
   })
 })

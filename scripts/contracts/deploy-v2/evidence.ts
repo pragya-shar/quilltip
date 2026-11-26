@@ -2,7 +2,8 @@
  * Writes the deployment evidence (section 8.4, step 9): one Markdown section
  * per contract set, built only from the public state. No secret is read.
  */
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { dirname } from 'path'
 
 import {
   CONTRACTS,
@@ -153,6 +154,13 @@ export function renderSection(
       )
     lines.push('')
   }
+  if (state.convexEnv) {
+    lines.push('### Integration Convex deployment', '')
+    lines.push(
+      `On ${state.convexEnv.at}, these variables were set on the integration Convex deployment (values for public IDs are listed above; secrets are not recorded): ${state.convexEnv.names.map((n) => `\`${n}\``).join(', ')}. \`CHAIN_V2_ENABLED\` and \`SETTLEMENT_ENABLED\` were left unchanged.`
+    )
+    lines.push('')
+  }
   return lines.join('\n')
 }
 
@@ -172,5 +180,6 @@ export function writeEvidence(
     from !== -1 && to > from
       ? `${doc.slice(0, from)}${section}${doc.slice(to + end.length)}`
       : `${doc.trimEnd()}\n\n${section}\n`
+  mkdirSync(dirname(path), { recursive: true })
   writeFileSync(path, doc)
 }

@@ -60,6 +60,8 @@ export type DeployState = {
   smoke?: Record<string, SmokeRecord>
   /** Values the smoke flows pass between steps (IDs, key IDs). Public. */
   smokeData?: Record<string, string>
+  /** Names (never values) set on the integration Convex deployment. */
+  convexEnv?: { at: string; names: string[] }
 }
 
 export function loadState(

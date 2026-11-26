@@ -24,10 +24,11 @@ import { execFileSync } from 'child_process'
 import { join, resolve } from 'path'
 
 import { SETS, type ContractSet } from './deploy-v2/config'
+import { stepConvexEnv } from './deploy-v2/convex-env'
 import { writeEvidence } from './deploy-v2/evidence'
 import { assertKeysDirOutsideRepo, restrictKeyFiles } from './deploy-v2/keys'
 import { resolveDeployNetwork, type CliContext } from './deploy-v2/network'
-import { loadState } from './deploy-v2/state'
+import { loadState, saveState } from './deploy-v2/state'
 import {
   gitCommitOnBase,
   stepBuild,
@@ -47,6 +48,7 @@ export const STEPS = [
   'verify',
   'smoke',
   'evidence',
+  'convex-env',
 ] as const
 type Step = (typeof STEPS)[number]
 
@@ -64,7 +66,7 @@ export type DeployOptions = {
 
 const USAGE = `Usage: bun scripts/contracts/deploy-v2-testnet.ts --set integration|live --commit <sha> --keys-dir <dir> [options]
 
-  --steps <list>       Comma-separated subset of ${STEPS.join(',')} (default: all)
+  --steps <list>       Comma-separated subset of ${STEPS.join(',')} (default: all but convex-env)
   --base-ref <ref>     A testnet commit must be on this ref (default: origin/overhaul/v2)
   --state-file <path>  Default: <keys-dir>/<set>/deploy-state.json
   --build-dir <dir>    Default: <keys-dir>/<set>/build
@@ -92,7 +94,9 @@ export function parseArgs(argv: string[]): DeployOptions {
     throw new Error(`--commit must be a full 40-character commit SHA\n${USAGE}`)
   const keysDir = values.get('keys-dir')
   if (!keysDir) throw new Error(`--keys-dir is required\n${USAGE}`)
-  const steps = (values.get('steps') ?? STEPS.join(','))
+  const steps = (
+    values.get('steps') ?? STEPS.filter((s) => s !== 'convex-env').join(',')
+  )
     .split(',')
     .map((s) => s.trim())
   for (const step of steps) {
@@ -202,6 +206,11 @@ export async function main(
     )
     writeEvidence(evidence, s.state, net, toolVersions())
     log(`evidence: ${evidence}`)
+  }
+  if (run.has('convex-env')) {
+    const names = await stepConvexEnv(ctx, s.state, log)
+    s.state.convexEnv = { at: new Date().toISOString(), names }
+    saveState(statePath, s.state)
   }
   restrictKeyFiles(setDir)
 }
