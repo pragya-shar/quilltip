@@ -56,6 +56,9 @@ jobs:
       - name: Waitlist, feedback and analytics regressions
         run: bun run test:beta
 
+      - name: Payments v2 chain layer regressions
+        run: bun run test:chain
+
       - name: Dependency compatibility regressions
         run: bun run test:dependency-compatibility
 

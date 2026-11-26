@@ -226,6 +226,27 @@ are limited to 3 per email per hour and 50 per 10 minutes overall, and wrong
 codes count toward Convex Auth's failed sign-in limit. A completed reset signs
 out other sessions and returns the person to log in.
 
+### Payments v2
+
+The v2 chain layer (`convex/chain/`, `convex/lib/chain/`) is off until
+cutover. Its Convex variables, all testnet:
+
+- `CHAIN_V2_ENABLED`: `true` lets v2 prepare functions create records. Leave
+  it `false` (or unset) until cutover. Verification and recheck run either
+  way, so records created before a rollback still resolve.
+- `CHAIN_EPOCH`: names this deployment's v2 contract set, for example
+  `testnet-2026-12-01`. Every new chain row carries it.
+- `CORE_CONTRACT_ID`, `TAB_CONTRACT_ID`, `NFT_CONTRACT_ID`,
+  `TOKEN_CONTRACT_ID`: this deployment's own contract set; the token is the
+  native XLM SAC.
+- `STELLAR_RPC_URL`: optional; defaults to the public testnet RPC.
+
+Every function that reads the chain calls `assertBackendTestnet()` first. The
+`recheck pending chain submissions` cron (2 minutes) and the
+`refresh chain config` cron (1 hour) do nothing while no v2 submission is open
+or no contract is configured. The one-time backfill
+`chain/backfill:setContractVersionV1` is a dry run unless `apply` is `true`.
+
 ## Checks and browser tests
 
 Run `bun run check` for the local code/tooling gate; `package.json` lists individual
