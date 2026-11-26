@@ -290,7 +290,7 @@ export const submitHighlightTip = mutation({
       const existingForIntent = await ctx.db.get(intent.tipId)
       if (
         existingForIntent &&
-        normalizeStellarTransactionHash(existingForIntent.stellarTxId) ===
+        normalizeStellarTransactionHash(existingForIntent.stellarTxId ?? '') ===
           stellarTxId
       ) {
         return existingForIntent._id

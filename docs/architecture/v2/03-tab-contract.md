@@ -49,12 +49,10 @@ pub struct SessionKey {
 pub struct Voucher {
     pub reader: Address, pub writer: Address, pub key_id: u32,
     pub cumulative: i128, pub receipts_root: BytesN<32>,
-    pub signature: BytesN<64>,           // session key over VoucherPayload
-    pub acceptance: Option<Acceptance>,  // required by settle_own; ignored by settle
+    pub signature: BytesN<64>,                    // session key over VoucherPayload
+    pub acceptor: Option<BytesN<32>>,             // acceptor public key; required by settle_own, ignored by settle
+    pub acceptance_signature: Option<BytesN<64>>, // acceptor key over AcceptancePayload; present exactly when acceptor is
 }
-
-#[contracttype] #[derive(Clone)]
-pub struct Acceptance { pub acceptor: BytesN<32>, pub signature: BytesN<64> } // acceptor key over AcceptancePayload
 
 #[contracttype] #[derive(Clone)]
 pub struct VoucherPayload { // signed bytes = XDR of this struct
@@ -69,6 +67,11 @@ pub struct AcceptancePayload { pub domain: Symbol, pub payload_hash: BytesN<32> 
 #[contracttype] #[derive(Clone)]
 pub struct SettleSummary { pub settled: u32, pub skipped: u32, pub gross: i128, pub fee: i128 }
 ```
+
+The acceptance is two optional fields rather than one `Option<Acceptance>`
+struct. The `soroban-sdk` 28 test utilities cannot convert an `Option` of a
+user-defined struct to XDR, so that shape cannot be tested. A voucher with only
+one of the two fields set is treated as not accepted.
 
 Testnet configuration at deploy:
 
@@ -179,9 +182,9 @@ fn settle_own(e: Env, writer: Address, vouchers: Vec<Voucher>) -> SettleSummary
   - Batch size and the abort conditions of `settle` apply.
 - **Per-voucher order:**
   1. Steps 1 to 3 of `settle`, which can skip with `KEY_UNKNOWN`, `KEY_EXPIRED` or `STALE`. The windows are the same, including `SETTLE_GRACE`.
-  2. `acceptance` MUST be `Some`, and `acceptance.acceptor` MUST be in `acceptor_keys`. Otherwise skip with `NOT_ACCEPTED`.
+  2. `acceptor` and `acceptance_signature` MUST both be `Some`, and `acceptor` MUST be in `acceptor_keys`. Otherwise skip with `NOT_ACCEPTED`.
   3. Session-key signature check, as in step 4 of `settle`.
-  4. `ed25519_verify(acceptance.acceptor, xdr(AcceptancePayload{ACCEPT_DOMAIN, sha256(voucher payload bytes)}), acceptance.signature)`.
+  4. `ed25519_verify(acceptor, xdr(AcceptancePayload{ACCEPT_DOMAIN, sha256(voucher payload bytes)}), acceptance_signature)`.
   5. Steps 5 to 10 of `settle`, with `by_writer = true`.
 - **Abort conditions** (the whole call fails and nothing settles), in addition to those of `settle`:
   - `WrongWriter`
