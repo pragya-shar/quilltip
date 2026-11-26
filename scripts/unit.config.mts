@@ -11,7 +11,8 @@ export default defineConfig({
       'scripts/health/*.test.ts',
       'scripts/wallet/*.test.ts',
       'scripts/stellar/*.test.ts',
-      'scripts/chain/*.test.ts',
+      // The other scripts/chain suites run in the edge runtime (test:chain).
+      'scripts/chain/canonical-article.test.ts',
       'scripts/pr-hygiene/*.test.ts',
     ],
   },

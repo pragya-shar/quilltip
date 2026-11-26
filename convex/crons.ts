@@ -57,4 +57,21 @@ crons.interval(
   internal.readingRoomIndex.backfill
 )
 
+// Payments v2: resolve submissions whose verification window has passed
+// (rule (a) through RPC, rule (b) from indexed events, then the expiry rule).
+// Does nothing while no v2 submission is open.
+crons.interval(
+  'recheck pending chain submissions',
+  { minutes: 2 },
+  internal.chain.submissions.recheckPending
+)
+
+// Payments v2: cache Core, Tab and NFT views. Does nothing until
+// CORE_CONTRACT_ID is set.
+crons.interval(
+  'refresh chain config',
+  { hours: 1 },
+  internal.chain.config.refreshChainConfig
+)
+
 export default crons

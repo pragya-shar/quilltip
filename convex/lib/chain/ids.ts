@@ -110,3 +110,50 @@ export async function articleContentHashHex(
 ): Promise<string> {
   return bytesToHex(await articleContentHash(article))
 }
+
+/** Prefix of the `article_id` preimage. */
+export const ARTICLE_ID_PREFIX = 'quilltip:article:v1:'
+
+/** `article_id`: SHA-256 of `"quilltip:article:v1:" + <Convex articles _id>`. */
+export async function articleIdHex(convexArticleId: string): Promise<string> {
+  if (!convexArticleId) throw new CanonicalArticleError('articleId is empty')
+  return bytesToHex(
+    await sha256(new TextEncoder().encode(ARTICLE_ID_PREFIX + convexArticleId))
+  )
+}
+
+/**
+ * `highlight_id`: full SHA-256 of the v1 highlight string
+ * `"{slug}:{start}:{end}:{text[0..50]}"` (see `convex/lib/highlightHash.ts`).
+ * The 28-hex v1 Convex ID is the first 14 bytes of this digest.
+ */
+export async function highlightIdHex(highlightSource: string): Promise<string> {
+  return bytesToHex(await sha256(new TextEncoder().encode(highlightSource)))
+}
+
+/** Length of `client_ref` in bytes. */
+export const CLIENT_REF_BYTES = 16
+
+/** A new random `client_ref` (16 bytes) as 32 lower-case hex characters. */
+export function newClientRefHex(): string {
+  const bytes = new Uint8Array(CLIENT_REF_BYTES)
+  crypto.getRandomValues(bytes)
+  return bytesToHex(bytes)
+}
+
+/** True for lower-case hex of exactly `bytes` bytes. */
+export function isHexOfLength(value: string, bytes: number): boolean {
+  return value.length === bytes * 2 && /^[0-9a-f]+$/.test(value)
+}
+
+/** Parses lower- or upper-case hex into bytes. */
+export function hexToBytes(hex: string): Uint8Array {
+  if (hex.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(hex)) {
+    throw new CanonicalArticleError('invalid hex')
+  }
+  const out = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
+  }
+  return out
+}

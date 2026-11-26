@@ -56,7 +56,7 @@ export function resolveHorizonUrl(network: string | undefined): string {
   return backendVerificationHorizonUrl(network, { allowOverride: true })
 }
 
-export function resolveIntentHorizonUrl(network: string): string {
+export function resolveIntentHorizonUrl(network: string | undefined): string {
   return backendVerificationHorizonUrl(network, { allowOverride: false })
 }
 
@@ -212,7 +212,7 @@ export const verifyHighlightTip = internalAction({
 
     const isLegacyCompatibility = intent.legacyCompatibility === true
     const exactResult = await verifyTipTransaction(fetch, {
-      txId: tip.stellarTxId,
+      txId: tip.stellarTxId ?? '',
       expectedSource: tip.expectedSourceAccount,
       horizonUrl: resolveIntentHorizonUrl(tip.stellarNetwork),
       minCreatedAtMs:
@@ -378,7 +378,9 @@ export const confirmVerifiedHighlightTip = internalMutation({
       return
     }
 
-    const normalizedTxId = normalizeStellarTransactionHash(tip.stellarTxId)
+    const normalizedTxId = normalizeStellarTransactionHash(
+      tip.stellarTxId ?? ''
+    )
     if (!normalizedTxId) {
       await ctx.db.patch(args.id, {
         status: 'FAILED',
