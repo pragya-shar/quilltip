@@ -147,6 +147,9 @@ test('a save that arrives after publishing is rejected and keeps the slug', asyn
     ctx.db.patch(ids.author, {
       stellarAddress:
         'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H',
+      // The writer proved control of this address on testnet.
+      stellarAddressVerifiedAt: 1,
+      stellarAddressVerifiedNetwork: 'Test SDF Network ; September 2015',
     })
   )
   await author.mutation(api.articles.publishArticle, { id: ids.article })
@@ -187,6 +190,9 @@ test('a locked article keeps its tag links and reading-room entry', async () => 
     ctx.db.patch(ids.author, {
       stellarAddress:
         'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H',
+      // The writer proved control of this address on testnet.
+      stellarAddressVerifiedAt: 1,
+      stellarAddressVerifiedNetwork: 'Test SDF Network ; September 2015',
     })
   )
   await author.mutation(api.articles.publishArticle, { id: ids.article })
