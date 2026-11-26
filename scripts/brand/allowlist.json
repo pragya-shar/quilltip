@@ -1,0 +1,72 @@
+[
+  {
+    "class": "C",
+    "match": "QuillTip Article",
+    "reason": "The NFT collection name stored on chain by the deployed NFT contract. Token metadata names and the deploy constant must equal it."
+  },
+  {
+    "class": "C",
+    "path": "convex/lib/walletChallenge.ts",
+    "match": "QuillTip asks you to prove you control this Stellar account.",
+    "reason": "Wallet challenge text. The server rebuilds it from the stored challenge and checks the wallet signature over it, so a challenge issued before a deploy and answered after it (5 minute lifetime) would fail."
+  },
+  {
+    "class": "C",
+    "path": "convex/lib/walletChallenge.ts",
+    "match": "QuillTip user: ",
+    "reason": "Wallet challenge text. The server rebuilds it from the stored challenge and checks the wallet signature over it, so a challenge issued before a deploy and answered after it (5 minute lifetime) would fail."
+  },
+  {
+    "class": "C",
+    "path": "lib/stellar/practice.ts",
+    "match": "'QuillTip wallet practice'",
+    "reason": "Memo inside the signed practice transaction, written on chain. The SDK parity baseline records it."
+  },
+  {
+    "class": "C",
+    "path": "scripts/stellar/fixtures/sdk-baseline.json",
+    "match": "\"QuillTip wallet practice\"",
+    "reason": "Recorded observation of the practice transaction memo, compared by the SDK parity test."
+  },
+  {
+    "class": "B",
+    "path": "scripts/contracts/bindings.ts",
+    "match": "className: 'QuillTip",
+    "reason": "Contract names passed to stellar-js generate for lib/stellar/v2/bindings/. A change alters generated code that is owned with the contracts."
+  },
+  {
+    "class": "D",
+    "path": "contracts/",
+    "reason": "Contract sources and tests. A change to Rust sources can change the built Wasm and its hash; the deployed contract set is fixed."
+  },
+  {
+    "class": "D",
+    "path": "lib/stellar/v2/bindings/",
+    "reason": "Generated from the contract Wasm by scripts/contracts/bindings.ts. Do not edit by hand."
+  },
+  {
+    "class": "D",
+    "path": "docs/architecture/v2/",
+    "reason": "The payments v2 specification, maintained by its owners."
+  },
+  {
+    "class": "D",
+    "match": "pragya-shar/QuillTip",
+    "reason": "The repository path. In the reproducible build it is embedded in the contract Wasm metadata."
+  },
+  {
+    "class": "E",
+    "path": "public/images/banner.png",
+    "reason": "Drawn wordmark reads \"QuillTip\". Needs a redrawn image; not referenced by app code."
+  },
+  {
+    "class": "E",
+    "path": "public/images/quilltip-cover.jpg",
+    "reason": "Drawn wordmark reads \"QuillTip\". Needs a redrawn image; not referenced by app code."
+  },
+  {
+    "class": "tool",
+    "path": "scripts/brand/",
+    "reason": "The spelling tool names the old spellings in its rules, allowlist and tests."
+  }
+]

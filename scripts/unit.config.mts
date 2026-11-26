@@ -14,6 +14,7 @@ export default defineConfig({
       // The other scripts/chain suites run in the edge runtime (test:chain).
       'scripts/chain/canonical-article.test.ts',
       'scripts/pr-hygiene/*.test.ts',
+      'scripts/brand/*.test.ts',
       'scripts/contracts/*.test.ts',
       'scripts/nft/*.test.ts',
       // Browser tab modules over fake-indexeddb and Node WebCrypto.
