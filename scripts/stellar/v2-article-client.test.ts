@@ -8,9 +8,11 @@ import {
   Account,
   Keypair,
   Networks,
+  SorobanDataBuilder,
   TransactionBuilder,
   rpc,
   scValToNative,
+  xdr,
   type Transaction,
 } from '@stellar/stellar-sdk'
 import { describe, expect, it } from 'vitest'
@@ -25,6 +27,7 @@ import {
   contractErrorCode,
   contractErrorMessage,
   describeContractFailure,
+  raisingContract,
 } from '../../lib/stellar/v2/errors'
 import { readV2Config } from '../../lib/stellar/v2/config'
 import {
@@ -58,12 +61,49 @@ const SIGNER = signer.publicKey()
 const COAUTHOR = Keypair.random().publicKey()
 const CONVEX_ID = 'k17abc123article'
 
+const TOKEN = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'
+const CONTRACTS = { core: CORE, token: TOKEN }
+
+/** A diagnostic `error` event as RPC returns it (XDR JSON shape). */
+function errorEvent(contractId: string | null, code: number) {
+  return {
+    in_successful_contract_call: false,
+    event: {
+      contract_id: contractId,
+      type: 'diagnostic',
+      body: {
+        v0: { topics: [{ symbol: 'error' }, { error: { contract: code } }] },
+      },
+    },
+  }
+}
+
+function callEvent(fn: string) {
+  return {
+    in_successful_contract_call: false,
+    event: {
+      contract_id: null,
+      type: 'diagnostic',
+      body: {
+        v0: {
+          topics: [{ symbol: 'fn_call' }, { bytes: '00' }, { symbol: fn }],
+        },
+      },
+    },
+  }
+}
+
 describe('errors', () => {
   it('maps every contract error code in the bindings', () => {
-    for (const source of [CoreError, TabError, NftError]) {
+    for (const [source, kind] of [
+      [CoreError, 'core'],
+      [TabError, 'tab'],
+      [NftError, 'nft'],
+    ] as const) {
       for (const [code, { message: name }] of Object.entries(source)) {
-        const info = contractErrorMessage(Number(code))
+        const info = contractErrorMessage(Number(code), kind)
         expect(info.name).toBe(name)
+        expect(info.contract).toBe(kind)
         expect(info.message.length).toBeGreaterThan(10)
       }
     }
@@ -73,28 +113,92 @@ describe('errors', () => {
   })
 
   it('gives Core registration errors specific messages', () => {
-    expect(contractErrorMessage(2)).toMatchObject({
+    expect(contractErrorMessage(2, 'core')).toMatchObject({
       name: 'AlreadyRegistered',
       message:
         'Tips are already on for this article. Refresh the page to see them.',
     })
-    expect(contractErrorMessage(19).name).toBe('NoPendingAuthor')
-    expect(contractErrorMessage(1000).name).toBe('EnforcedPause')
+    expect(contractErrorMessage(19, 'core').name).toBe('NoPendingAuthor')
+    expect(contractErrorMessage(1000, 'core').name).toBe('EnforcedPause')
+    expect(contractErrorMessage(1000, 'tab').name).toBe('EnforcedPause')
   })
 
-  it('reads the code from a simulation message', () => {
+  it('reads the code and decodes it with the raising contract', () => {
     const text =
       'HostError: Error(Contract, #4)\n\nEvent log (newest first): ...'
     expect(contractErrorCode(text)).toBe(4)
-    expect(describeContractFailure(text).name).toBe('InvalidSplits')
+    expect(
+      describeContractFailure(text, { raisedBy: CORE, contracts: CONTRACTS })
+        .name
+    ).toBe('InvalidSplits')
     expect(contractErrorCode('no code here')).toBeNull()
-    expect(describeContractFailure('txInsufficientBalance').message).toMatch(
-      /testnet XLM/
-    )
   })
 
-  it('falls back to a generic message for an unknown code', () => {
-    expect(contractErrorMessage(9999)).toMatchObject({ name: null })
+  it('decodes a native XLM shortfall as a token balance error, not Core #10', () => {
+    // From a read-only testnet simulation of the native SAC `transfer`.
+    const text = 'HostError: Error(Contract, #10)'
+    const events = [
+      callEvent('tip'),
+      callEvent('transfer'),
+      errorEvent(TOKEN, 10),
+      errorEvent(CORE, 10),
+    ]
+    expect(raisingContract(events)).toBe(TOKEN)
+    const info = describeContractFailure(text, {
+      raisedBy: raisingContract(events),
+      contracts: CONTRACTS,
+    })
+    expect(info).toMatchObject({
+      code: 10,
+      name: 'BalanceError',
+      contract: 'token',
+    })
+    expect(info.message).toMatch(/enough testnet XLM/)
+    expect(info.name).not.toBe('DuplicateClientRef')
+  })
+
+  it('is generic when the raising contract is unknown', () => {
+    const text = 'HostError: Error(Contract, #10)'
+    for (const source of [
+      undefined,
+      { raisedBy: null, contracts: CONTRACTS },
+      { raisedBy: 'CBOTHERCONTRACT', contracts: CONTRACTS },
+      { raisedBy: TOKEN, contracts: {} },
+    ]) {
+      expect(describeContractFailure(text, source)).toMatchObject({
+        code: 10,
+        name: null,
+        contract: null,
+        message: 'Stellar testnet refused the transaction. Nothing was sent.',
+      })
+    }
+    // A code outside the raising contract's own table is generic too.
+    expect(contractErrorMessage(10, 'tab').name).toBeNull()
+    expect(contractErrorMessage(9999, 'core')).toMatchObject({ name: null })
+  })
+
+  it('reads the raising contract from a real SDK diagnostic event', () => {
+    // The `error` event of a read-only testnet simulation of the native SAC
+    // `transfer` with more than the balance.
+    const event = xdr.DiagnosticEvent.fromXDR(
+      'AAAAAAAAAAAAAAAB15KLcsJwPM/q9+uf9O9NUEpVqLl5/JtFDqLIQrTRzmEAAAACAAAAAAAAAAIAAAAPAAAABWVycm9yAAAAAAAAAgAAAAAAAAAKAAAAEAAAAAEAAAAEAAAADgAAADFyZXN1bHRpbmcgYmFsYW5jZSBpcyBub3Qgd2l0aGluIHRoZSBhbGxvd2VkIHJhbmdlAAAAAAAABgAAAAAAmJaAAAAABoYWP/IfAYJoAAAABn//////////',
+      'base64'
+    )
+    expect(raisingContract([event])).toBe(TOKEN)
+  })
+
+  it('reads events with a toJSON method, as the SDK returns them', () => {
+    const wrapped = { toJSON: () => errorEvent(TOKEN, 10) }
+    expect(raisingContract([callEvent('transfer'), wrapped])).toBe(TOKEN)
+    expect(raisingContract([callEvent('transfer')])).toBeNull()
+    expect(raisingContract([null, 'x', 3])).toBeNull()
+  })
+
+  it('names a send failure caused by the fee balance', () => {
+    expect(describeContractFailure('txInsufficientBalance')).toMatchObject({
+      name: 'InsufficientFeeBalance',
+      message: expect.stringMatching(/testnet XLM/),
+    })
   })
 })
 
@@ -288,16 +392,34 @@ describe('transaction lifecycle', () => {
 
   function fakeServer(
     send: Array<Partial<rpc.Api.SendTransactionResponse>>,
-    opts: { simulateError?: string; poll?: string[] } = {}
+    opts: {
+      simulateError?: string
+      simulateEvents?: unknown[]
+      poll?: string[]
+    } = {}
   ) {
     const sent: string[] = []
     const polls = [...(opts.poll ?? [])]
     const server: RpcLike = {
       getAccount: async (id: string) => new Account(id, '10'),
-      prepareTransaction: async (tx) => {
-        if (opts.simulateError) throw new Error(opts.simulateError)
-        return tx as Transaction
-      },
+      simulateTransaction: async () =>
+        (opts.simulateError
+          ? {
+              id: '1',
+              latestLedger: 1,
+              _parsed: true,
+              events: opts.simulateEvents ?? [],
+              error: opts.simulateError,
+            }
+          : {
+              id: '1',
+              latestLedger: 1,
+              _parsed: true,
+              events: [],
+              transactionData: new SorobanDataBuilder(),
+              minResourceFee: '0',
+              result: { auth: [], retval: xdr.ScVal.scvVoid() },
+            }) as unknown as rpc.Api.SimulateTransactionResponse,
       sendTransaction: async (tx) => {
         sent.push((tx as Transaction).toXDR())
         const next = send.shift() ?? { status: 'PENDING' }
@@ -334,11 +456,31 @@ describe('transaction lifecycle', () => {
   it('stops at a simulation error and decodes the contract code', async () => {
     const { server, sent } = fakeServer([], {
       simulateError: 'HostError: Error(Contract, #19)',
+      simulateEvents: [errorEvent(CORE, 19)],
     })
-    const out = await sendContractCall({ server, sign }, call)
+    const out = await sendContractCall(
+      { server, sign, contracts: CONTRACTS },
+      call
+    )
     expect(out).toMatchObject({
       status: 'simulation_failed',
-      error: { code: 19, name: 'NoPendingAuthor' },
+      error: { code: 19, name: 'NoPendingAuthor', contract: 'core' },
+    })
+    expect(sent).toHaveLength(0)
+  })
+
+  it('decodes a token failure inside a Core call by its contract', async () => {
+    const { server, sent } = fakeServer([], {
+      simulateError: 'HostError: Error(Contract, #10)',
+      simulateEvents: [errorEvent(TOKEN, 10), errorEvent(CORE, 10)],
+    })
+    const out = await sendContractCall(
+      { server, sign, contracts: CONTRACTS },
+      call
+    )
+    expect(out).toMatchObject({
+      status: 'simulation_failed',
+      error: { code: 10, name: 'BalanceError', contract: 'token' },
     })
     expect(sent).toHaveLength(0)
   })
