@@ -5,6 +5,7 @@ import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { ArticleTipActionsProps } from '@/components/tipping/ArticleTipActionsShared'
 import { TipsUnavailableNote } from '@/components/tipping/TipsUnavailableNote'
+import { TipButtonSkeleton } from '@/components/articles/TipButtonSkeleton'
 
 // The tip flow (wallet, Stellar client, dialogs) loads after the page; the
 // parent Suspense shows the tip button skeleton until then, as before.
@@ -26,8 +27,10 @@ export function ArticleTipActionsInner({
   const availability = useQuery(api.chain.articles.getArticleTipAvailability, {
     articleId,
   })
+  // Until the answer arrives, show the skeleton rather than a tip button
+  // that may turn into a note.
+  if (availability === undefined) return <TipButtonSkeleton />
   if (
-    availability &&
     availability.status !== 'disabled' &&
     availability.status !== 'registered'
   ) {
