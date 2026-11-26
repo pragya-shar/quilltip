@@ -9,6 +9,7 @@
 
 mod access;
 mod mint;
+mod real_core;
 mod royalty;
 mod transfer;
 mod ttl_events;
