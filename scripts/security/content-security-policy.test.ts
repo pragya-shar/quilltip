@@ -87,7 +87,7 @@ describe('content security policy on proxy responses', () => {
     expect(nonces.size).toBe(20)
   })
 
-  it('limits connect-src to the Convex deployment, Stellar testnet and wallets', async () => {
+  it('limits connect-src to the Convex deployment and Stellar testnet', async () => {
     const connectSrc = policyOf(await pageResponse('/')).get('connect-src')
     expect(connectSrc).toEqual([
       "'self'",
@@ -96,9 +96,6 @@ describe('content security policy on proxy responses', () => {
       'https://horizon-testnet.stellar.org',
       'https://soroban-testnet.stellar.org',
       'https://friendbot.stellar.org',
-      'https://h4n.app',
-      'wss://relay.walletconnect.com',
-      'wss://relay.walletconnect.org',
     ])
   })
 
@@ -114,7 +111,6 @@ describe('content security policy on proxy responses', () => {
       'https://www.youtube.com',
       'https://www.youtube-nocookie.com',
       'https://albedo.link',
-      'https://hot-labs.org',
     ])
   })
 
@@ -176,5 +172,9 @@ describe('buildContentSecurityPolicy', () => {
   it('names no mainnet Stellar endpoint by default', () => {
     const policy = buildContentSecurityPolicy('abc', {})
     expect(policy).not.toMatch(/horizon\.stellar\.org|mainnet/)
+  })
+
+  it('allows no WalletConnect relay while WalletConnect is refused', () => {
+    expect(buildContentSecurityPolicy('abc', {})).not.toMatch(/walletconnect/)
   })
 })

@@ -26,19 +26,19 @@ Development serves no policy, because Fast Refresh evaluates code at run time.
 Production, with the Convex deployment and Stellar testnet values from
 `.env.example`:
 
-| Directive         | Sources                                                                                                                               |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `default-src`     | `'self'`                                                                                                                              |
-| `script-src`      | `'self'` `'nonce-…'` (Vercel previews add `https://vercel.live`)                                                                      |
-| `style-src`       | `'self'` `'unsafe-inline'`                                                                                                            |
-| `img-src`         | `'self'` `data:` `blob:`, the Convex deployment, `*.convex.cloud` `*.convex.site`, article image hosts, wallet icon CDNs              |
-| `font-src`        | `'self'`                                                                                                                              |
-| `connect-src`     | `'self'`, the Convex deployment (HTTPS and WebSocket), Stellar testnet Horizon, RPC and Friendbot, the configured RPC, wallet origins |
-| `frame-src`       | `'self'`, YouTube, `https://albedo.link`, `https://hot-labs.org`                                                                      |
-| `object-src`      | `'none'`                                                                                                                              |
-| `base-uri`        | `'none'`                                                                                                                              |
-| `form-action`     | `'self'`                                                                                                                              |
-| `frame-ancestors` | `'none'`                                                                                                                              |
+| Directive         | Sources                                                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `default-src`     | `'self'`                                                                                                                          |
+| `script-src`      | `'self'` `'nonce-…'` (Vercel previews add `https://vercel.live`)                                                                  |
+| `style-src`       | `'self'` `'unsafe-inline'`                                                                                                        |
+| `img-src`         | `'self'` `data:` `blob:`, the Convex deployment, `*.convex.cloud` `*.convex.site`, article image hosts, the wallet icon CDN       |
+| `font-src`        | `'self'`                                                                                                                          |
+| `connect-src`     | `'self'`, the Convex deployment (HTTPS and WebSocket), Stellar testnet Horizon, RPC and Friendbot, the configured Horizon and RPC |
+| `frame-src`       | `'self'`, YouTube, `https://albedo.link`                                                                                          |
+| `object-src`      | `'none'`                                                                                                                          |
+| `base-uri`        | `'none'`                                                                                                                          |
+| `form-action`     | `'self'`                                                                                                                          |
+| `frame-ancestors` | `'none'`                                                                                                                          |
 
 ### Scripts
 
@@ -59,21 +59,24 @@ preview toolbar keep working. No route uses `eval` or `new Function`.
   testnet RPC provider is therefore allowed as soon as it is configured; the
   same build that reads the new RPC URL lists it. The network guard in
   `lib/stellar/config.ts` refuses mainnet endpoints before any call.
-- Stellar Wallets Kit: the HOT Wallet relay (`https://h4n.app`) and the
-  WalletConnect relay used by Wallets Kit 2.x (`wss://relay.walletconnect.com`,
-  `wss://relay.walletconnect.org`).
+
+No WalletConnect relay is listed. The specification (section 6.8) names the
+Wallets Kit 2.x relay origins, but WalletConnect is refused at build time
+until it is tested (`lib/stellar/v2/walletconnect-gate.ts`). Add
+`wss://relay.walletconnect.com` and `wss://relay.walletconnect.org` in the
+change that enables it.
 
 Product analytics needs no entry: the browser sends events to the app's own
 `/api/analytics`, which relays them after consent.
 
 ### Wallets
 
-Browser-extension wallets (Freighter, LOBSTR, Rabet, Hana, Klever, xBull) talk
-to the page through `window` and `postMessage`, which the policy does not
-restrict. Albedo and xBull sign in popups. Albedo keeps an implicit-flow
-session in an iframe and HOT Wallet shows its widget in an iframe, so both are
-in `frame-src`. The wallet picker's icons load from `stellar.creit.tech` and
-`storage.herewallet.app`.
+Stellar Wallets Kit 2.x offers the modules in `lib/stellar/v2/wallet-kit.ts`.
+Extension wallets (Varial, LOBSTR, Rabet, Hana) talk to the page through
+`window` and `postMessage`, which the policy does not restrict. xBull and
+Albedo sign in popups. Albedo keeps an implicit-flow session in an iframe, so
+it is in `frame-src`. The wallet picker's icons load from
+`stellar.creit.tech`.
 
 ## Not tightened
 

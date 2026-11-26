@@ -69,7 +69,8 @@ export function WalletSetupHelp({
               is needed.
             </li>
             <li>
-              In Freighter, use the testnet funding prompt, or open{' '}
+              In Varial (formerly Freighter), use the testnet funding prompt, or
+              open{' '}
               <a
                 href="https://lab.stellar.org/account/fund"
                 target="_blank"
@@ -94,6 +95,12 @@ export function WalletSetupHelp({
               Never enter a secret key.
             </p>
           )}
+          <p>
+            Tips are Stellar smart contract (Soroban) transactions. Varial
+            (formerly Freighter) and xBull sign them. Support in other wallets
+            varies; if a wallet cannot sign a tip, connect Varial or xBull
+            instead.
+          </p>
           <p>
             Before approving a tip, check the recipient, amount, network, and
             fee in your wallet.

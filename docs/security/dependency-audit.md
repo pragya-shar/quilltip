@@ -12,7 +12,7 @@ The new [decoder advisory GHSA-qr28-fpjm-wq7f](https://github.com/advisories/GHS
 
 Override `follow-redirects` to upstream **1.16.2** for [GHSA-mrwp-f3q8-3g9p](https://github.com/advisories/GHSA-mrwp-f3q8-3g9p). This preserves Axios's 1.x dependency API while correctly handling cross-realm `sensitiveHeaders` arrays.
 
-`url-dependencies.test.ts` exercises the CommonJS query-string API, the 32,000-distinct-run denial-of-service payload in a time-bounded subprocess, and real loopback cross-origin redirects with cross-realm sensitive headers in both object and array header forms. Existing wallet, Arweave and rendering compatibility tests remain part of the same suite.
+`url-dependencies.test.ts` exercises real loopback cross-origin redirects with cross-realm sensitive headers in both object and array header forms. Existing wallet, Arweave and rendering compatibility tests remain part of the same suite.
 
 The live registry gate now reports **0 critical, 6 high, 5 moderate and 1 low** records. Neither new advisory remains. No audit code, thresholds or exceptions changed; the six existing exact exceptions were scheduled to expire on 2026-11-06. Earlier counts and decoder patch descriptions in this document are historical.
 
@@ -29,6 +29,8 @@ Use Bun 1.4.4, pinned in `packageManager` and CI. A local global upgrade is unne
 `bun run security:audit` scans the canonical lockfile, validates the registry report, and matches every high/critical advisory against actual installed versions. It rejects unreviewed findings, expired or incomplete exceptions, invalid ranges, unknown schemas, contradictory command status, and registry/command failures. Exceptions bind GHSA ID, package, exact installed version, exact vulnerable range and severity. Low/moderate counts remain visible and do not block under this issue's policy. This is intentionally stricter than a package-wide ignore list.
 
 CI's Dependency Audit job is now a dependency of the existing Required job and no longer uses `|| true`. Required fails when audit fails or is cancelled/skipped. Branch protection must already require the existing Required check for this to block merging; this change does not mutate repository settings. Audit reports can be saved with `--output /tmp/audit.json`; an existing report can be evaluated offline with `--report /tmp/audit.json`.
+
+Stellar Wallets Kit 2.8 no longer installs `query-string`, so its patch and the query-string compatibility tests were removed. The `decode-uri-component` override stays for any future consumer.
 
 ## Compatibility review of overrides
 

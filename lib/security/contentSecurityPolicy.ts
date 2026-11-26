@@ -38,28 +38,16 @@ export const STELLAR_TESTNET_ORIGINS = [
 ].map(originOf)
 
 /**
- * Stellar Wallets Kit. Browser-extension wallets (Freighter, LOBSTR, Rabet,
- * Hana, Klever, xBull) talk to the page through `window` and `postMessage`, so
- * they need no entry. The others:
- * - Albedo signs in a popup and keeps an implicit-flow session in an iframe.
- * - HOT Wallet shows its widget in an iframe and relays requests through its
- *   proxy API.
- * - The wallet picker shows icons from the kit's and HOT's CDNs.
- * - Wallets Kit 2.x connects WalletConnect wallets through the relay.
+ * Stellar Wallets Kit 2.x, with the modules in lib/stellar/v2/wallet-kit.ts.
+ * Extension wallets (Varial, LOBSTR, Rabet, Hana) talk to the page through
+ * `window` and `postMessage`, and xBull and Albedo sign in popups, so they
+ * need no connect entry. Albedo keeps an implicit-flow session in an iframe,
+ * and the wallet picker shows icons from the kit's CDN. WalletConnect is
+ * refused at build time (lib/stellar/v2/walletconnect-gate.ts), so its relay
+ * origins are not allowed.
  */
-export const WALLET_FRAME_ORIGINS = [
-  'https://albedo.link',
-  'https://hot-labs.org',
-]
-export const WALLET_CONNECT_ORIGINS = [
-  'https://h4n.app',
-  'wss://relay.walletconnect.com',
-  'wss://relay.walletconnect.org',
-]
-export const WALLET_IMAGE_ORIGINS = [
-  'https://stellar.creit.tech',
-  'https://storage.herewallet.app',
-]
+export const WALLET_FRAME_ORIGINS = ['https://albedo.link']
+export const WALLET_IMAGE_ORIGINS = ['https://stellar.creit.tech']
 
 /** Hosts of images in articles, covers and avatars. */
 const CONTENT_IMAGE_SOURCES = [
@@ -161,7 +149,6 @@ export function buildContentSecurityPolicy(
         ...configuredOrigin(env.NEXT_PUBLIC_HORIZON_URL),
         ...configuredOrigin(env.NEXT_PUBLIC_SOROBAN_RPC_URL),
         ...configuredOrigin(env.NEXT_PUBLIC_STELLAR_RPC_URL),
-        ...WALLET_CONNECT_ORIGINS,
       ]),
     ],
     [
