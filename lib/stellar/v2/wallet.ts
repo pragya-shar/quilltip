@@ -208,8 +208,19 @@ function isInsecureLocalhost(): boolean {
   )
 }
 
+/** Stellar mainnet. The adapter never signs for it (section 6.6). */
+const MAINNET_PASSPHRASE = 'Public Global Stellar Network ; September 2015'
+
 export function createWalletAdapter(options: WalletAdapterOptions) {
   const expected = options.networkPassphrase
+  // The client config already refuses mainnet; the adapter checks again so no
+  // signing request can be built for it even if that check is bypassed.
+  if (expected.trim() === MAINNET_PASSPHRASE) {
+    throw new WalletError(
+      'wrong-network',
+      'QuillTip does not sign for Stellar mainnet'
+    )
+  }
   const signTimeoutMs = options.signTimeoutMs ?? DEFAULT_SIGN_TIMEOUT_MS
   const networkTimeoutMs =
     options.networkTimeoutMs ?? DEFAULT_NETWORK_TIMEOUT_MS

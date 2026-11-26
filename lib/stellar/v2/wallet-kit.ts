@@ -9,8 +9,8 @@
  * WalletConnect (mobile wallets) is not supported yet. The kit's WalletConnect
  * module depends on Reown AppKit, which this app runs on zod 4 through a
  * package override (zod 3 has an unpatched advisory). That combination has
- * not been tested, so setting NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID makes the
- * wallet fail to start with a clear error instead of loading it silently.
+ * not been tested, so setting NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID stops the
+ * build and the server, and the wallet here (see `walletconnect-gate.ts`).
  */
 
 import type {
@@ -19,6 +19,7 @@ import type {
 } from '@creit.tech/stellar-wallets-kit/types'
 import { STELLAR_CONFIG } from '@/lib/stellar/config'
 import { createWalletAdapter, type KitBundle } from './wallet'
+import { assertWalletConnectNotConfigured } from './walletconnect-gate'
 
 export type { WalletConnection, WalletEvent, WalletSignResult } from './wallet'
 
@@ -43,21 +44,14 @@ export const QUILLTIP_WALLET_THEME: SwkAppTheme = {
   'font-family': "'Landing Syne', 'Account Syne', system-ui, sans-serif",
 }
 
-const WALLETCONNECT_PROJECT_ID =
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() || ''
-
-export const WALLETCONNECT_UNSUPPORTED_MESSAGE =
-  'WalletConnect is not supported yet: its Reown AppKit dependency has not been tested with the zod 4 override. Unset NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID.'
-
-/** Refuses to start when WalletConnect is configured (see the file comment). */
-function assertWalletConnectDisabled() {
-  if (!WALLETCONNECT_PROJECT_ID) return
-  console.error(`[wallet] ${WALLETCONNECT_UNSUPPORTED_MESSAGE}`)
-  throw new Error(WALLETCONNECT_UNSUPPORTED_MESSAGE)
-}
+export { WALLETCONNECT_UNSUPPORTED_MESSAGE } from './walletconnect-gate'
 
 export async function loadWalletKitBundle(): Promise<KitBundle> {
-  assertWalletConnectDisabled()
+  // The build refuses a project ID too (next.config.ts); this covers a bundle
+  // built before the gate existed.
+  assertWalletConnectNotConfigured(
+    process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+  )
   const [
     { StellarWalletsKit },
     { KitEventType },

@@ -65,3 +65,21 @@ it('refuses to start, without importing the module, when a project ID is set', a
   )
   expect(walletConnectImported.count).toBe(0)
 })
+
+it('stops the build, dev server and production start when a project ID is set', async () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+  vi.stubEnv('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID', 'qa-project-id')
+  await expect(import('../../../next.config')).rejects.toThrow(
+    'WalletConnect is not supported yet'
+  )
+  expect(errors).toHaveBeenCalledWith(
+    expect.stringContaining('WalletConnect is not supported yet')
+  )
+  errors.mockRestore()
+})
+
+it('loads the Next.js config when no project ID is set', async () => {
+  vi.stubEnv('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID', '')
+  const config = await import('../../../next.config')
+  expect(config.default).toBeTruthy()
+})

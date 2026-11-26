@@ -119,6 +119,16 @@ afterEach(() => {
 })
 
 describe('init', () => {
+  test('refuses to build an adapter for Stellar mainnet', () => {
+    expect(() =>
+      createWalletAdapter({
+        loadKit: async () => fakeKit().bundle,
+        networkPassphrase: 'Public Global Stellar Network ; September 2015',
+        storage: null,
+      })
+    ).toThrow(/does not sign for Stellar mainnet/)
+  })
+
   test('initialises the kit once with the configured network and theme', async () => {
     const fake = fakeKit()
     const theme = { primary: '#790333' } as never
