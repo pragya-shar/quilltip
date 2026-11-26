@@ -56,6 +56,9 @@ jobs:
       - name: Waitlist, feedback and analytics regressions
         run: bun run test:beta
 
+      - name: Payments v2 chain layer regressions
+        run: bun run test:chain
+
       - name: Dependency compatibility regressions
         run: bun run test:dependency-compatibility
 
@@ -217,6 +220,22 @@ jobs:
         run: |
           scripts/contracts/build-reproducible.sh --out "$RUNNER_TEMP/wasm-rebuild"
           diff "$RUNNER_TEMP/wasm/SHA256SUMS" "$RUNNER_TEMP/wasm-rebuild/SHA256SUMS"
+
+      # Tests marked #[ignore] run the CLI-built Wasm: resource tests under
+      # the mainnet limits, and the Core upgrade test (v1 Wasm to a test v2).
+      - name: Build the Core upgrade-test Wasm
+        working-directory: .
+        run: |
+          scripts/contracts/build-reproducible.sh --package quilltip-core \
+            --features upgrade-test --out "$RUNNER_TEMP/wasm-upgrade-test"
+
+      - name: Wasm-mode contract tests
+        run: |
+          dir="$RUNNER_TEMP/wasm-tests"
+          mkdir -p "$dir"
+          cp "$RUNNER_TEMP/wasm/"*.wasm "$dir/"
+          cp "$RUNNER_TEMP/wasm-upgrade-test/quilltip_core.wasm" "$dir/quilltip_core_upgrade_test.wasm"
+          QUILLTIP_WASM_DIR="$dir" cargo test --workspace --locked -- --ignored --nocapture
 
       - name: Record Wasm sizes and hashes
         working-directory: .
