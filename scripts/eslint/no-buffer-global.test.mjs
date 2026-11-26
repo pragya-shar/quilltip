@@ -33,6 +33,12 @@ tester.run('no-buffer-global', rule, {
   ],
   invalid: [
     { code: "Buffer.from('a')", errors: [err] },
+    // Only `typeof` is a safe feature check; other unary operators read it.
+    { code: 'if (!Buffer) {}', errors: [err] },
+    { code: 'const b = void Buffer', errors: [err] },
+    { code: 'const n = -Buffer', errors: [err] },
+    { code: 'if (!globalThis.Buffer) {}', errors: [err] },
+    { code: 'const b = void globalThis.Buffer', errors: [err] },
     {
       code: "/** doc */\nconst h = (b: Uint8Array) => Buffer.from(b).toString('hex')",
       errors: [err],
