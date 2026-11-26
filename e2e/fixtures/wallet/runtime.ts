@@ -41,13 +41,23 @@ window.__walletFixture = { prepared: 0, signedXdr: null, proofs: [] }
 const params = new URLSearchParams(location.search)
 
 // A throwaway testnet key for the emulated wallet (e2e/helpers/varialEmulator.ts).
-const fixtureKey = Keypair.random()
+// `?secret=` sets it, so a wallet window on another origin (the xBull web
+// wallet stand-in) can sign as the same account.
+const fixtureKey = params.get('secret')
+  ? Keypair.fromSecret(params.get('secret')!)
+  : Keypair.random()
 ;(window as unknown as { __fixtureWallet: unknown }).__fixtureWallet = {
   address: fixtureKey.publicKey(),
   signMessage: (message: string) =>
     btoa(String.fromCharCode(...fixtureKey.signMessage(message))),
   signTransaction: (xdr: string) => {
     const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET) as Transaction
+    tx.sign(fixtureKey)
+    return tx.toXDR()
+  },
+  /** Signs for `passphrase`, as a wallet set to that network does. */
+  signTransactionFor: (xdr: string, passphrase: string) => {
+    const tx = TransactionBuilder.fromXDR(xdr, passphrase) as Transaction
     tx.sign(fixtureKey)
     return tx.toXDR()
   },

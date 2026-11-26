@@ -6,6 +6,7 @@ import { WalletConnectButton } from '../../../components/stellar/WalletConnectBu
 import { TipButton } from '../../../components/tipping/TipButton'
 import type { Id } from '../../../types/convex'
 import { ReceivingWalletVerification } from '../../../components/stellar/ReceivingWalletVerification'
+import { InstallWalletDialog } from '../../../components/stellar/InstallWalletDialog'
 import '../../../components/account/account.css'
 import { AUTHOR } from './runtime'
 
@@ -26,6 +27,9 @@ function Fixture() {
         >
           <ReceivingWalletVerification />
         </section>
+      )}
+      {view === 'install' && (
+        <InstallWalletDialog open onOpenChange={() => {}} />
       )}
       <section aria-label="Wallet" className="mb-8">
         <WalletConnectButton />

@@ -18,7 +18,7 @@ function walletNote(option: WalletOption): string {
     return option.unavailableReason ?? 'Cannot be used on this page'
   }
   if (option.access === 'web') {
-    return `Opens ${siteOf(option.url)} in a new window`
+    return `Opens ${siteOf(option.webUrl ?? option.url)} in a new window`
   }
   if (option.access === 'not-installed') return 'Browser extension'
   return 'Browser extension, ready'

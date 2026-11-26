@@ -109,6 +109,8 @@ export type WalletOption = Pick<
   access: WalletAccess
   kind: WalletKind
   formerly?: string
+  /** The web wallet's address when it differs from `url` (xBull). */
+  webUrl?: string
   unavailableReason?: string
 }
 
@@ -520,6 +522,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
         access,
         kind: entry?.kind ?? 'extension',
         ...(entry?.formerly ? { formerly: entry.formerly } : {}),
+        ...(entry?.webUrl ? { webUrl: entry.webUrl } : {}),
         ...(access === 'unavailable'
           ? { unavailableReason: unavailableReason(entry, page) }
           : {}),

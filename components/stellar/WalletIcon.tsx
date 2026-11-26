@@ -24,7 +24,6 @@ export function WalletIcon({ name, src }: { name: string; src?: string }) {
       alt=""
       width={32}
       height={32}
-      loading="lazy"
       decoding="async"
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}

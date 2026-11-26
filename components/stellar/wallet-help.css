@@ -241,7 +241,7 @@
   color: #5e535a;
   margin: 0;
 }
-.wallet-row-body {
+.wallet-picker-option > span.wallet-row-body {
   display: flex;
   align-items: center;
   gap: 12px;
