@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useWallet } from '@/components/providers/WalletProvider'
@@ -45,11 +45,20 @@ export function ReceivingWalletVerification({
   const [connectError, setConnectError] = useState<WalletMessage | null>(null)
   const busy = ['challenge', 'sign', 'verify'].includes(ownership.status)
 
+  // Report each verified result once. Callers pass inline callbacks, and the
+  // parent's state update makes a new one; re-running on it looped (#512).
+  const onVerifiedRef = useRef(onVerified)
   useEffect(() => {
-    if (ownership.status === 'verified' && ownership.result) {
-      onVerified?.(ownership.result.address)
-    }
-  }, [ownership.status, ownership.result, onVerified])
+    onVerifiedRef.current = onVerified
+  })
+  const reported = useRef<typeof ownership.result>(null)
+  useEffect(() => {
+    const result = ownership.result
+    if (ownership.status !== 'verified' || !result) return
+    if (reported.current === result) return
+    reported.current = result
+    onVerifiedRef.current?.(result.address)
+  }, [ownership.status, ownership.result])
 
   async function connectAndVerify() {
     if (busy) return
