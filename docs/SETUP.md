@@ -271,6 +271,23 @@ dispatches it, and saves the cursor in the same mutation. Statuses:
 
 `chain/indexer:redispatch` dispatches stored events that had no handler yet.
 
+**Tab ledger.** `convex/tabs.ts` accepts tab tips (`prepareTip`, `submitTip`)
+and mirrors Tab events through the indexer. Its Convex variables, all testnet:
+
+- `SETTLEMENT_ENABLED`: `true` lets Convex countersign tab vouchers. Without it,
+  `submitTip` refuses with `TAB_ACCEPTOR_UNAVAILABLE`.
+- `TAB_ACCEPTOR_SECRET`: the acceptor ed25519 seed (a Stellar `S…` secret or 64
+  hex characters). Read only after `assertBackendTestnet()`. Never put it in
+  `.env.example` or a committed file.
+- `TAB_DAILY_LIMIT` and `TAB_TIP_MAX`: base units; defaults `200000000` and
+  `50000000`.
+
+Acceptance needs a running indexer cursor for the current `CHAIN_EPOCH` and a
+cached XLM price no older than 30 minutes. Operator functions:
+`tabs:sweepUnpaid` marks receipts `UNPAID` for closed tabs whose key window has
+ended, and `tabs:voidResetEpoch` marks a closed epoch's unsettled receipts
+`VOID_RESET` after a testnet reset.
+
 ## Checks and browser tests
 
 Run `bun run check` for the local code/tooling gate; `package.json` lists individual
