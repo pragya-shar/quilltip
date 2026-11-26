@@ -13,7 +13,7 @@ All payment development targets Stellar **testnet**.
 | `shared/`      | `quilltip-shared`      | rlib          | Constants, identifiers, TTL, fee math     |
 | `core/`        | `quilltip-core`        | cdylib + rlib | Skeleton                                  |
 | `tab/`         | `quilltip-tab`         | cdylib + rlib | Skeleton                                  |
-| `article-nft/` | `quilltip-article-nft` | cdylib + rlib | Skeleton (replaces the v1 crate in place) |
+| `article-nft/` | `quilltip-article-nft` | cdylib + rlib | Article NFT (replaces the v1 crate)       |
 | `tipping/`     | `quilltip-tipping`     | cdylib        | v1, outside the workspace until cutover   |
 
 `Cargo.toml` defines the workspace, the exact dependency pins and the shared
