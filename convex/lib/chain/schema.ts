@@ -92,6 +92,22 @@ export const tipChainFields = {
   needsReview: v.optional(v.boolean()),
   chainContentHash: v.optional(v.string()),
   chainContentVersion: v.optional(v.number()),
+  // Values decoded from the on-chain `Tipped` event, kept next to the
+  // expected values above. `onChainAuthorAddress`, `feeBaseUnits` and
+  // `netBaseUnits` are also decoded values.
+  onChainTipperAddress: v.optional(v.string()),
+  onChainTokenContractId: v.optional(v.string()),
+  onChainGrossBaseUnits: v.optional(v.string()),
+  onChainArticleKey: v.optional(v.string()),
+  /** Null when the event carried no highlight. */
+  onChainHighlightKey: v.optional(v.union(v.string(), v.null())),
+  onChainClientRef: v.optional(v.string()),
+  // Operator decision on a row flagged for review.
+  reviewResolution: v.optional(
+    v.union(v.literal('credit_decoded'), v.literal('no_credit'))
+  ),
+  reviewResolvedAt: v.optional(v.number()),
+  reviewNote: v.optional(v.string()),
 }
 
 export const chainTables = {

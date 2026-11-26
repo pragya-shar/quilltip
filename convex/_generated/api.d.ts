@@ -18,6 +18,7 @@ import type * as betaMetrics from "../betaMetrics.js";
 import type * as chain_backfill from "../chain/backfill.js";
 import type * as chain_config from "../chain/config.js";
 import type * as chain_indexer from "../chain/indexer.js";
+import type * as chain_review from "../chain/review.js";
 import type * as chain_submissions from "../chain/submissions.js";
 import type * as crons from "../crons.js";
 import type * as feedback from "../feedback.js";
@@ -106,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   "chain/backfill": typeof chain_backfill;
   "chain/config": typeof chain_config;
   "chain/indexer": typeof chain_indexer;
+  "chain/review": typeof chain_review;
   "chain/submissions": typeof chain_submissions;
   crons: typeof crons;
   feedback: typeof feedback;

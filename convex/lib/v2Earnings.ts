@@ -191,21 +191,25 @@ export async function applyV2TipEarnings(
     await mark('needs_review')
     return 'needs_review'
   }
+  if (row.reviewResolution === 'no_credit') {
+    await mark('review_no_credit')
+    return 'needs_review'
+  }
 
+  // Earnings follow the decoded event (section 6.4).
   const net = parseBaseUnits(row.netBaseUnits)
-  const token = row.tokenContractId
+  const token = row.onChainTokenContractId ?? row.tokenContractId
   const author = row.onChainAuthorAddress
+  const articleKey = row.onChainArticleKey ?? row.chainArticleKey
   if (net === null || net <= BigInt(0) || !token || !author) {
     await mark('no_amount')
     return 'no_amount'
   }
 
-  const chainArticle = row.chainArticleKey
+  const chainArticle = articleKey
     ? await ctx.db
         .query('chainArticles')
-        .withIndex('by_article_key', (q) =>
-          q.eq('articleKey', row.chainArticleKey!)
-        )
+        .withIndex('by_article_key', (q) => q.eq('articleKey', articleKey))
         .first()
     : null
   const shares = recipientShares(net, author, chainArticle?.splits ?? [])
