@@ -26,6 +26,8 @@ const MAINNET_PASSPHRASE =
 type EnvLike = Record<string, string | undefined>
 
 export type DeployNetwork = {
+  /** Guard operation name; the CLI wrapper runs the guard under it. */
+  operation?: string
   network: 'TESTNET' | 'LOCAL'
   passphrase: string
   rpcUrl: string
@@ -35,13 +37,14 @@ export type DeployNetwork = {
 
 /** Runs the Stellar-only guard and returns the network to use. */
 export function resolveDeployNetwork(
-  env: EnvLike = process.env
+  env: EnvLike = process.env,
+  operation: string = OPERATION
 ): DeployNetwork {
-  const resolved = resolveScriptStellarOnlyNetwork(OPERATION, env)
+  const resolved = resolveScriptStellarOnlyNetwork(operation, env)
   const network = resolved.guard.network
   const expected = network === 'LOCAL' ? LOCAL_PASSPHRASE : TESTNET_PASSPHRASE
   if (resolved.passphrase !== expected) {
-    throw new NetworkGuardError(OPERATION, [
+    throw new NetworkGuardError(operation, [
       {
         code: 'UNKNOWN_PASSPHRASE',
         message: `The resolved passphrase is not "${expected}".`,
@@ -49,6 +52,7 @@ export function resolveDeployNetwork(
     ])
   }
   return {
+    operation,
     network,
     passphrase: resolved.passphrase,
     rpcUrl: resolved.rpcUrl,
@@ -58,7 +62,13 @@ export function resolveDeployNetwork(
 
 type RpcFetch = (url: string, init: RequestInit) => Promise<Response>
 
-async function rpc<T>(
+/** Guard operation name for a network context. */
+export function operationOf(net: DeployNetwork): string {
+  return net.operation ?? OPERATION
+}
+
+/** One JSON-RPC call to the guarded RPC URL. */
+export async function rpc<T>(
   net: DeployNetwork,
   method: string,
   params: unknown,
@@ -97,7 +107,7 @@ export async function confirmNetwork(
   )
   const loose = passphrase.normalize('NFKC').replace(/\s+/g, ' ').trim()
   if (loose.toLowerCase() === MAINNET_PASSPHRASE) {
-    throw new NetworkGuardError(OPERATION, [
+    throw new NetworkGuardError(operationOf(net), [
       {
         code: 'MAINNET_PASSPHRASE',
         message: `${net.rpcUrl} serves Stellar mainnet. Nothing was submitted.`,
@@ -105,7 +115,7 @@ export async function confirmNetwork(
     ])
   }
   if (passphrase !== net.passphrase) {
-    throw new NetworkGuardError(OPERATION, [
+    throw new NetworkGuardError(operationOf(net), [
       {
         code: 'UNKNOWN_PASSPHRASE',
         message: `${net.rpcUrl} serves "${passphrase}", not "${net.passphrase}". Nothing was submitted.`,
@@ -161,7 +171,7 @@ const SIGNING_LINE = /Signing transaction: ([0-9a-f]{64})/
 /** Builds the guarded command without running it (tests and dry runs). */
 export function cliCommand(ctx: CliContext, args: string[]) {
   return buildStellarCliCommand(
-    OPERATION,
+    operationOf(ctx.net),
     withConfigDir(args, ctx.configDir),
     ctx.env,
     'stellar-only'
@@ -180,10 +190,14 @@ function withConfigDir(args: string[], configDir: string): string[] {
  * that shows a secret (`keys show`) cannot leak it into logs.
  */
 export function cli(ctx: CliContext, args: string[]): CliResult {
-  const result = runStellarCli(OPERATION, withConfigDir(args, ctx.configDir), {
-    env: ctx.env,
-    scope: 'stellar-only',
-  })
+  const result = runStellarCli(
+    operationOf(ctx.net),
+    withConfigDir(args, ctx.configDir),
+    {
+      env: ctx.env,
+      scope: 'stellar-only',
+    }
+  )
   if (result.error) throw result.error
   if (result.status !== 0) {
     const stderr = (result.stderr ?? '').split('\n').slice(-6).join('\n')
