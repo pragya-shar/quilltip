@@ -9,7 +9,14 @@
  * - Nothing here talks to a network, runs the Stellar CLI or runs Convex:
  *   RPC is a stubbed `fetch`, and submissions are spied on.
  */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import {
@@ -508,6 +515,27 @@ describe('dry run and submit', () => {
     expect(submit).not.toHaveBeenCalled()
   })
 
+  it('extend: a rerun before the next ledger closes skips the scan', async () => {
+    let health = 1000
+    const base = network1000(1000 + 40 * 17_280)
+    stubRpc((method, params) => {
+      if (method === 'getHealth')
+        return { status: 'healthy', latestLedger: health, oldestLedger: 1 }
+      if (method === 'getEvents') {
+        const start = params.startLedger as number | undefined
+        if (start !== undefined && start > health)
+          throw new Error('startLedger must be within the ledger range')
+        return { events: [], latestLedger: health + 1 }
+      }
+      return base(method, params)
+    })
+    expect(await extend.main(argv(), LOCAL_ENV)).toBe(0)
+    // getEvents reported ledger 1001; getHealth still reports 1000.
+    expect(await extend.main(argv(), LOCAL_ENV)).toBe(0)
+    health = 1001
+    expect(await extend.main(argv(), LOCAL_ENV)).toBe(0)
+  })
+
   it('extend: exit code 3 when an entry is archived; restore restores only that entry', async () => {
     stubRpc(network1000(1000 + 40 * 17_280, 0))
     const submit = vi.spyOn(network, 'submit').mockResolvedValue(fakeTx)
@@ -525,6 +553,55 @@ describe('dry run and submit', () => {
       CONTRACT_IDS.core,
     ])
     expect(args).toContain('AAAAFA==')
+  })
+
+  it('extend --submit: refuses an RPC server that serves the mainnet passphrase before the CLI runs', async () => {
+    const base = network1000(1100)
+    stubRpc((method, params) =>
+      method === 'getNetwork'
+        ? { passphrase: MAINNET_PASSPHRASE }
+        : base(method, params)
+    )
+    const error = await extend
+      .main([...argv(), '--submit'], LOCAL_ENV)
+      .catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(NetworkGuardError)
+    expect(codesOf(error)).toContain('MAINNET_PASSPHRASE')
+    expect(existsSync(join(keysDir, 'integration', 'ops-log.json'))).toBe(false)
+  })
+
+  it('backfill --resume: refuses before any write when the range starts after the covered ledger', async () => {
+    stubRpc((method) => {
+      if (method === 'getNetwork') return { passphrase: LOCAL_PASSPHRASE }
+      if (method === 'getHealth')
+        return { status: 'healthy', latestLedger: 1000, oldestLedger: 1 }
+      if (method === 'getEvents') return { events: [], latestLedger: 1000 }
+      throw new Error(`unexpected RPC ${method}`)
+    })
+    const calls: string[][] = []
+    const convex: backfill.ConvexCli = (args) => {
+      calls.push(args)
+      const ok = (stdout: string) => ({ status: 0, stdout, stderr: '' })
+      if (args[0] === 'env' && args[2] === 'CORE_CONTRACT_ID')
+        return ok(CONTRACT_IDS.core)
+      if (args[0] === 'env' && args[2] === 'CHAIN_EPOCH') return ok('epoch-a')
+      if (args[1] === 'chain/indexer:readCursor')
+        return ok(JSON.stringify({ chainEpoch: 'epoch-a', lastLedger: 400 }))
+      return ok('{"stored":0,"duplicates":0}')
+    }
+    const env = { ...LOCAL_ENV, CONVEX_DEPLOYMENT: 'local:local-backfill' }
+    const run = (from: string) =>
+      backfill.main(
+        [...argv(), '--from-ledger', from, '--submit', '--resume'],
+        env,
+        convex
+      )
+    await expect(run('500')).rejects.toThrow(/covers ledgers up to 400/)
+    expect(calls.map((a) => a[1])).not.toContain('chain/indexer:replayFrom')
+
+    calls.length = 0
+    expect(await run('401')).toBe(0)
+    expect(calls.map((a) => a[1])).toContain('chain/indexer:replayFrom')
   })
 
   it('redeploy: does nothing while the contracts exist', async () => {
@@ -727,9 +804,12 @@ describe('transaction plans', () => {
 describe('redeploy reset detection', () => {
   const all = { core: true, tab: true, nft: true }
   const none = { core: false, tab: false, nft: false }
-  it('detects a reset from the ledger sequence or from all instances missing', () => {
+  it('detects a reset only from a dropped ledger sequence', () => {
     expect(redeploy.decideReset(100, 5000, all).reset).toBe(true)
-    expect(redeploy.decideReset(6000, 5000, none).reset).toBe(true)
+    expect(redeploy.decideReset(100, 5000, none).reset).toBe(true)
+    const missing = redeploy.decideReset(6000, 5000, none)
+    expect(missing.reset).toBe(false)
+    expect(missing.reason).toMatch(/not a reset/)
   })
   it('refuses when the contracts exist or only some are gone', () => {
     expect(redeploy.decideReset(6000, 5000, all).reset).toBe(false)
@@ -885,6 +965,25 @@ describe('backfill helpers', () => {
     expect(text).toContain('CHAIN_V2_ENABLED=false')
     expect(text).toContain('--events-file')
     expect(text).toContain('--from-ledger 500 --submit --resume')
+  })
+
+  it('allows --resume only from the ledger after the covered one', () => {
+    const cursor = { chainEpoch: 'epoch-a', lastLedger: 400 }
+    expect(backfill.resumeGap(cursor, 'epoch-a', 401)).toBeNull()
+    expect(backfill.resumeGap(cursor, 'epoch-a', 300)).toBeNull()
+    expect(backfill.resumeGap(cursor, 'epoch-a', 402)).toMatch(
+      /ledgers 401 to 401/
+    )
+    // Another epoch or no cursor: replayFrom starts a new cursor.
+    expect(backfill.resumeGap(cursor, 'epoch-b', 900)).toBeNull()
+    expect(backfill.resumeGap(null, 'epoch-a', 900)).toBeNull()
+    expect(
+      backfill.resumeGap(
+        { chainEpoch: 'epoch-a', lastLedger: 0 },
+        'epoch-a',
+        900
+      )
+    ).toBeNull()
   })
 
   it('blanks unset Convex targets so .env.local cannot add one', () => {
