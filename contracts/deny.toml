@@ -1,0 +1,84 @@
+# cargo-deny policy for the contracts workspace and the Tab fuzz crate.
+# Run from contracts/: cargo deny --locked check
+# Fuzz crate: cargo deny --locked --manifest-path tab/fuzz/Cargo.toml --config deny.toml check
+# The v1 tipping crate is not covered: it is removed at cutover.
+# Reference: https://embarkstudios.github.io/cargo-deny/checks/cfg.html
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+db-urls = ["https://github.com/rustsec/advisory-db"]
+yanked = "deny"
+# Same entries as .cargo/audit.toml. Both are transitive dependencies of the
+# pinned soroban-sdk 28.0.0 and cannot change without a new Cargo.lock and new
+# Wasm hashes. Review by 2027-02-28 or at the SDK upgrade in the mainnet
+# release gate (docs/architecture/v2/01-architecture.md, section 1.3),
+# whichever comes first.
+ignore = [
+    { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5.5 through elliptic-curve, k256 and p256 in soroban-env-host; host-only, not in the wasm32v1-none build" },
+    { id = "RUSTSEC-2024-0436", reason = "paste 1.0.15 (unmaintained proc-macro) through ark-ff and wasmi_core in soroban-env-host; host-only" },
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.93
+# Only the licenses that the locked dependency tree needs.
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-3-Clause",
+    "MIT",
+    "Unicode-3.0",
+]
+exceptions = [
+    # Fuzz crate only: libFuzzer is "(MIT OR Apache-2.0) AND NCSA".
+    { allow = ["NCSA"], crate = "libfuzzer-sys" },
+]
+
+[licenses.private]
+# Workspace crates and the fuzz crate set publish = false.
+ignore = true
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+# Path dependencies between the private workspace crates.
+allow-wildcard-paths = true
+highlight = "all"
+# Each entry is an exact older version that the pinned soroban-sdk 28.0.0 and
+# OpenZeppelin 0.8.0 tree requires next to a newer one. Exact versions keep
+# any new duplicate an error. Remove entries when the SDK pin moves.
+skip = [
+    # RustCrypto digest 0.10 stack (sha2, sha3, ecdsa, ark-*); curve25519-dalek
+    # 5 in soroban-env-host uses digest 0.11.
+    { crate = "block-buffer@0.10.4", reason = "digest 0.10 stack beside digest 0.11" },
+    { crate = "crypto-common@0.1.6", reason = "digest 0.10 stack beside digest 0.11" },
+    { crate = "digest@0.10.7", reason = "sha2, sha3, ecdsa and ark-* beside curve25519-dalek 5" },
+    { crate = "cpufeatures@0.2.17", reason = "sha2 0.10 and keccak beside the digest 0.11 stack" },
+    # ed25519-dalek 2.2 uses curve25519-dalek 4; soroban-env-host 28 uses 5.
+    { crate = "curve25519-dalek@4.1.3", reason = "ed25519-dalek 2.2 beside soroban-env-host 28" },
+    { crate = "fiat-crypto@0.2.9", reason = "curve25519-dalek 4 beside curve25519-dalek 5" },
+    # rand 0.8 stack in soroban-env-host and the RustCrypto 0.13 curves.
+    { crate = "getrandom@0.2.17", reason = "rand_core 0.6 in soroban-env-host" },
+    { crate = "rand_core@0.6.4", reason = "rand 0.8, ed25519-dalek and elliptic-curve 0.13" },
+    { crate = "hashbrown@0.15.5", reason = "ark-ec and ark-poly 0.5 in soroban-env-host" },
+    # soroban-env-host 28 and stellar-xdr 28 use strkey 0.0.13; soroban-sdk 28
+    # uses 0.0.16.
+    { crate = "stellar-strkey@0.0.13", reason = "soroban-env-host and stellar-xdr 28" },
+    { crate = "crate-git-revision@0.0.6", reason = "build dependency of stellar-strkey" },
+    # Proc-macro crates: soroban-sdk-macros uses darling 0.20 and syn 2;
+    # serde_derive and serde_with_macros use syn 3.
+    { crate = "darling@0.20.11", reason = "soroban-sdk-macros 28" },
+    { crate = "darling_core@0.20.11", reason = "soroban-sdk-macros 28" },
+    { crate = "darling_macro@0.20.11", reason = "soroban-sdk-macros 28" },
+    { crate = "syn@2.0.119", reason = "soroban, ark and OpenZeppelin proc macros beside serde on syn 3" },
+]
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
