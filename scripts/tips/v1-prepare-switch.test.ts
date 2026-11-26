@@ -131,6 +131,9 @@ describe('CHAIN_V1_PREPARES_ENABLED', () => {
         articleId: s.articleId,
       })
     ).toEqual({ status: 'disabled' })
+    await expect(
+      t.query(api.nfts.getNFTByArticle, { articleId: s.articleId })
+    ).resolves.toMatchObject({ v1ActionsPaused: false })
   })
 
   it('refuses every v1 prepare when false and keeps reads working', async () => {
@@ -213,7 +216,7 @@ describe('CHAIN_V1_PREPARES_ENABLED', () => {
     ).resolves.toMatchObject({ totalTips: 0 })
     await expect(
       t.query(api.nfts.getNFTByArticle, { articleId: s.articleId })
-    ).resolves.toBeTruthy()
+    ).resolves.toMatchObject({ isMinted: true, v1ActionsPaused: true })
   })
 
   it('treats a mistyped value as paused', async () => {
@@ -273,5 +276,76 @@ describe('CHAIN_V1_PREPARES_ENABLED', () => {
     await expect(
       t.query(api.tips.getArticleTipStats, { articleId: s.articleId })
     ).resolves.toMatchObject({ totalTips: 1 })
+  })
+
+  it('recovers, retries and confirms in-flight tips while paused', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const user = reader(t, s.readerId)
+    const second = reader(t, s.secondReaderId)
+    const article = await user.mutation(api.tips.prepareArticleTip, {
+      articleId: s.articleId,
+      stellarSourceAccount: source,
+      amountXlm: 2,
+    })
+    const passage = await second.mutation(
+      api.highlightTips.prepareHighlightTip,
+      {
+        articleId: s.articleId,
+        stellarSourceAccount: source,
+        highlightText: PASSAGE,
+        startOffset: 0,
+        endOffset: PASSAGE.length,
+        amountXlm: 2,
+      }
+    )
+    const tipId = await user.mutation(api.tips.submitArticleTip, {
+      intentId: article.intentId,
+      stellarTxId: TX_HASH,
+    })
+    const highlightTipId = await second.mutation(
+      api.highlightTips.submitHighlightTip,
+      { intentId: passage.intentId, stellarTxId: 'b'.repeat(64) }
+    )
+
+    vi.stubEnv('CHAIN_V1_PREPARES_ENABLED', 'false')
+
+    // Both rows look stuck: their last update is older than the recovery
+    // threshold (10 minutes).
+    const old = Date.now() - 60 * 60 * 1000
+    await t.run(async ({ db }) => {
+      await db.patch(tipId, { updatedAt: old })
+      await db.patch(highlightTipId, { updatedAt: old })
+    })
+    await expect(
+      t.action(internal.reconcileTips.recoverStuckPendingArticleTips, {})
+    ).resolves.toEqual({ rescheduled: 1 })
+    await expect(
+      t.action(internal.reconcileTips.recoverStuckPendingHighlightTips, {})
+    ).resolves.toEqual({ rescheduled: 1, quarantined: 0 })
+
+    // The reader can still ask for a highlight tip to be checked again.
+    await t.run(async ({ db }) => db.patch(highlightTipId, { updatedAt: old }))
+    await expect(
+      second.mutation(api.highlightTips.retryHighlightTipVerification, {
+        tipId: highlightTipId,
+      })
+    ).resolves.toBeNull()
+
+    const generation = await t.run(
+      async ({ db }) => (await db.get(highlightTipId))?.verificationGeneration
+    )
+    await t.mutation(internal.articleTipVerify.confirmVerifiedArticleTip, {
+      tipId,
+    })
+    await t.mutation(internal.stellarVerify.confirmVerifiedHighlightTip, {
+      id: highlightTipId,
+      generation,
+    })
+    const [tip, highlightTip] = await t.run(async ({ db }) =>
+      Promise.all([db.get(tipId), db.get(highlightTipId)])
+    )
+    expect(tip).toMatchObject({ status: 'CONFIRMED' })
+    expect(highlightTip).toMatchObject({ status: 'CONFIRMED' })
   })
 })
