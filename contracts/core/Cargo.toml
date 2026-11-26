@@ -12,6 +12,11 @@ publish.workspace = true
 crate-type = ["cdylib", "rlib"]
 doctest = false
 
+[features]
+# Builds a layout-compatible schema version 2 for the upgrade test only.
+# Never deploy a Wasm built with this feature.
+upgrade-test = []
+
 [dependencies]
 soroban-sdk = { workspace = true }
 stellar-access = { workspace = true }
