@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { test, expect, type BrowserContext, type Page } from '@playwright/test'
+import {
+  test,
+  expect,
+  type BrowserContext,
+  type Page,
+} from './helpers/consoleGuard'
 import { Keypair } from '@stellar/stellar-sdk'
 import {
   installWalletEmulator,

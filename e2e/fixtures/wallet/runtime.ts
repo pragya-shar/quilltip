@@ -232,6 +232,16 @@ export const stellarClient = {
 
 export { READER }
 
+/** The signed-in writer for `?view=dashboard`, with the linked address. */
+export function fixtureUser() {
+  return {
+    _id: 'qa-writer',
+    username: 'writer',
+    name: 'Writer',
+    stellarAddress: link.address ?? undefined,
+  }
+}
+
 /** next/dynamic without Next: React.lazy behind Suspense. */
 export default function dynamic<P extends object>(
   loader: () => Promise<{ default: ComponentType<P> }>

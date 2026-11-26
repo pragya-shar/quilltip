@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page } from './helpers/consoleGuard'
 import {
   installVarialEmulator,
   type VarialMode,
