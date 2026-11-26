@@ -166,6 +166,26 @@ export function nftEventFacts(event: StoredEvent): NftEventFacts | null {
   return null
 }
 
+export const NFT_THRESHOLD_SET_EVENT = 'threshold_set'
+
+/**
+ * Facts of a stored `threshold_set` event: topics `[name]`, data
+ * `{ token: Address, threshold: i128 }`. Throws `EventDecodeError` for a bad
+ * shape.
+ */
+export function nftThresholdFacts(event: StoredEvent): {
+  token: string
+  threshold: string
+} {
+  if (event.name !== NFT_THRESHOLD_SET_EVENT) fail('not threshold_set')
+  const d = dataMap(event.data, NFT_THRESHOLD_SET_EVENT)
+  const threshold = d.threshold
+  if (typeof threshold !== 'string' || !/^[1-9][0-9]*$/.test(threshold)) {
+    fail('threshold is not a positive integer')
+  }
+  return { token: address(d.token, 'token'), threshold }
+}
+
 /** The stored form of a decoded value: bigint as string, bytes as hex. */
 function stored(value: unknown): unknown {
   if (typeof value === 'bigint') return value.toString()

@@ -3,8 +3,12 @@
  * 05-flows-and-admin.md, section 5.10; 06-app-integration.md, sections 6.1
  * and 6.3).
  *
- * - `getMintEligibility` reads Core and the NFT contract live through the
- *   backend RPC and returns one typed state the UI can render.
+ * - `getMintProgress` is the reader view: the threshold progress from
+ *   indexed data (`chainArticles.totals`, the cached threshold in
+ *   `chainConfig`, indexed NFT rows). A query: no RPC, no rate limit.
+ * - `getMintEligibility` is the author's view before a mint: it reads Core
+ *   and the NFT contract live through the backend RPC and returns one typed
+ *   state. Only a signed-in author causes RPC reads.
  * - `prepareMint` and `prepareTransfer` fix the values the transaction must
  *   produce on a `chainSubmissions` row (`kind: 'nft'`, `expectedNft`) and
  *   return what the client needs to build `Nft.mint(article_id)` or
@@ -66,10 +70,8 @@ const REQUEST_ID = /^[A-Za-z0-9_-]{1,100}$/
 const MINUTE_MS = 60_000
 /** Prepare calls per user per minute (mint and transfer together). */
 export const NFT_PREPARE_LIMIT = 10
-/** Live eligibility reads per signed-in user per minute. */
+/** Live eligibility reads per author per minute. */
 export const NFT_ELIGIBILITY_USER_LIMIT = 30
-/** Live eligibility reads per minute for all signed-out callers together. */
-export const NFT_ELIGIBILITY_ANON_LIMIT = 120
 
 function fail(
   code: NftPrepareErrorCode,
@@ -85,26 +87,31 @@ function fail(
 
 /**
  * The states `getMintEligibility` returns, in the order they are checked.
- * Only `ELIGIBLE` means "show the mint action".
+ * Only `ELIGIBLE` means "show the mint action". The states before
+ * `RATE_LIMITED` are decided from Convex data alone, without RPC.
  */
 export const MINT_ELIGIBILITY_STATES = [
   /** `CHAIN_V2_ENABLED` is off, or Core or the NFT contract is not configured. */
   'DISABLED',
-  /** Too many live reads; `retryAfterMs` says when to ask again. */
-  'RATE_LIMITED',
   /** No such article, or it is unpublished and the caller is not its author. */
   'NOT_FOUND',
   /** The caller is the author and the article is unpublished. */
   'NOT_PUBLISHED',
+  /** No signed-in caller. Readers use `getMintProgress`. */
+  'SIGNED_OUT',
+  /**
+   * The caller is not the article's author, and their verified address is
+   * not its author address (indexed, then live). Readers use `getMintProgress`.
+   */
+  'NOT_AUTHOR',
   /** The article is not registered on Core in this chain epoch. */
   'NOT_REGISTERED',
+  /** Too many live reads; `retryAfterMs` says when to ask again. */
+  'RATE_LIMITED',
   /** The backend RPC could not be read. Ask again later. */
   'UNAVAILABLE',
   /** The NFT exists on chain (`tokenId`); `nftId` once the indexer has it. */
   'MINTED',
-  'SIGNED_OUT',
-  /** The caller is neither the article's author nor its on-chain author. */
-  'NOT_AUTHOR',
   /** The author has no linked wallet. */
   'NO_WALLET',
   /** The author's linked wallet is not verified. */
@@ -151,21 +158,14 @@ export type MintEligibility = {
 }
 
 export const consumeEligibilityRead = internalMutation({
-  args: { userId: v.union(v.id('users'), v.null()) },
+  args: { userId: v.id('users') },
   handler: async (ctx, args) =>
-    args.userId
-      ? consumeFixedWindow(
-          ctx,
-          `nft-eligibility:user:${args.userId}`,
-          NFT_ELIGIBILITY_USER_LIMIT,
-          MINUTE_MS
-        )
-      : consumeFixedWindow(
-          ctx,
-          'nft-eligibility:anon',
-          NFT_ELIGIBILITY_ANON_LIMIT,
-          MINUTE_MS
-        ),
+    consumeFixedWindow(
+      ctx,
+      `nft-eligibility:user:${args.userId}`,
+      NFT_ELIGIBILITY_USER_LIMIT,
+      MINUTE_MS
+    ),
 })
 
 async function chainArticleFor(
@@ -237,6 +237,7 @@ export const loadMintContext = internalQuery({
       linkState: user ? walletLinkState(user) : ('none' as const),
       verifiedAddress: user ? verifiedStellarAddress(user) : null,
       articleKey: chainArticle?.articleKey ?? null,
+      indexedAuthor: chainArticle?.authorAddress ?? null,
       nft: nft
         ? {
             nftId: nft._id,
@@ -254,8 +255,15 @@ type ArticleRecordView = { author?: unknown } | null | undefined
 /**
  * Live mint eligibility (section 5.10, step 1). Reads Core `get_article` and
  * `article_total`, and the NFT contract's `threshold`, `token_of_article` and
- * `paused`, through the backend RPC. Public; signed-out callers see the
- * progress but never `ELIGIBLE`. `fetchImpl` is for tests only.
+ * `paused`, through the backend RPC.
+ *
+ * Only a signed-in caller who may be the author reaches the RPC reads: the
+ * article's author, or a user whose verified address is the indexed author
+ * address. Everyone else gets `SIGNED_OUT` or `NOT_AUTHOR` from Convex data
+ * and uses `getMintProgress` for the progress display. So the RPC cost of
+ * this action is bounded per author account (`NFT_ELIGIBILITY_USER_LIMIT`),
+ * and no caller can use up a limit that other callers share.
+ * `fetchImpl` is for tests only.
  */
 export async function readMintEligibility(
   ctx: Pick<ActionCtx, 'runQuery' | 'runMutation' | 'auth'>,
@@ -289,12 +297,6 @@ export async function readMintEligibility(
     return out
   }
   const userId = await getAuthUserId(ctx)
-  const limit = await ctx.runMutation(internal.nftsV2.consumeEligibilityRead, {
-    userId,
-  })
-  if (!limit.ok) {
-    return { ...out, state: 'RATE_LIMITED', retryAfterMs: limit.retryAfterMs }
-  }
   const c = await ctx.runQuery(internal.nftsV2.loadMintContext, {
     articleId,
     userId,
@@ -310,8 +312,19 @@ export async function readMintEligibility(
   out.ownerAddress = c.nft?.ownerAddress ?? null
   out.openSubmissionId = c.openSubmissionId
   if (!c.published) return { ...out, state: 'NOT_PUBLISHED' }
+  if (!userId || !c.signedIn) return { ...out, state: 'SIGNED_OUT' }
+  const mayBeAuthor =
+    c.isArticleAuthor ||
+    (!!c.verifiedAddress && c.verifiedAddress === c.indexedAuthor)
+  if (!mayBeAuthor) return { ...out, state: 'NOT_AUTHOR' }
   if (!c.articleKey) return { ...out, state: 'NOT_REGISTERED' }
   out.articleKey = c.articleKey
+  const limit = await ctx.runMutation(internal.nftsV2.consumeEligibilityRead, {
+    userId,
+  })
+  if (!limit.ok) {
+    return { ...out, state: 'RATE_LIMITED', retryAfterMs: limit.retryAfterMs }
+  }
 
   const rpc = createBackendRpcClient(fetchImpl)
   const key = nativeToScVal(hexToBytes(c.articleKey))
@@ -360,7 +373,6 @@ export async function readMintEligibility(
   if (tokenOf !== null && tokenOf !== undefined) {
     return { ...out, state: 'MINTED', tokenId: Number(tokenOf) }
   }
-  if (!c.signedIn) return { ...out, state: 'SIGNED_OUT' }
   const isOnChainAuthor =
     !!c.verifiedAddress && c.verifiedAddress === out.onChainAuthor
   if (!isOnChainAuthor) {
@@ -383,6 +395,135 @@ export const getMintEligibility = action({
   args: { articleId: v.id('articles') },
   handler: (ctx, args): Promise<MintEligibility> =>
     readMintEligibility(ctx, args.articleId),
+})
+
+// ---------------------------------------------------------------------------
+// Reader progress (indexed data, no RPC)
+// ---------------------------------------------------------------------------
+
+/** The states `getMintProgress` returns, in the order they are checked. */
+export const MINT_PROGRESS_STATES = [
+  /** `CHAIN_V2_ENABLED` is off, or the NFT contract is not configured. */
+  'DISABLED',
+  /** No such article, or it is unpublished. */
+  'NOT_FOUND',
+  /** No registered `chainArticles` row in this chain epoch. */
+  'NOT_REGISTERED',
+  /** An indexed v2 NFT exists (`tokenId`, `nftId`, `ownerAddress`). */
+  'MINTED',
+  /** No indexed NFT yet. `threshold` is null until the config cache has it. */
+  'NOT_MINTED',
+] as const
+export type MintProgressState = (typeof MINT_PROGRESS_STATES)[number]
+
+/**
+ * Threshold progress from indexed data. Amounts are decimal strings of base
+ * units of `thresholdToken`. The values can lag the chain: totals by the
+ * indexer delay, the threshold and pause state by up to the hourly config
+ * refresh (a `threshold_set` event updates the threshold sooner). The
+ * author's mint decision uses `getMintEligibility`, which reads live.
+ */
+export type MintProgress = {
+  state: MintProgressState
+  network: 'TESTNET'
+  articleId: Id<'articles'>
+  nftContractId: string | null
+  thresholdToken: string | null
+  threshold: string | null
+  total: string | null
+  remaining: string | null
+  /** `total >= threshold`, or null when the threshold is not known. */
+  reached: boolean | null
+  paused: boolean | null
+  tokenId: number | null
+  nftId: Id<'articleNFTs'> | null
+  ownerAddress: string | null
+  /** Unix milliseconds of the last threshold and pause read from the contract. */
+  configRefreshedAt: number | null
+  /** Unix milliseconds of the last change to the article's chain record. */
+  chainArticleUpdatedAt: number | null
+}
+
+export const getMintProgress = query({
+  args: { articleId: v.id('articles') },
+  handler: async (ctx, args): Promise<MintProgress> => {
+    const chain = readChainEnv()
+    const out: MintProgress = {
+      state: 'DISABLED',
+      network: chain.network,
+      articleId: args.articleId,
+      nftContractId: chain.nftContractId,
+      thresholdToken: null,
+      threshold: null,
+      total: null,
+      remaining: null,
+      reached: null,
+      paused: null,
+      tokenId: null,
+      nftId: null,
+      ownerAddress: null,
+      configRefreshedAt: null,
+      chainArticleUpdatedAt: null,
+    }
+    if (!chain.v2Enabled || !chain.nftContractId) return out
+    const article = await ctx.db.get(args.articleId)
+    if (!article || !article.published) return { ...out, state: 'NOT_FOUND' }
+    const chainArticle = await chainArticleFor(
+      ctx,
+      args.articleId,
+      chain.chainEpoch
+    )
+    if (!chainArticle || chainArticle.status !== 'REGISTERED') {
+      return { ...out, state: 'NOT_REGISTERED' }
+    }
+    const nft = await findV2ArticleNft(ctx, {
+      articleId: args.articleId,
+      contractId: chain.nftContractId,
+      chainEpoch: chain.chainEpoch,
+    })
+    if (nft) {
+      return {
+        ...out,
+        state: 'MINTED',
+        tokenId: Number(nft.tokenId),
+        nftId: nft._id,
+        ownerAddress: nft.ownerAddress ?? null,
+      }
+    }
+    const config = await ctx.db
+      .query('chainConfig')
+      .withIndex('by_network', (q) => q.eq('network', chain.network))
+      .first()
+    // Cached values count only when they describe the configured contract.
+    const current =
+      config &&
+      config.chainEpoch === chain.chainEpoch &&
+      config.nftContractId === chain.nftContractId
+        ? config
+        : null
+    const token = current?.nftThresholdToken ?? null
+    const threshold = token ? (current?.nftThreshold ?? null) : null
+    const total = token ? (chainArticle.totals[token] ?? '0') : null
+    let remaining: string | null = null
+    let reached: boolean | null = null
+    if (threshold !== null && total !== null) {
+      const gap = BigInt(threshold) - BigInt(total)
+      remaining = (gap > BigInt(0) ? gap : BigInt(0)).toString()
+      reached = gap <= BigInt(0)
+    }
+    return {
+      ...out,
+      state: 'NOT_MINTED',
+      thresholdToken: token,
+      threshold,
+      total,
+      remaining,
+      reached,
+      paused: current?.paused.nft ?? null,
+      configRefreshedAt: current?.refreshedAt ?? null,
+      chainArticleUpdatedAt: chainArticle.updatedAt,
+    }
+  },
 })
 
 // ---------------------------------------------------------------------------

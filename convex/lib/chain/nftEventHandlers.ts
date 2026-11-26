@@ -13,6 +13,7 @@ import {
   NFT_MINTED_EVENT,
   NFT_TRANSFER_EVENT,
   nftEventFacts,
+  nftThresholdFacts,
   type NftEventFacts,
 } from './nftEvents'
 import {
@@ -94,6 +95,42 @@ const transfer = guarded(NFT_TRANSFER_EVENT, (ctx, event, facts) =>
     : Promise.resolve('error')
 )
 
+/**
+ * Keeps the cached threshold in `chainConfig` current between the hourly
+ * refreshes, so `getMintProgress` shows the new threshold soon after a
+ * change. Only the configured NFT contract's events apply.
+ */
+const thresholdSet: ChainEventHandler = async (ctx, event) => {
+  let facts: { token: string; threshold: string }
+  try {
+    facts = nftThresholdFacts({
+      name: event.doc.type,
+      topics: event.doc.topics,
+      data: event.doc.data,
+    })
+  } catch (error) {
+    if (error instanceof EventDecodeError) {
+      return logged('CHAIN_INDEXER_MALFORMED_EVENT', event, error.message)
+    }
+    throw error
+  }
+  const config = await ctx.db
+    .query('chainConfig')
+    .withIndex('by_network', (q) => q.eq('network', event.doc.network))
+    .first()
+  if (
+    config &&
+    config.nftContractId === event.doc.contractId &&
+    config.chainEpoch === event.doc.chainEpoch
+  ) {
+    await ctx.db.patch(config._id, {
+      nftThreshold: facts.threshold,
+      nftThresholdToken: facts.token,
+    })
+  }
+  return 'done'
+}
+
 /** Stored for the record; no table depends on them. */
 const recordOnly: ChainEventHandler = async () => 'done'
 
@@ -105,7 +142,7 @@ export const NFT_EVENT_HANDLERS: Readonly<Record<string, ChainEventHandler>> = {
   'nft:set_token_royalty': recordOnly,
   'nft:approve': recordOnly,
   'nft:approve_for_all': recordOnly,
-  'nft:threshold_set': recordOnly,
+  'nft:threshold_set': thresholdSet,
   'nft:nft_migrated': recordOnly,
   'nft:paused': recordOnly,
   'nft:unpaused': recordOnly,

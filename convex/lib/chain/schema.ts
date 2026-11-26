@@ -351,6 +351,8 @@ export const chainTables = {
     minTip: v.optional(v.string()),
     feeBps: v.optional(v.number()),
     nftThreshold: v.optional(v.string()),
+    /** Token whose Core total the NFT threshold compares. */
+    nftThresholdToken: v.optional(v.string()),
     paused: v.object({
       core: v.optional(v.boolean()),
       tab: v.optional(v.boolean()),

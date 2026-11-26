@@ -398,11 +398,14 @@ describe('getMintEligibility', () => {
     })
   })
 
-  it('reports MINTED from token_of_article, before any author check', async () => {
+  it('reports MINTED from token_of_article, before the wallet checks', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
     stubChain({ tokenOf: 7 })
-    expect(await eligibility(t, s, null)).toMatchObject({
+    await t.run(({ db }) =>
+      db.patch(s.authorId, { stellarAddressVerifiedAt: undefined })
+    )
+    expect(await eligibility(t, s)).toMatchObject({
       state: 'MINTED',
       tokenId: 7,
     })
@@ -430,12 +433,46 @@ describe('getMintEligibility', () => {
     expect((await eligibility(t, s)).state).toBe('NOT_PUBLISHED')
   })
 
-  it('separates signed-out, non-author and wallet states', async () => {
+  it('answers signed-out callers and non-authors without RPC reads', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const fetch = stubChain()
+    expect((await eligibility(t, s, null)).state).toBe('SIGNED_OUT')
+    expect((await eligibility(t, s, s.collectorId)).state).toBe('NOT_AUTHOR')
+    expect((await eligibility(t, s, s.unverifiedId)).state).toBe('NOT_AUTHOR')
+    expect(fetch.calls).toHaveLength(0)
+    // No shared limit: signed-out calls are never rate limited.
+    for (let i = 0; i < 150; i++) {
+      expect((await eligibility(t, s, null)).state).toBe('SIGNED_OUT')
+    }
+    expect(fetch.calls).toHaveLength(0)
+    // An author's reads are unaffected by them.
+    expect((await eligibility(t, s)).state).toBe('ELIGIBLE')
+    expect(fetch.calls.length).toBeGreaterThan(0)
+  })
+
+  it('reads live for a user whose verified address is the indexed author', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await t.run(({ db }) =>
+      db.patch(s.chainArticleId, { authorAddress: COLLECTOR })
+    )
+    stubChain({ author: COLLECTOR })
+    expect(await eligibility(t, s, s.collectorId)).toMatchObject({
+      state: 'ELIGIBLE',
+      onChainAuthor: COLLECTOR,
+      callerAddress: COLLECTOR,
+    })
+    // The live author decides when the indexed one is stale.
+    const fetch = stubChain({ author: AUTHOR })
+    expect((await eligibility(t, s, s.collectorId)).state).toBe('NOT_AUTHOR')
+    expect(fetch.calls.length).toBeGreaterThan(0)
+  })
+
+  it('separates the author wallet states', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
     stubChain()
-    expect((await eligibility(t, s, null)).state).toBe('SIGNED_OUT')
-    expect((await eligibility(t, s, s.collectorId)).state).toBe('NOT_AUTHOR')
 
     await t.run(({ db }) =>
       db.patch(s.authorId, {
@@ -1341,5 +1378,185 @@ describe('nftEvents', () => {
       })
     ).toMatchObject({ status: 'MISMATCH', mismatchReason: 'field:ledger' })
     expect(arweaveIdFromHex('00'.repeat(32))).toBe('A'.repeat(43))
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Reader progress (indexed data)
+// ---------------------------------------------------------------------------
+
+async function seedConfig(
+  t: T,
+  extra: Partial<{
+    nftContractId: string
+    chainEpoch: string
+    nftThreshold: string
+    nftThresholdToken: string
+    paused: { nft?: boolean }
+  }> = {}
+) {
+  return t.run(({ db }) =>
+    db.insert('chainConfig', {
+      network: 'TESTNET',
+      chainEpoch: EPOCH,
+      coreContractId: CORE,
+      nftContractId: NFT,
+      tokenContractId: TOKEN,
+      nftThreshold: '500000000',
+      nftThresholdToken: TOKEN,
+      paused: { nft: false },
+      refreshedAt: T0 - 60_000,
+      ...extra,
+    })
+  )
+}
+
+function thresholdSetEvent(
+  threshold: bigint,
+  opts: { ledger?: number; contractId?: string; token?: string } = {}
+): RawRpcEvent {
+  const ledger = opts.ledger ?? LEDGER
+  return {
+    type: 'contract',
+    ledger,
+    ledgerClosedAt: new Date((T0S + 10) * 1000).toISOString(),
+    contractId: opts.contractId ?? NFT,
+    id: rpcEventId(ledger, 1, 0, 0),
+    txHash: HASH,
+    topic: [sym('threshold_set').toXDR('base64')],
+    value: map([
+      ['threshold', nativeToScVal(threshold, { type: 'i128' })],
+      ['token', addr(opts.token ?? TOKEN)],
+    ]).toXDR('base64'),
+    inSuccessfulContractCall: true,
+  }
+}
+
+const progress = (t: T, s: Seeded, userId: Id<'users'> | null = null) =>
+  (userId ? as(t, userId) : t).query(api.nftsV2.getMintProgress, {
+    articleId: s.articleId,
+  })
+
+describe('getMintProgress', () => {
+  it('serves threshold progress from indexed totals and the cached threshold, without RPC', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const fetch = stubChain()
+    await seedConfig(t)
+    await t.run(({ db }) =>
+      db.patch(s.chainArticleId, { totals: { [TOKEN]: '120000000' } })
+    )
+    expect(await progress(t, s)).toEqual({
+      state: 'NOT_MINTED',
+      network: 'TESTNET',
+      articleId: s.articleId,
+      nftContractId: NFT,
+      thresholdToken: TOKEN,
+      threshold: '500000000',
+      total: '120000000',
+      remaining: '380000000',
+      reached: false,
+      paused: false,
+      tokenId: null,
+      nftId: null,
+      ownerAddress: null,
+      configRefreshedAt: T0 - 60_000,
+      chainArticleUpdatedAt: T0,
+    })
+    await t.run(({ db }) =>
+      db.patch(s.chainArticleId, { totals: { [TOKEN]: '500000000' } })
+    )
+    expect(await progress(t, s, s.collectorId)).toMatchObject({
+      state: 'NOT_MINTED',
+      remaining: '0',
+      reached: true,
+    })
+    expect(fetch.calls).toHaveLength(0)
+  })
+
+  it('counts a missing total as zero, and leaves the threshold unknown without a current cache', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    expect(await progress(t, s)).toMatchObject({
+      state: 'NOT_MINTED',
+      threshold: null,
+      total: null,
+      reached: null,
+      paused: null,
+    })
+    const configId = await seedConfig(t, { nftContractId: OTHER_NFT })
+    expect((await progress(t, s)).threshold).toBeNull()
+    await t.run(({ db }) =>
+      db.patch(configId, { nftContractId: NFT, chainEpoch: 'older' })
+    )
+    expect((await progress(t, s)).threshold).toBeNull()
+    await t.run(({ db }) => db.patch(configId, { chainEpoch: EPOCH }))
+    expect(await progress(t, s)).toMatchObject({
+      threshold: '500000000',
+      total: '0',
+      remaining: '500000000',
+      reached: false,
+    })
+  })
+
+  it('reports MINTED from the indexed row, with its owner', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await seedConfig(t)
+    const row = await indexMint(t)
+    expect(await progress(t, s)).toMatchObject({
+      state: 'MINTED',
+      tokenId: 0,
+      nftId: row._id,
+      ownerAddress: AUTHOR,
+    })
+  })
+
+  it('reports DISABLED, NOT_FOUND and NOT_REGISTERED', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await t.run(({ db }) => db.patch(s.chainArticleId, { status: 'SUBMITTED' }))
+    expect((await progress(t, s)).state).toBe('NOT_REGISTERED')
+    await t.run(({ db }) => db.delete(s.chainArticleId))
+    expect((await progress(t, s)).state).toBe('NOT_REGISTERED')
+    await t.run(({ db }) => db.patch(s.articleId, { published: false }))
+    // Unpublished articles stay hidden, also from their author here.
+    expect((await progress(t, s)).state).toBe('NOT_FOUND')
+    expect((await progress(t, s, s.authorId)).state).toBe('NOT_FOUND')
+    vi.stubEnv('CHAIN_V2_ENABLED', 'false')
+    expect((await progress(t, s)).state).toBe('DISABLED')
+  })
+
+  it('takes a new threshold from a threshold_set event of the configured contract', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await seedConfig(t)
+    await ingest(t, [
+      thresholdSetEvent(BigInt(900_000_000), { contractId: OTHER_NFT }),
+    ])
+    expect((await progress(t, s)).threshold).toBe('500000000')
+    await ingest(t, [
+      thresholdSetEvent(BigInt(700_000_000), { ledger: LEDGER + 1 }),
+    ])
+    expect(await progress(t, s)).toMatchObject({
+      threshold: '700000000',
+      thresholdToken: TOKEN,
+    })
+    const id = rpcEventId(LEDGER + 1, 1, 0, 0)
+    expect(await eventHandled(t, id)).toBe('done')
+  })
+
+  it('stores the threshold token on the hourly config refresh', async () => {
+    const t = convexTest(schema, modules)
+    stubChain({ threshold: BigInt(250_000_000), paused: true })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await t.action(internal.chain.config.refreshChainConfig, {})
+    const config = await t.run(({ db }) => db.query('chainConfig').first())
+    expect(config).toMatchObject({
+      nftContractId: NFT,
+      nftThreshold: '250000000',
+      nftThresholdToken: TOKEN,
+      paused: { nft: true },
+    })
   })
 })

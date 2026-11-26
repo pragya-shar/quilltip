@@ -9,8 +9,9 @@
  * - The Convex functions in convex-test: `getMintEligibility` (live views of
  *   the deployed Core and NFT contract), `prepareMint`, `prepareTransfer`,
  *   `chain.submissions.recordSubmitted`, the scheduled `verifySubmission`,
- *   `getNftSubmissionStatus`, the indexer's `ingestBackfill` with the NFT
- *   handlers on the real `getEvents` page, and `getTokenMetadata`.
+ *   `getNftSubmissionStatus`, the indexer's `ingestBackfill` with the Core
+ *   and NFT handlers on the real `getEvents` page, `refreshChainConfig`,
+ *   `getMintProgress` (the indexed reader view) and `getTokenMetadata`.
  * - The client step: `Nft.mint` and `Nft.transfer` built from the prepared
  *   values with the generated bindings, simulated, signed and sent.
  *
@@ -164,11 +165,11 @@ async function recordAndVerify(
   throw new Error('verification did not finish')
 }
 
-/** The indexer step: stores the NFT contract's events from the local RPC. */
-async function indexNftEvents() {
+/** The indexer step: stores the contracts' events from the local RPC. */
+async function indexNftEvents(contractIds: string[] = [nftId]) {
   const page = await localRpc().getEvents({
     startLedger,
-    filters: [{ type: 'contract', contractIds: [nftId] }],
+    filters: [{ type: 'contract', contractIds }],
     pagination: { limit: 1000 },
   })
   return t.mutation(internal.chain.indexer.ingestBackfill, {
@@ -180,6 +181,10 @@ async function eligibility(userId: Id<'users'> | null = ids.authorId) {
   return (userId ? as(userId) : t).action(api.nftsV2.getMintEligibility, {
     articleId: ids.articleId,
   })
+}
+
+async function progress() {
+  return t.query(api.nftsV2.getMintProgress, { articleId: ids.articleId })
 }
 
 beforeAll(async () => {
@@ -289,6 +294,16 @@ describe('5.10 NFT through nftsV2', () => {
   let nftRowId: Id<'articleNFTs'>
 
   it('reads eligibility live: below the threshold, then eligible', async () => {
+    // The reader view comes from the cached config and indexed totals.
+    await t.action(internal.chain.config.refreshChainConfig, {})
+    expect(await progress()).toMatchObject({
+      state: 'NOT_MINTED',
+      thresholdToken: token,
+      threshold: THRESHOLD.toString(),
+      total: '0',
+      reached: false,
+      paused: false,
+    })
     expect(await eligibility()).toMatchObject({
       state: 'BELOW_THRESHOLD',
       articleKey,
@@ -315,6 +330,15 @@ describe('5.10 NFT through nftsV2', () => {
     })
     expect((await eligibility(ids.collectorId)).state).toBe('NOT_AUTHOR')
     expect((await eligibility(null)).state).toBe('SIGNED_OUT')
+
+    const indexed = await indexNftEvents([coreId])
+    expect(indexed.byResult.error ?? 0).toBe(0)
+    expect(await progress()).toMatchObject({
+      state: 'NOT_MINTED',
+      total: THRESHOLD.toString(),
+      remaining: '0',
+      reached: true,
+    })
   })
 
   it('mints through prepare, record, verify and the indexer', async () => {
@@ -361,6 +385,12 @@ describe('5.10 NFT through nftsV2', () => {
       author.publicKey()
     )
     expect(await eligibility()).toMatchObject({ state: 'MINTED', tokenId })
+    expect(await progress()).toMatchObject({
+      state: 'MINTED',
+      tokenId,
+      nftId: nftRowId,
+      ownerAddress: author.publicKey(),
+    })
     expect(
       await t.query(api.nftsV2.getTokenMetadata, { tokenId })
     ).toMatchObject({
