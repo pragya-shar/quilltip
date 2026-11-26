@@ -135,6 +135,8 @@ export const chainTables = {
     ),
     registeredLedger: v.optional(v.number()),
     txHash: v.optional(v.string()),
+    /** RPC id of the last event applied; older events are ignored. */
+    lastEventId: v.optional(v.string()),
     updatedAt: v.number(),
   })
     .index('by_article', ['articleId'])
@@ -207,8 +209,17 @@ export const chainTables = {
     status: v.union(
       v.literal('OK'),
       v.literal('LAGGING'),
-      v.literal('BEHIND_RETENTION')
+      v.literal('BEHIND_RETENTION'),
+      // The ledger sequence dropped or a contract instance is missing. The
+      // indexer stops until an operator starts a new epoch or replays.
+      v.literal('RESET_DETECTED')
     ),
+    /** First ledger to read when `cursor` is unset (start or replay). */
+    startLedger: v.optional(v.number()),
+    /** Why the indexer stopped, for `BEHIND_RETENTION` and `RESET_DETECTED`. */
+    statusReason: v.optional(v.string()),
+    lastRunAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
     updatedAt: v.number(),
   }).index('by_network', ['network']),
 
