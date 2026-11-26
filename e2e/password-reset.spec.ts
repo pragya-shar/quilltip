@@ -47,7 +47,13 @@ for (const viewport of [
           'If an account uses nobody@example.test'
         )
       } else {
-        await expect(page.getByRole('alert')).toContainText('no code was sent')
+        // Scoped to the form: Next.js also renders a route announcer with
+        // role="alert" on every page.
+        await expect(
+          page
+            .getByRole('region', { name: 'Reset your password.' })
+            .getByRole('alert')
+        ).toContainText('no code was sent')
         await expect(
           page.getByRole('link', { name: 'Contact QuillTip' })
         ).toBeVisible()

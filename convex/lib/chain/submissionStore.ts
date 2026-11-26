@@ -690,7 +690,10 @@ export function indexerCoversMaxTime(
   cursor: Doc<'chainCursor'> | null,
   maxTime: number
 ): boolean {
-  if (!cursor || cursor.status === 'BEHIND_RETENTION') return false
+  // Only a cursor that is moving normally proves coverage.
+  if (!cursor || (cursor.status !== 'OK' && cursor.status !== 'LAGGING')) {
+    return false
+  }
   return cursor.lastLedgerCloseTime >= maxTime + EXPIRY_COVERAGE_MARGIN_SECONDS
 }
 
