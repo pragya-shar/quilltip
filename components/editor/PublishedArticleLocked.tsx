@@ -3,6 +3,8 @@ import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
 import { ArticleReaderHeader } from '@/components/articles/ArticleReaderHeader'
 import { EditorialSurface } from '@/components/layout/EditorialSurface'
 import { estimateArticleReadingMinutes } from '@/lib/reading-time'
+import type { Id } from '@/convex/_generated/dataModel'
+import { ArticleTipsPanel } from './ArticleTipsPanel'
 import { WritingBrand } from './WritingBrand'
 
 /* Full navigation runs the writing desk unsaved-changes guard. */
@@ -14,6 +16,7 @@ export function PublishedArticleLocked({
   authorName,
   content,
   articleHref,
+  articleId,
   className,
 }: {
   title: string
@@ -22,6 +25,7 @@ export function PublishedArticleLocked({
   authorName?: string
   content: JSONContent | null
   articleHref?: string
+  articleId?: Id<'articles'> | null
   className: string
 }) {
   return (
@@ -55,6 +59,7 @@ export function PublishedArticleLocked({
             )}
           </div>
         </section>
+        {articleId && <ArticleTipsPanel articleId={articleId} />}
         <EditorialSurface className="reader-layout">
           <article
             className="reader-article reader-article-preview"

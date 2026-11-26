@@ -40,6 +40,16 @@ import {
   storeVerification,
 } from '../lib/chain/submissionStore'
 import { verifyTippedTransaction } from '../lib/chain/verify'
+import {
+  isArticleSubmissionKind,
+  verifyArticleTransaction,
+} from '../lib/chain/articleEvents'
+import {
+  applyArticleVerification as applyArticleOutcome,
+  articleVerificationValidator,
+  relatedArticle,
+  storeArticleVerification,
+} from '../lib/chain/articleStore'
 import { resolveNftSubmissionFromState } from '../lib/chain/nftStore'
 import { checkNftSubmission } from '../nftsV2'
 
@@ -143,6 +153,20 @@ export const recordSubmitted = mutation({
       txHash,
       updatedAt: now,
     })
+    if (submission.kind === 'register') {
+      const article = await relatedArticle(ctx, submission)
+      if (
+        article &&
+        article.lastSubmissionId === submission._id &&
+        article.status === 'PREPARED'
+      ) {
+        await ctx.db.patch(article._id, {
+          status: 'SUBMITTED',
+          txHash,
+          updatedAt: now,
+        })
+      }
+    }
     for (const { table, row } of await loadTipRows(ctx, submission)) {
       if (row.status !== 'PREPARED') continue
       const patch = {
@@ -173,7 +197,11 @@ export const recordSubmitted = mutation({
 export const recordSendFailed = mutation({
   args: {
     submissionId: v.id('chainSubmissions'),
-    reason: v.union(v.literal('simulation_failed'), v.literal('send_error')),
+    reason: v.union(
+      v.literal('simulation_failed'),
+      v.literal('send_error'),
+      v.literal('wallet_rejected')
+    ),
     detail: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -252,6 +280,17 @@ export const applyVerification = internalMutation({
   },
   handler: async (ctx, args) =>
     applyTransactionVerification(ctx, { ...args, now: Date.now() }),
+})
+
+export const applyArticleVerification = internalMutation({
+  args: {
+    submissionId: v.id('chainSubmissions'),
+    txHash: v.string(),
+    ledger: v.number(),
+    outcome: articleVerificationValidator,
+  },
+  handler: async (ctx, args) =>
+    applyArticleOutcome(ctx, { ...args, now: Date.now() }),
 })
 
 export const applyRpcFailed = internalMutation({
@@ -359,6 +398,25 @@ export async function checkSubmission(
       txHash: submission.txHash,
     })
     return { result: 'failed', maxTime }
+  }
+
+  if (isArticleSubmissionKind(submission.kind)) {
+    if (!submission.expectedArticle) return { result: 'skipped', maxTime }
+    const outcome = verifyArticleTransaction({
+      kind: submission.kind,
+      expected: submission.expectedArticle,
+      coreContractId: submission.contractId,
+      contractEventsXdr: tx.contractEventsXdr,
+      ledger: tx.ledger!,
+      createdLedger: submission.createdLedger ?? null,
+    })
+    await ctx.runMutation(internal.chain.submissions.applyArticleVerification, {
+      submissionId,
+      txHash: submission.txHash,
+      ledger: tx.ledger!,
+      outcome: storeArticleVerification(outcome),
+    })
+    return { result: 'confirmed_or_mismatch', maxTime }
   }
 
   const outcomes = verifyTippedTransaction({

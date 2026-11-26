@@ -146,6 +146,9 @@ export default defineSchema({
     contentVersion: v.optional(v.number()),
     contentHash: v.optional(v.string()),
     contentHashSchema: v.optional(v.string()),
+    // The contentHash the Arweave upload body reproduces. Registration passes
+    // arweaveTxId on chain only when this equals contentHash.
+    arweaveContentHash: v.optional(v.string()),
 
     // Timestamps
     createdAt: v.number(),
