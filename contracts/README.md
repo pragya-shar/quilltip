@@ -8,13 +8,13 @@ All payment development targets Stellar **testnet**.
 
 ## Layout
 
-| Path           | Crate                  | Kind          | Status                                    |
-| -------------- | ---------------------- | ------------- | ----------------------------------------- |
-| `shared/`      | `quilltip-shared`      | rlib          | Constants, identifiers, TTL, fee math     |
-| `core/`        | `quilltip-core`        | cdylib + rlib | Skeleton                                  |
-| `tab/`         | `quilltip-tab`         | cdylib + rlib | Implemented (see below)                   |
-| `article-nft/` | `quilltip-article-nft` | cdylib + rlib | Skeleton (replaces the v1 crate in place) |
-| `tipping/`     | `quilltip-tipping`     | cdylib        | v1, outside the workspace until cutover   |
+| Path           | Crate                  | Kind          | Status                                  |
+| -------------- | ---------------------- | ------------- | --------------------------------------- |
+| `shared/`      | `quilltip-shared`      | rlib          | Constants, identifiers, TTL, fee math   |
+| `core/`        | `quilltip-core`        | cdylib + rlib | Skeleton                                |
+| `tab/`         | `quilltip-tab`         | cdylib + rlib | Implemented (see below)                 |
+| `article-nft/` | `quilltip-article-nft` | cdylib + rlib | Article NFT (replaces the v1 crate)     |
+| `tipping/`     | `quilltip-tipping`     | cdylib        | v1, outside the workspace until cutover |
 
 `Cargo.toml` defines the workspace, the exact dependency pins and the shared
 release profile. `rust-toolchain.toml` pins Rust 1.94.1 and `wasm32v1-none`.
@@ -143,12 +143,12 @@ It passes `--meta source_repo` and `--meta commit_sha`, writes `SHA256SUMS` and
 `sizes.tsv`, and fails when a Wasm exceeds 120,000 bytes. CI runs it twice and
 compares the hashes.
 
-Skeleton sizes from the reproducible build (Stellar CLI 30.0.1, `--optimize`,
-including the `source_repo` and `commit_sha` metadata). Two builds of one
-commit produced identical hashes.
+Sizes from the reproducible build (Stellar CLI 30.0.1, `--optimize`,
+including the `source_repo` and `commit_sha` metadata). Core and Tab are still
+skeletons. CI builds each commit twice and compares the hashes.
 
 | Wasm                        | Bytes |
 | --------------------------- | ----: |
 | `quilltip_core.wasm`        |   576 |
 | `quilltip_tab.wasm`         |   572 |
-| `quilltip_article_nft.wasm` |   580 |
+| `quilltip_article_nft.wasm` | 33853 |
