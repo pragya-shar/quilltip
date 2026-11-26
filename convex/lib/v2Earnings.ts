@@ -206,11 +206,14 @@ export async function applyV2TipEarnings(
     return 'no_amount'
   }
 
+  // Article keys stay the same after a testnet reset: use this epoch's row.
   const chainArticle = articleKey
-    ? await ctx.db
-        .query('chainArticles')
-        .withIndex('by_article_key', (q) => q.eq('articleKey', articleKey))
-        .first()
+    ? ((
+        await ctx.db
+          .query('chainArticles')
+          .withIndex('by_article_key', (q) => q.eq('articleKey', articleKey))
+          .take(20)
+      ).find((article) => article.chainEpoch === row.chainEpoch) ?? null)
     : null
   const shares = recipientShares(net, author, chainArticle?.splits ?? [])
   const title = await articleTitle(ctx, row)
