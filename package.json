@@ -30,6 +30,7 @@
     "eng-235:batch-evidence": "bun scripts/eng-235-batch-evidence-runner.ts",
     "eng-236:batch-evidence": "bun scripts/eng-236-batch-evidence-runner.ts",
     "perf:page-load": "bun scripts/page-load-performance.ts",
+    "perf:budget": "bun scripts/perf/page-load-budget.ts",
     "audit:dependencies": "bun run security:audit",
     "security:audit": "bun scripts/security/audit.ts",
     "test:security": "vitest run scripts/security/audit.test.ts",

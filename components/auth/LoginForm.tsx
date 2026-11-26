@@ -4,20 +4,32 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { rememberResetEmail } from '@/lib/auth/passwordReset'
 import { useAuthActions } from '@convex-dev/auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useAuthReturnPath } from '@/components/auth/useAuthReturnPath'
+import { useRouter } from 'next/navigation'
 import { getLoginCopy } from '@/lib/copy/auth-intent'
-import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import { shouldUseFullPageAuthNavigation } from '@/lib/auth/postAuthNavigation'
-import { getSafeReturnPath } from '@/lib/auth/safeReturnPath'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { loginSchema, type LoginFormData } from '@/lib/validations/auth'
+import { useForm, type Resolver } from 'react-hook-form'
+import type { LoginFormData } from '@/lib/validations/auth'
 import { ArrowRight } from '@/components/landing/LandingIcons'
 import { AccountField } from './AccountField'
 import { AccountPasswordToggle } from './AccountPasswordToggle'
 
 const REDIRECT_TIMEOUT_MS = 15_000
+
+/**
+ * Validation runs on submit, so the schema library loads then instead of with
+ * the page. Same schema and resolver as before.
+ */
+const loginResolver: Resolver<LoginFormData> = async (
+  values,
+  context,
+  options
+) => {
+  const [{ zodResolver }, { loginSchema }] = await Promise.all([
+    import('@hookform/resolvers/zod'),
+    import('@/lib/validations/auth'),
+  ])
+  return zodResolver(loginSchema)(values, context, options)
+}
 
 /**
  * Login Form Component
@@ -26,7 +38,12 @@ const REDIRECT_TIMEOUT_MS = 15_000
  * Includes form validation, error handling, and loading states.
  */
 
-export default function LoginForm() {
+export default function LoginForm({
+  returnToPath,
+}: {
+  /** Safe post-login path, read from the URL query by the page. */
+  returnToPath: string
+}) {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,14 +51,8 @@ export default function LoginForm() {
   const submitting = useRef(false)
 
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const returnToPath = useAuthReturnPath()
   const copy = getLoginCopy(returnToPath)
-  const redirectParam = searchParams.get('redirect')
-  const postLoginPath =
-    redirectParam != null && redirectParam !== ''
-      ? getSafeReturnPath(redirectParam, returnToPath)
-      : returnToPath
+  const postLoginPath = returnToPath
   const { signIn } = useAuthActions()
 
   const {
@@ -50,7 +61,7 @@ export default function LoginForm() {
     getValues,
     formState: { errors },
   } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
+    resolver: loginResolver,
   })
 
   useEffect(() => {
@@ -71,6 +82,13 @@ export default function LoginForm() {
     submitting.current = true
     setIsLoading(true)
     setError(null)
+    // Loaded on submit with the validation code. If it cannot load, sign-in
+    // still works; only a pending tip resumes without a full page load.
+    const readPendingTipIntent =
+      await import('@/lib/tip/pendingTipIntent').then(
+        (mod) => mod.readPendingTipIntent,
+        () => () => null
+      )
 
     try {
       await signIn('password', {
@@ -104,7 +122,14 @@ export default function LoginForm() {
     )
 
   return (
-    <form noValidate onSubmit={handleSubmit(onSubmit)} aria-busy={isLoading}>
+    // method="post" keeps credentials out of the URL if someone submits
+    // before the page script has loaded.
+    <form
+      method="post"
+      noValidate
+      onSubmit={handleSubmit(onSubmit)}
+      aria-busy={isLoading}
+    >
       {error && (
         <p className="account-error account-error-banner" role="alert">
           {error}
