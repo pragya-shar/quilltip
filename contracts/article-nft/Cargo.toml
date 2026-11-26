@@ -21,6 +21,7 @@ stellar-tokens = { workspace = true }
 quilltip-shared = { workspace = true }
 
 [dev-dependencies]
+quilltip-core = { path = "../core" }
 soroban-sdk = { workspace = true, features = ["testutils"] }
 ed25519-dalek = { workspace = true }
 proptest = { workspace = true }

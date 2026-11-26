@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/react'
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 
 export const DRAFT_BACKUP_STORAGE_KEY = 'quilltip_draft_backup'
 

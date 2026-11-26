@@ -8,13 +8,13 @@ All payment development targets Stellar **testnet**.
 
 ## Layout
 
-| Path           | Crate                  | Kind          | Status                                    |
-| -------------- | ---------------------- | ------------- | ----------------------------------------- |
-| `shared/`      | `quilltip-shared`      | rlib          | Constants, identifiers, TTL, fee math     |
-| `core/`        | `quilltip-core`        | cdylib + rlib | Skeleton                                  |
-| `tab/`         | `quilltip-tab`         | cdylib + rlib | Skeleton                                  |
-| `article-nft/` | `quilltip-article-nft` | cdylib + rlib | Skeleton (replaces the v1 crate in place) |
-| `tipping/`     | `quilltip-tipping`     | cdylib        | v1, outside the workspace until cutover   |
+| Path           | Crate                  | Kind          | Status                                  |
+| -------------- | ---------------------- | ------------- | --------------------------------------- |
+| `shared/`      | `quilltip-shared`      | rlib          | Constants, identifiers, TTL, fee math   |
+| `core/`        | `quilltip-core`        | cdylib + rlib | Skeleton                                |
+| `tab/`         | `quilltip-tab`         | cdylib + rlib | Implemented (see below)                 |
+| `article-nft/` | `quilltip-article-nft` | cdylib + rlib | Article NFT (replaces the v1 crate)     |
+| `tipping/`     | `quilltip-tipping`     | cdylib        | v1, outside the workspace until cutover |
 
 `Cargo.toml` defines the workspace, the exact dependency pins and the shared
 release profile. `rust-toolchain.toml` pins Rust 1.94.1 and `wasm32v1-none`.
@@ -57,6 +57,57 @@ cd contracts && QUILLTIP_WRITE_TEST_VECTORS=1 cargo test -p quilltip-shared --te
 npx prettier --write contracts/shared/test-vectors.json
 ```
 
+## Tab contract
+
+`tab/` implements `docs/architecture/v2/03-tab-contract.md`. Tests live in
+`tab/src/test/` and name the invariants they cover (`I-n`, section 7.1).
+
+| Path                              | Contents                                                                                     |
+| --------------------------------- | -------------------------------------------------------------------------------------------- |
+| `tab/test-vectors.json`           | Settlement sequence: payload and acceptance bytes, signatures and expected contract results  |
+| `tab/testdata/upgrade_probe.wasm` | Upgrade test fixture: this crate built with `--features upgrade-probe` (`src/probe.rs`)      |
+| `tab/fuzz/`                       | cargo-fuzz targets `settle_vouchers` and `voucher_decode` (own workspace, nightly toolchain) |
+
+The resource figures at the maximum batch print with:
+
+```bash
+cargo test -p quilltip-tab resource -- --nocapture
+```
+
+The Wasm-mode resource test reads `quilltip_tab.wasm` from `QUILLTIP_WASM_DIR`
+(CI sets it to the reproducible build output) or from the file named by
+`QUILLTIP_TAB_WASM`:
+
+```bash
+QUILLTIP_WASM_DIR=<dir with quilltip_tab.wasm> cargo test -p quilltip-tab resource -- --ignored --nocapture
+```
+
+Regenerate the Tab vectors only for an intended encoding change:
+
+```bash
+QUILLTIP_WRITE_TAB_VECTORS=1 cargo test -p quilltip-tab tab_settlement_vectors
+```
+
+```bash
+npx prettier --write contracts/tab/test-vectors.json
+```
+
+Rebuild the upgrade fixture only when the storage layout changes:
+
+```bash
+stellar contract build --locked --package quilltip-tab --features upgrade-probe --out-dir target/probe && cp target/probe/quilltip_tab.wasm tab/testdata/upgrade_probe.wasm
+```
+
+Run a fuzz target (from `tab/fuzz/`):
+
+```bash
+cargo +nightly fuzz run settle_vouchers -- -max_total_time=600
+```
+
+On macOS, the OpenZeppelin dependencies fail to link with the coverage symbols.
+Run with `--sanitizer none` and
+`RUSTFLAGS="-C link-arg=-Wl,-undefined,dynamic_lookup"`.
+
 ## Commands
 
 Run from `contracts/`:
@@ -92,12 +143,12 @@ It passes `--meta source_repo` and `--meta commit_sha`, writes `SHA256SUMS` and
 `sizes.tsv`, and fails when a Wasm exceeds 120,000 bytes. CI runs it twice and
 compares the hashes.
 
-Skeleton sizes from the reproducible build (Stellar CLI 30.0.1, `--optimize`,
-including the `source_repo` and `commit_sha` metadata). Two builds of one
-commit produced identical hashes.
+Sizes from the reproducible build (Stellar CLI 30.0.1, `--optimize`,
+including the `source_repo` and `commit_sha` metadata). Core and Tab are still
+skeletons. CI builds each commit twice and compares the hashes.
 
 | Wasm                        | Bytes |
 | --------------------------- | ----: |
 | `quilltip_core.wasm`        |   576 |
 | `quilltip_tab.wasm`         |   572 |
-| `quilltip_article_nft.wasm` |   580 |
+| `quilltip_article_nft.wasm` | 33853 |
