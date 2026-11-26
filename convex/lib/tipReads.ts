@@ -10,8 +10,9 @@
  *   without `needsReview`, with `verifiedAt`: both mean the payment reached
  *   the on-chain author, who may differ from the expected one. A `MISMATCH`
  *   with `needsReview` (a payment field differs, or no `Tipped` event) is left
- *   out until it is reviewed, because its stored amounts are not the decoded
- *   on-chain values.
+ *   out until an operator resolves it (`reviewResolution`): `credit_decoded`
+ *   counts it with the decoded on-chain amounts, `no_credit` keeps it out.
+ *   The decoded values are stored next to the expected ones (`onChain*`).
  * - **Amounts.** v2 base-unit amounts are the recorded on-chain values
  *   (`grossBaseUnits`, `feeBaseUnits`, `netBaseUnits` from the `Tipped` event),
  *   never a client value.
@@ -47,11 +48,14 @@ export function countsAsPaid(tip: {
   verifiedAt?: number
   contractVersion?: ContractVersion
   needsReview?: boolean
+  reviewResolution?: 'credit_decoded' | 'no_credit'
 }): boolean {
   if (typeof tip.verifiedAt !== 'number' || tip.verifiedAt <= 0) return false
   if (contractVersionOf(tip) === 'v2') {
-    if (tip.status === 'CONFIRMED') return true
-    return tip.status === 'MISMATCH' && tip.needsReview !== true
+    if (tip.needsReview === true || tip.reviewResolution === 'no_credit') {
+      return false
+    }
+    return tip.status === 'CONFIRMED' || tip.status === 'MISMATCH'
   }
   return tip.status === 'CONFIRMED'
 }
@@ -79,12 +83,27 @@ export function clampPageSize(numItems: number): number {
   return Math.min(Math.floor(numItems), MAX_PAGE_SIZE)
 }
 
+/**
+ * The token and gross a v2 row paid: the decoded on-chain values when the
+ * row has them, else the prepared values (equal for a verified match).
+ */
+export function paidTokenAndGross(tip: TipRow): {
+  token: string | undefined
+  gross: string | undefined
+} {
+  return {
+    token: tip.onChainTokenContractId ?? tip.tokenContractId,
+    gross: tip.onChainGrossBaseUnits ?? tip.grossBaseUnits,
+  }
+}
+
 /** Base-unit fields of a v2 row; null for v1 rows. */
 function chainAmounts(tip: TipRow) {
   if (contractVersionOf(tip) !== 'v2') return null
+  const paid = paidTokenAndGross(tip)
   return {
-    tokenContractId: tip.tokenContractId ?? null,
-    grossBaseUnits: tip.grossBaseUnits ?? null,
+    tokenContractId: paid.token ?? null,
+    grossBaseUnits: paid.gross ?? null,
     feeBaseUnits: tip.feeBaseUnits ?? null,
     netBaseUnits: tip.netBaseUnits ?? null,
     channel: tip.channel ?? null,
@@ -178,8 +197,7 @@ export function sumBaseUnitsByToken(tips: TipRow[]): Record<string, string> {
   const sums = new Map<string, bigint>()
   for (const tip of tips) {
     if (contractVersionOf(tip) !== 'v2') continue
-    const token = tip.tokenContractId
-    const gross = tip.grossBaseUnits
+    const { token, gross } = paidTokenAndGross(tip)
     if (!token || !gross || !/^[0-9]{1,39}$/.test(gross)) continue
     sums.set(token, (sums.get(token) ?? BigInt(0)) + BigInt(gross))
   }

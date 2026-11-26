@@ -132,6 +132,7 @@ export type NetworkGuardCode =
   | 'LIVE_IN_ALLOWLIST'
   | 'APPROVAL_NOT_FOR_DEPLOY'
   | 'INVALID_APPROVAL'
+  | 'CONVEX_KEY_FOR_STELLAR_ONLY'
 
 export type NetworkGuardRefusal = {
   code: NetworkGuardCode
@@ -176,6 +177,8 @@ export type NetworkGuardInput = {
   convexDeployment?: string | null
   /** `CONVEX_DEPLOY_KEY` value. Only its type prefix and name are read. */
   convexDeployKey?: string | null
+  /** CONVEX_DEPLOYMENT_TOKEN, which the Convex CLI also reads as a deploy key. */
+  convexDeploymentToken?: string | null
   /** Value of QUILLTIP_NETWORK_GUARD_OPT_IN. */
   optIn?: string | null
   /** Value of QUILLTIP_CONVEX_ALLOWLIST. */
@@ -544,18 +547,20 @@ function collectConvexRefusals(
     targets.push({ label: 'Convex URL', type: null, name })
   }
 
+  // The Convex CLI reads CONVEX_DEPLOYMENT_TOKEN as a deploy key too, and a
+  // deploy key takes precedence over CONVEX_DEPLOYMENT.
   for (const [label, value] of [
     ['CONVEX_DEPLOYMENT', input.convexDeployment],
     ['CONVEX_DEPLOY_KEY', input.convexDeployKey],
+    ['CONVEX_DEPLOYMENT_TOKEN', input.convexDeploymentToken],
   ] as const) {
     if (!present(value)) continue
-    if (label === 'CONVEX_DEPLOY_KEY' && !value.includes('|')) {
+    if (label !== 'CONVEX_DEPLOYMENT' && !value.includes('|')) {
       // Without the `type:name|` prefix the whole value is secret material;
       // refuse without echoing it.
       refusals.push({
         code: 'CONVEX_NOT_ALLOWLISTED',
-        message:
-          'CONVEX_DEPLOY_KEY does not name its deployment (expected "type:name|..."), so its target cannot be checked.',
+        message: `${label} does not name its deployment (expected "type:name|..."), so its target cannot be checked.`,
       })
       continue
     }

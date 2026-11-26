@@ -2,7 +2,7 @@ import { tipXlmPresetValidator } from './lib/articleTipExpectation'
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { authTables } from '@convex-dev/auth/server'
-import { chainTables, tipChainFields } from './lib/chain/schema'
+import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
 
 export default defineSchema({
   ...authTables,
@@ -463,7 +463,10 @@ export default defineSchema({
     .index('by_article_tip_intent', ['articleTipIntentId'])
     // Not unique for v2: batch rows share one hash.
     .index('by_stellar_tx', ['stellarTxId'])
-    .index('by_client_ref', ['clientRef']),
+    .index('by_client_ref', ['clientRef'])
+    // Rows flagged for operator review (convex/chain/review.ts).
+    .index('by_needs_review', ['needsReview', 'updatedAt'])
+    .index('by_request', ['requestId']),
 
   // Highlight Tips table (NEW - granular tipping)
   highlightTips: defineTable({
@@ -564,7 +567,10 @@ export default defineSchema({
     ])
     .index('by_highlight_tip_intent', ['highlightTipIntentId'])
     .index('by_stellar_tx', ['stellarTxId'])
-    .index('by_client_ref', ['clientRef']),
+    .index('by_client_ref', ['clientRef'])
+    // Rows flagged for operator review (convex/chain/review.ts).
+    .index('by_needs_review', ['needsReview', 'updatedAt'])
+    .index('by_request', ['requestId']),
 
   // Author Earnings table
   authorEarnings: defineTable({
@@ -819,4 +825,5 @@ export default defineSchema({
 
   // Payments v2 chain layer (docs/architecture/v2/06-app-integration.md, 6.2)
   ...chainTables,
+  ...tabTables,
 })

@@ -5,6 +5,7 @@ import { api } from '@/convex/_generated/api'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 import { AccountSurface } from '@/components/account/AccountSurface'
+import { FlaggedTipsReview } from './FlaggedTipsReview'
 
 function formatTime(seconds: number | null | undefined): string {
   if (!seconds) return '—'
@@ -121,6 +122,7 @@ export function ChainIndexerStatusPage() {
               <dt>Last error</dt>
               <dd>{status.cursor?.lastError ?? 'None'}</dd>
             </dl>
+            <FlaggedTipsReview />
           </>
         )}
       </section>

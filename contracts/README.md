@@ -203,3 +203,36 @@ to the directory given with `--out <dir>`.
 A local network cannot reach the 120-day TTL or the three-day withdrawal
 delay, so archived-entry restores and completed withdrawals stay covered by
 the contract unit tests.
+
+## Testnet deployment
+
+`scripts/contracts/deploy-v2-testnet.ts` deploys one contract set (`--set
+integration|live`) and writes `docs/contracts/v2-testnet-deployment.md`
+([section 8.4](../docs/architecture/v2/08-testing-and-deployment.md#84-testnet-deployment-procedure)).
+
+- **Guard:** `assertScriptStellarTestnetOnly` runs before any work. Mainnet is
+  refused in every form, and every submission first asks the RPC server for
+  its passphrase.
+- **Steps:** `build` (twice, hashes must match), `keys`, `upload`, `deploy`
+  (Core, then Tab and the NFT with the Core address), `verify` (reads back
+  every setting and compares the on-chain Wasm with the build), `smoke` (the
+  twelve flows) and `evidence`.
+- **Resuming:** each step records its result in a state file and is skipped
+  on a rerun. Contract addresses come from a fixed salt per set, contract and
+  commit, so a rerun finds a contract even if the state file was lost.
+- **Keys:** keys are Stellar CLI identities in `--keys-dir/<set>`, which must
+  be outside the repository (mode 700 and 600). No secret is printed.
+
+Rehearse on a local network first (Quickstart, `LOCAL` guard mode):
+
+```bash
+stellar container start local
+```
+
+```bash
+QUILLTIP_NETWORK_GUARD_OPT_IN=local NEXT_PUBLIC_STELLAR_NETWORK=LOCAL NEXT_PUBLIC_SOROBAN_RPC_URL=http://localhost:8000/rpc NEXT_PUBLIC_HORIZON_URL=http://localhost:8000 NEXT_PUBLIC_NETWORK_PASSPHRASE='Standalone Network ; February 2017' bun run contracts:deploy-v2 --set integration --commit <sha> --keys-dir <dir outside the repo>
+```
+
+On testnet, use `QUILLTIP_NETWORK_GUARD_OPT_IN=testnet`,
+`NEXT_PUBLIC_STELLAR_NETWORK=TESTNET`, the testnet RPC URL and passphrase, and
+a commit on `origin/overhaul/v2`.

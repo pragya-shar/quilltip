@@ -12,6 +12,7 @@ import {
   cursorStatus,
 } from '../../convex/lib/chain/indexerStore'
 import { prepareTipSubmission } from '../../convex/lib/chain/submissionStore'
+import { articleIdHex, articleRefHex } from '../../convex/lib/chain/ids'
 import { acquireLease } from '../../convex/lib/chain/lease'
 import {
   isMissingContractError,
@@ -31,7 +32,12 @@ import {
 const modules = import.meta.glob('../../convex/**/*.ts')
 
 const START = 6_000_000
-const ARTICLE_KEY = 'ab'.repeat(32)
+/**
+ * Core derives `article_id` from the registering author and the app's
+ * `article_ref` (#479). `seedArticle` sets both from the seeded article.
+ */
+let ARTICLE_REF = 'ab'.repeat(32)
+let ARTICLE_KEY = 'ab'.repeat(32)
 const TIPPER = seedAddress(31)
 const AUTHOR = seedAddress(32)
 const NEW_AUTHOR = seedAddress(33)
@@ -215,6 +221,8 @@ async function seedArticle(t: T) {
       createdAt: now,
       updatedAt: now,
     })
+    ARTICLE_REF = await articleRefHex(articleId)
+    ARTICLE_KEY = await articleIdHex(AUTHOR, ARTICLE_REF)
     const chainArticleId = await db.insert('chainArticles', {
       network: 'TESTNET',
       chainEpoch: 'testnet-idx',
@@ -421,6 +429,7 @@ describe('paging and the cursor', () => {
     const registered = coreEventJson('article_registered')
     setTopic(registered, 1, { bytes: ARTICLE_KEY })
     setTopic(registered, 2, { address: AUTHOR })
+    setData(registered, 'article_ref', { bytes: ARTICLE_REF })
     chain.state.events = [
       coreRpcEvent(registered, { ledger: START + 1 }),
       tippedEvent(START + 2, { totalAfter: BigInt(10_000_000) }),
@@ -775,9 +784,12 @@ describe('article and config handlers', () => {
     const registered = coreEventJson('article_registered')
     setTopic(registered, 1, { bytes: ARTICLE_KEY })
     setTopic(registered, 2, { address: AUTHOR })
+    setData(registered, 'article_ref', { bytes: ARTICLE_REF })
     setData(registered, 'content_hash', { bytes: '11'.repeat(32) })
     const content = coreEventJson('content_updated')
+    setTopic(content, 1, { bytes: ARTICLE_KEY })
     const splits = coreEventJson('splits_set')
+    setTopic(splits, 1, { bytes: ARTICLE_KEY })
     const proposed = coreEventJson('author_proposed')
     setTopic(proposed, 1, { bytes: ARTICLE_KEY })
     setData(proposed, 'new_author', { address: NEW_AUTHOR })
@@ -822,6 +834,30 @@ describe('article and config handlers', () => {
     const config = await t.run((ctx) => ctx.db.query('chainConfig').first())
     expect(config!.minTip).toBe('5000000')
     expect((await events(t)).every((e) => e.handled === 'done')).toBe(true)
+  })
+
+  it('rejects a registration whose article_id is not derived from author and article_ref', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seedArticle(t)
+    const chain = fakeChain()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const forged = coreEventJson('article_registered')
+    setTopic(forged, 1, { bytes: ARTICLE_KEY })
+    // Another author's registration cannot carry this article's key.
+    setTopic(forged, 2, { address: NEW_AUTHOR })
+    setData(forged, 'article_ref', { bytes: ARTICLE_REF })
+    const otherRef = coreEventJson('article_registered')
+    setTopic(otherRef, 1, { bytes: ARTICLE_KEY })
+    setTopic(otherRef, 2, { address: AUTHOR })
+    setData(otherRef, 'article_ref', { bytes: 'cd'.repeat(32) })
+    chain.state.events = [
+      coreRpcEvent(forged, { ledger: START + 1 }),
+      coreRpcEvent(otherRef, { ledger: START + 2 }),
+    ]
+    await poll(t)
+    expect((await events(t)).map((e) => e.handled)).toEqual(['error', 'error'])
+    const article = await t.run((ctx) => ctx.db.get(s.chainArticleId))
+    expect(article!.status).toBe('SUBMITTED')
   })
 
   it('an article registered outside the app is an orphan', async () => {

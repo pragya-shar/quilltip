@@ -435,15 +435,7 @@ async function patchRowWithOutcome(
     ...(extra.chainEventId === undefined
       ? {}
       : { chainEventId: extra.chainEventId }),
-    ...(event
-      ? {
-          onChainAuthorAddress: event.author,
-          feeBaseUnits: event.fee,
-          netBaseUnits: event.net,
-          chainContentHash: event.content_hash,
-          chainContentVersion: event.content_version,
-        }
-      : {}),
+    ...(event ? decodedEventFields(event) : {}),
   }
   if (table === 'tips') {
     await ctx.db.patch(row._id as Id<'tips'>, patch)
@@ -529,6 +521,26 @@ export async function applyTransactionVerification(
 }
 
 /**
+ * The decoded on-chain values a row keeps next to its expected values, so a
+ * reviewer sees what the transaction actually paid.
+ */
+export function decodedEventFields(event: StoredTippedEvent) {
+  return {
+    onChainAuthorAddress: event.author,
+    onChainTipperAddress: event.tipper,
+    onChainTokenContractId: event.token,
+    onChainGrossBaseUnits: event.gross,
+    onChainArticleKey: event.article_id,
+    onChainHighlightKey: event.highlight_id,
+    onChainClientRef: event.client_ref,
+    feeBaseUnits: event.fee,
+    netBaseUnits: event.net,
+    chainContentHash: event.content_hash,
+    chainContentVersion: event.content_version,
+  }
+}
+
+/**
  * Flags a submission and one row for manual review when an on-chain event
  * carries the row's `client_ref` but cannot resolve it: the row is `FAILED`,
  * or the submission recorded a different hash. Money may have moved, so the
@@ -539,10 +551,16 @@ async function flagEventConflict(
   submission: Doc<'chainSubmissions'>,
   found: { table: TipTable; row: TipRow },
   reason: 'event_after_failure' | 'event_hash_differs',
-  now: number
+  now: number,
+  event: StoredTippedEvent,
+  eventMeta: { txHash: string; ledger: number; eventId: string }
 ): Promise<void> {
+  // The row keeps its status; the decoded payment is recorded for review.
   await patchRowStatus(ctx, found.table, found.row._id, {
     needsReview: true,
+    mismatchReason: reason,
+    chainEventId: eventMeta.eventId,
+    ...decodedEventFields(event),
     updatedAt: now,
   })
   await ctx.db.patch(submission._id, {
@@ -598,7 +616,9 @@ export async function applyStoredTippedEvent(
       submission,
       found,
       'event_after_failure',
-      args.now
+      args.now,
+      args.event,
+      args
     )
     return 'conflict'
   }
@@ -610,7 +630,9 @@ export async function applyStoredTippedEvent(
       submission,
       found,
       'event_hash_differs',
-      args.now
+      args.now,
+      args.event,
+      args
     )
     return 'conflict'
   }

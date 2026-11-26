@@ -10,7 +10,7 @@
 import { StrKey } from '@stellar/stellar-sdk'
 import type { Doc } from '../../_generated/dataModel'
 import type { MutationCtx } from '../../_generated/server'
-import { isHexOfLength } from './ids'
+import { articleIdHex, articleRefHex, isHexOfLength } from './ids'
 import type {
   ChainEventHandler,
   HandlerResult,
@@ -226,12 +226,27 @@ const tipped: ChainEventHandler = async (ctx, event) => {
   return outcome === 'orphan' ? 'orphan' : 'done'
 }
 
-const articleRegistered: ChainEventHandler = (ctx, event) => {
+const articleRegistered: ChainEventHandler = async (ctx, event) => {
   const d = data(event)
   const author = address(event.doc.topics[2], 'author')
+  const articleRef = hex(d.article_ref, 32, 'article_ref')
   const contentHash = hex(d.content_hash, 32, 'content_hash')
   const arweaveId = optionalHex(d.arweave_id, 32, 'arweave_id')
   const articleSplits = splits(d.splits)
+
+  // Core derives the article ID from the registering author and the app's
+  // article reference (#479). Check both before trusting the event.
+  const key = articleKey(event)
+  if ((await articleIdHex(author, articleRef)) !== key) {
+    throw new StoredEventError(
+      'article_id is not derived from author and article_ref'
+    )
+  }
+  const article = await findArticle(ctx, key, event.doc.chainEpoch)
+  if (article && (await articleRefHex(article.articleId)) !== articleRef) {
+    throw new StoredEventError('article_ref does not belong to this article')
+  }
+
   return applyArticleEvent(ctx, event, () => ({
     status: 'REGISTERED',
     authorAddress: author,
