@@ -6,9 +6,12 @@
  *   row without the field predates payments v2 and is `v1` (the backfill sets
  *   it explicitly).
  * - **Counting.** A v1 row counts once the server verified it (`CONFIRMED`
- *   with `verifiedAt`). A v2 row counts when it is `CONFIRMED` or `MISMATCH`
- *   with `verifiedAt`: both mean the payment happened on chain. `MISMATCH`
- *   means it went to the on-chain author, who may differ from the expected one.
+ *   with `verifiedAt`). A v2 row counts when it is `CONFIRMED`, or `MISMATCH`
+ *   without `needsReview`, with `verifiedAt`: both mean the payment reached
+ *   the on-chain author, who may differ from the expected one. A `MISMATCH`
+ *   with `needsReview` (a payment field differs, or no `Tipped` event) is left
+ *   out until it is reviewed, because its stored amounts are not the decoded
+ *   on-chain values.
  * - **Amounts.** v2 base-unit amounts are the recorded on-chain values
  *   (`grossBaseUnits`, `feeBaseUnits`, `netBaseUnits` from the `Tipped` event),
  *   never a client value.
@@ -43,10 +46,12 @@ export function countsAsPaid(tip: {
   status: string
   verifiedAt?: number
   contractVersion?: ContractVersion
+  needsReview?: boolean
 }): boolean {
   if (typeof tip.verifiedAt !== 'number' || tip.verifiedAt <= 0) return false
   if (contractVersionOf(tip) === 'v2') {
-    return tip.status === 'CONFIRMED' || tip.status === 'MISMATCH'
+    if (tip.status === 'CONFIRMED') return true
+    return tip.status === 'MISMATCH' && tip.needsReview !== true
   }
   return tip.status === 'CONFIRMED'
 }

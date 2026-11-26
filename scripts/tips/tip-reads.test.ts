@@ -770,3 +770,137 @@ describe('earnings access and mixed summary', () => {
     })
   })
 })
+
+describe('earnings sync robustness', () => {
+  async function rowByRef(t: T, clientRef: string) {
+    return t.run(({ db }) =>
+      db
+        .query('tips')
+        .withIndex('by_client_ref', (q) => q.eq('clientRef', clientRef))
+        .first()
+    )
+  }
+
+  async function syncUntilDone(t: T) {
+    for (let i = 0; i < 10; i += 1) {
+      const result = await sync(t)
+      if (!result.more) return
+    }
+    throw new Error('the earnings sync did not finish')
+  }
+
+  it('credits a row confirmed with an older updatedAt after an earlier sync', async () => {
+    const t = newTest()
+    const s = await seed(t)
+    const first = await prepare(t, s, [articleItem(s, '1000000', 25)])
+    const second = await prepare(t, s, [articleItem(s, '2000000', 50)])
+    await applyEvent(t, first.clientRefs[0]!, BigInt(1_000_000))
+    vi.setSystemTime(T0 + 60_000)
+    await sync(t)
+
+    // A verification that started earlier commits after the sync.
+    await applyEvent(t, second.clientRefs[0]!, BigInt(2_000_000))
+    const late = await rowByRef(t, second.clientRefs[0]!)
+    await t.run(({ db }) => db.patch(late!._id, { updatedAt: T0 - 60_000 }))
+    await sync(t)
+
+    // 975,000 + 1,950,000
+    expect(await earningsOf(t, s.authorId)).toMatchObject({
+      earnedBaseUnits: { [TOKEN]: '2925000' },
+      v2TipCount: 2,
+    })
+  })
+
+  it('credits every row when more than one page shares one updatedAt', async () => {
+    const t = newTest()
+    const s = await seed(t)
+    const refs: string[] = []
+    for (let batch = 0; batch < 6; batch += 1) {
+      const items = Array.from({ length: 10 }, () =>
+        articleItem(s, '1000000', 25)
+      )
+      const { clientRefs } = await prepare(t, s, items)
+      refs.push(...clientRefs)
+    }
+    for (const ref of refs) await applyEvent(t, ref, BigInt(1_000_000))
+    // Fake timers: every row carries the same updatedAt.
+    await syncUntilDone(t)
+
+    // 60 × 975,000
+    expect(await earningsOf(t, s.authorId)).toMatchObject({
+      earnedBaseUnits: { [TOKEN]: '58500000' },
+      v2TipCount: 60,
+    })
+  })
+
+  it('holds a MISMATCH that needs review out of counts and earnings', async () => {
+    const t = newTest()
+    const s = await seed(t)
+    await registerArticle(t, s)
+    const { clientRefs } = await prepare(t, s, [articleItem(s, '1000000', 25)])
+    await applyEvent(t, clientRefs[0]!, BigInt(1_000_000))
+    const row = await rowByRef(t, clientRefs[0]!)
+    await t.run(({ db }) =>
+      db.patch(row!._id, {
+        status: 'MISMATCH',
+        mismatchReason: 'field:gross',
+        needsReview: true,
+      })
+    )
+    await sync(t)
+
+    expect(await earningsOf(t, s.authorId)).toBeNull()
+    expect(await rowByRef(t, clientRefs[0]!)).toMatchObject({
+      earningsSkipReason: 'needs_review',
+    })
+    const stats = await t.query(api.tips.getArticleTipStats, {
+      articleId: s.articleId,
+    })
+    expect(stats.totalTips).toBe(0)
+    const list = await t.query(api.tips.getArticleTips, {
+      articleId: s.articleId,
+    })
+    expect(list).toHaveLength(0)
+  })
+
+  it('an address linked by two users credits neither, unless one is the expected author', async () => {
+    const t = newTest()
+    const s = await seed(t)
+    // A second account links the co-author's address, and a third the author's.
+    await t.run(async ({ db }) => {
+      const now = Date.now()
+      for (const [username, address] of [
+        ['copy-coauthor', OTHER_AUTHOR],
+        ['copy-author', AUTHOR],
+      ] as const) {
+        await db.insert('users', {
+          username,
+          email: `${username}@example.test`,
+          stellarAddress: address,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+    })
+    const mismatch = await prepare(t, s, [articleItem(s, '2000000', 50)])
+    await applyEvent(t, mismatch.clientRefs[0]!, BigInt(2_000_000), {
+      author: OTHER_AUTHOR,
+    })
+    const confirmed = await prepare(t, s, [articleItem(s, '1000000', 25)])
+    await applyEvent(t, confirmed.clientRefs[0]!, BigInt(1_000_000))
+    await sync(t)
+
+    expect(await earningsOf(t, s.coAuthorId)).toBeNull()
+    const copies = await t.run(({ db }) =>
+      db
+        .query('authorEarnings')
+        .collect()
+        .then((rows) => rows.filter((r) => r.userId !== s.authorId))
+    )
+    expect(copies).toHaveLength(0)
+    expect(await earningsOf(t, s.authorId)).toMatchObject({
+      earnedBaseUnits: { [TOKEN]: '975000' },
+      v2TipCount: 1,
+    })
+  })
+})

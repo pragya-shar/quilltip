@@ -11,7 +11,15 @@
  *   article's registered splits start with the on-chain author, `net` is
  *   divided with the contract's rule (I-2): each later recipient receives
  *   `floor(net × bps / 10,000)` and the first the remainder.
- * - **Idempotency.** A row is credited once; `earningsAppliedAt` marks it.
+ * - **Idempotency.** A row is handled once; `earningsAppliedAt` marks it.
+ * - **Review.** A `MISMATCH` row with `needsReview` (a payment field differs,
+ *   or the transaction holds no `Tipped` event) is not credited: its stored
+ *   token and gross are the prepared values, not the decoded ones. It is
+ *   marked with `earningsSkipReason: 'needs_review'` for a reviewer.
+ * - **Recipient.** The row's expected author is credited when their linked
+ *   address is the on-chain address. Any other address is credited only when
+ *   exactly one user links it, because a linked address is not proof of
+ *   ownership.
  * - **Cents.** The display figures use the USD amount stored on the row at
  *   prepare (`amountCents`), in proportion to each recipient's share of gross.
  */
@@ -19,7 +27,7 @@ import type { Doc, Id } from '../_generated/dataModel'
 import type { MutationCtx } from '../_generated/server'
 import { BPS_DENOMINATOR } from './chain/fees'
 import { creditAuthorEarnings, roundCents } from './authorEarnings'
-import { contractVersionOf, countsAsPaid } from './tipReads'
+import { contractVersionOf } from './tipReads'
 
 export type TipTable = 'tips' | 'highlightTips'
 type TipRow = Doc<'tips'> | Doc<'highlightTips'>
@@ -29,6 +37,7 @@ export type ApplyResult =
   | 'not_applicable'
   | 'already_applied'
   | 'no_amount'
+  | 'needs_review'
 
 const BASE_UNITS = /^[0-9]{1,39}$/
 
@@ -77,14 +86,23 @@ export function shareCents(row: TipRow, share: bigint): number {
   return roundCents(row.amountCents * parts)
 }
 
-async function userByAddress(
+/**
+ * The user to credit for `address`: the row's expected author when their
+ * linked address matches, otherwise the only user that links it. Two users
+ * linking one address credit nobody.
+ */
+async function userForAddress(
   ctx: MutationCtx,
+  row: TipRow,
   address: string
 ): Promise<Doc<'users'> | null> {
-  return await ctx.db
+  const expected = await ctx.db.get(row.authorId)
+  if (expected?.stellarAddress === address) return expected
+  const matches = await ctx.db
     .query('users')
     .withIndex('by_stellar_address', (q) => q.eq('stellarAddress', address))
-    .first()
+    .take(2)
+  return matches.length === 1 ? matches[0]! : null
 }
 
 async function articleTitle(ctx: MutationCtx, row: TipRow): Promise<string> {
@@ -142,27 +160,43 @@ export async function applyV2TipEarnings(
   now: number
 ): Promise<ApplyResult> {
   const row = (await ctx.db.get(rowId)) as TipRow | null
-  if (!row || contractVersionOf(row) !== 'v2' || !countsAsPaid(row)) {
+  if (
+    !row ||
+    contractVersionOf(row) !== 'v2' ||
+    (row.status !== 'CONFIRMED' && row.status !== 'MISMATCH')
+  ) {
     return 'not_applicable'
   }
   if (row.earningsAppliedAt !== undefined) return 'already_applied'
 
-  const mark = async () => {
-    if (table === 'tips') {
-      await ctx.db.patch(row._id as Id<'tips'>, { earningsAppliedAt: now })
-    } else {
-      await ctx.db.patch(row._id as Id<'highlightTips'>, {
-        earningsAppliedAt: now,
-      })
+  const mark = async (skipReason?: string) => {
+    const patch = {
+      earningsAppliedAt: now,
+      ...(skipReason ? { earningsSkipReason: skipReason } : {}),
     }
+    if (table === 'tips') {
+      await ctx.db.patch(row._id as Id<'tips'>, patch)
+    } else {
+      await ctx.db.patch(row._id as Id<'highlightTips'>, patch)
+    }
+  }
+
+  if (typeof row.verifiedAt !== 'number' || row.verifiedAt <= 0) {
+    // The chain layer sets the status and verifiedAt together; a paid status
+    // without it is left for review instead of blocking the sync.
+    await mark('unverified')
+    return 'needs_review'
+  }
+  if (row.needsReview) {
+    await mark('needs_review')
+    return 'needs_review'
   }
 
   const net = parseBaseUnits(row.netBaseUnits)
   const token = row.tokenContractId
   const author = row.onChainAuthorAddress
   if (net === null || net <= BigInt(0) || !token || !author) {
-    // MISMATCH without an event: no on-chain amount to credit.
-    await mark()
+    await mark('no_amount')
     return 'no_amount'
   }
 
@@ -178,7 +212,7 @@ export async function applyV2TipEarnings(
   const title = await articleTitle(ctx, row)
   for (const { address, share } of shares) {
     if (share <= BigInt(0)) continue
-    const user = await userByAddress(ctx, address)
+    const user = await userForAddress(ctx, row, address)
     if (!user) continue
     await creditUser(ctx, { userId: user._id, row, title, token, share, now })
   }
@@ -200,9 +234,12 @@ const SYNC_SOURCES: Array<{
 ]
 
 /**
- * One bounded pass over newly paid rows, through the `by_status_updated`
- * index from each stored cursor. Returns true when a source may have more
- * rows. Crediting never changes `updatedAt`, so the cursor only moves forward.
+ * One bounded pass over v2 paid rows that the sync has not handled yet,
+ * through the `by_version_status_earnings` index. Handling a row sets
+ * `earningsAppliedAt`, which moves it out of the index range, so the next
+ * pass starts where this one stopped. No cursor is kept, so a row confirmed
+ * late or out of order is still found. Returns true when a source may have
+ * more rows.
  */
 export async function syncV2TipEarningsBatch(
   ctx: MutationCtx,
@@ -211,38 +248,20 @@ export async function syncV2TipEarningsBatch(
   let credited = 0
   let more = false
   for (const source of SYNC_SOURCES) {
-    const name = `${source.table}:${source.paidStatus}`
-    const cursor = await ctx.db
-      .query('earningsSyncCursors')
-      .withIndex('by_name', (q) => q.eq('name', name))
-      .first()
-    const from = cursor?.updatedAt ?? 0
     const rows = await ctx.db
       .query(source.table)
-      .withIndex('by_status_updated', (q) =>
-        q.eq('status', source.paidStatus).gte('updatedAt', from)
+      .withIndex('by_version_status_earnings', (q) =>
+        q
+          .eq('contractVersion', 'v2')
+          .eq('status', source.paidStatus)
+          .eq('earningsAppliedAt', undefined)
       )
       .take(SYNC_BATCH)
     for (const row of rows) {
       const result = await applyV2TipEarnings(ctx, source.table, row._id, now)
       if (result === 'credited') credited += 1
     }
-    const last = rows[rows.length - 1]
-    if (!last) continue
-    // A full page whose rows all share the cursor value would never advance;
-    // step past that millisecond (the rows were credited above).
-    const next =
-      rows.length === SYNC_BATCH && last.updatedAt === from
-        ? from + 1
-        : last.updatedAt
     if (rows.length === SYNC_BATCH) more = true
-    if (cursor) {
-      if (next !== cursor.updatedAt) {
-        await ctx.db.patch(cursor._id, { updatedAt: next })
-      }
-    } else {
-      await ctx.db.insert('earningsSyncCursors', { name, updatedAt: next })
-    }
   }
   return { credited, more }
 }

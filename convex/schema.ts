@@ -413,8 +413,10 @@ export default defineSchema({
 
     // Payments v2 fields (optional; v1 rows leave them unset)
     ...tipChainFields,
-    // Set once this v2 row's net was credited to `authorEarnings`.
+    // Set once the earnings sync has handled this v2 row. A row it did not
+    // credit carries `earningsSkipReason` (for example `needs_review`).
     earningsAppliedAt: v.optional(v.number()),
+    earningsSkipReason: v.optional(v.string()),
 
     // Timestamps
     createdAt: v.number(),
@@ -427,6 +429,12 @@ export default defineSchema({
     .index('by_status', ['status'])
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
     .index('by_status_updated', ['status', 'updatedAt']) // For stuck verification recovery
+    // v2 paid rows not yet handled by the earnings sync.
+    .index('by_version_status_earnings', [
+      'contractVersion',
+      'status',
+      'earningsAppliedAt',
+    ])
     .index('by_article_tip_intent', ['articleTipIntentId'])
     // Not unique for v2: batch rows share one hash.
     .index('by_stellar_tx', ['stellarTxId'])
@@ -506,8 +514,10 @@ export default defineSchema({
 
     // Payments v2 fields (optional; v1 rows leave them unset)
     ...tipChainFields,
-    // Set once this v2 row's net was credited to `authorEarnings`.
+    // Set once the earnings sync has handled this v2 row. A row it did not
+    // credit carries `earningsSkipReason` (for example `needs_review`).
     earningsAppliedAt: v.optional(v.number()),
+    earningsSkipReason: v.optional(v.string()),
 
     // Timestamps
     createdAt: v.number(),
@@ -521,6 +531,12 @@ export default defineSchema({
     .index('by_status', ['status'])
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
     .index('by_status_updated', ['status', 'updatedAt']) // For stuck verification recovery
+    // v2 paid rows not yet handled by the earnings sync.
+    .index('by_version_status_earnings', [
+      'contractVersion',
+      'status',
+      'earningsAppliedAt',
+    ])
     .index('by_highlight_tip_intent', ['highlightTipIntentId'])
     .index('by_stellar_tx', ['stellarTxId'])
     .index('by_client_ref', ['clientRef']),
@@ -775,13 +791,6 @@ export default defineSchema({
     windowStart: v.number(),
     count: v.number(),
   }).index('by_key', ['key']),
-
-  // Progress of the v2 earnings sync: one row per (table, status), holding
-  // the last processed `updatedAt` of the `by_status_updated` index.
-  earningsSyncCursors: defineTable({
-    name: v.string(),
-    updatedAt: v.number(),
-  }).index('by_name', ['name']),
 
   // Payments v2 chain layer (docs/architecture/v2/06-app-integration.md, 6.2)
   ...chainTables,
