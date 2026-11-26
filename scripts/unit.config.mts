@@ -9,6 +9,7 @@ export default defineConfig({
       'scripts/network/*.test.ts',
       'scripts/profile/*.test.ts',
       'scripts/health/*.test.ts',
+      'scripts/wallet/*.test.ts',
       'scripts/stellar/*.test.ts',
       // The other scripts/chain suites run in the edge runtime (test:chain).
       'scripts/chain/canonical-article.test.ts',

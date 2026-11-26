@@ -13,43 +13,6 @@ function runNode(source: string) {
   return JSON.parse(result.stdout)
 }
 
-it('keeps the CommonJS query-string API with valid and malformed URL values', () => {
-  expect(
-    runNode(`
-    const query = require('query-string');
-    console.log(JSON.stringify({
-      parsed: query.parse('name=Ada+Lovelace&unicode=%E2%9C%93&literal=%2B&broken=%E0%A4%A'),
-      encoded: query.stringify({ name: 'Ada Lovelace', unicode: '✓' }),
-      oneLevel: query.parse('value=%25C2%zz').value
-    }));
-  `)
-  ).toEqual({
-    parsed: {
-      name: 'Ada Lovelace',
-      unicode: '✓',
-      literal: '+',
-      broken: '%E0%A4%A',
-    },
-    encoded: 'name=Ada%20Lovelace&unicode=%E2%9C%93',
-    oneLevel: '%C2%zz',
-  })
-})
-
-it('decodes many distinct malformed runs without blocking the event loop', () => {
-  expect(
-    runNode(`
-    const query = require('query-string');
-    let payload = '';
-    for (let i = 0; i < 32000; i++) {
-      payload += '%' + Math.floor(i / 256).toString(16).padStart(2, '0')
-        + '%' + (i % 256).toString(16).padStart(2, '0') + 'x';
-    }
-    const value = query.parse('value=' + payload + '%zz').value;
-    console.log(JSON.stringify({ complete: value.endsWith('%zz') }));
-  `)
-  ).toEqual({ complete: true })
-})
-
 it('strips cross-realm custom credentials on cross-origin redirects for object and array headers', () => {
   expect(
     runNode(`

@@ -10,10 +10,7 @@ import { Button } from '@/components/ui/button'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
 import { useWallet } from '@/components/providers/WalletProvider'
 import type { FlowFeedback } from '@/lib/feedback/flow-feedback'
-import {
-  NO_WALLET_AVAILABLE_ERROR_CODE,
-  ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
-} from '@/lib/stellar/wallet-adapter'
+import { describeConnectFailure } from '@/lib/stellar/v2/wallet-errors'
 import { cn } from '@/lib/utils'
 
 export type WalletSetupMode = 'send' | 'receive'
@@ -61,23 +58,16 @@ export function ContextualWalletSetup({
   const [feedback, setFeedback] = useState<FlowFeedback | null>(null)
 
   const handleConnect = async () => {
+    if (isConnecting) return
     setIsConnecting(true)
     setFeedback(null)
     try {
-      const success = await connect()
-      if (!success) {
-        setFeedback({
-          variant: 'destructive',
-          title: 'Failed to connect wallet',
-          detail: 'Try again or choose a different wallet extension.',
-        })
-        toast.error('Failed to connect wallet')
-        return
-      }
+      // false: the reader closed the wallet picker. Nothing to report.
+      if (!(await connect())) return
 
       if (mode === 'receive') {
-        const { walletAdapter } = await import('@/lib/stellar/wallet-adapter')
-        const connectedKey = await walletAdapter.getPublicKey()
+        const { wallet } = await import('@/lib/stellar/v2/wallet-kit')
+        const connectedKey = wallet.getConnection()?.address ?? null
         if (connectedKey) {
           await updateProfile({ stellarAddress: connectedKey })
           onAddressSaved?.(connectedKey)
@@ -98,24 +88,20 @@ export function ContextualWalletSetup({
 
       onConnected?.()
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to connect wallet'
-
-      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+      const failure = describeConnectFailure(error)
+      if (failure.action === 'install') {
         setInstallDialogOpen(true)
         return
       }
-
-      if (message.startsWith(`${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}:`)) {
-        return
-      }
+      if (failure.action === 'ignore') return
+      const { title, detail } = failure.message
 
       setFeedback({
         variant: 'destructive',
-        title: 'Failed to connect wallet',
-        detail: message,
+        title,
+        detail,
       })
-      toast.error(message)
+      toast.error(title, { description: detail })
     } finally {
       setIsConnecting(false)
     }
@@ -147,7 +133,7 @@ export function ContextualWalletSetup({
           ref={connectButtonRef}
           type="button"
           onClick={() => void handleConnect()}
-          disabled={isConnecting || isLoading}
+          aria-disabled={isConnecting || isLoading || undefined}
           className="w-full"
           size="lg"
         >

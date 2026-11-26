@@ -21,7 +21,7 @@ export type StellarNetworkSetting = (typeof STELLAR_NETWORK_SETTINGS)[number]
 
 export const DEFAULT_STELLAR_NETWORK: StellarNetwork = 'TESTNET'
 
-/** Key of the `WalletNetwork` enum in @creit.tech/stellar-wallets-kit. */
+/** Key of the `Networks` enum in @creit.tech/stellar-wallets-kit 2.x. */
 export type WalletNetworkKey = 'TESTNET' | 'PUBLIC' | 'STANDALONE'
 
 export const TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015'

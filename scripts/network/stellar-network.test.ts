@@ -1,5 +1,5 @@
 // The types entry avoids loading wallet modules that need a browser.
-import { WalletNetwork } from '@creit.tech/stellar-wallets-kit/types'
+import { Networks as WalletNetwork } from '@creit.tech/stellar-wallets-kit/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {

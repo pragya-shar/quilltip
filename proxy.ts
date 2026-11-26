@@ -146,6 +146,10 @@ export async function proxy(request: NextRequest) {
       ...(isVercelPreview ? ['https://vercel.live'] : []),
     ].join(' ')
 
+    // Wallets Kit 2.x: the extension and web-wallet modules QuillTip offers
+    // talk through extension messaging and popups and need no origins here.
+    // WalletConnect is not supported yet (lib/stellar/v2/wallet-kit.ts), so
+    // its relay origins are not allowed.
     const csp = [
       "default-src 'self'",
       `script-src ${scriptSrc}`,
