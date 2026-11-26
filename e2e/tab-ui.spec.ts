@@ -284,9 +284,7 @@ test('reload in the middle of a top-up resumes it and then confirms', async ({
 }) => {
   await open(page, 'op-reload')
   await startTopUp(page)
-  await expect(
-    visibleText(page, /Waiting for confirmation|Checking/)
-  ).toBeVisible()
+  await expect(visibleText(page, /Waiting for confirmation/)).toBeVisible()
   await page.reload()
   await expect(
     visibleText(

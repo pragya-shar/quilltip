@@ -489,7 +489,7 @@ const S: Scenario[] = [
     device: 'ready',
     seed: (s) => {
       open(s)
-      s.indexDelayMs = 4_000
+      s.indexDelayMs = 8_000
     },
   },
   // --- Reader: quick tip --------------------------------------------------

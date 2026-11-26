@@ -7,7 +7,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
 import { TabServicesContext } from '../../../hooks/tab/TabServicesContext'
-import { createSessionKeyStore } from '../../../lib/stellar/v2/tab'
+import {
+  TAB_DB_NAME,
+  closeTabDb,
+  createSessionKeyStore,
+} from '../../../lib/stellar/v2/tab'
 import { noteSeenKeyIds } from '../../../lib/tab-ui/device-memory'
 import { CollectPanel } from '../../../components/tab/CollectPanel'
 import { TabHome } from '../../../components/tab/TabHome'
@@ -21,6 +25,7 @@ import { createFixtureServices } from './services'
 const params = new URLSearchParams(location.search)
 const stateId = params.get('state') ?? 'home-no-tab'
 let session = params.get('session')
+const fresh = !session
 if (!session) {
   // A reload keeps the session (and its backend state).
   session = `${stateId}-${crypto.randomUUID().slice(0, 8)}`
@@ -30,7 +35,20 @@ if (!session) {
 const scenario = SCENARIOS.get(stateId)
 const scope = { tabContractId: FIXTURE_TAB, readerAddress: FIXTURE_READER }
 
+/** A fresh session starts with an empty key store and no device notes. */
+async function clearDevice() {
+  closeTabDb()
+  await new Promise<void>((resolve) => {
+    const request = indexedDB.deleteDatabase(TAB_DB_NAME)
+    request.onsuccess = request.onerror = request.onblocked = () => resolve()
+  })
+  for (const key of Object.keys(localStorage))
+    if (key.startsWith('quilltip-tab')) localStorage.removeItem(key)
+  sessionStorage.removeItem('quilltip-tab-pending-operation')
+}
+
 async function seedDevice(kind: DeviceSetup) {
+  if (fresh && kind !== 'storage-blocked') await clearDevice()
   if (kind === 'storage-blocked') {
     Object.defineProperty(window, 'indexedDB', { value: undefined })
     return
