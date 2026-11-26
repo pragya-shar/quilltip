@@ -1,32 +1,18 @@
-import Link from 'next/link'
+import AppNavigation from '@/components/layout/AppNavigation'
 import { LandingOrnaments } from '@/components/landing/LandingOrnaments'
-import { LandingWordmark } from '@/components/landing/LandingWordmark'
 
-export function CollectionShell({
-  children,
-  isLibrary = false,
-}: {
-  children: React.ReactNode
-  isLibrary?: boolean
-}) {
+export function CollectionShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="prototype-library" data-view="journal">
-      <LandingOrnaments
-        rootSelector=".prototype-library"
-        count={15}
-        trackContent
-      />
-      <header>
-        <LandingWordmark />
-        <nav aria-label="Main navigation">
-          <Link href="/articles">Articles</Link>
-          <Link href="/library" aria-current={isLibrary ? 'page' : undefined}>
-            Your library
-          </Link>
-          <Link href="/write">Writing desk</Link>
-        </nav>
-      </header>
-      {children}
-    </div>
+    <>
+      <AppNavigation />
+      <div className="prototype-library pt-16" data-view="journal">
+        <LandingOrnaments
+          rootSelector=".prototype-library"
+          count={15}
+          trackContent
+        />
+        {children}
+      </div>
+    </>
   )
 }

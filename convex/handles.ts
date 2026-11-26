@@ -4,8 +4,10 @@ import { internal } from './_generated/api'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import {
   MAX_RETIRED_HANDLES,
+  handleBaseFromName,
   handleFormatError,
   handleKey,
+  isGeneratedHandle,
 } from '../lib/profile/handleRules'
 import { findHandleOwner } from './lib/handleOwner'
 import {
@@ -38,6 +40,35 @@ export const checkHandle = query({
     return owner && owner.userId !== userId
       ? { status: 'taken' as const }
       : { status: 'available' as const }
+  },
+})
+
+// How many numbered variants of a name to try before giving up on a suggestion.
+const SUGGESTION_ATTEMPTS = 20
+
+/**
+ * A free handle to pre-fill the new-writer setup form: the writer's current
+ * handle when they chose it, otherwise one made from their display name.
+ */
+export const suggestHandle = query({
+  args: {},
+  returns: v.object({ handle: v.union(v.string(), v.null()) }),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) throw new Error('Not authenticated')
+    const user = await ctx.db.get(userId)
+    if (!user) throw new Error('User not found')
+    if (!isGeneratedHandle(user.username)) return { handle: user.username }
+
+    const base = handleBaseFromName(user.name)
+    if (!base) return { handle: null }
+    for (let attempt = 0; attempt < SUGGESTION_ATTEMPTS; attempt++) {
+      const candidate = attempt === 0 ? base : `${base}${attempt + 1}`
+      if (handleFormatError(candidate)) continue
+      const owner = await findHandleOwner(ctx, candidate)
+      if (!owner || owner.userId === userId) return { handle: candidate }
+    }
+    return { handle: null }
   },
 })
 

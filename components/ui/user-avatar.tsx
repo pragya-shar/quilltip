@@ -26,7 +26,11 @@ export function UserAvatar({
 }: UserAvatarProps) {
   const trimmedSrc = src?.trim()
   return (
-    <Avatar className={cn(className)} role="img" aria-label={alt}>
+    // An empty alt marks the avatar as decorative (a name sits beside it).
+    <Avatar
+      className={cn(className)}
+      {...(alt ? { role: 'img', 'aria-label': alt } : { 'aria-hidden': true })}
+    >
       {trimmedSrc ? <AvatarImage src={trimmedSrc} alt="" /> : null}
       <AvatarFallback
         className={cn(

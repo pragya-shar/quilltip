@@ -3,7 +3,8 @@ const PROTECTED_PREFIXES = [
   '/drafts',
   '/dashboard',
   '/profile',
-  '/settings/profile',
+  '/settings',
+  '/welcome',
 ] as const
 
 export function isProtectedPath(pathname: string): boolean {
