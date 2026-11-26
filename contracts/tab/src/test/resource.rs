@@ -4,8 +4,9 @@
 //! so a batch that exceeds any limit fails. The figures are printed with
 //! `cargo test -p quilltip-tab resource -- --nocapture`.
 //!
-//! `settle_max_batch_wasm` repeats the measurement on a built Wasm:
-//! `QUILLTIP_TAB_WASM=<path to quilltip_tab.wasm> cargo test -p quilltip-tab resource -- --ignored --nocapture`.
+//! `settle_max_batch_wasm` repeats the measurement on the CLI-built Wasm. It reads
+//! `QUILLTIP_TAB_WASM` (a file), or `quilltip_tab.wasm` in `QUILLTIP_WASM_DIR` (CI):
+//! `QUILLTIP_WASM_DIR=<dir> cargo test -p quilltip-tab resource -- --ignored --nocapture`.
 use super::*;
 use crate::MAX_SETTLE_BATCH;
 
@@ -79,9 +80,13 @@ fn settle_own_max_batch_within_limits() {
 }
 
 #[test]
-#[ignore = "needs QUILLTIP_TAB_WASM pointing at a built quilltip_tab.wasm"]
+#[ignore = "needs QUILLTIP_TAB_WASM or QUILLTIP_WASM_DIR with a built quilltip_tab.wasm"]
 fn settle_max_batch_wasm() {
-    let path = std::env::var("QUILLTIP_TAB_WASM").expect("QUILLTIP_TAB_WASM");
+    let path = std::env::var("QUILLTIP_TAB_WASM")
+        .or_else(|_| {
+            std::env::var("QUILLTIP_WASM_DIR").map(|d| std::format!("{d}/quilltip_tab.wasm"))
+        })
+        .expect("set QUILLTIP_TAB_WASM or QUILLTIP_WASM_DIR (see contracts/README.md)");
     let wasm = std::fs::read(path).expect("read wasm");
     let base = Fixture::quiet();
     let e = base.e.clone();

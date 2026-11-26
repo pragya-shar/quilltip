@@ -74,6 +74,14 @@ The resource figures at the maximum batch print with:
 cargo test -p quilltip-tab resource -- --nocapture
 ```
 
+The Wasm-mode resource test reads `quilltip_tab.wasm` from `QUILLTIP_WASM_DIR`
+(CI sets it to the reproducible build output) or from the file named by
+`QUILLTIP_TAB_WASM`:
+
+```bash
+QUILLTIP_WASM_DIR=<dir with quilltip_tab.wasm> cargo test -p quilltip-tab resource -- --ignored --nocapture
+```
+
 Regenerate the Tab vectors only for an intended encoding change:
 
 ```bash
@@ -95,6 +103,10 @@ Run a fuzz target (from `tab/fuzz/`):
 ```bash
 cargo +nightly fuzz run settle_vouchers -- -max_total_time=600
 ```
+
+On macOS, the OpenZeppelin dependencies fail to link with the coverage symbols.
+Run with `--sanitizer none` and
+`RUSTFLAGS="-C link-arg=-Wl,-undefined,dynamic_lookup"`.
 
 ## Commands
 
