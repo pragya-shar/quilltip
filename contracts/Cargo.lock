@@ -1423,6 +1423,7 @@ version = "2.0.0"
 dependencies = [
  "ed25519-dalek",
  "proptest",
+ "quilltip-core",
  "quilltip-shared",
  "sha2",
  "soroban-sdk",
