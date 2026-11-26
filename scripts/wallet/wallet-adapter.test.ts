@@ -164,16 +164,27 @@ describe('init', () => {
     expect(store.has('selectedWalletId')).toBe(false)
   })
 
-  test('leaves Albedo out on plain-http localhost', async () => {
+  test('keeps Albedo loaded on plain http, listed as unavailable with the reason', async () => {
     vi.stubGlobal('window', {
       location: { protocol: 'http:', hostname: 'localhost' },
     })
-    const fake = fakeKit()
-    await adapterFor(fake).init()
+    const fake = fakeKit({ available: ['varial', 'xbull', 'albedo'] })
+    const wallet = adapterFor(fake)
+    await wallet.init()
     const ids = fake.kit.init.mock.calls[0]![0].modules.map(
       (m: ModuleInterface) => m.productId
     )
-    expect(ids).toEqual(['varial', 'xbull'])
+    expect(ids).toEqual(['varial', 'xbull', 'albedo'])
+    const albedo = (await wallet.listWallets()).find((w) => w.id === 'albedo')
+    expect(albedo).toMatchObject({
+      access: 'unavailable',
+      isAvailable: false,
+      unavailableReason:
+        'Albedo works only on a secure (https) page, and this page uses http.',
+    })
+    const error = await rejection(wallet.connect({ walletId: 'albedo' }))
+    expect(error.kind).toBe('unsupported')
+    expect(fake.kit.fetchAddress).not.toHaveBeenCalled()
   })
 })
 

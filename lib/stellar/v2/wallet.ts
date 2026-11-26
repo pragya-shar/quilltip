@@ -13,6 +13,15 @@
  *
  * No v2 flow needs `signAuthEntry`: every entry point authorises only the
  * transaction source (section 6.1, step 4), so the adapter does not expose it.
+ * A wallet that cannot sign what a request needs (a Soroban envelope, a
+ * message) fails with `unsupported` before it is prompted.
+ *
+ * Per-wallet behaviour comes from the wallet catalog (`../wallet-catalog.ts`)
+ * and the error rules in `wallet-errors.ts`. Web wallets (xBull without its
+ * extension, Albedo) open their own window: a blocked window fails with
+ * `popup-blocked` at once instead of waiting for the timeout. Wallets that
+ * cannot report their network get their signature checked against
+ * QuillTip's passphrase instead (`verifySignature`).
  *
  * WalletConnect (mobile wallets) is not supported yet: see `wallet-kit.ts`.
  * The adapter handles a `wallet_connect` module generically, but the app
@@ -27,35 +36,32 @@ import type {
   StellarWalletsKitInitParams,
   SwkAppTheme,
 } from '@creit.tech/stellar-wallets-kit/types'
-import { WalletError, type WalletErrorKind } from './wallet-errors'
+import {
+  WALLET_IDS,
+  walletEntry,
+  type WalletCatalogEntry,
+  type WalletKind,
+} from '../wallet-catalog'
+import {
+  SIGNED_FOR_ANOTHER_NETWORK,
+  WalletError,
+  classifyWalletError,
+} from './wallet-errors'
 
-export { WalletError, isWalletError } from './wallet-errors'
+export { WALLET_IDS } from '../wallet-catalog'
+export {
+  WalletError,
+  classifyWalletError,
+  isWalletError,
+} from './wallet-errors'
 export type { WalletErrorKind } from './wallet-errors'
-
-/** Kit module IDs QuillTip uses. Varial is the wallet formerly called Freighter. */
-export const WALLET_IDS = {
-  varial: 'varial',
-  xbull: 'xbull',
-  albedo: 'albedo',
-  lobstr: 'lobstr',
-  rabet: 'rabet',
-  hana: 'hana',
-  walletConnect: 'wallet_connect',
-} as const
 
 /** IDs stored by the 1.x adapter that changed in 2.x. */
 const LEGACY_WALLET_IDS: Record<string, string> = { freighter: 'varial' }
 const LEGACY_STORAGE_KEY = 'selectedWalletId'
 
-/**
- * Wallets that report as available without an extension (web or bridge
- * wallets). They alone do not count as "a wallet is installed".
- */
-const WEB_ONLY_WALLETS = new Set<string>([
-  WALLET_IDS.albedo,
-  WALLET_IDS.xbull,
-  WALLET_IDS.walletConnect,
-])
+/** Wallet kinds whose kit module reports available without an extension. */
+const WINDOW_KINDS = new Set<WalletKind>(['web', 'extension-or-web', 'mobile'])
 
 export const DEFAULT_SIGN_TIMEOUT_MS = 120_000
 export const DEFAULT_NETWORK_TIMEOUT_MS = 10_000
@@ -85,10 +91,37 @@ export type WalletEvent =
   | { type: 'network'; connection: WalletConnection }
   | { type: 'disconnected' }
 
+/**
+ * How the reader can use a wallet in this browser:
+ * - `installed`: its extension answered.
+ * - `web`: it opens its own window; nothing to install.
+ * - `not-installed`: an extension that did not answer.
+ * - `unavailable`: it cannot work on this page (`unavailableReason` says why).
+ */
+export type WalletAccess = 'installed' | 'web' | 'not-installed' | 'unavailable'
+
 export type WalletOption = Pick<
   ISupportedWallet,
-  'id' | 'name' | 'isAvailable' | 'url'
->
+  'id' | 'name' | 'isAvailable' | 'url' | 'icon'
+> & {
+  access: WalletAccess
+  kind: WalletKind
+  formerly?: string
+  unavailableReason?: string
+}
+
+/** What the adapter reads from the page. Tests pass their own. */
+export type WalletPage = {
+  /** The page is served over HTTPS. */
+  isHttps(): boolean
+  /** xBull's extension is installed (it injects `window.xBullSDK`). */
+  hasXbullExtension(): boolean
+  /** The window whose `open` web wallets call, to notice a blocked pop-up. */
+  popupHost?: { open: (...args: never[]) => unknown } | null
+}
+
+/** Result of checking a signed envelope against QuillTip's network. */
+export type SignatureCheck = 'ok' | 'wrong-network' | 'wrong-account'
 
 /** The static `StellarWalletsKit` surface the adapter uses. */
 export type KitFacade = {
@@ -126,57 +159,21 @@ export type WalletAdapterOptions = {
   signTimeoutMs?: number
   networkTimeoutMs?: number
   connectTimeoutMs?: number
+  page?: WalletPage
+  /**
+   * Checks the source signature in a signed envelope for `passphrase`. Used
+   * for wallets that cannot report their network.
+   */
+  verifySignature?: (
+    signedTxXdr: string,
+    address: string,
+    passphrase: string
+  ) => Promise<SignatureCheck>
+  /** Whether an envelope calls a Soroban contract. */
+  describeEnvelope?: (xdr: string) => Promise<{ soroban: boolean }>
 }
 
 export type WalletAdapter = ReturnType<typeof createWalletAdapter>
-
-type KitErrorShape = {
-  code?: number
-  message?: string
-  error?: { code?: number; message?: string }
-}
-
-/** Maps a kit or wallet error (SEP-43 shape, Error or string) to a WalletError. */
-export function classifyWalletError(
-  error: unknown,
-  walletId?: string
-): WalletError {
-  if (error instanceof WalletError) return error
-  const shape = (
-    typeof error === 'object' && error !== null ? error : {}
-  ) as KitErrorShape
-  const code = shape.error?.code ?? shape.code
-  const message =
-    shape.error?.message ??
-    shape.message ??
-    (typeof error === 'string' ? error : '') ??
-    ''
-  const text = message.toLowerCase()
-  const fail = (kind: WalletErrorKind, copy = message) =>
-    new WalletError(kind, copy || 'Wallet request failed', {
-      walletId,
-      walletCode: typeof code === 'number' ? code : undefined,
-      cause: error,
-    })
-
-  if (/closed the modal|modal was closed/.test(text)) {
-    return fail('cancelled', 'Wallet selection was closed')
-  }
-  if (
-    code === -4 ||
-    /declin|reject|denied|cancel|refused by the user/.test(text)
-  ) {
-    return fail('rejected')
-  }
-  if (/timed? ?out/.test(text)) return fail('timeout')
-  if (/locked|not allowed|request access|permission/.test(text)) {
-    return fail('locked')
-  }
-  if (/is not (connected|available|installed)|not detected/.test(text)) {
-    return fail('no-wallet')
-  }
-  return fail('failed')
-}
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -199,17 +196,81 @@ function withTimeout<T>(
 }
 
 function isNotSupported(error: unknown): boolean {
-  const message = (error as KitErrorShape)?.message ?? ''
-  return /does not support/i.test(message)
+  const message = (error as { message?: unknown })?.message
+  return typeof message === 'string' && /does not support/i.test(message)
 }
 
-function isInsecureLocalhost(): boolean {
-  if (typeof window === 'undefined') return false
-  const { hostname, protocol } = window.location
-  return (
-    protocol === 'http:' &&
-    (hostname === 'localhost' || hostname === '127.0.0.1')
-  )
+/** The page the adapter runs in, read from `window`. */
+export function browserPage(): WalletPage {
+  const win =
+    typeof window === 'undefined'
+      ? undefined
+      : (window as Window & { xBullSDK?: unknown })
+  return {
+    isHttps: () => win?.location.protocol === 'https:',
+    hasXbullExtension: () => Boolean(win?.xBullSDK),
+    popupHost: win ?? null,
+  }
+}
+
+/** Why a wallet cannot work on this page, or undefined when it can. */
+export function unavailableReason(
+  entry: WalletCatalogEntry | undefined,
+  page: WalletPage
+): string | undefined {
+  if (entry?.needsHttps && !page.isHttps()) {
+    return `${entry.name} works only on a secure (https) page, and this page uses http.`
+  }
+  return undefined
+}
+
+/**
+ * Runs `request` and fails it with `popup-blocked` as soon as the wallet's
+ * call to `open` returns no window. The original `open` is restored when the
+ * last watched request settles.
+ */
+let watchers = 0
+let restoreOpen: (() => void) | null = null
+let onBlocked = new Set<() => void>()
+
+export function watchPopups<T>(
+  host: WalletPage['popupHost'],
+  walletId: string,
+  request: () => Promise<T>
+): Promise<T> {
+  if (!host) return request()
+  let blocked: () => void = () => {}
+  const blockedPromise = new Promise<never>((_, reject) => {
+    blocked = () =>
+      reject(
+        new WalletError(
+          'popup-blocked',
+          'The browser blocked the wallet window',
+          { walletId }
+        )
+      )
+  })
+  onBlocked.add(blocked)
+  if (watchers++ === 0) {
+    const original = host.open
+    const wrapped = (...args: never[]) => {
+      const opened = original.apply(host, args)
+      if (!opened) onBlocked.forEach((notify) => notify())
+      return opened
+    }
+    host.open = wrapped
+    restoreOpen = () => {
+      if (host.open === wrapped) host.open = original
+    }
+  }
+  return Promise.race([request(), blockedPromise]).finally(() => {
+    onBlocked.delete(blocked)
+    if (--watchers === 0) {
+      restoreOpen?.()
+      restoreOpen = null
+      onBlocked = new Set()
+    }
+  })
 }
 
 /** Stellar mainnet. The adapter never signs for it (section 6.6). */
@@ -230,6 +291,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
     options.networkTimeoutMs ?? DEFAULT_NETWORK_TIMEOUT_MS
   const connectTimeoutMs =
     options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS
+  const page = options.page ?? browserPage()
   const listeners = new Set<(event: WalletEvent) => void>()
   let bundle: KitBundle | null = null
   let initPromise: Promise<KitBundle> | null = null
@@ -258,14 +320,9 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
     if (bundle) return bundle
     initPromise ??= (async () => {
       const loaded = await options.loadKit()
-      const modules = loaded.modules.filter(
-        // Albedo refuses plain-http origins; leave it out there.
-        (walletModule) =>
-          !(
-            walletModule.productId === WALLET_IDS.albedo &&
-            isInsecureLocalhost()
-          )
-      )
+      // Every module stays loaded, so the picker can list a wallet that
+      // cannot work on this page (Albedo over http) and say why.
+      const modules = loaded.modules
       const selected = storedWalletId()
       loaded.kit.init({
         modules,
@@ -354,15 +411,24 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
     return connection
   }
 
+  /** Runs a wallet request, failing at once when its window is blocked. */
+  function guarded<T>(walletId: string, request: () => Promise<T>) {
+    return walletEntry(walletId)?.opensWindow
+      ? watchPopups(page.popupHost, walletId, request)
+      : request()
+  }
+
   async function connectOnce(walletId?: string): Promise<WalletConnection> {
     const { kit } = await init()
     let address: string
+    const id = walletId ? (LEGACY_WALLET_IDS[walletId] ?? walletId) : undefined
+    const reason = unavailableReason(walletEntry(id), page)
+    if (reason) throw new WalletError('unsupported', reason, { walletId: id })
     try {
-      if (walletId) {
-        const id = LEGACY_WALLET_IDS[walletId] ?? walletId
+      if (id) {
         kit.setWallet(id)
         ;({ address } = await withTimeout(
-          kit.fetchAddress(),
+          guarded(id, () => kit.fetchAddress()),
           connectTimeoutMs,
           id
         ))
@@ -373,31 +439,63 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
         ;({ address } = await kit.authModal())
       }
     } catch (error) {
-      throw classifyWalletError(error, walletId)
+      throw classifyWalletError(error, id)
     }
     if (!address) {
       throw new WalletError('locked', 'The wallet did not share an address', {
-        walletId,
+        walletId: id,
       })
     }
     return finishConnect(kit, address)
   }
 
-  /** Supported wallets and whether each is available in this browser. */
+  function accessOf(
+    entry: WalletCatalogEntry | undefined,
+    id: string,
+    kitAvailable: boolean
+  ): WalletAccess {
+    if (unavailableReason(entry, page)) return 'unavailable'
+    if (entry?.kind === 'extension-or-web') {
+      return id === WALLET_IDS.xbull && page.hasXbullExtension()
+        ? 'installed'
+        : 'web'
+    }
+    if (entry && WINDOW_KINDS.has(entry.kind)) {
+      return kitAvailable ? 'web' : 'unavailable'
+    }
+    return kitAvailable ? 'installed' : 'not-installed'
+  }
+
+  /**
+   * Supported wallets, in the kit's order, and how each can be used in this
+   * browser (`access`).
+   */
   async function listWallets(): Promise<WalletOption[]> {
     const { kit } = await init()
     const wallets = await kit.refreshSupportedWallets()
-    return wallets.map(({ id, name, isAvailable, url }) => ({
-      id,
-      name,
-      isAvailable,
-      url,
-    }))
+    return wallets.map(({ id, name, isAvailable, url, icon }) => {
+      const entry = walletEntry(id)
+      const access = accessOf(entry, id, isAvailable)
+      return {
+        id,
+        name: entry?.name ?? name,
+        isAvailable: access === 'installed' || access === 'web',
+        url: entry?.url ?? url,
+        icon: entry?.icon ?? icon,
+        access,
+        kind: entry?.kind ?? 'extension',
+        ...(entry?.formerly ? { formerly: entry.formerly } : {}),
+        ...(access === 'unavailable'
+          ? { unavailableReason: unavailableReason(entry, page) }
+          : {}),
+      }
+    })
   }
 
   /**
    * True when an installed wallet is available, or WalletConnect is
    * configured (mobile wallets connect through it without an extension).
+   * Web wallets alone do not count.
    */
   async function hasWallet(): Promise<boolean> {
     const { modules } = await init()
@@ -405,7 +503,64 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
       return true
     }
     const wallets = await listWallets()
-    return wallets.some((w) => w.isAvailable && !WEB_ONLY_WALLETS.has(w.id))
+    return wallets.some((w) => w.access === 'installed')
+  }
+
+  /**
+   * Refuses before prompting when the connected wallet cannot sign `xdr`
+   * (a Soroban envelope for a wallet that signs classic ones only).
+   */
+  async function assertCanSign(current: WalletConnection, xdr: string) {
+    const entry = walletEntry(current.walletId)
+    if (!entry || entry.capabilities.soroban || !options.describeEnvelope) {
+      return
+    }
+    const { soroban } = await options.describeEnvelope(xdr)
+    if (soroban) {
+      throw new WalletError(
+        'unsupported',
+        `${entry.name} cannot sign Soroban contract calls, which this payment uses. Connect another wallet, such as Varial or xBull.`,
+        { walletId: current.walletId }
+      )
+    }
+  }
+
+  /**
+   * For a wallet that cannot report its network: the signature must be the
+   * connected address's, for QuillTip's passphrase.
+   */
+  async function assertSignedForNetwork(
+    current: WalletConnection,
+    signedTxXdr: string,
+    address: string
+  ) {
+    if (current.networkReported || !options.verifySignature) return
+    let check: SignatureCheck
+    try {
+      check = await options.verifySignature(signedTxXdr, address, expected)
+    } catch (error) {
+      throw new WalletError(
+        'failed',
+        'The wallet returned an unreadable transaction',
+        {
+          walletId: current.walletId,
+          cause: error,
+        }
+      )
+    }
+    if (check === 'wrong-network') {
+      throw new WalletError('wrong-network', SIGNED_FOR_ANOTHER_NETWORK, {
+        walletId: current.walletId,
+        expectedPassphrase: expected,
+      })
+    }
+    if (check === 'wrong-account') {
+      throw new WalletError(
+        'wrong-account',
+        'The wallet signed with a different account',
+        { walletId: current.walletId }
+      )
+    }
   }
 
   return {
@@ -466,10 +621,13 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
       const { kit } = await init()
       const network = await readNetwork(kit, current.walletId)
       assertPassphrase(network, current.walletId)
+      await assertCanSign(current, xdr)
       let result: { signedTxXdr: string; signerAddress?: string }
       try {
         result = await withTimeout(
-          kit.signTransaction(xdr, { address, networkPassphrase: expected }),
+          guarded(current.walletId, () =>
+            kit.signTransaction(xdr, { address, networkPassphrase: expected })
+          ),
           opts.timeoutMs ?? signTimeoutMs,
           current.walletId
         )
@@ -488,6 +646,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
           { walletId: current.walletId }
         )
       }
+      await assertSignedForNetwork(current, result.signedTxXdr, address)
       return {
         signedTxXdr: result.signedTxXdr,
         signerAddress: result.signerAddress ?? address,
@@ -512,10 +671,12 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
       let result: { signedMessage: string; signerAddress?: string }
       try {
         result = await withTimeout(
-          kit.signMessage(message, {
-            address: current.address,
-            networkPassphrase: expected,
-          }),
+          guarded(current.walletId, () =>
+            kit.signMessage(message, {
+              address: current.address,
+              networkPassphrase: expected,
+            })
+          ),
           opts.timeoutMs ?? signTimeoutMs,
           current.walletId
         )
