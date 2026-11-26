@@ -285,19 +285,41 @@ note.
 **Tab ledger.** `convex/tabs.ts` accepts tab tips (`prepareTip`, `submitTip`)
 and mirrors Tab events through the indexer. Its Convex variables, all testnet:
 
-- `SETTLEMENT_ENABLED`: `true` lets Convex countersign tab vouchers. Without it,
-  `submitTip` refuses with `TAB_ACCEPTOR_UNAVAILABLE`.
+- `SETTLEMENT_ENABLED`: `true` lets Convex countersign tab vouchers and runs
+  the settler. Without it, `submitTip` refuses with `TAB_ACCEPTOR_UNAVAILABLE`
+  and the settler does nothing.
 - `TAB_ACCEPTOR_SECRET`: the acceptor ed25519 seed (a Stellar `S…` secret or 64
   hex characters). Read only after `assertBackendTestnet()`. Never put it in
   `.env.example` or a committed file.
 - `TAB_DAILY_LIMIT` and `TAB_TIP_MAX`: base units; defaults `200000000` and
   `50000000`.
+- `TAB_SETTLER_SECRET`: the Stellar secret of the account that holds the Tab
+  `settler` role. Read only after `assertBackendTestnet()`,
+  `SETTLEMENT_ENABLED=true` and `TAB_CONTRACT_ID` pass. Never committed.
 
-Acceptance needs a running indexer cursor for the current `CHAIN_EPOCH` and a
-cached XLM price no older than 30 minutes. Operator functions:
-`tabs:sweepUnpaid` marks receipts `UNPAID` for closed tabs whose key window has
-ended, and `tabs:voidResetEpoch` marks a closed epoch's unsettled receipts
-`VOID_RESET` after a testnet reset.
+Acceptance needs a running indexer cursor for the current `CHAIN_EPOCH`, a
+cached XLM price no older than 30 minutes, and the acceptor public key in the
+Tab's `acceptor_keys` (read by the hourly `refresh chain config` cron; a
+mismatch logs `TAB_ACCEPTOR_MISMATCH` and refuses acceptance).
+
+**Tab settler.** The `settle due tab vouchers` cron (`tabSettler:settleDue`,
+every 10 minutes) holds the `settler` lease and submits at most one
+`Tab.settle` of up to 32 vouchers at a time: closing tabs first, then the
+soonest key window end, then the oldest receipt. It verifies each voucher with
+the shared encoder, simulates, and splits a failing batch until the failing
+voucher is isolated; that voucher becomes `REJECTED` for review. The signed
+envelope is recorded before it is sent, so a run that stops halfway is resumed
+by the next one. Receipts of a pair whose key window
+(`valid_until + 7 days`) ended unsettled become `UNPAID`, for open and closed
+tabs alike, and the reader's reservation is released. Log codes:
+`TAB_SETTLER_LAG` (oldest due receipt over 6 h, again over 24 h),
+`TAB_SETTLER_KEY_EXPIRING` (unsettled value within 2 days of a window end),
+`TAB_SETTLER_BALANCE_LOW` (settler account under 50 XLM),
+`TAB_SETTLER_REJECTED` and `TAB_SETTLER_RUN_FAILED`.
+
+Operator functions: `tabs:sweepUnpaid` runs the `UNPAID` sweep on its own, and
+`tabs:voidResetEpoch` marks a closed epoch's unsettled receipts `VOID_RESET`
+after a testnet reset.
 
 ## Checks and browser tests
 
