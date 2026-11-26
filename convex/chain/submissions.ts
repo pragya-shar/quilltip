@@ -209,8 +209,10 @@ export const getSubmissionStatus = query({
       maxTime: submission.maxTime,
       mismatchReason: submission.mismatchReason ?? null,
       needsReview: submission.needsReview === true,
+      // A record flagged for review may hold a payment that landed.
       canRetry:
-        submission.status === 'FAILED' || submission.status === 'EXPIRED',
+        (submission.status === 'FAILED' || submission.status === 'EXPIRED') &&
+        submission.needsReview !== true,
       rows: rows.map(({ table, row }) => ({
         table,
         id: row._id as string,

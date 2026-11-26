@@ -876,6 +876,77 @@ describe('retries, recheck and expiry', () => {
     expect((await submission(t, submissionId)).status).toBe('EXPIRED')
   })
 
+  it('an indexed event under another hash blocks expiry and is flagged for review', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const { submissionId, maxTime, clientRefs: refs } = await prepare(t, s)
+    stubRpc(() => notFoundResponse(HASH))
+    await asReader(t, s).mutation(api.chain.submissions.recordSubmitted, {
+      submissionId,
+      txHash: HASH,
+    })
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers())
+    vi.setSystemTime((maxTime + 601) * 1000)
+    // The payment landed under HASH2 (for example the outer hash of a fee
+    // bump), while the client recorded HASH.
+    await storeIndexedEvent(t, refs[0]!)
+    await setCursor(t, maxTime + 3600)
+    await t.action(internal.chain.submissions.recheckPending, {})
+    expect(await submission(t, submissionId)).toMatchObject({
+      status: 'SUBMITTED',
+      txHash: HASH,
+      needsReview: true,
+      lastError: 'event_hash_differs',
+    })
+    const status = await asReader(t, s).query(
+      api.chain.submissions.getSubmissionStatus,
+      { submissionId }
+    )
+    expect(status?.canRetry).toBe(false)
+  })
+
+  it('an event for a record the client marked FAILED is flagged and blocks retry', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const { submissionId, clientRefs: refs } = await prepare(t, s)
+    await asReader(t, s).mutation(api.chain.submissions.recordSendFailed, {
+      submissionId,
+      reason: 'send_error',
+    })
+    await storeIndexedEvent(t, refs[0]!)
+    const stored = await t.run(async (ctx) =>
+      ctx.db
+        .query('chainEvents')
+        .withIndex('by_client_ref', (q) => q.eq('clientRef', refs[0]!))
+        .first()
+    )
+    const result = await t.run((ctx) =>
+      applyStoredTippedEvent(ctx, {
+        contractId: CORE,
+        txHash: stored!.txHash,
+        ledger: stored!.ledger,
+        eventId: stored!.eventId,
+        event: stored!.data as StoredTippedEvent,
+        now: Date.now(),
+      })
+    )
+    expect(result).toBe('conflict')
+    expect(await submission(t, submissionId)).toMatchObject({
+      status: 'FAILED',
+      needsReview: true,
+      lastError: 'event_after_failure',
+    })
+    expect((await rows(t, submissionId))[0]).toMatchObject({
+      status: 'FAILED',
+      needsReview: true,
+    })
+    const status = await asReader(t, s).query(
+      api.chain.submissions.getSubmissionStatus,
+      { submissionId }
+    )
+    expect(status?.canRetry).toBe(false)
+  })
+
   it('a late event moves EXPIRED to MISMATCH or CONFIRMED', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)

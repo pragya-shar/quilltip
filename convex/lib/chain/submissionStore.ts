@@ -525,10 +525,36 @@ export async function applyTransactionVerification(
 }
 
 /**
+ * Flags a submission and one row for manual review when an on-chain event
+ * carries the row's `client_ref` but cannot resolve it: the row is `FAILED`,
+ * or the submission recorded a different hash. Money may have moved, so the
+ * record must not expire or offer a retry.
+ */
+async function flagEventConflict(
+  ctx: MutationCtx,
+  submission: Doc<'chainSubmissions'>,
+  found: { table: TipTable; row: TipRow },
+  reason: 'event_after_failure' | 'event_hash_differs',
+  now: number
+): Promise<void> {
+  await patchRowStatus(ctx, found.table, found.row._id, {
+    needsReview: true,
+    updatedAt: now,
+  })
+  await ctx.db.patch(submission._id, {
+    needsReview: true,
+    lastError: reason,
+    updatedAt: now,
+  })
+}
+
+/**
  * Rule (b): a stored `Tipped` event from the submission's contract carries a
  * row's `client_ref`. Resolves that row (and the submission once every row is
  * final). Returns `orphan` when no v2 row has the `client_ref`, so the indexer
- * can mark the event.
+ * can mark the event. Returns `conflict` when the event cannot resolve the
+ * row (the row is `FAILED`, or the submission recorded another hash); the
+ * record is then flagged for review and never expires or offers a retry.
  */
 export async function applyStoredTippedEvent(
   ctx: MutationCtx,
@@ -540,7 +566,7 @@ export async function applyStoredTippedEvent(
     event: StoredTippedEvent
     now: number
   }
-): Promise<'linked' | 'already_final' | 'orphan'> {
+): Promise<'linked' | 'already_final' | 'orphan' | 'conflict'> {
   const clientRef = args.event.client_ref
   const tip = await ctx.db
     .query('tips')
@@ -562,10 +588,27 @@ export async function applyStoredTippedEvent(
   }
   const submission = await ctx.db.get(found.row.submissionId)
   if (!submission || submission.contractId !== args.contractId) return 'orphan'
+  if (found.row.status === 'FAILED') {
+    await flagEventConflict(
+      ctx,
+      submission,
+      found,
+      'event_after_failure',
+      args.now
+    )
+    return 'conflict'
+  }
   if (!RESOLVABLE.includes(found.row.status)) return 'already_final'
   // A recorded hash must match; a batch row shares the submission's hash.
   if (submission.txHash && submission.txHash !== args.txHash) {
-    return 'already_final'
+    await flagEventConflict(
+      ctx,
+      submission,
+      found,
+      'event_hash_differs',
+      args.now
+    )
+    return 'conflict'
   }
 
   const expected = expectedTipFromRow(found.row)
@@ -667,6 +710,7 @@ export async function resolveWithoutTransaction(
 
   // Rule (b): an indexed Tipped event carrying a row's client_ref.
   let linked = false
+  let conflict = false
   for (const clientRef of submission.clientRefs) {
     const events = await ctx.db
       .query('chainEvents')
@@ -685,8 +729,11 @@ export async function resolveWithoutTransaction(
       now: args.now,
     })
     if (result === 'linked') linked = true
+    if (result === 'conflict') conflict = true
   }
   if (linked) return 'linked'
+  // An event for this record exists but could not resolve it: never expire.
+  if (conflict) return 'flagged'
 
   const cursor = await ctx.db
     .query('chainCursor')
