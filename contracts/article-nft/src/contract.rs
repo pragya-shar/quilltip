@@ -1,4 +1,4 @@
-use quilltip_shared::ttl::extend_instance;
+use quilltip_shared::{roles, ttl::extend_instance};
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, Address, BytesN, Env, String, Symbol, Vec,
 };
@@ -198,9 +198,25 @@ impl NonFungibleRoyalties for QuillTipArticleNft {
     }
 }
 
-/// OpenZeppelin access control. No `manager` role is used.
+/// OpenZeppelin access control. No `manager` role is used. Only an upgrader
+/// can change the `upgrader` role (`quilltip_shared::roles`).
 #[contractimpl(contracttrait)]
 impl AccessControl for QuillTipArticleNft {
+    fn grant_role(e: &Env, account: Address, role: Symbol, caller: Address) {
+        roles::grant_role(e, &account, &role, &caller);
+        extend_instance(e);
+    }
+
+    fn revoke_role(e: &Env, account: Address, role: Symbol, caller: Address) {
+        roles::revoke_role(e, &account, &role, &caller);
+        extend_instance(e);
+    }
+
+    fn set_role_admin(e: &Env, role: Symbol, admin_role: Symbol) {
+        roles::set_role_admin(e, &role, &admin_role);
+        extend_instance(e);
+    }
+
     /// Always fails (I-26): a renounce would make a pause permanent.
     fn renounce_admin(e: &Env) {
         panic_with_error!(e, NftError::AdminRenounceDisabled);

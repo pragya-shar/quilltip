@@ -12,6 +12,7 @@ use stellar_macros::{only_admin, only_role, when_not_paused};
 use quilltip_shared::fee::tab_fee;
 use quilltip_shared::ids::is_zero;
 use quilltip_shared::payload::{AcceptancePayload, VoucherPayload};
+use quilltip_shared::roles;
 use quilltip_shared::ttl;
 
 use crate::errors::TabError;
@@ -630,8 +631,25 @@ impl Upgradeable for QuillTipTab {
     }
 }
 
+/// OpenZeppelin access control. Only an upgrader can change the `upgrader`
+/// role (`quilltip_shared::roles`).
 #[contractimpl(contracttrait)]
 impl AccessControl for QuillTipTab {
+    fn grant_role(e: &Env, account: Address, role: Symbol, caller: Address) {
+        roles::grant_role(e, &account, &role, &caller);
+        ttl::extend_instance(e);
+    }
+
+    fn revoke_role(e: &Env, account: Address, role: Symbol, caller: Address) {
+        roles::revoke_role(e, &account, &role, &caller);
+        ttl::extend_instance(e);
+    }
+
+    fn set_role_admin(e: &Env, role: Symbol, admin_role: Symbol) {
+        roles::set_role_admin(e, &role, &admin_role);
+        ttl::extend_instance(e);
+    }
+
     /// Disabled: a renounce would leave a pause permanent (I-26).
     fn renounce_admin(e: &Env) {
         err(e, TabError::AdminRenounceDisabled)
