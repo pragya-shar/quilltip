@@ -19,6 +19,12 @@ const nextConfig: NextConfig = {
   // list, so all crawlers and link previews see article titles and tags. Pages
   // that set metadata already await the same data, so nothing is delayed.
   htmlLimitedBots: /.*/,
+  // Pages render per request (proxy.ts adds a CSP nonce). React would then
+  // send font preloads as Link response headers, so fonts start before the
+  // HTML is parsed and compete with the render-blocking stylesheets. Keep
+  // preloads in the HTML, where the browser fetches stylesheets first, as it
+  // did when these pages were prerendered.
+  reactMaxHeadersLength: 0,
   turbopack: {
     resolveAlias: {
       '@ngneat/elf-devtools': './lib/stubs/elf-devtools.ts',

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 import { registerSchema } from '@/lib/validations/auth'
 
 const existingFields = registerSchema.shape

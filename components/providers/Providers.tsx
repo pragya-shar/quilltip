@@ -14,13 +14,15 @@ const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
 interface ProvidersProps {
   children: React.ReactNode
+  /** CSP nonce for the inline theme script. */
+  nonce?: string
 }
 
-export default function Providers({ children }: ProvidersProps) {
+export default function Providers({ children, nonce }: ProvidersProps) {
   return (
     <ConvexAuthProvider client={convex}>
       <AuthSessionProvider>
-        <ThemeProvider>
+        <ThemeProvider nonce={nonce}>
           <WalletActivationProvider>
             <ErrorBoundary
               fallback={({ reset }) => <WalletErrorFallback onRetry={reset} />}

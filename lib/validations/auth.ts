@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 import { PASSWORD_MIN_LENGTH, PASSWORD_REGEX } from './password-rules'
 
 /**

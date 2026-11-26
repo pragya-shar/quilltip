@@ -1,5 +1,5 @@
 import { tipXlmPresetSchema } from './pendingTipIntent'
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 import type { Id } from '@/convex/_generated/dataModel'
 
 export const PENDING_HIGHLIGHT_TIP_RECEIPT_STORAGE_PREFIX =
