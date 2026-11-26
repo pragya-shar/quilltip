@@ -381,7 +381,9 @@ test.describe('picker', () => {
       await expect(link).toHaveAttribute('href', href)
       await expect(link).toHaveAttribute('target', '_blank')
     }
-    await expect(install.getByText('formerly Freighter')).toBeVisible()
+    await expect(
+      install.getByText('Formerly Freighter. Browser extension')
+    ).toBeVisible()
   })
 
   test('works with a keyboard and returns focus on Escape', async ({

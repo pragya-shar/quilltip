@@ -14,6 +14,11 @@ function siteOf(url: string) {
 
 /** The second line of a row: how the wallet works from this page. */
 function walletNote(option: WalletOption): string {
+  const how = howToUse(option)
+  return option.formerly ? `Formerly ${option.formerly}. ${how}` : how
+}
+
+function howToUse(option: WalletOption): string {
   if (option.access === 'unavailable') {
     return option.unavailableReason ?? 'Cannot be used on this page'
   }
@@ -21,7 +26,7 @@ function walletNote(option: WalletOption): string {
     return `Opens ${siteOf(option.webUrl ?? option.url)} in a new window`
   }
   if (option.access === 'not-installed') return 'Browser extension'
-  return 'Browser extension, ready'
+  return 'Installed'
 }
 
 /**
@@ -43,12 +48,7 @@ export function WalletPickerRow({
     <span className="wallet-row-body">
       <WalletIcon name={option.name} src={option.icon} />
       <span className="wallet-row-text">
-        <span className="wallet-install-name">
-          {option.name}
-          {option.formerly ? (
-            <span className="wallet-former"> formerly {option.formerly}</span>
-          ) : null}
-        </span>
+        <span className="wallet-install-name">{option.name}</span>
         <span id={noteId} className="wallet-install-note">
           {walletNote(option)}
         </span>
@@ -83,10 +83,7 @@ export function WalletPickerRow({
 
   if (option.access === 'unavailable') {
     return (
-      <div
-        className="wallet-install-option wallet-picker-option wallet-picker-unavailable"
-        aria-describedby={noteId}
-      >
+      <div className="wallet-install-option wallet-picker-option wallet-picker-unavailable">
         {body}
         <span className="wallet-install-destination">Unavailable here</span>
       </div>

@@ -270,10 +270,10 @@
     serif;
   color: #790333;
 }
-.wallet-former {
-  font-weight: 400;
-  color: #5e535a;
-  font-size: 13px;
+/* "Connect" and "Waiting" take the same room, so the row does not shift. */
+button.wallet-picker-option > .wallet-install-destination {
+  min-width: 5.5em;
+  justify-content: flex-end;
 }
 .wallet-picker-unavailable {
   cursor: default;
