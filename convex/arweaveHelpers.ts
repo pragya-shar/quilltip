@@ -43,10 +43,13 @@ export const recordArweaveUpload = internalMutation({
     articleId: v.id('articles'),
     txId: v.string(),
     url: v.string(),
+    /** The content hash the uploaded body reproduces. */
+    contentHash: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.articleId, {
       arweaveTxId: args.txId,
+      ...(args.contentHash ? { arweaveContentHash: args.contentHash } : {}),
       arweaveUrl: args.url,
       arweaveStatus: 'uploaded',
       arweaveTimestamp: Date.now(),

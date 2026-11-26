@@ -48,6 +48,27 @@ export const chainSubmissionKindValidator = v.union(
   v.literal('nft')
 )
 
+/**
+ * Expected on-chain values of an article submission (register, content
+ * update, author change), fixed at prepare. Verification compares the
+ * transaction's Core event with them. Bytes are lowercase hex.
+ */
+export const expectedArticleValidator = v.object({
+  articleKey: v.string(),
+  /** The address that signs: the transaction source and the authorising address. */
+  signer: v.string(),
+  author: v.optional(v.string()),
+  articleRef: v.optional(v.string()),
+  contentHash: v.optional(v.string()),
+  arweaveId: v.optional(v.union(v.string(), v.null())),
+  splits: v.optional(
+    v.array(v.object({ recipient: v.string(), bps: v.number() }))
+  ),
+  contentVersion: v.optional(v.number()),
+  newAuthor: v.optional(v.string()),
+  liveUntilLedger: v.optional(v.number()),
+})
+
 /** A row a chain submission links to. */
 export const chainRelatedValidator = v.union(
   v.object({ table: v.literal('tips'), id: v.id('tips') }),
@@ -200,7 +221,8 @@ export const tabTables = {
     updatedAt: v.number(),
   })
     .index('by_user', ['userId'])
-    .index('by_reader', ['readerAddress']),
+    .index('by_reader', ['readerAddress'])
+    .index('by_status', ['status']),
 
   tabSessionKeys: defineTable({
     network: chainNetworkValidator,
@@ -286,8 +308,30 @@ export const tabTables = {
     state: v.union(
       v.literal('ACTIVE'),
       v.literal('UNPAID'),
-      v.literal('VOID_RESET')
+      v.literal('VOID_RESET'),
+      v.literal('REJECTED')
     ),
+    /**
+     * Last ledger at which the contract settles this pair:
+     * the key's `valid_until + SETTLE_GRACE`.
+     */
+    settleBy: v.optional(v.number()),
+    /**
+     * Settler queue. `ready`: unsettled and selectable. `blocked`: skipped
+     * as `SHORTFALL`, waiting for a deposit. `inflight`: in an unfinished
+     * settlement. `done`: nothing left to settle, or a terminal state.
+     */
+    settleQueue: v.optional(
+      v.union(
+        v.literal('ready'),
+        v.literal('blocked'),
+        v.literal('inflight'),
+        v.literal('done')
+      )
+    ),
+    /** The unfinished settlement that holds this pair. */
+    settlementId: v.optional(v.id('tabSettlements')),
+    rejectedReason: v.optional(v.string()),
     /** The pair's figures last applied to `authorEarnings` (section 6.2). */
     earnedNet: v.string(),
     pendingNet: v.string(),
@@ -301,18 +345,35 @@ export const tabTables = {
     .index('by_pair', ['tabAccountId', 'keyId', 'writerAddress'])
     .index('by_writer', ['writerAddress'])
     .index('by_due', ['unsettled', 'oldestUnsettledAt'])
+    .index('by_queue_settle_by', ['settleQueue', 'settleBy'])
+    .index('by_queue_age', ['settleQueue', 'oldestUnsettledAt'])
     .index('by_epoch_state', ['chainEpoch', 'state']),
 
   tabSettlements: defineTable({
     network: chainNetworkValidator,
     chainEpoch: v.string(),
+    tabContractId: v.optional(v.string()),
     submissionId: v.optional(v.id('chainSubmissions')),
+    /** `localKey` or `relayer`. */
+    submitter: v.optional(v.string()),
+    /** The submitter's stable reference (the transaction hash for `localKey`). */
+    reference: v.optional(v.string()),
     txHash: v.optional(v.string()),
+    /** Signed envelope, kept so a crash after recording can re-send it. */
+    envelopeXdr: v.optional(v.string()),
+    /** Unix seconds; the transaction's upper time bound. */
+    maxTime: v.optional(v.number()),
     voucherIds: v.array(v.id('tabVouchers')),
+    /** The cumulative amount submitted for each voucher, in order. */
+    cumulatives: v.optional(v.array(v.string())),
     gross: v.string(),
     fee: v.string(),
+    settled: v.optional(v.number()),
+    skipped: v.optional(v.number()),
     ledger: v.optional(v.number()),
     status: chainRecordStatusValidator,
+    attempts: v.optional(v.number()),
+    lastError: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_status', ['status']),
@@ -329,6 +390,8 @@ export const chainTables = {
     minTip: v.optional(v.string()),
     feeBps: v.optional(v.number()),
     nftThreshold: v.optional(v.string()),
+    /** Tab `config().acceptor_keys`, lowercase hex (current first). */
+    tabAcceptorKeys: v.optional(v.array(v.string())),
     paused: v.object({
       core: v.optional(v.boolean()),
       tab: v.optional(v.boolean()),
@@ -359,6 +422,12 @@ export const chainTables = {
     ),
     registeredLedger: v.optional(v.number()),
     txHash: v.optional(v.string()),
+    /** `article_ref`, 32 bytes, lowercase hex. */
+    articleRef: v.optional(v.string()),
+    /** Ledger until which `pendingAuthor` may accept. */
+    pendingAuthorLiveUntil: v.optional(v.number()),
+    /** The latest article submission (register, update or author change). */
+    lastSubmissionId: v.optional(v.id('chainSubmissions')),
     /** RPC id of the last event applied; older events are ignored. */
     lastEventId: v.optional(v.string()),
     updatedAt: v.number(),
@@ -386,6 +455,8 @@ export const chainTables = {
     mismatchReason: v.optional(v.string()),
     needsReview: v.optional(v.boolean()),
     related: v.array(chainRelatedValidator),
+    /** Article submissions only: the values verification expects. */
+    expectedArticle: v.optional(expectedArticleValidator),
     ledger: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),

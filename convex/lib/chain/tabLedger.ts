@@ -284,6 +284,8 @@ export type TipCheck = {
   cumulativeBefore: bigint
   minTip: bigint
   acceptedToday: bigint
+  /** Tab `acceptor_keys` from the last config refresh, if read. */
+  acceptorKeys: string[] | undefined
 }
 
 /**
@@ -431,6 +433,7 @@ export async function checkTabTip(
     cumulativeBefore: voucher ? big(voucher.cumulative) : ZERO,
     minTip,
     acceptedToday,
+    acceptorKeys: config.tabAcceptorKeys,
   }
 }
 
@@ -867,6 +870,14 @@ export async function submitTabTip(
     tabError('TAB_INVALID_SIGNATURE', 'The voucher signature is not valid.')
   }
   const acceptor = loadAcceptor(args.env)
+  // A countersignature from a key the Tab does not list would leave the
+  // writer without the `settle_own` recourse.
+  if (!check.acceptorKeys?.includes(acceptor.publicKey)) {
+    tabError(
+      'TAB_ACCEPTOR_MISMATCH',
+      'Tab tips are paused while the acceptor key is checked.'
+    )
+  }
   const acceptanceSignature = acceptor.sign(payload)
   const now = args.now
 
@@ -907,6 +918,7 @@ export async function submitTabTip(
       signature: acceptanceSignature,
     },
     seq: receipt.seq,
+    settleBy: check.key.validUntilLedger + SETTLE_GRACE_LEDGERS,
     acceptedAt: now,
     updatedAt: now,
   }
@@ -919,6 +931,7 @@ export async function submitTabTip(
       unsettled: paid < cumulative,
       oldestUnsettledAt: check.voucher.oldestUnsettledAt ?? now,
     })
+    await refreshSettleQueue(ctx, voucherId, now)
   } else {
     voucherId = await ctx.db.insert('tabVouchers', {
       network: check.chain.network,
@@ -934,6 +947,7 @@ export async function submitTabTip(
       paidOnChain: '0',
       unsettled: true,
       oldestUnsettledAt: now,
+      settleQueue: 'ready',
       state: 'ACTIVE',
       earnedNet: '0',
       pendingNet: '0',
@@ -1173,6 +1187,43 @@ async function setReceiptStatus(
   await patchTipRow(ctx, row._id, { status, updatedAt: now })
 }
 
+/** The settler queue a pair belongs in (see `tabVouchers.settleQueue`). */
+export function settleQueueOf(
+  v: Pick<
+    Doc<'tabVouchers'>,
+    'state' | 'paidOnChain' | 'cumulative' | 'settlementId' | 'settleQueue'
+  >
+): NonNullable<Doc<'tabVouchers'>['settleQueue']> {
+  if (v.state !== 'ACTIVE' || big(v.paidOnChain) >= big(v.cumulative)) {
+    return 'done'
+  }
+  if (v.settlementId) return 'inflight'
+  return v.settleQueue === 'blocked' ? 'blocked' : 'ready'
+}
+
+/**
+ * Recomputes `settleQueue`. `block` parks a pair after a `SHORTFALL` skip
+ * until the reader deposits; `unblock` releases it.
+ */
+export async function refreshSettleQueue(
+  ctx: MutationCtx,
+  voucherId: Id<'tabVouchers'>,
+  now: number,
+  opts: { block?: boolean; unblock?: boolean } = {}
+): Promise<void> {
+  const v = await ctx.db.get(voucherId)
+  if (!v) return
+  const base = opts.unblock
+    ? { ...v, settleQueue: 'ready' as const }
+    : opts.block
+      ? { ...v, settleQueue: 'blocked' as const }
+      : v
+  const queue = settleQueueOf(base)
+  if (queue !== v.settleQueue) {
+    await ctx.db.patch(voucherId, { settleQueue: queue, updatedAt: now })
+  }
+}
+
 /**
  * Applies the pair's paid amount to its receipts: `cumulative_after ≤ paid`
  * becomes `SETTLED`; accepted receipts up to `shortfallUpTo` that stay unpaid
@@ -1216,6 +1267,7 @@ export async function applyPairPayment(
     oldestUnsettledAt: unsettled ? oldestUnsettledAt : undefined,
     updatedAt: args.now,
   })
+  await refreshSettleQueue(ctx, voucherId, args.now)
 }
 
 /** Accepted amount of a pair that is still owed: `max(0, cumulative − paid)`. */
@@ -1226,11 +1278,74 @@ export function pairOutstanding(
   return owed > ZERO ? owed : ZERO
 }
 
+/**
+ * Applies a settled payment to a pair (from an indexed `TabSettled` event or
+ * from the settler's own transaction result): `paidOnChain` only grows, and
+ * the account's reservation and the key's spent amount follow the increase.
+ * The account balance is debited by the event handler only, keyed by event.
+ */
+export async function applyPairSettlement(
+  ctx: MutationCtx,
+  args: {
+    voucherId: Id<'tabVouchers'>
+    paidAfter: bigint
+    /** The voucher's cumulative amount on chain; above `paidAfter` is a shortfall. */
+    cumulative: bigint
+    eventId?: string
+    now: number
+  }
+): Promise<void> {
+  const voucher = await ctx.db.get(args.voucherId)
+  if (!voucher) return
+  const oldPaid = big(voucher.paidOnChain)
+  const newPaid = args.paidAfter > oldPaid ? args.paidAfter : oldPaid
+  if (newPaid > oldPaid) {
+    const owedBefore = pairOutstanding(voucher)
+    const owedAfter = pairOutstanding({
+      cumulative: voucher.cumulative,
+      paidOnChain: newPaid.toString(),
+    })
+    await ctx.db.patch(voucher._id, {
+      paidOnChain: newPaid.toString(),
+      ...(args.eventId &&
+      (!voucher.lastSettledEventId || voucher.lastSettledEventId < args.eventId)
+        ? { lastSettledEventId: args.eventId }
+        : {}),
+      updatedAt: args.now,
+    })
+    const account = await ctx.db.get(voucher.tabAccountId)
+    if (account && voucher.state === 'ACTIVE') {
+      const outstanding = big(account.outstanding) - (owedBefore - owedAfter)
+      await ctx.db.patch(account._id, {
+        outstanding: (outstanding > ZERO ? outstanding : ZERO).toString(),
+        updatedAt: args.now,
+      })
+    }
+    const key = await tabKey(ctx, voucher.tabAccountId, voucher.keyId)
+    if (key) {
+      await ctx.db.patch(key._id, {
+        spentOnChain: (big(key.spentOnChain) + newPaid - oldPaid).toString(),
+        updatedAt: args.now,
+      })
+    }
+  }
+  await applyPairPayment(ctx, voucher._id, {
+    shortfallUpTo:
+      args.paidAfter < args.cumulative ? args.cumulative : undefined,
+    ...(args.eventId ? { settledEventId: args.eventId } : {}),
+    now: args.now,
+  })
+  await recomputePairEarnings(ctx, voucher._id, args.now)
+}
+
+type ClosedState = 'UNPAID' | 'VOID_RESET' | 'REJECTED'
+
 async function closePair(
   ctx: MutationCtx,
   voucher: Doc<'tabVouchers'>,
-  state: 'UNPAID' | 'VOID_RESET',
-  now: number
+  state: ClosedState,
+  now: number,
+  extra: Partial<Doc<'tabVouchers'>> = {}
 ): Promise<void> {
   if (voucher.state !== 'ACTIVE') return
   const paid = big(voucher.paidOnChain)
@@ -1242,9 +1357,12 @@ async function closePair(
   }
   const owed = pairOutstanding(voucher)
   await ctx.db.patch(voucher._id, {
+    ...extra,
     state,
     unsettled: false,
     oldestUnsettledAt: undefined,
+    settleQueue: 'done',
+    settlementId: undefined,
     updatedAt: now,
   })
   const account = await ctx.db.get(voucher.tabAccountId)
@@ -1259,9 +1377,38 @@ async function closePair(
 }
 
 /**
- * `UNPAID` (section 6.1): once the account is `CLOSED` and a key's settle
- * window (`valid_until + SETTLE_GRACE`) has ended, receipts above the paid
- * amount can never settle. Returns the number of pairs closed.
+ * Excludes a pair whose voucher would abort a settlement (a failing
+ * signature check or a simulation error), for review. Its receipts become
+ * `REJECTED`, and the reader's reservation is released.
+ */
+export async function rejectPair(
+  ctx: MutationCtx,
+  voucherId: Id<'tabVouchers'>,
+  reason: string,
+  now: number
+): Promise<boolean> {
+  const voucher = await ctx.db.get(voucherId)
+  if (!voucher || voucher.state !== 'ACTIVE') return false
+  await closePair(ctx, voucher, 'REJECTED', now, {
+    rejectedReason: reason.slice(0, 500),
+  })
+  return true
+}
+
+/** Closes a pair as `UNPAID` (the contract reported its key gone or expired). */
+export async function closeUnpaidPair(
+  ctx: MutationCtx,
+  voucherId: Id<'tabVouchers'>,
+  now: number
+): Promise<void> {
+  const voucher = await ctx.db.get(voucherId)
+  if (voucher) await closePair(ctx, voucher, 'UNPAID', now)
+}
+
+/**
+ * `UNPAID`: once a key's settle window (`valid_until + SETTLE_GRACE`) has
+ * ended, receipts above the paid amount can never settle, whatever the
+ * account's status. Returns the number of pairs closed.
  */
 export async function resolveUnpaidPairs(
   ctx: MutationCtx,
@@ -1269,8 +1416,6 @@ export async function resolveUnpaidPairs(
   ledger: number,
   now: number
 ): Promise<number> {
-  const account = await ctx.db.get(accountId)
-  if (!account || account.status !== 'CLOSED') return 0
   const keys = await ctx.db
     .query('tabSessionKeys')
     .withIndex('by_account_key', (q) => q.eq('tabAccountId', accountId))
@@ -1285,13 +1430,79 @@ export async function resolveUnpaidPairs(
       )
       .take(1000)
     for (const voucher of vouchers) {
-      if (voucher.state !== 'ACTIVE' || pairOutstanding(voucher) === ZERO)
-        continue
+      if (voucher.state !== 'ACTIVE' || voucher.settlementId) continue
+      if (pairOutstanding(voucher) === ZERO) continue
       await closePair(ctx, voucher, 'UNPAID', now)
       closed++
     }
   }
   return closed
+}
+
+/**
+ * Closes pairs whose settle window ended before `ledger`, oldest window
+ * first, through `by_queue_settle_by`. Pairs in a settlement that is still
+ * open are left until it finishes. Bounded per call.
+ */
+export async function sweepExpiredPairs(
+  ctx: MutationCtx,
+  args: { ledger: number; limit: number; now: number }
+): Promise<{ closed: number; more: boolean }> {
+  let closed = 0
+  let more = false
+  for (const queue of ['ready', 'blocked'] as const) {
+    const rows = await ctx.db
+      .query('tabVouchers')
+      .withIndex('by_queue_settle_by', (q) =>
+        q.eq('settleQueue', queue).lt('settleBy', args.ledger)
+      )
+      .take(args.limit)
+    if (rows.length === args.limit) more = true
+    for (const voucher of rows) {
+      await closePair(ctx, voucher, 'UNPAID', args.now)
+      closed++
+    }
+  }
+  return { closed, more }
+}
+
+/** Keeps `settleBy` in step with the key's `valid_until` (revocation lowers it). */
+export async function updateKeySettleBy(
+  ctx: MutationCtx,
+  accountId: Id<'tabAccounts'>,
+  keyId: number,
+  validUntilLedger: number,
+  now: number
+): Promise<void> {
+  const settleBy = validUntilLedger + SETTLE_GRACE_LEDGERS
+  const vouchers = await ctx.db
+    .query('tabVouchers')
+    .withIndex('by_pair', (q) =>
+      q.eq('tabAccountId', accountId).eq('keyId', keyId)
+    )
+    .take(1000)
+  for (const v of vouchers) {
+    if (v.settleBy === undefined || v.settleBy > settleBy) {
+      await ctx.db.patch(v._id, { settleBy, updatedAt: now })
+    }
+  }
+}
+
+/** Returns an account's pairs parked after `SHORTFALL` to the ready queue. */
+export async function unblockAccountPairs(
+  ctx: MutationCtx,
+  accountId: Id<'tabAccounts'>,
+  now: number
+): Promise<void> {
+  const vouchers = await ctx.db
+    .query('tabVouchers')
+    .withIndex('by_pair', (q) => q.eq('tabAccountId', accountId))
+    .take(1000)
+  for (const v of vouchers) {
+    if (v.settleQueue === 'blocked') {
+      await refreshSettleQueue(ctx, v._id, now, { unblock: true })
+    }
+  }
 }
 
 /**

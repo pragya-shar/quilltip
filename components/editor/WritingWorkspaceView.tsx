@@ -31,6 +31,8 @@ import { WritingDesk } from './WritingDesk'
 import { WritingMedia } from './WritingMedia'
 import { WritingWallet } from './WritingWallet'
 import { PublishedArticleLocked } from './PublishedArticleLocked'
+import type { Id } from '@/convex/_generated/dataModel'
+import { ArticleTipsPanel } from './ArticleTipsPanel'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import {
   countWords,
@@ -276,6 +278,7 @@ export function WritingWorkspaceView({
         authorName={w.currentUser?.name || w.currentUser?.username}
         content={w.editorContent}
         articleHref={publicationHref}
+        articleId={w.articleId as Id<'articles'> | undefined}
       />
     )
   return (
@@ -919,6 +922,12 @@ export function WritingWorkspaceView({
           </a>
         ) : (
           <p role="status">Preparing your article link…</p>
+        )}
+        {w.articleId && (
+          <ArticleTipsPanel
+            articleId={w.articleId as Id<'articles'>}
+            variant="dialog"
+          />
         )}
         <button
           className="wide"

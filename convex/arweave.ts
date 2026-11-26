@@ -87,6 +87,7 @@ export const uploadArticleToArweave = internalAction({
             articleId: args.articleId,
             txId: result.txId,
             url: result.url || `https://arweave.net/${result.txId}`,
+            contentHash: upload.contentHash,
           })
           return
         }
