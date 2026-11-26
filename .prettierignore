@@ -7,6 +7,8 @@ bun.lock
 public
 contracts/*/target
 contracts/target
+# Contract bindings are generated from the Wasm; scripts/contracts/bindings.ts --check compares them byte for byte.
+lib/stellar/v2/bindings
 contracts/**/fuzz/target
 contracts/**/fuzz/corpus
 contracts/**/fuzz/artifacts

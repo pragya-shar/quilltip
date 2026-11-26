@@ -23,6 +23,11 @@ const ARTICLE_KEY = '81'.repeat(32)
 const HIGHLIGHT_KEY = 'e3'.repeat(32)
 const CONTENT_HASH = 'a1'.repeat(32)
 const T0 = Date.UTC(2026, 11, 1, 12, 0, 0)
+// Fixture users proved control of their addresses on testnet.
+const VERIFIED = {
+  stellarAddressVerifiedAt: T0,
+  stellarAddressVerifiedNetwork: 'Test SDF Network ; September 2015',
+}
 
 beforeEach(() => {
   vi.useFakeTimers({ now: T0 })
@@ -54,6 +59,7 @@ async function seed(t: T) {
       username: 'writer',
       email: 'writer@example.test',
       stellarAddress: AUTHOR,
+      ...VERIFIED,
       createdAt: now,
       updatedAt: now,
     })
@@ -61,6 +67,7 @@ async function seed(t: T) {
       username: 'reader',
       email: 'reader@example.test',
       stellarAddress: TIPPER,
+      ...VERIFIED,
       createdAt: now,
       updatedAt: now,
     })
@@ -68,6 +75,7 @@ async function seed(t: T) {
       username: 'coauthor',
       email: 'coauthor@example.test',
       stellarAddress: OTHER_AUTHOR,
+      ...VERIFIED,
       createdAt: now,
       updatedAt: now,
     })
@@ -863,10 +871,11 @@ describe('earnings sync robustness', () => {
     expect(list).toHaveLength(0)
   })
 
-  it('an address linked by two users credits neither, unless one is the expected author', async () => {
+  it('unverified copies of an address neither take nor block credit', async () => {
     const t = newTest()
     const s = await seed(t)
-    // A second account links the co-author's address, and a third the author's.
+    // Two more accounts link the co-author's and the author's addresses
+    // without proving control of them.
     await t.run(async ({ db }) => {
       const now = Date.now()
       for (const [username, address] of [
@@ -890,14 +899,17 @@ describe('earnings sync robustness', () => {
     await applyEvent(t, confirmed.clientRefs[0]!, BigInt(1_000_000))
     await sync(t)
 
-    expect(await earningsOf(t, s.coAuthorId)).toBeNull()
+    // The co-author is the only verified holder of the on-chain address.
+    expect(await earningsOf(t, s.coAuthorId)).toMatchObject({
+      earnedBaseUnits: { [TOKEN]: '1950000' },
+    })
     const copies = await t.run(({ db }) =>
       db
         .query('authorEarnings')
         .collect()
         .then((rows) => rows.filter((r) => r.userId !== s.authorId))
     )
-    expect(copies).toHaveLength(0)
+    expect(copies.filter((r) => r.userId !== s.coAuthorId)).toHaveLength(0)
     expect(await earningsOf(t, s.authorId)).toMatchObject({
       earnedBaseUnits: { [TOKEN]: '975000' },
       v2TipCount: 1,

@@ -4,6 +4,7 @@ import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { loadTestAccountIds } from './lib/testAccounts'
 import { contractVersionOf, countsAsPaid } from './lib/tipReads'
+import { verifiedStellarAddress } from './lib/walletVerification'
 
 // Usage metrics for the beta. Internal only: callable from the Convex
 // dashboard or CLI by someone with deployment access, never from the app.
@@ -103,6 +104,7 @@ export const countPage = internalQuery({
           ) {
             add('users.withWallet')
           }
+          if (verifiedStellarAddress(user)) add('users.withVerifiedWallet')
         }
         page = result
         break

@@ -48,6 +48,7 @@ import {
   stellarTransactionHashLookupValues,
 } from './lib/stellarTransactionHash'
 import { xlmStringToStroops } from './stellarVerify'
+import { verifiedStellarAddress } from './lib/walletVerification'
 
 const MAX_OUTSTANDING_HIGHLIGHT_TIP_INTENTS = 5
 const MAX_HIGHLIGHT_CONTAINER_PATH_LENGTH = 256
@@ -138,12 +139,10 @@ export const prepareHighlightTip = mutation({
 
     const author = await ctx.db.get(article.authorId)
     if (!author) throw new Error('Author not found')
-    if (
-      !author.stellarAddress ||
-      typeof author.stellarAddress !== 'string' ||
-      !StrKey.isValidEd25519PublicKey(author.stellarAddress)
-    ) {
-      throw new Error('Author has not configured a valid receiving wallet')
+    // New tips go only to an address the author proved control of.
+    const authorAddress = verifiedStellarAddress(author)
+    if (!authorAddress || !StrKey.isValidEd25519PublicKey(authorAddress)) {
+      throw new Error('Author has not verified a receiving wallet')
     }
 
     const now = Date.now()
@@ -180,7 +179,7 @@ export const prepareHighlightTip = mutation({
         (amountXlm !== undefined || intent.amountCents === usdCents) &&
         intent.message === args.message &&
         intent.expectedSourceAccount === args.stellarSourceAccount &&
-        intent.expectedDestinationAccount === author.stellarAddress &&
+        intent.expectedDestinationAccount === authorAddress &&
         intent.expectedHighlightId === expectedHighlightId &&
         intent.expectedArticleSymbol === expectedArticleSymbol &&
         intent.expectedFunction === TIP_HIGHLIGHT_DIRECT_FUNCTION &&
@@ -240,7 +239,7 @@ export const prepareHighlightTip = mutation({
       amountXlm,
       message: args.message,
       expectedSourceAccount: args.stellarSourceAccount,
-      expectedDestinationAccount: author.stellarAddress,
+      expectedDestinationAccount: authorAddress,
       expectedHighlightId,
       expectedArticleSymbol,
       expectedAmountStroops: expectedAmountStroops.toString(),
@@ -269,7 +268,7 @@ export const prepareHighlightTip = mutation({
       intentId,
       highlightId: expectedHighlightId,
       articleSymbol: expectedArticleSymbol,
-      authorAddress: author.stellarAddress,
+      authorAddress: authorAddress,
       amountStroops: expectedAmountStroops,
       amountCents,
       stellarNetwork: expectedStellarNetwork,
@@ -570,12 +569,14 @@ export const create = mutation({
       args
     )
     const author = await ctx.db.get(article.authorId)
+    // Tips are recorded only against an address the author proved control of.
+    const authorAddress = verifiedStellarAddress(author)
     if (
-      !author?.stellarAddress ||
-      typeof author.stellarAddress !== 'string' ||
-      !StrKey.isValidEd25519PublicKey(author.stellarAddress)
+      !author ||
+      !authorAddress ||
+      !StrKey.isValidEd25519PublicKey(authorAddress)
     ) {
-      throw new Error('Author has not configured a valid receiving wallet')
+      throw new Error('Author has not verified a receiving wallet')
     }
 
     const expectedHighlightId = await generateHighlightIdServer(
@@ -596,7 +597,7 @@ export const create = mutation({
     }
     if (
       args.stellarDestinationAccount !== undefined &&
-      args.stellarDestinationAccount !== author.stellarAddress
+      args.stellarDestinationAccount !== authorAddress
     ) {
       throw new Error('Highlight receipt does not match the article author')
     }
@@ -669,7 +670,7 @@ export const create = mutation({
       amountUsd: amountCents / 100,
       amountCents,
       expectedSourceAccount: args.stellarSourceAccount,
-      expectedDestinationAccount: author.stellarAddress,
+      expectedDestinationAccount: authorAddress,
       expectedHighlightId,
       expectedArticleSymbol,
       expectedAmountStroops: paidStroops.toString(),
@@ -706,12 +707,12 @@ export const create = mutation({
       stellarLedger: args.stellarLedger,
       stellarFeeCharged: args.stellarFeeCharged,
       stellarSourceAccount: args.stellarSourceAccount,
-      stellarDestinationAccount: author.stellarAddress,
+      stellarDestinationAccount: authorAddress,
       stellarAmountXlm: stroopsToXlm(paidStroops.toString()),
       contractTipId: args.contractTipId,
       highlightTipIntentId: intentId,
       expectedSourceAccount: args.stellarSourceAccount,
-      expectedDestinationAccount: author.stellarAddress,
+      expectedDestinationAccount: authorAddress,
       expectedHighlightId,
       expectedArticleSymbol,
       expectedAmountStroops: paidStroops.toString(),
@@ -871,7 +872,7 @@ export const getByAuthor = query({
       .order('desc')
       .take(AGGREGATE_LIMIT)
     const tips = rows
-      .filter((tip) => paidToExpectedAuthor(tip, user?.stellarAddress))
+      .filter((tip) => paidToExpectedAuthor(tip, verifiedStellarAddress(user)))
       .slice(0, LIST_LIMIT)
     return await Promise.all(
       tips.map(async (tip) => ({
@@ -900,7 +901,9 @@ export const listMyReceived = query({
       })
     const page = await Promise.all(
       result.page
-        .filter((tip) => paidToExpectedAuthor(tip, user?.stellarAddress))
+        .filter((tip) =>
+          paidToExpectedAuthor(tip, verifiedStellarAddress(user))
+        )
         .map(async (tip) => ({
           ...ownTipFields(tip),
           highlightId: tip.highlightId,

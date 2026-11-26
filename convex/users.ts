@@ -5,15 +5,8 @@ import { getAuthUserId } from '@convex-dev/auth/server'
 import { syncReadingRoomWriter } from './lib/readingRoomIndex'
 import { isArticleListingReady } from './lib/articleListingReady'
 import { syncAvatarUploadReference } from './lib/uploadReferences'
+import { verifiedStellarAddress } from './lib/walletVerification'
 import { profileBioError, profileNameError } from '../lib/profile/profileRules'
-
-/**
- * Validate Stellar address format
- * Stellar addresses start with G and are 56 characters (base32)
- */
-function isValidStellarAddress(address: string): boolean {
-  return /^G[A-Z2-7]{55}$/.test(address)
-}
 
 // Get the current authenticated user
 export const getCurrentUser = query({
@@ -46,7 +39,8 @@ export const getUserByUsername = query({
       username: user.username,
       bio: user.bio,
       avatar: user.avatar,
-      stellarAddress: user.stellarAddress,
+      // Only a verified address is public: tips go to it.
+      stellarAddress: verifiedStellarAddress(user),
       articleCount: user.articleCount,
       highlightCount: user.highlightCount,
       nftsCreated: user.nftsCreated,
@@ -70,10 +64,11 @@ export const updateProfile = mutation({
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
-    // Validate Stellar address format if provided
-    if (args.stellarAddress && !isValidStellarAddress(args.stellarAddress)) {
-      throw new Error(
-        "Invalid Stellar address format. Address must start with 'G' and be 56 characters."
+    // An address is linked only through proof of control
+    // (walletLink.verifyWalletChallenge). Here it can only be removed.
+    if (args.stellarAddress) {
+      throw new ConvexError(
+        'Verify the wallet to link it: connect it and approve the request in your wallet.'
       )
     }
 
@@ -94,6 +89,8 @@ export const updateProfile = mutation({
       bio?: string
       avatar?: string
       stellarAddress?: string | null
+      stellarAddressVerifiedAt?: undefined
+      stellarAddressVerifiedNetwork?: undefined
       updatedAt?: number
     } = {}
     // Use 'in' operator to check if property exists in args
@@ -102,7 +99,11 @@ export const updateProfile = mutation({
     // An empty bio removes it (patching a field to undefined clears it).
     if ('bio' in args) updates.bio = bio || undefined
     if ('avatar' in args) updates.avatar = args.avatar
-    if ('stellarAddress' in args) updates.stellarAddress = args.stellarAddress
+    if ('stellarAddress' in args) {
+      updates.stellarAddress = null
+      updates.stellarAddressVerifiedAt = undefined
+      updates.stellarAddressVerifiedNetwork = undefined
+    }
 
     updates.updatedAt = Date.now()
 

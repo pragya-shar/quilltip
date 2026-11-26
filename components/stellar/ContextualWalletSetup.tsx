@@ -2,15 +2,14 @@
 
 import { useRef, useState } from 'react'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
-import { useMutation } from 'convex/react'
 import { Loader2, PlugZap } from 'lucide-react'
 import { toast } from 'sonner'
-import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
 import { useWallet } from '@/components/providers/WalletProvider'
 import type { FlowFeedback } from '@/lib/feedback/flow-feedback'
 import { describeConnectFailure } from '@/lib/stellar/v2/wallet-errors'
+import { useWalletOwnership } from '@/hooks/useWalletOwnership'
 import { cn } from '@/lib/utils'
 
 export type WalletSetupMode = 'send' | 'receive'
@@ -48,7 +47,7 @@ export function ContextualWalletSetup({
   className,
   showHelp = true,
 }: ContextualWalletSetupProps) {
-  const updateProfile = useMutation(api.users.updateProfile)
+  const ownership = useWalletOwnership()
   const { isLoading, connect } = useWallet({
     activateOnMount: true,
   })
@@ -66,22 +65,11 @@ export function ContextualWalletSetup({
       if (!(await connect())) return
 
       if (mode === 'receive') {
-        const { wallet } = await import('@/lib/stellar/v2/wallet-kit')
-        const connectedKey = wallet.getConnection()?.address ?? null
-        if (connectedKey) {
-          await updateProfile({ stellarAddress: connectedKey })
-          onAddressSaved?.(connectedKey)
-          toast.success('Wallet connected and saved successfully!')
-        } else {
-          setFeedback({
-            variant: 'destructive',
-            title: 'Could not retrieve wallet address',
-            detail:
-              'The wallet connected but returned no public key. Try again.',
-          })
-          toast.error('Could not retrieve wallet address')
-          return
-        }
+        // Linking needs proof that this wallet holds the address.
+        const result = await ownership.verify()
+        if (!result) return
+        onAddressSaved?.(result.address)
+        toast.success('Wallet verified. Tips now go to this address.')
       } else {
         toast.success('Wallet connected successfully!')
       }
@@ -115,6 +103,14 @@ export function ContextualWalletSetup({
           className
         )}
       >
+        {mode === 'receive' &&
+          ownership.status === 'error' &&
+          ownership.error && (
+            <div className="wallet-connection-notice" role="alert">
+              <strong>{ownership.error.title}</strong>
+              <p>{ownership.error.detail}</p>
+            </div>
+          )}
         {feedback && (
           <div className="wallet-connection-notice" role="alert">
             <strong>{feedback.title}</strong>

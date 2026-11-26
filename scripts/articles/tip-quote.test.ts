@@ -18,6 +18,8 @@ test('article and passage presets quote exact XLM while legacy USD tips still us
         username: 'writer',
         email: 'writer@example.test',
         stellarAddress: Keypair.random().publicKey(),
+        stellarAddressVerifiedAt: now,
+        stellarAddressVerifiedNetwork: 'Test SDF Network ; September 2015',
         createdAt: now,
         updatedAt: now,
       })

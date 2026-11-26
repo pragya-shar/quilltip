@@ -18,7 +18,7 @@ import { useAuth } from '@/components/providers/AuthContext'
 import { useCurrentUser } from '@/hooks/convex/useUsers'
 import { useSuspendDialogModalForWallet } from '@/hooks/useSuspendDialogModalForWallet'
 import { useAutoSave } from '@/hooks/useAutoSave'
-import { useConvex, useMutation } from 'convex/react'
+import { useConvex, useMutation, useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useArticleById } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
@@ -162,11 +162,19 @@ export function useWritingWorkspace() {
     string | null | undefined
   >(undefined)
 
+  // Publishing needs a wallet the writer proved control of; an address linked
+  // before proof was required counts as not set up until it is verified.
+  const walletLink = useQuery(
+    api.walletLink.getMyWalletLink,
+    isAuthenticated ? {} : 'skip'
+  )
   useEffect(() => {
-    if (currentUser !== undefined) {
-      setReceivingWalletAddress(currentUser?.stellarAddress ?? null)
+    if (walletLink !== undefined) {
+      setReceivingWalletAddress(
+        walletLink?.state === 'verified' ? walletLink.address : null
+      )
     }
-  }, [currentUser])
+  }, [walletLink])
 
   const suspendDialogModalForWallet = useSuspendDialogModalForWallet()
 

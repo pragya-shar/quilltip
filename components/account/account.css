@@ -860,3 +860,57 @@
     justify-self: stretch;
   }
 }
+/* Receiving address and its proof of ownership. */
+.wallet-verification {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+}
+.wallet-verification-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.wallet-verification-label {
+  font-weight: 600;
+}
+.wallet-verification-badge[data-state='verified'] {
+  background: #e3ecdf;
+  color: #2d5b3a;
+}
+.wallet-verification-badge[data-state='unverified'] {
+  background: #f3dfe0;
+  color: #7a1f33;
+}
+.wallet-verification-address {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.wallet-verification-explainer {
+  max-width: 62ch;
+}
+.wallet-verification-action {
+  justify-self: start;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.wallet-verification-action[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: progress;
+}
+.wallet-verification-status {
+  min-height: 1.5em;
+  font-size: 14px;
+  color: var(--account-wine);
+}
+@media (max-width: 600px) {
+  .wallet-verification-action {
+    justify-self: stretch;
+  }
+}
+.wallet-verification .account-notice {
+  margin-top: 0;
+}

@@ -7,7 +7,12 @@ import oneComponentPerFile from './scripts/eslint/one-component-per-file.mjs'
 
 export default [
   {
-    ignores: ['.next/**', 'node_modules/**', 'convex/_generated/**'],
+    ignores: [
+      '.next/**',
+      'node_modules/**',
+      'convex/_generated/**',
+      'lib/stellar/v2/bindings/**',
+    ],
   },
   ...tseslint.configs.recommended,
   {

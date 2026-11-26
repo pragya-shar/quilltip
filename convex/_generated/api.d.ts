@@ -69,6 +69,8 @@ import type * as lib_tiptapContent from "../lib/tiptapContent.js";
 import type * as lib_uploadReferences from "../lib/uploadReferences.js";
 import type * as lib_v2Earnings from "../lib/v2Earnings.js";
 import type * as lib_verifiedTips from "../lib/verifiedTips.js";
+import type * as lib_walletChallenge from "../lib/walletChallenge.js";
+import type * as lib_walletVerification from "../lib/walletVerification.js";
 import type * as lib_wikimediaFileUrl from "../lib/wikimediaFileUrl.js";
 import type * as lib_xlmPrice from "../lib/xlmPrice.js";
 import type * as nftMetadataUpload from "../nftMetadataUpload.js";
@@ -87,6 +89,7 @@ import type * as uploadTickets from "../uploadTickets.js";
 import type * as uploads from "../uploads.js";
 import type * as users from "../users.js";
 import type * as waitlist from "../waitlist.js";
+import type * as walletLink from "../walletLink.js";
 import type * as wikimedia from "../wikimedia.js";
 import type * as xlmPrice from "../xlmPrice.js";
 
@@ -158,6 +161,8 @@ declare const fullApi: ApiFromModules<{
   "lib/uploadReferences": typeof lib_uploadReferences;
   "lib/v2Earnings": typeof lib_v2Earnings;
   "lib/verifiedTips": typeof lib_verifiedTips;
+  "lib/walletChallenge": typeof lib_walletChallenge;
+  "lib/walletVerification": typeof lib_walletVerification;
   "lib/wikimediaFileUrl": typeof lib_wikimediaFileUrl;
   "lib/xlmPrice": typeof lib_xlmPrice;
   nftMetadataUpload: typeof nftMetadataUpload;
@@ -176,6 +181,7 @@ declare const fullApi: ApiFromModules<{
   uploads: typeof uploads;
   users: typeof users;
   waitlist: typeof waitlist;
+  walletLink: typeof walletLink;
   wikimedia: typeof wikimedia;
   xlmPrice: typeof xlmPrice;
 }>;
