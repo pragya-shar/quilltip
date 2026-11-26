@@ -3,10 +3,14 @@
  * the browser. Only this file imports the kit at runtime.
  *
  * Modules: Varial (formerly Freighter), xBull, Albedo, LOBSTR, Rabet and
- * Hana. WalletConnect (mobile wallets) is added only when
- * NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set; it pulls in Reown AppKit, so it
- * loads in its own chunk. HOT Wallet is not offered: its module needs global
- * and Buffer polyfills.
+ * Hana. HOT Wallet is not offered: its module needs global and Buffer
+ * polyfills.
+ *
+ * WalletConnect (mobile wallets) is not supported yet. The kit's WalletConnect
+ * module depends on Reown AppKit, which this app runs on zod 4 through a
+ * package override (zod 3 has an unpatched advisory). That combination has
+ * not been tested, so setting NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID makes the
+ * wallet fail to start with a clear error instead of loading it silently.
  */
 
 import type {
@@ -42,27 +46,18 @@ export const QUILLTIP_WALLET_THEME: SwkAppTheme = {
 const WALLETCONNECT_PROJECT_ID =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() || ''
 
-async function walletConnectModule(): Promise<ModuleInterface | null> {
-  if (!WALLETCONNECT_PROJECT_ID || typeof window === 'undefined') return null
-  const { WalletConnectModule, WalletConnectTargetChain } =
-    await import('@creit.tech/stellar-wallets-kit/modules/wallet-connect')
-  return new WalletConnectModule({
-    projectId: WALLETCONNECT_PROJECT_ID,
-    metadata: {
-      name: 'QuillTip',
-      description: 'Tip writers on Stellar',
-      url: window.location.origin,
-      icons: [`${window.location.origin}/favicon.ico`],
-    },
-    allowedChains: [
-      STELLAR_CONFIG.WALLET_NETWORK === 'PUBLIC'
-        ? WalletConnectTargetChain.PUBLIC
-        : WalletConnectTargetChain.TESTNET,
-    ],
-  })
+export const WALLETCONNECT_UNSUPPORTED_MESSAGE =
+  'WalletConnect is not supported yet: its Reown AppKit dependency has not been tested with the zod 4 override. Unset NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID.'
+
+/** Refuses to start when WalletConnect is configured (see the file comment). */
+function assertWalletConnectDisabled() {
+  if (!WALLETCONNECT_PROJECT_ID) return
+  console.error(`[wallet] ${WALLETCONNECT_UNSUPPORTED_MESSAGE}`)
+  throw new Error(WALLETCONNECT_UNSUPPORTED_MESSAGE)
 }
 
 export async function loadWalletKitBundle(): Promise<KitBundle> {
+  assertWalletConnectDisabled()
   const [
     { StellarWalletsKit },
     { KitEventType },
@@ -72,7 +67,6 @@ export async function loadWalletKitBundle(): Promise<KitBundle> {
     { LobstrModule },
     { RabetModule },
     { HanaModule },
-    walletConnect,
   ] = await Promise.all([
     import('@creit.tech/stellar-wallets-kit/sdk'),
     import('@creit.tech/stellar-wallets-kit/types'),
@@ -82,7 +76,6 @@ export async function loadWalletKitBundle(): Promise<KitBundle> {
     import('@creit.tech/stellar-wallets-kit/modules/lobstr'),
     import('@creit.tech/stellar-wallets-kit/modules/rabet'),
     import('@creit.tech/stellar-wallets-kit/modules/hana'),
-    walletConnectModule(),
   ])
   const modules: ModuleInterface[] = [
     new VarialModule(),
@@ -91,7 +84,6 @@ export async function loadWalletKitBundle(): Promise<KitBundle> {
     new LobstrModule(),
     new RabetModule(),
     new HanaModule(),
-    ...(walletConnect ? [walletConnect] : []),
   ]
   return {
     kit: StellarWalletsKit as unknown as KitBundle['kit'],

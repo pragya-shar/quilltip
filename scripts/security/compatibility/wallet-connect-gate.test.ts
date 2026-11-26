@@ -2,9 +2,9 @@
 import { afterEach, expect, it, vi } from 'vitest'
 
 /**
- * The WalletConnect module (and with it Reown AppKit and its dependencies) is
- * imported only when NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set. Every other
- * kit module loads without it.
+ * The WalletConnect module (and with it Reown AppKit and its zod-dependent
+ * code) is never imported. With NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID unset the
+ * other modules load; with it set the wallet refuses to start.
  */
 const walletConnectImported = vi.hoisted(() => ({ count: 0 }))
 
@@ -59,8 +59,9 @@ it('never imports the WalletConnect module without a project ID', async () => {
   }
 })
 
-it('adds WalletConnect for testnet when a project ID is set', async () => {
-  const ids = await loadIds('qa-project-id')
-  expect(ids).toContain('wallet_connect')
-  expect(walletConnectImported.count).toBe(1)
+it('refuses to start, without importing the module, when a project ID is set', async () => {
+  await expect(loadIds('qa-project-id')).rejects.toThrow(
+    'WalletConnect is not supported yet'
+  )
+  expect(walletConnectImported.count).toBe(0)
 })

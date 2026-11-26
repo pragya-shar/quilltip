@@ -14,6 +14,10 @@
  * No v2 flow needs `signAuthEntry`: every entry point authorises only the
  * transaction source (section 6.1, step 4), so the adapter does not expose it.
  *
+ * WalletConnect (mobile wallets) is not supported yet: see `wallet-kit.ts`.
+ * The adapter handles a `wallet_connect` module generically, but the app
+ * does not load one.
+ *
  * `createWalletAdapter` takes the kit as a dependency so tests can pass a fake.
  */
 

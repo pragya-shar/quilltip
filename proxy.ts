@@ -146,35 +146,21 @@ export async function proxy(request: NextRequest) {
       ...(isVercelPreview ? ['https://vercel.live'] : []),
     ].join(' ')
 
-    // Wallets Kit 2.x: the extension and web-wallet modules talk through
-    // extension messaging and popups and need no origins here. The
-    // WalletConnect module (mobile wallets) is loaded only when a project ID
-    // is configured, and then needs the WalletConnect relay, RPC and Reown
-    // AppKit origins.
-    const walletConnect = Boolean(
-      process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim()
-    )
-    const walletConnectConnect = walletConnect
-      ? ' wss://relay.walletconnect.org wss://relay.walletconnect.com https://rpc.walletconnect.org https://rpc.walletconnect.com https://pulse.walletconnect.org https://api.web3modal.org'
-      : ''
-    const walletConnectFrames = walletConnect
-      ? ' https://verify.walletconnect.org https://verify.walletconnect.com'
-      : ''
-    const walletConnectImages = walletConnect
-      ? ' https://api.web3modal.org'
-      : ''
-
+    // Wallets Kit 2.x: the extension and web-wallet modules QuillTip offers
+    // talk through extension messaging and popups and need no origins here.
+    // WalletConnect is not supported yet (lib/stellar/v2/wallet-kit.ts), so
+    // its relay origins are not allowed.
     const csp = [
       "default-src 'self'",
       `script-src ${scriptSrc}`,
       "style-src 'self' 'unsafe-inline'",
-      `img-src 'self' data: blob: *.convex.cloud *.convex.site img.youtube.com images.unsplash.com plus.unsplash.com arweave.net${walletConnectImages}`,
+      "img-src 'self' data: blob: *.convex.cloud *.convex.site img.youtube.com images.unsplash.com plus.unsplash.com arweave.net",
       // XLM price is now fetched server-side by a cron and cached in Convex;
       // the browser reads the cached row via api.xlmPrice.getCachedXlmPrice,
       // so there is no per-oracle host to allowlist here.
-      `connect-src 'self' *.convex.cloud wss://*.convex.cloud *.convex.site wss://*.convex.site *.stellar.org arweave.net ar-io.dev${walletConnectConnect}`,
+      "connect-src 'self' *.convex.cloud wss://*.convex.cloud *.convex.site wss://*.convex.site *.stellar.org arweave.net ar-io.dev",
       "font-src 'self'",
-      `frame-src 'self' www.youtube.com www.youtube-nocookie.com${walletConnectFrames}`,
+      "frame-src 'self' www.youtube.com www.youtube-nocookie.com",
       "frame-ancestors 'none'",
       "form-action 'self'",
       "base-uri 'self'",
