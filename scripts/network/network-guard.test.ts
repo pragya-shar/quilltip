@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  LOCAL_PASSPHRASE,
   MAINNET_PASSPHRASE,
+  StellarNetworkConfigError,
   TESTNET_PASSPHRASE,
 } from '../../lib/stellar/network'
 import {
@@ -10,7 +12,9 @@ import {
   LIVE_CONVEX_DEPLOYMENTS,
   NETWORK_GUARD_OPT_IN_ENV,
   NetworkGuardError,
+  assertBackendNetwork,
   assertBackendTestnet,
+  assertClientNetwork,
   assertNonProductionBackend,
   assertTestnetOnly,
   collectNetworkGuardRefusals,
@@ -22,7 +26,13 @@ import { runNetworkGuardCli } from '../check-network-guard'
 import {
   assertScriptConvexDeployAllowed,
   assertScriptTestnetOnly,
+  resolveScriptStellarNetwork,
 } from '../lib/network-guard'
+import {
+  buildStellarCliCommand,
+  runStellarCli,
+  stellarCliNetworkArgs,
+} from '../lib/stellar-cli'
 
 const LIVE = 'upbeat-mockingbird-579'
 const ALLOWED = 'efficient-tern-39'
@@ -81,8 +91,8 @@ describe('guard defaults', () => {
 
   it('refuses without the explicit opt-in', () => {
     expect(codesFor({ optIn: undefined })).toEqual(['MISSING_OPT_IN'])
-    expect(codesFor({ optIn: '1' })).toEqual(['MISSING_OPT_IN'])
-    expect(codesFor({ optIn: 'TESTNET ' })).toEqual(['MISSING_OPT_IN'])
+    expect(codesFor({ optIn: '1' })).toEqual(['OPT_IN_MISMATCH'])
+    expect(codesFor({ optIn: 'TESTNET ' })).toEqual(['OPT_IN_MISMATCH'])
   })
 
   it('treats a missing kind as deploy, the stricter kind', () => {
@@ -519,5 +529,662 @@ describe('guard CLI', () => {
       })
     ).toBe(1)
     expect(String(errors.mock.calls[0]?.[0])).toContain('LIVE_BACKEND_DEPLOY')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// v2 chain variables: RPC URL and network passphrase
+// ---------------------------------------------------------------------------
+
+const TESTNET_RPC = 'https://soroban-testnet.stellar.org'
+
+const V2_SCRIPT_ENV = {
+  [NETWORK_GUARD_OPT_IN_ENV]: 'testnet',
+  NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
+  STELLAR_NETWORK: 'TESTNET',
+  CONVEX_DEPLOYMENT: `dev:${ALLOWED}`,
+  NEXT_PUBLIC_CONVEX_URL: `https://${ALLOWED}.convex.cloud`,
+}
+
+const RPC_VARIABLES = [
+  'STELLAR_RPC_URL',
+  'NEXT_PUBLIC_STELLAR_RPC_URL',
+  'NEXT_PUBLIC_SOROBAN_RPC_URL',
+] as const
+
+const PASSPHRASE_VARIABLES = [
+  'NETWORK_PASSPHRASE',
+  'NEXT_PUBLIC_NETWORK_PASSPHRASE',
+] as const
+
+const MAINNET_RPC_FORMS = [
+  'https://mainnet.sorobanrpc.com',
+  'HTTPS://MAINNET.SOROBANRPC.COM/',
+  'https://Mainnet.SorobanRpc.com:443/rpc?x=1',
+  'https://mainnet.sorobanrpc.com.',
+  'https://user:secret@soroban-rpc.mainnet.stellar.gateway.fm',
+  'https://soroban-testnet.stellar.org@mainnet.sorobanrpc.com',
+  'https://horizon.stellar.org',
+  'https://HORIZON.stellar.ORG./',
+  'https://rpc-mainnet.example.org',
+  'https://ｍａｉｎｎｅｔ.sorobanrpc.com',
+]
+
+const MAINNET_PASSPHRASE_FORMS = [
+  MAINNET_PASSPHRASE,
+  MAINNET_PASSPHRASE.toUpperCase(),
+  MAINNET_PASSPHRASE.toLowerCase(),
+  `  ${MAINNET_PASSPHRASE}\n`,
+  MAINNET_PASSPHRASE.replace(/ /g, '  '),
+  'Ｐｕｂｌｉｃ Global Stellar Network ; September 2015',
+]
+
+const UNKNOWN_PASSPHRASES = [
+  'Test SDF Future Network ; October 2022',
+  'Local Sandbox Stellar Network ; September 2022',
+  `${TESTNET_PASSPHRASE}.`,
+  TESTNET_PASSPHRASE.toLowerCase(),
+  'anything else',
+]
+
+describe('v2 RPC URL variables', () => {
+  it.each(RPC_VARIABLES)('accepts the testnet RPC in %s', (name) => {
+    expect(
+      assertScriptTestnetOnly('rpc', { ...V2_SCRIPT_ENV, [name]: TESTNET_RPC })
+        .network
+    ).toBe('TESTNET')
+  })
+
+  for (const name of RPC_VARIABLES) {
+    it.each(MAINNET_RPC_FORMS)(`refuses mainnet host in ${name}: %s`, (url) => {
+      expect(
+        guardError(() =>
+          assertScriptTestnetOnly('rpc', { ...V2_SCRIPT_ENV, [name]: url })
+        ).codes
+      ).toEqual(['MAINNET_URL'])
+    })
+
+    it.each([
+      'https://rpc.example.org',
+      'https://soroban-testnet.stellar.org.evil.example',
+      'https://soroban-testnet.stellar.org.',
+      'https://testnet.sorobanrpc.com',
+    ])(`refuses RPC host outside the allowlist in ${name}: %s`, (url) => {
+      expect(
+        guardError(() =>
+          assertScriptTestnetOnly('rpc', { ...V2_SCRIPT_ENV, [name]: url })
+        ).codes
+      ).toEqual(['UNTRUSTED_URL'])
+    })
+
+    it.each(['not a url', 'ftp://soroban-testnet.stellar.org'])(
+      `refuses an invalid RPC URL in ${name}: %s`,
+      (url) => {
+        expect(
+          guardError(() =>
+            assertScriptTestnetOnly('rpc', { ...V2_SCRIPT_ENV, [name]: url })
+          ).codes
+        ).toEqual(['INVALID_URL'])
+      }
+    )
+  }
+
+  it('resolves the RPC URL from STELLAR_RPC_URL first, then the client names', () => {
+    const custom = 'http://127.0.0.1:8000/soroban/rpc'
+    expect(
+      resolveScriptStellarNetwork('rpc', {
+        ...V2_SCRIPT_ENV,
+        STELLAR_RPC_URL: custom,
+        NEXT_PUBLIC_STELLAR_RPC_URL: TESTNET_RPC,
+      }).rpcUrl
+    ).toBe(custom)
+    expect(
+      resolveScriptStellarNetwork('rpc', {
+        ...V2_SCRIPT_ENV,
+        NEXT_PUBLIC_SOROBAN_RPC_URL: TESTNET_RPC,
+      }).rpcUrl
+    ).toBe(TESTNET_RPC)
+    expect(resolveScriptStellarNetwork('rpc', V2_SCRIPT_ENV).rpcUrl).toBe(
+      TESTNET_RPC
+    )
+  })
+
+  it('refuses different values in the current and earlier client RPC names', () => {
+    expect(() =>
+      resolveScriptStellarNetwork('rpc', {
+        ...V2_SCRIPT_ENV,
+        NEXT_PUBLIC_STELLAR_RPC_URL: TESTNET_RPC,
+        NEXT_PUBLIC_SOROBAN_RPC_URL: 'http://localhost:8000/soroban/rpc',
+      })
+    ).toThrow(StellarNetworkConfigError)
+  })
+})
+
+describe('v2 network passphrase variables', () => {
+  it.each(PASSPHRASE_VARIABLES)(
+    'accepts the testnet passphrase in %s',
+    (name) => {
+      expect(
+        resolveScriptStellarNetwork('passphrase', {
+          ...V2_SCRIPT_ENV,
+          [name]: TESTNET_PASSPHRASE,
+        }).passphrase
+      ).toBe(TESTNET_PASSPHRASE)
+    }
+  )
+
+  for (const name of PASSPHRASE_VARIABLES) {
+    it.each(MAINNET_PASSPHRASE_FORMS)(
+      `refuses the mainnet passphrase in ${name}: %j`,
+      (passphrase) => {
+        expect(
+          guardError(() =>
+            assertScriptTestnetOnly('passphrase', {
+              ...V2_SCRIPT_ENV,
+              [name]: passphrase,
+            })
+          ).codes
+        ).toEqual(['MAINNET_PASSPHRASE'])
+      }
+    )
+
+    it.each([...UNKNOWN_PASSPHRASES, LOCAL_PASSPHRASE])(
+      `refuses an unknown passphrase in ${name} on TESTNET: %j`,
+      (passphrase) => {
+        expect(
+          guardError(() =>
+            assertScriptTestnetOnly('passphrase', {
+              ...V2_SCRIPT_ENV,
+              [name]: passphrase,
+            })
+          ).codes
+        ).toEqual(['UNKNOWN_PASSPHRASE'])
+      }
+    )
+  }
+
+  it('refuses passphrase variables that disagree', () => {
+    expect(
+      guardError(() =>
+        assertScriptTestnetOnly('passphrase', {
+          ...V2_SCRIPT_ENV,
+          NETWORK_PASSPHRASE: TESTNET_PASSPHRASE,
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: MAINNET_PASSPHRASE,
+        })
+      ).codes
+    ).toEqual(['CONFLICTING_PASSPHRASE', 'MAINNET_PASSPHRASE'])
+  })
+})
+
+describe('backend checks read the v2 variables', () => {
+  it('accepts the testnet passphrase and RPC, and a custom testnet RPC provider', () => {
+    expect(
+      assertBackendTestnet({
+        STELLAR_NETWORK: 'TESTNET',
+        NETWORK_PASSPHRASE: TESTNET_PASSPHRASE,
+        STELLAR_RPC_URL: TESTNET_RPC,
+      })
+    ).toBe('TESTNET')
+    expect(
+      assertBackendTestnet({ STELLAR_RPC_URL: 'https://rpc.example.org' })
+    ).toBe('TESTNET')
+  })
+
+  it.each(MAINNET_PASSPHRASE_FORMS)(
+    'refuses NETWORK_PASSPHRASE %j on the backend',
+    (passphrase) => {
+      expect(
+        guardError(() =>
+          assertBackendTestnet({ NETWORK_PASSPHRASE: passphrase })
+        ).codes
+      ).toEqual(['MAINNET_PASSPHRASE'])
+    }
+  )
+
+  it.each(UNKNOWN_PASSPHRASES)(
+    'refuses an unknown NETWORK_PASSPHRASE %j on the backend',
+    (passphrase) => {
+      expect(
+        guardError(() =>
+          assertBackendTestnet({ NETWORK_PASSPHRASE: passphrase })
+        ).codes
+      ).toEqual(['UNKNOWN_PASSPHRASE'])
+    }
+  )
+
+  it.each(MAINNET_RPC_FORMS)(
+    'refuses STELLAR_RPC_URL %s on the backend',
+    (url) => {
+      expect(
+        guardError(() => assertBackendTestnet({ STELLAR_RPC_URL: url })).codes
+      ).toEqual(['MAINNET_URL'])
+    }
+  )
+
+  it('applies the same checks to maintenance functions', () => {
+    const base = { CONVEX_CLOUD_URL: `https://${ALLOWED}.convex.cloud` }
+    expect(
+      guardError(() =>
+        assertNonProductionBackend('seed', {
+          ...base,
+          NETWORK_PASSPHRASE: MAINNET_PASSPHRASE,
+        })
+      ).codes
+    ).toEqual(['MAINNET_PASSPHRASE'])
+    expect(
+      guardError(() =>
+        assertNonProductionBackend('seed', {
+          ...base,
+          STELLAR_RPC_URL: 'https://mainnet.sorobanrpc.com',
+        })
+      ).codes
+    ).toEqual(['MAINNET_URL'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// LOCAL mode
+// ---------------------------------------------------------------------------
+
+const LOCAL_RPC = 'http://localhost:8000/soroban/rpc'
+const LOCAL_CONVEX = 'http://127.0.0.1:3210'
+
+const LOCAL_ENV = {
+  [NETWORK_GUARD_OPT_IN_ENV]: 'local',
+  NEXT_PUBLIC_STELLAR_NETWORK: 'LOCAL',
+  STELLAR_NETWORK: 'LOCAL',
+  NETWORK_PASSPHRASE: LOCAL_PASSPHRASE,
+  STELLAR_RPC_URL: LOCAL_RPC,
+  CONVEX_DEPLOYMENT: 'anonymous:anonymous-quilltip',
+  NEXT_PUBLIC_CONVEX_URL: LOCAL_CONVEX,
+}
+
+const LOCAL_INPUT: NetworkGuardInput = {
+  operation: 'local test',
+  kind: 'operational',
+  optIn: 'local',
+  stellarNetworks: ['LOCAL'],
+  networkPassphrases: [LOCAL_PASSPHRASE],
+  stellarUrls: [LOCAL_RPC],
+  convexUrls: [LOCAL_CONVEX],
+}
+
+function localCodes(overrides: Partial<NetworkGuardInput>) {
+  return collectNetworkGuardRefusals({ ...LOCAL_INPUT, ...overrides }).map(
+    (r) => r.code
+  )
+}
+
+describe('LOCAL mode', () => {
+  it('passes with the local opt-in, standalone passphrase, local RPC, and local backend', () => {
+    expect(assertTestnetOnly(LOCAL_INPUT)).toEqual({
+      network: 'LOCAL',
+      convexDeployments: [],
+      liveBackendApproved: false,
+    })
+    expect(assertScriptTestnetOnly('local', LOCAL_ENV).network).toBe('LOCAL')
+    expect(
+      localCodes({ stellarUrls: ['http://127.0.0.1:8000/soroban/rpc'] })
+    ).toEqual([])
+    expect(
+      localCodes({ convexUrls: [], convexDeployment: 'local:local-quilltip' })
+    ).toEqual([])
+  })
+
+  it('requires QUILLTIP_NETWORK_GUARD_OPT_IN=local', () => {
+    expect(localCodes({ optIn: undefined })).toEqual(['MISSING_OPT_IN'])
+    expect(localCodes({ optIn: 'testnet' })).toEqual(['OPT_IN_MISMATCH'])
+    expect(localCodes({ optIn: 'LOCAL' })).toEqual(['OPT_IN_MISMATCH'])
+  })
+
+  it('does not accept the local opt-in for TESTNET', () => {
+    expect(codesFor({ optIn: 'local' })).toEqual(['OPT_IN_MISMATCH'])
+  })
+
+  it('refuses a Convex cloud target, allowlisted or not', () => {
+    expect(
+      localCodes({ convexUrls: [`https://${ALLOWED}.convex.cloud`] })
+    ).toEqual(['LOCAL_CLOUD_CONVEX'])
+    expect(localCodes({ convexDeployment: `dev:${ALLOWED}` })).toEqual([
+      'LOCAL_CLOUD_CONVEX',
+    ])
+    expect(
+      localCodes({ convexDeployKey: `preview:${ALLOWED}|opaque` })
+    ).toEqual(['LOCAL_CLOUD_CONVEX'])
+    expect(
+      localCodes({ convexUrls: [LOCAL_CONVEX, 'https://backend.example.org'] })
+    ).toEqual(['LOCAL_CLOUD_CONVEX'])
+    expect(
+      guardError(() =>
+        assertScriptTestnetOnly('local', {
+          ...LOCAL_ENV,
+          NEXT_PUBLIC_CONVEX_URL: `https://${ALLOWED}.convex.cloud`,
+        })
+      ).codes
+    ).toEqual(['LOCAL_CLOUD_CONVEX'])
+  })
+
+  it('refuses the live backend in LOCAL mode', () => {
+    expect(
+      localCodes({ convexUrls: [`https://${LIVE}.convex.cloud`] })
+    ).toEqual(['LOCAL_CLOUD_CONVEX', 'LIVE_BACKEND_NOT_APPROVED'])
+  })
+
+  it('refuses LOCAL with no Convex target', () => {
+    expect(localCodes({ convexUrls: [] })).toEqual(['UNKNOWN_CONVEX'])
+  })
+
+  it('refuses the live backend approval variable in LOCAL mode', () => {
+    expect(localCodes({ liveBackendApproval: LIVE })).toEqual([
+      'LOCAL_LIVE_APPROVAL',
+    ])
+    const error = guardError(() =>
+      assertTestnetOnly({
+        ...LOCAL_INPUT,
+        convexUrls: [`https://${LIVE}.convex.cloud`],
+        liveBackendApproval: LIVE,
+      })
+    )
+    expect(error.codes).toEqual([
+      'LOCAL_LIVE_APPROVAL',
+      'LOCAL_CLOUD_CONVEX',
+      'LIVE_BACKEND_NOT_APPROVED',
+    ])
+    expect(
+      guardError(() =>
+        assertScriptTestnetOnly('local', {
+          ...LOCAL_ENV,
+          [LIVE_BACKEND_APPROVAL_ENV]: LIVE,
+        })
+      ).codes
+    ).toEqual(['LOCAL_LIVE_APPROVAL'])
+  })
+
+  it('accepts only the standalone passphrase', () => {
+    expect(localCodes({ networkPassphrases: [TESTNET_PASSPHRASE] })).toEqual([
+      'UNKNOWN_PASSPHRASE',
+    ])
+    for (const passphrase of UNKNOWN_PASSPHRASES) {
+      expect(localCodes({ networkPassphrases: [passphrase] })).toEqual([
+        'UNKNOWN_PASSPHRASE',
+      ])
+    }
+    for (const passphrase of MAINNET_PASSPHRASE_FORMS) {
+      expect(localCodes({ networkPassphrases: [passphrase] })).toEqual([
+        'MAINNET_PASSPHRASE',
+      ])
+    }
+  })
+
+  it('accepts only localhost and 127.0.0.1 endpoints', () => {
+    for (const url of [
+      TESTNET_RPC,
+      'https://horizon-testnet.stellar.org',
+      'http://[::1]:8000/soroban/rpc',
+      'http://127.0.0.2:8000',
+      'http://0.0.0.0:8000',
+      'http://localhost.example.org:8000',
+      'http://localhost@rpc.example.org',
+      'http://127.0.0.1.nip.io:8000',
+    ]) {
+      expect(localCodes({ stellarUrls: [url] })).toEqual(['LOCAL_REMOTE_URL'])
+    }
+    for (const url of MAINNET_RPC_FORMS) {
+      expect(localCodes({ stellarUrls: [url] })).toEqual(['MAINNET_URL'])
+    }
+  })
+
+  it('refuses LOCAL mixed with TESTNET', () => {
+    expect(localCodes({ stellarNetworks: ['LOCAL', 'TESTNET'] })).toContain(
+      'CONFLICTING_NETWORK'
+    )
+  })
+
+  it('lets deploy tooling target a local backend only', () => {
+    expect(
+      assertScriptConvexDeployAllowed('push', {
+        [NETWORK_GUARD_OPT_IN_ENV]: 'local',
+        CONVEX_DEPLOYMENT: 'anonymous:anonymous-quilltip',
+      }).network
+    ).toBe('LOCAL')
+    expect(
+      guardError(() =>
+        assertScriptConvexDeployAllowed('push', {
+          [NETWORK_GUARD_OPT_IN_ENV]: 'local',
+          CONVEX_DEPLOYMENT: `dev:${ALLOWED}`,
+        })
+      ).codes
+    ).toEqual(['LOCAL_CLOUD_CONVEX'])
+  })
+
+  it('reports LOCAL from the guard CLI', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    expect(runNetworkGuardCli([], LOCAL_ENV)).toBe(0)
+    expect(String(log.mock.calls[0]?.[0])).toContain('Stellar: LOCAL')
+    log.mockRestore()
+  })
+})
+
+describe('LOCAL mode runtime checks', () => {
+  const BACKEND_LOCAL = {
+    STELLAR_NETWORK: 'LOCAL',
+    [NETWORK_GUARD_OPT_IN_ENV]: 'local',
+    NETWORK_PASSPHRASE: LOCAL_PASSPHRASE,
+    STELLAR_RPC_URL: LOCAL_RPC,
+    CONVEX_CLOUD_URL: LOCAL_CONVEX,
+  }
+
+  it('accepts a local backend in LOCAL mode', () => {
+    expect(assertBackendNetwork(BACKEND_LOCAL)).toBe('LOCAL')
+    expect(() =>
+      assertNonProductionBackend('seed', BACKEND_LOCAL)
+    ).not.toThrow()
+  })
+
+  it('refuses LOCAL on a Convex cloud deployment', () => {
+    expect(
+      guardError(() =>
+        assertBackendNetwork({
+          ...BACKEND_LOCAL,
+          CONVEX_CLOUD_URL: `https://${ALLOWED}.convex.cloud`,
+        })
+      ).codes
+    ).toEqual(['LOCAL_CLOUD_CONVEX'])
+    expect(
+      guardError(() =>
+        assertBackendNetwork({ ...BACKEND_LOCAL, CONVEX_CLOUD_URL: undefined })
+      ).codes
+    ).toEqual(['UNKNOWN_CONVEX'])
+    expect(
+      guardError(() =>
+        assertNonProductionBackend('seed', {
+          ...BACKEND_LOCAL,
+          CONVEX_CLOUD_URL: `https://${ALLOWED}.convex.cloud`,
+        })
+      ).codes
+    ).toEqual(['LOCAL_CLOUD_CONVEX'])
+  })
+
+  it('requires the local opt-in on the backend', () => {
+    expect(
+      guardError(() =>
+        assertBackendNetwork({
+          ...BACKEND_LOCAL,
+          [NETWORK_GUARD_OPT_IN_ENV]: undefined,
+        })
+      ).codes
+    ).toEqual(['MISSING_OPT_IN'])
+  })
+
+  it('refuses remote RPC and other passphrases on a LOCAL backend', () => {
+    expect(
+      guardError(() =>
+        assertBackendNetwork({ ...BACKEND_LOCAL, STELLAR_RPC_URL: TESTNET_RPC })
+      ).codes
+    ).toEqual(['LOCAL_REMOTE_URL'])
+    expect(
+      guardError(() =>
+        assertBackendNetwork({
+          ...BACKEND_LOCAL,
+          NETWORK_PASSPHRASE: MAINNET_PASSPHRASE,
+        })
+      ).codes
+    ).toEqual(['MAINNET_PASSPHRASE'])
+  })
+
+  it('keeps TESTNET payment flows off a LOCAL backend', () => {
+    expect(guardError(() => assertBackendTestnet(BACKEND_LOCAL)).codes).toEqual(
+      ['NOT_TESTNET']
+    )
+  })
+
+  it('accepts a LOCAL client only with a local Convex URL', () => {
+    const client = {
+      network: 'LOCAL',
+      passphrase: LOCAL_PASSPHRASE,
+      horizonUrl: 'http://localhost:8000',
+      rpcUrl: LOCAL_RPC,
+    }
+    expect(assertClientNetwork({ ...client, convexUrl: LOCAL_CONVEX })).toBe(
+      'LOCAL'
+    )
+    expect(
+      guardError(() =>
+        assertClientNetwork({
+          ...client,
+          convexUrl: `https://${ALLOWED}.convex.cloud`,
+        })
+      ).codes
+    ).toEqual(['LOCAL_CLOUD_CONVEX'])
+    expect(guardError(() => assertClientNetwork(client)).codes).toEqual([
+      'UNKNOWN_CONVEX',
+    ])
+    expect(
+      guardError(() =>
+        assertClientNetwork({
+          ...client,
+          rpcUrl: 'https://rpc.example.org',
+          convexUrl: LOCAL_CONVEX,
+        })
+      ).codes
+    ).toEqual(['LOCAL_REMOTE_URL'])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Stellar CLI wrapper
+// ---------------------------------------------------------------------------
+
+describe('Stellar CLI wrapper', () => {
+  it('passes the testnet network, RPC URL, and passphrase explicitly', () => {
+    const built = buildStellarCliCommand(
+      'deploy',
+      ['contract', 'deploy', '--wasm', 'core.wasm'],
+      V2_SCRIPT_ENV
+    )
+    expect(built.args).toEqual([
+      'contract',
+      'deploy',
+      '--wasm',
+      'core.wasm',
+      '--network',
+      'testnet',
+      '--rpc-url',
+      TESTNET_RPC,
+      '--network-passphrase',
+      TESTNET_PASSPHRASE,
+    ])
+    expect(built.network).toBe('TESTNET')
+    expect(built.env.STELLAR_RPC_URL).toBe(TESTNET_RPC)
+    expect(built.env.STELLAR_NETWORK_PASSPHRASE).toBe(TESTNET_PASSPHRASE)
+  })
+
+  it('passes the local network, RPC URL, and standalone passphrase in LOCAL mode', () => {
+    expect(stellarCliNetworkArgs('deploy', LOCAL_ENV)).toEqual([
+      '--network',
+      'local',
+      '--rpc-url',
+      LOCAL_RPC,
+      '--network-passphrase',
+      LOCAL_PASSPHRASE,
+    ])
+  })
+
+  it('uses a configured testnet RPC provider', () => {
+    expect(
+      stellarCliNetworkArgs('deploy', {
+        ...V2_SCRIPT_ENV,
+        NEXT_PUBLIC_STELLAR_RPC_URL: 'http://localhost:9000/rpc',
+      })
+    ).toContain('http://localhost:9000/rpc')
+  })
+
+  it.each([
+    ['--network', 'mainnet'],
+    ['--network=mainnet'],
+    ['--rpc-url', 'https://mainnet.sorobanrpc.com'],
+    ['--rpc-url=https://mainnet.sorobanrpc.com'],
+    ['--network-passphrase', MAINNET_PASSPHRASE],
+    ['-n', 'mainnet'],
+  ])('refuses caller network flags %j without printing values', (...flags) => {
+    const error = guardError(() =>
+      buildStellarCliCommand(
+        'deploy',
+        ['contract', 'deploy', ...flags],
+        V2_SCRIPT_ENV
+      )
+    )
+    expect(error.codes).toEqual(['CLI_NETWORK_FLAG'])
+    expect(error.message).not.toContain('sorobanrpc')
+    expect(error.message).not.toContain('Public Global')
+  })
+
+  it('runs the guard before building or running a command', () => {
+    const spawn = vi.fn()
+    expect(
+      guardError(() =>
+        runStellarCli('deploy', ['contract', 'deploy'], {
+          env: { ...V2_SCRIPT_ENV, NETWORK_PASSPHRASE: MAINNET_PASSPHRASE },
+          spawn,
+        })
+      ).codes
+    ).toEqual(['MAINNET_PASSPHRASE'])
+    expect(
+      guardError(() =>
+        runStellarCli('deploy', ['contract', 'deploy'], {
+          env: { ...LOCAL_ENV, CONVEX_DEPLOYMENT: `dev:${ALLOWED}` },
+          spawn,
+        })
+      ).codes
+    ).toEqual(['LOCAL_CLOUD_CONVEX'])
+    expect(spawn).not.toHaveBeenCalled()
+  })
+
+  it('runs the stellar binary with guarded arguments and env', () => {
+    const spawn = vi.fn(() => ({ status: 0 }) as never)
+    runStellarCli('version', ['--version'], {
+      env: {
+        ...V2_SCRIPT_ENV,
+        SOROBAN_RPC_URL: 'https://mainnet.sorobanrpc.com',
+      },
+      spawn,
+    })
+    expect(spawn).toHaveBeenCalledTimes(1)
+    const [command, args, options] = spawn.mock.calls[0] as unknown as [
+      string,
+      string[],
+      { env: Record<string, string | undefined> },
+    ]
+    expect(command).toBe('stellar')
+    expect(args.slice(-6)).toEqual([
+      '--network',
+      'testnet',
+      '--rpc-url',
+      TESTNET_RPC,
+      '--network-passphrase',
+      TESTNET_PASSPHRASE,
+    ])
+    expect(options.env.SOROBAN_RPC_URL).toBeUndefined()
+    expect(options.env.STELLAR_NETWORK).toBe('testnet')
   })
 })

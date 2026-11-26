@@ -1,0 +1,6 @@
+# Pinned so contract builds stay reproducible (docs/architecture/v2/01-architecture.md, section 1.3).
+[toolchain]
+channel = "1.94.1"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32v1-none"]

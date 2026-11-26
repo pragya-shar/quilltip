@@ -37,6 +37,12 @@ import {
 } from './lib/readingRoomIndex'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
 import {
+  ARTICLE_SCHEMA,
+  CanonicalArticleError,
+  articleContentHashHex,
+} from './lib/chain/ids'
+import { CanonicalJsonError } from './lib/chain/canonicalJson'
+import {
   generateUniqueArticleSlugForAuthor,
   isPlaceholderArticleSlug,
 } from './lib/articleSlug'
@@ -1065,6 +1071,61 @@ export const updateArticle = mutation({
   },
 })
 
+/**
+ * The content anchor recorded at publish: SHA-256 of canonicalArticleBytes.
+ * contentVersion is 1 at first publish. A row that already carries a
+ * canonical hash (published before, then returned to draft) keeps its version
+ * when the bytes are unchanged and moves to the next version otherwise.
+ */
+async function publishContentAnchor(article: Doc<'articles'>) {
+  const fields = {
+    articleId: article._id,
+    authorId: article.authorId,
+    title: article.title,
+    content: article.content,
+  }
+  try {
+    if (
+      article.contentHashSchema === ARTICLE_SCHEMA &&
+      article.contentHash &&
+      article.contentVersion
+    ) {
+      const current = await articleContentHashHex({
+        ...fields,
+        contentVersion: article.contentVersion,
+      })
+      if (current === article.contentHash) {
+        return { contentHash: current, contentVersion: article.contentVersion }
+      }
+      const next = article.contentVersion + 1
+      return {
+        contentHash: await articleContentHashHex({
+          ...fields,
+          contentVersion: next,
+        }),
+        contentVersion: next,
+      }
+    }
+    return {
+      contentHash: await articleContentHashHex({
+        ...fields,
+        contentVersion: 1,
+      }),
+      contentVersion: 1,
+    }
+  } catch (error) {
+    if (
+      error instanceof CanonicalJsonError ||
+      error instanceof CanonicalArticleError
+    ) {
+      throw new ConvexError(
+        'Cannot publish: the article contains characters that cannot be saved. Remove them and try again.'
+      )
+    }
+    throw error
+  }
+}
+
 // Publish article
 export const publishArticle = mutation({
   args: {
@@ -1098,6 +1159,7 @@ export const publishArticle = mutation({
       authorUsername: article.authorUsername,
     })
 
+    const anchor = await publishContentAnchor(article)
     const now = Date.now()
 
     let slug = article.slug
@@ -1126,6 +1188,9 @@ export const publishArticle = mutation({
       }),
       ...(slug !== article.slug ? { slug } : {}),
       ...(shouldUpload ? { arweaveStatus: 'pending' } : {}),
+      contentHash: anchor.contentHash,
+      contentVersion: anchor.contentVersion,
+      contentHashSchema: ARTICLE_SCHEMA,
       updatedAt: now,
     })
 
@@ -1148,7 +1213,12 @@ export const publishArticle = mutation({
       updatedAt: now,
     })
 
-    return { id: args.id, slug }
+    return {
+      id: args.id,
+      slug,
+      contentHash: anchor.contentHash,
+      contentVersion: anchor.contentVersion,
+    }
   },
 })
 // Delete an unpublished draft; published articles remain in QuillTip.

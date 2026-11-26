@@ -1,0 +1,49 @@
+# QuillTip payments v2 contract workspace.
+#
+# Layout and pins: docs/architecture/v2/01-architecture.md, sections 1.2 and 1.3.
+# `tipping` is the v1 contract. It keeps its own lockfile and toolchain until
+# cutover, so it is excluded from this workspace.
+[workspace]
+resolver = "2"
+members = ["shared", "core", "tab", "article-nft"]
+default-members = ["shared", "core", "tab", "article-nft"]
+exclude = ["tipping"]
+
+[workspace.package]
+version = "2.0.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/pragya-shar/QuillTip"
+rust-version = "1.94.1"
+publish = false
+
+[workspace.dependencies]
+soroban-sdk = { version = "=28.0.0" }
+stellar-access = { version = "=0.8.0" }
+stellar-contract-utils = { version = "=0.8.0" }
+stellar-macros = { version = "=0.8.0" }
+stellar-tokens = { version = "=0.8.0" }
+quilltip-shared = { path = "shared" }
+
+# Dev-only crates.
+ed25519-dalek = { version = "2" }
+proptest = { version = "1" }
+sha2 = { version = "0.10" }
+serde_json = { version = "1" }
+hex = { version = "0.4" }
+stellar-strkey = { version = "=0.0.16" }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
+
+# Same as release, with debug assertions so `log!` output is kept.
+[profile.release-with-logs]
+inherits = "release"
+debug-assertions = true

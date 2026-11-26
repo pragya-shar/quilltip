@@ -1,4 +1,5 @@
 import { once } from 'node:events'
+import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { createRequire } from 'node:module'
 import { StellarToml } from '@stellar/stellar-sdk'
@@ -35,9 +36,15 @@ it('uses the portable converter through the real Turbo Solana dependency', () =>
   expect(() => converter.toBigIntLE(null)).toThrow(TypeError)
 })
 
-it('resolves normal Stellar TOML through the patched CommonJS parser', async () => {
+it('resolves normal Stellar TOML through the SDK parser', async () => {
   const fromStellar = createRequire(require.resolve('@stellar/stellar-sdk'))
-  expect(fromStellar('toml/package.json').version).toBe('5.0.1')
+  const sdkRoot = require
+    .resolve('@stellar/stellar-sdk')
+    .replace(/lib[\\/]cjs[\\/]index\.js$/, '')
+  const manifest = JSON.parse(readFileSync(`${sdkRoot}package.json`, 'utf8'))
+  expect(manifest.dependencies).toHaveProperty('smol-toml')
+  expect(manifest.dependencies).not.toHaveProperty('toml')
+  expect(() => fromStellar.resolve('smol-toml')).not.toThrow()
 
   const server = createServer((request, response) => {
     if (request.url !== '/.well-known/stellar.toml') {
