@@ -76,6 +76,66 @@ fn entries_outlive_the_testnet_minimum_and_are_renewed() {
 }
 
 #[test]
+fn transfer_from_renews_the_entries_it_writes() {
+    let s = setup();
+    let token_id = s.mint_default();
+    let start = s.e.ledger().sequence();
+    s.e.ledger().set_sequence_number(start + 100 * DAY);
+    let spender = Address::generate(&s.e);
+    let to = Address::generate(&s.e);
+    let live_until = s.e.ledger().sequence() + 100;
+    s.allow(
+        &s.author,
+        "approve",
+        (s.author.clone(), spender.clone(), token_id, live_until).into_val(&s.e),
+    );
+    s.nft.approve(&s.author, &spender, &token_id, &live_until);
+    s.allow(
+        &spender,
+        "transfer_from",
+        (spender.clone(), s.author.clone(), to.clone(), token_id).into_val(&s.e),
+    );
+    s.nft.transfer_from(&spender, &s.author, &to, &token_id);
+    assert_eq!(s.nft.owner_of(&token_id), to);
+    for key in [
+        NFTStorageKey::Owner(token_id),
+        NFTStorageKey::Balance(s.author.clone()),
+        NFTStorageKey::Balance(to.clone()),
+    ] {
+        assert_eq!(persistent_ttl(&s, &key), TTL_EXTEND_TO);
+    }
+}
+
+#[test]
+fn approvals_extend_the_instance() {
+    let s = setup();
+    let token_id = s.mint_default();
+    let start = s.e.ledger().sequence();
+
+    s.e.ledger().set_sequence_number(start + 100 * DAY);
+    let spender = Address::generate(&s.e);
+    let live_until = s.e.ledger().sequence() + 100;
+    s.allow(
+        &s.author,
+        "approve",
+        (s.author.clone(), spender.clone(), token_id, live_until).into_val(&s.e),
+    );
+    s.nft.approve(&s.author, &spender, &token_id, &live_until);
+    assert_eq!(instance_ttl(&s), TTL_EXTEND_TO);
+
+    s.e.ledger().set_sequence_number(start + 200 * DAY);
+    let operator = Address::generate(&s.e);
+    let live_until = s.e.ledger().sequence() + 100;
+    s.allow(
+        &s.author,
+        "approve_for_all",
+        (s.author.clone(), operator.clone(), live_until).into_val(&s.e),
+    );
+    s.nft.approve_for_all(&s.author, &operator, &live_until);
+    assert_eq!(instance_ttl(&s), TTL_EXTEND_TO);
+}
+
+#[test]
 fn admin_calls_extend_the_instance() {
     let s = setup();
     let start = s.e.ledger().sequence();
