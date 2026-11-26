@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchQuery } from 'convex/nextjs'
 import { api } from '@/convex/_generated/api'
 import { publicContentPath } from '@/lib/routing/publicContentPath'
+import {
+  buildContentSecurityPolicy,
+  createNonce,
+  NONCE_HEADER,
+} from '@/lib/security/contentSecurityPolicy'
 
 const ROUTE_CHECK_TIMEOUT_MS = 1500
 
@@ -103,16 +108,43 @@ function movedUrl(request: NextRequest, username: string) {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const check = await checkPublicContent(request)
+
+  // Production pages get a per-request nonce. Next.js reads it from the
+  // request's CSP header and adds it to every script it renders, so the
+  // policy needs no 'unsafe-inline'. Development keeps no policy, because
+  // Fast Refresh evaluates code at run time.
+  const nonce = createNonce()
+  const csp =
+    process.env.NODE_ENV === 'production'
+      ? buildContentSecurityPolicy(nonce, {
+          NEXT_PUBLIC_CONVEX_URL: process.env.NEXT_PUBLIC_CONVEX_URL,
+          NEXT_PUBLIC_HORIZON_URL: process.env.NEXT_PUBLIC_HORIZON_URL,
+          NEXT_PUBLIC_SOROBAN_RPC_URL: process.env.NEXT_PUBLIC_SOROBAN_RPC_URL,
+          NEXT_PUBLIC_STELLAR_RPC_URL: process.env.NEXT_PUBLIC_STELLAR_RPC_URL,
+          VERCEL_ENV: process.env.VERCEL_ENV,
+        })
+      : null
+  const requestHeaders = new Headers(request.headers)
+  if (csp) {
+    requestHeaders.set('Content-Security-Policy', csp)
+    // Server components read the nonce here for scripts Next.js does not
+    // render itself (the theme script).
+    requestHeaders.set(NONCE_HEADER, nonce)
+  }
+
   // Missing: the page still renders its not-found screen; only the status
   // changes. Moved: a temporary redirect to the writer's current handle.
   // Writers can switch back to an earlier handle, so browsers must not cache
   // the redirect (a cached Alice -> Bob would loop once Alice is current).
   const response =
     check?.kind === 'missing'
-      ? NextResponse.rewrite(request.nextUrl, { status: 404 })
+      ? NextResponse.rewrite(request.nextUrl, {
+          status: 404,
+          request: { headers: requestHeaders },
+        })
       : check?.kind === 'moved'
         ? NextResponse.redirect(movedUrl(request, check.username), 307)
-        : NextResponse.next()
+        : NextResponse.next({ request: { headers: requestHeaders } })
 
   if (check?.kind === 'moved') {
     response.headers.set('Cache-Control', 'no-store')
@@ -133,40 +165,7 @@ export async function proxy(request: NextRequest) {
     'Permissions-Policy',
     'camera=(), microphone=(), geolocation=()'
   )
-
-  // Content Security Policy (production only - dev needs full access for HMR/React)
-  if (process.env.NODE_ENV === 'production') {
-    // Vercel injects a feedback widget on preview deployments served from
-    // vercel.live. Whitelist it on previews only so it doesn't widen the
-    // production CSP attack surface.
-    const isVercelPreview = process.env.VERCEL_ENV === 'preview'
-    const scriptSrc = [
-      "'self'",
-      "'unsafe-inline'",
-      ...(isVercelPreview ? ['https://vercel.live'] : []),
-    ].join(' ')
-
-    // Wallets Kit 2.x: the extension and web-wallet modules QuillTip offers
-    // talk through extension messaging and popups and need no origins here.
-    // WalletConnect is not supported yet (lib/stellar/v2/wallet-kit.ts), so
-    // its relay origins are not allowed.
-    const csp = [
-      "default-src 'self'",
-      `script-src ${scriptSrc}`,
-      "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob: *.convex.cloud *.convex.site img.youtube.com images.unsplash.com plus.unsplash.com arweave.net",
-      // XLM price is now fetched server-side by a cron and cached in Convex;
-      // the browser reads the cached row via api.xlmPrice.getCachedXlmPrice,
-      // so there is no per-oracle host to allowlist here.
-      "connect-src 'self' *.convex.cloud wss://*.convex.cloud *.convex.site wss://*.convex.site *.stellar.org arweave.net ar-io.dev",
-      "font-src 'self'",
-      "frame-src 'self' www.youtube.com www.youtube-nocookie.com",
-      "frame-ancestors 'none'",
-      "form-action 'self'",
-      "base-uri 'self'",
-    ].join('; ')
-    response.headers.set('Content-Security-Policy', csp)
-  }
+  if (csp) response.headers.set('Content-Security-Policy', csp)
 
   // HSTS only in production
   if (process.env.NODE_ENV === 'production') {
