@@ -12,11 +12,13 @@ import { StrKey } from '@stellar/stellar-sdk'
 import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../../_generated/server'
 import { requireChainV2Enabled } from './env'
+import { confirmedTipPatch } from '../verifiedTips'
 import { isHexOfLength, newClientRefHex } from './ids'
 import type { ChainRecordStatus } from './schema'
 import {
   matchTippedEvent,
   type ExpectedTip,
+  type OutcomeStatus,
   type TipVerification,
 } from './verify'
 import type { TippedEvent } from './events'
@@ -324,7 +326,7 @@ const RESOLVABLE: readonly string[] = ['PREPARED', 'SUBMITTED', 'EXPIRED']
 /** Serializable verification outcome, as passed from an action. */
 export type StoredTipVerification = {
   key: string
-  status: 'CONFIRMED' | 'MISMATCH'
+  status: OutcomeStatus
   mismatchReason?: string
   needsReview: boolean
   event: StoredTippedEvent | null
@@ -409,13 +411,21 @@ async function patchRowWithOutcome(
   now: number
 ): Promise<void> {
   const event = outcome.event
+  // CONFIRMED goes through confirmedTipPatch, which also sets verifiedAt.
+  // MISMATCH is verified on chain too, so it carries the same timestamps.
+  const statusPatch =
+    outcome.status === 'MISMATCH'
+      ? {
+          status: outcome.status,
+          verifiedAt: now,
+          processedAt: now,
+          updatedAt: now,
+        }
+      : confirmedTipPatch(now)
   const patch = {
-    status: outcome.status,
+    ...statusPatch,
     needsReview: outcome.needsReview,
     mismatchReason: outcome.mismatchReason,
-    verifiedAt: now,
-    processedAt: now,
-    updatedAt: now,
     ...(extra.ledger === undefined ? {} : { stellarLedger: extra.ledger }),
     ...(extra.txHash === undefined ? {} : { stellarTxId: extra.txHash }),
     ...(extra.chainEventId === undefined

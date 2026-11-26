@@ -151,7 +151,7 @@ describe('Tipped event decoding', () => {
   })
 
   it('decodes a real testnet event of another contract', () => {
-    const real = realOtherContractSuccess(HASH) as {
+    const real = realOtherContractSuccess(HASH) as unknown as {
       events: { contractEventsXdr: string[][] }
     }
     const decoded = decodeContractEventXdr(
@@ -215,7 +215,7 @@ describe('verifier (section 6.4)', () => {
       mismatchReason: 'no_event',
     })
     expect(verify([])[0]).toMatchObject({ mismatchReason: 'no_event' })
-    const real = realOtherContractSuccess(HASH) as {
+    const real = realOtherContractSuccess(HASH) as unknown as {
       events: { contractEventsXdr: string[][] }
     }
     expect(verify(real.events.contractEventsXdr)[0]).toMatchObject({

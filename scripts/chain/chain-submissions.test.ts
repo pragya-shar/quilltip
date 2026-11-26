@@ -176,7 +176,9 @@ async function rows(t: T, id: Id<'chainSubmissions'>) {
   return t.run(async (ctx) => {
     const sub = (await ctx.db.get(id))!
     return Promise.all(
-      sub.related.map(async (link) => (await ctx.db.get(link.id as never))!)
+      sub.related.map(
+        async (link: { id: string }) => (await ctx.db.get(link.id as never))!
+      )
     ) as Promise<Array<Record<string, unknown>>>
   })
 }
@@ -1118,7 +1120,7 @@ describe('chain config', () => {
     // A failing view keeps the previous value and records the error.
     stubRpc(() => ({ latestLedger: 1, error: 'host error' }))
     const second = await t.action(internal.chain.config.refreshChainConfig, {})
-    expect(second.errors.length).toBeGreaterThan(0)
+    expect(second.errors?.length).toBeGreaterThan(0)
     expect(await t.query(api.chain.config.getChainConfig, {})).toMatchObject({
       minTip: '10000000',
       feeBps: 250,

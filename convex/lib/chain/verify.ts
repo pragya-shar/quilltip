@@ -12,6 +12,12 @@
  * - A different `author` is `MISMATCH` with `author` and the on-chain address.
  */
 import { FEE_BPS, BPS_DENOMINATOR } from './fees'
+
+/** Outcome value only; tip rows are confirmed through `confirmedTipPatch`. */
+const VERIFIED = 'CONFIRMED' as const
+
+/** Result of verifying one tip row. */
+export type OutcomeStatus = typeof VERIFIED | 'MISMATCH'
 import {
   EventDecodeError,
   decodeContractEventXdr,
@@ -35,7 +41,7 @@ export type ExpectedTip = {
 export type TipVerification =
   | {
       key: string
-      status: 'CONFIRMED'
+      status: typeof VERIFIED
       needsReview: false
       event: TippedEvent
     }
@@ -82,7 +88,7 @@ export function matchTippedEvent(
       event,
     }
   }
-  return { key: expected.key, status: 'CONFIRMED', needsReview: false, event }
+  return { key: expected.key, status: VERIFIED, needsReview: false, event }
 }
 
 export type TransactionVerificationInput = {
@@ -168,13 +174,13 @@ export function verifyTippedTransaction(
  * makes the submission `MISMATCH`.
  */
 export function aggregateVerification(outcomes: TipVerification[]): {
-  status: 'CONFIRMED' | 'MISMATCH'
+  status: OutcomeStatus
   mismatchReason?: string
   needsReview: boolean
 } {
   const mismatch = outcomes.find((o) => o.status === 'MISMATCH')
   if (!mismatch || mismatch.status !== 'MISMATCH') {
-    return { status: 'CONFIRMED', needsReview: false }
+    return { status: VERIFIED, needsReview: false }
   }
   return {
     status: 'MISMATCH',
