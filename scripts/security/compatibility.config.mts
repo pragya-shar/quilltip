@@ -12,5 +12,7 @@ export default defineConfig({
   },
   test: {
     include: ['scripts/security/compatibility/*.test.{ts,tsx}'],
+    // Let Vite convert the kit's CommonJS wallet SDKs (freighter-api) to ESM.
+    server: { deps: { inline: ['@creit.tech/stellar-wallets-kit'] } },
   },
 })
