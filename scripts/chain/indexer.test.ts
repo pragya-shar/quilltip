@@ -64,8 +64,8 @@ afterEach(() => {
 type T = ReturnType<typeof convexTest>
 
 /**
- * An in-memory RPC: `getEvents` pages by event id like Stellar RPC (a
- * cursor is the last id returned), `getHealth` reports the ledger window, and
+ * An in-memory RPC: `getEvents` pages by event id like Stellar RPC (a full
+ * page's cursor is its last id; a short page's cursor ends the scan window), `getHealth` reports the ledger window, and
  * `simulateTransaction` answers the Core `fee_bps` view.
  */
 function fakeChain() {
@@ -77,6 +77,8 @@ function fakeChain() {
     failGetEventsAfter: Infinity,
     getEventsCalls: 0,
     reorderPages: false,
+    /** Stellar RPC scans at most this many ledgers per getEvents call. */
+    scanLimit: 10_000,
   }
   const fetch = fakeRpcFetch((method, params) => {
     if (method === 'getHealth') {
@@ -119,14 +121,21 @@ function fakeChain() {
         .filter((e) => e.ledger <= state.latestLedger)
         .sort((a, b) => (a.id < b.id ? -1 : 1))
       const after = p.pagination?.cursor
+      // Like Stellar RPC: scan from the cursor's ledger (or startLedger) for
+      // at most scanLimit ledgers. A full page's cursor is its last event id;
+      // a short page's cursor marks the last ledger of the scan window.
+      const start = after
+        ? Number(BigInt(after.split('-')[0]!) >> BigInt(32))
+        : (p.startLedger ?? 0)
+      const end = Math.min(start + state.scanLimit, state.latestLedger + 1)
       const page = sorted
-        .filter((e) =>
-          after ? e.id > after : e.ledger >= (p.startLedger ?? 0)
-        )
+        .filter((e) => e.ledger >= start && e.ledger < end)
+        .filter((e) => (after ? e.id > after : true))
         .slice(0, limit)
-      const cursor = page.length
-        ? page[page.length - 1]!.id
-        : (after ?? rpcEventId(state.latestLedger, 0, 0, 0))
+      const cursor =
+        page.length === limit
+          ? page[page.length - 1]!.id
+          : rpcEventId(end - 1, 0xfffff, 0xfff, 4294967295)
       return {
         events: state.reorderPages ? [...page].reverse() : page,
         cursor,
@@ -295,6 +304,28 @@ describe('paging and the cursor', () => {
   it('reads the ledger from an RPC paging cursor', () => {
     expect(ledgerOfCursor(rpcEventId(START + 7, 3, 1, 4))).toBe(START + 7)
     expect(ledgerOfCursor('not-a-cursor')).toBeNull()
+  })
+
+  it('claims coverage only when the RPC scan window reached the latest ledger', async () => {
+    const t = convexTest(schema, modules)
+    const chain = fakeChain()
+    // RPC scans at most scanLimit ledgers per call; the second event lies
+    // beyond the first window.
+    chain.state.latestLedger = START + 25_000
+    chain.state.events = [
+      tippedEvent(START + 5, { clientRef: 'a'.repeat(32) }),
+      tippedEvent(START + 15_000, { clientRef: 'b'.repeat(32) }),
+    ]
+    await poll(t, { maxPages: 1 })
+    // One short page ending at START + 9,999 is not coverage of the latest
+    // ledger, so nothing up to START + 25,000 may be treated as read.
+    expect((await cursor(t))!.lastLedger).toBe(0)
+    expect(await events(t)).toHaveLength(1)
+
+    const next = await poll(t)
+    expect(next).toMatchObject({ status: 'ok', lastLedger: START + 25_000 })
+    expect((await cursor(t))!.lastLedger).toBe(START + 25_000)
+    expect(await events(t)).toHaveLength(2)
   })
 
   it('reads every page, resumes from the stored cursor and covers the latest ledger', async () => {
@@ -698,9 +729,12 @@ describe('article and config handlers', () => {
     setTopic(tokenSet, 1, { address: SNAPSHOT_TOKEN })
     setData(tokenSet, 'min_tip', { i128: '5000000' })
 
+    // Each event lands in a new ledger after the last scanned one.
     let ledger = START
+    chain.state.latestLedger = START
     const step = async (json: ReturnType<typeof coreEventJson>) => {
       ledger++
+      chain.state.latestLedger = ledger
       chain.state.events.push(coreRpcEvent(json, { ledger }))
       await poll(t)
       return t.run((ctx) => ctx.db.get(s.chainArticleId))

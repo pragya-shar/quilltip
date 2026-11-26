@@ -369,7 +369,14 @@ export const pollEvents = internalAction({
         const page = await rpc.getEvents(params)
         pages++
         const events = page.events.map(trimEvent)
-        const finalPage = events.length < limit
+        // RPC scans at most 10,000 ledgers per request. A short page means the
+        // scan window is exhausted, and its cursor marks the window's last
+        // ledger. Only a window that reached the latest ledger proves coverage.
+        const cursorLedger = page.cursor ? ledgerOfCursor(page.cursor) : null
+        const finalPage =
+          events.length < limit &&
+          cursorLedger !== null &&
+          cursorLedger >= page.latestLedger
         const chunks: RawRpcEvent[][] = []
         for (let i = 0; i < events.length; i += INDEXER_CHUNK_SIZE) {
           chunks.push(events.slice(i, i + INDEXER_CHUNK_SIZE))
@@ -388,8 +395,8 @@ export const pollEvents = internalAction({
                       cursor: page.cursor,
                       latestLedger: page.latestLedger,
                       oldestLedger: health.oldestLedger,
-                      // A short page means every ledger up to the response's
-                      // latest ledger has been read.
+                      // Every ledger up to the response's latest ledger has
+                      // been read.
                       ...(finalPage
                         ? {
                             coveredLedger: page.latestLedger,
@@ -406,7 +413,12 @@ export const pollEvents = internalAction({
         }
         if (finalPage) lastLedger = page.latestLedger
         pageCursor = page.cursor
-        if (finalPage || !page.cursor) break
+        if (
+          finalPage ||
+          !page.cursor ||
+          page.cursor === params.pagination?.cursor
+        )
+          break
       }
       return { status: 'ok', pages, stored, duplicates, lastLedger }
     } catch (error) {
