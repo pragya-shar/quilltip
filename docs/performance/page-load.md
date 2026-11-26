@@ -177,25 +177,50 @@ secrets:
 2. The script starts a stand-in for the public queries on port 3299, serving
    synthetic data (`scripts/perf/convex-fixture.ts`), and `next start` on
    port 3199.
-3. For each route it loads the page three times in Chromium, on mobile (Slow
-   4G and 4x CPU applied through the DevTools protocol) and on desktop.
-4. It fails when a median breaks a budget:
-   - LCP: 2000 ms mobile, 1000 ms desktop.
-   - CLS: 0.1.
-   - Initial script: 280 KB. Initial fonts: 180 KB.
-   - The LCP element must be in the server HTML.
+3. For each route it reads the server HTML, then loads the page in Chromium on
+   mobile (Slow 4G and 4x CPU applied through the DevTools protocol) and on
+   desktop: one unmeasured warm-up load, then three measured loads.
+4. It fails when a value breaks a budget. Each gated value depends on what the
+   page loads, not on how fast the machine runs:
 
-The CI workflow runs it as the **Page-load Budget** job. Result on `554cf6f`:
+   | Gate                                         | Budget | Heaviest route |
+   | -------------------------------------------- | -----: | -------------: |
+   | Scripts referenced by the server HTML        | 280 KB |         261 KB |
+   | Stylesheets referenced by the server HTML    |  60 KB |          43 KB |
+   | Fonts the page requests                      | 220 KB |         181 KB |
+   | Render-blocking stylesheets                  |      6 |              4 |
+   | CLS (median of 3)                            |    0.1 |          0.016 |
+   | LCP element in the server HTML               |    yes |            yes |
+   | LCP image URL in the server HTML (if an img) |    yes |            yes |
 
-| Route       | Mobile LCP | Mobile CLS | Desktop LCP | Desktop CLS | Script |  Fonts |
-| ----------- | ---------: | ---------: | ----------: | ----------: | -----: | -----: |
-| `/`         |     944 ms |      0.001 |       52 ms |       0.004 | 227 KB | 133 KB |
-| `/login`    |     856 ms |      0.016 |       44 ms |       0.000 | 202 KB |  41 KB |
-| Article     |     920 ms |      0.000 |       56 ms |       0.001 | 260 KB | 103 KB |
-| `/articles` |    1272 ms |      0.005 |       80 ms |       0.002 | 201 KB |  61 KB |
+   Bytes are compressed sizes as served by `next start`.
+
+5. It reports LCP (median and range of the three runs) and the scripts loaded
+   after the first HTML (for example the highlight editor), without gating
+   them. A median LCP over 2000 ms on mobile or 1000 ms on desktop adds a
+   warning annotation to the CI run.
+
+### Why LCP time is not gated
+
+The CI workflow runs the check as the **Page-load Budget** job on shared
+runners. An earlier version gated LCP and "script bytes finished before the
+load event". The second value failed on `c597e7a` and on two runs of #473
+with 371 KB against a 280 KB budget, while the same commit passed on rerun and
+measured 261 KB locally. The extra bytes were chunks that start after
+hydration (89 KB and 15 KB, started at 2630 ms). On a slower runner the load
+event came later (3584 ms), so they finished before it and counted. The
+current gate counts only files that the server HTML references, so the result
+does not depend on the runner's speed.
+
+LCP itself moved by up to 60 ms between runs on one machine, and the median
+of three stayed far below the targets on CI (about 1250 ms at most). It is
+still measured on every run, so a regression shows in the log and as a
+warning, and the deterministic gates catch its usual causes: a heavier
+initial bundle, more blocking CSS or fonts, or an LCP element that the server
+no longer renders.
 
 The fixture has no cover images and the stand-in never sends live data, so
-these numbers are lower than the real-data runs above. Use the check for
+the timings are lower than the real-data runs above. Use the check for
 regressions, not as the measured result.
 
 ## Re-run
