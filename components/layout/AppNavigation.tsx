@@ -20,7 +20,9 @@ import { isProtectedPath } from '@/lib/navigation/protectedRoutes'
 import {
   getAccountNavigationLinks,
   PRIMARY_NAVIGATION_LINKS,
+  SUPPORT_PATH,
 } from '@/lib/navigation/siteNavigation'
+import { UserAvatar } from '@/components/ui/user-avatar'
 
 export default function AppNavigation() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth()
@@ -33,6 +35,7 @@ export default function AppNavigation() {
   const currentPage = (href: string) =>
     pathname === href ? ('page' as const) : undefined
   const closeMenu = () => setMenuOpen(false)
+  const displayName = user?.name?.trim() || user?.username || 'Your account'
 
   return (
     <header className="app-site-header site-chrome">
@@ -51,6 +54,7 @@ export default function AppNavigation() {
               links={accountLinks}
               pathname={pathname}
               signOut={signOut}
+              user={user}
             />
           ) : (
             <>
@@ -100,9 +104,22 @@ export default function AppNavigation() {
                 <AuthActionsSkeleton />
               ) : isAuthenticated ? (
                 <div className="app-mobile-account">
+                  <p className="app-mobile-identity">
+                    <UserAvatar
+                      src={user?.avatar}
+                      alt=""
+                      name={displayName}
+                      className="app-account-avatar"
+                      fallbackClassName="app-account-avatar-fallback"
+                    />
+                    <span>
+                      <strong>{displayName}</strong>
+                      {user?.username && <small>@{user.username}</small>}
+                    </span>
+                  </p>
                   {accountLinks.map(({ href, label }) => (
                     <Link
-                      key={href}
+                      key={label}
                       href={href}
                       aria-current={currentPage(href)}
                       onClick={closeMenu}
@@ -132,11 +149,15 @@ export default function AppNavigation() {
                   >
                     Sign up <span aria-hidden>↗</span>
                   </Link>
+                  <Link
+                    href={SUPPORT_PATH}
+                    aria-current={currentPage(SUPPORT_PATH)}
+                    onClick={closeMenu}
+                  >
+                    Help &amp; support
+                  </Link>
                 </div>
               )}
-              <Link href="/support" onClick={closeMenu}>
-                Help &amp; support
-              </Link>
             </nav>
             <div className="app-menu-theme">
               <span>Appearance</span>

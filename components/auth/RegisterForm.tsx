@@ -9,6 +9,7 @@ import { useAuth } from '@/components/providers/AuthContext'
 import { parseRegisterSignInError } from '@/lib/auth/map-register-error'
 import { shouldUseFullPageAuthNavigation } from '@/lib/auth/postAuthNavigation'
 import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
+import { buildWelcomeHref } from '@/lib/profile/welcomeDestination'
 import {
   createAccountHandle,
   prototypeSignupSchema,
@@ -61,9 +62,10 @@ export default function RegisterForm() {
       })
       setSuccess(true)
       if (shouldUseFullPageAuthNavigation(returnPath, readPendingTipIntent())) {
+        // A tip in progress resumes first; the writer page then offers setup.
         window.location.assign(returnPath)
       } else {
-        router.replace(returnPath)
+        router.replace(buildWelcomeHref(returnPath))
       }
     } catch (error) {
       const result = parseRegisterSignInError(error)
@@ -96,7 +98,7 @@ export default function RegisterForm() {
   if (success)
     return (
       <p className="account-notice" role="status">
-        Account created successfully! Continuing where you left off…
+        Account created. One moment…
       </p>
     )
   return (

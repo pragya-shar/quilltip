@@ -225,7 +225,11 @@ your local environment or secret manager, then run:
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 bunx playwright test e2e/account-navigation.spec.ts
 ```
 
-Without both variables the spec skips explicitly. Each test uses a fresh browser
+Without both variables the spec skips explicitly. The new-writer journey in
+`e2e/profile-setup.spec.ts` (setup screen, handle, profile settings) creates
+its own throwaway `example.test` accounts instead, so it needs no credentials;
+it runs only with `PLAYWRIGHT_TEST_SIGNUP=1` against a local or development
+backend. Each test uses a fresh browser
 context and signs in through `/login`; sign-out tests have independent sessions.
 The spec disables traces, screenshots, and video to avoid capturing credentials.
 Do not commit credentials or saved browser state. It follows desktop/mobile

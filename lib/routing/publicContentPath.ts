@@ -23,6 +23,7 @@ export const APP_ROUTE_SEGMENTS = new Set([
   'terms',
   'waitlist',
   'wallet',
+  'welcome',
   'write',
 ])
 
