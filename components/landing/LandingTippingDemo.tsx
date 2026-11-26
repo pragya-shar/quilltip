@@ -17,8 +17,6 @@ import {
   useState,
 } from 'react'
 import { visibleTimer } from './visibleTimer'
-// Deliberate regression for the first-load check; reverted in the next commit.
-import { isValidStellarAccountId } from '@/lib/stellar/is-valid-stellar-account-id'
 import { afterLoadWhenIdle } from '@/lib/scheduling/afterLoadWhenIdle'
 
 // The tip preview dialog (Radix dialog and the wallet help) is not part of the
@@ -55,7 +53,6 @@ export function LandingTippingDemo({
   const [pageVisible, setPageVisible] = useState(true)
   const [reduced, setReduced] = useState(true)
   const [tipOpen, setTipOpen] = useState(false)
-  const [demoAddressValid] = useState(() => isValidStellarAccountId(''))
   const [tipRequested, setTipRequested] = useState(false)
   const [amount, setAmount] = useState('2')
   const paper = useRef<HTMLElement>(null)
@@ -132,10 +129,7 @@ export function LandingTippingDemo({
   }
 
   return (
-    <div
-      className="sample-wallet-layout"
-      data-demo-address={demoAddressValid ? 'valid' : 'none'}
-    >
+    <div className="sample-wallet-layout">
       <div className="product-area" id="try-it">
         <div className="paper-margin margin-left" aria-hidden>
           <span>
