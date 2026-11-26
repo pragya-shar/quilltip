@@ -133,3 +133,58 @@ These pages missed the 2000 ms goal in this run:
 - dashboard (`/dashboard`, mobile): median content ready 3527 ms is above 2000 ms
 
 Follow-up: #405 covers the slow pages.
+
+## Writer page rendered on the server (#416)
+
+The production run above was captured before this change. To isolate the
+writer page, both versions below are local production builds (`next build`,
+then a production server) reading the same local Convex backend, measured on
+the same machine. Numbers from a local backend are lower than production for
+every page, so compare the two columns, not these values with the tables above.
+
+- **Before:** `overhaul/v2` at `bb32529`. **After:** this change.
+- **Page:** a writer with 12 published articles (two pages), signed out.
+- **Measurement only:** the production Content Security Policy allows Convex
+  only on `*.convex.cloud`, so both builds had the local backend added to
+  `connect-src` for these runs. That edit was not committed.
+
+What changed: the server now sends the writer's name, bio and the first page
+of articles in the HTML (anonymous reads, the same data any reader sees),
+and the browser's live queries take over after loading. The page response also
+preloads the two typefaces the writer page uses (`Link` header from
+`proxy.ts`). Without that, the titles repainted when the fonts arrived about
+1.6 seconds later on throttled mobile, and that repaint set the largest paint.
+
+### `bun run perf:page-load` (5 runs, median)
+
+Same tool and devices as above (throttled mobile: Slow 4G, 4x CPU).
+
+| Writer page | Device  | Load event (ms) | FCP (ms) | LCP (ms) | Network idle (ms) |
+| ----------- | ------- | --------------: | -------: | -------: | ----------------: |
+| Before      | desktop |              65 |       52 |      140 |               714 |
+| After       | desktop |              79 |       76 |       76 |               704 |
+| Before      | mobile  |            2216 |      864 |     2616 |              5546 |
+| After       | mobile  |            2704 |     1080 |     1080 |              4247 |
+
+### Lighthouse 12.8.2, mobile
+
+| Writer page | Throttling           | Runs | FCP (ms) | LCP (ms) | TBT (ms) |   CLS |
+| ----------- | -------------------- | ---: | -------: | -------: | -------: | ----: |
+| Before      | applied (`devtools`) |    3 |     1903 |     4958 |       88 | 0.097 |
+| After       | applied (`devtools`) |    3 |     2274 |     2274 |        7 |     0 |
+| Before      | simulated (default)  |    5 |     1361 |     4213 |       38 | 0.117 |
+| After       | simulated (default)  |    5 |     1673 |     3816 |       12 |     0 |
+
+Lighthouse's default simulated mode estimates LCP from every script the page
+requested before its observed largest paint. On this streamed page the observed
+LCP now equals FCP (117 ms unthrottled), so the simulated LCP overstates it; the
+applied-throttling rows load the page on a slowed network and CPU.
+
+### Result
+
+- Throttled mobile LCP fell from 2616 to 1080 ms (`perf:page-load`), under the
+  2000 ms goal; the largest paint is now the first paint of real content.
+- FCP is later (864 to 1080 ms) because the first paint is now the writer's
+  content instead of the loading placeholder, and the load event is later
+  because the fonts load up front.
+- Re-measure production after deployment with the command in the notes above.

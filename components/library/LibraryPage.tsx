@@ -15,7 +15,7 @@ export function LibraryPage() {
       router.replace(buildRegisterHref('/library'))
   }, [isLoading, isAuthenticated, router])
   return (
-    <CollectionShell isLibrary>
+    <CollectionShell>
       {!isLoading && isAuthenticated && user ? (
         <AccountLibrary key={user._id} userId={user._id} />
       ) : (
