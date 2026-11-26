@@ -66,6 +66,15 @@ crons.interval(
   internal.chain.submissions.recheckPending
 )
 
+// Payments v2: index contract events (section 6.5). Does nothing until the
+// contract IDs and INDEXER_START_LEDGER are set; runs under the indexer lease.
+crons.interval(
+  'poll chain events',
+  { minutes: 1 },
+  internal.chain.indexer.pollEvents,
+  {}
+)
+
 // Payments v2: cache Core, Tab and NFT views. Does nothing until
 // CORE_CONTRACT_ID is set.
 crons.interval(

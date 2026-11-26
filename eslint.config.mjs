@@ -19,6 +19,30 @@ export default [
     rules: { 'local/one-component-per-file': 'error' },
   },
   {
+    // Browser code takes Zod from lib/zod.ts, which turns off the eval probe
+    // that the content security policy blocks.
+    files: [
+      'app/**/*.{ts,tsx}',
+      'components/**/*.{ts,tsx}',
+      'hooks/**/*.{ts,tsx}',
+      'lib/**/*.{ts,tsx}',
+    ],
+    ignores: ['lib/zod.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'zod',
+              message: "Import { z } from '@/lib/zod' (CSP-safe settings).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.{js,jsx,ts,tsx}'],
     plugins: {
       '@next/next': nextPlugin,

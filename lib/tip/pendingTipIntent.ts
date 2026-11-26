@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 import type { Id } from '@/convex/_generated/dataModel'
 
 export const PENDING_TIP_INTENT_STORAGE_KEY = 'quilltip:pendingTipIntent'
