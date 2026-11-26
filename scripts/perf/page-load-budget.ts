@@ -97,6 +97,8 @@ type HtmlRefs = {
   scripts: Set<string>
   stylesheets: Set<string>
   html: string
+  /** The server HTML's visible text: tags removed, entities decoded. */
+  text: string
 }
 
 type Run = {
@@ -114,6 +116,39 @@ type Run = {
 function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b)
   return sorted[Math.floor(sorted.length / 2)] ?? 0
+}
+
+/** Collapses runs of whitespace, so text from the DOM and the HTML compare. */
+function squash(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+/** The text a reader sees in server HTML, comparable with `textContent`. */
+function htmlText(html: string): string {
+  return squash(
+    html
+      .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&#x([0-9a-f]+);/gi, (_, hex) =>
+        String.fromCodePoint(parseInt(hex, 16))
+      )
+      .replace(/&#([0-9]+);/g, (_, dec) => String.fromCodePoint(Number(dec)))
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, '\u00a0')
+      .replace(/&amp;/g, '&')
+  )
+}
+
+/**
+ * True when most runs pass. Which element the browser reports as the largest
+ * paint can depend on timing (a slow run can catch a client-only animation),
+ * so this check follows the median like the other values: a page whose main
+ * content is not in the server HTML fails every run.
+ */
+function mostRuns(runs: Run[], pass: (run: Run) => boolean): boolean {
+  return runs.filter(pass).length * 2 > runs.length
 }
 
 function attribute(tag: string, name: string): string | undefined {
@@ -134,7 +169,7 @@ async function htmlRefs(routePath: string): Promise<HtmlRefs> {
     if (href && /\srel="stylesheet"/.test(tag))
       stylesheets.add(new URL(href, BASE_URL).pathname)
   }
-  return { scripts, stylesheets, html }
+  return { scripts, stylesheets, html, text: htmlText(html) }
 }
 
 async function startApp(): Promise<ChildProcess | undefined> {
@@ -242,8 +277,11 @@ async function measure(
       return [...seen.values()].reduce((sum, bytes) => sum + bytes, 0) / 1024
     }
     const isScript = (resourcePath: string) => /\.js$/.test(resourcePath)
-    const needle = result.text.replace(/&/g, '&amp;').slice(0, 30)
     const isImage = result.element.startsWith('img')
+    // Text is compared with the HTML's visible text; an image URL with the
+    // HTML source, where `&` is written `&amp;`.
+    const textNeedle = squash(result.text).slice(0, 30)
+    const urlNeedle = result.text.replace(/&/g, '&amp;')
     return {
       lcpMs: Math.round(result.lcp),
       cls: Number(result.cls.toFixed(3)),
@@ -252,9 +290,11 @@ async function measure(
       fontKb: Math.round(kb((p) => /\.woff2?$/.test(p))),
       lateScriptKb: Math.round(kb((p) => isScript(p) && !refs.scripts.has(p))),
       lcpElement: `${result.element} "${result.text.slice(0, 40)}"`,
-      lcpInServerHtml: needle.length > 0 && refs.html.includes(needle),
+      lcpInServerHtml: isImage
+        ? urlNeedle.length > 0 && refs.html.includes(urlNeedle)
+        : textNeedle.length > 0 && refs.text.includes(textNeedle),
       // An LCP image is discoverable when the server HTML carries its URL.
-      lcpImageInServerHtml: !isImage || refs.html.includes(needle),
+      lcpImageInServerHtml: !isImage || refs.html.includes(urlNeedle),
     }
   } finally {
     await context.close()
@@ -300,8 +340,12 @@ async function main() {
           lateScriptKb: median(runs.map((run) => run.lateScriptKb)),
           renderBlocking,
           lcpElement: runs[0]?.lcpElement ?? '',
-          lcpInServerHtml: runs.every((run) => run.lcpInServerHtml),
-          lcpImageInServerHtml: runs.every((run) => run.lcpImageInServerHtml),
+          lcpElements: runs.map((run) => run.lcpElement),
+          lcpInServerHtml: mostRuns(runs, (run) => run.lcpInServerHtml),
+          lcpImageInServerHtml: mostRuns(
+            runs,
+            (run) => run.lcpImageInServerHtml
+          ),
         }
         report.push(summary)
         const label = `${route.name} (${device})`
@@ -321,11 +365,18 @@ async function main() {
           failures.push(`${label}: CLS ${summary.cls} > ${BUDGETS.cls}`)
         if (!summary.lcpInServerHtml)
           failures.push(
-            `${label}: LCP element ${summary.lcpElement} is not in the server HTML`
+            `${label}: LCP element is not in the server HTML in most runs:\n    ${summary.lcpElements.join('\n    ')}`
           )
         if (!summary.lcpImageInServerHtml)
           failures.push(
-            `${label}: LCP image ${summary.lcpElement} is not discoverable in the server HTML`
+            `${label}: LCP image is not discoverable in the server HTML in most runs:\n    ${summary.lcpElements.join('\n    ')}`
+          )
+        if (summary.lcpInServerHtml && runs.some((run) => !run.lcpInServerHtml))
+          warn(
+            `${label}: one run's LCP element was not in the server HTML (not gated): ${runs
+              .filter((run) => !run.lcpInServerHtml)
+              .map((run) => run.lcpElement)
+              .join('; ')}`
           )
         if (summary.lcpMs > LCP_TARGET_MS[device])
           warn(
