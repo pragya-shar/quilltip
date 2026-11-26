@@ -57,6 +57,8 @@
 .writing-workspace .article-tips .tips-split-address {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+  /* A shortened address reads as one unit. */
+  white-space: nowrap;
 }
 
 /* Buttons and links */
@@ -311,6 +313,10 @@
   display: grid;
   place-items: center;
   color: var(--tips-muted);
+}
+.writing-workspace .article-tips .tips-split-spacer {
+  flex: none;
+  width: 44px;
 }
 .writing-workspace .article-tips .tips-split-remove svg {
   width: 18px;

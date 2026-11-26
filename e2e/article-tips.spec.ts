@@ -170,6 +170,10 @@ test('co-author shares are validated beside each field, then sent as basis point
   ).toBeVisible()
   const address = shares.getByLabel('Co-author 1’s Stellar address')
   await expect(address).toHaveAttribute('aria-invalid', 'true')
+  // The error marks only the field that caused it.
+  await expect(
+    shares.getByLabel('Co-author 1’s share, percent')
+  ).not.toHaveAttribute('aria-invalid', 'true')
 
   await address.fill('GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR')
   await expect(address).not.toHaveAttribute('aria-invalid', 'true')

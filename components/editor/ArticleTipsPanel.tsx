@@ -51,6 +51,8 @@ const RETRY_LABEL: Record<ArticleAction, string> = {
 
 const EXPLORER = 'https://stellar.expert/explorer/testnet/tx/'
 
+const PERCENT_PROBLEMS = new Set(['NOT_POSITIVE', 'NOT_INTEGER'])
+
 let rowCounter = 0
 const newRow = (percent = ''): SplitRow => ({
   key: `row-${++rowCounter}`,
@@ -93,19 +95,27 @@ export function ArticleTipsPanel({
 
   const validate = (list: SplitRow[] = rows): boolean => {
     if (!sharing) return true
+    // Keys are `<row key>.recipient` or `<row key>.percent`.
     const nextErrors: Record<string, string> = {}
     let nextTotal: string | null = null
     list.forEach((row, index) => {
+      if (index > 0 && !row.recipient) {
+        nextErrors[`${row.key}.recipient`] =
+          'Enter the co-author’s Stellar address.'
+      }
       if (percentToBps(row.percent) === null) {
-        nextErrors[row.key] = 'Enter a percentage, such as 25 or 12.5.'
-      } else if (index > 0 && !row.recipient) {
-        nextErrors[row.key] = 'Enter the co-author’s Stellar address.'
+        nextErrors[`${row.key}.percent`] =
+          'Enter a percentage, such as 25 or 12.5.'
       }
     })
     if (Object.keys(nextErrors).length === 0) {
       for (const problem of splitProblems(toSplits(list), { author })) {
         const row = problem.index === undefined ? null : list[problem.index]
-        if (row && !nextErrors[row.key]) nextErrors[row.key] = problem.message
+        const field = PERCENT_PROBLEMS.has(problem.code)
+          ? 'percent'
+          : 'recipient'
+        const key = row ? `${row.key}.${field}` : null
+        if (key && !nextErrors[key]) nextErrors[key] = problem.message
         else if (!row && !nextTotal) nextTotal = problem.message
       }
     }

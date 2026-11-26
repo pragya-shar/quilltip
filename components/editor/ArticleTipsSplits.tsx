@@ -26,7 +26,7 @@ export function ArticleTipsSplits({
 }: {
   author: string
   rows: SplitRow[]
-  /** Error text per row key. */
+  /** Error text keyed `<row key>.recipient` or `<row key>.percent`. */
   errors: Record<string, string>
   totalError: string | null
   disabled: boolean
@@ -44,8 +44,10 @@ export function ArticleTipsSplits({
       <legend>Shares of each tip, after the 2.5% fee</legend>
       <ul>
         {rows.map((row, index) => {
-          const error = errors[row.key]
-          const errorId = `${id}-${row.key}-error`
+          const addressError = errors[`${row.key}.recipient`]
+          const shareError = errors[`${row.key}.percent`]
+          const addressErrorId = `${id}-${row.key}-address-error`
+          const shareErrorId = `${id}-${row.key}-share-error`
           const isAuthor = index === 0
           return (
             <li key={row.key} className="tips-split-row">
@@ -81,8 +83,10 @@ export function ArticleTipsSplits({
                       data-lpignore="true"
                       placeholder="G…"
                       value={row.recipient}
-                      aria-invalid={error ? true : undefined}
-                      aria-describedby={error ? errorId : undefined}
+                      aria-invalid={addressError ? true : undefined}
+                      aria-describedby={
+                        addressError ? addressErrorId : undefined
+                      }
                       onChange={(event) =>
                         onChange(
                           row.key,
@@ -106,14 +110,16 @@ export function ArticleTipsSplits({
                   autoComplete="off"
                   spellCheck={false}
                   value={row.percent}
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? errorId : undefined}
+                  aria-invalid={shareError ? true : undefined}
+                  aria-describedby={shareError ? shareErrorId : undefined}
                   onChange={(event) =>
                     onChange(row.key, 'percent', event.target.value)
                   }
                 />
                 <span aria-hidden="true">%</span>
-                {!isAuthor && (
+                {isAuthor ? (
+                  <span className="tips-split-spacer" aria-hidden="true" />
+                ) : (
                   <button
                     type="button"
                     className="tips-split-remove"
@@ -126,9 +132,14 @@ export function ArticleTipsSplits({
                   </button>
                 )}
               </div>
-              {error && (
-                <p className="tips-field-error" id={errorId}>
-                  {error}
+              {addressError && (
+                <p className="tips-field-error" id={addressErrorId}>
+                  {addressError}
+                </p>
+              )}
+              {shareError && (
+                <p className="tips-field-error" id={shareErrorId}>
+                  {shareError}
                 </p>
               )}
             </li>
