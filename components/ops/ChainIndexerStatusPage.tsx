@@ -25,6 +25,8 @@ export function ChainIndexerStatusPage() {
   )
 
   if (!isAuthenticated && !isLoading) return null
+  // Before the first run that reaches the latest ledger nothing is covered.
+  const covered = !!status?.cursor && status.cursor.lastLedger > 0
 
   return (
     <AccountSurface>
@@ -51,23 +53,25 @@ export function ChainIndexerStatusPage() {
                   {status.cursor?.status ?? 'Not started'}
                 </dd>
                 {status.cursor?.statusReason ? (
-                  <span className="ops-chain-note">
+                  <dd className="ops-chain-note">
                     {status.cursor.statusReason}
-                  </span>
+                  </dd>
                 ) : null}
               </div>
               <div className="ops-chain-item">
                 <dt>Lag</dt>
                 <dd>
-                  {status.cursor ? `${status.cursor.lagLedgers} ledgers` : '—'}
+                  {covered ? `${status.cursor!.lagLedgers} ledgers` : '—'}
                 </dd>
               </div>
               <div className="ops-chain-item">
                 <dt>Last indexed ledger</dt>
-                <dd>{status.cursor?.lastLedger ?? '—'}</dd>
-                <span className="ops-chain-note">
-                  {formatTime(status.cursor?.lastLedgerCloseTime)}
-                </span>
+                <dd>{covered ? status.cursor!.lastLedger : 'None yet'}</dd>
+                {covered ? (
+                  <dd className="ops-chain-note">
+                    {formatTime(status.cursor!.lastLedgerCloseTime)}
+                  </dd>
+                ) : null}
               </div>
               <div className="ops-chain-item">
                 <dt>Latest / oldest ledger</dt>
@@ -83,9 +87,9 @@ export function ChainIndexerStatusPage() {
                   {status.events.pending} / {status.events.orphan} /{' '}
                   {status.events.error}
                 </dd>
-                <span className="ops-chain-note">
+                <dd className="ops-chain-note">
                   Counts stop at {status.events.sampleLimit}.
-                </span>
+                </dd>
               </div>
               <div className="ops-chain-item">
                 <dt>Open submissions / needs review</dt>

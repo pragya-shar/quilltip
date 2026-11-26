@@ -27,11 +27,13 @@
 .ops-chain-item dd[data-status='RESET_DETECTED'] {
   color: var(--account-wine);
 }
-.ops-chain-note {
-  display: block;
-  margin-top: 6px;
+.ops-chain-item dd.ops-chain-note {
+  margin: 6px 0 0;
+  color: var(--account-muted);
+  font: inherit;
   font-size: 14px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 .ops-chain-details {
   display: grid;
