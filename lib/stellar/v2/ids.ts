@@ -11,9 +11,12 @@
  * fixes the expected values. `convex/lib/chain/ids.ts` derives the same values
  * as hex for Convex.
  */
-import { StrKey } from '@stellar/stellar-sdk'
+import { StrKey, hash } from '@stellar/stellar-sdk'
 
-import { sha256 } from './tab/encoding'
+/** SHA-256 without Node's `Buffer`, so the encoders also run in browsers. */
+function sha256(bytes: Uint8Array): Uint8Array {
+  return new Uint8Array(hash(bytes))
+}
 
 export const ARTICLE_REF_PREFIX = 'quilltip:article:v1:'
 export const ARTICLE_ID_PREFIX = 'quilltip:article:v2:'

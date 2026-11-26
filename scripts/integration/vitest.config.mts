@@ -4,7 +4,10 @@ export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
     environment: 'node',
-    include: ['scripts/integration/local-network.test.ts'],
+    include: [
+      'scripts/integration/local-network.test.ts',
+      'scripts/integration/article-registration.test.ts',
+    ],
     testTimeout: 900_000,
     hookTimeout: 900_000,
     fileParallelism: false,
