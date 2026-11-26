@@ -16,6 +16,14 @@
   color: var(--tab-ink);
   font-variant-numeric: tabular-nums;
 }
+.tab-ui :is(button, a, input) {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.tab-ui button {
+  user-select: none;
+  -webkit-user-select: none;
+}
 .tab-ui :is(h2, h3, p, ol, ul, dl, dd) {
   margin: 0;
 }
@@ -44,6 +52,7 @@
   color: var(--tab-muted);
 }
 .tab-section-title {
+  text-wrap: balance;
   font:
     400 28px/1.25 'Account Alegreya',
     Georgia,
@@ -182,6 +191,7 @@
   background: #fffdf8;
 }
 .tab-form-title {
+  text-wrap: balance;
   font:
     400 24px/1.3 'Account Alegreya',
     Georgia,
@@ -218,7 +228,6 @@
   border-color: var(--tab-wine);
   background: var(--tab-wash);
   color: var(--tab-wine);
-  font-weight: 600;
 }
 .tab-field {
   display: grid;
@@ -447,4 +456,31 @@
   .tab-secondary:active:not(:disabled) {
     transform: none;
   }
+}
+
+/* An inline link inside a row's metadata line (WCAG 2.5.8 inline exception). */
+.tab-inline-link {
+  color: var(--tab-wine);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* Collect: settled gross, fee, share and collected, as label and amount rows. */
+.tab-breakdown {
+  display: grid;
+  max-width: 560px;
+}
+.tab-breakdown > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--tab-rule);
+}
+.tab-breakdown dt {
+  color: var(--tab-muted);
+}
+.tab-breakdown dd {
+  text-align: right;
+  font-weight: 500;
 }

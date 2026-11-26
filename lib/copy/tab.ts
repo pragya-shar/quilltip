@@ -155,8 +155,6 @@ export const TAB_TIP = {
   unavailable: 'Quick tips are unavailable right now',
   settlementOff:
     'QuillTip is not settling tab tips at the moment, so it accepts none. Tip from your wallet instead. Nothing was paid.',
-  signIn: 'Sign in to tip from a tab.',
-  verify: 'Confirm your wallet to tip from a tab.',
   unconfirmedTitle: 'We could not confirm this tip',
   unconfirmedDetail:
     'The connection dropped after it was sent. It may have been accepted: check your tab before sending it again.',

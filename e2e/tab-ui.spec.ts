@@ -58,7 +58,7 @@ const EXPECT: Record<string, string | RegExp> = {
   'tip-key-gone': 'This device’s quick-tip key is gone',
   'tip-key-expired': 'Quick tips on this device have expired',
   'tip-settlement-off': 'Quick tips are unavailable right now',
-  'tip-signed-out': 'Sign in to tip from a tab.',
+  'tip-signed-out': 'Sign in to continue',
   'tip-v2-disabled': 'Quick tips are unavailable right now',
   'collect-ready': 'Ready to collect',
   'collect-nothing': 'Nothing to collect yet',
@@ -250,6 +250,7 @@ test('keyboard only: the top-up form submits with Enter and focus follows the pa
   await page.keyboard.press('Enter')
   const input = page.getByLabel('Amount in XLM')
   await expect(input).toBeFocused()
+  await page.keyboard.press('ControlOrMeta+a')
   await page.keyboard.type('2')
   await page.keyboard.press('Enter')
   const result = page.getByRole('heading', { name: 'Top-up confirmed' })
