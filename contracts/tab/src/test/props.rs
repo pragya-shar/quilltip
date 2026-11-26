@@ -198,8 +198,16 @@ impl Model {
     }
 }
 
+/// 48 cases by default; set `PROPTEST_CASES` for a longer run.
+fn cases() -> u32 {
+    std::env::var("PROPTEST_CASES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(48)
+}
+
 proptest! {
-    #![proptest_config(ProptestConfig { cases: 48, .. ProptestConfig::default() })]
+    #![proptest_config(ProptestConfig { cases: cases(), .. ProptestConfig::default() })]
 
     #[test]
     fn conservation_holds_for_any_sequence(ops in proptest::collection::vec(op(), 1..40)) {

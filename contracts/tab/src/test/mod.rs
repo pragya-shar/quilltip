@@ -17,6 +17,7 @@ use quilltip_shared::payload::{AcceptancePayload, VoucherPayload};
 use crate::{QuillTipTab, QuillTipTabClient, Voucher};
 
 mod admin;
+mod edge;
 mod props;
 mod reader;
 mod resource;
