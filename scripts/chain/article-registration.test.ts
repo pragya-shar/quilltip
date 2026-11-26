@@ -692,6 +692,17 @@ describe('registration verification', () => {
     ['content hash', { contentHash: 'ff'.repeat(32) }, 'field:content_hash'],
     ['article reference', { articleRef: '11'.repeat(32) }, 'field:article_ref'],
     ['author', { author: STRANGER }, 'field:author'],
+    ['Arweave ID', { arweaveId: '22'.repeat(32) }, 'field:arweave_id'],
+    [
+      'split',
+      {
+        splits: [
+          { recipient: AUTHOR, bps: 5_000 },
+          { recipient: STRANGER, bps: 5_000 },
+        ],
+      },
+      'field:splits',
+    ],
   ])(
     'flags a %s mismatch for review and leaves the article unregistered',
     async (_name, override, reason) => {
