@@ -8,6 +8,8 @@
  * is prepared. Pure rules plus a tiny external store, with no payment code,
  * so the article page can show the basket button in its first load.
  */
+import type { Id } from '@/convex/_generated/dataModel'
+
 export const MAX_BASKET_ITEMS = 10
 export const MAX_BASKET_TRANSFERS = 24
 
@@ -95,7 +97,7 @@ export function canAddToBasket(
 /** The `prepareBatch` items, in basket order. */
 export function batchRequest(items: readonly BasketItem[]) {
   return items.map((item) => ({
-    articleId: item.articleId,
+    articleId: item.articleId as Id<'articles'>,
     amountCents: item.amountCents,
     ...(item.highlight
       ? {

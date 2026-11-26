@@ -36,6 +36,10 @@ export function tipGateState(input: GateInput): WalletGateState {
   if (w.isLoading) return { kind: 'checking' }
   if (w.errorKind === 'no-wallet') return { kind: 'no-wallet' }
   if (w.errorKind === 'locked') return { kind: 'locked' }
+  // Connecting refused the wallet's network; its passphrase is not kept.
+  if (w.errorKind === 'wrong-network' && !w.isConnected) {
+    return { kind: 'wrong-network' }
+  }
   if (!w.isConnected || !w.publicKey) return { kind: 'disconnected' }
   if (w.networkReported && w.networkPassphrase !== input.expectedPassphrase) {
     return {

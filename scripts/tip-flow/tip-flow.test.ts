@@ -657,6 +657,9 @@ describe('wallet gate', () => {
       kind: 'no-wallet',
     })
     expect(gate({}, { errorKind: 'locked' })).toEqual({ kind: 'locked' })
+    expect(
+      gate({}, { errorKind: 'wrong-network', isConnected: false, publicKey: null })
+    ).toEqual({ kind: 'wrong-network' })
     expect(gate({}, { isConnected: false, publicKey: null })).toEqual({
       kind: 'disconnected',
     })
