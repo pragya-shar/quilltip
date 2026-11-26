@@ -19,6 +19,8 @@ Use "moves you" consistently — not "resonates."
 | Start reading       | Start Reading  | Hero, reader paths                      |
 | Start writing       | Start Writing  | Nav, hero, how-it-works bottom CTA      |
 | Sign in             | Sign In        | Nav, auth                               |
+| Sign in (payments)  | Sign in        | Wallet gate inside a payment prompt     |
+| Connect wallet      | Connect wallet | Wallet gate inside a payment prompt     |
 | Create account      | Create account | Register default                        |
 | Wallet resource     | Wallet Guide   | Nav, footer, auth links (title case)    |
 | Wallet setup action | Set up wallet  | Onboarding cards, dashboard wallet card |
@@ -33,11 +35,12 @@ Use "moves you" consistently — not "resonates."
 
 ## Testnet explanation tiers
 
-| Tier      | Where                                                   | Example                        |
-| --------- | ------------------------------------------------------- | ------------------------------ |
-| Badge     | Footer, features section                                | Testnet — practice funds only  |
-| One-liner | Features badge only on landing (no duplicate paragraph) | Live on Stellar Testnet badge  |
-| Deep      | FAQ (dedicated question), guide tabs, wallet settings   | Freighter, XLM, Soroban detail |
+| Tier      | Where                                                   | Example                               |
+| --------- | ------------------------------------------------------- | ------------------------------------- |
+| Badge     | Footer, features section                                | Testnet — practice funds only         |
+| Label     | Beside every payment amount and transaction link        | Stellar testnet · Practice funds only |
+| One-liner | Features badge only on landing (no duplicate paragraph) | Live on Stellar Testnet badge         |
+| Deep      | FAQ (dedicated question), guide tabs, wallet settings   | Freighter, XLM, Soroban detail        |
 
 Do not repeat the full `practiceFundsNote()` paragraph on landing trust section or features subhead when the badge is present.
 

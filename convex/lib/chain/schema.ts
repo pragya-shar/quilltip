@@ -10,6 +10,7 @@
  */
 import { defineTable } from 'convex/server'
 import { v } from 'convex/values'
+import { expectedNftValidator } from './nftSchema'
 
 export const chainNetworkValidator = v.union(
   v.literal('TESTNET'),
@@ -390,6 +391,8 @@ export const chainTables = {
     minTip: v.optional(v.string()),
     feeBps: v.optional(v.number()),
     nftThreshold: v.optional(v.string()),
+    /** Token whose Core total the NFT threshold compares. */
+    nftThresholdToken: v.optional(v.string()),
     /** Tab `config().acceptor_keys`, lowercase hex (current first). */
     tabAcceptorKeys: v.optional(v.array(v.string())),
     paused: v.object({
@@ -444,6 +447,13 @@ export const chainTables = {
     contractId: v.string(),
     /** Client idempotency key for the prepare call. */
     requestId: v.string(),
+    /** NFT submissions only: the values verification expects. */
+    expectedNft: v.optional(expectedNftValidator),
+    /**
+     * NFT submissions only: `<nft contract>:mint:<article key>` or
+     * `<nft contract>:token:<token id>`, so an indexed event finds them.
+     */
+    nftKey: v.optional(v.string()),
     clientRefs: v.array(v.string()),
     txHash: v.optional(v.string()),
     /** Unix seconds; the transaction's upper time bound. */
@@ -463,7 +473,8 @@ export const chainTables = {
   })
     .index('by_request', ['requestId'])
     .index('by_tx', ['txHash'])
-    .index('by_status_updated', ['status', 'updatedAt']),
+    .index('by_status_updated', ['status', 'updatedAt'])
+    .index('by_nft_key', ['nftKey']),
 
   chainEvents: defineTable({
     network: chainNetworkValidator,
