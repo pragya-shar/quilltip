@@ -138,6 +138,36 @@ landing page uses ten faces) and a smaller framework footprint. The applied
 mobile profile, which loads the page under the same network and CPU limits,
 meets the target on every route.
 
+## After the shared header (#436)
+
+Re-measured on `overhaul/v2` at `cdd6509`, after the shared header and writer
+pages (#436) and this change were both merged. Local production build with the
+synthetic fixture backend that `bun run perf:budget` uses, so the data differs
+from the tables above; compare the two rows for each route, not these values
+with the earlier tables. Lighthouse 12.8.2, median of 5 runs per route and
+profile. "Before" is this change alone (`ae08f14`), measured the same way.
+
+| Route       | Profile         | LCP before | LCP after | CLS after |
+| ----------- | --------------- | ---------: | --------: | --------: |
+| `/`         | Mobile          |   **3830** |  **3932** |     0.002 |
+| `/`         | Mobile, applied |       1714 |      1731 |     0.001 |
+| `/`         | Desktop         |        827 |       817 |     0.004 |
+| `/login`    | Mobile          |   **3066** |  **2918** |     0.000 |
+| `/login`    | Mobile, applied |       1573 |      1563 |     0.016 |
+| `/login`    | Desktop         |        620 |       619 |     0.000 |
+| Article     | Mobile          |   **3664** |  **3669** |     0.000 |
+| Article     | Mobile, applied |       1744 |      1764 |     0.000 |
+| Article     | Desktop         |        731 |       740 |     0.001 |
+| `/articles` | Mobile          |   **3362** |  **3740** |     0.005 |
+| `/articles` | Mobile, applied |       1802 |      1867 |     0.005 |
+| `/articles` | Desktop         |        723 |       746 |     0.003 |
+
+Desktop and the applied mobile profile still meet LCP < 2 s and CLS < 0.1 on
+every route. The simulated mobile profile still misses LCP on all four. On
+`/articles` it rose about 380 ms: the shared header adds about 47 KB of script
+and 29 KB of fonts before the first paint there (414 to 491 KB in total). The
+other routes moved within run-to-run variation.
+
 ## Regression check
 
 `bun run perf:budget` (`scripts/perf/page-load-budget.ts`) runs without
