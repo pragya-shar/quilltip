@@ -268,6 +268,36 @@ describe('progress source', () => {
     expect(retry(record('SUBMITTED'))).toBe(false)
   })
 
+  it('follows the server: FAILED or EXPIRED under review is never "not paid"', () => {
+    const idle = tipFlowReducer(tracking, { type: 'pending_elsewhere' })
+    for (const status of ['FAILED', 'EXPIRED']) {
+      const progress = deriveProgress(
+        progressSource(
+          idle,
+          record(status, { uiState: 'mismatch_review', needsReview: true })
+        )!
+      )
+      expect(progress).toMatchObject({ phase: 'under-review', retry: false })
+    }
+    // A basket row flagged the same way puts the basket under review.
+    const rows = record('FAILED', {
+      uiState: 'mismatch_review',
+      needsReview: true,
+      items: [
+        { status: 'FAILED', uiState: 'failed', mismatchReason: null },
+        {
+          status: 'FAILED',
+          uiState: 'mismatch_review',
+          mismatchReason: null,
+          needsReview: true,
+        },
+      ],
+    })
+    expect(
+      deriveProgress(progressSource(idle, rows, { batch: true })!)
+    ).toMatchObject({ phase: 'under-review', retry: false })
+  })
+
   it('shows a reload while PREPARED as resuming', () => {
     const resumed = tipFlowReducer(INITIAL_FLOW, {
       type: 'resume',

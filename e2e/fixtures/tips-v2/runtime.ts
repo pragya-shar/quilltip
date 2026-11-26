@@ -89,10 +89,10 @@ export const SCENARIO = {
   sim: params.get('sim') ?? 'ok',
   /** ok | error | busy | slow */
   send: params.get('send') ?? 'ok',
-  /** confirmed | author | review | expired | failed | never | batch-review | batch-author */
+  /** confirmed | author | review | late-event | expired | failed | never | batch-review | batch-author */
   result: params.get('result') ?? 'confirmed',
   delay: Number(params.get('delay') ?? 600),
-  /** prepared | prepared-hash | submitted | confirmed (a stored tip at load) */
+  /** prepared | prepared-hash | submitted | slow | confirmed (a stored tip at load) */
   reload: params.get('reload'),
   /** a number of basket items, or full | transfers */
   basket: params.get('basket'),
@@ -276,11 +276,13 @@ function tipStatus(id: string) {
         ? s.mismatchReason === 'author'
           ? 'mismatch_author'
           : 'mismatch_review'
-        : s.status === 'FAILED'
-          ? 'failed'
-          : s.status === 'EXPIRED'
-            ? 'expired'
-            : 'checking'
+        : (s.status === 'FAILED' || s.status === 'EXPIRED') && s.needsReview
+          ? 'mismatch_review'
+          : s.status === 'FAILED'
+            ? 'failed'
+            : s.status === 'EXPIRED'
+              ? 'expired'
+              : 'checking'
   const verified = sub.rows.every(
     (r) => r.status === 'CONFIRMED' || r.status === 'MISMATCH'
   )
@@ -559,6 +561,17 @@ function settle(id: string) {
           status: 'FAILED',
           rows: rowsWith('FAILED'),
         })
+      case 'late-event':
+        // FAILED, then an event arrived after all: flagged for review.
+        return updateSubmission(id, {
+          status: 'FAILED',
+          needsReview: true,
+          rows: sub.rows.map((r) => ({
+            ...r,
+            status: 'FAILED',
+            needsReview: true,
+          })),
+        })
       case 'batch-review':
       case 'batch-author': {
         const reason =
@@ -659,7 +672,7 @@ export function seedReload() {
   if (!kind) return
   const id = 'sub-reload'
   const status =
-    kind === 'submitted'
+    kind === 'submitted' || kind === 'slow'
       ? 'SUBMITTED'
       : kind === 'confirmed'
         ? 'CONFIRMED'
@@ -672,7 +685,8 @@ export function seedReload() {
     mismatchReason: null,
     needsReview: false,
     txHash: status === 'PREPARED' ? null : 'a7'.repeat(32),
-    maxTime: Math.floor(Date.now() / 1000) + 300,
+    // `slow`: the time bound passed more than 30 s ago, still unanswered.
+    maxTime: Math.floor(Date.now() / 1000) + (kind === 'slow' ? -60 : 300),
     rows: [
       {
         articleId: ARTICLES.main.id,

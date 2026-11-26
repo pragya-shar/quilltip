@@ -213,9 +213,41 @@ export function tipFlowReducer(
 /** The status fields of `getTipStatus` the progress view reads. */
 export type TipRecordView = {
   status: string
+  uiState?: string
   mismatchReason: string | null
   needsReview: boolean
-  items: ReadonlyArray<{ status: string; mismatchReason: string | null }>
+  items: ReadonlyArray<{
+    status: string
+    uiState?: string
+    mismatchReason: string | null
+    needsReview?: boolean
+  }>
+}
+
+/**
+ * The record as the kit should read it. The server's `uiState` decides: a
+ * `FAILED` or `EXPIRED` record flagged for review (an event arrived after
+ * all) is `mismatch_review`, so money may have moved and nothing may be
+ * retried. It reaches the kit as a `MISMATCH` under review.
+ */
+export function kitRecord(record: {
+  status: string
+  uiState?: string
+  mismatchReason: string | null
+  needsReview?: boolean
+}): { status: string; mismatchReason: string | null; needsReview: boolean } {
+  if (record.uiState === 'mismatch_review' && record.status !== 'MISMATCH') {
+    return {
+      status: 'MISMATCH',
+      mismatchReason: record.mismatchReason ?? 'needs_review',
+      needsReview: true,
+    }
+  }
+  return {
+    status: record.status,
+    mismatchReason: record.mismatchReason,
+    needsReview: record.needsReview === true,
+  }
 }
 
 /**
@@ -240,18 +272,14 @@ export function progressSource(
       ? { clientStep: state.step }
       : { record: { status: 'PREPARED' }, ...client }
   }
-  const base = {
-    status: record.status,
-    mismatchReason: record.mismatchReason,
-    needsReview: record.needsReview,
-  }
+  const base = kitRecord(record)
   return options.batch && record.items.length > 1
     ? {
         record: base,
-        rows: record.items.map((item) => ({
-          status: item.status,
-          mismatchReason: item.mismatchReason,
-        })),
+        rows: record.items.map((item) => {
+          const row = kitRecord(item)
+          return { status: row.status, mismatchReason: row.mismatchReason }
+        }),
         ...client,
       }
     : { record: base, ...client }

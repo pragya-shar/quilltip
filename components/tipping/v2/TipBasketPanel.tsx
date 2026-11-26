@@ -33,7 +33,7 @@ import {
 } from '@/lib/tip/v2/basket'
 import { estimateBaseUnits, formatCents } from '@/lib/tip/v2/amount'
 import { conditionView, eligibilityCondition } from '@/lib/tip/v2/conditions'
-import { moneyMayHaveMoved } from '@/lib/tip/v2/flow'
+import { kitRecord, moneyMayHaveMoved } from '@/lib/tip/v2/flow'
 import { tipGateState } from '@/lib/tip/v2/gate'
 import { pendingKey, readPending } from '@/lib/tip/v2/pending'
 import { usePathname, useRouter } from 'next/navigation'
@@ -217,11 +217,7 @@ export function TipBasketPanel({ onBusyChange, onClose }: TipBasketPanelProps) {
       amount,
       ...(row && flow.final
         ? {
-            status: phaseFromRecord({
-              status: row.status,
-              mismatchReason: row.mismatchReason,
-              needsReview: row.needsReview,
-            }),
+            status: phaseFromRecord(kitRecord(row)),
             ...(row.uiState === 'mismatch_author'
               ? { note: 'Paid to the article’s updated payout address.' }
               : row.uiState === 'mismatch_review'

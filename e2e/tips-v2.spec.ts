@@ -623,6 +623,23 @@ const STATES: State[] = [
     },
   },
   {
+    id: 'under-review-after-failure',
+    query: 'result=late-event',
+    run: async (page) => {
+      const dialog = await openArticleTip(page)
+      await sendTip(page, dialog)
+      return dialog
+    },
+    check: async (dialog) => {
+      // The server flagged a FAILED record: money may have moved.
+      await expect(
+        dialog.getByRole('heading', { name: 'Sent, but under review' })
+      ).toBeVisible()
+      await expect(dialog.getByText(/Nothing was paid/)).toHaveCount(0)
+      await expect(dialog.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+    },
+  },
+  {
     id: 'reload-prepared',
     query: 'reload=prepared',
     run: async (page) => {
@@ -671,6 +688,21 @@ const STATES: State[] = [
           hasText: /Waiting for confirmation/,
         })
       ).toBeVisible()
+    },
+  },
+  {
+    id: 'pending-slow',
+    query: 'reload=slow',
+    run: async (page) => {
+      await page.getByRole('button', { name: 'View your last tip' }).click()
+      return tipDialog(page)
+    },
+    check: async (dialog) => {
+      await expect(
+        dialog.locator('.pay-progress-sentence', { hasText: /Still checking/ })
+      ).toBeVisible()
+      await expect(dialog.getByText(/cannot be charged twice/).first()).toBeVisible()
+      await expect(dialog.getByRole('button', { name: 'Try again' })).toHaveCount(0)
     },
   },
   {
