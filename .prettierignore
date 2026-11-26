@@ -8,6 +8,9 @@ public
 contracts/*/target
 contracts/target
 contracts/**/fuzz/target
+contracts/**/fuzz/corpus
+contracts/**/fuzz/artifacts
+contracts/**/fuzz/coverage
 # Soroban test snapshots are generated files; CI diffs them byte for byte.
 contracts/**/test_snapshots
 

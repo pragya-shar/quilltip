@@ -3,7 +3,8 @@
 //! After every call: the Tab's token balance equals Σ reader balances plus
 //! Σ claimable (I-10); `Paid` never decreases and never exceeds the highest
 //! validly signed cumulative (I-11); spending never exceeds the key limit (I-12);
-//! fees credited equal Σ floor(Paid × 250 / 10,000) (I-31).
+//! fees credited equal Σ floor(Paid × 250 / 10,000) (I-31). After the settle
+//! deadline the temporary entries expire and nothing settles (I-15, I-29).
 #![no_main]
 
 use arbitrary::Arbitrary;
@@ -11,7 +12,7 @@ use ed25519_dalek::{Signer, SigningKey};
 use libfuzzer_sys::fuzz_target;
 use quilltip_shared::fee::fee;
 use quilltip_shared::payload::{AcceptancePayload, VoucherPayload};
-use quilltip_tab::{QuillTipTab, QuillTipTabClient, Voucher};
+use quilltip_tab::{QuillTipTab, QuillTipTabClient, Voucher, SETTLE_GRACE};
 use soroban_sdk::testutils::{Address as _, EnvTestConfig, Ledger};
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
 use soroban_sdk::{Address, Bytes, BytesN, Env, Vec};
@@ -19,6 +20,7 @@ use soroban_sdk::{Address, Bytes, BytesN, Env, Vec};
 const READERS: usize = 2;
 const WRITERS: usize = 2;
 const XLM: i128 = 10_000_000;
+const KEY_LIFETIME: u32 = 100_000;
 
 #[derive(Arbitrary, Debug)]
 struct Item {
@@ -70,8 +72,10 @@ fuzz_target!(|calls: std::vec::Vec<Call>| {
     for (i, r) in readers.iter().enumerate() {
         StellarAssetClient::new(&e, &token).mint(r, &(100 * XLM));
         let pk = BytesN::from_array(&e, &key(i).verifying_key().to_bytes());
-        c.open_session(r, &(10 * XLM), &pk, &(e.ledger().sequence() + 100_000), &(8 * XLM));
+        c.open_session(r, &(10 * XLM), &pk, &(e.ledger().sequence() + KEY_LIFETIME), &(8 * XLM));
     }
+    // Last ledger a voucher can settle; after it `Session` and `Paid` expire (I-29).
+    let deadline = e.ledger().sequence() + KEY_LIFETIME + SETTLE_GRACE;
     let mut max_signed = [[0i128; WRITERS]; READERS];
     let mut last_paid = [[0i128; WRITERS]; READERS];
     for call in calls.iter().take(8) {
@@ -118,14 +122,22 @@ fuzz_target!(|calls: std::vec::Vec<Call>| {
             + writers.iter().map(|w| c.claimable(w)).sum::<i128>()
             + c.claimable(&treasury);
         assert_eq!(TokenClient::new(&e, &token).balance(&tab), held);
+        let expired = e.ledger().sequence() > deadline;
         let mut fees = 0;
         for r in 0..READERS {
             let mut spent = 0;
             for w in 0..WRITERS {
                 let paid = c.paid(&readers[r], &0, &writers[w]);
-                assert!(paid >= last_paid[r][w]);
-                assert!(paid <= max_signed[r][w].max(0));
-                last_paid[r][w] = paid;
+                if expired {
+                    // The entry has expired, so the view reads 0; nothing settles any more.
+                    assert!(paid == 0 || paid == last_paid[r][w]);
+                    assert!(c.session_key(&readers[r], &0).is_none());
+                } else {
+                    assert!(paid >= last_paid[r][w]);
+                    assert!(paid <= max_signed[r][w].max(0));
+                    last_paid[r][w] = paid;
+                }
+                let paid = last_paid[r][w];
                 fees += fee(paid).unwrap();
                 spent += paid;
             }
