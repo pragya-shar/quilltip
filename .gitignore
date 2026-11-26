@@ -52,7 +52,7 @@ next-env.d.ts
 
 # contracts
 contracts/tipping/target
-contracts/article-nft/target
+contracts/target
 
 # stellar
 .stellar

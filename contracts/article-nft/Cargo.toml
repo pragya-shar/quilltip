@@ -1,29 +1,27 @@
 [package]
 name = "quilltip-article-nft"
-version = "0.1.0"
-edition = "2021"
+description = "One NFT per article, minted at a Core tip threshold."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish.workspace = true
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+doctest = false
 
 [dependencies]
-soroban-sdk = "23.0.2"
+soroban-sdk = { workspace = true }
+stellar-access = { workspace = true }
+stellar-contract-utils = { workspace = true }
+stellar-macros = { workspace = true }
+stellar-tokens = { workspace = true }
+quilltip-shared = { workspace = true }
 
-# OpenZeppelin Stellar security patterns
-stellar-access = { git = "https://github.com/OpenZeppelin/stellar-contracts", tag = "v0.5.1" }
-stellar-contract-utils = { git = "https://github.com/OpenZeppelin/stellar-contracts", tag = "v0.5.1" }
-stellar-macros = { git = "https://github.com/OpenZeppelin/stellar-contracts", tag = "v0.5.1" }
-
-[profile.release]
-opt-level = "z"
-overflow-checks = true
-debug = 0
-strip = "symbols"
-debug-assertions = false
-panic = "abort"
-codegen-units = 1
-lto = true
-
-[profile.release-with-logs]
-inherits = "release"
-debug-assertions = true
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+ed25519-dalek = { workspace = true }
+proptest = { workspace = true }
+sha2 = { workspace = true }

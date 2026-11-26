@@ -155,28 +155,88 @@ jobs:
       contents: read
     env:
       CARGO_TERM_COLOR: always
+    defaults:
+      run:
+        working-directory: contracts
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
 
-      # Each crate pins its toolchain and wasm target in rust-toolchain.toml.
-      # rustup selects it from the working directory, so run cargo inside it.
-      - name: Build and test each contract
+      # rustup selects the pinned toolchain from contracts/rust-toolchain.toml.
+      - name: Install the pinned toolchain
         run: |
-          for dir in contracts/*/; do
-            # contracts/shared/ holds the shared test vectors, not a crate.
-            [ -f "$dir/Cargo.toml" ] || continue
-            echo "::group::$dir"
-            (
-              cd "$dir"
-              rustup toolchain install
-              rustc --version
-              cargo build --locked --target wasm32v1-none --release
-              cargo test --locked
-            )
-            echo "::endgroup::"
-          done
+          rustup toolchain install
+          rustc --version
+          cargo --version
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace --locked
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@893d6ee8d714b6c7dfe2bcd94e5759e9a7958a7e # v2.90.10
+        with:
+          tool: cargo-audit@0.23.0
+
+      - name: Dependency audit
+        run: cargo audit --deny warnings
+
+      # The v1 tipping contract keeps its own lockfile and toolchain until cutover.
+      - name: Build and test the v1 tipping contract
+        working-directory: contracts/tipping
+        run: |
+          rustup toolchain install
+          cargo build --locked --target wasm32v1-none --release
+          cargo test --locked
+
+      - name: Check test snapshots are committed
+        working-directory: .
+        run: |
+          changes="$(git status --porcelain -- contracts)"
+          if [ -n "$changes" ]; then
+            echo "$changes"
+            git --no-pager diff --stat -- contracts
+            echo "::error::Contract tests changed or added files under contracts/. Run the tests in contracts/ (and contracts/tipping/) and commit the result."
+            exit 1
+          fi
+
+      # Optimized build with the Stellar CLI in a digest-pinned container.
+      # The script fails when a Wasm exceeds 120,000 bytes.
+      - name: Reproducible optimized build and size gate
+        working-directory: .
+        run: scripts/contracts/build-reproducible.sh --out "$RUNNER_TEMP/wasm"
+
+      - name: Rebuild and compare Wasm hashes
+        working-directory: .
+        run: |
+          scripts/contracts/build-reproducible.sh --out "$RUNNER_TEMP/wasm-rebuild"
+          diff "$RUNNER_TEMP/wasm/SHA256SUMS" "$RUNNER_TEMP/wasm-rebuild/SHA256SUMS"
+
+      - name: Record Wasm sizes and hashes
+        working-directory: .
+        run: |
+          {
+            echo "### Contract Wasm"
+            echo
+            echo '| Wasm | Bytes | SHA-256 |'
+            echo '| ---- | ----: | ------- |'
+            tail -n +2 "$RUNNER_TEMP/wasm/sizes.tsv" | awk -F '\t' '{ printf "| %s | %s | `%s` |\n", $1, $2, $3 }'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: contracts-wasm
+          path: |
+            ${{ runner.temp }}/wasm/*.wasm
+            ${{ runner.temp }}/wasm/SHA256SUMS
+            ${{ runner.temp }}/wasm/sizes.tsv
+          if-no-files-found: error
 
   e2e-fixtures:
     name: Playwright (fixtures)
