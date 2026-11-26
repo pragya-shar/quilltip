@@ -15,6 +15,7 @@ import {
   TransactionBuilder,
   rpc,
 } from '@stellar/stellar-sdk'
+import { Buffer } from 'buffer'
 import type { RpcClient } from './rpc'
 import {
   settleArgs,
