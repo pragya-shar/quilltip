@@ -99,6 +99,51 @@ fn batch_transfer_cap() {
     );
 }
 
+/// The transfer cap is exact: 25 transfers fail, 24 pass (section 2.2).
+#[test]
+fn batch_transfer_cap_boundary() {
+    let f = Fixture::new();
+    let (five, _) = f.article_with_splits(&[2_000; 5]);
+    let (two, _) = f.article_with_splits(&[5_000, 5_000]);
+    let (plain, _) = f.article();
+    let tipper = f.funded();
+    // 3 × 6 + 3 + 2 × 2 = 25 transfers.
+    let mut over: std::vec::Vec<TipInput> = (0..3).map(|n| item(&f, &five, MIN_TIP, n)).collect();
+    over.push(item(&f, &two, MIN_TIP, 3));
+    over.push(item(&f, &plain, MIN_TIP, 4));
+    over.push(item(&f, &plain, MIN_TIP, 5));
+    assert_core_err!(
+        f.core.try_tip_batch(&tipper, &f.token, &items(&f, &over)),
+        CoreError::BatchTooLarge
+    );
+    // 3 × 6 + 3 × 2 = 24 transfers.
+    let mut at_cap: std::vec::Vec<TipInput> =
+        (10..13).map(|n| item(&f, &five, MIN_TIP, n)).collect();
+    at_cap.extend((13..16).map(|n| item(&f, &plain, MIN_TIP, n)));
+    assert!(f
+        .core
+        .try_tip_batch(&tipper, &f.token, &items(&f, &at_cap))
+        .is_ok());
+}
+
+/// Distinct `client_ref` values are a batch precondition, checked before any
+/// item's own checks (section 2.2).
+#[test]
+fn batch_duplicate_check_precedes_item_checks() {
+    let f = Fixture::new();
+    let (a, _) = f.article();
+    let tipper = f.funded();
+    let list = [
+        item(&f, &a, MIN_TIP, 1),
+        item(&f, &random_id(&f.e), MIN_TIP, 1),
+    ];
+    assert_core_err!(
+        f.core.try_tip_batch(&tipper, &f.token, &items(&f, &list)),
+        CoreError::DuplicateClientRef
+    );
+    assert_eq!(f.core.article_total(&a, &f.token), 0);
+}
+
 #[test]
 fn batch_duplicate_client_ref() {
     let f = Fixture::new();
