@@ -1481,6 +1481,8 @@ describe('tab screens read models (tabActivity)', () => {
     view = await reader.query(api.tabActivity.getMyTabTips, { limit: 1 })
     expect(view?.tips).toHaveLength(1)
     expect(view?.tips[0]?.status).toBe('SETTLED')
+    // The settling transaction, from the pair's TabSettled event.
+    expect(view?.tips[0]?.settledTxHash).toBe('ab'.repeat(32))
     expect(view?.oldestUnsettledAt).toBeNull()
     // Another user sees no tab.
     expect(

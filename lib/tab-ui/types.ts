@@ -101,7 +101,12 @@ export type WalletAccess = {
   verifyHref?: string
 }
 
+/** The client's own network and Tab contract, never taken from a response. */
+export type TabClientConfig = { networkPassphrase: string; tabContractId: string }
+
 export type TabServices = {
+  /** Null when payments v2 or the Tab contract is not configured here. */
+  config(): TabClientConfig | null
   // Reactive reads. `undefined` while loading, `null` when there is none.
   useMyTab(): MyTab | null | undefined
   useMyTabTips(): MyTabTips | null | undefined

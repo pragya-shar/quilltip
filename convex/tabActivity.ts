@@ -24,6 +24,7 @@ export const MAX_TIP_LIMIT = 50
 
 const RECEIPT_SCAN = 1000
 const VOUCHER_SCAN = 1000
+const SETTLEMENT_SCAN = 200
 
 type Me = {
   userId: Doc<'users'>['_id']
@@ -88,6 +89,50 @@ function oldestUnsettled(vouchers: Doc<'tabVouchers'>[]): number | null {
   return oldest
 }
 
+async function eventTx(
+  ctx: QueryCtx,
+  eventId: string | undefined
+): Promise<string | null> {
+  if (!eventId) return null
+  const event = await ctx.db
+    .query('chainEvents')
+    .withIndex('by_event_id', (q) => q.eq('eventId', eventId))
+    .first()
+  return event?.txHash ?? null
+}
+
+/**
+ * The transaction that settled a receipt: its own `TabSettled` event or
+ * settlement record when stored, else the pair's latest `TabSettled`, which
+ * paid every receipt up to the pair's paid amount.
+ */
+async function settlementTx(
+  ctx: QueryCtx,
+  receipt: Doc<'tabReceipts'>,
+  vouchers: Doc<'tabVouchers'>[]
+): Promise<string | null> {
+  const own = await eventTx(ctx, receipt.settledEventId)
+  if (own) return own
+  if (receipt.settlementId) {
+    const settlement = await ctx.db.get(receipt.settlementId)
+    if (settlement?.txHash) return settlement.txHash
+  }
+  const pair = vouchers.find(
+    (v) =>
+      v.keyId === receipt.keyId && v.writerAddress === receipt.writerAddress
+  )
+  if (!pair) return null
+  const fromEvent = await eventTx(ctx, pair.lastSettledEventId)
+  if (fromEvent) return fromEvent
+  // Settled by the settler: its confirmed settlement lists the pair.
+  const recent = await ctx.db
+    .query('tabSettlements')
+    .withIndex('by_status', (q) => q.eq('status', 'CONFIRMED'))
+    .order('desc')
+    .take(SETTLEMENT_SCAN)
+  return recent.find((s) => s.voucherIds.includes(pair._id))?.txHash ?? null
+}
+
 export type TabTipRow = {
   receiptId: string
   status: Doc<'tabReceipts'>['status']
@@ -132,13 +177,18 @@ export const getMyTabTips = query({
     const latest = receipts
       .sort((a, b) => b.acceptedAt - a.acceptedAt || b.seq - a.seq)
       .slice(0, limit)
+    const vouchers = await ctx.db
+      .query('tabVouchers')
+      .withIndex('by_pair', (q) => q.eq('tabAccountId', account._id))
+      .take(VOUCHER_SCAN)
     const tips: TabTipRow[] = []
     for (const receipt of latest) {
       const row = await ctx.db.get(receipt.tipRowId)
       const author = await ctx.db.get(receipt.authorId)
-      const settlement = receipt.settlementId
-        ? await ctx.db.get(receipt.settlementId)
-        : null
+      const settledTxHash =
+        receipt.status === 'SETTLED'
+          ? await settlementTx(ctx, receipt, vouchers)
+          : null
       tips.push({
         receiptId: receipt._id,
         status: receipt.status,
@@ -152,14 +202,9 @@ export const getMyTabTips = query({
         authorUsername: author?.username ?? null,
         highlight: receipt.highlightId !== undefined,
         acceptedAt: receipt.acceptedAt,
-        settledTxHash:
-          receipt.status === 'SETTLED' ? (settlement?.txHash ?? null) : null,
+        settledTxHash,
       })
     }
-    const vouchers = await ctx.db
-      .query('tabVouchers')
-      .withIndex('by_pair', (q) => q.eq('tabAccountId', account._id))
-      .take(VOUCHER_SCAN)
     return {
       settlementEnabled: settlementEnabled(),
       oldestUnsettledAt: oldestUnsettled(vouchers),
