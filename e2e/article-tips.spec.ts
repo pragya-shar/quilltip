@@ -271,12 +271,27 @@ test('a prepare for another network is refused locally', async ({ page }) => {
   ])
 })
 
-test('no wallet extension says what to install', async ({ page }) => {
+test('no wallet extension: the picker offers web wallets and install links', async ({
+  page,
+}) => {
   const panel = await open(page, 'state=ready', 'missing')
   await panel.getByRole('button', { name: 'Enable tips' }).click()
-  await expect(panel.getByRole('alert')).toContainText(
-    'No Stellar wallet found'
-  )
+  const picker = page.getByRole('dialog', { name: 'Choose a wallet' })
+  await expect(
+    picker
+      .getByRole('region', { name: 'No install needed' })
+      .getByRole('button', { name: /^xBull/ })
+  ).toBeVisible()
+  await expect(
+    picker
+      .getByRole('region', { name: 'Not installed' })
+      .getByRole('link', { name: /^Varial/ })
+  ).toBeVisible()
+  // Closing the picker is not an error.
+  await page.keyboard.press('Escape')
+  await expect(picker).toBeHidden()
+  await expect(panel.getByRole('alert')).toHaveCount(0)
+  expect((await log(page)).signed).toEqual([])
 })
 
 test('an already registered article is reported from simulation', async ({
