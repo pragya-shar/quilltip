@@ -759,6 +759,23 @@ const S: Scenario[] = [
   },
   // --- Writer: collect ----------------------------------------------------
   {
+    id: 'collect-worst',
+    title: 'Collect: worst case amounts',
+    view: 'collect',
+    device: 'none',
+    seed: (s) => {
+      writer(s, {
+        settledGross: '123456789012345678',
+        fee: '3086419725308641',
+        earnedNet: '120370369287037037',
+        pendingNet: '1',
+        collected: '0',
+        unpaidPairs: 1,
+      })
+      s.claimable = '120370369287037037'
+    },
+  },
+  {
     id: 'collect-ready',
     title: 'Collect: earnings ready',
     view: 'collect',

@@ -503,3 +503,22 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Long amounts wrap below their label rather than overflow (payment-states.md). */
+.tab-figure dd .pay-xlm,
+.tab-breakdown dd .pay-xlm,
+.tab-tip-amount .pay-xlm {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1100px) and (min-width: 761px) {
+  .tab-figures:not([data-columns='2']) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tab-figures:not([data-columns='2']) > .tab-figure[data-primary] {
+    grid-column: 1 / -1;
+  }
+  .tab-figure dd {
+    font-size: 36px;
+  }
+}
