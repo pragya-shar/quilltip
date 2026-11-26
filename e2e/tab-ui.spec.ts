@@ -442,7 +442,9 @@ test('collect: wallet refusal and waiting for confirmation', async ({
   await expect(
     visibleText(page, 'Request declined in your wallet')
   ).toBeVisible()
+  await shot(page, 'collect-declined')
   await page.goto('/?state=collect-checking')
   await page.getByRole('button', { name: /^Collect / }).click()
   await expect(visibleText(page, /Waiting for confirmation/)).toBeVisible()
+  await shot(page, 'collect-checking')
 })

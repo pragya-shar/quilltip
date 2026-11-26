@@ -300,7 +300,7 @@ const S: Scenario[] = [
               'REJECTED',
               'VOID_RESET',
             ] as const
-          )[i % 6],
+          )[i % 6]!,
           {
             amount: i % 2 ? '1' : '499999999',
             articleTitle:

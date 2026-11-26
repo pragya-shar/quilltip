@@ -91,6 +91,7 @@ test('a lost response resubmits the same voucher and is accepted once', async ({
     timeout: 15_000,
   })
   const calls = await backend(page)
+  await shot(page, 'tip-lost-response')
   expect(calls.calls.filter((c) => c === 'submitTip').length).toBe(2)
   expect(calls.calls.filter((c) => c === 'prepareTip').length).toBe(1)
   expect(calls.tab.outstanding).toBe('25000000')
@@ -103,6 +104,7 @@ test('a stale submit prepares once more and is accepted', async ({ page }) => {
     timeout: 10_000,
   })
   const calls = (await backend(page)).calls
+  await shot(page, 'tip-stale')
   expect(calls.filter((c) => c === 'prepareTip').length).toBe(2)
 })
 
@@ -151,6 +153,7 @@ test('two browser tabs tipping at once: both land, one after a retry, the pair a
     })
   }
   const snapshot = await backend(page)
+  await shot(page, 'tip-two-tabs')
   // Two tips of 25 cents (2.5 XLM each) accepted, never more.
   expect(snapshot.tab.outstanding).toBe('50000000')
   expect(
