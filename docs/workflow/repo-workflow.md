@@ -42,7 +42,9 @@ their configuration as prose or adding another hook to run the same checks.
 - Before a PR, fetch and review `git log origin/main..HEAD` and
   `git diff origin/main...HEAD`. Confirm the diff contains only intended work.
 - Use Conventional Commit subjects; allowed types/scopes are enforced by
-  `commitlint.config.js` and `.github/workflows/pr-hygiene.yml`.
+  `commitlint.config.js` and `.github/workflows/pr-hygiene.yml`. A subject may
+  end with one issue reference (`#405` or `(#405)`) or a list such as
+  `(#407, #409)`; the pattern is in `scripts/pr-hygiene/subject-pattern.txt`.
 - Use the [PR template](../../.github/pull_request_template.md). Include concise
   results, not raw logs, full diffs, or private evidence.
 - Before merging, require `Required` and `PR Hygiene Required` to pass and confirm
