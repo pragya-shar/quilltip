@@ -20,6 +20,9 @@ import {
   applyStoredTippedEvent,
   type StoredTippedEvent,
 } from './submissionStore'
+import { articleEventFacts } from './articleEvents'
+import { resolveArticleSubmissionFromEvent } from './articleStore'
+import { EventDecodeError } from './events'
 
 type Data = Record<string, unknown>
 
@@ -114,15 +117,41 @@ async function applyArticleEvent(
     event.doc.chainEpoch
   )
   if (!article) return 'orphan'
-  if (article.lastEventId && article.lastEventId >= event.doc.eventId) {
-    return 'done'
+  if (!article.lastEventId || article.lastEventId < event.doc.eventId) {
+    await ctx.db.patch(article._id, {
+      ...patch(article),
+      lastEventId: event.doc.eventId,
+      updatedAt: event.now,
+    })
   }
-  await ctx.db.patch(article._id, {
-    ...patch(article),
-    lastEventId: event.doc.eventId,
-    updatedAt: event.now,
-  })
+  // Rule (b): the event resolves the article's pending submission.
+  const facts = storedArticleFacts(event)
+  if (facts) {
+    await resolveArticleSubmissionFromEvent(ctx, {
+      article: (await ctx.db.get(article._id))!,
+      facts,
+      contractId: event.doc.contractId,
+      txHash: event.doc.txHash,
+      ledger: event.doc.ledger,
+      now: event.now,
+    })
+  }
   return 'done'
+}
+
+function storedArticleFacts(event: IndexedEvent) {
+  try {
+    return articleEventFacts({
+      name: event.doc.type,
+      topics: event.doc.topics,
+      data: event.doc.data,
+    })
+  } catch (error) {
+    if (error instanceof EventDecodeError) {
+      throw new StoredEventError(error.message)
+    }
+    throw error
+  }
 }
 
 function guarded(handler: ChainEventHandler): ChainEventHandler {
@@ -234,20 +263,33 @@ const splitsSet: ChainEventHandler = (ctx, event) => {
 }
 
 const authorProposed: ChainEventHandler = (ctx, event) => {
-  const newAuthor = address(data(event).new_author, 'new_author')
-  return applyArticleEvent(ctx, event, () => ({ pendingAuthor: newAuthor }))
+  const d = data(event)
+  const newAuthor = address(d.new_author, 'new_author')
+  const liveUntil = u32(d.live_until_ledger, 'live_until_ledger')
+  return applyArticleEvent(ctx, event, () => ({
+    pendingAuthor: newAuthor,
+    pendingAuthorLiveUntil: liveUntil,
+  }))
 }
 
 const authorProposalCancelled: ChainEventHandler = (ctx, event) => {
   address(data(event).new_author, 'new_author')
-  return applyArticleEvent(ctx, event, () => ({ pendingAuthor: undefined }))
+  return applyArticleEvent(ctx, event, () => ({
+    pendingAuthor: undefined,
+    pendingAuthorLiveUntil: undefined,
+  }))
 }
 
 const authorChanged: ChainEventHandler = (ctx, event) => {
   const next = address(data(event).new, 'new')
-  return applyArticleEvent(ctx, event, () => ({
+  return applyArticleEvent(ctx, event, (article) => ({
     authorAddress: next,
     pendingAuthor: undefined,
+    pendingAuthorLiveUntil: undefined,
+    // Core moves the first share to the new author.
+    splits: article.splits.map((s, i) =>
+      i === 0 ? { ...s, recipient: next } : s
+    ),
   }))
 }
 

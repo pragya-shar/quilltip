@@ -22,6 +22,10 @@ import {
   type TipVerification,
 } from './verify'
 import type { TippedEvent } from './events'
+import {
+  releaseArticleAfterFailure,
+  resolveArticleSubmissionFromState,
+} from './articleStore'
 
 /** Seconds between prepare and the transaction's upper time bound. */
 export const MAX_TIME_WINDOW_SECONDS = 300
@@ -682,6 +686,7 @@ export async function applyFailure(
     lastError: args.reason,
     updatedAt: args.now,
   })
+  await releaseArticleAfterFailure(ctx, submission, args.now)
   return 'applied'
 }
 
@@ -709,6 +714,12 @@ export async function resolveWithoutTransaction(
   if (!submission) return 'skipped'
   if (submission.status !== 'PREPARED' && submission.status !== 'SUBMITTED') {
     return 'skipped'
+  }
+
+  // Rule (b) for article submissions: the indexer already applied the
+  // expected Core event to the article.
+  if (await resolveArticleSubmissionFromState(ctx, submission, args.now)) {
+    return 'linked'
   }
 
   // Rule (b): an indexed Tipped event carrying a row's client_ref.
@@ -756,6 +767,7 @@ export async function resolveWithoutTransaction(
       status: 'EXPIRED',
       updatedAt: args.now,
     })
+    await releaseArticleAfterFailure(ctx, submission, args.now)
     return 'expired'
   }
 
