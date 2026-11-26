@@ -35,7 +35,7 @@ export function runNetworkGuardCli(
       : assertScriptTestnetOnly(operation, env)
     const target = result.convexDeployments.join(', ') || 'none'
     console.log(
-      `Network guard passed for "${operation}" (Convex: ${target}${convexOnly ? '' : ', Stellar: TESTNET'}).`
+      `Network guard passed for "${operation}" (Convex: ${target}, ${convexOnly ? 'mode' : 'Stellar'}: ${result.network}).`
     )
     if (result.liveBackendApproved) {
       console.warn(

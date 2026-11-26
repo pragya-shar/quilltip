@@ -3,10 +3,13 @@ import { WalletNetwork } from '@creit.tech/stellar-wallets-kit/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  LOCAL_PASSPHRASE,
   MAINNET_PASSPHRASE,
   StellarNetworkConfigError,
   TESTNET_PASSPHRASE,
   parseStellarNetwork,
+  parseStellarNetworkSetting,
+  pickRpcUrl,
   resolveStellarNetwork,
   stellarExpertTransactionUrl,
 } from '../../lib/stellar/network'
@@ -40,6 +43,34 @@ describe('parseStellarNetwork', () => {
   })
 })
 
+describe('parseStellarNetworkSetting', () => {
+  it('accepts LOCAL as a setting but not as a recorded network', () => {
+    expect(parseStellarNetworkSetting('LOCAL')).toBe('LOCAL')
+    expect(parseStellarNetworkSetting(' TESTNET ')).toBe('TESTNET')
+    expect(parseStellarNetworkSetting('')).toBe('TESTNET')
+    expect(() => parseStellarNetworkSetting('local')).toThrow(
+      StellarNetworkConfigError
+    )
+    expect(() => parseStellarNetwork('LOCAL')).toThrow(
+      StellarNetworkConfigError
+    )
+  })
+})
+
+describe('pickRpcUrl', () => {
+  it('reads the current RPC name and the earlier one', () => {
+    expect(pickRpcUrl('https://a.example', undefined)).toBe('https://a.example')
+    expect(pickRpcUrl(' ', 'https://b.example')).toBe('https://b.example')
+    expect(pickRpcUrl('https://a.example', 'https://a.example')).toBe(
+      'https://a.example'
+    )
+    expect(pickRpcUrl(undefined, undefined)).toBeUndefined()
+    expect(() => pickRpcUrl('https://a.example', 'https://b.example')).toThrow(
+      /both set and differ/
+    )
+  })
+})
+
 describe('resolveStellarNetwork', () => {
   it('maps TESTNET to wallet network, passphrase, Horizon, and RPC', () => {
     expect(resolveStellarNetwork({ network: 'TESTNET' })).toEqual({
@@ -48,6 +79,7 @@ describe('resolveStellarNetwork', () => {
       passphrase: TESTNET_PASSPHRASE,
       horizonUrl: 'https://horizon-testnet.stellar.org',
       rpcUrl: 'https://soroban-testnet.stellar.org',
+      cliNetwork: 'testnet',
       explorerSegment: 'testnet',
     })
   })
@@ -68,6 +100,7 @@ describe('resolveStellarNetwork', () => {
       passphrase: MAINNET_PASSPHRASE,
       horizonUrl: 'https://horizon.stellar.org',
       rpcUrl: 'https://rpc.example.org',
+      cliNetwork: 'mainnet',
       explorerSegment: 'public',
     })
   })
@@ -104,14 +137,34 @@ describe('resolveStellarNetwork', () => {
     ).toThrow(/does not match MAINNET/)
   })
 
+  it('maps LOCAL to the standalone wallet network, passphrase, and local endpoints', () => {
+    expect(resolveStellarNetwork({ network: 'LOCAL' })).toEqual({
+      network: 'LOCAL',
+      walletNetwork: 'STANDALONE',
+      passphrase: LOCAL_PASSPHRASE,
+      horizonUrl: 'http://localhost:8000',
+      rpcUrl: 'http://localhost:8000/soroban/rpc',
+      cliNetwork: 'local',
+      explorerSegment: null,
+    })
+    expect(() =>
+      resolveStellarNetwork({
+        network: 'LOCAL',
+        passphrase: TESTNET_PASSPHRASE,
+      })
+    ).toThrow(/does not match LOCAL/)
+  })
+
   it('maps each wallet network key to the wallets kit enum value', () => {
     const testnet = resolveStellarNetwork({ network: 'TESTNET' })
     const mainnet = resolveStellarNetwork({
       network: 'MAINNET',
       rpcUrl: 'https://rpc.example.org',
     })
+    const local = resolveStellarNetwork({ network: 'LOCAL' })
     expect(WalletNetwork[testnet.walletNetwork]).toBe(testnet.passphrase)
     expect(WalletNetwork[mainnet.walletNetwork]).toBe(mainnet.passphrase)
+    expect(WalletNetwork[local.walletNetwork]).toBe(local.passphrase)
   })
 
   it('builds explorer links per network', () => {
@@ -172,5 +225,58 @@ describe('STELLAR_CONFIG', () => {
     await expect(
       loadConfig({ NEXT_PUBLIC_STELLAR_NETWORK: 'PUBLIC' })
     ).rejects.toThrow(/Use MAINNET/)
+  })
+
+  it('reads NEXT_PUBLIC_STELLAR_RPC_URL and refuses a different earlier RPC value', async () => {
+    const config = await loadConfig({
+      NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
+      NEXT_PUBLIC_STELLAR_RPC_URL: 'https://soroban-testnet.stellar.org',
+      NEXT_PUBLIC_SOROBAN_RPC_URL: '',
+    })
+    expect(config.SOROBAN_RPC_URL).toBe('https://soroban-testnet.stellar.org')
+    await expect(
+      loadConfig({
+        NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
+        NEXT_PUBLIC_STELLAR_RPC_URL: 'https://soroban-testnet.stellar.org',
+        NEXT_PUBLIC_SOROBAN_RPC_URL: 'http://localhost:8000/soroban/rpc',
+      })
+    ).rejects.toThrow(/both set and differ/)
+  })
+
+  it('fails at load for a mainnet RPC in NEXT_PUBLIC_STELLAR_RPC_URL', async () => {
+    await expect(
+      loadConfig({
+        NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
+        NEXT_PUBLIC_SOROBAN_RPC_URL: '',
+        NEXT_PUBLIC_STELLAR_RPC_URL: 'https://MAINNET.sorobanrpc.com/',
+      })
+    ).rejects.toThrow(/MAINNET_URL/)
+  })
+
+  it('drives the wallet from LOCAL with a local Convex backend', async () => {
+    const config = await loadConfig({
+      NEXT_PUBLIC_STELLAR_NETWORK: 'LOCAL',
+      NEXT_PUBLIC_NETWORK_PASSPHRASE: LOCAL_PASSPHRASE,
+      NEXT_PUBLIC_HORIZON_URL: '',
+      NEXT_PUBLIC_SOROBAN_RPC_URL: '',
+      NEXT_PUBLIC_STELLAR_RPC_URL: 'http://127.0.0.1:8000/soroban/rpc',
+      NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3210',
+    })
+    expect(config.NETWORK).toBe('LOCAL')
+    expect(config.WALLET_NETWORK).toBe('STANDALONE')
+    expect(config.NETWORK_PASSPHRASE).toBe(LOCAL_PASSPHRASE)
+    expect(config.SOROBAN_RPC_URL).toBe('http://127.0.0.1:8000/soroban/rpc')
+  })
+
+  it('fails at load for LOCAL with a Convex cloud URL', async () => {
+    await expect(
+      loadConfig({
+        NEXT_PUBLIC_STELLAR_NETWORK: 'LOCAL',
+        NEXT_PUBLIC_NETWORK_PASSPHRASE: '',
+        NEXT_PUBLIC_HORIZON_URL: '',
+        NEXT_PUBLIC_SOROBAN_RPC_URL: '',
+        NEXT_PUBLIC_CONVEX_URL: 'https://efficient-tern-39.convex.cloud',
+      })
+    ).rejects.toThrow(/LOCAL_CLOUD_CONVEX/)
   })
 })

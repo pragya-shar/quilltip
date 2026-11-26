@@ -6,7 +6,14 @@
 //!
 //! This test recomputes every value from deterministic inputs and compares it
 //! with the committed file. It also verifies every signature and proof read
-//! from the file. To regenerate after an intended encoding change:
+//! from the file.
+//!
+//! The `canonical_articles` section is owned by the canonical article bytes
+//! tests in TypeScript (`scripts/chain/canonical-article.test.ts`). This test
+//! leaves it out of the comparison, checks each case's SHA-256 and byte length,
+//! and keeps the section's text unchanged when it regenerates the file.
+//!
+//! To regenerate after an intended encoding change:
 //!
 //! ```text
 //! QUILLTIP_WRITE_TEST_VECTORS=1 cargo test -p quilltip-shared --test test_vectors
@@ -296,10 +303,6 @@ fn build_vectors(f: &Fixture) -> Value {
             "highlight_ids": highlight_ids,
             "arweave_ids": arweave_ids,
         },
-        "canonical_articles": {
-            "status": "pending: added by the canonical article bytes issue",
-            "cases": [],
-        },
         "keys": {
             "session": {
                 "seed": hex::encode(seed("session-key")),
@@ -409,20 +412,71 @@ fn verify_file_contents(file: &Value) {
     }
 }
 
+/// Top-level key of the section maintained by the TypeScript canonical article tests.
+const CANONICAL_KEY: &str = "canonical_articles";
+
+/// Raw text of the top-level `canonical_articles` entry in the committed file,
+/// from its key up to (not including) the next top-level key.
+fn canonical_section_text(text: &str) -> &str {
+    let start = text
+        .find("\n  \"canonical_articles\": ")
+        .expect("test-vectors.json has no canonical_articles section")
+        + 1;
+    let end = text[start + 1..]
+        .find("\n  \"")
+        .map(|i| start + 1 + i + 1)
+        .unwrap_or_else(|| text.rfind("\n}").expect("unterminated JSON") + 1);
+    &text[start..end]
+}
+
+fn verify_canonical_articles(section: &Value) {
+    let cases = section["cases"]
+        .as_array()
+        .expect("canonical_articles.cases");
+    assert!(!cases.is_empty(), "canonical_articles has no cases");
+    for case in cases {
+        let canonical = str_of(case, "canonical");
+        assert_eq!(
+            hex::encode(sha256(canonical.as_bytes())),
+            str_of(case, "sha256"),
+            "case {}",
+            str_of(case, "name")
+        );
+        assert_eq!(
+            canonical.len() as u64,
+            case["byte_length"].as_u64().unwrap(),
+            "case {}",
+            str_of(case, "name")
+        );
+    }
+}
+
 #[test]
 fn test_vectors_match_the_encoders() {
     let fixture = Fixture::new();
     let expected = build_vectors(&fixture);
 
+    let text = std::fs::read_to_string(VECTORS_PATH).expect("test-vectors.json is missing");
+
     if std::env::var_os("QUILLTIP_WRITE_TEST_VECTORS").is_some() {
-        let text = serde_json::to_string_pretty(&expected).unwrap() + "\n";
-        std::fs::write(VECTORS_PATH, text).unwrap();
+        // Keys are sorted, so `canonical_articles` is the first entry.
+        let generated = serde_json::to_string_pretty(&expected).unwrap() + "\n";
+        let body = generated.strip_prefix("{\n").unwrap();
+        let section = canonical_section_text(&text).trim_end();
+        let section = section.strip_suffix(',').unwrap_or(section);
+        let out = std::format!("{{\n{section},\n{body}");
+        std::fs::write(VECTORS_PATH, out).unwrap();
     }
 
-    let committed: Value = serde_json::from_str(
-        &std::fs::read_to_string(VECTORS_PATH).expect("test-vectors.json is missing"),
-    )
-    .expect("test-vectors.json is not valid JSON");
+    let text = std::fs::read_to_string(VECTORS_PATH).expect("test-vectors.json is missing");
+    let mut committed: Value =
+        serde_json::from_str(&text).expect("test-vectors.json is not valid JSON");
+    let canonical = committed
+        .as_object_mut()
+        .unwrap()
+        .remove(CANONICAL_KEY)
+        .expect("test-vectors.json has no canonical_articles section");
+    verify_canonical_articles(&canonical);
     verify_file_contents(&committed);
     assert!(
         committed == expected,
