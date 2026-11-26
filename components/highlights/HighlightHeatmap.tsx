@@ -1,5 +1,6 @@
 'use client'
 
+import '@/components/highlights/highlights.css'
 import { useArticleHighlightTipStats } from '@/hooks/convex'
 import { earningsLabel } from '@/lib/copy/network-status'
 import type { Id } from '@/types/convex'

@@ -1,5 +1,6 @@
 'use client'
 
+import '@/components/highlights/highlights.css'
 import type { TipXlmPreset } from '@/lib/constants'
 
 import { useState } from 'react'
