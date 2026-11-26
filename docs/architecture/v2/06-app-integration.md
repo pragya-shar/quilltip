@@ -76,9 +76,17 @@ Client reports never confirm a payment (I-21).
 2. A late event moves `EXPIRED` to `CONFIRMED` or `MISMATCH`. Rule 1 makes this
    impossible in normal operation, but the transition is defined so that a
    backfill can apply it.
-3. "Try again" is offered only for `FAILED` (the transaction failed or was
-   never applied) and `EXPIRED`. It always uses a new `client_ref`. `MISMATCH`
-   means money moved, so the UI never offers a retry for it.
+3. "Try again" is offered only for `FAILED` and `EXPIRED`, and it always uses
+   a new `client_ref`.
+   - `FAILED` means no payment was applied. It is set only when one of these
+     holds:
+     - RPC returns `FAILED` for the transaction.
+     - `sendTransaction` returned `ERROR`.
+     - Simulation failed before submission.
+   - A transaction that RPC reports as `SUCCESS` never makes a record
+     `FAILED`, whatever its events contain. Money may have moved, so the
+     record becomes `MISMATCH` ([section 6.4](#64-server-side-verification-details)).
+     The UI never offers a retry for it (I-24).
 4. Core rejects a reused `(tipper, client_ref)` for one day
    (`DuplicateClientRef`).
 
@@ -90,11 +98,11 @@ the edge of retention are flagged for manual review.
 
 **Status sets:**
 
-| Record kind           | States                                                                                                                                                                |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Direct and batch tips | `PREPARED` → `SUBMITTED` → `CONFIRMED` \| `MISMATCH` \| `FAILED` \| `EXPIRED`. Also `PREPARED` → `EXPIRED`, and `EXPIRED` → `CONFIRMED` \| `MISMATCH`.                |
-| Tab tips              | `ACCEPTED` → `SETTLED`; `ACCEPTED` → `SHORTFALL` → `SETTLED` \| `UNPAID`; `REJECTED` (excluded by settler bisection, for review); `VOID_RESET` (a testnet reset only) |
-| Chain submissions     | As direct tips                                                                                                                                                        |
+| Record kind           | States                                                                                                                                                                                                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Direct and batch tips | `PREPARED` → `SUBMITTED` → `CONFIRMED` \| `MISMATCH` \| `FAILED` \| `EXPIRED`. Also `PREPARED` → `EXPIRED`, and `EXPIRED` → `CONFIRMED` \| `MISMATCH`. `MISMATCH` carries `mismatchReason` (`author`, `field:<name>`, `no_event`). `field:*` and `no_event` also set `needsReview`. |
+| Tab tips              | `ACCEPTED` → `SETTLED`; `ACCEPTED` → `SHORTFALL` → `SETTLED` \| `UNPAID`; `REJECTED` (excluded by settler bisection, for review); `VOID_RESET` (a testnet reset only)                                                                                                               |
+| Chain submissions     | As direct tips                                                                                                                                                                                                                                                                      |
 
 `UNPAID` is terminal. It is set when the account is `CLOSED` and the key's
 settle window has ended with `paid < cumulative_after`.
@@ -148,14 +156,21 @@ settle window has ended with `paid < cumulative_after`.
      is keyed by token contract ID.
    - Apply these updates per channel and state:
 
-     | Event                                         | Update                                                                                |
-     | --------------------------------------------- | ------------------------------------------------------------------------------------- |
-     | Direct or batch tip `CONFIRMED` or `MISMATCH` | `earned += net` for the on-chain recipient's user (nothing if the address is unknown) |
-     | Tab tip `ACCEPTED`                            | `pending += amount − fee`                                                             |
-     | `TabSettled`                                  | Move the settled `net` from `pending` to `earned`                                     |
-     | Tab tip `UNPAID` or `VOID_RESET`              | Remove its share from `pending`                                                       |
-     | `Claimed`                                     | `collected += amount`                                                                 |
+     | Event                                                    | Update                                                                                |
+     | -------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+     | Direct or batch tip `CONFIRMED` or `MISMATCH`            | `earned += net` for the on-chain recipient's user (nothing if the address is unknown) |
+     | Tab tip `ACCEPTED`, `TabSettled`, `UNPAID`, `VOID_RESET` | Recompute the pair's figures from the formulas below                                  |
+     | `Claimed`                                                | `collected += amount`                                                                 |
 
+   - **Tab figures per `(reader, key_id, writer)` pair.** These use the same
+     cumulative fee rule as the contract (I-31), so they leave no rounding
+     residue:
+     - `netOf(x) = x − floor(x × 250 / 10,000)`
+     - `earned_pair = netOf(paidOnChain)`
+     - `pending_pair = netOf(acceptedCumulative) − netOf(paidOnChain)`
+       while the pair can still settle. It is 0 once the pair is `UNPAID` or
+       `VOID_RESET`.
+     - A writer's tab `pending` and `earned` are the sums over their pairs.
    - The cent fields (`totalEarnedCents` and so on) are still computed for
      display. They use the price quote stored on each tip row when it reached
      the state above.
@@ -235,10 +250,16 @@ verification. The verifier:
    - `article_id`, `tipper`, `token`, `gross`, `client_ref` and `highlight_id`
    - `fee == floor(gross × 250 / 10,000)`
 
-   If a payment field differs, the record is `FAILED` with
-   `mismatch:<field>`. This cannot happen for a transaction built from the
-   record, because the contract enforces those values. A mismatch therefore
-   means the transaction was tampered with, and the record needs review.
+   If a payment field differs, the record becomes `MISMATCH` with
+   `mismatchReason = field:<name>` and `needsReview = true`. It never becomes
+   `FAILED`, because the transaction succeeded and may have moved money.
+
+   This cannot happen for a transaction built from the record, because the
+   contract enforces those values. It therefore means the envelope was
+   altered. Earnings follow the decoded event. No retry is offered (I-24).
+   - If a `SUCCESS` transaction holds no `Tipped` event for the expected
+     `client_ref`, the record becomes `MISMATCH` with `mismatchReason =
+no_event` and `needsReview = true`. No retry is offered either.
 
 4. Compares the recipient. If `author` differs from the expected author, the
    money went to the registered on-chain author, for example after an author
@@ -283,16 +304,15 @@ verification. The verifier:
    An alert is a structured `console.error` with code `CHAIN_INDEXER_*`. Ops
    reads the status at `app/ops/chain`, which is restricted to `OPS_USER_IDS`.
 
-**Start ledger.** Each Convex deployment has its own indexer and its own
-`INDEXER_START_LEDGER`:
+**Contract sets and start ledger.** Each Convex deployment uses its own
+contract set: Core, Tab and NFT, with their own settler key, acceptor key and
+treasury. The sets are deployed separately ([section 8.4](08-testing-and-deployment.md#84-testnet-deployment-procedure)).
 
-- On the integration deployment, it is the ledger of the Core deploy
-  transaction.
-- On the live deployment, it is the ledger at cutover.
-
-Article IDs derive from each deployment's own Convex IDs, so events from the
-integration deployment's smoke tests do not concern the live deployment. They
-are not indexed there.
+- **No sharing between deployments.** No two Convex deployments settle,
+  accept or index on the same Tab. Leases, settler sequence numbers,
+  `acceptor_keys` slots and indexer cursors therefore never collide.
+- **Start ledger.** `INDEXER_START_LEDGER` is the ledger of the Core deploy
+  transaction of that deployment's own set.
 
 Handlers are idempotent, keyed by `eventId`, so replaying a range is safe.
 
@@ -367,7 +387,7 @@ specification never need such an address, as step 4 of
 | `NEXT_PUBLIC_STELLAR_NETWORK`, `STELLAR_NETWORK`       | client, Convex | `TESTNET`                                                                                                                            |
 | `NEXT_PUBLIC_STELLAR_RPC_URL`, `STELLAR_RPC_URL`       | client, Convex | `https://soroban-testnet.stellar.org`                                                                                                |
 | `NEXT_PUBLIC_NETWORK_PASSPHRASE`, `NETWORK_PASSPHRASE` | client, Convex | `Test SDF Network ; September 2015`                                                                                                  |
-| `NEXT_PUBLIC_CORE_CONTRACT_ID`, `CORE_CONTRACT_ID`     | client, Convex | From the deployment evidence                                                                                                         |
+| `NEXT_PUBLIC_CORE_CONTRACT_ID`, `CORE_CONTRACT_ID`     | client, Convex | From the deployment evidence for this deployment's own contract set                                                                  |
 | `NEXT_PUBLIC_TAB_CONTRACT_ID`, `TAB_CONTRACT_ID`       | client, Convex | Same                                                                                                                                 |
 | `NEXT_PUBLIC_NFT_CONTRACT_ID`, `NFT_CONTRACT_ID`       | client, Convex | Same                                                                                                                                 |
 | `NEXT_PUBLIC_TOKEN_CONTRACT_ID`, `TOKEN_CONTRACT_ID`   | client, Convex | Native XLM SAC on testnet                                                                                                            |
@@ -399,12 +419,23 @@ specification never need such an address, as step 4 of
    - It is never valid for a Convex cloud deployment.
 4. Every script that calls the Stellar CLI passes `--network`, `--rpc-url` and
    `--network-passphrase` explicitly. It never relies on CLI defaults.
+5. A Stellar-only variant, `assertScriptStellarTestnetOnly(operation)` (with
+   `resolveScriptStellarOnlyNetwork`), serves scripts that touch no Convex
+   backend, such as deploy, extend, restore and redeploy.
+   - It applies control 1 and the `LOCAL` rules: mainnet is always refused.
+   - It does not require a Convex target. The existing
+     `assertScriptTestnetOnly` refuses a run without one (`UNKNOWN_CONVEX`).
+   - It refuses to run when a Convex deploy key or a live-backend approval is
+     set. This keeps it from being used to skip control 2.
+   - Scripts that write to Convex, such as the backfill, keep using
+     `assertScriptTestnetOnly`.
 
 **Content security policy.** `proxy.ts` gets these changes:
 
 - `script-src` uses per-request nonces, not `'unsafe-inline'`.
-- `connect-src` lists the configured RPC origins and the Wallets Kit 2.x
-  WalletConnect relay origins.
+- `connect-src` lists the configured RPC origins. The CSP issue adds them.
+- The Wallets Kit 2.x WalletConnect relay origins are added by the Wallets Kit
+  adapter issue, which decides the modules.
 
 ## 6.9 Migration, cutover and rollback
 
@@ -423,11 +454,13 @@ specification never need such an address, as step 4 of
 
 **Cutover sequence:**
 
-1. Deploy v2 to testnet ([section 8.4](08-testing-and-deployment.md#84-testnet-deployment-procedure)).
-2. Run the end-to-end QA on the integration deployment.
-3. On the live deployment, the owner sets the v2 env, including the settler
-   and acceptor secrets, `SETTLEMENT_ENABLED=true`, and
-   `INDEXER_START_LEDGER` set to the current ledger.
+1. Deploy the integration contract set and run the end-to-end QA on the
+   integration deployment.
+2. Deploy the live contract set with the same release commit and the same
+   procedure, using its own keys ([section 8.4](08-testing-and-deployment.md#84-testnet-deployment-procedure)).
+3. On the live deployment, the owner sets the v2 env: the live set's contract
+   IDs, the settler and acceptor secrets, `SETTLEMENT_ENABLED=true` and the
+   live set's `INDEXER_START_LEDGER`.
 4. Freeze v1 prepares (`CHAIN_V1_PREPARES_ENABLED=false`). Let v1
    verification drain, until no v1 record is pending or confirming.
 5. Set `CHAIN_V2_ENABLED=true`.

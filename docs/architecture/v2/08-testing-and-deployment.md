@@ -52,7 +52,9 @@ Each contract sets these `contractmeta!` entries:
 
 The script `scripts/contracts/deploy-v2-testnet.ts` runs these steps.
 
-- It is guarded by `assertScriptTestnetOnly('deploy-v2-testnet')`.
+- It takes `--set integration|live`. Each Convex deployment gets its own contract set, with its own admin, settler, acceptor and treasury keys ([section 6.5](06-app-integration.md#65-event-indexer)).
+- It is guarded by `assertScriptStellarTestnetOnly('deploy-v2-testnet')`. The script touches no Convex backend.
+- Steps 8 and 9 use the TypeScript bindings and the voucher and acceptance encoders from the local-network integration issue.
 - It passes the network, RPC URL and passphrase to the Stellar CLI explicitly.
 - Each step is idempotent.
 
@@ -78,15 +80,15 @@ Steps:
    10. withdraw start
    11. mint
    12. transfer
-9. Write `docs/contracts/v2-testnet-deployment.md`. It is committed and contains no secrets. It records:
+9. Write `docs/contracts/v2-testnet-deployment.md`, with one section per contract set. It is committed and contains no secrets. It records:
    - the commit, tool versions and image digest
    - the Wasm hashes and sizes
    - the contract IDs, and the deploy and constructor transaction hashes with their ledgers
    - the role and acceptor public keys
    - the configuration values
    - the smoke transaction hashes
-   - the integration `INDEXER_START_LEDGER`
-10. Set the env values on the integration deployment ([section 6.8](06-app-integration.md#68-environment-variables-and-network-guard)). List the values that the owner sets on the live deployment at cutover ([section 6.9](06-app-integration.md#69-migration-cutover-and-rollback)).
+   - the set's `INDEXER_START_LEDGER`
+10. For the integration set, set the env values on the integration deployment ([section 6.8](06-app-integration.md#68-environment-variables-and-network-guard)). For the live set, run steps 1 to 9 at cutover and list the values that the owner sets on the live deployment ([section 6.9](06-app-integration.md#69-migration-cutover-and-rollback)).
 
 ## 8.5 Mainnet release differences
 
@@ -163,19 +165,27 @@ One release after cutover ([section 6.9](06-app-integration.md#69-migration-cuto
 Issues can start as soon as their dependencies are merged. Issues in the same
 group can run in parallel.
 
-| Group | Issues                                                                                                                                      | Needs                              |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| 1     | #439 contract workspace and CI · #440 SDK 17 port · #452 network guard update · #453 canonical article bytes · #454 content security policy | the specification                  |
-| 2     | #442 Core · #443 Tab · #444 NFT                                                                                                             | #439                               |
-| 2     | #441 Convex chain layer                                                                                                                     | #452                               |
-| 2     | #455 Wallets Kit 2.8 adapter                                                                                                                | #440                               |
-| 3     | #445 bindings and local network                                                                                                             | #442, #443, #444, #440, #452       |
-| 3     | #446 testnet deployment                                                                                                                     | #442, #443, #444, #452             |
-| 3     | #456 event indexer · #457 read queries and earnings                                                                                         | #441                               |
-| 4     | #447 Convex tab ledger and settler                                                                                                          | #441, #456, #439, #443, #445       |
-| 4     | #458 registration and author change                                                                                                         | #441, #445, #453, #455             |
-| 4     | #459 operations scripts                                                                                                                     | #446, #452, #456                   |
-| 5     | #448 client tip flows                                                                                                                       | #458, #456, #457                   |
-| 5     | #450 NFT UI                                                                                                                                 | #458, #456, #445                   |
-| 6     | #449 tab UI                                                                                                                                 | #447, #448, #454                   |
-| 7     | #451 cutover and removal                                                                                                                    | #446, #448, #449, #450, #459, #457 |
+| Group | Issues                                                                                                                                      | Needs                                    |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| 1     | #439 contract workspace and CI · #440 SDK 17 port · #452 network guard update · #453 canonical article bytes · #454 content security policy | the specification                        |
+| 2     | #442 Core · #443 Tab · #444 NFT                                                                                                             | #439                                     |
+| 2     | #441 Convex chain layer                                                                                                                     | #452                                     |
+| 2     | #455 Wallets Kit 2.8 adapter                                                                                                                | #440                                     |
+| 3     | #445 bindings and local network                                                                                                             | #442, #443, #444, #440, #452             |
+| 3     | #456 event indexer: dispatcher, Core and article handlers                                                                                   | #441                                     |
+| 3     | #457 read queries and earnings for direct and batch tips                                                                                    | #441                                     |
+| 4     | #446 testnet deployment (one contract set per Convex deployment)                                                                            | #442, #443, #444, #452, #445             |
+| 4     | #447 Convex tab ledger and voucher acceptance, tab event handlers and tab earnings                                                          | #441, #456, #439, #443, #445             |
+| 4     | #458 registration and author change                                                                                                         | #441, #445, #453, #455                   |
+| 5     | #465 Convex tab settler                                                                                                                     | #447                                     |
+| 5     | #459 operations scripts                                                                                                                     | #446, #452, #456                         |
+| 5     | #448 client tip flows                                                                                                                       | #458, #456, #457                         |
+| 5     | #450 NFT UI and NFT event handlers                                                                                                          | #458, #456, #445                         |
+| 6     | #449 tab UI                                                                                                                                 | #447, #448, #454                         |
+| 7     | #451 cutover and removal                                                                                                                    | #446, #448, #449, #450, #459, #457, #465 |
+
+**Handler ownership.**
+
+- #456 provides the dispatcher, the cursor, the leases and the handlers for Core events.
+- #447 registers the Tab handlers. #450 registers the NFT handlers.
+- Tab earnings rules belong to #447. Direct and batch earnings rules belong to #457.

@@ -174,11 +174,21 @@ fn settle_own(e: Env, writer: Address, vouchers: Vec<Voucher>) -> SettleSummary
 ```
 
 - **Auth:** `writer`. **Paused:** allowed.
-- **Rules:** the same as `settle`, plus:
-  1. Every `voucher.writer == writer`, else `WrongWriter`, and the whole call fails.
-  2. `acceptance` MUST be `Some`, and `acceptance.acceptor` MUST be in `acceptor_keys`. Otherwise the voucher is skipped with `NOT_ACCEPTED`.
-  3. `ed25519_verify(acceptance.acceptor, xdr(AcceptancePayload{ACCEPT_DOMAIN, sha256(voucher payload bytes)}), acceptance.signature)` must pass. A failed verify traps, like a session-key signature.
-  4. The windows are the same as for `settle`, including `SETTLE_GRACE`.
+- **Call checks:**
+  - Every `voucher.writer == writer`. Otherwise `WrongWriter`, and the whole call fails before any voucher is processed.
+  - Batch size and the abort conditions of `settle` apply.
+- **Per-voucher order:**
+  1. Steps 1 to 3 of `settle`, which can skip with `KEY_UNKNOWN`, `KEY_EXPIRED` or `STALE`. The windows are the same, including `SETTLE_GRACE`.
+  2. `acceptance` MUST be `Some`, and `acceptance.acceptor` MUST be in `acceptor_keys`. Otherwise skip with `NOT_ACCEPTED`.
+  3. Session-key signature check, as in step 4 of `settle`.
+  4. `ed25519_verify(acceptance.acceptor, xdr(AcceptancePayload{ACCEPT_DOMAIN, sha256(voucher payload bytes)}), acceptance.signature)`.
+  5. Steps 5 to 10 of `settle`, with `by_writer = true`.
+- **Abort conditions** (the whole call fails and nothing settles), in addition to those of `settle`:
+  - `WrongWriter`
+  - an invalid acceptance signature (a host trap)
+
+  The writer's client verifies both signatures off-chain before it submits, and the dashboard does this check when it stores a voucher.
+
 - **Purpose:** the countersignature proves that Convex accepted the voucher under its rate and balance rules. A session key used outside the app therefore cannot self-settle to an arbitrary address. This keeps the writers' liveness path without widening the stolen-key exposure ([section 3.5](#35-session-keys)).
 
 ### Claims and views

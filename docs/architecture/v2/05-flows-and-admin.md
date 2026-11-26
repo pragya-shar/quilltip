@@ -186,6 +186,11 @@ Same as 5.2, with these differences:
    5. Record the hash and transaction IDs in the deployment evidence ([section 8.4](08-testing-and-deployment.md#84-testnet-deployment-procedure)).
    6. On mainnet, the upgrade is scheduled through the timelock, whose minimum delay exceeds `WITHDRAW_DELAY + 2 days`.
 6. **Fee:** no operation exists. `FEE_BPS` is a constant, so changing it needs a reviewed upgrade.
+   **Role scope.** The `pauser` role MUST NOT be made the role admin of
+   `settler`. Only the admin grants or revokes `settler`. A settler can submit
+   vouchers without going through the Convex limits, so letting the pauser assign
+   the role would widen the pauser's power.
+
 7. **Settler key rotation:**
    1. Grant `settler` to the new key.
    2. Update the Convex env.
