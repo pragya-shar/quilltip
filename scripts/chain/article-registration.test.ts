@@ -303,7 +303,7 @@ async function chainRow(t: T, s: Seeded) {
   return t.run(async (ctx) =>
     ctx.db
       .query('chainArticles')
-      .withIndex('by_article', (q) => q.eq('articleId', s.articleId))
+      .filter((q) => q.eq(q.field('articleId'), s.articleId))
       .first()
   )
 }
@@ -611,12 +611,12 @@ describe('prepareRegistration', () => {
     ])('refuses invalid splits: %s', async (_name, splits, code) => {
       const t = convexTest(schema, modules)
       const s = await seed(t)
-      let data: { code: string; problems: Array<{ code: string }> } | null =
-        null
+      type Data = { code: string; problems: Array<{ code: string }> }
+      let data: Data | null = null
       try {
         await prepare(t, s, splits)
       } catch (error) {
-        data = (error as ConvexError<typeof data>).data
+        data = (error as ConvexError<Data>).data
       }
       expect(data?.code).toBe('INVALID_SPLITS')
       expect(data?.problems.map((p) => p.code)).toContain(code)
