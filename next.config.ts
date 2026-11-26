@@ -14,6 +14,14 @@ const nextConfig: NextConfig = {
   turbopack: {
     resolveAlias: {
       '@ngneat/elf-devtools': './lib/stubs/elf-devtools.ts',
+      // Browser bundles use the SDK build without Horizon streaming, which the
+      // app does not use. The default browser build bundles an EventSource
+      // polyfill whose util shim probes for `Function(...)`, which the
+      // content security policy blocks. Server code keeps the default entry.
+      '@stellar/stellar-sdk': {
+        browser:
+          './node_modules/@stellar/stellar-sdk/dist/stellar-sdk-no-eventsource.min.js',
+      },
     },
   },
   images: {

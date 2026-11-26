@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from '@/lib/zod'
 import { resolveStellarNetwork } from './network'
 import { assertClientTestnet } from './network-guard'
 import { TESTNET_FALLBACK_XLM_TO_USD_RATE } from './price-fallback'

@@ -1,4 +1,3 @@
-import { createHash } from 'crypto'
 import { getConvexHttpClient } from '@/lib/convex-http-client'
 import { STELLAR_CONFIG } from './config'
 import { loadStellarSdk } from './sdk-loader'
@@ -25,10 +24,22 @@ const MAX_BATCH_TIP_ITEMS = 10
 
 /**
  * Generate a deterministic short ID from article ID using SHA256
- * This prevents collisions that could occur with simple truncation
+ * This prevents collisions that could occur with simple truncation.
+ * Web Crypto keeps Node's crypto polyfill (and its eval probe, which the
+ * content security policy blocks) out of the browser bundle. Same output as
+ * `createHash('sha256').update(id).digest('hex').slice(0, 10)`.
  */
-function shortArticleId(articleId: string): string {
-  return createHash('sha256').update(articleId).digest('hex').slice(0, 10)
+async function shortArticleId(articleId: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    // A fresh Uint8Array is typed as backed by an ArrayBuffer, as digest needs.
+    new Uint8Array(new TextEncoder().encode(articleId))
+  )
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  )
+    .join('')
+    .slice(0, 10)
 }
 
 function validateBatchSize(size: number): void {
@@ -404,11 +415,13 @@ export class StellarClient {
     const account = await server.loadAccount(tipperPublicKey)
     const contract = new StellarSdk.Contract(STELLAR_CONFIG.TIPPING_CONTRACT_ID)
 
-    const tips = items.map((item) => ({
-      article_id: shortArticleId(item.articleId),
-      author: item.authorAddress,
-      amount: BigInt(item.stroops),
-    }))
+    const tips = await Promise.all(
+      items.map(async (item) => ({
+        article_id: await shortArticleId(item.articleId),
+        author: item.authorAddress,
+        amount: BigInt(item.stroops),
+      }))
+    )
 
     const transaction = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
@@ -463,12 +476,14 @@ export class StellarClient {
     const account = await server.loadAccount(tipperPublicKey)
     const contract = new StellarSdk.Contract(STELLAR_CONFIG.TIPPING_CONTRACT_ID)
 
-    const tips = items.map((item) => ({
-      highlight_id: item.highlightId,
-      article_id: shortArticleId(item.articleId),
-      author: item.authorAddress,
-      amount: BigInt(item.stroops),
-    }))
+    const tips = await Promise.all(
+      items.map(async (item) => ({
+        highlight_id: item.highlightId,
+        article_id: await shortArticleId(item.articleId),
+        author: item.authorAddress,
+        amount: BigInt(item.stroops),
+      }))
+    )
 
     const transaction = new StellarSdk.TransactionBuilder(account, {
       fee: StellarSdk.BASE_FEE,
@@ -533,6 +548,7 @@ export class StellarClient {
 
   async getArticleTips(articleId: string): Promise<TipData[]> {
     const { StellarSdk, sorobanServer } = await this.getSdkContext()
+    const articleKey = await shortArticleId(articleId)
     try {
       const contract = new StellarSdk.Contract(
         STELLAR_CONFIG.TIPPING_CONTRACT_ID
@@ -550,7 +566,7 @@ export class StellarClient {
         .addOperation(
           contract.call(
             'get_article_tips',
-            StellarSdk.nativeToScVal(shortArticleId(articleId), {
+            StellarSdk.nativeToScVal(articleKey, {
               type: 'symbol',
             })
           )
