@@ -94,7 +94,7 @@ export type NftCallExpectation = {
       /** The caller's verified address, which must own the token. */
       owner: string
       /**
-       * The address the user confirmed. Null when the user named a QuillTip
+       * The address the user confirmed. Null when the user named a Quilltip
        * user: the review step then shows the server's resolved address, and
        * the user confirms that address.
        */
@@ -278,7 +278,7 @@ export type RecipientProblem =
   | 'secret'
   /** The owner's own address. */
   | 'own'
-  /** A QuillTip contract: the NFT would be lost. */
+  /** A Quilltip contract: the NFT would be lost. */
   | 'platform'
 
 export type RecipientInput =
@@ -300,7 +300,7 @@ const USERNAME_MAX = 20
 
 export const RECIPIENT_COPY: Record<RecipientProblem, string> = {
   format:
-    'Enter a Stellar address (G… or C…) or a QuillTip username such as @ada.',
+    'Enter a Stellar address (G… or C…) or a Quilltip username such as @ada.',
   length: 'A Stellar address has 56 characters.',
   checksum: 'This isn’t a valid Stellar address. Check it for a typo.',
   muxed:
@@ -309,7 +309,7 @@ export const RECIPIENT_COPY: Record<RecipientProblem, string> = {
     'This is a secret key. Don’t share it with anyone. Enter the public address (G…) instead.',
   own: 'This NFT is already in that wallet.',
   platform:
-    'That address is a QuillTip contract. It can’t hold the NFT, so the NFT would be lost.',
+    'That address is a Quilltip contract. It can’t hold the NFT, so the NFT would be lost.',
 }
 
 function invalid(problem: RecipientProblem): RecipientCheck {

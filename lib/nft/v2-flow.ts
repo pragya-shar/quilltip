@@ -105,7 +105,7 @@ export type NftSubmissionStatusLike = {
 
 export type ViewerLike = {
   signedIn: boolean
-  /** The article's author in QuillTip. */
+  /** The article's author in Quilltip. */
   isArticleAuthor: boolean
   /** The account's verified Stellar address, when verified. */
   verifiedAddress: string | null

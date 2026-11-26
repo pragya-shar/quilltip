@@ -23,7 +23,7 @@ export const NFT_COPY = {
   token: 'Token',
   owner: 'Owner',
   you: 'You',
-  ownerOutside: 'A wallet outside QuillTip',
+  ownerOutside: 'A wallet outside Quilltip',
   viewToken: 'View the token on Stellar Expert',
   updatingOwner: 'Updating the owner',
   updatingOwnerDetail:
@@ -60,7 +60,7 @@ export const ELIGIBILITY_COPY: Partial<Record<string, NftCopy>> = {
   PAUSED: {
     title: 'Minting is paused',
     detail:
-      'QuillTip has paused new mints and transfers on Stellar testnet. Your progress is kept.',
+      'Quilltip has paused new mints and transfers on Stellar testnet. Your progress is kept.',
   },
 }
 
@@ -68,7 +68,7 @@ export const ELIGIBILITY_COPY: Partial<Record<string, NftCopy>> = {
 export const PREPARE_REFUSALS: Record<string, NftCopy> = {
   CHAIN_V2_DISABLED: {
     title: 'Article NFTs aren’t on yet',
-    detail: 'This QuillTip site hasn’t turned them on. Nothing was sent.',
+    detail: 'This Quilltip site hasn’t turned them on. Nothing was sent.',
   },
   CHAIN_CONFIG_MISSING: {
     title: 'Article NFTs aren’t set up on this site',
@@ -112,7 +112,7 @@ export const PREPARE_REFUSALS: Record<string, NftCopy> = {
       'Enter a Stellar account (G…) or a contract that can hold NFTs. Nothing was sent.',
   },
   RECIPIENT_NOT_FOUND: {
-    title: 'No QuillTip writer or reader has that username',
+    title: 'No Quilltip writer or reader has that username',
     detail:
       'Check the spelling, or enter their Stellar address. Nothing was sent.',
   },
@@ -135,13 +135,13 @@ export const PREPARE_REFUSALS: Record<string, NftCopy> = {
     detail: 'Wait a minute, then try again. Nothing was sent.',
   },
   INVALID_PREPARE: {
-    title: 'QuillTip couldn’t prepare this',
+    title: 'Quilltip couldn’t prepare this',
     detail: 'Refresh the page and try again. Nothing was sent.',
   },
 }
 
 export const PREPARE_REFUSAL_FALLBACK: NftCopy = {
-  title: 'QuillTip couldn’t prepare this',
+  title: 'Quilltip couldn’t prepare this',
   detail: 'Check your connection and try again. Nothing was sent.',
 }
 
@@ -155,12 +155,12 @@ export const TRANSFER_COPY = {
     'Send the article NFT to another Stellar wallet. The royalty stays with the writer who minted it.',
   recipientLabel: 'Recipient',
   recipientHint:
-    'A Stellar address (G… or C…) or a QuillTip username such as @ada.',
+    'A Stellar address (G… or C…) or a Quilltip username such as @ada.',
   review: 'Review transfer',
   reviewTitle: 'Check the recipient',
   reviewLead: 'You’re sending',
   reviewTo: 'To',
-  reviewUser: (username: string) => `QuillTip account @${username}`,
+  reviewUser: (username: string) => `Quilltip account @${username}`,
   reviewAddressHelp:
     'Compare every group with the address you were given, not only the first and last.',
   contractWarning:
@@ -173,6 +173,6 @@ export const TRANSFER_COPY = {
   copy: 'Copy address',
   copied: 'Address copied',
   refreshed:
-    'The review timed out, so QuillTip prepared it again. Check the address once more.',
+    'The review timed out, so Quilltip prepared it again. Check the address once more.',
   close: 'Close',
 } as const

@@ -237,7 +237,7 @@ const SCENES: Scene[] = [
   {
     id: 'minted-outside',
     query: 'state=minted-outside',
-    expect: 'A wallet outside QuillTip',
+    expect: 'A wallet outside Quilltip',
   },
   { id: 'not-owner', query: 'state=not-owner', expect: '@writer' },
   {
@@ -455,7 +455,7 @@ const SCENES: Scene[] = [
     id: 'transfer-invalid-platform',
     query: 'state=owner',
     act: typeRecipient(CORE),
-    expect: /QuillTip contract/,
+    expect: /Quilltip contract/,
   },
   {
     id: 'transfer-invalid-muxed',
@@ -485,7 +485,7 @@ const SCENES: Scene[] = [
       await d.getByLabel('Recipient').fill('@nobody')
       await d.getByRole('button', { name: 'Review transfer' }).click()
     },
-    expect: /No QuillTip writer or reader has that username/,
+    expect: /No Quilltip writer or reader has that username/,
   },
   {
     id: 'transfer-user-no-wallet',
@@ -501,7 +501,7 @@ const SCENES: Scene[] = [
     id: 'transfer-review-user',
     query: 'state=owner',
     act: (page) => toReview(page, '@ada'),
-    expect: 'QuillTip account @ada',
+    expect: 'Quilltip account @ada',
   },
   {
     id: 'transfer-review-contract',
@@ -709,7 +709,7 @@ test.describe('transfer', () => {
     await expect(dialog.getByRole('alert')).toHaveCount(0)
     await expect(field).not.toHaveAttribute('aria-invalid', 'true')
     await field.fill(NFT)
-    await expect(dialog.getByRole('alert')).toContainText('QuillTip contract')
+    await expect(dialog.getByRole('alert')).toContainText('Quilltip contract')
     expect((await log(page)).prepared).toHaveLength(0)
   })
 
@@ -797,7 +797,7 @@ test.describe('transfer', () => {
       ).__nftFixtureControl.moveOwner(to)
     }, OUTSIDE)
     await expect(
-      panel(page).getByText('A wallet outside QuillTip')
+      panel(page).getByText('A wallet outside Quilltip')
     ).toBeVisible()
     await expect(
       panel(page).getByRole('button', { name: 'Transfer NFT' })
@@ -917,7 +917,7 @@ test.describe('worst-case data', () => {
           id: 'worst-review-long-user',
           query: 'state=owner&data=worst',
           act: (page) => toReview(page, '@bartholomew_fitzgera'),
-          expect: 'QuillTip account @bartholomew_fitzgera',
+          expect: 'Quilltip account @bartholomew_fitzgera',
         },
       ]
       for (const scene of cases) {

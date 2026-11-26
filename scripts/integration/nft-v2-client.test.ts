@@ -422,7 +422,7 @@ describe('5.10 from the client: mint at the threshold, then transfer', () => {
     })
   })
 
-  it('transfers to a QuillTip user, confirming the address the server resolved', async () => {
+  it('transfers to a Quilltip user, confirming the address the server resolved', async () => {
     const before = await panelFor(ids.authorId, author.publicKey())
     if (before.kind !== 'minted') throw new Error('not minted')
     const recipient = checkRecipient('@collector', {
@@ -476,7 +476,7 @@ describe('5.10 from the client: mint at the threshold, then transfer', () => {
     ).toMatchObject({ viewerOwns: true, transfer: 'allowed' })
   })
 
-  it('transfers to an address outside QuillTip typed by the owner', async () => {
+  it('transfers to an address outside Quilltip typed by the owner', async () => {
     const before = await panelFor(ids.collectorId, collector.publicKey())
     if (before.kind !== 'minted') throw new Error('not minted')
     const typed = checkRecipient(outsider.publicKey().toLowerCase(), {
@@ -515,7 +515,7 @@ describe('5.10 from the client: mint at the threshold, then transfer', () => {
     expect(
       (await nft(outsider).owner_of({ token_id: before.token.tokenId })).result
     ).toBe(outsider.publicKey())
-    // Nobody in QuillTip owns it now; readers see an outside wallet.
+    // Nobody in Quilltip owns it now; readers see an outside wallet.
     expect(await panelFor(null, null)).toMatchObject({
       kind: 'minted',
       transfer: 'signed-out',
