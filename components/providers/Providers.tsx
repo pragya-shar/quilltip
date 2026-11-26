@@ -2,13 +2,20 @@
 
 import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import { ConvexReactClient } from 'convex/react'
-import { Toaster } from '@/components/ui/sonner'
+import dynamic from 'next/dynamic'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { WalletErrorFallback } from '@/components/error/WalletErrorFallback'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import { WalletActivationProvider } from './WalletActivationContext'
 import { WalletProvider } from './WalletProvider'
 import { AuthSessionProvider } from './AuthContext'
+
+// Toasts only follow an action, so the toaster is not part of the first load.
+// Sonner keeps toasts raised before it mounts and shows them once it does.
+const Toaster = dynamic(
+  () => import('@/components/ui/sonner').then((mod) => mod.Toaster),
+  { ssr: false }
+)
 
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
