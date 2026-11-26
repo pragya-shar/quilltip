@@ -12,8 +12,14 @@ import { NetworkGuardError, resolveScriptStellarNetwork } from './network-guard'
 
 type EnvLike = Record<string, string | undefined>
 
-/** Flags the wrapper sets itself. Callers must not pass them. */
-const NETWORK_FLAGS = ['--network', '--rpc-url', '--network-passphrase', '-n']
+/** Long flags the wrapper sets itself. Callers must not pass them. */
+const NETWORK_FLAGS = ['--network', '--rpc-url', '--network-passphrase']
+
+/** Short form of `--network`, alone or in a group (`-n x`, `-nx`, `-qn x`). */
+const SHORT_NETWORK_FLAG = /^-[A-Za-z]*n/
+
+/** Ends the CLI's own options; later arguments go to the contract function. */
+const OPTIONS_END = '--'
 
 /** Stellar CLI env variables that could select another network. */
 const CLI_NETWORK_ENV = [
@@ -34,12 +40,27 @@ export type StellarCliCommand = {
   network: 'TESTNET' | 'LOCAL'
 }
 
-function refuseNetworkFlags(operation: string, args: string[]): void {
-  const refused = args.filter((arg) =>
-    NETWORK_FLAGS.some((flag) => arg === flag || arg.startsWith(`${flag}=`))
-  )
-  if (refused.length > 0) {
-    const names = [...new Set(refused.map((arg) => arg.split('=')[0]))]
+/** Split caller arguments at the first `--` (CLI options, then the rest). */
+function splitAtOptionsEnd(args: string[]): [string[], string[]] {
+  const end = args.indexOf(OPTIONS_END)
+  return end === -1 ? [args, []] : [args.slice(0, end), args.slice(end)]
+}
+
+/** Flag name to print for a refused argument; never its value. */
+function refusedFlagName(arg: string): string | null {
+  for (const flag of NETWORK_FLAGS) {
+    if (arg === flag || arg.startsWith(`${flag}=`)) return flag
+  }
+  return SHORT_NETWORK_FLAG.test(arg) ? '-n' : null
+}
+
+function refuseNetworkFlags(operation: string, options: string[]): void {
+  const names = [
+    ...new Set(
+      options.map(refusedFlagName).filter((name): name is string => !!name)
+    ),
+  ]
+  if (names.length > 0) {
     throw new NetworkGuardError(operation, [
       {
         code: 'CLI_NETWORK_FLAG',
@@ -71,13 +92,17 @@ export function stellarCliNetworkArgs(
 /**
  * Build a guarded Stellar CLI command. `args` is the subcommand and its own
  * flags, for example `['contract', 'deploy', '--wasm', path, '--source', id]`.
+ * Arguments after `--` (contract function arguments) are passed on unchanged,
+ * after the network flags.
  */
 export function buildStellarCliCommand(
   operation: string,
   args: string[],
   env: EnvLike = process.env
 ): StellarCliCommand {
-  refuseNetworkFlags(operation, args)
+  // Arguments after `--` belong to the contract function, not to the CLI.
+  const [options, functionArgs] = splitAtOptionsEnd(args)
+  refuseNetworkFlags(operation, options)
   const network = resolveScriptStellarNetwork(operation, env)
   const childEnv: EnvLike = { ...env }
   for (const name of CLI_NETWORK_ENV) delete childEnv[name]
@@ -87,13 +112,14 @@ export function buildStellarCliCommand(
   return {
     command: 'stellar',
     args: [
-      ...args,
+      ...options,
       '--network',
       network.cliNetwork,
       '--rpc-url',
       network.rpcUrl,
       '--network-passphrase',
       network.passphrase,
+      ...functionArgs,
     ],
     env: childEnv,
     network: network.guard.network,

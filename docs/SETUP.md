@@ -88,7 +88,8 @@ testnet guard before doing any work. Each call states its kind:
 - Scripts that call the Stellar CLI build the command with `runStellarCli` or
   `buildStellarCliCommand` from `scripts/lib/stellar-cli.ts`. The wrapper runs
   the operational guard and passes `--network`, `--rpc-url`, and
-  `--network-passphrase` explicitly; callers must not pass those flags.
+  `--network-passphrase` explicitly; callers must not pass those flags (or `-n`)
+  before `--`. Arguments after `--` go to the contract function unchanged.
 
 Script helpers live in `scripts/lib/network-guard.ts`; the shared logic is in
 `convex/lib/networkGuard.ts`. Every run needs `QUILLTIP_NETWORK_GUARD_OPT_IN`:

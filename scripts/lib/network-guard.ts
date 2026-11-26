@@ -98,9 +98,12 @@ export function resolveScriptStellarNetwork(
   env: EnvLike = process.env
 ): ScriptStellarNetwork {
   const guard = assertScriptTestnetOnly(operation, env)
-  const rpcUrl =
-    env.STELLAR_RPC_URL?.trim() ||
-    pickRpcUrl(env.NEXT_PUBLIC_STELLAR_RPC_URL, env.NEXT_PUBLIC_SOROBAN_RPC_URL)
+  // Check the two public names agree even when STELLAR_RPC_URL takes effect.
+  const publicRpcUrl = pickRpcUrl(
+    env.NEXT_PUBLIC_STELLAR_RPC_URL,
+    env.NEXT_PUBLIC_SOROBAN_RPC_URL
+  )
+  const rpcUrl = env.STELLAR_RPC_URL?.trim() || publicRpcUrl
   const passphrase = SCRIPT_PASSPHRASE_VARIABLES.map((name) =>
     env[name]?.trim()
   ).find(Boolean)
