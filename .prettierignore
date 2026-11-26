@@ -7,6 +7,7 @@ bun.lock
 public
 contracts/*/target
 contracts/target
+contracts/**/fuzz/target
 # Soroban test snapshots are generated files; CI diffs them byte for byte.
 contracts/**/test_snapshots
 
