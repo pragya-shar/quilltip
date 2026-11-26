@@ -454,17 +454,50 @@ describe('5.2 to 5.4 direct, highlight and batch tips', () => {
 async function openTab(reader: Keypair, deposit: bigint, spendLimit: bigint) {
   const seed = rand(32)
   const until = (await h.latestLedger()) + 20_000
-  const { result } = await send(
-    'open_session',
-    tab(reader).open_session({
-      reader: reader.publicKey(),
-      amount: deposit,
-      public_key: publicKeyOf(seed),
-      valid_until: until,
-      spend_limit: spendLimit,
-    })
+  const { result } = await busyRetry(() =>
+    send(
+      'open_session',
+      tab(reader).open_session({
+        reader: reader.publicKey(),
+        amount: deposit,
+        public_key: publicKeyOf(seed),
+        valid_until: until,
+        spend_limit: spendLimit,
+      })
+    )
   )
   return { seed, keyId: result as number }
+}
+
+/**
+ * Retries a call that the RPC refused because its simulation queue was full.
+ * The contract never saw the refused call, so a retry is safe.
+ */
+async function busyRetry<T>(call: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await call()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      if (!/queue full|retry later/i.test(message) || attempt >= 10) throw e
+      await new Promise((r) => setTimeout(r, 1_000 * (attempt + 1)))
+    }
+  }
+}
+
+/** Opens a 5 XLM tab for each reader, four at a time to keep RPC load low. */
+async function openTabs(readers: Keypair[]) {
+  const out: Awaited<ReturnType<typeof openTab>>[] = []
+  for (let i = 0; i < readers.length; i += 4) {
+    out.push(
+      ...(await Promise.all(
+        readers
+          .slice(i, i + 4)
+          .map((r) => openTab(r, BigInt(5) * XLM, BigInt(5) * XLM))
+      ))
+    )
+  }
+  return out
 }
 
 function voucher(
@@ -797,9 +830,7 @@ describe('measurements', () => {
   it('settle at N = 1, 10, 25 and 32 distinct readers and writers', async () => {
     for (const n of [1, 10, 25, 32]) {
       const readers = await h.accounts(n)
-      const opened = await Promise.all(
-        readers.map((r) => openTab(r, BigInt(5) * XLM, BigInt(5) * XLM))
-      )
+      const opened = await openTabs(readers)
       const writers = readers.map(() => Keypair.random().publicKey())
       const vouchers = readers.map((r, i) =>
         voucher(
@@ -837,9 +868,7 @@ describe('measurements', () => {
     // settle_own at the cap: one writer, 32 readers.
     const writer = await h.account()
     const readers = await h.accounts(32)
-    const opened = await Promise.all(
-      readers.map((r) => openTab(r, BigInt(5) * XLM, BigInt(5) * XLM))
-    )
+    const opened = await openTabs(readers)
     const vouchers = readers.map((r, i) =>
       voucher(
         r.publicKey(),
