@@ -14,6 +14,15 @@ async function open(page: Page, id: string, session?: string) {
   return errors
 }
 
+type Backend = { calls: string[]; tab: { outstanding: string } }
+
+/** The stand-in backend's state for this page's session, read fresh. */
+async function backend(page: Page): Promise<Backend> {
+  const session = new URL(page.url()).searchParams.get('session')
+  const res = await page.request.get(`/api/state?session=${session}`)
+  return res.json()
+}
+
 const tipButton = (page: Page) =>
   page.getByRole('button', { name: /from tab$/ })
 const text = (page: Page, t: string | RegExp) =>
@@ -62,15 +71,7 @@ test('a lost response resubmits the same voucher and is accepted once', async ({
   await expect(text(page, 'Tip sent from your tab')).toBeVisible({
     timeout: 15_000,
   })
-  const calls = await page.evaluate(() =>
-    (
-      window as unknown as {
-        tabFixture: {
-          snapshot(): { calls: string[]; tab: { outstanding: string } }
-        }
-      }
-    ).tabFixture.snapshot()
-  )
+  const calls = await backend(page)
   expect(calls.calls.filter((c) => c === 'submitTip').length).toBe(2)
   expect(calls.calls.filter((c) => c === 'prepareTip').length).toBe(1)
   expect(calls.tab.outstanding).toBe('25000000')
@@ -82,12 +83,7 @@ test('a stale submit prepares once more and is accepted', async ({ page }) => {
   await expect(text(page, /Tip sent from your tab|Tip settled/)).toBeVisible({
     timeout: 10_000,
   })
-  const calls = await page.evaluate(
-    () =>
-      (
-        window as unknown as { tabFixture: { snapshot(): { calls: string[] } } }
-      ).tabFixture.snapshot().calls
-  )
+  const calls = (await backend(page)).calls
   expect(calls.filter((c) => c === 'prepareTip').length).toBe(2)
 })
 
@@ -134,15 +130,7 @@ test('two browser tabs tipping at once: both land, one after a retry, the pair a
       timeout: 15_000,
     })
   }
-  const snapshot = await page.evaluate(() =>
-    (
-      window as unknown as {
-        tabFixture: {
-          snapshot(): { tab: { outstanding: string }; calls: string[] }
-        }
-      }
-    ).tabFixture.snapshot()
-  )
+  const snapshot = await backend(page)
   // Two tips of 25 cents (2.5 XLM each) accepted, never more.
   expect(snapshot.tab.outstanding).toBe('50000000')
   expect(

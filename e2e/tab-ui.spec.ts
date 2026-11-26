@@ -90,6 +90,10 @@ const overflow = (page: Page) =>
   )
 
 async function axe(page: Page) {
+  // Scan settled pixels: the kit's result rises in over 220 ms.
+  await page.waitForFunction(() =>
+    document.getAnimations().every((a) => a.playState !== 'running')
+  )
   const results = await new AxeBuilder({ page })
     .include('.tab-ui')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
@@ -105,6 +109,13 @@ async function amountsLabelled(page: Page) {
     const text = document.querySelector('.tab-ui')?.textContent ?? ''
     return !/\bXLM\b/.test(text) || text.includes('Stellar testnet')
   })
+}
+
+/** The stand-in backend's state for this page's session, read fresh. */
+async function backend(page: Page): Promise<{ calls: string[] }> {
+  const session = new URL(page.url()).searchParams.get('session')
+  const res = await page.request.get(`/api/state?session=${session}`)
+  return res.json()
 }
 
 const visibleText = (page: Page, text: string | RegExp) =>
@@ -217,12 +228,7 @@ test('top-up refuses an amount the wallet cannot spend before any prompt', async
   const input = page.getByLabel('Amount in XLM')
   await expect(input).toHaveAttribute('aria-invalid', 'true')
   await expect(input).toBeFocused()
-  const calls = await page.evaluate(
-    () =>
-      (
-        window as unknown as { tabFixture: { snapshot(): { calls: string[] } } }
-      ).tabFixture.snapshot()?.calls ?? []
-  )
+  const calls = (await backend(page)).calls
   expect(calls.filter((c) => c.startsWith('send:'))).toEqual([])
 })
 
@@ -261,7 +267,9 @@ test('keyboard only: the top-up form submits with Enter and focus follows the pa
   await page.keyboard.press('Tab')
   await expect(page.getByRole('button', { name: 'Done' })).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect(page.getByRole('button', { name: 'Top up', exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Top up', exact: true })
+  ).toBeVisible()
 })
 
 test('live regions are mounted empty and announce a result that keeps focus', async ({
