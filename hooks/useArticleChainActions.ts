@@ -53,7 +53,12 @@ export function useArticleChainActions(articleId: Id<'articles'>) {
   )
   const recordSubmitted = useMutation(api.chain.submissions.recordSubmitted)
   const recordSendFailed = useMutation(api.chain.submissions.recordSendFailed)
-  const walletContext = useWallet()
+  // Load the wallet runtime only where v2 actions can run.
+  const walletContext = useWallet({
+    activateOnMount: registration?.v2Enabled === true,
+  })
+  const walletRef = useRef(walletContext)
+  walletRef.current = walletContext
 
   const [running, setRunning] = useState<ArticleAction | null>(null)
   const [phase, setPhase] = useState<ArticleActionPhase | null>(null)
@@ -120,7 +125,11 @@ export function useArticleChainActions(articleId: Id<'articles'>) {
         connect: async () => {
           const current = wallet.getConnection()
           if (current) return current.address
-          const connected = await walletContext.connect()
+          // The runtime may still be loading; its connect opens the picker.
+          for (let i = 0; i < 50 && walletRef.current.isLoading; i++) {
+            await new Promise((resolve) => setTimeout(resolve, 100))
+          }
+          const connected = await walletRef.current.connect()
           return connected ? (wallet.getConnection()?.address ?? null) : null
         },
         sign: async (xdr, signer) =>
@@ -160,7 +169,6 @@ export function useArticleChainActions(articleId: Id<'articles'>) {
       recordSendFailed,
       recordSubmitted,
       running,
-      walletContext,
     ]
   )
 
