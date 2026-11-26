@@ -80,16 +80,16 @@ export function useArticleChainActions(articleId: Id<'articles'>) {
       try {
         runtime = v2Runtime()
       } catch (error) {
+        // The message names environment variables: log it, do not show it.
+        console.error('[tips] payments v2 is not configured', error)
         setRunning(null)
         setFailure({
           action,
           code: 'CONFIG',
           message: {
-            title: 'Tips on Stellar are not set up here',
-            detail:
-              error instanceof Error
-                ? error.message
-                : 'Check the configuration.',
+            title: 'Tips on Stellar testnet are not set up on this site',
+            // The raw error names environment variables; keep it out of the UI.
+            detail: 'Nothing was sent. Try again later.',
           },
         })
         return null

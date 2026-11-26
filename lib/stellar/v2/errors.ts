@@ -15,7 +15,7 @@ type Entry = { name: string; message: string }
 
 const CORE: Record<number, string> = {
   1: 'This article is not registered on Stellar yet.',
-  2: 'This article is already registered on Stellar.',
+  2: 'Tips are already on for this article. Refresh the page to see them.',
   3: 'The article’s content anchor is missing. Refresh the page and try again.',
   4: 'The tip shares are not valid. Check that they add up to 100%.',
   5: 'An article can share tips with at most 4 co-authors.',
@@ -89,7 +89,7 @@ function table(
   return out
 }
 
-const GENERIC = 'Stellar refused the transaction. Nothing was sent.'
+const GENERIC = 'Stellar testnet refused the transaction. Nothing was sent.'
 
 export const CONTRACT_ERRORS: ReadonlyMap<number, Entry> = new Map([
   ...table(CoreError, CORE, GENERIC),

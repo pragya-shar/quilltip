@@ -225,7 +225,7 @@ export async function runArticleAction(
           stage: 'simulation',
           code: outcome.error.name,
           message: {
-            title: 'Stellar would refuse this',
+            title: 'Stellar testnet would refuse this',
             detail: `${outcome.error.message} Nothing was signed.`,
           },
         },
@@ -239,7 +239,7 @@ export async function runArticleAction(
           stage: 'send',
           code: outcome.detail,
           message: {
-            title: 'Stellar did not accept the transaction',
+            title: 'Stellar testnet did not accept the transaction',
             detail: `${outcome.error.message}`,
           },
         },

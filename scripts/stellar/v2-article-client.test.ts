@@ -75,7 +75,8 @@ describe('errors', () => {
   it('gives Core registration errors specific messages', () => {
     expect(contractErrorMessage(2)).toMatchObject({
       name: 'AlreadyRegistered',
-      message: 'This article is already registered on Stellar.',
+      message:
+        'Tips are already on for this article. Refresh the page to see them.',
     })
     expect(contractErrorMessage(19).name).toBe('NoPendingAuthor')
     expect(contractErrorMessage(1000).name).toBe('EnforcedPause')
