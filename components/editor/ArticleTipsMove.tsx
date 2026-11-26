@@ -40,7 +40,13 @@ export function ArticleTipsMove({
           {step === 'accept' && <span className="tips-step-done"> Done</span>}
         </li>
         <li aria-current={step === 'accept' ? 'step' : undefined}>
-          <span>Approve with your new wallet within 7 days</span>
+          <span>
+            Switch your wallet to{' '}
+            <span translate="no">
+              {to ? shortAddress(to) : 'your new address'}
+            </span>
+            , then approve within 7 days
+          </span>
         </li>
       </ol>
       <button

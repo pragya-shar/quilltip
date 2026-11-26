@@ -283,15 +283,18 @@
 .writing-workspace .article-tips input[type='text'] {
   min-height: 44px;
   padding: 8px 10px;
-  border: 1px solid #6600334d;
+  /* 3:1 against the panel and the input fill (WCAG 1.4.11). */
+  border: 1px solid #66003380;
   border-radius: 6px;
   background: #fffaf2;
   color: var(--ink);
   /* 16px stops iOS from zooming on focus. */
   font-size: 16px;
 }
-.writing-workspace .article-tips input[type='text']:hover {
-  border-color: #66003380;
+@media (hover: hover) and (pointer: fine) {
+  .writing-workspace .article-tips input[type='text']:hover {
+    border-color: #660033b3;
+  }
 }
 .writing-workspace .article-tips .tips-split-who input {
   width: 100%;
@@ -331,7 +334,8 @@
   font-size: 14px;
 }
 .writing-workspace .article-tips .tips-field-error::before {
-  content: '! ';
+  /* Decorative: screen readers skip it. */
+  content: '! ' / '';
   font-weight: 700;
 }
 .writing-workspace .article-tips .tips-split-footer {
@@ -368,6 +372,22 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+/* Error details can hold hashes or addresses with no break points. */
+.writing-workspace .article-tips .tips-failure p {
+  overflow-wrap: anywhere;
+}
+.writing-workspace .article-tips .tips-failure:focus {
+  outline: 2px solid var(--tips-error);
+  outline-offset: 2px;
+}
+.writing-workspace .article-tips h2:focus {
+  outline: none;
+}
+.writing-workspace .article-tips .tips-split-full {
+  color: var(--tips-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
 }
 .writing-workspace .article-tips .tips-failure-title {
   font-weight: 600;

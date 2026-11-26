@@ -70,7 +70,8 @@ export function splitProblems(
       problems.push({
         code: 'INVALID_ADDRESS',
         index,
-        message: 'Enter a Stellar address that starts with G.',
+        message:
+          'This isn’t a valid Stellar address. Copy it again from the co-author’s wallet.',
       })
     } else if (seen.has(split.recipient)) {
       problems.push({
@@ -115,7 +116,8 @@ export function splitProblems(
  * points. Returns null for anything else.
  */
 export function percentToBps(text: string): number | null {
-  const trimmed = text.trim()
+  // Accept a trailing percent sign, as in "25%".
+  const trimmed = text.trim().replace(/\s*%$/, '')
   if (!/^\d{1,3}(\.\d{1,2})?$/.test(trimmed)) return null
   const [whole, fraction = ''] = trimmed.split('.')
   const bps = Number(whole) * 100 + Number(fraction.padEnd(2, '0'))

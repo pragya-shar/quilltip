@@ -91,10 +91,18 @@ export function ArticleTipsSplits({
                         onChange(
                           row.key,
                           'recipient',
-                          event.target.value.trim()
+                          // Pasted addresses may be lower case.
+                          event.target.value.trim().toUpperCase()
                         )
                       }
                     />
+                    {row.recipient.length > 20 && (
+                      // The input cuts long addresses off; show the whole
+                      // address so the author can check it before signing.
+                      <span className="tips-split-full" translate="no">
+                        {row.recipient}
+                      </span>
+                    )}
                   </>
                 )}
               </div>
@@ -154,10 +162,7 @@ export function ArticleTipsSplits({
         ) : (
           <span className="tips-muted">Up to 4 co-authors.</span>
         )}
-        <span
-          className={`tips-split-total${totalError ? ' is-error' : ''}`}
-          aria-live="polite"
-        >
+        <span className={`tips-split-total${totalError ? ' is-error' : ''}`}>
           Total {bpsToPercent(total)}%
         </span>
       </div>
