@@ -2,6 +2,7 @@ import { tipXlmPresetValidator } from './lib/articleTipExpectation'
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { authTables } from '@convex-dev/auth/server'
+import { chainTables, tipChainFields } from './lib/chain/schema'
 
 export default defineSchema({
   ...authTables,
@@ -408,6 +409,9 @@ export default defineSchema({
     platformFee: v.optional(v.number()),
     authorShare: v.optional(v.number()),
 
+    // Payments v2 fields (optional; v1 rows leave them unset)
+    ...tipChainFields,
+
     // Timestamps
     createdAt: v.number(),
     processedAt: v.optional(v.number()),
@@ -420,7 +424,9 @@ export default defineSchema({
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
     .index('by_status_updated', ['status', 'updatedAt']) // For stuck verification recovery
     .index('by_article_tip_intent', ['articleTipIntentId'])
-    .index('by_stellar_tx', ['stellarTxId']), // For dedup on at-least-once retries
+    // Not unique for v2: batch rows share one hash.
+    .index('by_stellar_tx', ['stellarTxId'])
+    .index('by_client_ref', ['clientRef']),
 
   // Highlight Tips table (NEW - granular tipping)
   highlightTips: defineTable({
@@ -444,10 +450,11 @@ export default defineSchema({
     amountCents: v.number(),
     message: v.optional(v.string()),
 
-    // Stellar transaction data
-    stellarTxId: v.string(),
-    stellarNetwork: v.string(), // TESTNET or MAINNET
-    stellarMemo: v.string(), // Highlight ID stored in memo
+    // Stellar transaction data. Optional because v2 batch and tab rows have
+    // no value at insert.
+    stellarTxId: v.optional(v.string()),
+    stellarNetwork: v.optional(v.string()), // TESTNET or MAINNET
+    stellarMemo: v.optional(v.string()), // Highlight ID stored in memo
     stellarLedger: v.optional(v.number()),
     stellarFeeCharged: v.optional(v.string()),
     stellarSourceAccount: v.optional(v.string()),
@@ -493,9 +500,12 @@ export default defineSchema({
     platformFee: v.optional(v.number()),
     authorShare: v.optional(v.number()),
 
+    // Payments v2 fields (optional; v1 rows leave them unset)
+    ...tipChainFields,
+
     // Timestamps
     createdAt: v.number(),
-    processedAt: v.number(),
+    processedAt: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index('by_highlight', ['highlightId'])
@@ -506,7 +516,8 @@ export default defineSchema({
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
     .index('by_status_updated', ['status', 'updatedAt']) // For stuck verification recovery
     .index('by_highlight_tip_intent', ['highlightTipIntentId'])
-    .index('by_stellar_tx', ['stellarTxId']),
+    .index('by_stellar_tx', ['stellarTxId'])
+    .index('by_client_ref', ['clientRef']),
 
   // Author Earnings table
   authorEarnings: defineTable({
@@ -558,9 +569,16 @@ export default defineSchema({
     contractAddress: v.optional(v.string()),
     metadataUrl: v.string(),
 
-    // Ownership
+    // Ownership. For v2 rows `ownerAddress` is the source of truth and
+    // `currentOwner` is set only when it resolves to a QuillTip user.
     mintedBy: v.id('users'),
-    currentOwner: v.id('users'),
+    currentOwner: v.optional(v.id('users')),
+    ownerAddress: v.optional(v.string()),
+
+    // Payments v2
+    contractVersion: v.optional(v.union(v.literal('v1'), v.literal('v2'))),
+    txHash: v.optional(v.string()),
+    chainVerifiedAt: v.optional(v.number()),
 
     // Minting criteria
     tipThreshold: v.number(),
@@ -582,7 +600,9 @@ export default defineSchema({
 
     // Transfer parties
     fromUserId: v.id('users'),
-    toUserId: v.id('users'),
+    toUserId: v.optional(v.id('users')),
+    fromAddress: v.optional(v.string()),
+    toAddress: v.optional(v.string()),
 
     // Transaction data
     transactionId: v.optional(v.string()),
@@ -740,4 +760,7 @@ export default defineSchema({
     windowStart: v.number(),
     count: v.number(),
   }).index('by_key', ['key']),
+
+  // Payments v2 chain layer (docs/architecture/v2/06-app-integration.md, 6.2)
+  ...chainTables,
 })

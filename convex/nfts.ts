@@ -134,7 +134,7 @@ export const getNFTByArticle = query({
     if (nft) {
       // NFT exists - return full NFT data with status
       const [owner, minter] = await Promise.all([
-        ctx.db.get(nft.currentOwner),
+        nft.currentOwner ? ctx.db.get(nft.currentOwner) : null,
         ctx.db.get(nft.mintedBy),
       ])
 
@@ -212,7 +212,7 @@ export const getNFTDetails = query({
     if (!nft) return null
 
     const [owner, minter, article] = await Promise.all([
-      ctx.db.get(nft.currentOwner),
+      nft.currentOwner ? ctx.db.get(nft.currentOwner) : null,
       ctx.db.get(nft.mintedBy),
       ctx.db.get(nft.articleId),
     ])
