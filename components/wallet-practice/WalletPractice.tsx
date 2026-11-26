@@ -23,22 +23,22 @@ import {
   buildPractice,
   validateSigned,
   checkPractice,
-  makeKit,
-  ensureNetwork,
-  Networks,
   parsePracticeRecord,
   type PracticeRecord,
-  type PracticeKit,
 } from '@/lib/stellar/practice'
+import { wallet as walletAdapter } from '@/lib/stellar/v2/wallet-kit'
+import {
+  isWalletError,
+  walletErrorMessage,
+} from '@/lib/stellar/v2/wallet-errors'
 
 const wallets: [string, string][] = [
-  ['freighter', 'Freighter'],
+  ['varial', 'Varial (formerly Freighter)'],
   ['xbull', 'xBull'],
   ['albedo', 'Albedo'],
 ]
 export default function WalletPractice({ active }: { active: boolean }) {
-  const kit = useRef<PracticeKit | null>(null),
-    lock = useRef(false)
+  const lock = useRef(false)
   const returnUrl = getSafeReturnPath(
     new URLSearchParams(location.search).get('returnTo'),
     '/#try-it'
@@ -46,7 +46,7 @@ export default function WalletPractice({ active }: { active: boolean }) {
   const hasStory =
     /^\/[^/]+\/[^/]+$/.test(returnUrl.split('?')[0] || '') &&
     !returnUrl.startsWith('/wallet/')
-  const [wallet, setWallet] = useState('freighter'),
+  const [wallet, setWallet] = useState('varial'),
     [address, setAddress] = useState(''),
     [busy, setBusy] = useState(''),
     [error, setError] = useState(''),
@@ -78,12 +78,15 @@ export default function WalletPractice({ active }: { active: boolean }) {
         }
       }
       const code = e.response?.data?.extras?.result_codes
+      const walletMessage = isWalletError(caught)
+        ? walletErrorMessage(caught)
+        : null
       setError(
         code
           ? `Transaction failed (${code.operations?.join(', ') || code.transaction}). Check your test balance before trying again.`
-          : (e.message === 'Freighter is not connected'
-              ? 'Freighter is not available in this browser. Open this preview in the Chrome profile where Freighter is installed, unlock the extension, and try again.'
-              : e.message) ||
+          : walletMessage
+            ? `${walletMessage.title}. ${walletMessage.detail}`
+            : e.message ||
               'The wallet request was closed or could not finish. Try again when ready.'
       )
     } finally {
@@ -109,10 +112,8 @@ export default function WalletPractice({ active }: { active: boolean }) {
   }
   async function connect() {
     await run('Connecting…', async () => {
-      kit.current ??= await makeKit()
-      kit.current.setWallet(wallet)
-      const { address: a } = await kit.current.getAddress()
-      await ensureNetwork(kit.current, wallet)
+      // Checks the wallet's network before resolving.
+      const { address: a } = await walletAdapter.connect({ walletId: wallet })
       setAddress(a)
       await loadBalance(a)
     })
@@ -178,9 +179,8 @@ export default function WalletPractice({ active }: { active: boolean }) {
             'Check the existing practice transfer before starting another.'
           )
         }
-        if (!kit.current) throw new Error('Connect your wallet first.')
-        await ensureNetwork(kit.current, wallet)
-        const current = await kit.current.getAddress()
+        const current = walletAdapter.getConnection()
+        if (!current) throw new Error('Connect your wallet first.')
         if (current.address !== address)
           throw new Error(
             'Your wallet account changed. Reconnect to review the correct account.'
@@ -192,11 +192,10 @@ export default function WalletPractice({ active }: { active: boolean }) {
         })
         const account = await server.loadAccount(address),
           tx = buildPractice(account)
-        const { signedTxXdr } = await kit.current.signTransaction(tx.toXdr(), {
-          address,
-          networkPassphrase: Networks.TESTNET,
-          submit: false,
-        })
+        const { signedTxXdr } = await walletAdapter.signTransaction(
+          tx.toXdr(),
+          { address }
+        )
         const signed = validateSigned(signedTxXdr, tx)
         const r: PracticeRecord = {
           hash: bytesToHex(signed.hash()),

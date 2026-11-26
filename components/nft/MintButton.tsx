@@ -22,9 +22,10 @@ import { nftClient } from '@/lib/stellar/nft-client'
 import { stellarClient } from '@/lib/stellar/client'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
 import {
-  NO_WALLET_AVAILABLE_ERROR_CODE,
-  ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
-} from '@/lib/stellar/wallet-adapter'
+  describeConnectFailure,
+  isWalletError,
+  walletErrorMessage,
+} from '@/lib/stellar/v2/wallet-errors'
 import {
   stellarFlowEmitter,
   type NftMintFlowStep,
@@ -135,19 +136,15 @@ export function MintButton({
       await wallet.connect()
       toast.success('Wallet connected successfully!')
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to connect wallet'
-
-      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+      const failure = describeConnectFailure(error)
+      if (failure.action === 'install') {
         setInstallDialogOpen(true)
         return
       }
+      if (failure.action === 'ignore') return
+      const { title, detail } = failure.message
 
-      if (message.startsWith(`${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}:`)) {
-        return
-      }
-
-      toast.error(message)
+      toast.error(title, { description: detail })
     }
   }
 
@@ -223,7 +220,12 @@ export function MintButton({
         fallback = 'Blockchain transaction failed. Please try again'
       }
 
-      const message = getFriendlyMintErrorMessage(error, fallback)
+      const walletMessage = isWalletError(error)
+        ? walletErrorMessage(error)
+        : null
+      const message = walletMessage
+        ? `${walletMessage.title}. ${walletMessage.detail}`
+        : getFriendlyMintErrorMessage(error, fallback)
       setMintError(message)
       toast.error(message)
     } finally {

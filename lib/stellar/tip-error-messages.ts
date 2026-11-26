@@ -1,3 +1,5 @@
+import { isWalletError, walletErrorMessage } from './v2/wallet-errors'
+
 export type TipFailureMessage = {
   title: string
   detail?: string
@@ -13,6 +15,15 @@ function rawMessage(error: unknown): string {
  * Maps wallet, Stellar, and Convex errors to inline dialog copy.
  */
 export function formatTipFailureMessage(error: unknown): TipFailureMessage {
+  if (isWalletError(error)) {
+    return (
+      walletErrorMessage(error) ?? {
+        title: 'Wallet prompt was dismissed',
+        detail:
+          'Approve the transaction in your wallet when you are ready to send the tip.',
+      }
+    )
+  }
   const raw = rawMessage(error)
   const lower = raw.toLowerCase()
 

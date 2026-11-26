@@ -25,10 +25,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
-import {
-  NO_WALLET_AVAILABLE_ERROR_CODE,
-  ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
-} from '@/lib/stellar/wallet-adapter'
+import { describeConnectFailure } from '@/lib/stellar/v2/wallet-errors'
 import {
   formatTipFailureMessage,
   type TipFailureMessage,
@@ -893,20 +890,16 @@ export function TipButton({
         toast.success('Wallet connected successfully!')
       }
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to connect wallet'
-
-      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+      const failure = describeConnectFailure(error)
+      if (failure.action === 'install') {
         setInstallDialogOpen(true)
         return
       }
+      if (failure.action === 'ignore') return
+      const { title, detail } = failure.message
 
-      if (message.startsWith(`${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}:`)) {
-        return
-      }
-
-      setTipFormError({ title: message })
-      toast.error(message)
+      setTipFormError({ title, detail })
+      toast.error(title, { description: detail })
     }
   }
 

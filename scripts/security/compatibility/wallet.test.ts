@@ -6,52 +6,85 @@ import {
   Account,
   Operation,
 } from '@stellar/stellar-sdk'
-import { afterEach, expect, it, vi } from 'vitest'
+import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit/sdk'
+import {
+  KitEventType,
+  ModuleType,
+  type ModuleInterface,
+} from '@creit.tech/stellar-wallets-kit/types'
+import { expect, it } from 'vitest'
+import {
+  createWalletAdapter,
+  type KitBundle,
+} from '../../../lib/stellar/v2/wallet'
+import { isWalletError } from '../../../lib/stellar/v2/wallet-errors'
 
-const wallet = vi.hoisted(() => ({
-  getAddress: vi.fn(),
-  getNetwork: vi.fn(),
-  signTransaction: vi.fn(),
-  setWallet: vi.fn(),
-}))
-vi.mock('../../../lib/stellar/wallet-kit-loader', () => ({
-  loadWalletKit: async () => ({
-    StellarWalletsKit: class {
-      constructor(options: { network: string }) {
-        expect(options.network).toBe('Test SDF Network ; September 2015')
-      }
-      getAddress = wallet.getAddress
-      getNetwork = wallet.getNetwork
-      signTransaction = wallet.signTransaction
-      setWallet = wallet.setWallet
-    },
-    allowAllModules: () => [],
-    WalletNetwork: { TESTNET: 'Test SDF Network ; September 2015' },
-  }),
-}))
+/**
+ * Drives the real Stellar Wallets Kit 2.x static API through the adapter with
+ * an in-memory wallet module. Signing uses a throwaway key; nothing is sent to
+ * a network.
+ */
+class LocalWallet implements ModuleInterface {
+  moduleType = ModuleType.HOT_WALLET
+  productId = 'local-test'
+  productName = 'Local test wallet'
+  productUrl = 'https://example.test'
+  productIcon = ''
+  passphrase: string = Networks.TESTNET
+  reject = false
+  constructor(readonly key: Keypair) {}
+  async isAvailable() {
+    return true
+  }
+  async getAddress() {
+    return { address: this.key.publicKey() }
+  }
+  async getNetwork() {
+    return { network: 'TESTNET', networkPassphrase: this.passphrase }
+  }
+  async signTransaction(
+    xdr: string,
+    opts?: { networkPassphrase?: string; address?: string }
+  ) {
+    if (this.reject) throw { code: -4, message: 'User declined' }
+    const tx = TransactionBuilder.fromXdr(xdr, opts!.networkPassphrase!)
+    tx.sign(this.key)
+    return { signedTxXdr: tx.toXDR(), signerAddress: this.key.publicKey() }
+  }
+  async signAuthEntry(): Promise<never> {
+    throw { code: -3, message: 'not used' }
+  }
+  async signMessage(): Promise<never> {
+    throw { code: -3, message: 'not used' }
+  }
+}
 
-afterEach(() => {
-  vi.unstubAllEnvs()
-  vi.clearAllMocks()
-  localStorage.clear()
-})
-
-it('connects and forwards valid testnet XDR and passphrase to the signing adapter, including rejection', async () => {
-  vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET')
-  const { walletAdapter, FREIGHTER_ID } =
-    await import('../../../lib/stellar/wallet-adapter')
+it('connects, checks the network and signs through the real 2.x kit', async () => {
   const key = Keypair.random()
-  wallet.getAddress.mockResolvedValue({ address: key.publicKey() })
-  wallet.getNetwork.mockResolvedValue({
-    network: 'TESTNET',
-    networkPassphrase: Networks.TESTNET,
+  const walletModule = new LocalWallet(key)
+  const loadKit = async (): Promise<KitBundle> => ({
+    kit: StellarWalletsKit as unknown as KitBundle['kit'],
+    modules: [walletModule],
+    events: {
+      stateUpdated: KitEventType.STATE_UPDATED,
+      disconnect: KitEventType.DISCONNECT,
+    },
   })
-  const connection = await walletAdapter.connectToWallet(FREIGHTER_ID)
-  expect(connection.publicKey).toBe(key.publicKey())
-  expect(connection.networkPassphrase).toBe(Networks.TESTNET)
-  expect(wallet.setWallet).toHaveBeenCalledWith(FREIGHTER_ID)
+  const wallet = createWalletAdapter({
+    loadKit,
+    networkPassphrase: Networks.TESTNET,
+    storage: null,
+  })
 
-  // Sign locally with a throwaway key; never submit a transaction to a network.
+  const connection = await wallet.connect({ walletId: 'local-test' })
+  expect(connection).toMatchObject({
+    address: key.publicKey(),
+    walletId: 'local-test',
+    walletName: 'Local test wallet',
+    networkPassphrase: Networks.TESTNET,
+    networkReported: true,
+  })
+
   const tx = new TransactionBuilder(new Account(key.publicKey(), '1'), {
     fee: '100',
     networkPassphrase: Networks.TESTNET,
@@ -61,20 +94,25 @@ it('connects and forwards valid testnet XDR and passphrase to the signing adapte
     )
     .setTimeout(30)
     .build()
-  const unsigned = tx.toXdr()
-  tx.sign(key)
-  wallet.signTransaction.mockResolvedValue({ signedTxXdr: tx.toXdr() })
-  const signed = await walletAdapter.signTransaction(unsigned, Networks.TESTNET)
-  expect(wallet.signTransaction).toHaveBeenCalledWith(unsigned, {
-    address: key.publicKey(),
-    networkPassphrase: Networks.TESTNET,
-  })
-  const parsed = TransactionBuilder.fromXdr(signed, Networks.TESTNET)
+  const signed = await wallet.signTransaction(tx.toXDR())
+  expect(signed.signerAddress).toBe(key.publicKey())
+  const parsed = TransactionBuilder.fromXdr(
+    signed.signedTxXdr,
+    Networks.TESTNET
+  )
   expect(key.verify(parsed.hash(), parsed.signatures[0]!.signature)).toBe(true)
-  wallet.signTransaction.mockRejectedValue(new Error('User declined'))
-  await expect(
-    walletAdapter.signTransaction(unsigned, Networks.TESTNET)
-  ).rejects.toThrow('Transaction signature rejected by user')
-  walletAdapter.disconnect()
-  expect(await walletAdapter.isConnected()).toBe(false)
+
+  walletModule.reject = true
+  await expect(wallet.signTransaction(tx.toXDR())).rejects.toSatisfy(
+    (error: unknown) => isWalletError(error, 'rejected')
+  )
+
+  walletModule.reject = false
+  walletModule.passphrase = Networks.PUBLIC
+  await expect(wallet.signTransaction(tx.toXDR())).rejects.toSatisfy(
+    (error: unknown) => isWalletError(error, 'wrong-network')
+  )
+
+  await wallet.disconnect()
+  expect(wallet.getConnection()).toBeNull()
 })

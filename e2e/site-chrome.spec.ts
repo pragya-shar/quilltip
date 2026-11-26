@@ -147,18 +147,18 @@ test('legacy guide reaches public wallet help and installation preserves the tas
       name: 'Make room for a little appreciation.',
     })
     await expect(dialog).toBeVisible()
-    for (const name of [
-      'Freighter Open store',
-      'xBull Open store',
-      'Albedo Requires HTTPS for some flows Open store',
-      'HOT Wallet Open store',
-    ]) {
+    for (const [name, href] of [
+      ['Varial Formerly Freighter Open site', 'https://varialwallet.com'],
+      ['xBull Open site', 'https://xbull.app'],
+      ['LOBSTR Open site', 'https://lobstr.co'],
+      [
+        'Albedo Web wallet; needs an HTTPS page Open site',
+        'https://albedo.link',
+      ],
+    ] as const) {
       const link = dialog.getByRole('link', { name, exact: true })
       await expect(link).toHaveAttribute('target', '_blank')
-      await expect(link).toHaveAttribute(
-        'href',
-        /^https:\/\/chrome(webstore)?\.google\.com\//
-      )
+      await expect(link).toHaveAttribute('href', href)
     }
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth)
