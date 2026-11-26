@@ -173,4 +173,8 @@ describe('buildContentSecurityPolicy', () => {
     const policy = buildContentSecurityPolicy('abc', {})
     expect(policy).not.toMatch(/horizon\.stellar\.org|mainnet/)
   })
+
+  it('allows no WalletConnect relay while WalletConnect is refused', () => {
+    expect(buildContentSecurityPolicy('abc', {})).not.toMatch(/walletconnect/)
+  })
 })

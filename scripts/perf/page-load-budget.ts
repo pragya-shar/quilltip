@@ -82,6 +82,8 @@ type Run = {
   fontKb: number
   lcpElement: string
   lcpInServerHtml: boolean
+  /** Scripts counted in scriptKb, largest first, for failure reports. */
+  scripts: string[]
 }
 
 function median(values: number[]): number {
@@ -191,6 +193,13 @@ async function measure(
         ...state.__perf,
         scriptKb: kb(/\.js(\?|$)/),
         fontKb: kb(/\.woff2?(\?|$)/),
+        scripts: before
+          .filter((entry) => /\.js(\?|$)/.test(entry.name))
+          .sort((a, b) => b.encodedBodySize - a.encodedBodySize)
+          .map(
+            (entry) =>
+              `${Math.round(entry.encodedBodySize / 1024)} KB ${new URL(entry.name).pathname} (${entry.initiatorType}, ${Math.round(entry.startTime)}-${Math.round(entry.responseEnd)} ms, load ${Math.round(navigation.loadEventStart)} ms)`
+          ),
       }
     })
     const needle = result.text.replace(/&/g, '&amp;').slice(0, 30)
@@ -201,6 +210,7 @@ async function measure(
       fontKb: Math.round(result.fontKb),
       lcpElement: `${result.element} "${result.text.slice(0, 40)}"`,
       lcpInServerHtml: needle.length > 0 && html.includes(needle),
+      scripts: result.scripts,
     }
   } finally {
     await context.close()
@@ -237,10 +247,12 @@ async function main() {
           failures.push(`${label}: LCP ${summary.lcpMs} ms > ${budget.lcpMs}`)
         if (summary.cls > budget.cls)
           failures.push(`${label}: CLS ${summary.cls} > ${budget.cls}`)
-        if (summary.scriptKb > budget.scriptKb)
+        if (summary.scriptKb > budget.scriptKb) {
+          const heaviest = [...runs].sort((a, b) => b.scriptKb - a.scriptKb)[0]
           failures.push(
-            `${label}: ${summary.scriptKb} KB initial script > ${budget.scriptKb}`
+            `${label}: ${summary.scriptKb} KB initial script > ${budget.scriptKb}\n    ${heaviest?.scripts.slice(0, 12).join('\n    ')}`
           )
+        }
         if (summary.fontKb > budget.fontKb)
           failures.push(
             `${label}: ${summary.fontKb} KB initial fonts > ${budget.fontKb}`

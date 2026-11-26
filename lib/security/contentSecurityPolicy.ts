@@ -38,15 +38,13 @@ export const STELLAR_TESTNET_ORIGINS = [
 ].map(originOf)
 
 /**
- * Stellar Wallets Kit, with the modules in `lib/stellar/v2/wallet-kit.ts`
- * (Varial, xBull, Albedo, LOBSTR, Rabet, Hana):
- * - The extension wallets and xBull's popup talk to the page through `window`
- *   and `postMessage`, so they need no entry.
- * - Albedo signs in a popup and keeps an implicit-flow session in an iframe.
- * - The wallet picker shows icons from the kit's CDN.
- *
- * HOT Wallet and WalletConnect are not offered, so their relays and frames are
- * not allowed. Adding either module means adding its origins here.
+ * Stellar Wallets Kit 2.x, with the modules in lib/stellar/v2/wallet-kit.ts.
+ * Extension wallets (Varial, LOBSTR, Rabet, Hana) talk to the page through
+ * `window` and `postMessage`, and xBull and Albedo sign in popups, so they
+ * need no connect entry. Albedo keeps an implicit-flow session in an iframe,
+ * and the wallet picker shows icons from the kit's CDN. WalletConnect is
+ * refused at build time (lib/stellar/v2/walletconnect-gate.ts), so its relay
+ * origins are not allowed.
  */
 export const WALLET_FRAME_ORIGINS = ['https://albedo.link']
 export const WALLET_IMAGE_ORIGINS = ['https://stellar.creit.tech']
