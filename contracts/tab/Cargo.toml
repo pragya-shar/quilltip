@@ -25,3 +25,10 @@ soroban-sdk = { workspace = true, features = ["testutils"] }
 ed25519-dalek = { workspace = true }
 proptest = { workspace = true }
 sha2 = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }
+
+[features]
+# Builds `src/probe.rs` instead of the Tab contract. Used only to produce the
+# committed upgrade test fixture `testdata/upgrade_probe.wasm` (see README).
+upgrade-probe = []
