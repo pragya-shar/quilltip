@@ -93,9 +93,9 @@ describe('tip flow reducer', () => {
   })
 
   it('ignores late events from an earlier stage', () => {
-    expect(tipFlowReducer(INITIAL_FLOW, { type: 'step', step: 'signing' })).toBe(
-      INITIAL_FLOW
-    )
+    expect(
+      tipFlowReducer(INITIAL_FLOW, { type: 'step', step: 'signing' })
+    ).toBe(INITIAL_FLOW)
     expect(
       tipFlowReducer(INITIAL_FLOW, { type: 'prepared', submissionId: 's' })
     ).toBe(INITIAL_FLOW)
@@ -190,7 +190,10 @@ describe('tip flow reducer', () => {
         record: { reason: 'send_error' },
       },
     })
-    expect(s.failure).toEqual({ title: 'Not sent', detail: 'Nothing was paid.' })
+    expect(s.failure).toEqual({
+      title: 'Not sent',
+      detail: 'Nothing was paid.',
+    })
   })
 
   it('resumes a stored submission after a reload', () => {
@@ -199,7 +202,11 @@ describe('tip flow reducer', () => {
       submissionId: 's9',
       txHash: null,
     })
-    expect(s).toMatchObject({ stage: 'tracking', submissionId: 's9', step: null })
+    expect(s).toMatchObject({
+      stage: 'tracking',
+      submissionId: 's9',
+      step: null,
+    })
   })
 
   it('starts a retry from scratch with a new requestId', () => {
@@ -237,9 +244,11 @@ describe('progress source', () => {
 
   it('lets the server decide after the send', () => {
     const sent = tipFlowReducer(tracking, { type: 'pending_elsewhere' })
-    expect(deriveProgress(progressSource(sent, record('SUBMITTED'))!)).toEqual(
-      { phase: 'checking', retry: false, redirected: 0 }
-    )
+    expect(deriveProgress(progressSource(sent, record('SUBMITTED'))!)).toEqual({
+      phase: 'checking',
+      retry: false,
+      redirected: 0,
+    })
     expect(
       deriveProgress(progressSource(sent, record('CONFIRMED'))!).phase
     ).toBe('confirmed')
@@ -304,9 +313,9 @@ describe('progress source', () => {
       submissionId: 's1',
       txHash: null,
     })
-    expect(deriveProgress(progressSource(resumed, record('PREPARED'))!).phase).toBe(
-      'resuming'
-    )
+    expect(
+      deriveProgress(progressSource(resumed, record('PREPARED'))!).phase
+    ).toBe('resuming')
     expect(deriveProgress(progressSource(resumed, undefined)!).phase).toBe(
       'resuming'
     )
@@ -322,7 +331,9 @@ describe('progress source', () => {
         { status: 'CONFIRMED', mismatchReason: null },
       ],
     })
-    const progress = deriveProgress(progressSource(idle, rows, { batch: true })!)
+    const progress = deriveProgress(
+      progressSource(idle, rows, { batch: true })!
+    )
     expect(progress).toMatchObject({ phase: 'under-review', retry: false })
   })
 
@@ -388,12 +399,12 @@ describe('prepare refusals', () => {
   })
 
   it('shows article problems as tips unavailable, or the basket item', () => {
-    expect(refusalFromPrepareError(err('ARTICLE_NOT_REGISTERED'))).toMatchObject(
-      { kind: 'tips-unavailable', reason: 'unregistered' }
-    )
-    expect(refusalFromPrepareError(err('PAYOUT_ADDRESS_CHANGED'))).toMatchObject(
-      { kind: 'tips-unavailable', reason: 'payout_outdated' }
-    )
+    expect(
+      refusalFromPrepareError(err('ARTICLE_NOT_REGISTERED'))
+    ).toMatchObject({ kind: 'tips-unavailable', reason: 'unregistered' })
+    expect(
+      refusalFromPrepareError(err('PAYOUT_ADDRESS_CHANGED'))
+    ).toMatchObject({ kind: 'tips-unavailable', reason: 'payout_outdated' })
     expect(
       refusalFromPrepareError(err('ARTICLE_NOT_REGISTERED', { itemIndex: 2 }), {
         batch: true,
@@ -624,7 +635,11 @@ describe('reload record', () => {
     const now = 1_000_000
     expect(
       parsePending(
-        JSON.stringify({ submissionId: 's', txHash: 'ab'.repeat(32), startedAt: now }),
+        JSON.stringify({
+          submissionId: 's',
+          txHash: 'ab'.repeat(32),
+          startedAt: now,
+        }),
         now
       )
     ).toEqual({ submissionId: 's', txHash: 'ab'.repeat(32), startedAt: now })
@@ -636,7 +651,10 @@ describe('reload record', () => {
     ).toBeNull()
     expect(
       parsePending(
-        JSON.stringify({ submissionId: 's', startedAt: now - PENDING_TTL_MS - 1 }),
+        JSON.stringify({
+          submissionId: 's',
+          startedAt: now - PENDING_TTL_MS - 1,
+        }),
         now
       )
     ).toBeNull()
@@ -688,7 +706,10 @@ describe('wallet gate', () => {
     })
     expect(gate({}, { errorKind: 'locked' })).toEqual({ kind: 'locked' })
     expect(
-      gate({}, { errorKind: 'wrong-network', isConnected: false, publicKey: null })
+      gate(
+        {},
+        { errorKind: 'wrong-network', isConnected: false, publicKey: null }
+      )
     ).toEqual({ kind: 'wrong-network' })
     expect(gate({}, { isConnected: false, publicKey: null })).toEqual({
       kind: 'disconnected',
@@ -703,15 +724,17 @@ describe('wallet gate', () => {
     ).toEqual({ kind: 'wrong-network', walletNetwork: 'Mainnet' })
     // A wallet that cannot report its network is not refused here; the
     // signed envelope's passphrase is checked when it is sent.
-    expect(gate({}, { networkReported: false, networkPassphrase: null })).toEqual(
-      { kind: 'ready' }
-    )
+    expect(
+      gate({}, { networkReported: false, networkPassphrase: null })
+    ).toEqual({ kind: 'ready' })
     expect(gate({ eligibility: undefined })).toEqual({ kind: 'checking' })
   })
 
   it('asks to confirm a wallet that is not the linked one', () => {
     expect(
-      gate({ eligibility: { reason: 'ADDRESS_UNVERIFIED', tipperAddress: null } })
+      gate({
+        eligibility: { reason: 'ADDRESS_UNVERIFIED', tipperAddress: null },
+      })
     ).toEqual({ kind: 'unverified', address: A })
     expect(
       gate({ eligibility: { reason: 'NO_WALLET', tipperAddress: null } })

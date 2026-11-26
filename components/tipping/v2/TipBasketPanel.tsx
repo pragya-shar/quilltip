@@ -94,7 +94,10 @@ export function TipBasketPanel({ onBusyChange, onClose }: TipBasketPanelProps) {
   const { user } = useAuth()
   useEffect(() => {
     if (!state.submissionId || !user?._id) return
-    if (!readPending(pendingKey(user._id, BASKET_SCOPE)) || flow.record === null) {
+    if (
+      !readPending(pendingKey(user._id, BASKET_SCOPE)) ||
+      flow.record === null
+    ) {
       store.finishPayment(false)
     }
   }, [flow.record, state.submissionId, store, user?._id])
@@ -129,8 +132,7 @@ export function TipBasketPanel({ onBusyChange, onClose }: TipBasketPanelProps) {
       ? eligibilityCondition(
           ['PAUSED', 'PRICE_UNAVAILABLE', 'CHAIN_V2_DISABLED'].includes(
             eligibility.reason ?? ''
-          ) ||
-            eligibility.reason?.startsWith('CHAIN_CONFIG')
+          ) || eligibility.reason?.startsWith('CHAIN_CONFIG')
             ? eligibility
             : { reason: null }
         )

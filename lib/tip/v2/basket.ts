@@ -257,7 +257,10 @@ export class BasketStore {
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
         : `${Date.now()}-${Math.random().toString(36).slice(2)}`
-    this.save({ ...this.state, items: [...this.state.items, { ...candidate, id }] })
+    this.save({
+      ...this.state,
+      items: [...this.state.items, { ...candidate, id }],
+    })
     return check
   }
 

@@ -10,11 +10,7 @@ import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { useAuth } from '@/components/providers/AuthContext'
-import {
-  pendingKey,
-  readPending,
-  type PendingTip,
-} from '@/lib/tip/v2/pending'
+import { pendingKey, readPending, type PendingTip } from '@/lib/tip/v2/pending'
 
 export function useLastTipV2(scope: string) {
   const { user } = useAuth()

@@ -50,8 +50,8 @@ export function TipBasketRow({
           {title}
         </p>
         <p className="tip-basket-row-kind">
-          {item.highlight ? BASKET_COPY.itemPassage : BASKET_COPY.itemArticle}{' '}
-          · {item.authorName}
+          {item.highlight ? BASKET_COPY.itemPassage : BASKET_COPY.itemArticle} ·{' '}
+          {item.authorName}
         </p>
         {item.highlight ? (
           <p

@@ -79,7 +79,11 @@ function isHex(value: unknown, bytes: number): value is string {
 }
 
 /** Lower-case hex of an exact length to bytes. */
-export function hexBytes(hex: string, bytes: number, field: string): Uint8Array {
+export function hexBytes(
+  hex: string,
+  bytes: number,
+  field: string
+): Uint8Array {
   if (!isHex(hex, bytes)) {
     throw new TipCallError(`${field} must be ${bytes} bytes of hex.`)
   }

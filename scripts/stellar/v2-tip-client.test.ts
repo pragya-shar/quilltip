@@ -38,7 +38,8 @@ import { WalletError } from '../../lib/stellar/v2/wallet-errors'
 
 const CORE = 'CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY'
 const TOKEN = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'
-const OTHER_CONTRACT = 'CAFCGOIM6SKVBWCPFQODN22MY5HUJEJMW5AOMNGAOVZ4QBLJJ5RLOOMS'
+const OTHER_CONTRACT =
+  'CAFCGOIM6SKVBWCPFQODN22MY5HUJEJMW5AOMNGAOVZ4QBLJJ5RLOOMS'
 const tipper = Keypair.random()
 const TIPPER = tipper.publicKey()
 
@@ -74,7 +75,10 @@ function quote(gross: string) {
 
 type Item = PreparedTip['items'][number]
 
-function item(overrides: Partial<Item['tipInput']> = {}, articleId = 'a1'): Item {
+function item(
+  overrides: Partial<Item['tipInput']> = {},
+  articleId = 'a1'
+): Item {
   const tipInput = {
     article_id: ARTICLE_KEY,
     amount: receipts[0]!.amount,
@@ -659,7 +663,10 @@ describe('tip runner', () => {
 
   it('records a simulation failure with the decoded name', async () => {
     const { deps: d, calls } = deps({
-      server: fakeServer({ simulation: 'error', events: [errorEvent(CORE, 8)] }),
+      server: fakeServer({
+        simulation: 'error',
+        events: [errorEvent(CORE, 8)],
+      }),
     })
     const result = await runTip(d)
     expect(result.kind).toBe('stopped')

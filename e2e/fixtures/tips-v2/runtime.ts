@@ -66,9 +66,11 @@ if (new URLSearchParams(location.search).get('data') === 'worst') {
   ARTICLES.main.title =
     'Notes Toward a Unified Theory of Marginalia: Readers, Writers, and the Strange Economics of Paying for a Single Sentence (Part Three of Seven)'
   ARTICLES.main.author = 'Aleksandra Wiśniewska-Kowalczyk-Montgomery III'
-  ARTICLES.second.title = 'Những ghi chú bên lề về việc đọc chậm trong thời đại tốc độ'
+  ARTICLES.second.title =
+    'Những ghi chú bên lề về việc đọc chậm trong thời đại tốc độ'
   ARTICLES.second.author = 'Nguyễn Thị Phương Thảo'
-  ARTICLES.shared.title = 'ملاحظات حول القراءة البطيئة وكتابة الهوامش في العصر الرقمي'
+  ARTICLES.shared.title =
+    'ملاحظات حول القراءة البطيئة وكتابة الهوامش في العصر الرقمي'
   ARTICLES.shared.author = '山田 太郎 と 共著者たち'
 }
 const byId = (id: string): (typeof ARTICLES)[ArticleKey] =>
@@ -304,7 +306,9 @@ function tipStatus(id: string) {
         ? {
             grossBaseUnits: row.gross,
             feeBaseUnits: fee(row.gross),
-            netBaseUnits: (BigInt(row.gross) - BigInt(fee(row.gross))).toString(),
+            netBaseUnits: (
+              BigInt(row.gross) - BigInt(fee(row.gross))
+            ).toString(),
             tokenContractId: TOKEN,
             authorAddress: row.mismatchReason === 'author' ? COAUTHOR : AUTHOR,
             tipperAddress: WALLET,
@@ -360,7 +364,8 @@ export function useQuery(ref: unknown, args?: unknown) {
     case 'chain.articles.getArticleTipAvailability':
       if (SCENARIO.v2 === 'off') return { status: 'disabled' }
       if (a.articleId === ARTICLES.main.id) {
-        if (SCENARIO.article === 'unregistered') return { status: 'unregistered' }
+        if (SCENARIO.article === 'unregistered')
+          return { status: 'unregistered' }
         if (SCENARIO.article === 'pending') return { status: 'pending' }
         if (SCENARIO.article === 'payout') return { status: 'payout_outdated' }
       }
@@ -739,7 +744,13 @@ export function seedBasket() {
       {
         ...make('shared', n),
         ...(n > 0
-          ? { highlight: { text: `Shared ${n}`, startOffset: n, endOffset: n + 8 } }
+          ? {
+              highlight: {
+                text: `Shared ${n}`,
+                startOffset: n,
+                endOffset: n + 8,
+              },
+            }
           : {}),
       },
       make('second', n + 3, n > 0),

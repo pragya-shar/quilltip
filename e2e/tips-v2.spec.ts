@@ -44,9 +44,7 @@ type FixtureLog = {
 }
 
 const log = (page: Page) =>
-  page.evaluate(
-    () => (window as unknown as { __tipsV2: FixtureLog }).__tipsV2
-  )
+  page.evaluate(() => (window as unknown as { __tipsV2: FixtureLog }).__tipsV2)
 
 async function open(
   page: Page,
@@ -170,7 +168,9 @@ const STATES: State[] = [
     },
     check: async (dialog) => {
       await expect(
-        dialog.locator('.pay-panel-title', { hasText: 'No Stellar wallet found' })
+        dialog.locator('.pay-panel-title', {
+          hasText: 'No Stellar wallet found',
+        })
       ).toBeVisible()
     },
   },
@@ -198,7 +198,9 @@ const STATES: State[] = [
     },
     check: async (dialog) => {
       await expect(
-        dialog.locator('.pay-panel-title', { hasText: 'Switch your wallet to Testnet' })
+        dialog.locator('.pay-panel-title', {
+          hasText: 'Switch your wallet to Testnet',
+        })
       ).toBeVisible()
       await expect(
         dialog.locator('.pay-panel').getByText(/Switch it to Testnet/)
@@ -218,10 +220,14 @@ const STATES: State[] = [
     },
     check: async (dialog, page) => {
       await expect(
-        dialog.locator('.pay-panel-title', { hasText: 'Confirm this wallet is yours' })
+        dialog.locator('.pay-panel-title', {
+          hasText: 'Confirm this wallet is yours',
+        })
       ).toBeVisible()
       await dialog.getByRole('button', { name: 'Confirm wallet' }).click()
-      await expect(dialog.getByRole('button', { name: 'Send tip' })).toBeFocused()
+      await expect(
+        dialog.getByRole('button', { name: 'Send tip' })
+      ).toBeFocused()
       expect((await log(page)).prepared).toEqual([])
     },
   },
@@ -235,9 +241,13 @@ const STATES: State[] = [
     },
     check: async (dialog, page) => {
       await expect(
-        dialog.locator('.pay-panel-title', { hasText: 'Not enough XLM in your wallet' })
+        dialog.locator('.pay-panel-title', {
+          hasText: 'Not enough XLM in your wallet',
+        })
       ).toBeVisible()
-      await expect(dialog.locator('.pay-panel').getByText(/Your wallet can spend 2 XLM/)).toBeVisible()
+      await expect(
+        dialog.locator('.pay-panel').getByText(/Your wallet can spend 2 XLM/)
+      ).toBeVisible()
       await expectTestnetLabel(dialog)
       expect((await log(page)).failed).toEqual([
         expect.objectContaining({
@@ -277,9 +287,13 @@ const STATES: State[] = [
     },
     check: async (dialog) => {
       await expect(
-        dialog.locator('.pay-panel-title', { hasText: 'This tip is below the minimum' })
+        dialog.locator('.pay-panel-title', {
+          hasText: 'This tip is below the minimum',
+        })
       ).toBeVisible()
-      await expect(dialog.getByText(/smallest tip right now is \$0\.03/)).toBeVisible()
+      await expect(
+        dialog.getByText(/smallest tip right now is \$0\.03/)
+      ).toBeVisible()
     },
   },
   {
@@ -292,7 +306,9 @@ const STATES: State[] = [
     },
     check: async (dialog, page) => {
       await expect(
-        dialog.locator('.pay-panel-title', { hasText: 'No XLM price right now' })
+        dialog.locator('.pay-panel-title', {
+          hasText: 'No XLM price right now',
+        })
       ).toBeVisible()
       const send = dialog.getByRole('button', { name: 'Send tip' })
       await expect(send).toHaveAttribute('aria-disabled', 'true')
@@ -310,7 +326,9 @@ const STATES: State[] = [
     },
     check: async (dialog) => {
       await expect(
-        dialog.locator('.pay-panel-title', { hasText: 'Too many tips in a short time' })
+        dialog.locator('.pay-panel-title', {
+          hasText: 'Too many tips in a short time',
+        })
       ).toBeVisible()
       await expect(dialog.getByText(/Wait 42 seconds/)).toBeVisible()
     },
@@ -344,7 +362,9 @@ const STATES: State[] = [
     run: async (page) => page.locator('.reader-support'),
     check: async (scope) => {
       await expect(
-        scope.getByText('Tips are paused while the writer updates their wallet.')
+        scope.getByText(
+          'Tips are paused while the writer updates their wallet.'
+        )
       ).toBeVisible()
     },
   },
@@ -369,7 +389,9 @@ const STATES: State[] = [
       await expect(
         dialog.locator('.pay-panel-title', { hasText: 'Payments are paused' })
       ).toBeVisible()
-      await expect(dialog.getByRole('button', { name: 'Send tip' })).toHaveCount(0)
+      await expect(
+        dialog.getByRole('button', { name: 'Send tip' })
+      ).toHaveCount(0)
     },
   },
   {
@@ -410,7 +432,9 @@ const STATES: State[] = [
     },
     check: async (dialog) => {
       await expect(
-        dialog.locator('.pay-panel-title', { hasText: 'Tips on Stellar testnet are not on here' })
+        dialog.locator('.pay-panel-title', {
+          hasText: 'Tips on Stellar testnet are not on here',
+        })
       ).toBeVisible()
     },
   },
@@ -423,7 +447,11 @@ const STATES: State[] = [
       return dialog
     },
     check: async (dialog) => {
-      await expect(dialog.locator('.pay-progress-sentence', { hasText: 'Checking the details…' })).toBeVisible()
+      await expect(
+        dialog.locator('.pay-progress-sentence', {
+          hasText: 'Checking the details…',
+        })
+      ).toBeVisible()
       await expect(
         dialog.getByRole('listitem').filter({ hasText: 'Prepare' })
       ).toHaveAttribute('aria-current', 'step')
@@ -462,7 +490,9 @@ const STATES: State[] = [
       return dialog
     },
     check: async (dialog) => {
-      await expect(dialog.locator('.pay-progress-sentence', { hasText: 'Sending…' })).toBeVisible()
+      await expect(
+        dialog.locator('.pay-progress-sentence', { hasText: 'Sending…' })
+      ).toBeVisible()
     },
   },
   {
@@ -500,8 +530,12 @@ const STATES: State[] = [
       await expect(
         dialog.getByRole('heading', { name: 'Request declined in your wallet' })
       ).toBeVisible()
-      await expect(dialog.getByText('Nothing was signed or sent.')).toBeVisible()
-      await expect(dialog.getByRole('button', { name: 'Try again' })).toBeVisible()
+      await expect(
+        dialog.getByText('Nothing was signed or sent.')
+      ).toBeVisible()
+      await expect(
+        dialog.getByRole('button', { name: 'Try again' })
+      ).toBeVisible()
       expect((await log(page)).failed).toEqual([
         expect.objectContaining({
           reason: 'wallet_rejected',
@@ -523,8 +557,12 @@ const STATES: State[] = [
         dialog.getByRole('heading', { name: 'Not sent' })
       ).toBeVisible()
       await expect(dialog.getByText(/Nothing was paid\./)).toBeVisible()
-      await expect(dialog.getByRole('button', { name: 'Try again' })).toBeVisible()
-      expect((await log(page)).failed[0]).toMatchObject({ reason: 'send_error' })
+      await expect(
+        dialog.getByRole('button', { name: 'Try again' })
+      ).toBeVisible()
+      expect((await log(page)).failed[0]).toMatchObject({
+        reason: 'send_error',
+      })
     },
   },
   {
@@ -537,7 +575,9 @@ const STATES: State[] = [
     },
     check: async (dialog) => {
       await expect(
-        dialog.locator('.pay-panel-title', { hasText: 'Stellar testnet is busy' })
+        dialog.locator('.pay-panel-title', {
+          hasText: 'Stellar testnet is busy',
+        })
       ).toBeVisible({ timeout: 20_000 })
     },
   },
@@ -553,7 +593,9 @@ const STATES: State[] = [
       await expect(
         dialog.getByRole('heading', { name: 'This request timed out' })
       ).toBeVisible()
-      await expect(dialog.getByRole('button', { name: 'Try again' })).toBeVisible()
+      await expect(
+        dialog.getByRole('button', { name: 'Try again' })
+      ).toBeVisible()
     },
   },
   {
@@ -570,7 +612,9 @@ const STATES: State[] = [
       // 97.5% of 4 XLM, from the chain values, to the author.
       await expect(dialog.getByText('3.9 XLM to Ada Lovelace')).toBeVisible()
       await expectTestnetLabel(dialog)
-      await expect(dialog.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+      await expect(
+        dialog.getByRole('button', { name: 'Try again' })
+      ).toHaveCount(0)
       const entry = await log(page)
       expect(entry.prepared.map((p) => p.name)).toEqual([
         'tipsV2.prepareDirectTip',
@@ -603,7 +647,9 @@ const STATES: State[] = [
           name: 'Tip sent to the article’s registered payout address',
         })
       ).toBeVisible()
-      await expect(dialog.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+      await expect(
+        dialog.getByRole('button', { name: 'Try again' })
+      ).toHaveCount(0)
     },
   },
   {
@@ -619,7 +665,9 @@ const STATES: State[] = [
         dialog.getByRole('heading', { name: 'Sent, but under review' })
       ).toBeVisible()
       await expect(dialog.getByText(/Reference/)).toBeVisible()
-      await expect(dialog.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+      await expect(
+        dialog.getByRole('button', { name: 'Try again' })
+      ).toHaveCount(0)
     },
   },
   {
@@ -636,7 +684,9 @@ const STATES: State[] = [
         dialog.getByRole('heading', { name: 'Sent, but under review' })
       ).toBeVisible()
       await expect(dialog.getByText(/Nothing was paid/)).toHaveCount(0)
-      await expect(dialog.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+      await expect(
+        dialog.getByRole('button', { name: 'Try again' })
+      ).toHaveCount(0)
     },
   },
   {
@@ -653,7 +703,9 @@ const STATES: State[] = [
       await expect(
         dialog.getByText(/Checking whether this payment went through/)
       ).toBeVisible()
-      await expect(dialog.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+      await expect(
+        dialog.getByRole('button', { name: 'Try again' })
+      ).toHaveCount(0)
     },
   },
   {
@@ -701,8 +753,12 @@ const STATES: State[] = [
       await expect(
         dialog.locator('.pay-progress-sentence', { hasText: /Still checking/ })
       ).toBeVisible()
-      await expect(dialog.getByText(/cannot be charged twice/).first()).toBeVisible()
-      await expect(dialog.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+      await expect(
+        dialog.getByText(/cannot be charged twice/).first()
+      ).toBeVisible()
+      await expect(
+        dialog.getByRole('button', { name: 'Try again' })
+      ).toHaveCount(0)
     },
   },
   {
@@ -733,7 +789,9 @@ const STATES: State[] = [
     },
     check: async (sheet) => {
       await expect(sheet.getByRole('list', { name: 'Tips' })).toBeVisible()
-      await expect(sheet.getByText('2 of 10 tips · 8 of 24 transfers')).toBeVisible()
+      await expect(
+        sheet.getByText('2 of 10 tips · 8 of 24 transfers')
+      ).toBeVisible()
       await expect(sheet.getByText(/^About/).first()).toBeVisible()
       await expectTestnetLabel(sheet)
     },
@@ -754,8 +812,12 @@ const STATES: State[] = [
       ).toBeVisible()
       const rows = sheet.getByRole('list', { name: 'Tips in this payment' })
       await expect(rows.getByText('Confirmed', { exact: true })).toHaveCount(2)
-      await expect(rows.getByText('Under review', { exact: true })).toHaveCount(1)
-      await expect(sheet.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+      await expect(rows.getByText('Under review', { exact: true })).toHaveCount(
+        1
+      )
+      await expect(
+        sheet.getByRole('button', { name: 'Try again' })
+      ).toHaveCount(0)
       const entry = await log(page)
       expect(entry.prepared[0]!.name).toBe('tipsV2.prepareBatch')
       expect(entry.signed).toHaveLength(1)
@@ -773,11 +835,17 @@ const STATES: State[] = [
     },
     check: async (sheet) => {
       await expect(
-        sheet.locator('.pay-panel-title', { hasText: 'An article in your basket can’t take tips right now' })
+        sheet.locator('.pay-panel-title', {
+          hasText: 'An article in your basket can’t take tips right now',
+        })
       ).toBeVisible()
-      await expect(sheet.getByText('Can’t take tips right now', { exact: true })).toHaveCount(1)
+      await expect(
+        sheet.getByText('Can’t take tips right now', { exact: true })
+      ).toHaveCount(1)
       await sheet.getByRole('button', { name: 'Remove it' }).click()
-      await expect(sheet.getByText('2 of 10 tips', { exact: false })).toBeVisible()
+      await expect(
+        sheet.getByText('2 of 10 tips', { exact: false })
+      ).toBeVisible()
     },
   },
   {
@@ -837,7 +905,11 @@ test.describe('keyboard, focus and announcements', () => {
     await expect(dialog).toBeVisible()
     // Choose $2 with Tab and Space.
     const two = dialog.getByRole('button', { name: '$2' })
-    for (let i = 0; i < 8 && !(await two.evaluate((el) => el === document.activeElement)); i++) {
+    for (
+      let i = 0;
+      i < 8 && !(await two.evaluate((el) => el === document.activeElement));
+      i++
+    ) {
       await page.keyboard.press('Tab')
     }
     await page.keyboard.press('Space')
@@ -850,7 +922,11 @@ test.describe('keyboard, focus and announcements', () => {
       .getByRole('dialog', { name: 'Choose a wallet' })
       .getByRole('button', { name: /^Varial/ })
     await expect(varial).toBeVisible()
-    for (let i = 0; i < 8 && !(await varial.evaluate((el) => el === document.activeElement)); i++) {
+    for (
+      let i = 0;
+      i < 8 && !(await varial.evaluate((el) => el === document.activeElement));
+      i++
+    ) {
       await page.keyboard.press('Tab')
     }
     await page.keyboard.press('Enter')
@@ -862,7 +938,11 @@ test.describe('keyboard, focus and announcements', () => {
     await expect(result).toBeFocused()
     // The explorer link is reachable by Tab from the result.
     const link = dialog.getByRole('link', { name: /View the transaction/ })
-    for (let i = 0; i < 4 && !(await link.evaluate((el) => el === document.activeElement)); i++) {
+    for (
+      let i = 0;
+      i < 4 && !(await link.evaluate((el) => el === document.activeElement));
+      i++
+    ) {
       await page.keyboard.press('Tab')
     }
     await expect(link).toBeFocused()
@@ -1027,19 +1107,20 @@ test.describe('reduced motion', () => {
     await expect(
       dialog.getByRole('heading', { name: 'Tip confirmed' })
     ).toBeVisible()
-    const animated = await page.evaluate(() =>
-      [
-        ...document.querySelectorAll<HTMLElement>(
-          '.tip-dialog, .tip-dialog *, .tip-basket-button'
-        ),
-      ].filter((el) => {
-        const style = getComputedStyle(el)
-        return (
-          (style.animationName !== 'none' &&
-            parseFloat(style.animationDuration) > 0) ||
-          parseFloat(style.transitionDuration) > 0
-        )
-      }).length
+    const animated = await page.evaluate(
+      () =>
+        [
+          ...document.querySelectorAll<HTMLElement>(
+            '.tip-dialog, .tip-dialog *, .tip-basket-button'
+          ),
+        ].filter((el) => {
+          const style = getComputedStyle(el)
+          return (
+            (style.animationName !== 'none' &&
+              parseFloat(style.animationDuration) > 0) ||
+            parseFloat(style.transitionDuration) > 0
+          )
+        }).length
     )
     expect(animated).toBe(0)
   })

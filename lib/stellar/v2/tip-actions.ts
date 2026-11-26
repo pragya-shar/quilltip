@@ -11,10 +11,7 @@
  * says `canRetry`.
  */
 import type { PreparedTip } from '@/convex/tipsV2'
-import {
-  viewFromTxOutcome,
-  type TxOutcomeView,
-} from '@/lib/payments/failures'
+import { viewFromTxOutcome, type TxOutcomeView } from '@/lib/payments/failures'
 import type { V2ClientConfig } from './config'
 import {
   TipCallError,
@@ -221,10 +218,7 @@ export async function runTip(deps: TipRunDeps): Promise<TipRunResult> {
 async function stopped(
   prepared: PreparedTip,
   error: WalletError,
-  recordFailure: (
-    reason: 'wallet_rejected',
-    detail?: string
-  ) => Promise<void>
+  recordFailure: (reason: 'wallet_rejected', detail?: string) => Promise<void>
 ): Promise<TipRunResult> {
   const view = viewFromTxOutcome({ status: 'wallet_failed', error })
   await recordFailure('wallet_rejected', error.kind)

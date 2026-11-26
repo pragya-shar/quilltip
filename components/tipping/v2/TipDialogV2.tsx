@@ -1,6 +1,13 @@
 'use client'
 
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react'
 import { useMutation } from 'convex/react'
 import { CircleAlert, Heart, ShoppingBasket } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
@@ -326,7 +333,10 @@ export function TipDialogV2({
             <AmountSummary
               total={prepared.totals.grossBaseUnits}
               breakdown={[
-                { label: 'To the author', amount: prepared.totals.netBaseUnits },
+                {
+                  label: 'To the author',
+                  amount: prepared.totals.netBaseUnits,
+                },
                 { label: 'Platform fee', amount: prepared.totals.feeBaseUnits },
               ]}
               quoteCents={prepared.totals.amountCents}
@@ -381,7 +391,11 @@ export function TipDialogV2({
         <form className="tip-v2-form" onSubmit={onSubmit} noValidate>
           <fieldset className="tip-v2-fieldset">
             <legend>{TIP_DIALOG.amountLegend}</legend>
-            <div className="tip-presets" role="group" aria-label="Preset amounts">
+            <div
+              className="tip-presets"
+              role="group"
+              aria-label="Preset amounts"
+            >
               {TIP_PRESET_CENTS.map((value) => (
                 <button
                   key={value}
@@ -453,9 +467,7 @@ export function TipDialogV2({
               ) : null}
               <p id={ids.hint} className="tip-hint">
                 {TIP_DIALOG.customHint(
-                  formatCents(
-                    Math.max(eligibility.minTipCents ?? 1, 1)
-                  ),
+                  formatCents(Math.max(eligibility.minTipCents ?? 1, 1)),
                   formatCents(TIP_MAX_CENTS)
                 )}
               </p>

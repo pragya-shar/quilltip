@@ -642,7 +642,12 @@ describe('the client tip runner against Core on a local network', () => {
     const splitNet = grosses[2]! - fees[2]!
     const coShare = (splitNet * BigInt(3_000)) / BigInt(10_000)
     expect(await h.balance(author.publicKey())).toBe(
-      a0 + grosses[0]! - fees[0]! + (grosses[1]! - fees[1]!) + splitNet - coShare
+      a0 +
+        grosses[0]! -
+        fees[0]! +
+        (grosses[1]! - fees[1]!) +
+        splitNet -
+        coShare
     )
     expect(await h.balance(coauthor.publicKey())).toBe(c0 + coShare)
     expect(await h.balance(treasury.publicKey())).toBe(

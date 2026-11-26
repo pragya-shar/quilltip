@@ -26,12 +26,12 @@ flows load with `import()`, so the article page's first load holds neither.
 
 ## Surfaces
 
-| Surface             | Desktop (768 px and up)                      | Mobile (below 768 px)                            |
-| ------------------- | -------------------------------------------- | ------------------------------------------------ |
-| Article tip         | The tip dialog (`.tip-dialog`)               | The same dialog, full width less 16 px gutters   |
-| Highlight tip       | The tip dialog, with the passage quoted      | The same                                         |
-| Tip basket          | A sheet from the right, 26 rem wide          | A bottom sheet, up to 85 % of the screen height  |
-| Basket button       | Fixed, bottom right, above the page          | Fixed, bottom, full width less gutters           |
+| Surface       | Desktop (768 px and up)                 | Mobile (below 768 px)                           |
+| ------------- | --------------------------------------- | ----------------------------------------------- |
+| Article tip   | The tip dialog (`.tip-dialog`)          | The same dialog, full width less 16 px gutters  |
+| Highlight tip | The tip dialog, with the passage quoted | The same                                        |
+| Tip basket    | A sheet from the right, 26 rem wide     | A bottom sheet, up to 85 % of the screen height |
+| Basket button | Fixed, bottom right, above the page     | Fixed, bottom, full width less gutters          |
 
 The basket button appears on article pages only while the basket holds a tip
 or a basket payment has a result to show. It is a real button in the page's
@@ -67,18 +67,18 @@ in `TIP_V2_ERROR_CODES` has an entry (a unit test checks the list). Each shows
 as a `PaymentNotice` of kind `refused` with the form kept, and says nothing was
 paid.
 
-| Code                                              | Title                                     | Detail                                                                                                   |
-| ------------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `BELOW_MINIMUM`                                   | This tip is below the minimum             | The smallest tip right now is {min}. Choose a larger amount. Nothing was paid.                           |
-| `INVALID_AMOUNT`                                  | Choose another amount                     | A tip is from $0.01 to $100.00. Nothing was paid.                                                        |
-| `RATE_LIMITED`                                    | Too many tips in a short time             | Wait {n} seconds, then try again. Nothing was paid.                                                      |
-| `PRICE_UNAVAILABLE`                               | No XLM price right now                    | QuillTip can’t convert this amount yet. Try again in a minute. Nothing was paid.                         |
-| `CHAIN_V2_DISABLED`                               | Tips on Stellar testnet are not on here   | This QuillTip site has not turned them on. Nothing was paid.                                             |
-| `CHAIN_CONFIG_MISSING`, `CHAIN_CONFIG_INVALID`    | Tips are not set up on this site          | Try again later. Nothing was paid.                                                                       |
-| `SELF_TIP`                                        | You can’t tip your own article            | Tips for this article come to you. Nothing was paid.                                                     |
-| `HIGHLIGHT_INVALID`                               | This passage changed                      | Select the passage again, then tip it. Nothing was paid.                                                 |
-| `BATCH_TOO_LARGE`                                 | Too many tips for one payment             | One payment holds up to 10 tips and 24 transfers. Remove a tip, then pay. Nothing was paid.              |
-| Other codes, or no answer                         | QuillTip could not prepare this tip       | Try again in a minute. Nothing was paid. (No answer: "QuillTip could not be reached".)                   |
+| Code                                           | Title                                   | Detail                                                                                      |
+| ---------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `BELOW_MINIMUM`                                | This tip is below the minimum           | The smallest tip right now is {min}. Choose a larger amount. Nothing was paid.              |
+| `INVALID_AMOUNT`                               | Choose another amount                   | A tip is from $0.01 to $100.00. Nothing was paid.                                           |
+| `RATE_LIMITED`                                 | Too many tips in a short time           | Wait {n} seconds, then try again. Nothing was paid.                                         |
+| `PRICE_UNAVAILABLE`                            | No XLM price right now                  | QuillTip can’t convert this amount yet. Try again in a minute. Nothing was paid.            |
+| `CHAIN_V2_DISABLED`                            | Tips on Stellar testnet are not on here | This QuillTip site has not turned them on. Nothing was paid.                                |
+| `CHAIN_CONFIG_MISSING`, `CHAIN_CONFIG_INVALID` | Tips are not set up on this site        | Try again later. Nothing was paid.                                                          |
+| `SELF_TIP`                                     | You can’t tip your own article          | Tips for this article come to you. Nothing was paid.                                        |
+| `HIGHLIGHT_INVALID`                            | This passage changed                    | Select the passage again, then tip it. Nothing was paid.                                    |
+| `BATCH_TOO_LARGE`                              | Too many tips for one payment           | One payment holds up to 10 tips and 24 transfers. Remove a tip, then pay. Nothing was paid. |
+| Other codes, or no answer                      | QuillTip could not prepare this tip     | Try again in a minute. Nothing was paid. (No answer: "QuillTip could not be reached".)      |
 
 The rest use kit states: `UNAUTHENTICATED`, `NO_WALLET` and
 `ADDRESS_UNVERIFIED` the wallet gate; `PAUSED` the paused notice;
@@ -105,13 +105,13 @@ read from the account entry (balance minus the reserve).
 - "Add to tip basket" explains a refusal next to the button, in a polite live
   region:
 
-  | Reason        | Title                                    | Detail                                                                  |
-  | ------------- | ---------------------------------------- | ----------------------------------------------------------------------- |
-  | 10 tips       | Your basket is full                      | One payment holds up to 10 tips. Send these first.                      |
-  | 24 transfers  | This tip doesn’t fit in one payment      | It needs {n} transfers and {left} are left of 24. Send your basket first. |
-  | Same tip      | Already in your basket                   | This tip is already there. Change it in the basket.                     |
-  | Article       | This article can’t take tips right now   | It can’t be added to your basket.                                       |
-  | Paying        | Your basket is being paid                | Wait for the result, then add more tips.                                |
+  | Reason       | Title                                  | Detail                                                                    |
+  | ------------ | -------------------------------------- | ------------------------------------------------------------------------- |
+  | 10 tips      | Your basket is full                    | One payment holds up to 10 tips. Send these first.                        |
+  | 24 transfers | This tip doesn’t fit in one payment    | It needs {n} transfers and {left} are left of 24. Send your basket first. |
+  | Same tip     | Already in your basket                 | This tip is already there. Change it in the basket.                       |
+  | Article      | This article can’t take tips right now | It can’t be added to your basket.                                         |
+  | Paying       | Your basket is being paid              | Wait for the result, then add more tips.                                  |
 
 - The basket is kept in this browser per account (`localStorage`). The server
   checks every item again at prepare; an item that fails is named in the

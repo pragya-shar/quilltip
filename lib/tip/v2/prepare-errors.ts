@@ -174,7 +174,7 @@ export function refusalFromPrepareError(
   }
   const code = data.code as TipV2ErrorCode
   const map = PREPARE_REFUSALS[code] as
-    | ((typeof PREPARE_REFUSALS)[TipV2ErrorCode])
+    | (typeof PREPARE_REFUSALS)[TipV2ErrorCode]
     | undefined
   const refusal = map
     ? map(data, ctx)
