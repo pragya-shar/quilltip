@@ -97,6 +97,7 @@ function LiveProgress() {
         <TransactionProgress
           flow="direct-tip"
           source={source}
+          startedByUser
           txHash={hasHash ? HASH : null}
           summary={{ amount: '10000000', to: 'Ada Lovelace' }}
           onCancel={record('cancel')}

@@ -334,7 +334,14 @@ export const STATES: FixtureState[] = [
     failure: BUSY.show.kind === 'failed' ? BUSY.show.failure : null,
     summary: TIP,
   }),
-  // The server flags this record for review: no retry even though FAILED.
+  // An event arrived after the failure (`needsReview`): the payment may
+  // have landed, so it reads as under review, with no retry.
+  progress(
+    'result-expired-review',
+    'direct-tip',
+    recordSource('EXPIRED', { needsReview: true }),
+    { txHash: HASH, summary: TIP }
+  ),
   progress(
     'result-failed-review',
     'direct-tip',
@@ -407,7 +414,14 @@ export const STATES: FixtureState[] = [
   ),
 
   running('tab-tip-sending', 'tab-tip', { clientStep: 'sending' }),
-  progress('tab-tip-accepted', 'tab-tip', { tabTip: { status: 'ACCEPTED' } }),
+  // Each tab tip passes a hash, so the tests check that the view hides the
+  // link for phases with no transaction of their own.
+  progress(
+    'tab-tip-accepted',
+    'tab-tip',
+    { tabTip: { status: 'ACCEPTED' } },
+    { txHash: HASH }
+  ),
   progress(
     'tab-tip-settled',
     'tab-tip',
@@ -415,26 +429,42 @@ export const STATES: FixtureState[] = [
     // The settlement transaction that paid it.
     { txHash: HASH, summary: TIP }
   ),
-  progress('tab-tip-shortfall', 'tab-tip', {
-    tabTip: { status: 'SHORTFALL' },
-  }),
-  progress('tab-tip-unpaid', 'tab-tip', { tabTip: { status: 'UNPAID' } }),
+  progress(
+    'tab-tip-shortfall',
+    'tab-tip',
+    { tabTip: { status: 'SHORTFALL' } },
+    { txHash: HASH }
+  ),
+  progress(
+    'tab-tip-unpaid',
+    'tab-tip',
+    { tabTip: { status: 'UNPAID' } },
+    { txHash: HASH }
+  ),
   progress(
     'tab-tip-unpaid-writer',
     'tab-tip',
     { tabTip: { status: 'UNPAID' } },
-    { audience: 'writer' }
+    { audience: 'writer', txHash: HASH }
   ),
-  progress('tab-tip-rejected', 'tab-tip', { tabTip: { status: 'REJECTED' } }),
+  progress(
+    'tab-tip-rejected',
+    'tab-tip',
+    { tabTip: { status: 'REJECTED' } },
+    { txHash: HASH }
+  ),
   progress(
     'tab-tip-rejected-writer',
     'tab-tip',
     { tabTip: { status: 'REJECTED' } },
-    { audience: 'writer', helpHref: '#help' }
+    { audience: 'writer', helpHref: '#help', txHash: HASH }
   ),
-  progress('tab-tip-void-reset', 'tab-tip', {
-    tabTip: { status: 'VOID_RESET' },
-  }),
+  progress(
+    'tab-tip-void-reset',
+    'tab-tip',
+    { tabTip: { status: 'VOID_RESET' } },
+    { txHash: HASH }
+  ),
 
   ...PAYMENT_FLOWS.filter((flow) => flow !== 'tab-tip').map((flow) =>
     progress(`confirmed-${flow}`, flow, confirmedSource(flow), {

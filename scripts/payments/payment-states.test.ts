@@ -23,6 +23,7 @@ import {
   STATUS_LABEL,
   STEP_COPY,
   STEP_LABEL,
+  TAB_OPERATION_RESULT,
   TAB_REFUSAL_COPY,
   TAB_TIP_RESULT,
   TAB_TIP_SENDING,
@@ -161,6 +162,21 @@ describe('server status to phase', () => {
     )
   })
 
+  test('a failed or expired record flagged for review is under review', () => {
+    // The server sets needsReview when an event arrives after the failure:
+    // the payment may have landed (tipUiState maps it to mismatch_review).
+    for (const status of ['FAILED', 'EXPIRED']) {
+      const view = deriveProgress({
+        record: { status, needsReview: true },
+        declined: true,
+      })
+      expect(view).toMatchObject({ phase: 'under-review', retry: false })
+    }
+    expect(phaseFromRecord({ status: 'FAILED', needsReview: false })).toBe(
+      'failed'
+    )
+  })
+
   test('a reloaded PREPARED record claims no step as done', () => {
     expect(phaseFromRecord({ status: 'PREPARED' })).toBe('resuming')
     expect(phaseFromRecord({ status: 'PREPARED' }, { step: null })).toBe(
@@ -251,6 +267,15 @@ describe('batches', () => {
       phaseFromBatch({ status: 'MISMATCH', mismatchReason: 'field:amount' }, [
         { status: 'CONFIRMED' },
         { status: 'MISMATCH', mismatchReason: 'field:amount' },
+      ])
+    ).toEqual({ phase: 'under-review', redirected: 0 })
+  })
+
+  test('a row flagged for review puts the payment under review', () => {
+    expect(
+      phaseFromBatch({ status: 'FAILED' }, [
+        { status: 'FAILED' },
+        { status: 'FAILED', needsReview: true },
       ])
     ).toEqual({ phase: 'under-review', redirected: 0 })
   })
@@ -403,6 +428,22 @@ describe('resolvePaymentView: one precedence rule', () => {
     expect(short).toMatchObject({ showStart: true, canStart: false })
   })
 
+  test('the start form never shows beside a payment in progress or finished', () => {
+    for (const source of [
+      { record: { status: 'SUBMITTED' } },
+      { record: { status: 'PREPARED' }, step: 'signing' as const },
+      { record: { status: 'CONFIRMED' } },
+      { record: { status: 'FAILED' } },
+      { tabTip: { status: 'ACCEPTED' } },
+    ]) {
+      const view = resolvePaymentView({ source, gate: READY })
+      expect(view.progress).not.toBeNull()
+      expect(view.condition).toBeNull()
+      expect(view.showStart).toBe(false)
+      expect(view.canStart).toBe(false)
+    }
+  })
+
   test('the start form runs only with nothing in the way', () => {
     expect(resolvePaymentView({ source: null, gate: READY })).toMatchObject({
       progress: null,
@@ -543,8 +584,7 @@ describe('contract failures, decoded with the raising contract', () => {
       expect(noticeFromContractFailure(failure)).toBeNull()
       expect(failureFromContract(failure)).toEqual({
         title: 'Not sent',
-        detail:
-          'Stellar testnet refused the transaction. Nothing was sent. Nothing was paid.',
+        detail: 'Stellar testnet refused the transaction. Nothing was sent.',
       })
     }
   })
@@ -617,7 +657,7 @@ describe('transaction outcomes map once for every flow', () => {
     ).toEqual({
       show: {
         kind: 'failed',
-        failure: { title: 'Not sent', detail: 'Refused. Nothing was paid.' },
+        failure: { title: 'Not sent', detail: 'Refused. Nothing was sent.' },
       },
       record: { reason: 'send_error' },
     })
@@ -850,6 +890,31 @@ describe('copy', () => {
     }
   })
 
+  test('copy speaks about money only where the server verified it', () => {
+    // These are shown from client knowledge or a server refusal, never from
+    // verified chain data, so they may not claim what was paid or charged.
+    const unverified = [
+      FAILURE_COPY,
+      WALLET_FAILURE_COPY,
+      TAB_REFUSAL_COPY,
+      TAB_OPERATION_RESULT,
+      RESULT_COPY.failed,
+      RESULT_COPY.declined,
+      NOTICE_COPY.basketItemUnavailable,
+      gateCopy('wrong-network', { walletNetwork: 'Mainnet' }),
+    ]
+    const text = JSON.stringify(unverified)
+    expect(text).not.toMatch(/\bpaid\b|\bcharged\b|was signed(?! or sent)/i)
+    expect(
+      failureFromContract({
+        code: null,
+        name: null,
+        contract: null,
+        message: 'Stellar testnet refused the transaction. Nothing was sent.',
+      }).detail
+    ).toBe('Stellar testnet refused the transaction. Nothing was sent.')
+  })
+
   test('the testnet label text is fixed', () => {
     expect(TESTNET_LABEL).toBe('Stellar testnet')
   })
@@ -888,6 +953,7 @@ describe('copy', () => {
     add(FAILURE_COPY)
     add(WALLET_FAILURE_COPY)
     add(TAB_REFUSAL_COPY)
+    add(TAB_OPERATION_RESULT)
     add(NOTICE_ACTION)
     add(NOTICE_COPY)
     add(TIPS_UNAVAILABLE_COPY)
