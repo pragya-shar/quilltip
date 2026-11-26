@@ -92,7 +92,13 @@ const overflow = (page: Page) =>
 async function axe(page: Page) {
   // Scan settled pixels: the kit's result rises in over 220 ms.
   await page.waitForFunction(() =>
-    document.getAnimations().every((a) => a.playState !== 'running')
+    document
+      .getAnimations()
+      .every(
+        (a) =>
+          a.playState !== 'running' ||
+          a.effect?.getTiming().iterations === Infinity
+      )
   )
   const results = await new AxeBuilder({ page })
     .include('.tab-ui')
