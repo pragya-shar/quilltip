@@ -43,6 +43,7 @@ import type { PreparedTip } from '../../convex/lib/chain/tipPrepare'
 import { STELLAR_NETWORK_DEFAULTS } from '../../convex/lib/stellarNetwork'
 import { Client as CoreClient } from '../../lib/stellar/v2/bindings/core'
 import { Harness, XLM } from './harness'
+import type { RequestedTipItem } from '../../lib/stellar/v2/tip-calls'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 const wasmDir = process.env.QUILLTIP_WASM_DIR ?? ''
@@ -437,5 +438,248 @@ describe('tipsV2 against Core on a local network', () => {
     expect(await h.balance(treasury.publicKey())).toBe(
       f0 + fees.reduce((a, b) => a + b, BigInt(0))
     )
+  })
+})
+
+/**
+ * The client side of the same flows: `runTip` (lib/stellar/v2/tip-actions.ts)
+ * prepares through `tipsV2`, checks the response, builds `Core.tip` or
+ * `Core.tip_batch` with `tipContractCall`, simulates, signs with the test key
+ * and sends through `sendContractCall`, then records the hash. The test
+ * follows `getTipStatus` as the UI does and checks the split on chain.
+ *
+ * The one bridge: Convex runs with TESTNET settings (the backend guard), so
+ * the prepare response names the testnet passphrase. The test gives the
+ * runner the local passphrase as its configuration and rewrites the response
+ * to match, as a LOCAL deployment would return it.
+ */
+describe('the client tip runner against Core on a local network', () => {
+  const LOCAL = 'Standalone Network ; February 2017'
+
+  async function runClientTip(
+    prepare: (requestId: string) => Promise<PreparedTip>,
+    request: RequestedTipItem[],
+    options: { refuse?: boolean } = {}
+  ) {
+    const { runTip } = await import('../../lib/stellar/v2/tip-actions')
+    const { WalletError } = await import('../../lib/stellar/v2/wallet-errors')
+    const { TransactionBuilder } = await import('@stellar/stellar-sdk')
+    const steps: string[] = []
+    const result = await runTip({
+      config: {
+        passphrase: LOCAL,
+        coreContractId: coreId,
+        tokenContractId: token,
+      },
+      server: h.server,
+      request,
+      requestId: `client-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      prepare: async (requestId) => ({
+        ...(await prepare(requestId)),
+        networkPassphrase: LOCAL,
+      }),
+      connect: async () => tipper.publicKey(),
+      sign: async (envelope, address) => {
+        expect(address).toBe(tipper.publicKey())
+        if (options.refuse) throw new WalletError('rejected', 'declined')
+        const tx = TransactionBuilder.fromXDR(envelope, LOCAL)
+        tx.sign(tipper)
+        return tx.toXDR()
+      },
+      recordSubmitted: async (submissionId, txHash) => {
+        await asTipper().mutation(api.tipsV2.recordSubmitted, {
+          submissionId: submissionId as Id<'chainSubmissions'>,
+          txHash,
+        })
+      },
+      recordSendFailed: async (submissionId, reason, detail) => {
+        await asTipper().mutation(api.tipsV2.recordSendFailed, {
+          submissionId: submissionId as Id<'chainSubmissions'>,
+          reason,
+          ...(detail ? { detail } : {}),
+        })
+      },
+      onStep: (step) => steps.push(step),
+    })
+    return { result, steps }
+  }
+
+  /** Follows `getTipStatus` until the server reports a final state. */
+  async function follow(submissionId: string) {
+    for (let i = 0; i < 120; i++) {
+      const status = (await asTipper().query(api.tipsV2.getTipStatus, {
+        submissionId: submissionId as Id<'chainSubmissions'>,
+      }))!
+      if (status.uiState !== 'checking') return status
+      await new Promise((r) => setTimeout(r, 500))
+    }
+    throw new Error('the server did not reach a final state')
+  }
+
+  it('direct tip: the writer receives 97.5% and the platform 2.5%', async () => {
+    const articleKey = await articleIdHex(
+      author.publicKey(),
+      await articleRefHex(ids.plainId)
+    )
+    const [a0, f0] = [
+      await h.balance(author.publicKey()),
+      await h.balance(treasury.publicKey()),
+    ]
+    const { result, steps } = await runClientTip(
+      (requestId) =>
+        asTipper().mutation(api.tipsV2.prepareDirectTip, {
+          requestId,
+          articleId: ids.plainId,
+          amountCents: 200,
+        }),
+      [{ articleId: ids.plainId, articleKey }]
+    )
+    expect(steps).toEqual(['simulating', 'signing', 'sending'])
+    expect(result.kind).toBe('sent')
+    if (result.kind !== 'sent') return
+    expect(result.recorded).toBe(true)
+    const status = await follow(result.prepared.submissionId)
+    const gross = BigInt(result.prepared.items[0]!.tipInput.amount)
+    expect(gross).toBe(BigInt(8) * XLM)
+    expect(status).toMatchObject({
+      status: 'CONFIRMED',
+      uiState: 'confirmed',
+      canRetry: false,
+      txHash: result.txHash,
+    })
+    // 97.5% to the writer and 2.5% to the platform, to the stroop.
+    expect(fee(gross)).toBe((gross * BigInt(25)) / BigInt(1_000))
+    expect(await h.balance(author.publicKey())).toBe(a0 + gross - fee(gross))
+    expect(await h.balance(treasury.publicKey())).toBe(f0 + fee(gross))
+    expect(status.chainTotals).toEqual({
+      grossBaseUnits: gross.toString(),
+      feeBaseUnits: fee(gross).toString(),
+      netBaseUnits: (gross - fee(gross)).toString(),
+    })
+  })
+
+  it('highlight tip: the local highlight_id check passes and it confirms', async () => {
+    const [a0, f0] = [
+      await h.balance(author.publicKey()),
+      await h.balance(treasury.publicKey()),
+    ]
+    const passage = {
+      text: HL_TEXT,
+      startOffset: HL_START,
+      endOffset: HL_START + HL_TEXT.length,
+    }
+    const { result } = await runClientTip(
+      (requestId) =>
+        asTipper().mutation(api.tipsV2.prepareHighlightTip, {
+          requestId,
+          articleId: ids.plainId,
+          amountCents: 40,
+          highlight: passage,
+        }),
+      [
+        {
+          articleId: ids.plainId,
+          highlight: { articleSlug: 'plain-article', ...passage },
+        },
+      ]
+    )
+    expect(result.kind).toBe('sent')
+    if (result.kind !== 'sent') return
+    const status = await follow(result.prepared.submissionId)
+    expect(status).toMatchObject({ status: 'CONFIRMED', uiState: 'confirmed' })
+    expect(status.items[0]!.table).toBe('highlightTips')
+    const gross = BigInt(result.prepared.items[0]!.tipInput.amount)
+    expect(await h.balance(author.publicKey())).toBe(a0 + gross - fee(gross))
+    expect(await h.balance(treasury.publicKey())).toBe(f0 + fee(gross))
+  })
+
+  it('batch: one tip_batch, each item confirmed, 97.5% / 2.5% per tip', async () => {
+    const passage = {
+      text: HL_TEXT,
+      startOffset: HL_START,
+      endOffset: HL_START + HL_TEXT.length,
+    }
+    const [a0, c0, f0] = [
+      await h.balance(author.publicKey()),
+      await h.balance(coauthor.publicKey()),
+      await h.balance(treasury.publicKey()),
+    ]
+    const { result } = await runClientTip(
+      (requestId) =>
+        asTipper().mutation(api.tipsV2.prepareBatch, {
+          requestId,
+          items: [
+            { articleId: ids.plainId, amountCents: 60 },
+            { articleId: ids.plainId, amountCents: 30, highlight: passage },
+            { articleId: ids.splitId, amountCents: 120 },
+          ],
+        }),
+      [
+        { articleId: ids.plainId },
+        {
+          articleId: ids.plainId,
+          highlight: { articleSlug: 'plain-article', ...passage },
+        },
+        { articleId: ids.splitId },
+      ]
+    )
+    expect(result.kind).toBe('sent')
+    if (result.kind !== 'sent') return
+    expect(result.prepared.method).toBe('tip_batch')
+    const status = await follow(result.prepared.submissionId)
+    expect(status).toMatchObject({
+      method: 'tip_batch',
+      status: 'CONFIRMED',
+      uiState: 'confirmed',
+    })
+    expect(status.items.map((i) => i.uiState)).toEqual([
+      'confirmed',
+      'confirmed',
+      'confirmed',
+    ])
+    const grosses = result.prepared.items.map((i) => BigInt(i.tipInput.amount))
+    const fees = grosses.map(fee)
+    const splitNet = grosses[2]! - fees[2]!
+    const coShare = (splitNet * BigInt(3_000)) / BigInt(10_000)
+    expect(await h.balance(author.publicKey())).toBe(
+      a0 + grosses[0]! - fees[0]! + (grosses[1]! - fees[1]!) + splitNet - coShare
+    )
+    expect(await h.balance(coauthor.publicKey())).toBe(c0 + coShare)
+    expect(await h.balance(treasury.publicKey())).toBe(
+      f0 + fees.reduce((a, b) => a + b, BigInt(0))
+    )
+  })
+
+  it('a wallet refusal is recorded FAILED with a retry; nothing moves', async () => {
+    const [a0, t0] = [
+      await h.balance(author.publicKey()),
+      await h.balance(tipper.publicKey()),
+    ]
+    const { result } = await runClientTip(
+      (requestId) =>
+        asTipper().mutation(api.tipsV2.prepareDirectTip, {
+          requestId,
+          articleId: ids.plainId,
+          amountCents: 100,
+        }),
+      [{ articleId: ids.plainId }],
+      { refuse: true }
+    )
+    expect(result).toMatchObject({
+      kind: 'stopped',
+      view: { show: { kind: 'declined' } },
+    })
+    if (result.kind !== 'stopped') return
+    const status = await asTipper().query(api.tipsV2.getTipStatus, {
+      submissionId: result.prepared.submissionId,
+    })
+    expect(status).toMatchObject({
+      status: 'FAILED',
+      uiState: 'failed',
+      canRetry: true,
+    })
+    expect(status!.items[0]!.failureReason).toBe('wallet_rejected: rejected')
+    expect(await h.balance(author.publicKey())).toBe(a0)
+    expect(await h.balance(tipper.publicKey())).toBe(t0)
   })
 })
