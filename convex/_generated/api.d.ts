@@ -93,6 +93,7 @@ import type * as publicRoutes from "../publicRoutes.js";
 import type * as readingRoomIndex from "../readingRoomIndex.js";
 import type * as reconcileTips from "../reconcileTips.js";
 import type * as stellarVerify from "../stellarVerify.js";
+import type * as tabActivity from "../tabActivity.js";
 import type * as tabSettlement from "../tabSettlement.js";
 import type * as tabSettler from "../tabSettler.js";
 import type * as tabs from "../tabs.js";
@@ -202,6 +203,7 @@ declare const fullApi: ApiFromModules<{
   readingRoomIndex: typeof readingRoomIndex;
   reconcileTips: typeof reconcileTips;
   stellarVerify: typeof stellarVerify;
+  tabActivity: typeof tabActivity;
   tabSettlement: typeof tabSettlement;
   tabSettler: typeof tabSettler;
   tabs: typeof tabs;

@@ -1443,3 +1443,100 @@ describe('signature bytes and key state at acceptance', () => {
     expect((await account(t)).outstanding).toBe('0')
   })
 })
+
+describe('tab screens read models (tabActivity)', () => {
+  it('lists the reader’s tab tips newest first with status and settlement health', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    expect(await t.query(api.tabActivity.getMyTabTips, {})).toBeNull()
+    await tip(t, s, { cents: 10 })
+    vi.advanceTimersByTime(1_000)
+    await tip(t, s, { cents: 25, highlight: HIGHLIGHT })
+    const reader = as(t, s.readerId)
+    let view = await reader.query(api.tabActivity.getMyTabTips, {})
+    expect(view?.settlementEnabled).toBe(true)
+    expect(view?.tips.map((r) => [r.seq, r.status, r.highlight])).toEqual([
+      [2, 'ACCEPTED', true],
+      [1, 'ACCEPTED', false],
+    ])
+    expect(view?.tips[1]).toMatchObject({
+      amount: '1000000',
+      writer: WRITER,
+      articleTitle: 'on-writing-well',
+      articleSlug: 'on-writing-well',
+      authorUsername: 'writer',
+      settledTxHash: null,
+    })
+    expect(view?.oldestUnsettledAt).toBe(view?.tips[1]?.acceptedAt)
+    expect(view?.settleWindowEndsSoon).toBe(false)
+
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(3_500_000),
+        gross: BigInt(3_500_000),
+      })
+    )
+    view = await reader.query(api.tabActivity.getMyTabTips, { limit: 1 })
+    expect(view?.tips).toHaveLength(1)
+    expect(view?.tips[0]?.status).toBe('SETTLED')
+    expect(view?.oldestUnsettledAt).toBeNull()
+    // Another user sees no tab.
+    expect(
+      await as(t, s.authorId).query(api.tabActivity.getMyTabTips, {})
+    ).toBeNull()
+  })
+
+  it('reports settlement off and a settle window that ends within 2 days', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    vi.stubEnv('SETTLEMENT_ENABLED', 'false')
+    await setLedger(t, VALID_UNTIL + SETTLE_GRACE_LEDGERS - DAY_LEDGERS)
+    const view = await as(t, s.readerId).query(api.tabActivity.getMyTabTips, {})
+    expect(view?.settlementEnabled).toBe(false)
+    expect(view?.settleWindowEndsSoon).toBe(true)
+  })
+
+  it('sums the writer’s settled gross, fee, net, pending and collected', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    await tip(t, s, { cents: 4 })
+    const paid = BigInt(1_500_000)
+    const accepted = BigInt(3_900_000)
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: accepted,
+        paidAfter: paid,
+        gross: paid,
+      })
+    )
+    await ingest(t, ev.claimed(WRITER, netOf(paid)))
+    const writer = await as(t, s.authorId).query(
+      api.tabActivity.getMyTabEarnings,
+      {}
+    )
+    expect(writer).toMatchObject({
+      writerAddress: WRITER,
+      tabContractId: TAB,
+      tokenContractId: TOKEN,
+      pairs: 1,
+      settledGross: paid.toString(),
+      fee: (paid - netOf(paid)).toString(),
+      earnedNet: netOf(paid).toString(),
+      pendingNet: (netOf(accepted) - netOf(paid)).toString(),
+      collected: netOf(paid).toString(),
+      unpaidPairs: 0,
+      settlementEnabled: true,
+    })
+    // Receipt 1 settled, so the oldest unsettled receipt is a later one.
+    expect(writer?.oldestUnsettledAt).toBeGreaterThan(T0)
+    // 2.5% of 1.5 M, rounded down (I-31).
+    expect(writer?.fee).toBe('37500')
+    expect(await t.query(api.tabActivity.getMyTabEarnings, {})).toBeNull()
+  })
+})
