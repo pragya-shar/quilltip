@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
     },
   },
   images: {
+    // AVIF first: article covers are the largest bytes on list pages.
+    formats: ['image/avif', 'image/webp'],
     ...(process.env.NODE_ENV === 'development' && {
       dangerouslyAllowLocalIP: true,
     }),

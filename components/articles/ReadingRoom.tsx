@@ -33,9 +33,23 @@ import {
   writeBrowseScrollY,
 } from '@/lib/articles/browseListScrollStorage'
 import { mapListArticlesToDisplay } from '@/lib/articles/mapListArticleToDisplay'
+import {
+  readingRoomListArgs,
+  readingRoomListKey,
+} from '@/lib/articles/readingRoomListArgs'
 import { getBrowseContextMessage } from './ArticlesBrowseDiscoveryHeader'
 
-export function ReadingRoom() {
+type ReadingRoomList = NonNullable<ReturnType<typeof useReadingRoomArticles>>
+
+export function ReadingRoom({
+  initialList,
+  initialListKey,
+}: {
+  /** Server copy of the list, used until the live query answers. */
+  initialList?: ReadingRoomList
+  /** `readingRoomListKey` of the arguments `initialList` was loaded with. */
+  initialListKey?: string
+} = {}) {
   const router = useRouter()
   const pathname = usePathname()
   const params = useSearchParams()
@@ -77,22 +91,20 @@ export function ReadingRoom() {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didNavigate = useRef(false)
   const scrollKey = buildArticlesBrowseScrollStorageKey(pathname, searchString)
-  const result = useReadingRoomArticles(
+  const listArgs = readingRoomListArgs(params ?? new URLSearchParams())
+  const liveResult = useReadingRoomArticles(
     bookmarked && (authLoading || !bookmarkIds)
       ? 'skip'
-      : {
-          page: currentPage,
-          limit: 9,
-          tag,
-          category,
-          bookmarkIds,
-          searchByWriterOrTitle: search ? true : undefined,
-          author,
-          search,
-          view,
-          sort,
-        }
+      : { ...listArgs, bookmarkIds }
   )
+  // Until the live query answers, show the server copy if it is for this URL.
+  const result =
+    liveResult ??
+    (!bookmarked &&
+    initialListKey !== undefined &&
+    initialListKey === readingRoomListKey(listArgs)
+      ? initialList
+      : undefined)
   const authors = useReadingRoomWriterOptions(!!author)
   const cancelSearch = useCallback(() => {
     if (searchTimer.current !== null) clearTimeout(searchTimer.current)
@@ -128,6 +140,9 @@ export function ReadingRoom() {
     )
   }, [currentPage, result, router, searchString])
   const ready = result !== undefined
+  // Set after the first render: cards rendered later get the entry transition.
+  const [entriesAnimate, setEntriesAnimate] = useState(false)
+  useEffect(() => setEntriesAnimate(true), [])
   useLayoutEffect(() => {
     if (!ready) return
     const y = readBrowseScrollY(scrollKey)
@@ -324,7 +339,11 @@ export function ReadingRoom() {
         </div>
       ) : articles.length ? (
         <>
-          <section className="shelf" aria-label="Articles">
+          <section
+            className="shelf"
+            aria-label="Articles"
+            data-entries-animate={entriesAnimate || undefined}
+          >
             {articles.slice(0, visibleCount).map((article, index) => (
               <div className="reading-room-card-entry" key={article.id}>
                 <ReadingRoomCard

@@ -1,6 +1,6 @@
 @font-face {
   font-family: 'Reading Room Syne';
-  src: url('/prototype/fonts/library-syne.woff2');
+  src: url('/landing/fonts/syne-latin-600-normal.woff2');
   font-weight: 400 800;
   font-display: swap;
 }
@@ -272,8 +272,10 @@
 .reading-room-card-entry:nth-child(3n + 3) {
   transition-delay: 100ms;
 }
+/* Only cards that arrive after load (filter, page, load more) enter; cards in
+   the first HTML are already at rest. */
 @starting-style {
-  .reading-room-card-entry {
+  .shelf[data-entries-animate] .reading-room-card-entry {
     opacity: 0;
     transform: translateY(8px);
   }
@@ -309,6 +311,47 @@
   height: 100%;
   aspect-ratio: 1.5;
   object-fit: cover;
+  /* Spring with a light bounce (was Motion spring 0.5s, bounce 0.2). CSS
+     transitions retarget mid-flight, so hover in and out stays smooth. */
+  --cover-spring: linear(
+    0 0%,
+    0.051 4%,
+    0.168 8%,
+    0.312 12%,
+    0.458 16%,
+    0.592 20%,
+    0.732 25%,
+    0.837 30%,
+    0.923 36%,
+    0.975 42%,
+    1.006 50%,
+    1.015 60%,
+    1.011 70%,
+    1.004 85%,
+    1 100%
+  );
+  transform: scale(1) rotate(0deg);
+  transition:
+    opacity 500ms var(--cover-spring),
+    transform 500ms var(--cover-spring);
+}
+/* Covers below the first row fade in once loaded. */
+.reading-room-card .cover img[data-shown='false'] {
+  opacity: 0;
+  transform: scale(1.1) rotate(-3deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .reading-room-card .cover:hover img[data-shown='true'] {
+    transform: scale(1.07) rotate(1.5deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-room-card .cover img,
+  .reading-room-card .cover img[data-shown='false'],
+  .reading-room-card .cover:hover img[data-shown='true'] {
+    /* Transitions are off page-wide below; covers simply appear. */
+    transform: none;
+  }
 }
 .cover-doodles {
   position: absolute;
