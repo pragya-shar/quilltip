@@ -1,0 +1,30 @@
+# cargo-audit policy for the v2 contract workspace.
+#
+# CI runs `cargo audit --deny warnings`, so any advisory not listed here fails
+# the build. Every entry below is a transitive dependency of the pinned
+# soroban-sdk 28.0.0 (docs/architecture/v2/01-architecture.md, section 1.3).
+# The mainnet release gate in that section moves to a supported SDK major and
+# removes these entries. Review the list whenever Cargo.lock changes.
+[advisories]
+ignore = [
+  # crypto-bigint 0.5.5: timing variability. Host-only (soroban-env-host
+  # through p256/k256 for test environments); not in the wasm32v1-none tree.
+  "RUSTSEC-2026-0387",
+  # chrono 0.4.45: unmaintained. In Cargo.lock through an optional dependency
+  # that this workspace does not enable.
+  "RUSTSEC-2026-0543",
+  # paste 1.0.15: unmaintained proc-macro. Host-only (soroban-env-host).
+  "RUSTSEC-2024-0436",
+  # heapless 0.8.0: unsound Deque, IndexMap, SortedLinkedList, Spsc, treiber
+  # stack and FindMutView APIs. Reached through stellar-strkey 0.0.16, which
+  # uses only heapless::String and heapless::Vec.
+  "RUSTSEC-2026-0574",
+  "RUSTSEC-2026-0575",
+  "RUSTSEC-2026-0576",
+  "RUSTSEC-2026-0577",
+  "RUSTSEC-2026-0578",
+  "RUSTSEC-2026-0579",
+  "RUSTSEC-2026-0580",
+  "RUSTSEC-2026-0581",
+  "RUSTSEC-2026-0582",
+]
