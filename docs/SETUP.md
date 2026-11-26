@@ -240,12 +240,34 @@ cutover. Its Convex variables, all testnet:
   `TOKEN_CONTRACT_ID`: this deployment's own contract set; the token is the
   native XLM SAC.
 - `STELLAR_RPC_URL`: optional; defaults to the public testnet RPC.
+- `INDEXER_START_LEDGER`: the ledger of this contract set's Core deploy
+  transaction. The event indexer does nothing until it and `CORE_CONTRACT_ID`
+  are set.
+- `OPS_USER_IDS`: comma-separated Convex user IDs that may read the indexer
+  status at `/ops/chain`.
 
 Every function that reads the chain calls `assertBackendTestnet()` first. The
 `recheck pending chain submissions` cron (2 minutes) and the
 `refresh chain config` cron (1 hour) do nothing while no v2 submission is open
 or no contract is configured. The one-time backfill
 `chain/backfill:setContractVersionV1` is a dry run unless `apply` is `true`.
+
+**Event indexer.** The `poll chain events` cron runs every minute under the
+`indexer` lease. It stores each contract event once (keyed by its RPC id),
+dispatches it, and saves the cursor in the same mutation. Statuses:
+
+- `LAGGING`: more than 720 ledgers (about 1 hour) behind; logs
+  `CHAIN_INDEXER_LAGGING`. `CHAIN_INDEXER_RETENTION_RISK` fires when the cursor
+  is within about one day of the oldest ledger RPC keeps.
+- `BEHIND_RETENTION`: events were missed. The indexer stops; nothing expires.
+  Load the missed range with `chain/indexer:ingestBackfill`, then run
+  `chain/indexer:replayFrom` with the first missed ledger.
+- `RESET_DETECTED`: the ledger sequence dropped or the Core instance is gone.
+  The indexer stops. Follow the testnet reset steps in
+  `docs/architecture/v2/07-security-and-recovery.md` (section 7.4), set a new
+  `CHAIN_EPOCH` and `INDEXER_START_LEDGER`; a new epoch starts a new cursor.
+
+`chain/indexer:redispatch` dispatches stored events that had no handler yet.
 
 ## Checks and browser tests
 

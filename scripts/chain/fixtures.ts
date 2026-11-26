@@ -186,7 +186,10 @@ export function fakeRpcFetch(responder: Responder) {
     }
     if (out instanceof Error) throw out
     const payload =
-      out && typeof out === 'object' && 'error' in out
+      out &&
+      typeof out === 'object' &&
+      'error' in out &&
+      Object.keys(out).length === 1
         ? {
             jsonrpc: '2.0',
             id: body.id,

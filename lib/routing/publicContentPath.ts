@@ -13,6 +13,7 @@ export const APP_ROUTE_SEGMENTS = new Set([
   'guide',
   'library',
   'login',
+  'ops',
   'privacy',
   'profile',
   'register',
