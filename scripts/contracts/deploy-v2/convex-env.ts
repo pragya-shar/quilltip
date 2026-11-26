@@ -40,10 +40,17 @@ export function convexCliEnv(deployment: string, env: EnvLike): EnvLike {
       `${deployment} is the live deployment. This step never writes to it.`
     )
   }
+  // The Convex CLI loads `.env.local` with dotenv, which fills only variables
+  // that are absent, and a deploy key or self-hosted URL wins over
+  // CONVEX_DEPLOYMENT. Empty strings keep those names present but unused, so a
+  // key in `.env.local` cannot redirect this step.
   const convexEnv: EnvLike = {
     ...env,
     CONVEX_DEPLOYMENT: `dev:${deployment}`,
-    CONVEX_DEPLOY_KEY: undefined,
+    CONVEX_DEPLOY_KEY: '',
+    CONVEX_DEPLOYMENT_TOKEN: '',
+    CONVEX_SELF_HOSTED_URL: '',
+    CONVEX_SELF_HOSTED_ADMIN_KEY: '',
     NEXT_PUBLIC_CONVEX_URL: `https://${deployment}.convex.cloud`,
   }
   assertScriptConvexDeployAllowed('deploy-v2-testnet convex-env', convexEnv)

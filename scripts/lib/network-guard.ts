@@ -35,6 +35,7 @@ function convexInputs(env: EnvLike) {
     ],
     convexDeployment: env.CONVEX_DEPLOYMENT,
     convexDeployKey: env.CONVEX_DEPLOY_KEY,
+    convexDeploymentToken: env.CONVEX_DEPLOYMENT_TOKEN,
     extraAllowedDeployments: env[CONVEX_ALLOWLIST_ENV],
     extraProductionDeployments: env[EXTRA_PRODUCTION_DEPLOYMENTS_ENV],
     liveBackendApproval: env[LIVE_BACKEND_APPROVAL_ENV],
@@ -138,12 +139,13 @@ export function assertScriptStellarTestnetOnly(
   env: EnvLike = process.env
 ): NetworkGuardResult {
   const refusals: NetworkGuardRefusal[] = []
-  if (env.CONVEX_DEPLOY_KEY?.trim()) {
-    refusals.push({
-      code: 'CONVEX_KEY_FOR_STELLAR_ONLY',
-      message:
-        'CONVEX_DEPLOY_KEY is set. Stellar-only tools never use a Convex deploy key; unset it for this run.',
-    })
+  for (const name of ['CONVEX_DEPLOY_KEY', 'CONVEX_DEPLOYMENT_TOKEN']) {
+    if (env[name]?.trim()) {
+      refusals.push({
+        code: 'CONVEX_KEY_FOR_STELLAR_ONLY',
+        message: `${name} is set. Stellar-only tools never use a Convex deploy key; unset it for this run.`,
+      })
+    }
   }
   if (env[LIVE_BACKEND_APPROVAL_ENV]?.trim()) {
     refusals.push({
@@ -196,6 +198,7 @@ export function assertScriptConvexDeployAllowed(
   const cliTargets = [
     env.CONVEX_DEPLOYMENT,
     env.CONVEX_DEPLOY_KEY,
+    env.CONVEX_DEPLOYMENT_TOKEN,
     env.CONVEX_SELF_HOSTED_URL,
   ]
   if (!cliTargets.some((value) => value?.trim())) {
