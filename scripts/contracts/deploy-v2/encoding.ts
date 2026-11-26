@@ -3,30 +3,18 @@
  * payload, and the acceptor's countersignature over the acceptance payload
  * (docs/architecture/v2/03-tab-contract.md, section 3.5). The voucher payload
  * bytes come from the Tab contract's `voucher_payload` view; the acceptance
- * payload is built here and checked against contracts/shared/test-vectors.json.
+ * payload comes from the shared encoders in lib/stellar/v2/tab/encoding.ts.
  */
-import { createHash } from 'crypto'
-import { Keypair, xdr } from '@stellar/stellar-sdk'
+import { Keypair } from '@stellar/stellar-sdk'
 
-export const TAB_ACCEPT_DOMAIN = 'quilltip_tab_accept_v1'
+import { acceptancePayloadBytes } from '../../../lib/stellar/v2/tab/encoding'
 
 /**
- * XDR of the `AcceptancePayload` contract type: a map with the keys `domain`
- * (Symbol) and `payload_hash` (BytesN<32>, the SHA-256 of the voucher bytes).
+ * XDR of the `AcceptancePayload` contract type for these voucher bytes, from
+ * the shared TypeScript encoders (lib/stellar/v2/tab/encoding.ts).
  */
 export function acceptancePayload(voucherPayload: Buffer): Buffer {
-  const hash = createHash('sha256').update(voucherPayload).digest()
-  const payload = xdr.ScVal.scvMap([
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('domain'),
-      val: xdr.ScVal.scvSymbol(TAB_ACCEPT_DOMAIN),
-    }),
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol('payload_hash'),
-      val: xdr.ScVal.scvBytes(hash),
-    }),
-  ]).toXDR()
-  return Buffer.from(payload)
+  return Buffer.from(acceptancePayloadBytes(voucherPayload))
 }
 
 export function sign(key: Keypair, bytes: Buffer): string {
