@@ -18,7 +18,7 @@ import { spawnSync } from 'child_process'
 import { mkdirSync } from 'fs'
 import { join, resolve } from 'path'
 
-import { guardedNetwork, localEnv } from './harness'
+import { Harness, guardedNetwork, localEnv } from './harness'
 
 /** stellar/quickstart, pinned by digest (local mode, protocol 30). */
 export const QUICKSTART_IMAGE =
@@ -91,6 +91,7 @@ async function main(argv: string[]) {
     ])
   }
   await waitHealthy(net.rpcUrl, 300)
+  await new Harness().assertLocalNetwork()
 
   let wasmDir = process.env.QUILLTIP_WASM_DIR
   let upgradeWasm = process.env.QUILLTIP_CORE_UPGRADE_WASM

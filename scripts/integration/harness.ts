@@ -66,6 +66,19 @@ export class Harness {
   readonly friendbot = new URL('/friendbot', this.net.rpcUrl).toString()
   readonly nativeSac = Asset.native().contractId(LOCAL_PASSPHRASE)
 
+  /**
+   * Confirms that the RPC serves the local standalone network. The guard only
+   * checks the URL; a process on localhost could serve another network.
+   */
+  async assertLocalNetwork(): Promise<void> {
+    const { passphrase } = await this.server.getNetwork()
+    if (passphrase !== LOCAL_PASSPHRASE) {
+      throw new Error(
+        `The RPC at ${this.net.rpcUrl} serves "${passphrase}", not the local standalone network.`
+      )
+    }
+  }
+
   /** A funded account (friendbot gives 10,000 XLM). */
   async account(): Promise<Keypair> {
     const kp = Keypair.random()

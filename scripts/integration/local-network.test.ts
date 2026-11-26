@@ -117,6 +117,7 @@ let A1: Uint8Array, A2: Uint8Array, A3: Uint8Array
 
 beforeAll(async () => {
   expect(wasmDir, 'QUILLTIP_WASM_DIR').not.toBe('')
+  await h.assertLocalNetwork()
   ;[
     admin,
     pauser,
@@ -387,17 +388,24 @@ describe('5.2 to 5.4 direct, highlight and batch tips', () => {
 
   it('highlight tip carries the highlight ID in the event', async () => {
     const highlight = rand(32)
+    const gross = BigInt(3) * XLM
+    const [a0, t0] = [
+      await h.balance(author2.publicKey()),
+      await h.balance(treasury.publicKey()),
+    ]
     const { res } = await send(
       'tip_highlight',
       core(tipper).tip({
         tipper: tipper.publicKey(),
         article_id: A2,
         token,
-        amount: BigInt(3) * XLM,
+        amount: gross,
         highlight_id: highlight,
         client_ref: rand(16),
       })
     )
+    expect(await h.balance(author2.publicKey())).toBe(a0 + gross - fee(gross))
+    expect(await h.balance(treasury.publicKey())).toBe(t0 + fee(gross))
     const data = named(res, coreId, 'tipped')[0]!.data as Record<
       string,
       unknown
@@ -439,7 +447,11 @@ describe('5.2 to 5.4 direct, highlight and batch tips', () => {
       highlight_id: i % 3 === 0 ? rand(32) : null,
       client_ref: rand(16),
     }))
-    const t0 = await h.balance(treasury.publicKey())
+    const [t0, a0, b0] = [
+      await h.balance(treasury.publicKey()),
+      await h.balance(author.publicKey()),
+      await h.balance(author2.publicKey()),
+    ]
     const { res } = await send(
       'tip_batch_10',
       core(tipper).tip_batch({ tipper: tipper.publicKey(), token, items })
@@ -447,6 +459,12 @@ describe('5.2 to 5.4 direct, highlight and batch tips', () => {
     expect(named(res, coreId, 'tipped')).toHaveLength(10)
     const fees = items.reduce((s, it) => s + fee(it.amount), BigInt(0))
     expect(await h.balance(treasury.publicKey())).toBe(t0 + fees)
+    const netTo = (id: Uint8Array) =>
+      items
+        .filter((it) => it.article_id === id)
+        .reduce((s, it) => s + it.amount - fee(it.amount), BigInt(0))
+    expect(await h.balance(author.publicKey())).toBe(a0 + netTo(A1))
+    expect(await h.balance(author2.publicKey())).toBe(b0 + netTo(A2))
   })
 })
 
@@ -454,7 +472,7 @@ describe('5.2 to 5.4 direct, highlight and batch tips', () => {
 async function openTab(reader: Keypair, deposit: bigint, spendLimit: bigint) {
   const seed = rand(32)
   const until = (await h.latestLedger()) + 20_000
-  const { result } = await busyRetry(() =>
+  const { res, result } = await busyRetry(() =>
     send(
       'open_session',
       tab(reader).open_session({
@@ -466,7 +484,26 @@ async function openTab(reader: Keypair, deposit: bigint, spendLimit: bigint) {
       })
     )
   )
-  return { seed, keyId: result as number }
+  const keyId = result as number
+  // Deposited and KeyRegistered carry the exact amounts and key (fresh reader).
+  const deposited = named(res, tabId, 'deposited')
+  expect(deposited).toHaveLength(1)
+  const dep = deposited[0]!.data as Record<string, unknown>
+  expect([dep.amount, dep.balance_after]).toEqual([deposit, deposit])
+  const registered = named(res, tabId, 'key_registered')
+  expect(registered).toHaveLength(1)
+  const key = registered[0]!.data as Record<string, unknown>
+  expect([key.key_id, key.valid_until, key.spend_limit]).toEqual([
+    keyId,
+    until,
+    spendLimit,
+  ])
+  expect(
+    Buffer.from(key.public_key as Uint8Array).equals(
+      Buffer.from(publicKeyOf(seed))
+    )
+  ).toBe(true)
+  return { seed, keyId, res }
 }
 
 /**
@@ -538,10 +575,16 @@ describe('5.5 to 5.9 tab', () => {
   it('open, vouchers in TypeScript, settle, settle_own, claim', async () => {
     const reader = await h.account()
     const writer = await h.account()
-    const { seed, keyId } = await openTab(
-      reader,
-      BigInt(20) * XLM,
-      BigInt(20) * XLM
+    const [r0, tab0] = [
+      await h.balance(reader.publicKey()),
+      await h.balance(tabId),
+    ]
+    const opened = await openTab(reader, BigInt(20) * XLM, BigInt(20) * XLM)
+    const { seed, keyId } = opened
+    // The deposit moves exactly 20 XLM; the reader also pays the network fee.
+    expect(await h.balance(tabId)).toBe(tab0 + BigInt(20) * XLM)
+    expect(await h.balance(reader.publicKey())).toBe(
+      r0 - BigInt(20) * XLM - opened.res.resultXdr.feeCharged
     )
     // The contract's own payload bytes equal the TypeScript encoder's (I-23).
     const root = rand(32)
@@ -601,6 +644,12 @@ describe('5.5 to 5.9 tab', () => {
     >
     expect(ev.gross).toBe(BigInt(3) * XLM)
     expect(ev.fee).toBe(fee(BigInt(3) * XLM))
+    expect([ev.key_id, ev.cumulative, ev.paid_after, ev.by_writer]).toEqual([
+      keyId,
+      BigInt(3) * XLM,
+      BigInt(3) * XLM,
+      false,
+    ])
     expect(
       Buffer.from(ev.receipts_root as Uint8Array).equals(Buffer.from(r3))
     ).toBe(true)
@@ -622,9 +671,18 @@ describe('5.5 to 5.9 tab', () => {
         ],
       })
     )
-    expect(named(own.res, tabId, 'tab_settled')).toHaveLength(1)
+    const ownEvents = named(own.res, tabId, 'tab_settled')
+    expect(ownEvents).toHaveLength(1)
+    const ownEv = ownEvents[0]!.data as Record<string, unknown>
     // Cumulative fee rule (I-31): treasury holds fee(paid), writer holds paid - fee(paid).
     const paid = BigInt(5) * XLM + BigInt(39)
+    expect([ownEv.gross, ownEv.fee, ownEv.paid_after, ownEv.by_writer]).toEqual(
+      [paid - BigInt(3) * XLM, fee(paid) - fee(BigInt(3) * XLM), paid, true]
+    )
+    expect(
+      (await tab(reader).account({ reader: reader.publicKey() })).result
+        ?.balance
+    ).toBe(BigInt(20) * XLM - paid)
     expect(
       (await tab(writer).claimable({ owner: writer.publicKey() })).result
     ).toBe(paid - fee(paid))
@@ -743,7 +801,7 @@ describe('pause scope', () => {
       tab(reader).deposit({ reader: reader.publicKey(), amount: XLM }),
       1000
     )
-    await send(
+    const paused = await send(
       'settle_while_paused',
       tab(settler).settle({
         settler: settler.publicKey(),
@@ -751,6 +809,14 @@ describe('pause scope', () => {
           voucher(reader.publicKey(), writer, keyId, seed, XLM, rand(32)),
         ],
       })
+    )
+    expect(paused.result.settled).toBe(1)
+    expect(paused.result.gross).toBe(XLM)
+    expect(named(paused.res, tabId, 'tab_settled')).toHaveLength(1)
+    // The reader keeps the exit while the Tab is paused.
+    await send(
+      'withdraw_start_while_paused',
+      tab(reader).withdraw_start({ reader: reader.publicKey() })
     )
     await send('tab_unpause', tab(admin).unpause({ caller: admin.publicKey() }))
   })
@@ -784,6 +850,9 @@ describe('upgrade and migrate', () => {
         caller: upgrader.publicKey(),
       })
     )
+    const totalBefore = (
+      await core(tipper).article_total({ article_id: A1, token })
+    ).result
     const hash = h.uploadWasm(upgradeWasm, admin)
     const upgraded = await send(
       'core_upgrade',
@@ -812,6 +881,9 @@ describe('upgrade and migrate', () => {
     expect(
       (await core(tipper).get_article({ article_id: A1 })).result?.author
     ).toBe(author.publicKey())
+    expect(
+      (await core(tipper).article_total({ article_id: A1, token })).result
+    ).toBe(totalBefore)
     await send(
       'tip_after_upgrade',
       core(tipper).tip({
@@ -823,6 +895,9 @@ describe('upgrade and migrate', () => {
         client_ref: rand(16),
       })
     )
+    expect(
+      (await core(tipper).article_total({ article_id: A1, token })).result
+    ).toBe(totalBefore! + XLM)
   })
 })
 
@@ -976,6 +1051,9 @@ describe('measurements', () => {
       tab: {
         transactions: tabRuns.length,
         breakdown: { open_session: 1, settle: 1, claim: writers.length },
+        // A reader who leaves recovers the rest with withdraw_start and
+        // withdraw: two more transactions, not counted here.
+        excludes: 'reader exit (withdraw_start and withdraw)',
         totalFeeStroops: tabFees,
       },
       transactionReduction: tips / tabRuns.length,
