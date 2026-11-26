@@ -7,7 +7,10 @@
  * (docs/architecture/v2/06-app-integration.md, section 6.1); these functions
  * only translate what it reports.
  */
-import type { ChainRecordStatus } from '@/convex/lib/chain/schema'
+import type {
+  ChainRecordStatus,
+  TabReceiptStatus,
+} from '@/convex/lib/chain/schema'
 import {
   networkLabel,
   walletErrorMessage,
@@ -52,14 +55,8 @@ export const PAYMENT_FLOWS: readonly PaymentFlow[] = [
 /** Steps the client runs itself before the server takes over. */
 export type ClientStep = 'simulating' | 'signing' | 'sending'
 
-/** Tab tip statuses (section 6.1, "Status sets"). */
-export type TabTipStatus =
-  | 'ACCEPTED'
-  | 'SETTLED'
-  | 'SHORTFALL'
-  | 'UNPAID'
-  | 'REJECTED'
-  | 'VOID_RESET'
+/** Tab tip (receipt) statuses (section 6.1, "Status sets"). */
+export type TabTipStatus = TabReceiptStatus
 
 export type PaymentPhase =
   | ClientStep

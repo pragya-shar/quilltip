@@ -3,6 +3,7 @@ import path from 'node:path'
 import { describe, expect, test } from 'vitest'
 import {
   CHAIN_RECORD_STATUSES,
+  TAB_RECEIPT_STATUSES,
   type ChainRecordStatus,
 } from '../../convex/lib/chain/schema'
 import {
@@ -89,8 +90,8 @@ describe('server status to phase', () => {
       REJECTED: 'under-review',
       VOID_RESET: 'void-reset',
     }
-    for (const [status, phase] of Object.entries(expected)) {
-      expect(phaseFromTabTip(status as TabTipStatus)).toBe(phase)
+    for (const status of TAB_RECEIPT_STATUSES) {
+      expect(phaseFromTabTip(status)).toBe(expected[status])
     }
   })
 })
