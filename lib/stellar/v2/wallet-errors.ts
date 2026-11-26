@@ -128,6 +128,27 @@ export const WALLET_ERROR_RULES: Readonly<
   scopuly: [
     { kind: 'no-wallet', pattern: /scopuly provider is not available/ },
   ],
+  // QuillTip's WalletConnect module and the wallet on the phone. Codes are
+  // WalletConnect's (5000 user rejected, 5100 unsupported chains, 5101
+  // unsupported methods) and EIP-1193's 4001.
+  wallet_connect: [
+    // Before the codes: Varial mobile refuses a request for another network
+    // with "Please switch to <network> in Varial Settings".
+    {
+      kind: 'wrong-network',
+      pattern: /not on stellar testnet|please switch to/,
+    },
+    { kind: 'rejected', code: 5000 },
+    { kind: 'rejected', code: 4001 },
+    { kind: 'wrong-network', code: 5100 },
+    { kind: 'unsupported', code: 5101 },
+    { kind: 'timeout', pattern: /(proposal|request) expired/ },
+    {
+      kind: 'disconnected',
+      pattern:
+        /session ended|no matching key|recently deleted|session topic doesn't exist|user disconnected/,
+    },
+  ],
   dcent: [
     { kind: 'no-wallet', pattern: /d'cent stellar provider is not available/ },
     // `getAddress` before access was granted.

@@ -60,6 +60,8 @@ describe('catalog', () => {
       'scopuly',
       'dcent',
       'albedo',
+      // Listed only when a WalletConnect project ID is configured.
+      'wallet_connect',
     ])
     for (const entry of WALLET_CATALOG) {
       expect(entry.url).toMatch(/^https:\/\//)

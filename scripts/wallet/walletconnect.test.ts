@@ -69,10 +69,17 @@ function fakeClient(sessions: WcSession[] = []) {
           settle = { resolve, reject }
         }),
     })),
-    request: vi.fn(async (params: { request: { method: string } }) =>
-      params.request.method === 'stellar_signXDR'
-        ? { signedXDR: 'SIGNED' }
-        : { signature: 'SIG', signerAddress: ADDRESS }
+    request: vi.fn(
+      async (params: {
+        request: { method: string; params: unknown }
+      }): Promise<{
+        signedXDR?: string
+        signature?: string
+        signerAddress?: string
+      }> =>
+        params.request.method === 'stellar_signXDR'
+          ? { signedXDR: 'SIGNED' }
+          : { signature: 'SIG', signerAddress: ADDRESS }
     ),
     disconnect: vi.fn(async () => {}),
     session: { getAll: () => sessions },
@@ -288,7 +295,7 @@ describe('states', () => {
     [{ code: 5100, message: 'Unsupported chains' }, 'wrong-network'],
     [
       { code: 5000, message: 'Please switch to Testnet in Varial Settings' },
-      'rejected',
+      'wrong-network',
     ],
     [
       { message: 'Please switch to Testnet in Varial Settings' },
