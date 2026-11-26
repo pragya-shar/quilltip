@@ -99,25 +99,38 @@ pub fn article_id(e: &Env, n: u8) -> BytesN<32> {
 }
 
 pub fn setup<'a>() -> Setup<'a> {
-    let e = Env::default();
+    setup_in(Env::default(), None)
+}
+
+/// Like [`setup`], with the NFT registered from optimized Wasm bytes instead of
+/// natively, in an environment that writes no test snapshot.
+pub fn setup_wasm<'a>(wasm: &[u8]) -> Setup<'a> {
+    let e = Env::new_with_config(soroban_sdk::testutils::EnvTestConfig {
+        capture_snapshot_at_drop: false,
+    });
+    setup_in(e, Some(wasm))
+}
+
+fn setup_in<'a>(e: Env, wasm: Option<&[u8]>) -> Setup<'a> {
     let admin = Address::generate(&e);
     let pauser = Address::generate(&e);
     let upgrader = Address::generate(&e);
     let xlm = Address::generate(&e);
     let author = Address::generate(&e);
     let core_id = e.register(MockCore, ());
-    let nft_id = e.register(
-        QuillTipArticleNft,
-        (
-            &admin,
-            &pauser,
-            &upgrader,
-            &core_id,
-            &xlm,
-            THRESHOLD,
-            String::from_str(&e, BASE_URI),
-        ),
+    let args = (
+        &admin,
+        &pauser,
+        &upgrader,
+        &core_id,
+        &xlm,
+        THRESHOLD,
+        String::from_str(&e, BASE_URI),
     );
+    let nft_id = match wasm {
+        Some(bytes) => e.register(bytes, args),
+        None => e.register(QuillTipArticleNft, args),
+    };
     let core = MockCoreClient::new(&e, &core_id);
     let nft = QuillTipArticleNftClient::new(&e, &nft_id);
     let article = article_id(&e, 1);

@@ -11,7 +11,7 @@ use soroban_sdk::{
 use stellar_contract_utils::pausable::{Paused, Unpaused};
 use stellar_tokens::non_fungible::{royalties::SetTokenRoyalty, Mint, NFTStorageKey, Transfer};
 
-use super::{setup, Setup, THRESHOLD};
+use super::{setup, setup_wasm, Setup, THRESHOLD};
 use crate::{
     storage::{DataKey, NFTRoyaltiesStorageKey},
     ArticleNftMinted, NftError, NftMigrated, ThresholdSet, ROYALTY_BPS, SCHEMA_VERSION,
@@ -208,18 +208,34 @@ fn error_codes_match_the_specification() {
     }
 }
 
-/// `mint` under the SDK's default mainnet resource limits, which `Env::default`
-/// enforces. Native registration: Wasm VM costs are not included; the PR
-/// records the figures measured on the optimized Wasm.
+/// `mint` under the SDK's default mainnet resource limits, which the test
+/// environment enforces. Native registration leaves out Wasm VM costs; see
+/// `mint_resources_on_wasm` for the figures on the optimized Wasm.
 #[test]
 fn mint_resources() {
-    let s = setup();
+    measure_mint(&setup(), "native");
+}
+
+/// The same measurement on the optimized Wasm. Run after the reproducible
+/// build:
+/// `QUILLTIP_NFT_WASM=<out>/quilltip_article_nft.wasm cargo test -p
+/// quilltip-article-nft mint_resources_on_wasm -- --ignored --nocapture`.
+#[test]
+#[ignore = "needs QUILLTIP_NFT_WASM, the optimized Wasm from the reproducible build"]
+fn mint_resources_on_wasm() {
+    let path = std::env::var("QUILLTIP_NFT_WASM").expect("QUILLTIP_NFT_WASM");
+    let wasm = std::fs::read(path).expect("read the Wasm");
+    measure_mint(&setup_wasm(&wasm), "wasm");
+}
+
+fn measure_mint(s: &Setup, label: &str) {
     s.set_total(&s.article, THRESHOLD);
     s.allow(&s.author, "mint", (s.article.clone(),).into_val(&s.e));
-    s.nft.mint(&s.article);
+    let token_id = s.nft.mint(&s.article);
     let r = s.e.cost_estimate().resources();
+    assert_eq!(s.nft.owner_of(&token_id), s.author);
     std::println!(
-        "mint (native): instructions={} mem_bytes={} disk_read_entries={} memory_read_entries={} write_entries={} write_bytes={} contract_events_size_bytes={}",
+        "mint ({label}): instructions={} mem_bytes={} disk_read_entries={} memory_read_entries={} write_entries={} write_bytes={} contract_events_size_bytes={}",
         r.instructions,
         r.mem_bytes,
         r.disk_read_entries,
