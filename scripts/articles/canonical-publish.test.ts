@@ -81,10 +81,14 @@ const expectedHash = (
     contentVersion,
   })
 
+// Fake timers keep scheduled functions from starting on their own, so a test
+// decides when the scheduled upload runs and it never runs twice at once.
 beforeEach(() => {
   uploads.length = 0
+  vi.useFakeTimers()
 })
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllEnvs()
 })
 
@@ -130,8 +134,10 @@ test('the Arweave body is the canonical bytes and hashes to contentHash', async 
   vi.stubEnv('ARWEAVE_WALLET_KEY', '{"kty":"RSA"}')
   const { t, author, authorId, id } = await setup()
   await author.mutation(api.articles.publishArticle, { id })
-  // Run the upload that publish scheduled.
-  await t.action(internal.arweave.uploadArticleToArweave, { articleId: id })
+  // Run the upload that publish scheduled, once. The verification it
+  // schedules later is not run.
+  vi.runOnlyPendingTimers()
+  await t.finishInProgressScheduledFunctions()
 
   expect(uploads).toHaveLength(1)
   const [upload] = uploads
