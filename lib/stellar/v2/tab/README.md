@@ -92,6 +92,10 @@ if (result.kind === 'signed') {
   signed; the next `signTabTip` then applies the ledger rule.
 - If `submitTip` throws a network error, resubmit the same `result.submit`.
   Convex returns the same acceptance. Do not prepare a new tip for it.
+- `signTabTip` never refuses a prepare for its age: `expiresAt` is server
+  time and the device clock can be off. If `submitTip` fails with
+  `TAB_PREPARE_EXPIRED`, prepare again. A replay of an accepted tip returns
+  the stored signature at any age.
 
 ### Key status for the UI
 
@@ -136,7 +140,6 @@ Tab tips are testnet activity; label them so.
 | `unusable`, `key_unusable`                               | This browser stopped the key after a ledger mismatch.                     | "Quick tips are stopped on this device." Offer a new key and, optionally, revoking the old one.       |
 | `ledger_mismatch`                                        | Just stopped: the tab history differs from this device twice.             | As `unusable`. Report it (it means a server or storage fault).                                        |
 | `none`                                                   | No key.                                                                   | Offer "Prepay for quick tips".                                                                        |
-| `expired` (prepare)                                      | The prepared tip passed `expiresAt`.                                      | Prepare again silently.                                                                               |
 | `pair_full`                                              | 256 receipts for this writer under this key.                              | Offer a new key.                                                                                      |
 | `above_limit`                                            | Above the caller's `maxAmount`.                                           | Show the limit.                                                                                       |
 | `wrong_tab`, `wrong_reader`, `malformed`, `inconsistent` | The prepare response is not usable.                                       | "Something went wrong. Try again." Report it; never retry automatically more than once.               |

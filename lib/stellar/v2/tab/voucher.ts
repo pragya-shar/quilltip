@@ -30,7 +30,11 @@ export type PreparedTabTip<Id extends string = string> = {
   receipt: StoredReceipt
   /** Leaf hashes of seq 1 to `seq − 1`, in order. */
   leafHashes: string[]
-  /** Unix ms; submit before this. */
+  /**
+   * Unix ms, server clock. Convex refuses a late submit with
+   * `TAB_PREPARE_EXPIRED`. The client does not compare it with the device
+   * clock, which can be off.
+   */
   expiresAt: number
   existing: boolean
 }
@@ -86,7 +90,6 @@ export type PrepareProblem =
   | 'malformed'
   | 'inconsistent'
   | 'pair_full'
-  | 'expired'
   | 'above_limit'
 
 export class PrepareCheckError extends Error {
@@ -102,8 +105,6 @@ export class PrepareCheckError extends Error {
 export type PrepareExpectations = {
   tabContractId: string
   readerAddress: string
-  /** Unix ms; defaults to `Date.now()`. */
-  now?: number
   /** Refuse to sign a single tip above this many base units. */
   maxAmount?: bigint
 }
@@ -158,12 +159,6 @@ export function buildReceipt<Id extends string>(
   if (amount <= BigInt(0)) fail('malformed', 'amount must be positive.')
   if (expect.maxAmount !== undefined && amount > expect.maxAmount)
     fail('above_limit', 'The tip is above the limit this page allows.')
-  if (
-    typeof prepared.expiresAt !== 'number' ||
-    (expect.now ?? Date.now()) >= prepared.expiresAt
-  )
-    fail('expired', 'The prepared tip expired. Prepare it again.')
-
   const server = prepared.receipt
   const receipt: StoredReceipt = {
     amount: amount.toString(),

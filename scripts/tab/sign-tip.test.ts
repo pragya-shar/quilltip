@@ -19,12 +19,15 @@ import {
   freshDb,
 } from './helpers'
 
-async function setup(forceFallback = false) {
+async function setup(
+  forceFallback = false,
+  extra: Partial<SignTabTipDeps> = {}
+) {
   const db = freshDb()
   const keys = createSessionKeyStore({ ...db, forceFallback })
   const key = await keys.generate(SCOPE)
   await keys.bindKeyIds(SCOPE, [{ keyId: 0, publicKey: key.info.publicKey }])
-  const deps = depsFor(db, { keys })
+  const deps = depsFor(db, { keys, ...extra })
   const server = new FakeTabServer(new Map([[0, key.info.publicKey]]))
   return { db, deps, key, keys, server }
 }
@@ -106,7 +109,22 @@ describe('signTabTip: prepare checks (no key marking)', () => {
       (p) => ({ ...p, receipt: { ...p.receipt, articleId: 'ab' } }),
       'articleId',
     ],
-    ['inconsistent', (p) => ({ ...p, seq: 2 }), 'seq vs leaves'],
+    // The receipt agrees with seq, so only the leaf count check catches it.
+    [
+      'inconsistent',
+      (p) => ({ ...p, seq: 2, receipt: { ...p.receipt, seq: 2 } }),
+      'seq vs leaves',
+    ],
+    [
+      'inconsistent',
+      (p) => ({
+        ...p,
+        seq: 1,
+        leafHashes: ['44'.repeat(32)],
+        receipt: { ...p.receipt, seq: 1 },
+      }),
+      'seq behind leaves',
+    ],
     [
       'inconsistent',
       (p) => ({ ...p, receipt: { ...p.receipt, cumulativeAfter: '999' } }),
@@ -126,7 +144,6 @@ describe('signTabTip: prepare checks (no key marking)', () => {
       }),
       '',
     ],
-    ['expired', (p) => ({ ...p, expiresAt: 1_000 }), ''],
   ]
   for (const [reason, mutate, label] of cases) {
     it(`${reason}${label ? ` (${label})` : ''}`, async () => {
@@ -150,6 +167,52 @@ describe('signTabTip: prepare checks (no key marking)', () => {
     expect(
       await signTabTip(prepared, { ...deps, maxAmount: BigInt(50) })
     ).toMatchObject({ kind: 'stop', reason: 'above_limit' })
+  })
+})
+
+describe('signTabTip: device clock and prepare age', () => {
+  // expiresAt is server time (prepare + 5 minutes). Convex enforces it.
+  const DAY = 86_400_000
+
+  for (const [label, offset] of [
+    ['one day ahead', DAY],
+    ['one day behind', -DAY],
+  ] as const) {
+    it(`signs a fresh prepare with the device clock ${label}`, async () => {
+      const { deps, server } = await setup(false, {
+        now: () => 1_000 + offset,
+      })
+      const prepared = server.prepare({
+        keyId: 0,
+        writer: WRITER_G,
+        amount: BigInt(1),
+      })
+      const result = await signTabTip(prepared, deps)
+      expect(result.kind).toBe('signed')
+      if (result.kind === 'signed')
+        expect(server.submit(result.submit).status).toBe('ACCEPTED')
+    })
+  }
+
+  it('returns the stored signature for a replay after the prepare TTL', async () => {
+    let clock = 1_000
+    const { deps, server } = await setup(false, { now: () => clock })
+    const prepared = server.prepare({
+      keyId: 0,
+      writer: WRITER_G,
+      amount: BigInt(2),
+    })
+    const first = await signTabTip(prepared, deps)
+    if (first.kind !== 'signed') throw new Error(`not signed: ${first.kind}`)
+    server.submit(first.submit) // accepted; the response is lost
+    clock = prepared.expiresAt + 600_000
+    const again = await signTabTip(
+      server.prepareAgain(prepared.prepareId),
+      deps
+    )
+    expect(again).toMatchObject({ kind: 'signed', replay: true })
+    if (again.kind === 'signed')
+      expect(again.submit.signature).toBe(first.submit.signature)
   })
 })
 

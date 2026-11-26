@@ -53,6 +53,7 @@ export type SignTabTipDeps = {
   readerAddress: string
   /** Optional cap on a single tip, in base units. */
   maxAmount?: bigint
+  /** Timestamps for local records only; never compared with `expiresAt`. */
   now?: () => number
 }
 
@@ -113,7 +114,6 @@ const STOP_MESSAGES: Record<StopReason, string> = {
   malformed: 'The prepared tip is malformed.',
   inconsistent: 'The prepared tip is inconsistent.',
   pair_full: 'This key reached its receipt limit for this writer.',
-  expired: 'The prepared tip expired.',
   above_limit: 'The tip is above the allowed amount.',
   key_missing: "This device's quick-tip key is gone.",
   key_unusable: 'Quick tips with this key are stopped on this device.',
@@ -150,7 +150,6 @@ export async function signTabTip<Id extends string>(
     receipt = buildReceipt(prepared, {
       tabContractId: deps.tabContractId,
       readerAddress: deps.readerAddress,
-      now: now(),
       maxAmount: deps.maxAmount,
     })
   } catch (error) {
