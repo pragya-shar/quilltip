@@ -399,9 +399,13 @@ these holds:
 **Pairs that cannot settle now.** They never take a place in a batch:
 
 - A pair skipped as `SHORTFALL` waits until the reader deposits again.
-- A pair whose settle window has ended becomes `UNPAID`.
-- A pair whose voucher fails the pre-checks or simulation becomes `REJECTED`
-  for review.
+- A pair whose settle window has ended becomes `UNPAID`, once the indexer has
+  applied every ledger up to the end of the window.
+- A pair whose voucher fails the pre-checks, or fails simulation on its own
+  for a reason that voucher causes (an invalid signature, `AccountMissing`,
+  `Overflow`), becomes `REJECTED` for review. A failure that every voucher
+  shares (for example a missing `settler` role) stops the run and rejects
+  nothing.
 
 **Submission steps** ([section 3.2](#settlement)):
 

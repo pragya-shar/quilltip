@@ -106,7 +106,8 @@ the edge of retention are flagged for manual review.
 
 `UNPAID` is terminal. It is set when the key's settle window
 (`valid_until + SETTLE_GRACE`) has ended with `paid < cumulative_after`,
-whatever the account status. The reader's reserved amount is released.
+whatever the account status, and the indexer has applied every ledger up to
+the end of that window. The reader's reserved amount is released.
 
 ## 6.2 Convex schema changes
 
