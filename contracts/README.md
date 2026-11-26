@@ -236,3 +236,11 @@ QUILLTIP_NETWORK_GUARD_OPT_IN=local NEXT_PUBLIC_STELLAR_NETWORK=LOCAL NEXT_PUBLI
 On testnet, use `QUILLTIP_NETWORK_GUARD_OPT_IN=testnet`,
 `NEXT_PUBLIC_STELLAR_NETWORK=TESTNET`, the testnet RPC URL and passphrase, and
 a commit on `origin/overhaul/v2`.
+
+## Operations
+
+Guarded tools for a deployed set: TTL report and extension, restore of
+archived entries, redeploy after a testnet reset, role and pause commands, and
+event backfill for the indexer. Each is a dry run unless `--submit` is given.
+Procedures, including the weekly extension:
+[chain operations runbook](../docs/operations/chain-runbook.md).

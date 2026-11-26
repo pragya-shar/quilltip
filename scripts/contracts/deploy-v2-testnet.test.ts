@@ -70,6 +70,7 @@ function refusalCodes(env: Record<string, string | undefined>): string[] {
 describe('the Stellar-only guard', () => {
   it('accepts testnet without any Convex target', () => {
     expect(resolveDeployNetwork(TESTNET_ENV)).toEqual({
+      operation: 'deploy-v2-testnet',
       network: 'TESTNET',
       passphrase: TESTNET_PASSPHRASE,
       rpcUrl: 'https://soroban-testnet.stellar.org',
