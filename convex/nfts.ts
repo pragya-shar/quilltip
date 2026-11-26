@@ -7,6 +7,7 @@ import {
   buildNftMetadataPayload,
   isValidArweaveNftMetadataUrl,
 } from './lib/nftMetadata'
+import { verifiedStellarAddress } from './lib/walletVerification'
 
 // Get NFTs by owner
 export const getNFTsByOwner = query({
@@ -164,7 +165,7 @@ export const getNFTByArticle = query({
         isEligible: true,
         totalTips: totalTipsCents,
         tipThreshold: thresholdCents,
-        owner: owner?.stellarAddress || owner?.username || 'Unknown',
+        owner: verifiedStellarAddress(owner) || owner?.username || 'Unknown',
         mintedAt: new Date(nft.mintedAt).toISOString(),
         transferCount: transfers.length,
         rarity,
@@ -174,7 +175,7 @@ export const getNFTByArticle = query({
               name: owner.name,
               username: owner.username,
               avatar: owner.avatar,
-              stellarAddress: owner.stellarAddress,
+              stellarAddress: verifiedStellarAddress(owner),
             }
           : null,
         minterInfo: minter
@@ -247,7 +248,7 @@ export const getNFTDetails = query({
             name: owner.name,
             username: owner.username,
             avatar: owner.avatar,
-            stellarAddress: owner.stellarAddress,
+            stellarAddress: verifiedStellarAddress(owner),
           }
         : null,
       minter: minter

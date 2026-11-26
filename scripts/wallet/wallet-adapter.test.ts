@@ -58,6 +58,10 @@ function fakeKit(
       signedTxXdr: `${xdr}:signed`,
       signerAddress: ADDRESS,
     })),
+    signMessage: vi.fn(async (message: string) => ({
+      signedMessage: `${message}:signed`,
+      signerAddress: ADDRESS,
+    })),
     disconnect: vi.fn(async () => {}),
     refreshSupportedWallets: vi.fn(async () =>
       modules.map((m) => ({
@@ -290,6 +294,52 @@ describe('connect', () => {
     )
     await vi.advanceTimersByTimeAsync(1000)
     expect((await pending).kind).toBe('timeout')
+  })
+})
+
+describe('signMessage', () => {
+  test('signs with the connected address for QuillTip’s network', async () => {
+    const fake = fakeKit()
+    const wallet = adapterFor(fake)
+    await wallet.connect()
+    await expect(wallet.signMessage('hello')).resolves.toEqual({
+      signedMessage: 'hello:signed',
+      signerAddress: ADDRESS,
+    })
+    expect(fake.kit.signMessage).toHaveBeenCalledWith('hello', {
+      address: ADDRESS,
+      networkPassphrase: TESTNET,
+    })
+  })
+
+  test('reports wallets that cannot sign messages as unsupported', async () => {
+    const fake = fakeKit()
+    const wallet = adapterFor(fake)
+    await wallet.connect()
+    fake.kit.signMessage.mockRejectedValueOnce({
+      code: -3,
+      message: 'Albedo does not support the "signMessage" function',
+    })
+    expect((await rejection(wallet.signMessage('hello'))).kind).toBe(
+      'unsupported'
+    )
+  })
+
+  test('refuses another account’s signature and a wrong network', async () => {
+    const fake = fakeKit()
+    const wallet = adapterFor(fake)
+    await wallet.connect()
+    fake.kit.signMessage.mockResolvedValueOnce({
+      signedMessage: 'x',
+      signerAddress: OTHER,
+    })
+    expect((await rejection(wallet.signMessage('hello'))).kind).toBe(
+      'wrong-account'
+    )
+    fake.state.walletNetwork = PUBLIC
+    expect((await rejection(wallet.signMessage('hello'))).kind).toBe(
+      'wrong-network'
+    )
   })
 })
 

@@ -36,6 +36,7 @@ import {
   syncReadingRoomArticle,
 } from './lib/readingRoomIndex'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
+import { verifiedStellarAddress } from './lib/walletVerification'
 import {
   ARTICLE_SCHEMA,
   CanonicalArticleError,
@@ -77,7 +78,7 @@ import {
 
 const WRITER_NOTES_MAX_LENGTH = 5000
 const PUBLISH_RECEIVING_WALLET_ERROR =
-  'Connect a receiving wallet before publishing so readers can tip this article'
+  'Verify your receiving wallet before publishing so readers can tip this article'
 
 function stripWriterNotes<T extends { writerNotes?: string }>(
   article: T
@@ -119,8 +120,9 @@ function validateArticleInput(args: {
   }
 }
 
-function assertAuthorCanReceiveTips(user: { stellarAddress?: string | null }) {
-  if (!user.stellarAddress) {
+function assertAuthorCanReceiveTips(user: Doc<'users'>) {
+  // Readers can tip only a wallet the writer proved control of.
+  if (!verifiedStellarAddress(user)) {
     throw new Error(PUBLISH_RECEIVING_WALLET_ERROR)
   }
 }
@@ -715,7 +717,8 @@ export const getArticleBySlug = query({
         name: author.name,
         username: author.username,
         avatar: author.avatar,
-        stellarAddress: author.stellarAddress,
+        // Tips go only to a verified address.
+        stellarAddress: verifiedStellarAddress(author),
       },
       tipStats,
     }
@@ -795,7 +798,7 @@ export const getArticleById = query({
             name: author.name,
             username: author.username,
             avatar: author.avatar,
-            stellarAddress: author.stellarAddress,
+            stellarAddress: verifiedStellarAddress(author),
           }
         : null,
     }

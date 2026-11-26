@@ -247,6 +247,9 @@ test('Reading Room cards show the saved subtitle after publication and keep it w
       email: 'subtitle@example.test',
       name: 'Marin River',
       stellarAddress: 'G' + 'A'.repeat(55),
+      // The writer proved control of this address on testnet.
+      stellarAddressVerifiedAt: 1,
+      stellarAddressVerifiedNetwork: 'Test SDF Network ; September 2015',
       createdAt: 1,
       updatedAt: 1,
     })
@@ -336,6 +339,9 @@ test('search backfills a large catalog and follows public writes without changin
       email: 'lumen@example.test',
       name: 'Lumen Arch',
       stellarAddress: 'G' + 'A'.repeat(55),
+      // The writer proved control of this address on testnet.
+      stellarAddressVerifiedAt: 1,
+      stellarAddressVerifiedNetwork: 'Test SDF Network ; September 2015',
       createdAt: 1,
       updatedAt: 1,
     })

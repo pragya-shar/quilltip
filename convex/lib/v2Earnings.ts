@@ -23,6 +23,11 @@
  * - **Cents.** The display figures use the USD amount stored on the row at
  *   prepare (`amountCents`), in proportion to each recipient's share of gross.
  */
+import {
+  isStellarAddressVerified,
+  verifiedStellarAddress,
+  walletNetworkPassphrase,
+} from './walletVerification'
 import type { Doc, Id } from '../_generated/dataModel'
 import type { MutationCtx } from '../_generated/server'
 import { BPS_DENOMINATOR } from './chain/fees'
@@ -87,21 +92,24 @@ export function shareCents(row: TipRow, share: bigint): number {
 }
 
 /**
- * The user to credit for `address`: the row's expected author when their
- * linked address matches, otherwise the only user that links it. Two users
- * linking one address credit nobody.
+ * The user to credit for `address`: the row's expected author when they
+ * verified that address, otherwise the only user that verified it. Unverified
+ * links credit nobody; earnings already credited are not changed.
  */
 async function userForAddress(
   ctx: MutationCtx,
   row: TipRow,
   address: string
 ): Promise<Doc<'users'> | null> {
+  const network = walletNetworkPassphrase()
   const expected = await ctx.db.get(row.authorId)
-  if (expected?.stellarAddress === address) return expected
-  const matches = await ctx.db
-    .query('users')
-    .withIndex('by_stellar_address', (q) => q.eq('stellarAddress', address))
-    .take(2)
+  if (verifiedStellarAddress(expected, network) === address) return expected
+  const matches = (
+    await ctx.db
+      .query('users')
+      .withIndex('by_stellar_address', (q) => q.eq('stellarAddress', address))
+      .take(50)
+  ).filter((user) => isStellarAddressVerified(user, network))
   return matches.length === 1 ? matches[0]! : null
 }
 

@@ -101,6 +101,10 @@ export type KitFacade = {
     xdr: string,
     opts?: { networkPassphrase?: string; address?: string }
   ): Promise<{ signedTxXdr: string; signerAddress?: string }>
+  signMessage(
+    message: string,
+    opts?: { networkPassphrase?: string; address?: string }
+  ): Promise<{ signedMessage: string; signerAddress?: string }>
   disconnect(): Promise<void>
   refreshSupportedWallets(): Promise<ISupportedWallet[]>
   on(type: string, callback: (event: unknown) => void): () => void
@@ -487,6 +491,59 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
       return {
         signedTxXdr: result.signedTxXdr,
         signerAddress: result.signerAddress ?? address,
+      }
+    },
+    /**
+     * Signs `message` with the connected address (SEP-53, for proving control
+     * of the address). Throws `unsupported` for wallets that cannot sign
+     * messages (Albedo, Rabet); callers then use a signed transaction instead.
+     */
+    async signMessage(
+      message: string,
+      opts: { timeoutMs?: number } = {}
+    ): Promise<{ signedMessage: string; signerAddress: string }> {
+      const current = connection
+      if (!current) {
+        throw new WalletError('locked', 'Connect a wallet first')
+      }
+      const { kit } = await init()
+      const network = await readNetwork(kit, current.walletId)
+      assertPassphrase(network, current.walletId)
+      let result: { signedMessage: string; signerAddress?: string }
+      try {
+        result = await withTimeout(
+          kit.signMessage(message, {
+            address: current.address,
+            networkPassphrase: expected,
+          }),
+          opts.timeoutMs ?? signTimeoutMs,
+          current.walletId
+        )
+      } catch (error) {
+        if (isNotSupported(error)) {
+          throw new WalletError(
+            'unsupported',
+            'This wallet cannot sign messages',
+            { walletId: current.walletId, cause: error }
+          )
+        }
+        throw classifyWalletError(error, current.walletId)
+      }
+      if (!result.signedMessage) {
+        throw new WalletError('failed', 'The wallet returned no signature', {
+          walletId: current.walletId,
+        })
+      }
+      if (result.signerAddress && result.signerAddress !== current.address) {
+        throw new WalletError(
+          'wrong-account',
+          'The wallet signed with a different account',
+          { walletId: current.walletId }
+        )
+      }
+      return {
+        signedMessage: result.signedMessage,
+        signerAddress: result.signerAddress ?? current.address,
       }
     },
     /** Forgets the connection and closes any WalletConnect session. */

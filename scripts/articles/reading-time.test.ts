@@ -64,6 +64,9 @@ test('saved draft edits set the reading estimate published to the Reading Room, 
       username: 'reading-time-writer',
       name: 'Reading Time Writer',
       stellarAddress: 'G' + 'A'.repeat(55),
+      // The writer proved control of this address on testnet.
+      stellarAddressVerifiedAt: 1,
+      stellarAddressVerifiedNetwork: 'Test SDF Network ; September 2015',
       createdAt: 1,
       updatedAt: 1,
     })
