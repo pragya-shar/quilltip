@@ -21,6 +21,7 @@
  *   to the failing voucher, which is marked `REJECTED` for review.
  */
 import { StrKey, xdr, Address } from '@stellar/stellar-sdk'
+import { Buffer } from 'buffer'
 import { decodeContractEventXdr } from './events'
 import { hexToBytes, isHexOfLength } from './ids'
 import { toStoredValue } from './indexerStore'
