@@ -8,6 +8,60 @@ import {
   isValidArweaveNftMetadataUrl,
 } from './lib/nftMetadata'
 import { verifiedStellarAddress } from './lib/walletVerification'
+import type { Doc, Id } from './_generated/dataModel'
+import type { QueryCtx } from './_generated/server'
+import { userForAddress } from './lib/chain/nftStore'
+
+/**
+ * Version label for NFT rows. v2 rows come from the article NFT contract;
+ * every other row is a database-only v1 record (docs/architecture/v2/
+ * 06-app-integration.md, section 6.9).
+ */
+function versionFields(nft: Doc<'articleNFTs'>) {
+  const v2 = nft.contractVersion === 'v2'
+  return {
+    contractVersion: v2 ? ('v2' as const) : ('v1' as const),
+    recordLabel: v2 ? null : ('v1 record' as const),
+  }
+}
+
+/**
+ * The QuillTip user who owns the row now. v2 ownership is by address: the
+ * user whose verified address is `ownerAddress`. v1 rows use `currentOwner`.
+ */
+async function ownerUserId(
+  ctx: QueryCtx,
+  nft: Doc<'articleNFTs'>
+): Promise<Id<'users'> | undefined> {
+  if (nft.contractVersion !== 'v2') return nft.currentOwner
+  return nft.ownerAddress ? userForAddress(ctx, nft.ownerAddress) : undefined
+}
+
+/** v1 rows owned through `currentOwner` plus v2 rows owned by address. */
+async function rowsOwnedBy(
+  ctx: QueryCtx,
+  userId: Id<'users'>
+): Promise<Doc<'articleNFTs'>[]> {
+  const [cached, user] = await Promise.all([
+    ctx.db
+      .query('articleNFTs')
+      .withIndex('by_current_owner', (q) => q.eq('currentOwner', userId))
+      .collect(),
+    ctx.db.get(userId),
+  ])
+  const address = verifiedStellarAddress(user)
+  const v2 = address
+    ? await ctx.db
+        .query('articleNFTs')
+        .withIndex('by_owner_address', (q) => q.eq('ownerAddress', address))
+        .collect()
+    : []
+  // A v2 row's `currentOwner` is a cache from event time; the address decides.
+  return [
+    ...cached.filter((nft) => nft.contractVersion !== 'v2'),
+    ...v2.filter((nft) => nft.contractVersion === 'v2'),
+  ]
+}
 
 // Get NFTs by owner
 export const getNFTsByOwner = query({
@@ -18,10 +72,7 @@ export const getNFTsByOwner = query({
     const targetOwnerId = args.ownerId || (await getAuthUserId(ctx))
     if (!targetOwnerId) return []
 
-    const nfts = await ctx.db
-      .query('articleNFTs')
-      .withIndex('by_current_owner', (q) => q.eq('currentOwner', targetOwnerId))
-      .collect()
+    const nfts = await rowsOwnedBy(ctx, targetOwnerId)
 
     // Enrich with article data
     const enrichedNfts = await Promise.all(
@@ -33,6 +84,7 @@ export const getNFTsByOwner = query({
 
         return {
           ...nft,
+          ...versionFields(nft),
           article: article
             ? {
                 id: article._id,
@@ -63,10 +115,7 @@ export const getNFTsByOwnerPaginated = query({
     const limit = Math.min(Math.max(args.limit ?? 9, 1), 50)
     const offset = (page - 1) * limit
 
-    const rows = await ctx.db
-      .query('articleNFTs')
-      .withIndex('by_current_owner', (q) => q.eq('currentOwner', args.ownerId))
-      .collect()
+    const rows = await rowsOwnedBy(ctx, args.ownerId)
 
     rows.sort((a, b) => b.mintedAt - a.mintedAt)
     const total = rows.length
@@ -81,6 +130,7 @@ export const getNFTsByOwnerPaginated = query({
 
         return {
           ...nft,
+          ...versionFields(nft),
           article: article
             ? {
                 id: article._id,
@@ -115,11 +165,17 @@ export const getNFTByArticle = query({
     const article = await ctx.db.get(args.articleId)
     if (!article) return null
 
-    // Get existing NFT if it exists
-    const nft = await ctx.db
+    // Get existing NFT if it exists. A v2 row wins over a v1 record.
+    const rows = await ctx.db
       .query('articleNFTs')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .first()
+      .take(20)
+    const nft =
+      rows
+        .filter((row) => row.contractVersion === 'v2')
+        .sort((a, b) => b.mintedAt - a.mintedAt)[0] ??
+      rows[0] ??
+      null
 
     // Get total tips for the article
     const tips = await ctx.db
@@ -134,9 +190,10 @@ export const getNFTByArticle = query({
 
     if (nft) {
       // NFT exists - return full NFT data with status
+      const ownerId = await ownerUserId(ctx, nft)
       const [owner, minter] = await Promise.all([
-        nft.currentOwner ? ctx.db.get(nft.currentOwner) : null,
-        ctx.db.get(nft.mintedBy),
+        ownerId ? ctx.db.get(ownerId) : null,
+        nft.mintedBy ? ctx.db.get(nft.mintedBy) : null,
       ])
 
       // Count transfers
@@ -160,12 +217,17 @@ export const getNFTByArticle = query({
       return {
         // Spread NFT data first to include _id and other fields
         ...nft,
+        ...versionFields(nft),
         // Add status fields
         isMinted: true as const,
         isEligible: true,
         totalTips: totalTipsCents,
         tipThreshold: thresholdCents,
-        owner: verifiedStellarAddress(owner) || owner?.username || 'Unknown',
+        owner:
+          (nft.contractVersion === 'v2' ? nft.ownerAddress : undefined) ||
+          verifiedStellarAddress(owner) ||
+          owner?.username ||
+          'Unknown',
         mintedAt: new Date(nft.mintedAt).toISOString(),
         transferCount: transfers.length,
         rarity,
@@ -212,9 +274,10 @@ export const getNFTDetails = query({
     const nft = await ctx.db.get(args.nftId)
     if (!nft) return null
 
+    const ownerId = await ownerUserId(ctx, nft)
     const [owner, minter, article] = await Promise.all([
-      nft.currentOwner ? ctx.db.get(nft.currentOwner) : null,
-      ctx.db.get(nft.mintedBy),
+      ownerId ? ctx.db.get(ownerId) : null,
+      nft.mintedBy ? ctx.db.get(nft.mintedBy) : null,
       ctx.db.get(nft.articleId),
     ])
 
@@ -242,6 +305,7 @@ export const getNFTDetails = query({
 
     return {
       ...nft,
+      ...versionFields(nft),
       owner: owner
         ? {
             id: owner._id,
@@ -382,6 +446,10 @@ export const transferNFT = mutation({
 
     const nft = await ctx.db.get(args.nftId)
     if (!nft) throw new Error('NFT not found')
+    // v2 ownership changes only from a verified on-chain transfer event.
+    if (nft.contractVersion === 'v2') {
+      throw new Error('Transfer this NFT with your wallet on Stellar.')
+    }
     if (nft.currentOwner !== userId) throw new Error("You don't own this NFT")
 
     // Find recipient
@@ -447,11 +515,12 @@ export const getUserMintedNFTs = query({
       nfts.map(async (nft) => {
         const [article, currentOwnerInfo] = await Promise.all([
           ctx.db.get(nft.articleId),
-          enrichWithUser(ctx, nft.currentOwner),
+          ownerUserId(ctx, nft).then((id) => enrichWithUser(ctx, id)),
         ])
 
         return {
           ...nft,
+          ...versionFields(nft),
           article: article
             ? {
                 id: article._id,
@@ -493,11 +562,12 @@ export const getUserMintedNFTsPaginated = query({
       slice.map(async (nft) => {
         const [article, currentOwnerInfo] = await Promise.all([
           ctx.db.get(nft.articleId),
-          enrichWithUser(ctx, nft.currentOwner),
+          ownerUserId(ctx, nft).then((id) => enrichWithUser(ctx, id)),
         ])
 
         return {
           ...nft,
+          ...versionFields(nft),
           article: article
             ? {
                 id: article._id,

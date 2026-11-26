@@ -65,6 +65,7 @@ export const storeChainConfig = internalMutation({
     minTip: v.optional(v.string()),
     feeBps: v.optional(v.number()),
     nftThreshold: v.optional(v.string()),
+    nftThresholdToken: v.optional(v.string()),
     tabAcceptorKeys: v.optional(v.array(v.string())),
     paused: v.object({
       core: v.optional(v.boolean()),
@@ -176,7 +177,7 @@ export const refreshChainConfig = internalAction({
           }
         : {}),
     }
-    const nftThreshold = chain.nftContractId
+    const threshold = chain.nftContractId
       ? await attempt(async () => {
           const value = await readView(
             rpc,
@@ -184,9 +185,13 @@ export const refreshChainConfig = internalAction({
             chain.nftContractId!,
             'threshold'
           )
-          return Array.isArray(value) ? String(value[1]) : String(value)
+          return Array.isArray(value)
+            ? { token: String(value[0]), amount: String(value[1]) }
+            : { token: undefined, amount: String(value) }
         })
       : undefined
+    const nftThreshold = threshold?.amount
+    const nftThresholdToken = threshold?.token
 
     const tabAcceptorKeys = chain.tabContractId
       ? await attempt(async () => {
@@ -241,6 +246,7 @@ export const refreshChainConfig = internalAction({
         minTip,
         feeBps,
         nftThreshold,
+        nftThresholdToken,
         tabAcceptorKeys,
         lastError: errors.length ? errors.join('; ').slice(0, 500) : undefined,
       }),
