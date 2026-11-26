@@ -25,8 +25,14 @@ export default defineSchema({
     // Set by Convex Auth when an emailed code is verified (password reset).
     emailVerificationTime: v.optional(v.number()),
 
-    // Stellar integration (optional, can be null to explicitly clear)
+    // Stellar integration (optional, can be null to explicitly clear).
+    // An address counts for tips and earnings only once the user has proved
+    // control of it (convex/walletLink.ts): stellarAddressVerifiedAt is set and
+    // stellarAddressVerifiedNetwork is the backend's network passphrase.
+    // Addresses linked before proof was required have neither field.
     stellarAddress: v.optional(v.union(v.string(), v.null())),
+    stellarAddressVerifiedAt: v.optional(v.number()),
+    stellarAddressVerifiedNetwork: v.optional(v.string()),
 
     // Onboarding
     onboardingCompleted: v.optional(v.boolean()),
@@ -53,6 +59,22 @@ export default defineSchema({
     .index('by_test_account', ['isTestAccount'])
     // Resolves an on-chain recipient address to a QuillTip user (earnings).
     .index('by_stellar_address', ['stellarAddress']),
+
+  // Single-use proofs of wallet control (convex/walletLink.ts).
+  walletChallenges: defineTable({
+    userId: v.id('users'),
+    address: v.string(),
+    networkPassphrase: v.string(),
+    origin: v.string(),
+    nonce: v.string(),
+    issuedAt: v.number(),
+    expiresAt: v.number(),
+    // Set on the first verification attempt, successful or not.
+    usedAt: v.optional(v.number()),
+    outcome: v.optional(v.string()),
+  })
+    .index('by_user_issued', ['userId', 'issuedAt'])
+    .index('by_expires', ['expiresAt']),
 
   // Handles a writer used before. Each stays reserved for that writer and its
   // URLs redirect to the writer's current handle.

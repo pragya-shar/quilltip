@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 import { useStellarWallet } from '@/hooks/useStellarWallet'
 import type { WalletContextType } from './WalletProvider'
 import { WalletPicker } from '@/components/stellar/WalletPicker'
+import { WalletReverify } from '@/components/stellar/WalletReverify'
 
 interface WalletRuntimeProps {
   onWalletChange: (wallet: WalletContextType | null) => void
@@ -20,5 +21,10 @@ export function WalletRuntime({ onWalletChange }: WalletRuntimeProps) {
     return () => onWalletChange(null)
   }, [onWalletChange])
 
-  return <WalletPicker />
+  return (
+    <>
+      <WalletPicker />
+      <WalletReverify />
+    </>
+  )
 }

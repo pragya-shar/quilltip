@@ -40,6 +40,13 @@ crons.interval(
   internal.reconcileTips.cleanupExpiredTipIntents
 )
 
+// Remove wallet-link challenges a day after they expire.
+crons.interval(
+  'prune wallet link challenges',
+  { hours: 6 },
+  internal.walletLink.pruneWalletChallenges
+)
+
 // Refresh the XLM/USD price cache. The browser reads the cached value via
 // xlmPrice.getCachedXlmPrice rather than calling Coingecko/Coincap/Binance/
 // Kraken directly, which collapses the CSP allowlist and amortises oracle
