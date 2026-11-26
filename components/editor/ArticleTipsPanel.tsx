@@ -15,6 +15,7 @@ import {
   type ArticleAction,
 } from '@/hooks/useArticleChainActions'
 import type { ArticleActionPhase } from '@/lib/stellar/v2/article-actions'
+import { STEP_COPY } from '@/lib/copy/payment-states'
 import {
   bpsToPercent,
   percentToBps,
@@ -34,10 +35,11 @@ import './article-tips.css'
 const PHASE_COPY: Record<ArticleActionPhase, string> = {
   preparing: 'Preparing…',
   connecting: 'Connect your wallet to continue…',
-  simulating: 'Checking with Stellar testnet…',
-  signing: 'Approve the request in your wallet…',
-  sending: 'Sending to Stellar testnet…',
-  recording: 'Sending to Stellar testnet…',
+  // The payment kit's step sentences (docs/design-system/payment-states.md).
+  simulating: STEP_COPY.simulating,
+  signing: STEP_COPY.signing,
+  sending: STEP_COPY.sending,
+  recording: STEP_COPY.sending,
 }
 
 const PENDING_COPY: Record<PendingAction, string> = {

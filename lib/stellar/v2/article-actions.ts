@@ -40,7 +40,8 @@ export type ArticleActionResult =
 
 export type ArticleActionDeps = {
   convexArticleId: string
-  config: Pick<V2ClientConfig, 'passphrase' | 'coreContractId'>
+  config: Pick<V2ClientConfig, 'passphrase' | 'coreContractId'> &
+    Partial<Pick<V2ClientConfig, 'tokenContractId'>>
   server: RpcLike
   prepare: () => Promise<
     PreparedArticleCall & { submissionId: string; existing: boolean }
@@ -194,6 +195,10 @@ export async function runArticleAction(
       server: deps.server,
       sign: (xdr) => deps.sign(xdr, prepared.signer),
       onStep: deps.onPhase,
+      contracts: {
+        core: deps.config.coreContractId,
+        token: deps.config.tokenContractId ?? null,
+      },
     },
     articleContractCall(prepared)
   )

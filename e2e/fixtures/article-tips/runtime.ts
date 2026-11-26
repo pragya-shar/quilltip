@@ -14,7 +14,9 @@ import {
   Account,
   Keypair,
   Networks,
+  SorobanDataBuilder,
   TransactionBuilder,
+  xdr,
   type Transaction,
 } from '@stellar/stellar-sdk'
 import { articleId, articleRef } from '../../../lib/stellar/v2/ids'
@@ -380,14 +382,46 @@ export function v2Runtime() {
     latestLedger: async () => 1_234_567,
     server: {
       getAccount: async (id: string) => new Account(id, '1'),
-      prepareTransaction: async (tx: Transaction) => {
-        if (server === 'already-registered') {
-          throw new Error('HostError: Error(Contract, #2)')
+      simulateTransaction: async () => {
+        const code =
+          server === 'already-registered'
+            ? 2
+            : server === 'paused'
+              ? 1000
+              : null
+        if (code !== null) {
+          return {
+            id: '1',
+            latestLedger: 1,
+            _parsed: true,
+            error: `HostError: Error(Contract, #${code})`,
+            // The raising contract, as RPC reports it in diagnostic events.
+            events: [
+              {
+                event: {
+                  contract_id: CORE,
+                  body: {
+                    v0: {
+                      topics: [
+                        { symbol: 'error' },
+                        { error: { contract: code } },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          }
         }
-        if (server === 'paused') {
-          throw new Error('HostError: Error(Contract, #1000)')
+        return {
+          id: '1',
+          latestLedger: 1,
+          _parsed: true,
+          events: [],
+          transactionData: new SorobanDataBuilder(),
+          minResourceFee: '0',
+          result: { auth: [], retval: xdr.ScVal.scvVoid() },
         }
-        return tx
       },
       sendTransaction: async (tx: Transaction) =>
         server === 'send-error'
