@@ -240,7 +240,13 @@ export function ArticleTipsPanel({
             />
           )}
           <div className="tips-actions">
-            <button type="submit" className="tips-primary" disabled={busy}>
+            <button
+              type="submit"
+              className={
+                variant === 'dialog' ? 'tips-secondary' : 'tips-primary'
+              }
+              disabled={busy}
+            >
               {actions.running === 'register'
                 ? 'Enabling tips…'
                 : 'Enable tips'}
@@ -268,7 +274,8 @@ export function ArticleTipsPanel({
               rel="noopener noreferrer"
             >
               View the transaction
-              <span className="sr-only"> (opens in a new tab)</span> ↗
+              <span className="sr-only"> (opens in a new tab)</span>
+              <span aria-hidden="true">&nbsp;↗</span>
             </a>
           )}
         </>
@@ -290,7 +297,8 @@ export function ArticleTipsPanel({
               rel="noopener noreferrer"
             >
               View the transaction
-              <span className="sr-only"> (opens in a new tab)</span> ↗
+              <span className="sr-only"> (opens in a new tab)</span>
+              <span aria-hidden="true">&nbsp;↗</span>
             </a>
           )}
         </>
@@ -299,12 +307,21 @@ export function ArticleTipsPanel({
     case 'registered':
       body = (
         <>
-          <p className="tips-on">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M5 12.5l4.5 4.5L19 7.5" />
-            </svg>
-            Readers can tip this article.
-          </p>
+          {view.move === 'none' ? (
+            <p className="tips-on">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 12.5l4.5 4.5L19 7.5" />
+              </svg>
+              Readers can tip this article.
+            </p>
+          ) : (
+            <p className="tips-on tips-paused">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 6v12M15 6v12" />
+              </svg>
+              Tips are paused until the move to your new wallet finishes.
+            </p>
+          )}
           <dl className="tips-facts">
             <div>
               <dt>Pays</dt>
@@ -367,7 +384,8 @@ export function ArticleTipsPanel({
               rel="noopener noreferrer"
             >
               View the registration
-              <span className="sr-only"> (opens in a new tab)</span> ↗
+              <span className="sr-only"> (opens in a new tab)</span>
+              <span aria-hidden="true">&nbsp;↗</span>
             </a>
           )}
         </>

@@ -31,7 +31,9 @@
   font: 600 18px/1.35 var(--title-font);
 }
 .writing-workspace .article-tips .tips-network {
-  font: 500 11px/1.4 'Writing Syne', sans-serif;
+  font:
+    500 11px/1.4 'Writing Syne',
+    sans-serif;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--tips-muted);
@@ -163,6 +165,9 @@
 .writing-workspace .article-tips .tips-on svg {
   stroke: var(--wine);
 }
+.writing-workspace .article-tips .tips-paused svg {
+  stroke: var(--tips-muted);
+}
 .writing-workspace .article-tips .tips-facts {
   display: grid;
   gap: 6px;
@@ -198,6 +203,7 @@
   gap: 4px;
   margin: 0;
   padding-left: 22px;
+  list-style: decimal;
 }
 .writing-workspace .article-tips .tips-steps li[aria-current='step'] {
   font-weight: 600;
