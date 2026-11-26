@@ -1079,8 +1079,19 @@ describe('lifecycle', () => {
     })
     const refusedStatus = await status(t, s, refused)
     expect(refusedStatus).toMatchObject({ uiState: 'failed', canRetry: true })
-    expect(refusedStatus.items[0]!.failureReason).toBe(
-      'send_error: wallet_rejected'
+    expect(refusedStatus.items[0]!.failureReason).toBe('wallet_rejected')
+
+    // The reason is forwarded as-is, with the detail after it.
+    const refusedWithDetail = await direct(t, s.readerId, s.articleId)
+    await reader.mutation(api.tipsV2.recordSendFailed, {
+      tipId: refusedWithDetail.items[0]!.tipId,
+      reason: 'wallet_rejected',
+      detail: 'User declined',
+    })
+    const detailStatus = await status(t, s, refusedWithDetail)
+    expect(detailStatus).toMatchObject({ uiState: 'failed', canRetry: true })
+    expect(detailStatus.items[0]!.failureReason).toBe(
+      'wallet_rejected: User declined'
     )
   })
 

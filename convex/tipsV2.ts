@@ -227,9 +227,7 @@ export const recordSubmitted = mutation({
  * Client step 3 or 5: simulation failed, the wallet refused to sign, or
  * `sendTransaction` returned `ERROR`. Nothing was sent, so only a `PREPARED`
  * record without a hash becomes `FAILED` (retry allowed). Runs
- * `chain.submissions.recordSendFailed`. `wallet_rejected` is stored as a
- * `send_error` with that detail until `chain.submissions` accepts the reason
- * itself.
+ * `chain.submissions.recordSendFailed`, which stores `reason[: detail]`.
  */
 export const recordSendFailed = mutation({
   args: {
@@ -247,18 +245,12 @@ export const recordSendFailed = mutation({
     args
   ): Promise<{ submissionId: Id<'chainSubmissions'>; status: 'FAILED' }> => {
     const submission = await requireOwnTipSubmission(ctx, args)
-    const walletRejected = args.reason === 'wallet_rejected'
-    const reason: 'simulation_failed' | 'send_error' =
-      args.reason === 'wallet_rejected' ? 'send_error' : args.reason
-    const detail = walletRejected
-      ? ['wallet_rejected', args.detail].filter(Boolean).join(': ')
-      : args.detail
     const result = await ctx.runMutation(
       api.chain.submissions.recordSendFailed,
       {
         submissionId: submission._id,
-        reason,
-        ...(detail === undefined ? {} : { detail }),
+        reason: args.reason,
+        ...(args.detail === undefined ? {} : { detail: args.detail }),
       }
     )
     return { submissionId: submission._id, ...result }
