@@ -84,13 +84,22 @@ testnet guard before doing any work. Each call states its kind:
 - Convex functions: `assertBackendTestnet()` for network checks, and
   `assertNonProductionBackend(operation)` for maintenance functions (deploy kind).
 
-Script helpers live in `scripts/lib/network-guard.ts`; the shared logic is in
-`convex/lib/networkGuard.ts`. Every run needs `QUILLTIP_NETWORK_GUARD_OPT_IN=testnet`.
-The guard applies two separate controls:
+- Convex functions that support LOCAL mode call `assertBackendNetwork()`.
+- Scripts that call the Stellar CLI build the command with `runStellarCli` or
+  `buildStellarCliCommand` from `scripts/lib/stellar-cli.ts`. The wrapper runs
+  the operational guard and passes `--network`, `--rpc-url`, and
+  `--network-passphrase` explicitly; callers must not pass those flags (or `-n`)
+  before `--`. Arguments after `--` go to the contract function unchanged.
 
-1. **Stellar network.** Only `TESTNET` is accepted. A missing or conflicting
-   network, the mainnet passphrase, an unknown passphrase, a mainnet Horizon or RPC
-   URL, or an unknown endpoint is refused. Mainnet has no override.
+Script helpers live in `scripts/lib/network-guard.ts`; the shared logic is in
+`convex/lib/networkGuard.ts`. Every run needs `QUILLTIP_NETWORK_GUARD_OPT_IN`:
+`testnet` for TESTNET, `local` for LOCAL mode. The guard applies two separate
+controls:
+
+1. **Stellar network.** Only `TESTNET`, or `LOCAL` (below), is accepted. A missing
+   or conflicting network, the mainnet passphrase in any casing or spacing, an
+   unknown passphrase, passphrase values that disagree, a mainnet Horizon or RPC
+   URL in any URL form, or an unknown endpoint is refused. Mainnet has no override.
 2. **Convex backend allowlist.** The target must be a local backend or a
    deployment on the allowlist in `convex/lib/networkGuard.ts`. Add a personal
    non-production deployment with `QUILLTIP_CONVEX_ALLOWLIST` (comma-separated).
@@ -100,6 +109,44 @@ The guard applies two separate controls:
    to the live deployment name for that run. Deploy work is refused on the live
    backend even with that variable, and deploy work refuses to run while the
    variable is set. Never put it in a shared `.env` file.
+
+The guard reads these Stellar variables:
+
+| Variable                                               | Read by                        | Accepted values                                                                                                       |
+| ------------------------------------------------------ | ------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_STELLAR_NETWORK`, `STELLAR_NETWORK`       | client, Convex, scripts        | `TESTNET`, or `LOCAL`. All set values must agree.                                                                     |
+| `NEXT_PUBLIC_STELLAR_RPC_URL`, `STELLAR_RPC_URL`       | client, Convex, scripts        | TESTNET: `https://soroban-testnet.stellar.org` or a local URL. LOCAL: `localhost` or `127.0.0.1` only.                |
+| `NEXT_PUBLIC_SOROBAN_RPC_URL`                          | client, scripts (earlier name) | Same as `NEXT_PUBLIC_STELLAR_RPC_URL`, and equal to it when both are set.                                             |
+| `NEXT_PUBLIC_NETWORK_PASSPHRASE`, `NETWORK_PASSPHRASE` | client, Convex, scripts        | TESTNET: `Test SDF Network ; September 2015`. LOCAL: `Standalone Network ; February 2017`. All set values must agree. |
+| `NEXT_PUBLIC_HORIZON_URL`, `HORIZON_URL`               | client, Convex, scripts        | Same host rules as the RPC URL.                                                                                       |
+
+The client and Convex accept a custom TESTNET RPC or Horizon provider that is not
+on the list (mainnet hosts are still refused); scripts accept only the listed
+hosts. Scripts resolve the RPC URL from `STELLAR_RPC_URL`, then
+`NEXT_PUBLIC_STELLAR_RPC_URL`, then `NEXT_PUBLIC_SOROBAN_RPC_URL`, then the
+network default.
+
+### LOCAL mode
+
+LOCAL mode runs integration tests and CI against a Stellar Quickstart standalone
+network (`stellar/quickstart --local`) and a local Convex backend (set
+`CONVEX_DEPLOYMENT` to a `local:` or `anonymous:` deployment, then run
+`bun run dev:backend`). It requires all of:
+
+- `QUILLTIP_NETWORK_GUARD_OPT_IN=local`;
+- the network setting `LOCAL`;
+- the passphrase `Standalone Network ; February 2017` (the default for LOCAL);
+- RPC and Horizon URLs on `localhost` or `127.0.0.1` (defaults:
+  `http://localhost:8000/soroban/rpc` and `http://localhost:8000`);
+- a local Convex target (`CONVEX_DEPLOYMENT=local:...` or `anonymous:...`, or a
+  `127.0.0.1`/`localhost` URL). The browser app also needs
+  `NEXT_PUBLIC_CONVEX_URL` on a local host.
+
+LOCAL mode is never valid for a Convex cloud deployment, including allowlisted
+ones, and it refuses `QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL`. Convex
+`assertBackendTestnet()` refuses LOCAL, so existing tip flows stay TESTNET-only;
+the backend checks `CONVEX_CLOUD_URL` and needs the `local` opt-in in its own
+environment.
 
 The guard has no bypass: change the configuration instead.
 
@@ -122,10 +169,11 @@ own HTTP-action origin, provided by Convex and used in `convex/auth.config.ts`.
 | Password reset         | None                                                                                                                     | `AUTH_RESEND_KEY`, `AUTH_EMAIL_FROM`; uses `SITE_URL` for the link |
 
 Frontend/backend tipping IDs and network must match. `NEXT_PUBLIC_STELLAR_NETWORK`
-and `STELLAR_NETWORK` accept only `TESTNET` or `MAINNET`. Network settings (wallet
-network, passphrase, Horizon and RPC defaults) come from one module,
-`convex/lib/stellarNetwork.ts`, used by the browser config, the wallet adapter,
-the backend, and scripts. The backend currently accepts only `TESTNET`. When the
+and `STELLAR_NETWORK` take `TESTNET`, `MAINNET`, or `LOCAL`; the guard refuses
+`MAINNET`. Network settings (wallet network, passphrase, Horizon and RPC defaults,
+Stellar CLI network name) come from one module, `convex/lib/stellarNetwork.ts`,
+used by the browser config, the wallet adapter, the backend, and scripts. Tip
+flows on the backend accept only `TESTNET`. When the
 XLM price cache is unavailable, the browser uses a fixed practice rate on
 `TESTNET` and refuses to quote on any other network. Missing backend
 contract configuration blocks quote preparation before wallet approval.

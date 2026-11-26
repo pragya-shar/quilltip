@@ -23,12 +23,14 @@ export const TIP_COOLDOWN_MS = 10_000
 export { HORIZON_URLS, type StellarNetwork } from './stellarNetwork'
 
 /**
- * Network the backend verifies and records. QuillTip is TESTNET-only for now:
- * any other value, or a mainnet Horizon override, fails closed.
+ * Network the backend verifies and records. Payment flows are TESTNET-only:
+ * LOCAL, any other value, a mainnet passphrase, or a mainnet Horizon or RPC
+ * override fails closed.
  */
 export function getStellarNetwork(): StellarNetwork {
+  const network = assertBackendTestnet()
   parseStellarNetwork(process.env.STELLAR_NETWORK)
-  return assertBackendTestnet()
+  return network
 }
 
 // First verification attempt runs after this delay so Horizon has time to
