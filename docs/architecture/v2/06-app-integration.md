@@ -104,8 +104,9 @@ the edge of retention are flagged for manual review.
 | Tab tips              | `ACCEPTED` → `SETTLED`; `ACCEPTED` → `SHORTFALL` → `SETTLED` \| `UNPAID`; `REJECTED` (excluded by settler bisection, for review); `VOID_RESET` (a testnet reset only)                                                                                                               |
 | Chain submissions     | As direct tips                                                                                                                                                                                                                                                                      |
 
-`UNPAID` is terminal. It is set when the account is `CLOSED` and the key's
-settle window has ended with `paid < cumulative_after`.
+`UNPAID` is terminal. It is set when the key's settle window
+(`valid_until + SETTLE_GRACE`) has ended with `paid < cumulative_after`,
+whatever the account status. The reader's reserved amount is released.
 
 ## 6.2 Convex schema changes
 
