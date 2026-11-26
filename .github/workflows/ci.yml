@@ -335,8 +335,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install Playwright Chromium
-        run: bunx playwright install --with-deps chromium
+      # The tab session-key suite runs in all three engines.
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium firefox webkit
 
       - name: Run fixture suites (no secrets, no backend)
         run: bun run test:e2e:fixtures

@@ -180,7 +180,10 @@ XLM price cache is unavailable, the browser uses a fixed practice rate on
 `TESTNET` and refuses to quote on any other network. Missing backend
 contract configuration blocks quote preparation before wallet approval.
 Arweave wallet configuration is required by `convex/arweave.ts` when enabled,
-including for small uploads; keep it only on the backend.
+including for small uploads; keep it only on the backend. The public query
+`permanentStorage:isEnabled` returns `true` only when both `ARWEAVE_ENABLED`
+and the wallet are set; the publish dialog uses it to tell the writer whether
+the article will be stored permanently.
 
 ### Beta programme
 
@@ -197,7 +200,15 @@ including for small uploads; keep it only on the backend.
   test accounts unless called with `{"excludeTestAccounts": false}`.
 - **Test accounts:** flag QA and demo accounts with
   `testAccounts:setTestAccount '{"email":"…","isTestAccount":true}'`. Only
-  internal functions can set the flag.
+  internal functions can set the flag, and only the account itself sees it.
+- **Internal accounts:** set `INTERNAL_ACCOUNT_EMAIL_DOMAINS` on Convex to a
+  comma-separated list of staff email domains (for example `example.com`).
+  A new account whose email domain equals one of them, ignoring case, is
+  flagged at sign-up; subdomains do not match. Empty or unset flags nothing.
+  For existing accounts, run
+  `testAccounts:backfillInternalAccountsByDomain '{"domain":"example.com"}'`
+  (dry run unless `"apply": true`; pass `continueCursor` back as `cursor`
+  until `isDone`). It only sets the flag and never runs on its own.
 - **Product analytics:** PostHog (EU cloud), off by default. Set
   `NEXT_PUBLIC_ANALYTICS_ENABLED=true` and the server-only
   `ANALYTICS_POSTHOG_KEY` (the project API key) on the Next.js deployment.
@@ -285,19 +296,41 @@ note.
 **Tab ledger.** `convex/tabs.ts` accepts tab tips (`prepareTip`, `submitTip`)
 and mirrors Tab events through the indexer. Its Convex variables, all testnet:
 
-- `SETTLEMENT_ENABLED`: `true` lets Convex countersign tab vouchers. Without it,
-  `submitTip` refuses with `TAB_ACCEPTOR_UNAVAILABLE`.
+- `SETTLEMENT_ENABLED`: `true` lets Convex countersign tab vouchers and runs
+  the settler. Without it, `submitTip` refuses with `TAB_ACCEPTOR_UNAVAILABLE`
+  and the settler does nothing.
 - `TAB_ACCEPTOR_SECRET`: the acceptor ed25519 seed (a Stellar `S…` secret or 64
   hex characters). Read only after `assertBackendTestnet()`. Never put it in
   `.env.example` or a committed file.
 - `TAB_DAILY_LIMIT` and `TAB_TIP_MAX`: base units; defaults `200000000` and
   `50000000`.
+- `TAB_SETTLER_SECRET`: the Stellar secret of the account that holds the Tab
+  `settler` role. Read only after `assertBackendTestnet()`,
+  `SETTLEMENT_ENABLED=true` and `TAB_CONTRACT_ID` pass. Never committed.
 
-Acceptance needs a running indexer cursor for the current `CHAIN_EPOCH` and a
-cached XLM price no older than 30 minutes. Operator functions:
-`tabs:sweepUnpaid` marks receipts `UNPAID` for closed tabs whose key window has
-ended, and `tabs:voidResetEpoch` marks a closed epoch's unsettled receipts
-`VOID_RESET` after a testnet reset.
+Acceptance needs a running indexer cursor for the current `CHAIN_EPOCH`, a
+cached XLM price no older than 30 minutes, and the acceptor public key in the
+Tab's `acceptor_keys` (read by the hourly `refresh chain config` cron; a
+mismatch logs `TAB_ACCEPTOR_MISMATCH` and refuses acceptance).
+
+**Tab settler.** The `settle due tab vouchers` cron (`tabSettler:settleDue`,
+every 10 minutes) holds the `settler` lease and submits at most one
+`Tab.settle` of up to 32 vouchers at a time: closing tabs first, then the
+soonest key window end, then the oldest receipt. It verifies each voucher with
+the shared encoder, simulates, and splits a failing batch until the failing
+voucher is isolated; that voucher becomes `REJECTED` for review. The signed
+envelope is recorded before it is sent, so a run that stops halfway is resumed
+by the next one. Receipts of a pair whose key window
+(`valid_until + 7 days`) ended unsettled become `UNPAID`, for open and closed
+tabs alike, and the reader's reservation is released. Log codes:
+`TAB_SETTLER_LAG` (oldest due receipt over 6 h, again over 24 h),
+`TAB_SETTLER_KEY_EXPIRING` (unsettled value within 2 days of a window end),
+`TAB_SETTLER_BALANCE_LOW` (settler account under 50 XLM),
+`TAB_SETTLER_REJECTED` and `TAB_SETTLER_RUN_FAILED`.
+
+Operator functions: `tabs:sweepUnpaid` runs the `UNPAID` sweep on its own, and
+`tabs:voidResetEpoch` marks a closed epoch's unsettled receipts `VOID_RESET`
+after a testnet reset.
 
 ## Checks and browser tests
 
