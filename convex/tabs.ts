@@ -5,14 +5,13 @@
  * The reader prepares and submits tab tips here; Convex verifies each voucher
  * and countersigns it. On-chain tab state comes only from the event indexer
  * (`convex/lib/chain/tabEventHandlers.ts`). Settlement is in the settler,
- * which reads `listUnsettledVouchers`.
+ * which reads `tabSettlement.selectCandidates`.
  */
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { ConvexError, v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
 import {
   internalMutation,
-  internalQuery,
   mutation,
   query,
   type MutationCtx,
@@ -27,7 +26,7 @@ import {
   pairOutstanding,
   prepareTabTip,
   requireTabChain,
-  resolveUnpaidPairs,
+  sweepExpiredPairs,
   settlementVoucher,
   submitTabTip,
   tabAccountForReader,
@@ -439,41 +438,9 @@ export const getLatestVouchersForWriter = query({
 // Settler and operator functions
 
 /**
- * Pairs with an accepted amount above `paidOnChain`, oldest unsettled receipt
- * first, with what the settler's due rules and pre-checks need.
- */
-export const listUnsettledVouchers = internalQuery({
-  args: { limit: v.optional(v.number()) },
-  handler: async (ctx, args) => {
-    const limit = Math.min(Math.max(1, args.limit ?? 100), 500)
-    const rows = await ctx.db
-      .query('tabVouchers')
-      .withIndex('by_due', (q) => q.eq('unsettled', true))
-      .take(limit)
-    const out = []
-    for (const row of rows) {
-      const account = await ctx.db.get(row.tabAccountId)
-      const key = await tabKey(ctx, row.tabAccountId, row.keyId)
-      out.push({
-        voucherId: row._id,
-        chainEpoch: row.chainEpoch,
-        voucher: settlementVoucher(row, key?.publicKey),
-        paidOnChain: row.paidOnChain,
-        unsettledAmount: pairOutstanding(row).toString(),
-        oldestUnsettledAt: row.oldestUnsettledAt ?? null,
-        lastSkipReason: row.lastSkipReason ?? null,
-        accountStatus: account?.status ?? null,
-        withdrawUnlockLedger: account?.withdrawUnlockLedger ?? null,
-        keyValidUntilLedger: key?.validUntilLedger ?? null,
-      })
-    }
-    return out
-  },
-})
-
-/**
- * Marks receipts `UNPAID` for closed accounts whose key settle window has
- * ended. Bounded per call.
+ * Marks receipts `UNPAID` for pairs whose key settle window
+ * (`valid_until + SETTLE_GRACE`) has ended, whatever the account status. The
+ * settler runs the same sweep each cycle. Bounded per call.
  */
 export const sweepUnpaid = internalMutation({
   args: { limit: v.optional(v.number()) },
@@ -481,16 +448,11 @@ export const sweepUnpaid = internalMutation({
     const chain = readChainEnv()
     const now = Date.now()
     const ledger = await currentLedgerEstimate(ctx, chain, now)
-    const rows = await ctx.db
-      .query('tabVouchers')
-      .withIndex('by_due', (q) => q.eq('unsettled', true))
-      .take(Math.min(Math.max(1, args.limit ?? 100), 500))
-    const accounts = new Set(rows.map((row) => row.tabAccountId))
-    let closed = 0
-    for (const accountId of accounts) {
-      closed += await resolveUnpaidPairs(ctx, accountId, ledger, now)
-    }
-    return { checked: rows.length, closed }
+    return sweepExpiredPairs(ctx, {
+      ledger,
+      limit: Math.min(Math.max(1, args.limit ?? 100), 500),
+      now,
+    })
   },
 })
 

@@ -366,15 +366,15 @@ Settlement through `settle_own` does not need the settler to be live. It does
 need the writer to have fetched the voucher while Convex was reachable. This
 dependency on Convex is stated, not removed.
 
-| Risk                               | Bound                                                                                                                                                                                                             |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Pause                              | No effect on settlement or exits (I-27).                                                                                                                                                                          |
-| Reader withdraws before settlement | The withdrawal waits `WITHDRAW_DELAY` (3 days). Convex settles every pair of a closing account first.                                                                                                             |
-| Settler outage                     | The design tolerates an outage of up to `WITHDRAW_DELAY` − 6 h (about 2.75 days) with no writer action, and up to `SETTLE_GRACE` (7 days) with `settle_own`. Alerts fire at 6 h of settler lag and again at 24 h. |
-| Key expires before settlement      | Convex stops accepting 1 day before `valid_until`. The settler prioritises keys within 2 days of `valid_until + SETTLE_GRACE`.                                                                                    |
-| Short balance                      | Convex refuses vouchers beyond `balance − outstanding`. If one settles short anyway, the shortfall stays collectable by the same voucher after a deposit.                                                         |
-| Shortfall ordering                 | When several writers are owed from one short balance, the settler pays receipts in order of `ACCEPTED` time, oldest first. This is a stated rule, not a contract invariant.                                       |
-| Account closed with a shortfall    | Once the account is `CLOSED` and the key window is over, the remaining receipts become `UNPAID`. The writer sees "the reader's tab closed before this tip settled".                                               |
+| Risk                               | Bound                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pause                              | No effect on settlement or exits (I-27).                                                                                                                                                                                                                                                                                                                      |
+| Reader withdraws before settlement | The withdrawal waits `WITHDRAW_DELAY` (3 days). Convex settles every pair of a closing account first.                                                                                                                                                                                                                                                         |
+| Settler outage                     | The design tolerates an outage of up to `WITHDRAW_DELAY` − 6 h (about 2.75 days) with no writer action, and up to `SETTLE_GRACE` (7 days) with `settle_own`. Alerts fire at 6 h of settler lag and again at 24 h.                                                                                                                                             |
+| Key expires before settlement      | Convex stops accepting 1 day before `valid_until`. The settler orders due pairs by the soonest end of the settle window (`valid_until + SETTLE_GRACE`) and alerts while unsettled value is within 2 days of it. Once the window has ended, the remaining receipts become `UNPAID`, whatever the account status, and the reader's reserved amount is released. |
+| Short balance                      | Convex refuses vouchers beyond `balance − outstanding`. If one settles short anyway, the shortfall stays collectable by the same voucher after a deposit.                                                                                                                                                                                                     |
+| Shortfall ordering                 | When several writers are owed from one short balance, the settler pays receipts in order of `ACCEPTED` time, oldest first. This is a stated rule, not a contract invariant.                                                                                                                                                                                   |
+| Account closed with a shortfall    | Once the key window is over, the remaining receipts become `UNPAID`, as for any account. The writer sees "the reader's tab closed before this tip settled".                                                                                                                                                                                                   |
 
 ## 3.8 Settlement policy (Convex settler)
 
@@ -393,8 +393,19 @@ these holds:
 **Batch order.** Each batch holds up to 32 vouchers:
 
 1. Closing accounts first.
-2. Then expiring keys.
-3. Then by age.
+2. Then by the soonest end of the key's settle window.
+3. Then by the age of the oldest unsettled receipt.
+
+**Pairs that cannot settle now.** They never take a place in a batch:
+
+- A pair skipped as `SHORTFALL` waits until the reader deposits again.
+- A pair whose settle window has ended becomes `UNPAID`, once the indexer has
+  applied every ledger up to the end of the window.
+- A pair whose voucher fails the pre-checks, or fails simulation on its own
+  for a reason that voucher causes (an invalid signature, `AccountMissing`,
+  `Overflow`), becomes `REJECTED` for review. A failure that every voucher
+  shares (for example a missing `settler` role) stops the run and rejects
+  nothing.
 
 **Submission steps** ([section 3.2](#settlement)):
 
@@ -406,6 +417,9 @@ these holds:
 
 **Balance alert.** An alert fires when the settler account's XLM balance falls
 below 50 XLM.
+
+**Expiry alert.** An alert fires on every run while a pair with unsettled value
+is within 2 days of the end of its settle window.
 
 ## 3.9 Events
 

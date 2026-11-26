@@ -19,6 +19,8 @@ import { internal } from '../_generated/api'
 import { internalAction, internalMutation, query } from '../_generated/server'
 import { readChainEnv, type ChainEnv } from '../lib/chain/env'
 import { createBackendRpcClient, type RpcClient } from '../lib/chain/rpc'
+import { bytesToHex } from '../lib/chain/ids'
+import { loadAcceptor } from '../lib/chain/voucher'
 
 /** Any valid account works as the source of a view simulation. */
 const VIEW_SOURCE = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
@@ -64,6 +66,7 @@ export const storeChainConfig = internalMutation({
     feeBps: v.optional(v.number()),
     nftThreshold: v.optional(v.string()),
     nftThresholdToken: v.optional(v.string()),
+    tabAcceptorKeys: v.optional(v.array(v.string())),
     paused: v.object({
       core: v.optional(v.boolean()),
       tab: v.optional(v.boolean()),
@@ -190,6 +193,44 @@ export const refreshChainConfig = internalAction({
     const nftThreshold = threshold?.amount
     const nftThresholdToken = threshold?.token
 
+    const tabAcceptorKeys = chain.tabContractId
+      ? await attempt(async () => {
+          const config = (await readView(
+            rpc,
+            chain,
+            chain.tabContractId!,
+            'config'
+          )) as { acceptor_keys?: unknown }
+          if (!Array.isArray(config.acceptor_keys)) {
+            throw new Error('config: acceptor_keys is not a list')
+          }
+          return config.acceptor_keys.map((key) => {
+            if (!(key instanceof Uint8Array) || key.length !== 32) {
+              throw new Error('config: acceptor key is not 32 bytes')
+            }
+            return bytesToHex(key)
+          })
+        })
+      : undefined
+    // Acceptance refuses on a mismatch (tabs.submitTip); this makes it visible.
+    if (tabAcceptorKeys) {
+      let acceptor: string | null = null
+      try {
+        acceptor = loadAcceptor().publicKey
+      } catch {
+        // Acceptance is off on this deployment.
+      }
+      if (acceptor && !tabAcceptorKeys.includes(acceptor)) {
+        console.error(
+          JSON.stringify({
+            code: 'TAB_ACCEPTOR_MISMATCH',
+            acceptor,
+            tabAcceptorKeys,
+          })
+        )
+      }
+    }
+
     const defined = <T extends Record<string, unknown>>(o: T) =>
       Object.fromEntries(
         Object.entries(o).filter(([, value]) => value !== undefined)
@@ -206,6 +247,7 @@ export const refreshChainConfig = internalAction({
         feeBps,
         nftThreshold,
         nftThresholdToken,
+        tabAcceptorKeys,
         lastError: errors.length ? errors.join('; ').slice(0, 500) : undefined,
       }),
       paused: defined(paused),
