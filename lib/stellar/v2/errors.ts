@@ -135,7 +135,7 @@ const SHARED: ReadonlyArray<[number, Entry]> = [
   [2000, { name: 'Unauthorized', message: OPEN_ZEPPELIN[2000]! }],
 ]
 
-/** QuillTip contract codes. The ranges do not overlap between contracts. */
+/** Quilltip contract codes. The ranges do not overlap between contracts. */
 export const CONTRACT_ERRORS: ReadonlyMap<number, Entry> = new Map([
   ...table(CoreError, CORE, GENERIC),
   ...table(TabError, TAB, GENERIC),

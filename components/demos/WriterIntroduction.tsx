@@ -192,7 +192,7 @@ export function WriterIntroduction() {
                   <span>{stageAction}</span>
                 </button>
                 <div className="writer-intro-paper-top">
-                  <span>QuillTip</span>
+                  <span>Quilltip</span>
                   <span>
                     {step === 0
                       ? 'Writing desk preview'

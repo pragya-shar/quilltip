@@ -29,7 +29,7 @@ const displayName = (option: WalletOption) =>
   option.id === WALLET_IDS.varial ? 'Varial' : option.name
 
 /**
- * QuillTip's wallet picker. A list of real buttons in a modal dialog, so it
+ * Quilltip's wallet picker. A list of real buttons in a modal dialog, so it
  * works with a keyboard and a screen reader, which the kit's own picker does
  * not. Choosing a wallet asks that wallet for its address; the row shows the
  * wait until the wallet answers.
@@ -182,8 +182,8 @@ export function WalletPicker() {
               : ''}
           </p>
           <p className="wallet-install-note">
-            QuillTip uses Stellar {network}. Keep your recovery phrase private;
-            QuillTip will never ask for it.
+            Quilltip uses Stellar {network}. Keep your recovery phrase private;
+            Quilltip will never ask for it.
           </p>
         </div>
       </DialogContent>

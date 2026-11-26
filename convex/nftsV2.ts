@@ -822,7 +822,7 @@ const recipientArg = v.union(
 )
 
 /**
- * The configured QuillTip contracts and the tip token. None of them can move
+ * The configured Quilltip contracts and the tip token. None of them can move
  * an NFT it receives, so a token sent there is lost.
  */
 function platformContracts(chain: Caller['chain']): Set<string> {
@@ -845,7 +845,7 @@ async function resolveRecipient(
   if (platformContracts(chain).has(resolved.address)) {
     fail(
       'INVALID_RECIPIENT',
-      'That address is a QuillTip contract and cannot hold the NFT.'
+      'That address is a Quilltip contract and cannot hold the NFT.'
     )
   }
   return resolved
@@ -880,7 +880,7 @@ async function resolveRecipientAddress(
       .query('users')
       .withIndex('by_username', (q) => q.eq('username', handle))
       .first())
-  if (!user) fail('RECIPIENT_NOT_FOUND', 'No QuillTip user has that username.')
+  if (!user) fail('RECIPIENT_NOT_FOUND', 'No Quilltip user has that username.')
   const address = verifiedStellarAddress(user)
   if (!address) {
     fail(
@@ -894,7 +894,7 @@ async function resolveRecipientAddress(
 /**
  * Prepares `Nft.transfer(from, to, token_id)` from the caller's verified
  * address, which must be the indexed owner. The recipient is a Stellar
- * address, or a QuillTip user resolved to their verified address.
+ * address, or a Quilltip user resolved to their verified address.
  */
 export const prepareTransfer = mutation({
   args: {

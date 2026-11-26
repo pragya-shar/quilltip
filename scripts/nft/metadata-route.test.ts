@@ -120,7 +120,7 @@ describe('nftMetadataResponse', () => {
     expect(res.body).toEqual({
       name: 'QuillTip Article #3',
       description:
-        'This article is not available on QuillTip. Minted on the Stellar testnet.',
+        'This article is not available on Quilltip. Minted on the Stellar testnet.',
       attributes: [{ trait_type: 'network', value: 'Stellar testnet' }],
     })
   })
@@ -191,7 +191,7 @@ describe('GET /api/nft/[id]', () => {
     expect(JSON.parse(text)).toEqual({
       name: 'QuillTip Article #3',
       description:
-        'This article is not available on QuillTip. Minted on the Stellar testnet.',
+        'This article is not available on Quilltip. Minted on the Stellar testnet.',
       attributes: [{ trait_type: 'network', value: 'Stellar testnet' }],
     })
     expect(text).not.toContain(META.contentHash!)

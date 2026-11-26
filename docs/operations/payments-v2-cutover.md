@@ -1,6 +1,6 @@
 # Payments v2 cutover (testnet)
 
-This runbook moves QuillTip payments from the v1 contracts to the payments v2
+This runbook moves Quilltip payments from the v1 contracts to the payments v2
 contracts (Core, Tab and Article NFT). It covers the preconditions, the ordered
 steps for the backend and the site, the rollback of each stage and the checks
 after the switch. It is written for an operator who has not worked on this
@@ -183,11 +183,11 @@ schema:
 - a `highlightTips` row without `stellarTxId`, `stellarNetwork`, `stellarMemo`
   or `processedAt` (v2 batch and tab rows);
 - an `articleNFTs` row without `mintedBy` or `currentOwner` (a v2 NFT whose
-  minter or owner address is not a QuillTip user), or without `tipThreshold`
+  minter or owner address is not a Quilltip user), or without `tipThreshold`
   or `totalTipsAtMint` (every v2 NFT row, which keeps base-unit totals
   instead);
 - an `nftTransfers` row without `fromUserId` or `toUserId` (a v2 transfer
-  between addresses that are not QuillTip users).
+  between addresses that are not Quilltip users).
 
 Rows in the new tables are also outside `main`'s schema. Roll back with the
 switches (section 6), and keep the release code deployed.

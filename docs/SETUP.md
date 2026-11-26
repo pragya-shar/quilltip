@@ -227,7 +227,7 @@ expire after 15 minutes, and work once. Email goes through
 [Resend](https://resend.com) over HTTPS, so no SDK is installed:
 
 - `AUTH_RESEND_KEY`: Resend API key, set on the Convex deployment.
-- `AUTH_EMAIL_FROM`: sender such as `QuillTip <no-reply@your-domain>`, on a
+- `AUTH_EMAIL_FROM`: sender such as `Quilltip <no-reply@your-domain>`, on a
   domain verified in Resend. Without it, Resend's shared test sender is used,
   which delivers only to the Resend account owner.
 

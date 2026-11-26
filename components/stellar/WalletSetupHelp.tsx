@@ -61,11 +61,11 @@ export function WalletSetupHelp({
                 Choose a Stellar wallet
               </button>{' '}
               and follow its setup steps. Keep your recovery phrase somewhere
-              safe. Never share it; QuillTip will never ask for it.
+              safe. Never share it; Quilltip will never ask for it.
             </li>
             <li>
               In your wallet’s network settings, select <strong>Testnet</strong>
-              . QuillTip uses free test XLM with no monetary value. No purchase
+              . Quilltip uses free test XLM with no monetary value. No purchase
               is needed.
             </li>
             <li>

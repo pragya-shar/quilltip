@@ -265,7 +265,7 @@ describe('connect', () => {
     )
   })
 
-  test('a wallet that cannot report its network connects for QuillTip’s network', async () => {
+  test('a wallet that cannot report its network connects for Quilltip’s network', async () => {
     const fake = fakeKit({ walletNetwork: 'unsupported' })
     await expect(adapterFor(fake).connect()).resolves.toMatchObject({
       networkPassphrase: TESTNET,
@@ -298,7 +298,7 @@ describe('connect', () => {
 })
 
 describe('signMessage', () => {
-  test('signs with the connected address for QuillTip’s network', async () => {
+  test('signs with the connected address for Quilltip’s network', async () => {
     const fake = fakeKit()
     const wallet = adapterFor(fake)
     await wallet.connect()
@@ -344,7 +344,7 @@ describe('signMessage', () => {
 })
 
 describe('signTransaction', () => {
-  test('signs for QuillTip’s network with the connected address', async () => {
+  test('signs for Quilltip’s network with the connected address', async () => {
     const fake = fakeKit()
     const wallet = adapterFor(fake)
     await wallet.connect()

@@ -7,7 +7,7 @@ import {
 } from '@/lib/copy/contact-page'
 
 export const metadata: Metadata = {
-  title: 'Contact | QuillTip',
+  title: 'Contact | Quilltip',
   description:
     'Contact Quilltip for legal, privacy, and security questions about the Stellar testnet platform.',
 }

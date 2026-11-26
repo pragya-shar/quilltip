@@ -6,7 +6,7 @@
  *   creates a v2 `articleNFTs` row or changes its ownership. The NFT event
  *   handlers call them with indexed events; nothing else does (I-21: client
  *   input never confirms anything).
- * - Ownership is by address. `currentOwner` caches the QuillTip user whose
+ * - Ownership is by address. `currentOwner` caches the Quilltip user whose
  *   verified address owns the token at event time; read queries resolve the
  *   owner from `ownerAddress`.
  * - Order safety: `ownerEventId` keeps the newest applied event; an older
@@ -53,7 +53,7 @@ export type NftEventContext = {
 
 export class NftStoreConflict extends Error {}
 
-/** The QuillTip user whose verified address is `address`, if any. */
+/** The Quilltip user whose verified address is `address`, if any. */
 export async function userForAddress(
   ctx: QueryCtx,
   address: string
@@ -192,7 +192,7 @@ async function applyTransferToRow(
 
 /**
  * `article_nft_minted`: creates the v2 row. An article that is not a
- * QuillTip article in this epoch is an orphan. Idempotent per token.
+ * Quilltip article in this epoch is an orphan. Idempotent per token.
  */
 export async function applyMintedEvent(
   ctx: MutationCtx,
@@ -326,7 +326,7 @@ export function eventContext(
 
 /**
  * Whether the mint of `tokenId` was indexed as an orphan (an article outside
- * QuillTip). Its transfers are orphans too.
+ * Quilltip). Its transfers are orphans too.
  */
 async function mintWasOrphan(
   ctx: QueryCtx,
@@ -352,7 +352,7 @@ async function mintWasOrphan(
 /**
  * OpenZeppelin `transfer`: records the transfer and moves ownership when the
  * event is the newest. Before the mint row exists the event waits as
- * `pending`; the mint applies it. Addresses outside QuillTip are fine: the
+ * `pending`; the mint applies it. Addresses outside Quilltip are fine: the
  * row keeps the address and no user.
  */
 export async function applyTransferEvent(

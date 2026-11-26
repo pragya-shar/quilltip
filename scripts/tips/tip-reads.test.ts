@@ -357,7 +357,7 @@ describe('authorEarnings for v2 direct and batch tips', () => {
     expect(stats).toMatchObject({ totalTips: 1, byVersion: { v1: 0, v2: 1 } })
   })
 
-  it('an address with no QuillTip user credits nobody', async () => {
+  it('an address with no Quilltip user credits nobody', async () => {
     const t = newTest()
     const s = await seed(t)
     await t.run(({ db }) => db.patch(s.coAuthorId, { stellarAddress: null }))

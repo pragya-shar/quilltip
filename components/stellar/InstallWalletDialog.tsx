@@ -101,7 +101,7 @@ export function InstallWalletDialog({
           </div>
 
           <p className="wallet-install-note">
-            Reading is free. Keep your recovery phrase private; QuillTip will
+            Reading is free. Keep your recovery phrase private; Quilltip will
             never ask for it. Use Testnet and free test XLM for practice.
           </p>
           <button

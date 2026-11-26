@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 export function WritingBrand() {
   return (
-    <a className="brand" aria-label="QuillTip home" href="/">
+    <a className="brand" aria-label="Quilltip home" href="/">
       <svg viewBox="0 0 100 112" aria-hidden="true">
         <defs>
           <mask id="writing-ring">

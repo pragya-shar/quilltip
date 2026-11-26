@@ -71,7 +71,7 @@ test.each([
   }))
   await expect(
     author.mutation(api.articles.deleteArticle, { id: ids.article })
-  ).rejects.toThrow('Published articles cannot be deleted from QuillTip')
+  ).rejects.toThrow('Published articles cannot be deleted from Quilltip')
   expect(
     await t.run(async (ctx) => ({
       article: await ctx.db.get(ids.article),

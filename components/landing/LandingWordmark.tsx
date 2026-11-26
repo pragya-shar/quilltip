@@ -9,7 +9,7 @@ export function LandingWordmark({ onClick }: { onClick?: () => void }) {
   return (
     <Link
       href="/"
-      aria-label="QuillTip home"
+      aria-label="Quilltip home"
       className="wordmark"
       onClick={onClick}
     >

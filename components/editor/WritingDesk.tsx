@@ -56,7 +56,7 @@ export function WritingDesk({
   }
   return (
     <>
-      <p className="muted">Saved to your QuillTip account.</p>
+      <p className="muted">Saved to your Quilltip account.</p>
       <button className="wine wide" onClick={onNew}>
         ＋ New draft
       </button>

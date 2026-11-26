@@ -5,7 +5,7 @@ import { ResetPasswordForm } from '@/components/auth/ResetPasswordForm'
 import '@/components/auth/recovery.css'
 
 export const metadata: Metadata = {
-  title: 'Choose a new password · QuillTip',
+  title: 'Choose a new password · Quilltip',
   // The page can be opened from an emailed link that carries a code.
   referrer: 'no-referrer',
   robots: { index: false },

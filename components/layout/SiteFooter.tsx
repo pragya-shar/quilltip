@@ -13,7 +13,7 @@ export function SiteFooter(_props: SiteFooterProps) {
         </div>
         <FooterNav />
         <p className="app-footer-copyright">
-          © {new Date().getFullYear()} QuillTip
+          © {new Date().getFullYear()} Quilltip
         </p>
       </div>
     </footer>

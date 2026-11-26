@@ -1,19 +1,19 @@
 @font-face {
-  font-family: 'QuillTip UI';
+  font-family: 'Quilltip UI';
   src: url('/landing/fonts/work-sans-latin-400-normal.woff2') format('woff2');
   font-weight: 400;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'QuillTip UI';
+  font-family: 'Quilltip UI';
   src: url('/landing/fonts/work-sans-latin-600-normal.woff2') format('woff2');
   font-weight: 600;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'QuillTip Display';
+  font-family: 'Quilltip Display';
   src: url('/landing/fonts/syne-latin-600-normal.woff2') format('woff2');
   font-weight: 400 800;
   font-display: swap;
@@ -22,7 +22,7 @@
 /* Current application palette, shared by root defaults, chrome and portals.
    Page-specific palettes can still override their scoped semantic tokens. */
 :root {
-  --ui-font: 'QuillTip UI', sans-serif;
+  --ui-font: 'Quilltip UI', sans-serif;
   --ui-surface: #faf5ec;
   --ui-foreground: #390c18;
   --ui-primary: #790333;

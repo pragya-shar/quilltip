@@ -7,7 +7,7 @@ at `0728635`. This supersedes the current-status counts in the historical
 ## Dependency changes and tradeoffs
 
 - `@ardrive/turbo-sdk`: locked 1.44.1 → exactly pinned 2.1.2. Its published manifest
-  moves `x402-fetch` from a required dependency to an optional peer. QuillTip
+  moves `x402-fetch` from a required dependency to an optional peer. Quilltip
   does not install that peer or select `X402Funding`. The SDK dynamically imports
   it only on the x402 payment path; the default existing-balance RSA upload path
   works without it. Enabling x402 later requires explicitly installing and
@@ -60,7 +60,7 @@ and expires **2026-11-06 at 00:00 UTC**:
 
 | Package/version     | Advisory            | Exact affected range | Reachability evidence retained                                                                                                                        |
 | ------------------- | ------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| bigint-buffer 1.1.5 | GHSA-3gc7-fjrx-p6mg | `<=1.1.5`            | Turbo → Solana SPL token → buffer-layout-utils. The actual adapter test signs RSA JSON; QuillTip never selects a Solana signer or calls `toBigIntLE`. |
+| bigint-buffer 1.1.5 | GHSA-3gc7-fjrx-p6mg | `<=1.1.5`            | Turbo → Solana SPL token → buffer-layout-utils. The actual adapter test signs RSA JSON; Quilltip never selects a Solana signer or calls `toBigIntLE`. |
 | toml 3.0.0          | GHSA-82x6-q7mm-w9cf | `<4.2.0`             | Stellar SDK and wallet-kit/Trezor dependency paths expose the parser; app callers do not invoke TOML, federation or StellarTomlResolver.              |
 | toml 3.0.0          | GHSA-v5mp-jgw5-2x6j | `<4.1.2`             | Same unused parser path.                                                                                                                              |
 | toml 3.0.0          | GHSA-4qx8-w7c3-pj3p | `<=5.0.0`            | Same unused parser path.                                                                                                                              |
@@ -115,7 +115,7 @@ at `http://127.0.0.1:3000`: an existing published article rendered, and an exist
 private draft opened in the actual writing preview. No draft text was changed,
 saved, discarded or published. The wallet screen rendered its testnet state;
 the real wallet-kit picker listed installed providers and opened Freighter.
-After the user unlocked Freighter, the real connection succeeded and QuillTip
+After the user unlocked Freighter, the real connection succeeded and Quilltip
 showed Connected on Stellar testnet; disconnect restored its initial state and
 left the saved receiving address intact. Live extension transaction signing remains
 unverified; no hardware wallet, real transaction signature, contract submission

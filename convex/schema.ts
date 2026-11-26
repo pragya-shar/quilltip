@@ -58,7 +58,7 @@ export default defineSchema({
     .index('by_username', ['username'])
     .index('by_username_lower', ['usernameLower'])
     .index('by_test_account', ['isTestAccount'])
-    // Resolves an on-chain recipient address to a QuillTip user (earnings).
+    // Resolves an on-chain recipient address to a Quilltip user (earnings).
     .index('by_stellar_address', ['stellarAddress']),
 
   // Single-use proofs of wallet control (convex/walletLink.ts).
@@ -633,7 +633,7 @@ export default defineSchema({
     metadataUrl: v.string(),
 
     // Ownership. For v2 rows `ownerAddress` is the source of truth and
-    // `currentOwner` is set only when it resolves to a QuillTip user. Only
+    // `currentOwner` is set only when it resolves to a Quilltip user. Only
     // the NFT event handlers (convex/lib/chain/nftEventHandlers.ts) write
     // ownership of a v2 row.
     // v2 rows: the user whose verified address minted, when there is one.
@@ -668,7 +668,7 @@ export default defineSchema({
     nftId: v.id('articleNFTs'),
 
     // Transfer parties. v2 rows: the addresses come from the verified
-    // `transfer` event; the user IDs are set only for QuillTip users.
+    // `transfer` event; the user IDs are set only for Quilltip users.
     fromUserId: v.optional(v.id('users')),
     toUserId: v.optional(v.id('users')),
     fromAddress: v.optional(v.string()),

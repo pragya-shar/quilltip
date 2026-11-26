@@ -702,7 +702,7 @@ const transfer = (
   })
 
 describe('prepareTransfer', () => {
-  it('refuses the QuillTip contracts and the token as recipients', async () => {
+  it('refuses the Quilltip contracts and the token as recipients', async () => {
     vi.stubEnv('TAB_CONTRACT_ID', TAB)
     const t = convexTest(schema, modules)
     const s = await seed(t)
@@ -759,7 +759,7 @@ describe('prepareTransfer', () => {
     ).toMatchObject({ code: 'PENDING', submissionId: prepared.submissionId })
   })
 
-  it('resolves a QuillTip user to their verified address', async () => {
+  it('resolves a Quilltip user to their verified address', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
     const row = await indexMint(t)
@@ -865,7 +865,7 @@ describe('NFT event handlers', () => {
     expect(await eventHandled(t, event.id)).toBe('done')
   })
 
-  it('move ownership on transfer to an address outside QuillTip', async () => {
+  it('move ownership on transfer to an address outside Quilltip', async () => {
     const t = convexTest(schema, modules)
     await seed(t)
     const minted = rawEvent({ kind: 'minted' })
@@ -945,7 +945,7 @@ describe('NFT event handlers', () => {
     expect(await transfers(t)).toHaveLength(1)
   })
 
-  it('mark a mint of an article outside QuillTip, and its transfers, as orphans', async () => {
+  it('mark a mint of an article outside Quilltip, and its transfers, as orphans', async () => {
     const t = convexTest(schema, modules)
     await seed(t)
     const minted = rawEvent({

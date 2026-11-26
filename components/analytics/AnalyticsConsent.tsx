@@ -43,7 +43,7 @@ export function AnalyticsConsent() {
       className="analytics-consent"
       aria-labelledby="analytics-consent-title"
     >
-      <h2 id="analytics-consent-title">Help us improve QuillTip?</h2>
+      <h2 id="analytics-consent-title">Help us improve Quilltip?</h2>
       <p>
         With your OK, we count page views and a few actions to see what works.
         No ads, no selling data, and nothing you write is included.{' '}

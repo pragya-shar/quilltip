@@ -1224,7 +1224,7 @@ export const publishArticle = mutation({
     }
   },
 })
-// Delete an unpublished draft; published articles remain in QuillTip.
+// Delete an unpublished draft; published articles remain in Quilltip.
 export const deleteArticle = mutation({
   args: {
     id: v.id('articles'),
@@ -1239,7 +1239,7 @@ export const deleteArticle = mutation({
     if (article.authorId !== userId) throw new Error('Not authorized')
 
     if (!canDeleteDraft(article)) {
-      throw new Error('Published articles cannot be deleted from QuillTip')
+      throw new Error('Published articles cannot be deleted from Quilltip')
     }
 
     // Tip rows are financial records; keep the article they point at.

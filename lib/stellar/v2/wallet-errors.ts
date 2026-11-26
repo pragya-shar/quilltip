@@ -8,7 +8,7 @@ export type WalletErrorKind =
   | 'no-wallet'
   /** The wallet is locked, or this site has not been given access. */
   | 'locked'
-  /** The wallet is on a different Stellar network from QuillTip. */
+  /** The wallet is on a different Stellar network from Quilltip. */
   | 'wrong-network'
   /** The reader declined the request in the wallet. */
   | 'rejected'
@@ -26,7 +26,7 @@ export type WalletErrorKind =
 export class WalletError extends Error {
   readonly kind: WalletErrorKind
   readonly walletId?: string
-  /** Network passphrase QuillTip uses (wrong-network only). */
+  /** Network passphrase Quilltip uses (wrong-network only). */
   readonly expectedPassphrase?: string
   /** Network passphrase the wallet reported (wrong-network only). */
   readonly walletPassphrase?: string
@@ -91,14 +91,14 @@ export function walletErrorMessage(error: WalletError): WalletMessage | null {
       return {
         title: 'Your wallet is locked',
         detail:
-          'Unlock your wallet, allow QuillTip to connect, then try again.',
+          'Unlock your wallet, allow Quilltip to connect, then try again.',
       }
     case 'wrong-network': {
       const want = networkLabel(error.expectedPassphrase)
       const have = networkLabel(error.walletPassphrase)
       return {
         title: `Switch your wallet to ${want}`,
-        detail: `Your wallet is on ${have}. QuillTip uses ${want}. Change the network in your wallet, then try again. Nothing was signed.`,
+        detail: `Your wallet is on ${have}. Quilltip uses ${want}. Change the network in your wallet, then try again. Nothing was signed.`,
       }
     }
     case 'rejected':

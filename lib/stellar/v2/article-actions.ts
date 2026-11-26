@@ -74,7 +74,7 @@ const SERVER_COPY: Record<string, ArticleActionMessage> = {
   },
   CHAIN_V2_DISABLED: {
     title: 'Tips on Stellar are not available yet',
-    detail: 'This QuillTip deployment has not enabled them. Nothing was sent.',
+    detail: 'This Quilltip deployment has not enabled them. Nothing was sent.',
   },
 }
 
@@ -95,7 +95,7 @@ function serverFailure(error: unknown): ArticleActionResult {
       stage: 'prepare',
       code,
       message: SERVER_COPY[code] ?? {
-        title: 'QuillTip could not prepare this',
+        title: 'Quilltip could not prepare this',
         detail: data.message ?? 'Try again in a moment. Nothing was sent.',
       },
     }
@@ -105,7 +105,7 @@ function serverFailure(error: unknown): ArticleActionResult {
     stage: 'prepare',
     code: 'SERVER',
     message: {
-      title: 'QuillTip could not prepare this',
+      title: 'Quilltip could not prepare this',
       detail: 'Check your connection and try again. Nothing was sent.',
     },
   }
@@ -148,7 +148,7 @@ export async function runArticleAction(
         stage: 'check',
         code: 'CHECK',
         message: {
-          title: 'This request does not match QuillTip’s settings',
+          title: 'This request does not match Quilltip’s settings',
           detail,
         },
       },

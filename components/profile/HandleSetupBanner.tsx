@@ -17,7 +17,7 @@ function readDismissed(userId: string) {
 }
 
 /**
- * On a writer's own page while they still have the handle QuillTip generated.
+ * On a writer's own page while they still have the handle Quilltip generated.
  * Dismissing hides it for this browser session; it returns until they choose.
  */
 export function HandleSetupBanner({ userId }: { userId: string }) {
