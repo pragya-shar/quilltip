@@ -1,6 +1,6 @@
 //! Entry points (`02-core-contract.md`, section 2.2).
 
-use quilltip_shared::{ids, ttl, FEE_BPS, MIN_FEE_BEARING_AMOUNT};
+use quilltip_shared::{ids, roles, ttl, FEE_BPS, MIN_FEE_BEARING_AMOUNT};
 use soroban_sdk::{
     contract, contractimpl, panic_with_error, token, Address, BytesN, Env, MuxedAddress, Symbol,
     Vec,
@@ -526,21 +526,22 @@ impl Pausable for QuillTipCore {
 }
 
 /// OpenZeppelin access control. State-changing functions also extend the
-/// instance TTL (I-25); `renounce_admin` always fails (I-26).
+/// instance TTL (I-25); `renounce_admin` always fails (I-26). Only an
+/// upgrader can change the `upgrader` role (`quilltip_shared::roles`).
 #[contractimpl(contracttrait)]
 impl AccessControl for QuillTipCore {
     fn grant_role(e: &Env, account: Address, role: Symbol, caller: Address) {
-        access_control::grant_role(e, &account, &role, &caller);
+        roles::grant_role(e, &account, &role, &caller);
         ttl::extend_instance(e);
     }
 
     fn revoke_role(e: &Env, account: Address, role: Symbol, caller: Address) {
-        access_control::revoke_role(e, &account, &role, &caller);
+        roles::revoke_role(e, &account, &role, &caller);
         ttl::extend_instance(e);
     }
 
     fn renounce_role(e: &Env, role: Symbol, caller: Address) {
-        access_control::renounce_role(e, &role, &caller);
+        roles::renounce_role(e, &role, &caller);
         ttl::extend_instance(e);
     }
 
@@ -555,7 +556,7 @@ impl AccessControl for QuillTipCore {
     }
 
     fn set_role_admin(e: &Env, role: Symbol, admin_role: Symbol) {
-        access_control::set_role_admin(e, &role, &admin_role);
+        roles::set_role_admin(e, &role, &admin_role);
         ttl::extend_instance(e);
     }
 

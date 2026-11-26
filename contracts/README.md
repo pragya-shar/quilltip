@@ -37,6 +37,7 @@ encoders in Convex and the client.
 | `fee`       | Checked `fee`, `fee_and_net`, `tab_fee` (cumulative rule) and `share`, with property tests                          |
 | `payload`   | `TipReceipt`, `VoucherPayload`, `AcceptancePayload` and their signed bytes                                          |
 | `merkle`    | `receipt_leaf`, `merkle_root`, `merkle_proof`, `verify_receipt` (OpenZeppelin `Verifier<Sha256>`)                   |
+| `roles`     | Self-administered `upgrader` role: only an upgrader grants, revokes or re-admins it                                 |
 
 ### Test vectors
 

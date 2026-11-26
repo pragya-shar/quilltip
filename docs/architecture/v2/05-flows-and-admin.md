@@ -168,7 +168,7 @@ Same as 5.2, with these differences:
 **Operations:**
 
 1. **Admin transfer:** `transfer_admin_role(new_admin, live_until_ledger)` by the current admin, then `accept_admin_transfer` by the new admin before `live_until_ledger`.
-2. **Grant or revoke a role:** OpenZeppelin `grant_role` or `revoke_role` by the admin. Moving settlement to a relayer means `grant_role(relayer, "settler")`, then `revoke_role(old, "settler")`.
+2. **Grant or revoke a role:** OpenZeppelin `grant_role` or `revoke_role` by the admin. Moving settlement to a relayer means `grant_role(relayer, "settler")`, then `revoke_role(old, "settler")`. The `upgrader` role is the exception: only a current upgrader grants or revokes it ([section 1.5](01-architecture.md#15-shared-conventions)). On mainnet that change is scheduled through the timelock.
 3. **Pause** (incident): `pauser` calls `pause` on the affected contract or contracts. The pause scope is in [section 1.5](01-architecture.md#15-shared-conventions). Unpause needs the admin.
 4. **Tab settlement defect** (incident):
    1. Revoke the `settler` role.

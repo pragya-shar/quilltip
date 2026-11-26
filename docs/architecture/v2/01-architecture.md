@@ -189,6 +189,7 @@ The rules:
   | `upgrader` | Upgrader key           | Upgrade and migrate |
   | `settler`  | Settler key (Tab only) | Settlement          |
   - Admin transfer is two-step: `transfer_admin_role`, then `accept_admin_transfer`.
+  - `upgrader` is self-administered in every contract (`quilltip_shared::roles`). Only an account that holds `upgrader` can grant or revoke it, and `set_role_admin` refuses to change its role admin. The admin alone cannot take the role, so it cannot skip the upgrader timelock. Because the admin cannot restore the role, its last holder can neither be revoked nor renounce; grant a successor first. The admin and role admins grant and revoke the other roles under the OpenZeppelin rules.
   - Every contract overrides the OpenZeppelin `renounce_admin` to fail with `AdminRenounceDisabled`. A renounce would otherwise make a pause permanent.
 
 - **Pause:**
