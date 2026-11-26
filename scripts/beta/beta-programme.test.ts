@@ -5,6 +5,11 @@ import { expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
 import { markWaitlistJoined } from '../../convex/waitlist'
+import { afterAccountCreatedOrUpdated } from '../../convex/auth'
+import {
+  internalAccountDomains,
+  isInternalAccountEmail,
+} from '../../convex/lib/internalAccounts'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 const newTest = () => convexTest(schema, modules)
@@ -218,7 +223,7 @@ test('feedback is rate limited per person per hour', async () => {
   }
 })
 
-test('test-account flag is internal-only and labels public profiles', async () => {
+test('test-account flag is internal-only and only the account itself sees it', async () => {
   const t = newTest()
   const userId = await seedUser(t, { email: 'qa@example.test' })
   const user = t.withIdentity({ subject: `${userId}|session` })
@@ -231,18 +236,17 @@ test('test-account flag is internal-only and labels public profiles', async () =
     })
   ).rejects.toThrow()
 
-  expect(
-    (await t.query(api.users.getUserByUsername, { username: 'qa' }))
-      ?.isTestAccount
-  ).toBe(false)
   await t.mutation(internal.testAccounts.setTestAccount, {
     email: 'QA@example.test',
     isTestAccount: true,
   })
-  expect(
-    (await t.query(api.users.getUserByUsername, { username: 'qa' }))
-      ?.isTestAccount
-  ).toBe(true)
+  // The public profile never carries the flag; the account itself sees it.
+  const profile = await t.query(api.users.getUserByUsername, { username: 'qa' })
+  expect(profile).not.toBeNull()
+  expect(profile).not.toHaveProperty('isTestAccount')
+  expect((await user.query(api.users.getCurrentUser, {}))?.isTestAccount).toBe(
+    true
+  )
   expect(await t.query(internal.testAccounts.listTestAccounts, {})).toEqual([
     { id: userId, username: 'qa', email: 'qa@example.test' },
   ])
@@ -382,6 +386,7 @@ test('only waitlist join and feedback submit are callable from clients', async (
     'betaMetrics:getUsageMetrics': 'internal',
     'testAccounts:setTestAccount': 'internal',
     'testAccounts:listTestAccounts': 'internal',
+    'testAccounts:backfillInternalAccountsByDomain': 'internal',
   })
 })
 
@@ -516,4 +521,259 @@ test('usage metrics read every page of large tables', async () => {
     users: { total: 251 },
     feedback: { total: 1 },
   })
+})
+
+// Internal (staff) account classification by email domain.
+
+async function createAccount(t: ReturnType<typeof newTest>, email: string) {
+  return t.run(async (ctx) => {
+    const userId = await ctx.db.insert('users', {
+      email,
+      username: email.split('@')[0]!.toLowerCase(),
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    await afterAccountCreatedOrUpdated(ctx, {
+      userId,
+      existingUserId: null,
+      email,
+    })
+    return userId
+  })
+}
+
+async function flagOf(t: ReturnType<typeof newTest>, userId: unknown) {
+  return t.run(async (ctx) => {
+    const user = await ctx.db.get(userId as never)
+    // Results cross a serialization boundary, so an unset flag is a string.
+    return (
+      (user as { isTestAccount?: boolean } | null)?.isTestAccount ?? 'unset'
+    )
+  })
+}
+
+test('sign-up flags nothing when no internal domains are configured', async () => {
+  vi.stubEnv('INTERNAL_ACCOUNT_EMAIL_DOMAINS', '')
+  try {
+    const t = newTest()
+    const userId = await createAccount(t, 'staff@example.test')
+    expect(await flagOf(t, userId)).toBe('unset')
+  } finally {
+    vi.unstubAllEnvs()
+  }
+})
+
+test('sign-up flags an account whose email domain is configured', async () => {
+  vi.stubEnv(
+    'INTERNAL_ACCOUNT_EMAIL_DOMAINS',
+    ' Example.TEST , @staff.example.org,,'
+  )
+  try {
+    const t = newTest()
+    await t.mutation(api.waitlist.join, {
+      ...human,
+      email: 'staff@example.test',
+    })
+    const staff = await createAccount(t, 'Staff@EXAMPLE.test')
+    const other = await createAccount(t, 'ops@staff.example.org')
+    const reader = await createAccount(t, 'reader@reader.example')
+    expect(await flagOf(t, staff)).toBe(true)
+    expect(await flagOf(t, other)).toBe(true)
+    expect(await flagOf(t, reader)).toBe('unset')
+    // The waitlist step still runs for a classified account.
+    expect((await waitlistRows(t))[0]).toMatchObject({ status: 'joined' })
+  } finally {
+    vi.unstubAllEnvs()
+  }
+})
+
+test('internal domains match exactly, ignoring case only', () => {
+  const domains = internalAccountDomains(
+    'example.test, Upper.Example , bad domain, *.wild.test, @at.example'
+  )
+  expect([...domains].sort()).toEqual([
+    'at.example',
+    'example.test',
+    'upper.example',
+  ])
+  expect(isInternalAccountEmail('a@example.test', domains)).toBe(true)
+  expect(isInternalAccountEmail('A@EXAMPLE.TEST', domains)).toBe(true)
+  expect(isInternalAccountEmail(' a@upper.example ', domains)).toBe(true)
+  // No subdomain, parent-domain, suffix or prefix matches.
+  expect(isInternalAccountEmail('a@team.example.test', domains)).toBe(false)
+  expect(isInternalAccountEmail('a@example.test.evil.io', domains)).toBe(false)
+  expect(isInternalAccountEmail('a@notexample.test', domains)).toBe(false)
+  expect(isInternalAccountEmail('a@wild.test', domains)).toBe(false)
+  expect(isInternalAccountEmail('a@x.wild.test', domains)).toBe(false)
+  // The local part never counts, and malformed emails never match.
+  expect(isInternalAccountEmail('example.test@reader.example', domains)).toBe(
+    false
+  )
+  expect(isInternalAccountEmail('a@b@example.test', domains)).toBe(false)
+  expect(isInternalAccountEmail('example.test', domains)).toBe(false)
+  expect(isInternalAccountEmail(undefined, domains)).toBe(false)
+  expect(internalAccountDomains(undefined).size).toBe(0)
+})
+
+test('sign-in and password reset never change the flag', async () => {
+  vi.stubEnv('INTERNAL_ACCOUNT_EMAIL_DOMAINS', 'example.test')
+  try {
+    const t = newTest()
+    const userId = await createAccount(t, 'staff@example.test')
+    // An operator clears the flag; a later sign-in must not set it again.
+    await t.mutation(internal.testAccounts.setTestAccount, {
+      userId,
+      isTestAccount: false,
+    })
+    await t.run((ctx) =>
+      afterAccountCreatedOrUpdated(ctx, {
+        userId,
+        existingUserId: userId,
+        email: 'staff@example.test',
+      })
+    )
+    expect(await flagOf(t, userId)).toBe(false)
+
+    // The account holder cannot set or clear it either.
+    const user = t.withIdentity({ subject: `${userId}|session` })
+    await expect(
+      user.mutation(api.users.updateProfile, {
+        // @ts-expect-error not an accepted argument
+        isTestAccount: true,
+      })
+    ).rejects.toThrow()
+    expect(await flagOf(t, userId)).toBe(false)
+  } finally {
+    vi.unstubAllEnvs()
+  }
+})
+
+test('domain backfill is a dry run by default and idempotent when applied', async () => {
+  const t = newTest()
+  const staff = await seedUser(t, { email: 'Staff@Example.test' })
+  const flagged = await seedUser(t, {
+    email: 'qa@example.test',
+    isTestAccount: true,
+  })
+  const sub = await seedUser(t, { email: 'ops@team.example.test' })
+  const reader = await seedUser(t, { email: 'reader@reader.example' })
+
+  const dry = await t.mutation(
+    internal.testAccounts.backfillInternalAccountsByDomain,
+    { domain: 'EXAMPLE.test' }
+  )
+  expect(dry).toMatchObject({
+    domain: 'example.test',
+    applied: false,
+    matched: 2,
+    flagged: 1,
+    alreadyFlagged: 1,
+    isDone: true,
+  })
+  expect(await flagOf(t, staff)).toBe('unset')
+
+  const run = await t.mutation(
+    internal.testAccounts.backfillInternalAccountsByDomain,
+    { domain: 'example.test', apply: true }
+  )
+  expect(run).toMatchObject({ applied: true, flagged: 1, alreadyFlagged: 1 })
+  const again = await t.mutation(
+    internal.testAccounts.backfillInternalAccountsByDomain,
+    { domain: 'example.test', apply: true }
+  )
+  expect(again).toMatchObject({ matched: 2, flagged: 0, alreadyFlagged: 2 })
+  expect(await flagOf(t, staff)).toBe(true)
+  expect(await flagOf(t, flagged)).toBe(true)
+  expect(await flagOf(t, sub)).toBe('unset')
+  expect(await flagOf(t, reader)).toBe('unset')
+
+  await expect(
+    t.mutation(internal.testAccounts.backfillInternalAccountsByDomain, {
+      domain: '*.example.test',
+    })
+  ).rejects.toThrow()
+})
+
+test('domain backfill reads users in pages', async () => {
+  const t = newTest()
+  await t.run(async (ctx) => {
+    for (let i = 0; i < 205; i++) {
+      await ctx.db.insert('users', {
+        email: `staff${i}@example.test`,
+        username: `staff${i}`,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+    }
+  })
+  let cursor: string | null = null
+  let flagged = 0
+  let pages = 0
+  for (;;) {
+    const page: { flagged: number; continueCursor: string; isDone: boolean } =
+      await t.mutation(internal.testAccounts.backfillInternalAccountsByDomain, {
+        domain: 'example.test',
+        apply: true,
+        cursor,
+      })
+    flagged += page.flagged
+    pages += 1
+    if (page.isDone) break
+    cursor = page.continueCursor
+  }
+  expect(flagged).toBe(205)
+  expect(pages).toBeGreaterThan(1)
+  expect(
+    await t.query(internal.testAccounts.listTestAccounts, {})
+  ).toHaveLength(205)
+})
+
+test('usage metrics exclude accounts flagged by domain at sign-up', async () => {
+  vi.stubEnv('INTERNAL_ACCOUNT_EMAIL_DOMAINS', 'example.test')
+  try {
+    const t = newTest()
+    const staff = await createAccount(t, 'staff@example.test')
+    await createAccount(t, 'reader@reader.example')
+    await t.run((ctx) =>
+      ctx.db.insert('articles', {
+        slug: 'staff-article',
+        title: 'Words',
+        content: {},
+        published: true,
+        authorId: staff,
+        authorUsername: 'staff',
+        createdAt: 1,
+        updatedAt: 1,
+      })
+    )
+    const metrics = await t.action(internal.betaMetrics.getUsageMetrics, {})
+    expect(metrics).toMatchObject({
+      excludeTestAccounts: true,
+      testAccountsExcluded: 1,
+      users: { total: 1 },
+      articles: { total: 0 },
+    })
+    const all = await t.action(internal.betaMetrics.getUsageMetrics, {
+      excludeTestAccounts: false,
+    })
+    expect(all).toMatchObject({ users: { total: 2 }, articles: { total: 1 } })
+  } finally {
+    vi.unstubAllEnvs()
+  }
+})
+
+test('permanent storage query returns a boolean only', async () => {
+  const t = newTest()
+  try {
+    vi.stubEnv('ARWEAVE_ENABLED', 'false')
+    vi.stubEnv('ARWEAVE_WALLET_KEY', '')
+    expect(await t.query(api.permanentStorage.isEnabled, {})).toBe(false)
+    vi.stubEnv('ARWEAVE_ENABLED', 'true')
+    // Enabled without the upload wallet stores nothing.
+    expect(await t.query(api.permanentStorage.isEnabled, {})).toBe(false)
+    vi.stubEnv('ARWEAVE_WALLET_KEY', '{"kty":"placeholder"}')
+    expect(await t.query(api.permanentStorage.isEnabled, {})).toBe(true)
+  } finally {
+    vi.unstubAllEnvs()
+  }
 })

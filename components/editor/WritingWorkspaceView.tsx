@@ -881,10 +881,14 @@ export function WritingWorkspaceView({
       >
         <h3>{w.title}</h3>
         <p>{w.excerpt}</p>
-        <p className="muted">
-          Publishing stores your content on Arweave (permanent storage). You
-          cannot undo this or remove that snapshot from Arweave. You won&rsquo;t
-          be able to edit it after publishing.
+        <p id="publish-storage-note" className="muted" aria-live="polite">
+          {w.permanentStorageEnabled === undefined
+            ? 'Checking whether this article will be stored permanently.'
+            : w.permanentStorageEnabled
+              ? 'This article will be stored permanently on Arweave, where it can’t be changed or removed.'
+              : 'This article won’t be stored permanently. Permanent storage is off on this site.'}{' '}
+          {w.permanentStorageEnabled !== undefined &&
+            'You can’t edit the article after you publish it.'}
         </p>
         {w.publishFeedback && (
           <p role="alert">
@@ -893,7 +897,12 @@ export function WritingWorkspaceView({
         )}
         <button
           className="wine wide"
-          disabled={w.isPublishing || !w.receivingWalletAddress}
+          disabled={
+            w.isPublishing ||
+            !w.receivingWalletAddress ||
+            w.permanentStorageEnabled === undefined
+          }
+          aria-describedby="publish-storage-note"
           onClick={() => void w.handlePublish()}
         >
           {w.isPublishing ? 'Publishing…' : 'Publish article'}

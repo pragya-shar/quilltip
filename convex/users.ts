@@ -46,8 +46,6 @@ export const getUserByUsername = query({
       nftsCreated: user.nftsCreated,
       nftsOwned: user.nftsOwned,
       createdAt: user.createdAt,
-      // Lets public pages label QA and demo accounts.
-      isTestAccount: user.isTestAccount === true,
     }
   },
 })

@@ -168,6 +168,12 @@ export function useWritingWorkspace() {
     api.walletLink.getMyWalletLink,
     isAuthenticated ? {} : 'skip'
   )
+  // Whether publishing also stores a permanent copy (Arweave). Undefined
+  // while loading; the publish dialog waits for it.
+  const permanentStorageEnabled = useQuery(
+    api.permanentStorage.isEnabled,
+    isAuthenticated ? {} : 'skip'
+  )
   useEffect(() => {
     if (walletLink !== undefined) {
       setReceivingWalletAddress(
@@ -896,6 +902,7 @@ export function useWritingWorkspace() {
   const publishSlug = publishedSlugOverride ?? savedArticleForLink?.slug
   return {
     editor,
+    permanentStorageEnabled,
     title,
     setTitle,
     titleError,
