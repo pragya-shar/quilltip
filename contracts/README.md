@@ -171,6 +171,11 @@ fails when the committed files differ.
 tip receipts and Merkle proofs in TypeScript. `scripts/chain/tab-encoding.test.ts`
 checks it against the Rust test vectors.
 
+`lib/stellar/v2/ids.ts` derives `article_ref` and the author-bound
+`article_id` as bytes for calls through the bindings.
+`scripts/chain/v2-ids.test.ts` checks it against the same vectors and against
+`convex/lib/chain/ids.ts`.
+
 ## Local network integration
 
 The suite in `scripts/integration` deploys Core, Tab and the article NFT to a

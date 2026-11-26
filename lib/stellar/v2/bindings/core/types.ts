@@ -151,6 +151,7 @@ export interface ArticleRegisteredEvent {
   data: {
     article_id: Uint8Array;
     author: string;
+    article_ref?: Uint8Array;
     content_hash?: Uint8Array;
     arweave_id?: Uint8Array | null;
     splits?: Array<Split>;

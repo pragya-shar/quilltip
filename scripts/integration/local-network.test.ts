@@ -16,6 +16,7 @@ import type { AssembledTransaction } from '@stellar/stellar-sdk/contract'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { Client as CoreClient } from '../../lib/stellar/v2/bindings/core'
+import { articleId, articleRef } from '../../lib/stellar/v2/ids'
 import { Client as NftClient } from '../../lib/stellar/v2/bindings/nft'
 import {
   Client as TabClient,
@@ -87,8 +88,6 @@ async function expectContractError(
 }
 
 const rand = (n: number) => crypto.getRandomValues(new Uint8Array(n))
-const articleId = (convexId: string) =>
-  sha256(new TextEncoder().encode(`quilltip:article:v1:${convexId}`))
 
 function named(res: Sent, contract: string, name: string) {
   return events(res).filter((e) => e.contractId === contract && e.name === name)
@@ -110,9 +109,11 @@ const acceptorSeed = rand(32)
 const core = (kp: Keypair) => new CoreClient(h.opts(coreId, kp))
 const tab = (kp: Keypair) => new TabClient(h.opts(tabId, kp))
 const nft = (kp: Keypair) => new NftClient(h.opts(nftId, kp))
-const A1 = articleId('integration-article-1')
-const A2 = articleId('integration-article-2')
-const A3 = articleId('integration-article-split')
+const R1 = articleRef('integration-article-1')
+const R2 = articleRef('integration-article-2')
+const R3 = articleRef('integration-article-split')
+// Article IDs bind each reference to its author; set once the accounts exist.
+let A1: Uint8Array, A2: Uint8Array, A3: Uint8Array
 
 beforeAll(async () => {
   expect(wasmDir, 'QUILLTIP_WASM_DIR').not.toBe('')
@@ -139,6 +140,9 @@ beforeAll(async () => {
     Keypair,
     Keypair,
   ]
+  A1 = articleId(author.publicKey(), R1)
+  A2 = articleId(author2.publicKey(), R2)
+  A3 = articleId(author.publicKey(), R3)
   token = h.ensureNativeSac(admin)
   const coreHash = h.uploadWasm(join(wasmDir, 'quilltip_core.wasm'), admin)
   const tabHash = h.uploadWasm(join(wasmDir, 'quilltip_tab.wasm'), admin)
@@ -219,17 +223,36 @@ afterAll(() => {
 describe('5.1 article registration', () => {
   it('registers articles with content anchors and splits', async () => {
     const content = rand(32)
-    const { res } = await send(
+    const { res, result } = await send(
       'register_article',
       core(author).register_article({
         author: author.publicKey(),
-        article_id: A1,
+        article_ref: R1,
         content_hash: content,
         arweave_id: null,
         splits: [],
       })
     )
-    expect(named(res, coreId, 'article_registered')).toHaveLength(1)
+    // Core returns the author-bound ID, and the view and event agree with it.
+    expect(Buffer.from(result).equals(Buffer.from(A1))).toBe(true)
+    const viewId = (
+      await core(author).article_id({
+        author: author.publicKey(),
+        article_ref: R1,
+      })
+    ).result
+    expect(Buffer.from(viewId).equals(Buffer.from(A1))).toBe(true)
+    const registered = named(res, coreId, 'article_registered')
+    expect(registered).toHaveLength(1)
+    const regData = registered[0]!.data as Record<string, unknown>
+    expect(
+      Buffer.from(regData.article_ref as Uint8Array).equals(Buffer.from(R1))
+    ).toBe(true)
+    expect(
+      Buffer.from(registered[0]!.topics[1] as Uint8Array).equals(
+        Buffer.from(A1)
+      )
+    ).toBe(true)
     const rec = (await core(author).get_article({ article_id: A1 })).result
     expect(rec?.author).toBe(author.publicKey())
     expect(Buffer.from(rec!.content_hash).equals(Buffer.from(content))).toBe(
@@ -239,7 +262,7 @@ describe('5.1 article registration', () => {
       'register_article_2',
       core(author2).register_article({
         author: author2.publicKey(),
-        article_id: A2,
+        article_ref: R2,
         content_hash: rand(32),
         arweave_id: rand(32),
         splits: [],
@@ -249,7 +272,7 @@ describe('5.1 article registration', () => {
       'register_article_split',
       core(author).register_article({
         author: author.publicKey(),
-        article_id: A3,
+        article_ref: R3,
         content_hash: rand(32),
         arweave_id: null,
         splits: [
@@ -261,13 +284,34 @@ describe('5.1 article registration', () => {
     await expectContractError(
       core(author).register_article({
         author: author.publicKey(),
-        article_id: A1,
+        article_ref: R1,
         content_hash: rand(32),
         arweave_id: null,
         splits: [],
       }),
       2
     )
+    // Another account that registers the same reference gets its own ID and
+    // leaves the author's article unchanged.
+    const other = await send(
+      'register_same_ref_other_author',
+      core(author2).register_article({
+        author: author2.publicKey(),
+        article_ref: R1,
+        content_hash: rand(32),
+        arweave_id: null,
+        splits: [],
+      })
+    )
+    expect(Buffer.from(other.result).equals(Buffer.from(A1))).toBe(false)
+    expect(
+      Buffer.from(other.result).equals(
+        Buffer.from(articleId(author2.publicKey(), R1))
+      )
+    ).toBe(true)
+    expect(
+      (await core(tipper).get_article({ article_id: A1 })).result?.author
+    ).toBe(author.publicKey())
   })
 })
 
@@ -682,6 +726,31 @@ describe('pause scope', () => {
 describe('upgrade and migrate', () => {
   it('upgrades Core to a schema 2 build and migrates once', async () => {
     expect(upgradeWasm, 'QUILLTIP_CORE_UPGRADE_WASM').not.toBe('')
+    // Only an upgrader changes the upgrader role; the admin alone cannot.
+    await expectContractError(
+      core(admin).grant_role({
+        account: collector.publicKey(),
+        role: 'upgrader',
+        caller: admin.publicKey(),
+      }),
+      2000
+    )
+    await send(
+      'grant_upgrader',
+      core(upgrader).grant_role({
+        account: collector.publicKey(),
+        role: 'upgrader',
+        caller: upgrader.publicKey(),
+      })
+    )
+    await send(
+      'revoke_upgrader',
+      core(upgrader).revoke_role({
+        account: collector.publicKey(),
+        role: 'upgrader',
+        caller: upgrader.publicKey(),
+      })
+    )
     const hash = h.uploadWasm(upgradeWasm, admin)
     const upgraded = await send(
       'core_upgrade',
@@ -795,18 +864,17 @@ describe('measurements', () => {
     // Direct: one transaction per tip, measured on the first writer's article.
     const articles = await Promise.all(
       writers.map(async (w, i) => {
-        const id = articleId(`reduction-${i}`)
-        await send(
+        const { result } = await send(
           `register_reduction_${i}`,
           core(w).register_article({
             author: w.publicKey(),
-            article_id: id,
+            article_ref: articleRef(`reduction-${i}`),
             content_hash: rand(32),
             arweave_id: null,
             splits: [],
           })
         )
-        return id
+        return result
       })
     )
     let directFees = BigInt(0)

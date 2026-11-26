@@ -69,9 +69,17 @@ export class Harness {
   /** A funded account (friendbot gives 10,000 XLM). */
   async account(): Promise<Keypair> {
     const kp = Keypair.random()
-    const res = await fetch(`${this.friendbot}?addr=${kp.publicKey()}`)
-    if (!res.ok) throw new Error(`friendbot ${res.status}: ${await res.text()}`)
-    return kp
+    // A new Quickstart answers RPC health before friendbot is ready, so retry
+    // gateway errors for up to two minutes.
+    for (let attempt = 0; ; attempt++) {
+      const res = await fetch(`${this.friendbot}?addr=${kp.publicKey()}`)
+      if (res.ok) return kp
+      const body = await res.text()
+      if (res.status < 500 || attempt >= 60) {
+        throw new Error(`friendbot ${res.status}: ${body}`)
+      }
+      await new Promise((r) => setTimeout(r, 2_000))
+    }
   }
 
   async accounts(n: number): Promise<Keypair[]> {
