@@ -99,7 +99,7 @@ function moduleFor(fake: ReturnType<typeof fakeClient>) {
   const pairing = { show: vi.fn(), clear: vi.fn() }
   const onSessionEnded = vi.fn()
   const loadSignClient = vi.fn(async () => fake.client)
-  const module = new WalletConnectModule({
+  const walletModule = new WalletConnectModule({
     projectId: '0123456789abcdef0123456789abcdef',
     metadata: {
       name: 'QuillTip',
@@ -112,7 +112,7 @@ function moduleFor(fake: ReturnType<typeof fakeClient>) {
     onSessionEnded,
     now: () => NOW,
   })
-  return { module, pairing, onSessionEnded, loadSignClient }
+  return { module: walletModule, pairing, onSessionEnded, loadSignClient }
 }
 
 async function pair(fake: ReturnType<typeof fakeClient>, s = session()) {
