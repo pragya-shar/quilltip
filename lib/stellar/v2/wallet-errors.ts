@@ -97,8 +97,11 @@ export const WALLET_ERROR_RULES: Readonly<
   Record<string, readonly ErrorRule[]>
 > = {
   varial: [
+    // -4 "The user rejected this request."
     { kind: 'rejected', pattern: /user declined|user rejected/ },
-    // `getAddress` without access granted, or with the extension locked.
+    // -1 "The wallet is locked. Unlock Varial and try again."
+    { kind: 'locked', pattern: /wallet is locked/ },
+    // `getAddress` before access was granted.
     { kind: 'locked', pattern: /not allowed|request access first/ },
     { kind: 'no-wallet', pattern: /varial is not connected/ },
   ],
@@ -116,19 +119,19 @@ export const WALLET_ERROR_RULES: Readonly<
     { kind: 'rejected', code: -4 },
     { kind: 'popup-blocked', pattern: /pop-?up|window.*block/ },
   ],
-  lobstr: [
-    { kind: 'no-wallet', pattern: /lobstr is not connected/ },
-    { kind: 'rejected', pattern: /declin|reject|cancel/ },
-  ],
   rabet: [
     { kind: 'no-wallet', pattern: /rabet is not installed/ },
+    // Rabet signs for mainnet or testnet only.
     { kind: 'wrong-network', pattern: /doesn't support the network/ },
-    { kind: 'rejected', pattern: /declin|reject|cancel/ },
   ],
-  hana: [
-    { kind: 'no-wallet', pattern: /hana wallet is not installed/ },
-    { kind: 'locked', pattern: /locked|unlock/ },
-    { kind: 'rejected', pattern: /declin|reject|cancel/ },
+  hana: [{ kind: 'no-wallet', pattern: /hana wallet is not installed/ }],
+  scopuly: [
+    { kind: 'no-wallet', pattern: /scopuly provider is not available/ },
+  ],
+  dcent: [
+    { kind: 'no-wallet', pattern: /d'cent stellar provider is not available/ },
+    // `getAddress` before access was granted.
+    { kind: 'locked', pattern: /not allowed, please request access/ },
   ],
 }
 

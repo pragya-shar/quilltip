@@ -26,6 +26,7 @@ import {
   type WalletPage,
 } from '../../lib/stellar/v2/wallet'
 import {
+  WALLET_ERROR_RULES,
   WalletError,
   classifyWalletError,
   walletErrorMessage,
@@ -204,6 +205,13 @@ describe('error mapping', () => {
     const error = classifyWalletError(thrown, walletId)
     expect(error.kind).toBe(kind)
     expect(error.walletId).toBe(walletId)
+  })
+
+  test('each offered wallet has rules of its own; LOBSTR has none', () => {
+    for (const id of OFFERED_WALLETS.map((w) => w.id)) {
+      expect(WALLET_ERROR_RULES[id]?.length, id).toBeGreaterThan(0)
+    }
+    expect(WALLET_ERROR_RULES.lobstr).toBeUndefined()
   })
 
   test('a wallet’s own rule wins over the shared ones', () => {
