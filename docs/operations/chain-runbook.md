@@ -60,7 +60,7 @@ tool also needs the Convex target (see [Indexer behind retention](#indexer-behin
 | `backfill-*.json`     | backfill               | Events read for a backfill range                             |
 | `*.before-reset-*`    | redeploy               | State and entries of the network before a reset              |
 
-## Weekly TTL extension
+## Scheduled TTL extension
 
 Testnet keeps a persistent entry for at least 7 days (120 days on mainnet).
 An entry that is not extended is archived when its TTL ends, and calls that
@@ -76,8 +76,14 @@ extended by normal use:
 - The native asset contract's balance entry for Tab holds reader deposits.
 - Instances and Wasm code of a contract that nobody calls.
 
-**Run the extension once a week**, and once within 7 days of every deployment,
-redeploy or role change:
+Temporary entries (`Session`, `Paid` and tip references) are not tracked. The
+contracts give them a TTL that ends after the last ledger they can be used
+(I-29), and an expired temporary entry is deleted, not archived.
+
+**Run the extension twice a week** (for example Monday and Thursday), and
+within 3 days of every deployment, redeploy or role change. A weekly run has
+no margin on testnet: role entries live 7 days, and the testnet RPC server
+keeps 7 days of transactions (120,960 ledgers), which the entry scan needs.
 
 ```bash
 bun run contracts:extend-v2 --set integration --keys-dir <dir>            # report and plan
@@ -91,8 +97,10 @@ bun run contracts:extend-v2 --set integration --keys-dir <dir> --submit   # exte
   contract transaction, signed by the set's deployer key.
 - Entries are found from transaction footprints: the deployment's transactions
   and every transaction that emitted an event of the set since the last run.
-  A weekly run stays inside RPC retention, so no entry is missed. An entry
-  that no transaction of the scan touched can be added with
+  A run less than 7 days after the previous one stays inside RPC retention.
+  If more time has passed, the report says which ledgers the scan could not
+  read; entries first written there are not tracked. An entry that no
+  transaction of the scan touched can be added with
   `--entries-file` (a JSON array of `{ "contract": "tab", "keyXdr": "<base64 ScVal>" }`).
 - `absent` means the entry is not in the ledger: the contract removed it (a
   claimed balance, for example). It needs nothing.
@@ -102,7 +110,7 @@ To schedule it on the operator machine, put the four variables above in a
 file outside the repository and add a crontab line such as:
 
 ```text
-0 9 * * 1  cd <repo> && . <env-file> && bun run contracts:extend-v2 --set integration --keys-dir <dir> --submit >> <log-file> 2>&1
+0 9 * * 1,4  cd <repo> && . <env-file> && bun run contracts:extend-v2 --set integration --keys-dir <dir> --submit >> <log-file> 2>&1
 ```
 
 The job needs the key directory, so it runs where the keys are. CI has no
@@ -163,15 +171,19 @@ lag alert.
    Core. It writes through the internal mutation `chain/indexer:ingestBackfill`;
    stored events are skipped and handlers are idempotent, so a rerun changes
    nothing. `--resume` calls `chain/indexer:replayFrom` with the ledger after
-   the range and `gapBackfilled: true`.
+   the range and `gapBackfilled: true`. Before any write, it checks that the
+   range starts no later than the ledger after the one the index covers;
+   otherwise it stops, because the ledgers in between would be marked as
+   indexed without being read.
 
 5. Reconcile, then set `CHAIN_V2_ENABLED=true`. Records that no source can
    resolve stay flagged for manual review.
 
 ## Testnet reset
 
-Detection: contract instances are missing, or the ledger sequence dropped. The
-indexer stops with `RESET_DETECTED`.
+Detection: the ledger sequence dropped below the highest ledger recorded for
+the set, and the contract instances are gone. The indexer stops with
+`RESET_DETECTED`.
 
 1. Set `CHAIN_V2_ENABLED=false`.
 2. Close the current `chainEpoch`. Unsettled tab receipts become `VOID_RESET`;
@@ -183,8 +195,13 @@ indexer stops with `RESET_DETECTED`.
    bun run contracts:redeploy-v2 --set integration --keys-dir <dir> --submit   # redeploy
    ```
 
-   - The tool refuses unless a reset is detected. With the contracts still in
-     place, archived entries need the restore tool instead.
+   - The tool refuses unless the ledger sequence dropped. With the contracts
+     still in place, archived entries need the restore tool instead. Missing
+     instances without a ledger drop are not a reset: check the contract IDs,
+     the RPC server and the TTL report.
+   - If the redeploy stops after it has started, the old state is kept aside
+     and the tool prints the deployment command that resumes from the new
+     state. Run that command; it skips the steps already done.
    - It reuses the recorded commit, the reproducible build (rebuilt if the
      Wasm files changed), the constructor configuration and the set's keys,
      which Friendbot funds again. It keeps the old state as
@@ -201,7 +218,7 @@ indexer stops with `RESET_DETECTED`.
    contract IDs if they changed. The epoch must change even when the IDs did
    not. For the integration set, the deployment tool's `convex-env` step sets
    the values it owns; the owner sets the live set's values.
-5. Run the weekly TTL extension within 7 days.
+5. Run the TTL extension within 3 days.
 6. Prompt authors to enable tips again.
 
 ## Roles, pause and unpause
@@ -232,8 +249,8 @@ place:
   grant the role.
 - Settler rotation: grant `settler` to the new key, update the Convex env,
   revoke the old key, confirm one settlement with the new key.
-- After a role change, run the weekly TTL extension within 7 days: new role
-  entries get the network minimum TTL.
+- After a role change, run the TTL extension within 3 days: new role
+  entries get the network minimum TTL (7 days on testnet).
 
 ## Rehearsal on a local network
 

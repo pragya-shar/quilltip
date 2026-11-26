@@ -242,5 +242,5 @@ a commit on `origin/overhaul/v2`.
 Guarded tools for a deployed set: TTL report and extension, restore of
 archived entries, redeploy after a testnet reset, role and pause commands, and
 event backfill for the indexer. Each is a dry run unless `--submit` is given.
-Procedures, including the weekly extension:
+Procedures, including the scheduled extension:
 [chain operations runbook](../docs/operations/chain-runbook.md).
