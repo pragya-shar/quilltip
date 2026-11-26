@@ -207,10 +207,14 @@ function describeTransaction(envelope: string) {
     fee: tx.fee,
     timeBounds: tx.timeBounds ?? null,
     memoType: tx.memo.type,
+    // SDK 17 decodes a text memo read from XDR as raw bytes (SDK 14 gave a
+    // string). The app never reads a decoded memo; compare the text.
     memoValue:
       tx.memo.value === null || tx.memo.value === undefined
         ? null
-        : String(tx.memo.value),
+        : tx.memo.value instanceof Uint8Array
+          ? new TextDecoder().decode(tx.memo.value)
+          : String(tx.memo.value),
     operations: tx.operations.map((op) =>
       op.type === 'invokeHostFunction'
         ? { type: op.type, invocation: decodeInvocation(envelope) }

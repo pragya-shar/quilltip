@@ -173,7 +173,7 @@ export class NFTClient {
         await sorobanServer.prepareTransaction(transaction)
 
       return {
-        xdr: preparedTransaction.toXDR(),
+        xdr: preparedTransaction.toXdr(),
       }
     } catch (error) {
       console.error('Error building mint transaction:', error)
@@ -188,7 +188,7 @@ export class NFTClient {
   ): Promise<NFTTransactionResult> {
     const { StellarSdk, sorobanServer } = await this.getSdkContext()
     try {
-      const transaction = StellarSdk.TransactionBuilder.fromXDR(
+      const transaction = StellarSdk.TransactionBuilder.fromXdr(
         signedXDR,
         this.networkPassphrase
       )

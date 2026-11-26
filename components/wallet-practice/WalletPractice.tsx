@@ -7,6 +7,7 @@ import {
   clearPracticeRecord,
 } from '@/lib/stellar/practice-storage'
 import { getSafeReturnPath } from '@/lib/auth/safeReturnPath'
+import { bytesToHex } from '@/lib/stellar/bytes'
 import {
   Wallet,
   Check,
@@ -191,14 +192,14 @@ export default function WalletPractice({ active }: { active: boolean }) {
         })
         const account = await server.loadAccount(address),
           tx = buildPractice(account)
-        const { signedTxXdr } = await kit.current.signTransaction(tx.toXDR(), {
+        const { signedTxXdr } = await kit.current.signTransaction(tx.toXdr(), {
           address,
           networkPassphrase: Networks.TESTNET,
           submit: false,
         })
         const signed = validateSigned(signedTxXdr, tx)
         const r: PracticeRecord = {
-          hash: signed.hash().toString('hex'),
+          hash: bytesToHex(signed.hash()),
           status: 'unknown',
           expires: Number(tx.timeBounds!.maxTime) * 1000,
           address,

@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import { getConvexHttpClient } from '@/lib/convex-http-client'
 import { STELLAR_CONFIG } from './config'
 import { loadStellarSdk } from './sdk-loader'
+import { bytesToHex } from './bytes'
 import { fallbackXlmPrice } from './price-fallback'
 import { api } from '@/convex/_generated/api'
 import type { Keypair } from '@stellar/stellar-sdk'
@@ -308,7 +309,7 @@ export class StellarClient {
       await sorobanServer.prepareTransaction(transaction)
 
     return {
-      xdr: preparedTransaction.toXDR(),
+      xdr: preparedTransaction.toXdr(),
       stroops,
       authorReceived,
       platformFee,
@@ -373,7 +374,7 @@ export class StellarClient {
       await sorobanServer.prepareTransaction(transaction)
 
     return {
-      xdr: preparedTransaction.toXDR(),
+      xdr: preparedTransaction.toXdr(),
       stroops,
       authorReceived,
       platformFee,
@@ -434,7 +435,7 @@ export class StellarClient {
       await sorobanServer.prepareTransaction(transaction)
 
     return {
-      xdr: preparedTransaction.toXDR(),
+      xdr: preparedTransaction.toXdr(),
       ...summarizeBatch(items),
     }
   }
@@ -495,14 +496,14 @@ export class StellarClient {
       await sorobanServer.prepareTransaction(transaction)
 
     return {
-      xdr: preparedTransaction.toXDR(),
+      xdr: preparedTransaction.toXdr(),
       ...summarizeBatch(items),
     }
   }
 
   async submitTipTransaction(signedXDR: string): Promise<TipReceipt> {
     const { StellarSdk, sorobanServer } = await this.getSdkContext()
-    const transaction = StellarSdk.TransactionBuilder.fromXDR(
+    const transaction = StellarSdk.TransactionBuilder.fromXdr(
       signedXDR,
       this.networkPassphrase
     )
@@ -524,11 +525,11 @@ export class StellarClient {
 
   async deriveTipTransactionHash(signedXDR: string): Promise<string> {
     const { StellarSdk } = await this.getSdkContext()
-    const transaction = StellarSdk.TransactionBuilder.fromXDR(
+    const transaction = StellarSdk.TransactionBuilder.fromXdr(
       signedXDR,
       this.networkPassphrase
     )
-    return transaction.hash().toString('hex')
+    return bytesToHex(transaction.hash())
   }
 
   async getArticleTips(articleId: string): Promise<TipData[]> {
@@ -640,7 +641,7 @@ export class StellarClient {
               new StellarSdk.xdr.LedgerKeyContractData({
                 contract: contractAddress.toScAddress(),
                 key: StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance(),
-                durability: StellarSdk.xdr.ContractDataDurability.persistent(),
+                durability: StellarSdk.xdr.ContractDataDurability.persistent,
               })
             ),
           ])
@@ -652,7 +653,7 @@ export class StellarClient {
       await sorobanServer.prepareTransaction(transaction)
 
     return {
-      xdr: preparedTransaction.toXDR(),
+      xdr: preparedTransaction.toXdr(),
       contractId,
     }
   }
@@ -662,7 +663,7 @@ export class StellarClient {
   ): Promise<{ success: boolean; hash?: string; error?: string }> {
     const { StellarSdk, sorobanServer } = await this.getSdkContext()
     try {
-      const transaction = StellarSdk.TransactionBuilder.fromXDR(
+      const transaction = StellarSdk.TransactionBuilder.fromXdr(
         signedXDR,
         this.networkPassphrase
       )
