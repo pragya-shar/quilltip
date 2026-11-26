@@ -7,6 +7,7 @@
  */
 import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Buffer } from 'buffer'
 import { Address, nativeToScVal, xdr } from '@stellar/stellar-sdk'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
@@ -28,6 +29,12 @@ import {
 } from '../../convex/lib/chain/voucher'
 import { hexToBytes, bytesToHex } from '../../convex/lib/chain/ids'
 import { signEd25519 } from '../../lib/stellar/v2/tab/encoding'
+import {
+  commitAcceptedTip,
+  signTabTip,
+  type SessionKeyScope,
+} from '../../lib/stellar/v2/tab'
+import { depsFor, freshDb, plantKey } from '../tab/helpers'
 import shared from '../../contracts/shared/test-vectors.json'
 import { rpcEventId } from './coreEvents'
 import { seedAddress } from './fixtures'
@@ -40,6 +47,10 @@ const TAB = shared.tab_contract
 const TOKEN = 'CAJS4RVGLFL2ANWW7W6Q4RGOZQXSVXW5BQKJ7A3ISE4EOUM5HHO77CQL'
 const READER = shared.vouchers[0]!.reader
 const WRITER = shared.vouchers[0]!.writer
+const CLIENT_SCOPE: SessionKeyScope = {
+  tabContractId: TAB,
+  readerAddress: READER,
+}
 const OTHER_WRITER = seedAddress(41)
 const SESSION_SEED = hexToBytes(shared.keys.session.seed)
 const SESSION_PUBLIC = shared.keys.session.public_key
@@ -590,6 +601,61 @@ describe('acceptance against the shared vectors', () => {
     for (const root of shared.receipts.roots) {
       expect(receiptsRootHex(leaves.slice(0, root.count))).toBe(root.root)
     }
+  })
+})
+
+describe('the browser tab library', () => {
+  it('signs prepared tips that Convex accepts, and keeps its ledger in step', async () => {
+    // fake-indexeddb runs its callbacks on timers; fake only the clock.
+    vi.useRealTimers()
+    vi.useFakeTimers({ now: T0, toFake: ['Date'] })
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    useVectorClientRefs()
+    const db = freshDb()
+    await plantKey(db, CLIENT_SCOPE, SESSION_SEED, 'noble', [0])
+    const deps = depsFor(db, { now: () => Date.now() })
+
+    let last: Awaited<ReturnType<typeof submit>> | null = null
+    for (const [i, o] of [
+      { cents: 10 },
+      { cents: 25, highlight: HIGHLIGHT },
+      { cents: 4 },
+    ].entries()) {
+      // The real prepareTip result type, not the suite's narrowed `Prepared`.
+      const p = await as(t, s.readerId).mutation(api.tabs.prepareTip, {
+        requestId: `lib-${i}`,
+        articleId: s.articleId,
+        amountCents: o.cents,
+        keyId: 0,
+        ...(o.highlight ? { highlight: o.highlight } : {}),
+      })
+      const signed = await signTabTip(p, deps)
+      if (signed.kind !== 'signed')
+        throw new Error(`not signed: ${signed.kind}`)
+      const accepted = await as(t, s.readerId).mutation(
+        api.tabs.submitTip,
+        signed.submit
+      )
+      expect(accepted.status).toBe('ACCEPTED')
+      expect(accepted.voucher.receiptsRoot).toBe(signed.voucher.receiptsRoot)
+      expect((await commitAcceptedTip(accepted, deps)).status).toBe('committed')
+      last = accepted
+    }
+
+    const vector = shared.vouchers[0]!
+    expect(last!.voucher).toMatchObject({
+      signature: vector.signature,
+      acceptanceSignature: vector.acceptance_signature,
+      receiptsRoot: vector.receipts_root,
+    })
+    expect(await deps.ledger.read(CLIENT_SCOPE, 0, WRITER)).toMatchObject({
+      committed: {
+        seq: 3,
+        cumulative: vector.cumulative,
+        leafHashes: VECTOR_RECEIPTS.map((r) => r.leaf),
+      },
+    })
   })
 })
 

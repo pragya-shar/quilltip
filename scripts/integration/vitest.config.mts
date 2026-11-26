@@ -7,6 +7,8 @@ export default defineConfig({
     include: [
       'scripts/integration/local-network.test.ts',
       'scripts/integration/article-registration.test.ts',
+      // The browser tab library against the Tab contract.
+      'scripts/integration/tab-client.test.ts',
     ],
     testTimeout: 900_000,
     hookTimeout: 900_000,

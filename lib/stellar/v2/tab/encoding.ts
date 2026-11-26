@@ -9,9 +9,12 @@
  * and value types are fixed. `contracts/shared/test-vectors.json` and
  * `contracts/tab/test-vectors.json` pin the expected bytes.
  *
- * Runs in the browser, the Convex default runtime and Node.
+ * Runs in the browser, the Convex default runtime and Node. `Buffer` is
+ * imported, not taken from the global scope: browser bundles and the Convex
+ * default runtime have no global `Buffer`.
  */
 import { Address, Keypair, hash, xdr } from '@stellar/stellar-sdk'
+import { Buffer } from 'buffer'
 
 export const TAB_DOMAIN = 'quilltip_tab_v1'
 export const TAB_ACCEPT_DOMAIN = 'quilltip_tab_accept_v1'
