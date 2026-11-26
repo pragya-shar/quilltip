@@ -504,17 +504,18 @@ export function WalletPreview({
             <details className="wallet-desk-help">
               <summary>First wallet? Start here</summary>
               <p>
-                Freighter holds your Stellar account and lets you approve
-                transactions. No installation is needed for this demo.
+                Varial (formerly Freighter) holds your Stellar account and lets
+                you approve transactions. No installation is needed for this
+                demo.
               </p>
               <ol>
                 <li>
                   <a
-                    href="https://freighter.app/#download"
+                    href="https://varialwallet.com"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Get Freighter from the official site ↗
+                    Get Varial from the official site ↗
                   </a>{' '}
                   and follow its create-wallet flow.
                 </li>
@@ -532,11 +533,11 @@ export function WalletPreview({
                 </li>
               </ol>
               <a
-                href="https://help.freighter.app/"
+                href="https://help.varialwallet.com/"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Can’t connect? Freighter help ↗
+                Can’t connect? Varial help ↗
               </a>
             </details>
             <p className="wallet-demo-disclaimer">
