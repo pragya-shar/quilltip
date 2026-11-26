@@ -4,19 +4,31 @@ import { XlmAmount } from '@/components/payments'
 import type { ProgressFigures } from '@/lib/nft/v2-flow'
 import { NFT_COPY } from '@/lib/copy/nft-v2'
 
-export function Figures({ figures }: { figures: ProgressFigures }) {
+/**
+ * The tipped total against the threshold, with a bar. `line` is off when
+ * the threshold notice above already states the figures.
+ */
+export function Figures({
+  figures,
+  line = true,
+}: {
+  figures: ProgressFigures
+  line?: boolean
+}) {
   const percent = Number(
     (BigInt(figures.total) * BigInt(1000)) / BigInt(figures.threshold)
   )
   const shown = Math.min(percent, 1000) / 10
   return (
     <div className="nft-v2-figures">
-      <p className="nft-v2-figures-line">
-        <XlmAmount amount={figures.total} />
-        <span className="nft-muted"> of </span>
-        <XlmAmount amount={figures.threshold} />
-        <span className="nft-muted"> tipped</span>
-      </p>
+      {line ? (
+        <p className="nft-v2-figures-line">
+          <XlmAmount amount={figures.total} />
+          <span className="nft-muted"> of </span>
+          <XlmAmount amount={figures.threshold} />
+          <span className="nft-muted"> tipped</span>
+        </p>
+      ) : null}
       <div
         className="nft-progress"
         role="progressbar"

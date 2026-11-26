@@ -91,7 +91,10 @@ export function useArticleNftV2({
     api.walletLink.getMyWalletLink,
     v2 && currentUserId ? {} : 'skip'
   )
-  const readEligibility = useAction(api.nftsV2.getMintEligibility)
+  const readEligibilityAction = useAction(api.nftsV2.getMintEligibility)
+  // The live read runs on its own triggers, not on the action's identity.
+  const readEligibility = useRef(readEligibilityAction)
+  readEligibility.current = readEligibilityAction
   const prepareMint = useMutation(api.nftsV2.prepareMint)
   const prepareTransfer = useMutation(api.nftsV2.prepareTransfer)
   const recordSubmitted = useMutation(api.chain.submissions.recordSubmitted)
@@ -131,7 +134,7 @@ export function useArticleNftV2({
     }
     let cancelled = false
     setEligibility(undefined)
-    readEligibility({ articleId })
+    readEligibility.current({ articleId })
       .then((result) => {
         if (!cancelled) setEligibility(result as MintEligibilityLike)
       })
@@ -156,7 +159,7 @@ export function useArticleNftV2({
     return () => {
       cancelled = true
     }
-  }, [needsLiveRead, isArticleAuthor, articleId, readEligibility, liveKey])
+  }, [needsLiveRead, isArticleAuthor, articleId, liveKey])
 
   const panel = deriveNftPanel({
     v2Enabled: config === undefined ? undefined : v2,

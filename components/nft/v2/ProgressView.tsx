@@ -20,14 +20,15 @@ export function ProgressView({
   const { progress, mint } = panel
   return (
     <div className="nft-v2-body">
-      {progress ? <Figures figures={progress} /> : null}
-      {progress && !progress.reached && mint.kind !== 'pending' ? (
+      {/* Below the threshold the kit's notice states the figures (spec 5.10). */}
+      {progress && !progress.reached ? (
         <PaymentNotice
           kind="nft-threshold"
           tipped={progress.total}
           threshold={progress.threshold}
         />
       ) : null}
+      {progress ? <Figures figures={progress} line={progress.reached} /> : null}
       {progress?.reached && mint.kind === 'none' ? (
         <p className="nft-muted">{NFT_COPY.reachedReader}</p>
       ) : null}

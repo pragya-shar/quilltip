@@ -142,7 +142,10 @@ export default function ArticleNftV2({
         />
       ) : null}
 
-      {panel.kind === 'minted' && panel.viewerOwns && panel.token.nftId ? (
+      {/* Stays open after a confirmed transfer, when the viewer no longer owns it. */}
+      {panel.kind === 'minted' &&
+      panel.token.nftId &&
+      (panel.viewerOwns || transferOpen) ? (
         <TransferDialogV2
           open={transferOpen}
           onOpenChange={(open) => {
