@@ -1,6 +1,6 @@
 @font-face {
   font-family: 'Wallet Syne';
-  src: url('/account/fonts/syne-variable.woff2') format('woff2');
+  src: url('/landing/fonts/syne-latin-600-normal.woff2') format('woff2');
   font-weight: 400 800;
   font-display: swap;
 }

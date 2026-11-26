@@ -1,9 +1,10 @@
 'use client'
 
-/* Author cover URLs retain their original host; fallback art is local. */
+/* Covers go through the Next.js image optimizer (getImageProps): sized
+   AVIF/WebP for the rendered width, from the author's host or local art. */
 import { useState } from 'react'
-import { motion, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
+import { getImageProps } from 'next/image'
 import { BookmarkButton } from '@/components/library/BookmarkButton'
 import { articleHref } from '@/lib/library/bookmarks'
 import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
@@ -13,6 +14,9 @@ import { formatListingReadTime } from '@/lib/articles/articleListingMeta'
 import { ArticleCoverDoodles } from './ArticleCoverDoodles'
 
 const artwork = ['words', 'window', 'room', 'recipe']
+
+/** Rendered cover widths: one column to 600px, two to 950px, then three. */
+const COVER_SIZES = '(max-width: 600px) 90vw, (max-width: 950px) 45vw, 440px'
 
 export function ReadingRoomCard({
   article,
@@ -29,13 +33,25 @@ export function ReadingRoomCard({
 }) {
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const [loadedImage, setLoadedImage] = useState<string | null>(null)
-  const [hovered, setHovered] = useState(false)
-  const reduceMotion = useReducedMotion()
   const fallback = `/prototype/articles/${artwork[index % artwork.length]}-museum.jpg`
   const image =
     article.coverImage && failedImage !== article.coverImage
       ? article.coverImage
       : fallback
+  // The first row is on screen at load: it shows at once (no load reveal), so
+  // the largest paint does not wait for the page script.
+  const firstRow = index < 3
+  const { props: cover } = getImageProps({
+    src: image,
+    alt: '',
+    width: 600,
+    height: 400,
+    sizes: COVER_SIZES,
+    // Only the first cover is certain to be on screen at every width.
+    loading: index === 0 ? 'eager' : 'lazy',
+    fetchPriority: index === 0 ? 'high' : undefined,
+  })
+  const shown = firstRow || loadedImage === image
   const href = articleHref({
     username: article.author.username,
     slug: article.slug,
@@ -57,39 +73,25 @@ export function ReadingRoomCard({
         href={href}
         aria-label={`Read ${article.title}`}
         onClick={onNavigate}
-        onPointerEnter={(event) => {
-          if (
-            event.pointerType === 'mouse' &&
-            window.matchMedia('(hover: hover) and (pointer: fine)').matches
-          ) {
-            setHovered(true)
-          }
-        }}
-        onPointerLeave={() => setHovered(false)}
       >
-        <motion.img
-          src={image}
-          alt=""
-          width={600}
-          height={400}
-          loading={index < 3 ? 'eager' : 'lazy'}
-          data-loaded={loadedImage === image}
-          initial={false}
-          animate={{
-            opacity: loadedImage === image ? 1 : 0,
-            transform: reduceMotion
-              ? 'scale(1) rotate(0deg)'
-              : loadedImage !== image
-                ? 'scale(1.1) rotate(-3deg)'
-                : hovered
-                  ? 'scale(1.07) rotate(1.5deg)'
-                  : 'scale(1) rotate(0deg)',
+        {/* Hover and load reveal are CSS transitions (reading-room.css). */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- optimized via getImageProps */}
+        <img
+          // An image can finish before hydration, when onLoad has already fired.
+          ref={(node) => {
+            if (node?.complete && node.naturalWidth > 0) setLoadedImage(image)
           }}
-          transition={
-            reduceMotion
-              ? { duration: 0.125 }
-              : { type: 'spring', duration: 0.5, bounce: 0.2 }
-          }
+          src={cover.src}
+          srcSet={cover.srcSet}
+          sizes={cover.sizes}
+          width={cover.width}
+          height={cover.height}
+          loading={cover.loading}
+          decoding={cover.decoding}
+          fetchPriority={cover.fetchPriority}
+          alt=""
+          data-loaded={loadedImage === image}
+          data-shown={shown}
           onLoad={() => setLoadedImage(image)}
           onError={() => setFailedImage(image)}
         />

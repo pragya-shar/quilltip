@@ -1,19 +1,11 @@
-import { z } from 'zod'
 import { pickRpcUrl, resolveStellarNetwork } from './network'
 import { assertClientNetwork } from './network-guard'
 import { TESTNET_FALLBACK_XLM_TO_USD_RATE } from './price-fallback'
 
-// Stellar address pattern (G... for accounts, C... for contracts)
-const stellarAddressSchema = z
-  .string()
-  .regex(/^[GC][A-Z0-9]{55}$/, 'Invalid Stellar address format')
-
-// Environment validation schema
-const envSchema = z.object({
-  NEXT_PUBLIC_TIPPING_CONTRACT_ID: stellarAddressSchema.optional(),
-  NEXT_PUBLIC_NFT_CONTRACT_ID: stellarAddressSchema.optional(),
-  NEXT_PUBLIC_PLATFORM_ADDRESS: stellarAddressSchema.optional(),
-})
+// Stellar address pattern (G... for accounts, C... for contracts). Checked
+// with a plain pattern: this module loads on reader pages, and a schema
+// library would add its full weight to them for three optional values.
+const STELLAR_ADDRESS_PATTERN = /^[GC][A-Z0-9]{55}$/
 
 // Validate environment variables at module load
 function validateStellarEnv() {
@@ -26,10 +18,14 @@ function validateStellarEnv() {
       process.env.NEXT_PUBLIC_PLATFORM_ADDRESS || undefined,
   }
 
-  const result = envSchema.safeParse(env)
+  const invalidKeys = Object.entries(env)
+    .filter(
+      ([, value]) => value !== undefined && !STELLAR_ADDRESS_PATTERN.test(value)
+    )
+    .map(([key]) => key)
 
-  if (!result.success) {
-    const invalid = result.error.issues.map((i) => i.path.join('.')).join(', ')
+  if (invalidKeys.length > 0) {
+    const invalid = invalidKeys.join(', ')
     const message = `[Stellar Config] Invalid environment variables: ${invalid}`
     if (process.env.NODE_ENV === 'production') {
       throw new Error(message)

@@ -40,12 +40,15 @@ interface ArticlePageClientProps {
   slug: string
   /** Server-fetched published article, so the first HTML has its content. */
   initialArticle?: PublishedArticle
+  /** Server-rendered HTML of `initialArticle`'s body. */
+  initialBodyHtml?: string
 }
 
 export function ArticlePageClient({
   username,
   slug,
   initialArticle,
+  initialBodyHtml,
 }: ArticlePageClientProps) {
   const { user } = useAuth()
   const router = useRouter()
@@ -140,6 +143,13 @@ export function ArticlePageClient({
             <ArticleDisplay
               article={articleForDisplay}
               tocHeadings={tocHeadings}
+              // The server HTML matches the article it was rendered from; the
+              // highlight editor takes over with live content once loaded.
+              bodyHtml={
+                initialArticle && article._id === initialArticle._id
+                  ? initialBodyHtml
+                  : undefined
+              }
               authorStellarAddress={article.author.stellarAddress}
               readNext={
                 <ArticleReadNext

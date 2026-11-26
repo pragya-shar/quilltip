@@ -24,11 +24,13 @@ test.describe('sign-up without the retired intent chooser', () => {
       .getByLabel('Password', { exact: true })
       .fill(`Qa1!${randomUUID()}`)
     await page.getByRole('button', { name: 'Create account' }).click()
-    await expect(page).toHaveURL(/\/$/)
+    // New writers choose a handle first; leaving setup is always allowed.
+    await expect(page).toHaveURL(/\/welcome$/)
+    await page.goto('/')
 
     const account = page
       .getByRole('navigation', { name: 'Main navigation' })
-      .getByRole('link', { name: 'Account', exact: true })
+      .getByRole('button', { name: 'Account menu', exact: true })
     await expect(account).toBeVisible()
     await expect(
       page.getByRole('heading', { name: 'Value for writing', exact: true })
