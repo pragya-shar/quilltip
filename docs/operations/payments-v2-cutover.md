@@ -503,8 +503,9 @@ reads as `v1`.
    `reconcileTips:recoverStuckPendingHighlightTips` and
    `reconcileTips:recoverStuckPendingArticleTips` once from the dashboard.
 
-**Check:** every filter returns 0 rows. The site shows payments as paused,
-not as an error.
+**Check:** every filter returns 0 rows. An article page shows "Tips are
+paused for a short time while payments are updated." in place of the tip
+button, and so does the passage tip action.
 **Rollback:** set `CHAIN_V1_PREPARES_ENABLED=true`. No data step.
 
 ### Stage 6. Switch on v2
