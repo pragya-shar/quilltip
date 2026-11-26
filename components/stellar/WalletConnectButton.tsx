@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { networkLabelLowercase } from '@/lib/copy/network-status'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
 import { describeConnectFailure } from '@/lib/stellar/v2/wallet-errors'
 
@@ -87,9 +88,12 @@ export function WalletConnectButton({
     }
   }
 
+  // A wallet that cannot report its network signs for QuillTip's, so show
+  // that one.
+  const shownNetwork = network ? network.toLowerCase() : networkLabelLowercase()
   const openInExplorer = (address: string) => {
     const explorerUrl =
-      network === 'TESTNET'
+      shownNetwork === 'testnet'
         ? `https://stellar.expert/explorer/testnet/account/${address}`
         : `https://stellar.expert/explorer/public/account/${address}`
     window.open(explorerUrl, '_blank')
@@ -157,10 +161,8 @@ export function WalletConnectButton({
               </span>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 {selectedWallet && <span>{selectedWallet.name}</span>}
-                {network && selectedWallet && <span>•</span>}
-                {network && (
-                  <span className="capitalize">{network.toLowerCase()}</span>
-                )}
+                {selectedWallet && <span>•</span>}
+                <span className="capitalize">{shownNetwork}</span>
               </div>
             </div>
             <ChevronDown className="w-4 h-4 text-muted-foreground" />

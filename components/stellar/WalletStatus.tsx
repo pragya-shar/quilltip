@@ -74,9 +74,12 @@ export function WalletStatus({ className }: WalletStatusProps) {
     }
   }
 
+  // A wallet that cannot report its network signs for QuillTip's, so show
+  // that one.
+  const shownNetwork = (network || networkLabelLowercase()).toUpperCase()
   const openInExplorer = (address: string) => {
     const explorerUrl =
-      network === 'TESTNET'
+      shownNetwork === 'TESTNET'
         ? `https://stellar.expert/explorer/testnet/account/${address}`
         : `https://stellar.expert/explorer/public/account/${address}`
     window.open(explorerUrl, '_blank')
@@ -201,19 +204,21 @@ export function WalletStatus({ className }: WalletStatusProps) {
               </div>
             </div>
 
-            {network && (
+            {shownNetwork && (
               <div>
                 <span className="text-sm font-medium text-muted-foreground">
                   Network
                 </span>
                 <div className="mt-1 space-y-1">
                   <Badge
-                    variant={network === 'TESTNET' ? 'secondary' : 'default'}
+                    variant={
+                      shownNetwork === 'TESTNET' ? 'secondary' : 'default'
+                    }
                     className="capitalize"
                   >
-                    {network.toLowerCase()}
+                    {shownNetwork.toLowerCase()}
                   </Badge>
-                  {network === 'TESTNET' && (
+                  {shownNetwork === 'TESTNET' && (
                     <p className="text-xs text-muted-foreground">
                       Practice network — not real money
                     </p>
