@@ -19,6 +19,7 @@ mod events;
 mod property;
 mod registration;
 mod resources;
+mod roles;
 mod tipping;
 mod ttl;
 mod upgrade;
