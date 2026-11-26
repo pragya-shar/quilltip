@@ -371,7 +371,11 @@ export function checkRecipient(
     // Muxed addresses are 69 characters.
     if (StrKey.isValidMed25519PublicKey(upper)) return invalid('muxed')
     return upper.length < 69
-      ? { status: 'incomplete', problem: 'muxed', message: RECIPIENT_COPY.muxed }
+      ? {
+          status: 'incomplete',
+          problem: 'muxed',
+          message: RECIPIENT_COPY.muxed,
+        }
       : invalid('checksum')
   }
   if (upper.length < ADDRESS_LENGTH) {

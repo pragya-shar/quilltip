@@ -20,6 +20,7 @@ import {
   type NftCallExpectation,
   type PreparedNftCall,
 } from './nft-calls'
+import type { KnownContracts } from './errors'
 import {
   sendContractCall,
   type RpcLike,
@@ -44,6 +45,8 @@ export type NftRunDeps = {
   prepared: PreparedNftCall
   expected: NftCallExpectation
   server: RpcLike
+  /** This deployment's contracts, to decode a simulation error by its origin. */
+  contracts?: KnownContracts
   /**
    * Makes the wallet ready to sign as `signer` and returns its address, or
    * null when the user closed the picker. Throws a `WalletError`.
@@ -151,6 +154,7 @@ export async function runNftCall(deps: NftRunDeps): Promise<NftRunResult> {
   const outcome = await sendContractCall(
     {
       server: deps.server,
+      contracts: deps.contracts,
       sign: (xdr) => deps.sign(xdr, prepared.signer),
       onStep: deps.onPhase,
     },
