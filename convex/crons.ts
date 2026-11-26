@@ -83,4 +83,12 @@ crons.interval(
   internal.chain.config.refreshChainConfig
 )
 
+// Payments v2: credit CONFIRMED and MISMATCH direct and batch tips to
+// authorEarnings (section 6.2). Each row is credited once.
+crons.interval(
+  'sync v2 tip earnings',
+  { minutes: 1 },
+  internal.tipEarnings.syncV2TipEarnings
+)
+
 export default crons
