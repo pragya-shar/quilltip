@@ -7,6 +7,9 @@ The contract is built on OpenZeppelin `stellar-tokens` 0.8.0, with
 
 - **One NFT per article.** The article's author mints it once the article's cumulative tips reach a threshold.
 - **The contract enforces the threshold** by reading Core. It never trusts a caller-supplied amount.
+- **Only direct tips count.** The threshold uses the Core total, so it counts direct and batch tips through Core. Tab tips do not count ([section 3](03-tab-contract.md)).
+- **The threshold measures tip volume, not independent support.** An author tipping from a second address counts too. That route costs the 2.5% fee plus network fees.
+- **The mint goes to the author at mint time.** After an author change ([section 2.2](02-core-contract.md#article-registration)), the new author mints.
 
 ## 4.1 Constants and configuration
 
@@ -42,7 +45,7 @@ fn __constructor(e: Env, admin: Address, pauser: Address, upgrader: Address, cor
 
 - **Sets:**
   - OpenZeppelin metadata.
-  - OpenZeppelin admin, plus `manager` granted to admin. The royalty trait requires `manager`.
+  - OpenZeppelin admin. No `manager` role is used.
   - The `pauser` and `upgrader` roles.
   - `Core`, `ThresholdToken`, `Threshold`.
   - Schema version 1.
@@ -67,7 +70,11 @@ fn mint(e: Env, article_id: BytesN<32>) -> u32
 
 - OpenZeppelin `transfer(from, to, token_id)` and `transfer_from` with owner or approved auth, blocked while paused.
 - Override the trait methods to add `when_not_paused`, then delegate to OpenZeppelin.
-- The royalty receiver does not change on transfer. Royalty is information for marketplaces; this contract has no sale function.
+- **Royalty is fixed at mint.**
+  - The OpenZeppelin 0.8.0 `NonFungibleRoyalties` trait has no default implementations for `set_default_royalty`, `set_token_royalty` and `remove_token_royalty`. Each takes an `operator` argument and leaves access control to the contract.
+  - This contract implements all three to fail with `RoyaltyImmutable` (I-20).
+  - The receiver does not change on transfer.
+  - Royalty is information for marketplaces. This contract has no sale function.
 
 **Views:**
 
@@ -83,7 +90,8 @@ fn mint(e: Env, article_id: BytesN<32>) -> u32
 | `set_threshold(token, threshold)` | admin            | Affects only future mints. Emits `ThresholdSet`. |
 | `pause` / `unpause`               | `pauser` / admin | Same pattern as Core                             |
 | `upgrade` / `migrate`             | `upgrader`       | Same pattern as Core                             |
-| OpenZeppelin royalty setters      | `manager`        | OpenZeppelin defaults                            |
+| OpenZeppelin royalty setters      | none             | Always fail (`RoyaltyImmutable`)                 |
+| `renounce_admin`                  | none             | Always fails (`AdminRenounceDisabled`)           |
 
 ## 4.3 Storage
 
@@ -104,13 +112,15 @@ fn mint(e: Env, article_id: BytesN<32>) -> u32
 
 `NftError` (70–89):
 
-| Code | Name               |
-| ---- | ------------------ |
-| 70   | `BelowThreshold`   |
-| 71   | `AlreadyMinted`    |
-| 72   | `InvalidThreshold` |
-| 73   | `AlreadyMigrated`  |
-| 74   | `UnknownToken`     |
+| Code | Name                    |
+| ---- | ----------------------- |
+| 70   | `BelowThreshold`        |
+| 71   | `AlreadyMinted`         |
+| 72   | `InvalidThreshold`      |
+| 73   | `AlreadyMigrated`       |
+| 74   | `UnknownToken`          |
+| 75   | `RoyaltyImmutable`      |
+| 76   | `AdminRenounceDisabled` |
 
 ## 4.5 Resource note
 
