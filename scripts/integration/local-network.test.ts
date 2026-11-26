@@ -11,7 +11,7 @@
 import { mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
-import { Keypair, rpc, xdr } from '@stellar/stellar-sdk'
+import { Keypair, rpc } from '@stellar/stellar-sdk'
 import type { AssembledTransaction } from '@stellar/stellar-sdk/contract'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 

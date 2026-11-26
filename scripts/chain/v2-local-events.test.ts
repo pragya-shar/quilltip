@@ -7,7 +7,10 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { decodeContractEventXdr } from '../../convex/lib/chain/events'
+import {
+  decodeContractEventXdr,
+  parseTippedEvent,
+} from '../../convex/lib/chain/events'
 
 type Fixture = {
   transaction: string
@@ -65,10 +68,11 @@ describe('recorded v2 contract events', () => {
   })
 
   it('split a tip 97.5% / 2.5% to the stroop', () => {
-    const data = find('core', 'tipped').data as Record<string, bigint>
-    expect(data.fee).toBe((data.gross! * FEE_BPS) / DENOM)
-    expect(data.net! + data.fee!).toBe(data.gross)
-    expect(recorded.contracts.token).toBe(data.token)
+    const tipped = parseTippedEvent(find('core', 'tipped'))
+    expect(tipped).not.toBeNull()
+    expect(tipped!.fee).toBe((tipped!.gross * FEE_BPS) / DENOM)
+    expect(tipped!.net + tipped!.fee).toBe(tipped!.gross)
+    expect(tipped!.token).toBe(recorded.contracts.token)
   })
 
   it('split a settlement 97.5% / 2.5% to the stroop', () => {
