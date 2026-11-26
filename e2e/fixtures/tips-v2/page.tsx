@@ -11,7 +11,12 @@ import { ARTICLES, seedBasket, seedReload } from './runtime'
 seedReload()
 seedBasket()
 
-const PASSAGE = 'The quick brown fox jumps over the lazy dog'
+const query = new URLSearchParams(location.search)
+const PASSAGE =
+  query.get('data') === 'worst'
+    ? 'https://example.org/archive/2026/11/notes-toward-a-unified-theory-of-marginalia-readers-writers-and-the-strange-economics-of-paying-for-a-single-sentence?ref=quilltip&utm_source=reader'
+    : 'The quick brown fox jumps over the lazy dog'
+if (query.get('dir') === 'rtl') document.documentElement.dir = 'rtl'
 const BODY = `Opening line. ${PASSAGE}. Closing line.`
 const START = BODY.indexOf(PASSAGE)
 
@@ -20,7 +25,12 @@ function Fixture() {
   return (
     <main
       className="reader-layout"
-      style={{ maxWidth: 720, margin: '0 auto', padding: '32px 16px 120px' }}
+      style={{
+        maxWidth: 720,
+        margin: '0 auto',
+        padding: '32px 16px 120px',
+        overflowWrap: 'anywhere',
+      }}
     >
       <h1 className="reader-title">{article.title}</h1>
       <p className="reader-subtitle">By {article.author} · Stellar testnet</p>

@@ -57,9 +57,21 @@ export const ARTICLES = {
     key: 'cd'.repeat(32),
     recipients: 5,
   },
-} as const
+}
 type ArticleKey = keyof typeof ARTICLES
-const byId = (id: string) =>
+
+// Worst-case data (`?data=worst`): long and non-Latin titles, a long author
+// name, and a long unbroken passage, through the same boundary as the demo.
+if (new URLSearchParams(location.search).get('data') === 'worst') {
+  ARTICLES.main.title =
+    'Notes Toward a Unified Theory of Marginalia: Readers, Writers, and the Strange Economics of Paying for a Single Sentence (Part Three of Seven)'
+  ARTICLES.main.author = 'Aleksandra Wiśniewska-Kowalczyk-Montgomery III'
+  ARTICLES.second.title = 'Những ghi chú bên lề về việc đọc chậm trong thời đại tốc độ'
+  ARTICLES.second.author = 'Nguyễn Thị Phương Thảo'
+  ARTICLES.shared.title = 'ملاحظات حول القراءة البطيئة وكتابة الهوامش في العصر الرقمي'
+  ARTICLES.shared.author = '山田 太郎 と 共著者たち'
+}
+const byId = (id: string): (typeof ARTICLES)[ArticleKey] =>
   Object.values(ARTICLES).find((a) => a.id === id) ?? ARTICLES.main
 
 const params = new URLSearchParams(location.search)

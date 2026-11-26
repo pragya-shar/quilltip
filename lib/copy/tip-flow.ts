@@ -11,7 +11,7 @@ export const TIP_DIALOG = {
   highlightTitle: 'Tip this passage',
   description: (authorName: string) =>
     `Your tip goes to ${authorName} on Stellar testnet.`,
-  amountLegend: 'Tip amount',
+  amountLegend: 'Choose an amount',
   customLabel: 'Other amount',
   customHint: (min: string, max: string) =>
     `From ${min} to ${max}. The XLM amount is set when you send.`,

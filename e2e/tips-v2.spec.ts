@@ -57,9 +57,7 @@ async function open(
   page.on('pageerror', (error) => errors.push(error.message))
   await page.addInitScript(installVarialEmulator, { mode, address: UNUSED })
   await page.goto(`/?${query}`)
-  await expect(
-    page.getByRole('heading', { name: 'On Writing Well, Again' })
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   return errors
 }
 
@@ -965,6 +963,28 @@ test.describe('small screens', () => {
   })
 })
 
+test.describe('reflow at 320 px (400 % zoom of 1280)', () => {
+  test.use({ viewport: { width: 320, height: 640 } })
+
+  test('the dialog and the basket fit without sideways scrolling', async ({
+    page,
+  }) => {
+    await open(page, 'basket=transfers')
+    const dialog = await openArticleTip(page)
+    await dialog.getByLabel('Other amount').fill('12345.67')
+    await dialog.getByRole('button', { name: 'Add to tip basket' }).click()
+    expect(await overflow(page)).toBeLessThanOrEqual(0)
+    const box = await dialog.boundingBox()
+    expect(box!.width).toBeLessThanOrEqual(320)
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: /Tip basket/ }).click()
+    const sheet = page.getByRole('dialog', { name: 'Tip basket' })
+    await expect(sheet.getByRole('list', { name: 'Tips' })).toBeVisible()
+    expect(await overflow(page)).toBeLessThanOrEqual(0)
+    expect(await axe(page)).toEqual([])
+  })
+})
+
 test.describe('reduced motion', () => {
   test.use({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' })
 
@@ -992,3 +1012,42 @@ test.describe('reduced motion', () => {
     expect(animated).toBe(0)
   })
 })
+
+for (const width of [320, 1440] as const) {
+  test.describe(`worst-case data at ${width}px`, () => {
+    test.use({ viewport: { width, height: 800 } })
+
+    for (const dir of ['ltr', 'rtl'] as const) {
+      test(`long, unbroken and non-Latin text holds up (${dir})`, async ({
+        page,
+      }) => {
+        const errors = await open(page, `data=worst&basket=full&dir=${dir}`)
+        await page.getByRole('button', { name: 'Tip passage' }).click()
+        const dialog = page.getByRole('dialog', { name: 'Tip this passage' })
+        await expect(dialog).toBeVisible()
+        expect(await overflow(page)).toBeLessThanOrEqual(0)
+        expect(await axe(page)).toEqual([])
+        await shot(page, `worst-dialog-${dir}`, width)
+        await page.keyboard.press('Escape')
+        await page.getByRole('button', { name: /Tip basket, 10 tips/ }).click()
+        const sheet = page.getByRole('dialog', { name: 'Tip basket' })
+        await expect(sheet.getByRole('listitem')).toHaveCount(10)
+        expect(await overflow(page)).toBeLessThanOrEqual(0)
+        // Every Remove control stays inside the sheet.
+        const sheetBox = (await sheet.boundingBox())!
+        for (const remove of await sheet
+          .getByRole('button', { name: /^Remove the tip/ })
+          .all()) {
+          const box = (await remove.boundingBox())!
+          expect(box.x).toBeGreaterThanOrEqual(sheetBox.x)
+          expect(box.x + box.width).toBeLessThanOrEqual(
+            sheetBox.x + sheetBox.width + 0.5
+          )
+        }
+        expect(await axe(page)).toEqual([])
+        await shot(page, `worst-basket-${dir}`, width)
+        expect(errors).toEqual([])
+      })
+    }
+  })
+}

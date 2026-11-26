@@ -46,13 +46,21 @@ export function TipBasketRow({
   return (
     <li className="tip-basket-row" data-unavailable={unavailable || undefined}>
       <div>
-        <p className="tip-basket-row-title">{title}</p>
+        <p className="tip-basket-row-title" dir="auto">
+          {title}
+        </p>
         <p className="tip-basket-row-kind">
           {item.highlight ? BASKET_COPY.itemPassage : BASKET_COPY.itemArticle}{' '}
           · {item.authorName}
         </p>
         {item.highlight ? (
-          <p className="tip-basket-row-passage">“{item.highlight.text}”</p>
+          <p
+            className="tip-basket-row-passage"
+            title={item.highlight.text}
+            dir="auto"
+          >
+            “{item.highlight.text}”
+          </p>
         ) : null}
       </div>
       <div className="tip-basket-row-side">

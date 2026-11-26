@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useMutation } from 'convex/react'
-import { Heart, ShoppingBasket } from 'lucide-react'
+import { CircleAlert, Heart, ShoppingBasket } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import type { TipEligibility } from '@/convex/tipsV2'
@@ -447,6 +447,7 @@ export function TipDialogV2({
               </div>
               {amountError ? (
                 <p id={ids.error} className="tip-v2-field-error">
+                  <CircleAlert aria-hidden="true" />
                   {amountError}
                 </p>
               ) : null}

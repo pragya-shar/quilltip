@@ -15,7 +15,7 @@
   --ui-accent: #f9f0e2;
   --ui-muted: #e9dac1;
   --ui-border: #ad8690;
-  --ui-input: #ad8690;
+  --ui-input: #8f6672; /* 3.5:1 on the dialog surface (WCAG 1.4.11) */
   --ui-ring: #660033;
   --ui-danger: #a52e36;
   --foreground: var(--ui-foreground);
@@ -40,26 +40,72 @@
 .tip-basket-sheet[data-side='right'] {
   width: min(26rem, 100vw);
   max-width: 26rem;
+  border-left: 0;
+  /* The tip dialog's deckled paper edge, on the side that opens. */
+  clip-path: polygon(
+    1.5% 0,
+    100% 0,
+    100% 100%,
+    1.5% 100%,
+    0 94%,
+    1.5% 88%,
+    0 81%,
+    1.5% 74%,
+    0 67%,
+    1.5% 60%,
+    0 53%,
+    1.5% 46%,
+    0 39%,
+    1.5% 32%,
+    0 25%,
+    1.5% 19%,
+    0 12%,
+    1.5% 6%
+  );
 }
 .tip-basket-sheet[data-side='bottom'] {
   max-height: 85dvh;
   border-radius: 0;
+  border-top: 0;
+  padding-top: 32px;
+  clip-path: polygon(
+    0 8px,
+    6% 0,
+    12% 8px,
+    19% 0,
+    25% 8px,
+    32% 0,
+    39% 8px,
+    46% 0,
+    53% 8px,
+    60% 0,
+    67% 8px,
+    74% 0,
+    81% 8px,
+    88% 0,
+    94% 8px,
+    100% 0,
+    100% 100%,
+    0 100%
+  );
 }
 .tip-basket-sheet > button:first-of-type {
   /* The sheet's close button: a 44 px target. */
   display: grid;
   place-items: center;
   top: 8px;
-  right: 8px;
+  right: auto;
+  inset-inline-end: 8px;
   width: 44px;
   height: 44px;
   border-radius: 50%;
 }
 .tip-basket-header {
-  padding-right: 40px;
-  text-align: left;
+  padding-inline-end: 40px;
+  text-align: start;
 }
 .tip-basket-header h2 {
+  text-wrap: balance;
   font:
     400 34px/1.1 'Tip Alegreya',
     Georgia,
@@ -128,6 +174,10 @@
   }
 }
 @media (max-width: 767px) {
+  /* Keep the page's last lines and footer clear of the basket button. */
+  body:has(.tip-basket-dock) {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
   .tip-basket-dock {
     left: 16px;
     right: 16px;
@@ -178,10 +228,19 @@
   font-variant-numeric: tabular-nums;
 }
 .tip-v2-field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin-top: 6px;
   color: var(--ui-danger);
   font-size: 13px;
   line-height: 1.5;
+}
+.tip-v2-field-error svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
 }
 .tip-dialog .tip-input[aria-invalid='true'] {
   border-color: var(--ui-danger);
