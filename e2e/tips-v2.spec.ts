@@ -556,7 +556,9 @@ const STATES: State[] = [
       await expect(
         dialog.getByRole('heading', { name: 'Not sent' })
       ).toBeVisible()
-      await expect(dialog.getByText(/Nothing was paid\./)).toBeVisible()
+      await expect(
+        dialog.locator('.pay-panel').getByText(/Nothing was (paid|sent)\./)
+      ).toBeVisible()
       await expect(
         dialog.getByRole('button', { name: 'Try again' })
       ).toBeVisible()

@@ -209,6 +209,8 @@ export function TipDialogV2({
             }),
     })
   const lastAmount = useRef<number | null>(null)
+  /** The progress view appears because the reader pressed send or retry. */
+  const userStarted = useRef(false)
 
   const amountMessage = (c: typeof check): string | null => {
     if (c.ok) return null
@@ -240,6 +242,7 @@ export function TipDialogV2({
     setAmountError(null)
     setAdded(null)
     lastAmount.current = check.cents
+    userStarted.current = true
     void start(check.cents)
   }
 
@@ -349,9 +352,11 @@ export function TipDialogV2({
             failure={flow.state.failure}
             slow={flow.slow}
             onRetry={() => {
+              userStarted.current = true
               if (lastAmount.current !== null) void start(lastAmount.current)
               else flow.reset()
             }}
+            startedByUser={userStarted.current}
             retryAllowed={view.canRetry && lastAmount.current !== null}
             summary={
               chainNet

@@ -158,8 +158,11 @@ export function TipBasketPanel({ onBusyChange, onClose }: TipBasketPanelProps) {
   const blocked =
     accountCondition !== null || anyUnavailable || items.length === 0
 
+  /** The progress view appears because the reader pressed send or retry. */
+  const userStarted = useRef(false)
   const pay = () => {
     if (blocked || gate.kind !== 'ready') return
+    userStarted.current = true
     if (flowCondition) flow.dismiss()
     const toSend = store.getSnapshot().items
     void flow.run({
@@ -317,6 +320,7 @@ export function TipBasketPanel({ onBusyChange, onClose }: TipBasketPanelProps) {
               pay()
             }}
             retryAllowed={view.canRetry}
+            startedByUser={userStarted.current}
             reference={
               record?.uiState === 'mismatch_review'
                 ? record.submissionId
