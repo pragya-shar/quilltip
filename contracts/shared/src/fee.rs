@@ -136,6 +136,55 @@ mod tests {
         );
     }
 
+    #[test]
+    fn i128_boundaries() {
+        // Largest gross whose fee does not overflow: gross * FEE_BPS <= i128::MAX.
+        let max_ok = i128::MAX / FEE_BPS as i128;
+        let (f, n) = fee_and_net(max_ok).unwrap();
+        assert_eq!(f, max_ok * FEE_BPS as i128 / BPS_DENOMINATOR as i128);
+        assert_eq!(f + n, max_ok);
+        assert_eq!(fee(max_ok + 1), None);
+        assert_eq!(fee_and_net(i128::MAX), None);
+        assert_eq!(fee(i128::MIN), None);
+        // Shares at the limits of `bps`.
+        assert_eq!(
+            share(i128::MAX / BPS_DENOMINATOR as i128, BPS_DENOMINATOR),
+            Some(i128::MAX / BPS_DENOMINATOR as i128)
+        );
+        assert_eq!(share(1_000, 0), Some(0));
+        assert_eq!(share(-1, 1), None);
+        // Tab fee next to the overflow edge.
+        assert_eq!(
+            tab_fee(max_ok - 1, 1),
+            Some(fee(max_ok).unwrap() - fee(max_ok - 1).unwrap())
+        );
+        assert_eq!(tab_fee(max_ok, 1), None);
+        assert_eq!(tab_fee(0, 0), Some(0));
+    }
+
+    #[test]
+    fn one_stroop_increments() {
+        // Settling 1 stroop at a time charges 1 stroop of fee on every 40th
+        // stroop and nothing otherwise, so the total equals the fee of the sum.
+        let mut fees = 0i128;
+        for paid in 0..4_000i128 {
+            let f = tab_fee(paid, 1).unwrap();
+            assert_eq!(
+                f,
+                if (paid + 1) % MIN_FEE_BEARING_AMOUNT == 0 {
+                    1
+                } else {
+                    0
+                }
+            );
+            fees += f;
+        }
+        assert_eq!(fees, fee(4_000).unwrap());
+        assert_eq!(fees, 100);
+        assert_eq!(tab_fee(39, 1), Some(1));
+        assert_eq!(tab_fee(40, 39), Some(0));
+    }
+
     proptest! {
         // I-1: fee + net == gross, 0 <= fee <= gross, and the fee is the floor.
         #[test]
@@ -175,6 +224,35 @@ mod tests {
                 paid += gross;
             }
             prop_assert_eq!(fees, fee(paid).unwrap());
+        }
+
+        // I-31 with dust increments from any starting point: each increment's
+        // fee is within [0, gross], and the sum equals fee(end) - fee(start).
+        #[test]
+        fn tab_fees_with_dust_increments(
+            start in 0i128..=1_000_000_000_000_000,
+            increments in proptest::collection::vec(1i128..=100, 1..256)
+        ) {
+            let mut paid = start;
+            let mut fees = 0i128;
+            for gross in increments {
+                let f = tab_fee(paid, gross).unwrap();
+                prop_assert!(f >= 0 && f <= gross);
+                fees += f;
+                paid += gross;
+            }
+            prop_assert_eq!(fees, fee(paid).unwrap() - fee(start).unwrap());
+        }
+
+        // The cumulative rule is path independent: two partitions of the same
+        // total charge the same total fee.
+        #[test]
+        fn tab_fee_is_path_independent(total in 1i128..=10_000_000_000, cut in 0i128..=10_000_000_000) {
+            let cut = cut % (total + 1);
+            let one = tab_fee(0, total).unwrap();
+            let two = tab_fee(0, cut).unwrap() + tab_fee(cut, total - cut).unwrap();
+            prop_assert_eq!(one, two);
+            prop_assert_eq!(one, fee(total).unwrap());
         }
     }
 }
