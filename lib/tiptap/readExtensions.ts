@@ -19,13 +19,21 @@ const ReadOnlyResizableImage = Node.create({
       title: { default: null },
       width: { default: null },
       height: { default: null },
+      // Set by markBodyImagesLazy for images below the opening blocks.
+      loading: { default: null },
     }
   },
   parseHTML() {
     return [{ tag: 'img[src]:not([src^="data:"])' }]
   },
   renderHTML({ HTMLAttributes }) {
-    const image: DOMOutputSpec = ['img', mergeAttributes(HTMLAttributes)]
+    const image: DOMOutputSpec = [
+      'img',
+      mergeAttributes(
+        HTMLAttributes,
+        HTMLAttributes.loading === 'lazy' ? { decoding: 'async' } : {}
+      ),
+    ]
     return HTMLAttributes.title
       ? [
           'figure',
