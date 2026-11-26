@@ -16,11 +16,11 @@ export default defineConfig({
       'scripts/pr-hygiene/*.test.ts',
       'scripts/contracts/*.test.ts',
       'scripts/payments/*.test.ts',
+      'scripts/nft/*.test.ts',
       // Browser tab modules over fake-indexeddb and Node WebCrypto.
       'scripts/tab/*.test.ts',
       // Convex default-runtime code bundled as Convex bundles it.
       'scripts/convex-runtime/*.test.ts',
-      'scripts/nft/*.test.ts',
     ],
   },
 })
