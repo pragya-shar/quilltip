@@ -141,17 +141,6 @@ jobs:
       - name: Test
         run: cargo test --workspace --locked
 
-      - name: Check test snapshots are committed
-        working-directory: .
-        run: |
-          changes="$(git status --porcelain -- contracts)"
-          if [ -n "$changes" ]; then
-            echo "$changes"
-            git --no-pager diff --stat -- contracts
-            echo "::error::Contract tests changed or added files under contracts/. Run cargo test in contracts/ and commit the result."
-            exit 1
-          fi
-
       - name: Install cargo-audit
         uses: taiki-e/install-action@893d6ee8d714b6c7dfe2bcd94e5759e9a7958a7e # v2.90.10
         with:
@@ -167,6 +156,17 @@ jobs:
           rustup toolchain install
           cargo build --locked --target wasm32v1-none --release
           cargo test --locked
+
+      - name: Check test snapshots are committed
+        working-directory: .
+        run: |
+          changes="$(git status --porcelain -- contracts)"
+          if [ -n "$changes" ]; then
+            echo "$changes"
+            git --no-pager diff --stat -- contracts
+            echo "::error::Contract tests changed or added files under contracts/. Run the tests in contracts/ (and contracts/tipping/) and commit the result."
+            exit 1
+          fi
 
       # Optimized build with the Stellar CLI in a digest-pinned container.
       # The script fails when a Wasm exceeds 120,000 bytes.
