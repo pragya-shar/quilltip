@@ -12,16 +12,19 @@ import {
 import { wallet } from '@/lib/stellar/v2/wallet-kit'
 import type { WalletOption } from '@/lib/stellar/v2/wallet'
 import { walletPicker } from '@/lib/stellar/v2/wallet-picker'
-import { networkLabel } from '@/lib/stellar/v2/wallet-errors'
+import { isWalletError, networkLabel } from '@/lib/stellar/v2/wallet-errors'
+import { walletConnectPairing } from '@/lib/stellar/v2/walletconnect-pairing'
 import { STELLAR_CONFIG } from '@/lib/stellar/config'
 import { WalletPickerRow } from './WalletPickerRow'
+import { WalletConnectPairing } from './WalletConnectPairing'
 import './wallet-help.css'
 
 type Group = { id: string; heading: string; options: WalletOption[] }
 
 /**
- * Wallets in three groups a reader can tell apart: ready in this browser,
- * usable without installing anything, and the ones to install first.
+ * Wallets in groups a reader can tell apart: ready in this browser, on their
+ * phone (WalletConnect, when configured), usable without installing
+ * anything, and the ones to install first.
  */
 function groupOptions(options: WalletOption[]): Group[] {
   const groups: Group[] = [
@@ -29,6 +32,11 @@ function groupOptions(options: WalletOption[]): Group[] {
       id: 'installed',
       heading: 'In this browser',
       options: options.filter((o) => o.access === 'installed'),
+    },
+    {
+      id: 'mobile',
+      heading: 'On your phone',
+      options: options.filter((o) => o.access === 'mobile'),
     },
     {
       id: 'web',
@@ -53,6 +61,9 @@ function groupOptions(options: WalletOption[]): Group[] {
 }
 
 function pendingMessage(option: WalletOption) {
+  if (option.access === 'mobile') {
+    return 'Approve the connection in the wallet on your phone.'
+  }
   return option.access === 'web'
     ? `Approve the request in the ${option.name} window. If no window opened, allow pop-ups for this site and try again.`
     : `Approve the request in ${option.name}. If no window opened, check your browser toolbar.`
@@ -72,6 +83,12 @@ export function WalletPicker() {
   )
   const [options, setOptions] = useState<WalletOption[] | null>(null)
   const [pending, setPending] = useState<WalletOption | null>(null)
+  const pairing = useSyncExternalStore(
+    walletConnectPairing.subscribe,
+    walletConnectPairing.get,
+    () => null
+  )
+  const wentBack = useRef(false)
   // The control that opened the picker gets focus back when it closes.
   const origin = useRef<HTMLElement | null>(null)
 
@@ -99,15 +116,34 @@ export function WalletPicker() {
     try {
       walletPicker.resolve(await wallet.connect({ walletId: option.id }))
     } catch (error) {
+      // Back from the pairing step: stay in the picker.
+      if (wentBack.current && isWalletError(error, 'cancelled')) {
+        wentBack.current = false
+        setPending(null)
+        return
+      }
       walletPicker.reject(error)
     }
+  }
+
+  function backToWallets() {
+    wentBack.current = true
+    walletConnectPairing.cancel()
   }
 
   const network = networkLabel(STELLAR_CONFIG.NETWORK_PASSPHRASE)
   const groups = options ? groupOptions(options) : []
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && walletPicker.cancel()}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) return
+        // Closing during a pairing stops the wait for the phone too.
+        walletConnectPairing.cancel()
+        walletPicker.cancel()
+      }}
+    >
       <DialogContent
         className="wallet-install-dialog wallet-picker"
         overlayClassName="wallet-install-overlay"
@@ -129,7 +165,9 @@ export function WalletPicker() {
         </DialogHeader>
 
         <div className="wallet-install-body">
-          {options === null ? (
+          {pairing && pending?.access === 'mobile' ? (
+            <WalletConnectPairing pairing={pairing} onBack={backToWallets} />
+          ) : options === null ? (
             <p className="wallet-picker-loading" role="status">
               <Loader2 size={16} className="wallet-picker-spin" aria-hidden />
               Looking for wallets in this browser…

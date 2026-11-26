@@ -95,8 +95,8 @@ export type WalletConnectModuleOptions = {
     projectId: string
     metadata: WcMetadata
   }) => Promise<WcSignClient>
-  /** Shows and clears the pairing step. */
-  pairing: { show(pairing: Pairing): void; clear(): void }
+  /** Shows and clears the pairing step; its cancel ends the wait. */
+  pairing: { show(pairing: Pairing, cancel: () => void): void; clear(): void }
   /** The wallet ended the session (deleted on the phone, or expired). */
   onSessionEnded?: () => void
   now?: () => number
@@ -190,14 +190,19 @@ export class WalletConnectModule implements ModuleInterface {
           },
         },
       })
+      let cancel: () => void = () => {}
+      const cancelled = new Promise<never>((_, reject) => {
+        // The kit's own wording for a closed picker, read as `cancelled`.
+        cancel = () => reject(fail(-1, 'The user closed the modal.'))
+      })
       if (uri) {
-        this.options.pairing.show({
-          uri,
-          expiresAt: this.now() + PROPOSAL_TTL_MS,
-        })
+        this.options.pairing.show(
+          { uri, expiresAt: this.now() + PROPOSAL_TTL_MS },
+          cancel
+        )
       }
       try {
-        session = await approval()
+        session = await Promise.race([approval(), cancelled])
       } finally {
         this.options.pairing.clear()
       }

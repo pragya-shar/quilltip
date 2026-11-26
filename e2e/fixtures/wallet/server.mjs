@@ -7,40 +7,59 @@ import tailwind from '@tailwindcss/postcss'
 
 const root = path.resolve(import.meta.dirname, '../../..')
 const runtime = path.join(import.meta.dirname, 'runtime.ts')
-const result = await Bun.build({
-  entrypoints: [path.join(import.meta.dirname, 'page.tsx')],
-  target: 'browser',
-  define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' },
-  plugins: [
-    {
-      name: 'isolated-wallet-collaborators',
-      setup(build) {
-        // Fonts are served by this server from public/, not bundled.
-        build.onResolve(
-          { filter: /^\/(landing|account)\/fonts\// },
-          (args) => ({
-            path: args.path,
-            external: true,
-          })
-        )
-        build.onResolve({ filter: /^next\/navigation$/ }, () => ({
-          path: path.join(import.meta.dirname, 'navigation.ts'),
-        }))
-        build.onResolve({ filter: /^next\/link$/ }, () => ({
-          path: path.join(import.meta.dirname, '../nft/link.tsx'),
-        }))
-        build.onResolve(
-          {
-            filter:
-              /^(convex\/react|next\/dynamic|@\/(convex\/_generated\/api|components\/providers\/AuthContext|lib\/stellar\/client))$/,
-          },
-          () => ({ path: runtime })
-        )
-      },
+// `?wc=1` serves a second build with WalletConnect on: a project ID that only
+// has the right format, and a fake sign client instead of the real one.
+const FORMAT_ONLY_PROJECT_ID = '0123456789abcdef0123456789abcdef'
+const build = (walletConnect) =>
+  Bun.build({
+    entrypoints: [path.join(import.meta.dirname, 'page.tsx')],
+    target: 'browser',
+    define: {
+      'process.env.NODE_ENV': '"development"',
+      ...(walletConnect
+        ? {
+            'process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID': JSON.stringify(
+              FORMAT_ONLY_PROJECT_ID
+            ),
+          }
+        : {}),
+      'process.env': '{}',
     },
-  ],
-})
+    plugins: [
+      {
+        name: 'isolated-wallet-collaborators',
+        setup(build) {
+          // Fonts are served by this server from public/, not bundled.
+          build.onResolve(
+            { filter: /^\/(landing|account)\/fonts\// },
+            (args) => ({
+              path: args.path,
+              external: true,
+            })
+          )
+          build.onResolve({ filter: /^next\/navigation$/ }, () => ({
+            path: path.join(import.meta.dirname, 'navigation.ts'),
+          }))
+          build.onResolve({ filter: /^next\/link$/ }, () => ({
+            path: path.join(import.meta.dirname, '../nft/link.tsx'),
+          }))
+          build.onResolve(
+            {
+              filter:
+                /^(convex\/react|next\/dynamic|@\/(convex\/_generated\/api|components\/providers\/AuthContext|lib\/stellar\/client))$/,
+            },
+            () => ({ path: runtime })
+          )
+          build.onResolve({ filter: /^@walletconnect\/sign-client$/ }, () => ({
+            path: path.join(import.meta.dirname, 'fake-sign-client.ts'),
+          }))
+        },
+      },
+    ],
+  })
+const [result, resultWc] = await Promise.all([build(false), build(true)])
 if (!result.success) throw new AggregateError(result.logs)
+if (!resultWc.success) throw new AggregateError(resultWc.logs)
 // The stand-in for xBull's web wallet; the spec serves it in xBull's window.
 const xbullWeb = await Bun.build({
   entrypoints: [path.join(import.meta.dirname, 'xbull-web.ts')],
@@ -52,16 +71,28 @@ const css = await postcss([tailwind({ base: root })]).process(
   "@import './app/globals.css';",
   { from: path.join(root, 'wallet-fixture.css') }
 )
-const outputs = new Map(
-  await Promise.all(
-    result.outputs.map(async (output) => [
-      path.basename(output.path),
-      await output.text(),
-    ])
+const read = async (built, prefix) =>
+  new Map(
+    await Promise.all(
+      built.outputs.map(async (output) => [
+        prefix + path.basename(output.path),
+        await output.text(),
+      ])
+    )
   )
+const outputs = new Map([
+  ...(await read(result, '')),
+  ...(await read(resultWc, 'wc-')),
+])
+const jsName = [...outputs.keys()].find(
+  (name) => !name.startsWith('wc-') && name.endsWith('.js')
 )
-const jsName = [...outputs.keys()].find((name) => name.endsWith('.js'))
-const cssName = [...outputs.keys()].find((name) => name.endsWith('.css'))
+const cssName = [...outputs.keys()].find(
+  (name) => !name.startsWith('wc-') && name.endsWith('.css')
+)
+const wcJsName = [...outputs.keys()].find(
+  (name) => name.startsWith('wc-') && name.endsWith('.js')
+)
 Bun.serve({
   hostname: '127.0.0.1',
   port: 4177,
@@ -91,7 +122,7 @@ Bun.serve({
         },
       })
     return new Response(
-      `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/base.css"><link rel="stylesheet" href="/${cssName}"></head><body><div id="root"></div><script type="module" src="/${jsName}"></script></body></html>`,
+      `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/base.css"><link rel="stylesheet" href="/${cssName}"></head><body><div id="root"></div><script type="module" src="/${url.searchParams.get('wc') === '1' ? wcJsName : jsName}"></script></body></html>`,
       { headers: { 'Content-Type': 'text/html' } }
     )
   },

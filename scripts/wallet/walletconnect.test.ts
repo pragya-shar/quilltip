@@ -180,10 +180,13 @@ describe('pairing', () => {
         },
       },
     })
-    expect(pairing.show).toHaveBeenCalledWith({
-      uri: 'wc:abc@2?relay-protocol=irn&symKey=def',
-      expiresAt: NOW + 5 * 60_000,
-    })
+    expect(pairing.show).toHaveBeenCalledWith(
+      {
+        uri: 'wc:abc@2?relay-protocol=irn&symKey=def',
+        expiresAt: NOW + 5 * 60_000,
+      },
+      expect.any(Function)
+    )
     expect(pairing.clear).toHaveBeenCalled()
   })
 
@@ -219,6 +222,17 @@ describe('states', () => {
     await vi.waitFor(() => expect(pairing.show).toHaveBeenCalled())
     fake.refuse({ code: 5000, message: 'User rejected.' })
     expect(kind(await result)).toBe('rejected')
+    expect(pairing.clear).toHaveBeenCalled()
+  })
+
+  test('the reader goes back from the pairing: cancelled, not an error', async () => {
+    const fake = fakeClient()
+    const { module, pairing } = moduleFor(fake)
+    const result = caught(module.getAddress())
+    await vi.waitFor(() => expect(pairing.show).toHaveBeenCalled())
+    const cancel = pairing.show.mock.calls[0]![1] as () => void
+    cancel()
+    expect(kind(await result)).toBe('cancelled')
     expect(pairing.clear).toHaveBeenCalled()
   })
 

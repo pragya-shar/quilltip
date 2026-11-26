@@ -2,6 +2,7 @@
 
 import { ArrowUpRight, Loader2 } from 'lucide-react'
 import type { WalletOption } from '@/lib/stellar/v2/wallet'
+import { WALLETCONNECT_WALLETS } from '@/lib/stellar/wallet-catalog'
 import { WalletIcon } from './WalletIcon'
 
 function siteOf(url: string) {
@@ -24,6 +25,9 @@ function howToUse(option: WalletOption): string {
   }
   if (option.access === 'web') {
     return `Opens ${siteOf(option.webUrl ?? option.url)} in a new window`
+  }
+  if (option.access === 'mobile') {
+    return `Scan a code with ${WALLETCONNECT_WALLETS.join(', ')} or another wallet`
   }
   if (option.access === 'not-installed') return 'Browser extension'
   return 'Installed'
@@ -56,7 +60,11 @@ export function WalletPickerRow({
     </span>
   )
 
-  if (option.access === 'installed' || option.access === 'web') {
+  if (
+    option.access === 'installed' ||
+    option.access === 'web' ||
+    option.access === 'mobile'
+  ) {
     const isPending = pending?.id === option.id
     return (
       <button
