@@ -167,7 +167,7 @@ export const TAB_TIP = {
 export const COLLECT = {
   heading: 'Tab earnings',
   intro:
-    'Readers with a tab tip you without a wallet prompt. QuillTip settles those tips on Stellar testnet; you collect them to your wallet when you choose.',
+    'Readers with a tab tip you without a wallet prompt. QuillTip settles those tips on Stellar testnet, and you collect them to your wallet when you choose.',
   ready: 'Ready to collect',
   readyNote: 'In the Tab contract for you now.',
   waiting: 'Waiting for settlement',

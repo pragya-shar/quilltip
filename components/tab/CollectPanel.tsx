@@ -121,7 +121,7 @@ export function CollectPanel() {
         <p className="tab-subtle">{COLLECT.none}</p>
       ) : (
         <>
-          <dl className="tab-figures">
+          <dl className="tab-figures" data-columns="2">
             <div className="tab-figure" data-primary="">
               <dt>{COLLECT.ready}</dt>
               <dd>
