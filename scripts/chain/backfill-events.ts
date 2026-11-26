@@ -42,6 +42,7 @@ import {
 } from '../contracts/deploy-v2/network'
 import { loadState } from '../contracts/deploy-v2/state'
 import { ledgerOfCursor } from '../contracts/ops-v2/ledger'
+import { UNSET_CHAIN_EPOCH } from '../../convex/lib/chain/env'
 import {
   NetworkGuardError,
   resolveScriptStellarNetwork,
@@ -287,6 +288,25 @@ export function retentionInstructions(
   ].join('\n')
 }
 
+/** The indexer cursor fields `--resume` checks. */
+export type CursorLike = { chainEpoch: string; lastLedger: number } | null
+
+/**
+ * Refusal for `--resume` when the range starts after the ledger the index
+ * covers: `gapBackfilled` would mark the ledgers in between as indexed
+ * without anyone reading them. Null when resuming is safe.
+ */
+export function resumeGap(
+  cursor: CursorLike,
+  chainEpoch: string,
+  fromLedger: number
+): string | null {
+  if (!cursor || cursor.chainEpoch !== chainEpoch || cursor.lastLedger <= 0)
+    return null
+  if (fromLedger <= cursor.lastLedger + 1) return null
+  return `The index covers ledgers up to ${cursor.lastLedger}, but this backfill starts at ${fromLedger}. --resume would mark ledgers ${cursor.lastLedger + 1} to ${fromLedger - 1} as indexed without reading them. Start the backfill at --from-ledger ${cursor.lastLedger + 1}. Nothing was written.`
+}
+
 type EventsPage = { events: unknown[]; cursor?: string; latestLedger: number }
 
 async function readRpcEvents(
@@ -437,6 +457,27 @@ export async function main(
     throw new Error(
       `The Convex deployment's CORE_CONTRACT_ID is "${deployedCore}", not the ${options.set} set's ${state.contracts!.core!.id}. Nothing was written.`
     )
+  }
+  if (options.resume) {
+    // Checked before any write, so a refused resume leaves Convex unchanged.
+    const epochEnv = convex(['env', 'get', 'CHAIN_EPOCH'], convexEnv)
+    const chainEpoch =
+      (epochEnv.status === 0 ? epochEnv.stdout : '') || UNSET_CHAIN_EPOCH
+    const cursorRun = convex(
+      ['run', 'chain/indexer:readCursor', '{}'],
+      convexEnv
+    )
+    if (cursorRun.status !== 0) {
+      throw new Error(
+        `chain/indexer:readCursor failed; nothing was written:\n${cursorRun.stderr.split('\n').slice(-5).join('\n')}`
+      )
+    }
+    const gap = resumeGap(
+      JSON.parse(cursorRun.stdout || 'null') as CursorLike,
+      chainEpoch,
+      options.fromLedger
+    )
+    if (gap) throw new Error(gap)
   }
   let stored = 0
   let duplicates = 0
