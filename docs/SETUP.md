@@ -180,7 +180,10 @@ XLM price cache is unavailable, the browser uses a fixed practice rate on
 `TESTNET` and refuses to quote on any other network. Missing backend
 contract configuration blocks quote preparation before wallet approval.
 Arweave wallet configuration is required by `convex/arweave.ts` when enabled,
-including for small uploads; keep it only on the backend.
+including for small uploads; keep it only on the backend. The public query
+`permanentStorage:isEnabled` returns `true` only when both `ARWEAVE_ENABLED`
+and the wallet are set; the publish dialog uses it to tell the writer whether
+the article will be stored permanently.
 
 ### Beta programme
 
@@ -197,7 +200,15 @@ including for small uploads; keep it only on the backend.
   test accounts unless called with `{"excludeTestAccounts": false}`.
 - **Test accounts:** flag QA and demo accounts with
   `testAccounts:setTestAccount '{"email":"…","isTestAccount":true}'`. Only
-  internal functions can set the flag.
+  internal functions can set the flag, and only the account itself sees it.
+- **Internal accounts:** set `INTERNAL_ACCOUNT_EMAIL_DOMAINS` on Convex to a
+  comma-separated list of staff email domains (for example `example.com`).
+  A new account whose email domain equals one of them, ignoring case, is
+  flagged at sign-up; subdomains do not match. Empty or unset flags nothing.
+  For existing accounts, run
+  `testAccounts:backfillInternalAccountsByDomain '{"domain":"example.com"}'`
+  (dry run unless `"apply": true`; pass `continueCursor` back as `cursor`
+  until `isDone`). It only sets the flag and never runs on its own.
 - **Product analytics:** PostHog (EU cloud), off by default. Set
   `NEXT_PUBLIC_ANALYTICS_ENABLED=true` and the server-only
   `ANALYTICS_POSTHOG_KEY` (the project API key) on the Next.js deployment.

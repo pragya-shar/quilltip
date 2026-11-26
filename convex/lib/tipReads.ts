@@ -21,6 +21,7 @@
  */
 import type { Doc, Id } from '../_generated/dataModel'
 import type { DatabaseReader } from '../_generated/server'
+import { currentChainEpoch } from './chain/env'
 import { enrichWithUser, type PublicUser } from './enrich'
 
 export type TipRow = Doc<'tips'> | Doc<'highlightTips'>
@@ -163,15 +164,20 @@ export async function withTipper<T extends { tipperId: Id<'users'> }>(
   return await enrichWithUser({ db }, tip.tipperId)
 }
 
-/** The registered v2 chain record of an article, if any. */
+/**
+ * The v2 chain record of an article in the current `CHAIN_EPOCH`, if any.
+ * Rows from an earlier epoch (a previous testnet deployment) are ignored.
+ */
 export async function chainArticleFor(
   db: DatabaseReader,
-  articleId: Id<'articles'>
+  articleId: Id<'articles'>,
+  chainEpoch: string = currentChainEpoch()
 ): Promise<Doc<'chainArticles'> | null> {
-  return await db
+  const rows = await db
     .query('chainArticles')
     .withIndex('by_article', (q) => q.eq('articleId', articleId))
-    .first()
+    .take(20)
+  return rows.find((row) => row.chainEpoch === chainEpoch) ?? null
 }
 
 /** `chainArticles.totals` of a registered article, empty otherwise. */
