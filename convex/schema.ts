@@ -460,7 +460,9 @@ export default defineSchema({
     .index('by_article_tip_intent', ['articleTipIntentId'])
     // Not unique for v2: batch rows share one hash.
     .index('by_stellar_tx', ['stellarTxId'])
-    .index('by_client_ref', ['clientRef']),
+    .index('by_client_ref', ['clientRef'])
+    // Rows flagged for operator review (convex/chain/review.ts).
+    .index('by_needs_review', ['needsReview', 'updatedAt']),
 
   // Highlight Tips table (NEW - granular tipping)
   highlightTips: defineTable({
@@ -561,7 +563,9 @@ export default defineSchema({
     ])
     .index('by_highlight_tip_intent', ['highlightTipIntentId'])
     .index('by_stellar_tx', ['stellarTxId'])
-    .index('by_client_ref', ['clientRef']),
+    .index('by_client_ref', ['clientRef'])
+    // Rows flagged for operator review (convex/chain/review.ts).
+    .index('by_needs_review', ['needsReview', 'updatedAt']),
 
   // Author Earnings table
   authorEarnings: defineTable({
