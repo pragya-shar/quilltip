@@ -34,6 +34,11 @@ export function decodeContractEventXdr(base64: string): DecodedContractEvent {
       `Invalid ContractEvent XDR: ${error instanceof Error ? error.message : String(error)}`
     )
   }
+  // Only contract events carry payment facts; system and diagnostic events
+  // are ignored even when they come from the configured contract.
+  if (event.type !== xdr.ContractEventType.contract) {
+    throw new EventDecodeError(`Unsupported event type ${event.type.name}`)
+  }
   if (event.body.type !== 'v0') {
     throw new EventDecodeError(`Unsupported event body ${event.body.type}`)
   }

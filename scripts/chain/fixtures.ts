@@ -43,6 +43,8 @@ export type TippedFixture = {
   clientRef: string
   totalAfter?: bigint
   splitCount?: number
+  /** Event type; a real `Tipped` event is always a contract event. */
+  eventType?: 'contract' | 'system' | 'diagnostic'
 }
 
 export function feeOf(gross: bigint): bigint {
@@ -87,7 +89,7 @@ export function tippedEventXdr(f: TippedFixture): string {
   const event = new xdr.ContractEvent({
     ext: xdr.ExtensionPoint.v0(),
     contractId: new xdr.ContractId(StrKey.decodeContract(f.contractId ?? CORE)),
-    type: xdr.ContractEventType.contract,
+    type: xdr.ContractEventType[f.eventType ?? 'contract'],
     body: xdr.ContractEventBody.v0(
       new xdr.ContractEventV0({
         topics: [

@@ -223,6 +223,15 @@ describe('verifier (section 6.4)', () => {
     })
   })
 
+  it('a Tipped-shaped system or diagnostic event from Core does not count', () => {
+    for (const eventType of ['system', 'diagnostic'] as const) {
+      expect(verify([[event({ eventType })]])[0]).toMatchObject({
+        status: 'MISMATCH',
+        mismatchReason: 'no_event',
+      })
+    }
+  })
+
   it('a transaction older than the record is MISMATCH field:ledger', () => {
     expect(verify([[event()]], [expected()], 49)[0]).toMatchObject({
       status: 'MISMATCH',
