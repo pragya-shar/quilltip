@@ -5,8 +5,8 @@
  *
  * Conventions: every new row carries `network` and `chainEpoch`; amounts are
  * decimal strings of base units (stroops for the native token).
- * The tab tables (`tabAccounts`, `tabSessionKeys`, `tabReceipts`,
- * `tabVouchers`, `tabSettlements`) are added with the tab ledger.
+ * `tabTables` holds the tab ledger (`tabAccounts`, `tabSessionKeys`,
+ * `tabReceipts`, `tabVouchers`, `tabSettlements`).
  */
 import { defineTable } from 'convex/server'
 import { v } from 'convex/values'
@@ -108,6 +108,214 @@ export const tipChainFields = {
   ),
   reviewResolvedAt: v.optional(v.number()),
   reviewNote: v.optional(v.string()),
+  /**
+   * Tab tips only: what `tabs.prepareTip` returned. `tabs.submitTip`
+   * re-checks it against the current pair state.
+   */
+  tabPrepare: v.optional(
+    v.object({
+      tabAccountId: v.id('tabAccounts'),
+      keyId: v.number(),
+      seq: v.number(),
+      cumulativeBefore: v.string(),
+      contentHash: v.string(),
+    })
+  ),
+}
+
+/** States of a tab receipt (06-app-integration.md, section 6.1). */
+export const TAB_RECEIPT_STATUSES = [
+  'ACCEPTED',
+  'SETTLED',
+  'SHORTFALL',
+  'UNPAID',
+  'REJECTED',
+  'VOID_RESET',
+] as const
+export type TabReceiptStatus = (typeof TAB_RECEIPT_STATUSES)[number]
+
+export const tabReceiptStatusValidator = v.union(
+  v.literal('ACCEPTED'),
+  v.literal('SETTLED'),
+  v.literal('SHORTFALL'),
+  v.literal('UNPAID'),
+  v.literal('REJECTED'),
+  v.literal('VOID_RESET')
+)
+
+/** `VoucherSkipped.reason` names (03-tab-contract.md, section 3.9). */
+export const voucherSkipReasonValidator = v.union(
+  v.literal('KEY_UNKNOWN'),
+  v.literal('KEY_EXPIRED'),
+  v.literal('STALE'),
+  v.literal('SHORTFALL'),
+  v.literal('NOT_ACCEPTED'),
+  v.literal('UNKNOWN')
+)
+
+/**
+ * Tab ledger tables (06-app-integration.md, section 6.2). Amounts are decimal
+ * strings of base units. On-chain facts (`confirmedBalance`, `paidOnChain`,
+ * key registration and revocation, account status) come only from indexed
+ * Tab events; client input never sets them.
+ */
+export const tabTables = {
+  tabAccounts: defineTable({
+    network: chainNetworkValidator,
+    chainEpoch: v.string(),
+    userId: v.id('users'),
+    readerAddress: v.string(),
+    tabContractId: v.string(),
+    status: v.union(
+      v.literal('OPEN'),
+      v.literal('CLOSING'),
+      v.literal('CLOSED')
+    ),
+    /** The reader's on-chain balance, from indexed events. */
+    confirmedBalance: v.string(),
+    /** Accepted but not yet settled: Σ (cumulative − paidOnChain) over pairs. */
+    outstanding: v.string(),
+    /** Accepted today (UTC), for `TAB_DAILY_LIMIT`. */
+    acceptedToday: v.string(),
+    /** `YYYY-MM-DD` (UTC) that `acceptedToday` counts. */
+    acceptedDay: v.string(),
+    withdrawUnlockLedger: v.optional(v.number()),
+    /** RPC id of the newest event that set the balance absolutely. */
+    balanceEventId: v.optional(v.string()),
+    /** `TabSettled` debits applied after `balanceEventId`, for reordering. */
+    settledSinceBalance: v.array(
+      v.object({ eventId: v.string(), gross: v.string() })
+    ),
+    /** RPC id of the newest event that set `status`. */
+    statusEventId: v.optional(v.string()),
+    /** Keys the client announced before registering them on chain. */
+    pendingKeys: v.array(
+      v.object({
+        publicKey: v.string(),
+        extractable: v.boolean(),
+        declaredAt: v.number(),
+      })
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_reader', ['readerAddress']),
+
+  tabSessionKeys: defineTable({
+    network: chainNetworkValidator,
+    chainEpoch: v.string(),
+    tabAccountId: v.id('tabAccounts'),
+    keyId: v.number(),
+    /** ed25519, lowercase hex. Unset only while `KeyRevoked` arrived first. */
+    publicKey: v.optional(v.string()),
+    validUntilLedger: v.number(),
+    spendLimit: v.string(),
+    /** Σ paidOnChain over this key's pairs. */
+    spentOnChain: v.string(),
+    /** Σ accepted cumulative over this key's pairs. */
+    acceptedTotal: v.string(),
+    /** Revoked on chain (`KeyRevoked`) or by the reader in the app. */
+    revoked: v.boolean(),
+    revokedInApp: v.optional(v.boolean()),
+    extractable: v.boolean(),
+    registeredEventId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_account_key', ['tabAccountId', 'keyId']),
+
+  tabReceipts: defineTable({
+    network: chainNetworkValidator,
+    chainEpoch: v.string(),
+    tabAccountId: v.id('tabAccounts'),
+    keyId: v.number(),
+    writerAddress: v.string(),
+    authorId: v.id('users'),
+    articleId: v.id('articles'),
+    /** `article_id`, 32 bytes, lowercase hex. */
+    articleKey: v.string(),
+    /** `highlight_id`, 32 bytes, lowercase hex. */
+    highlightId: v.optional(v.string()),
+    seq: v.number(),
+    amount: v.string(),
+    cumulativeAfter: v.string(),
+    clientRef: v.string(),
+    contentHash: v.string(),
+    leafHash: v.string(),
+    tipRowId: v.union(v.id('tips'), v.id('highlightTips')),
+    status: tabReceiptStatusValidator,
+    settlementId: v.optional(v.id('tabSettlements')),
+    /** The voucher that first anchored this receipt, as accepted. */
+    receiptsRoot: v.string(),
+    voucherSignature: v.string(),
+    acceptorPublicKey: v.string(),
+    acceptanceSignature: v.string(),
+    acceptedAt: v.number(),
+    settledEventId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_pair_seq', ['tabAccountId', 'keyId', 'writerAddress', 'seq'])
+    .index('by_status_created', ['status', 'createdAt'])
+    .index('by_client_ref', ['clientRef']),
+
+  tabVouchers: defineTable({
+    network: chainNetworkValidator,
+    chainEpoch: v.string(),
+    tabAccountId: v.id('tabAccounts'),
+    tabContractId: v.string(),
+    tokenContractId: v.string(),
+    readerAddress: v.string(),
+    keyId: v.number(),
+    writerAddress: v.string(),
+    /** The writer's user, credited with the pair's earnings. */
+    authorId: v.id('users'),
+    /** The latest accepted voucher of the pair. */
+    cumulative: v.string(),
+    receiptsRoot: v.string(),
+    /** Leaf hashes in `seq` order, at most 256. */
+    leafHashes: v.array(v.string()),
+    signature: v.string(),
+    acceptance: v.object({ acceptor: v.string(), signature: v.string() }),
+    seq: v.number(),
+    paidOnChain: v.string(),
+    /** True while `paidOnChain < cumulative` and the pair can still settle. */
+    unsettled: v.boolean(),
+    /** Acceptance time of the oldest receipt not yet settled. */
+    oldestUnsettledAt: v.optional(v.number()),
+    state: v.union(
+      v.literal('ACTIVE'),
+      v.literal('UNPAID'),
+      v.literal('VOID_RESET')
+    ),
+    /** The pair's figures last applied to `authorEarnings` (section 6.2). */
+    earnedNet: v.string(),
+    pendingNet: v.string(),
+    lastSkipReason: v.optional(voucherSkipReasonValidator),
+    lastSkipEventId: v.optional(v.string()),
+    /** RPC id of the newest `TabSettled` applied. */
+    lastSettledEventId: v.optional(v.string()),
+    acceptedAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_pair', ['tabAccountId', 'keyId', 'writerAddress'])
+    .index('by_writer', ['writerAddress'])
+    .index('by_due', ['unsettled', 'oldestUnsettledAt'])
+    .index('by_epoch_state', ['chainEpoch', 'state']),
+
+  tabSettlements: defineTable({
+    network: chainNetworkValidator,
+    chainEpoch: v.string(),
+    submissionId: v.optional(v.id('chainSubmissions')),
+    txHash: v.optional(v.string()),
+    voucherIds: v.array(v.id('tabVouchers')),
+    gross: v.string(),
+    fee: v.string(),
+    ledger: v.optional(v.number()),
+    status: chainRecordStatusValidator,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index('by_status', ['status']),
 }
 
 export const chainTables = {
