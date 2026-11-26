@@ -261,7 +261,9 @@ dispatches it, and saves the cursor in the same mutation. Statuses:
   is within about one day of the oldest ledger RPC keeps.
 - `BEHIND_RETENTION`: events were missed. The indexer stops; nothing expires.
   Load the missed range with `chain/indexer:ingestBackfill`, then run
-  `chain/indexer:replayFrom` with the first missed ledger.
+  `chain/indexer:replayFrom` with a ledger RPC still keeps and
+  `gapBackfilled: true`. Without that flag, a replay that starts after the
+  covered ledger is refused.
 - `RESET_DETECTED`: the ledger sequence dropped or the Core instance is gone.
   The indexer stops. Follow the testnet reset steps in
   `docs/architecture/v2/07-security-and-recovery.md` (section 7.4), set a new

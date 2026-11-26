@@ -446,7 +446,15 @@ export const pollEvents = internalAction({
  * `RESET_DETECTED`; the cursor's covered ledger does not move back.
  */
 export const replayFrom = internalMutation({
-  args: { fromLedger: v.number() },
+  args: {
+    fromLedger: v.number(),
+    /**
+     * Set only after the ledgers between the covered ledger and `fromLedger`
+     * were filled with `ingestBackfill`. Otherwise a replay past the covered
+     * ledger would let the next run claim coverage of ledgers never read.
+     */
+    gapBackfilled: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
     const chain = readChainEnv()
     if (!Number.isSafeInteger(args.fromLedger) || args.fromLedger <= 0) {
@@ -460,6 +468,23 @@ export const replayFrom = internalMutation({
       .withIndex('by_network', (q) => q.eq('network', chain.network))
       .first()
     const now = Date.now()
+    if (
+      cursor &&
+      cursor.chainEpoch === chain.chainEpoch &&
+      cursor.lastLedger > 0 &&
+      args.fromLedger > cursor.lastLedger + 1
+    ) {
+      if (args.gapBackfilled !== true) {
+        throw new ConvexError({
+          code: 'REPLAY_GAP',
+          message: `Ledgers ${cursor.lastLedger + 1} to ${args.fromLedger - 1} were never indexed. Fill them with ingestBackfill, then pass gapBackfilled: true.`,
+        })
+      }
+      logIndexerAlert('REPLAY_GAP_BACKFILLED', {
+        lastLedger: cursor.lastLedger,
+        fromLedger: args.fromLedger,
+      })
+    }
     if (cursor && cursor.chainEpoch === chain.chainEpoch) {
       await ctx.db.patch(cursor._id, {
         cursor: undefined,

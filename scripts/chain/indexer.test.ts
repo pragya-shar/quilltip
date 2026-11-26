@@ -890,6 +890,30 @@ describe('lag, retention and reset', () => {
     expect((await cursor(t))!.status).toBe('OK')
   })
 
+  it('refuses a replay that skips unindexed ledgers unless they were backfilled', async () => {
+    const t = convexTest(schema, modules)
+    const chain = fakeChain()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await poll(t)
+    expect((await cursor(t))!.lastLedger).toBe(START + 100)
+    // RPC retention moved past the covered ledger: START + 101 to + 499 were
+    // never read.
+    chain.state.latestLedger = START + 1_000
+    chain.state.oldestLedger = START + 500
+    expect(await poll(t)).toMatchObject({ reason: 'behind_retention' })
+    await expect(
+      t.mutation(internal.chain.indexer.replayFrom, { fromLedger: START + 500 })
+    ).rejects.toThrow(/never indexed/)
+    expect((await cursor(t))!.status).toBe('BEHIND_RETENTION')
+    // After ingestBackfill filled the gap, the operator says so.
+    await t.mutation(internal.chain.indexer.replayFrom, {
+      fromLedger: START + 500,
+      gapBackfilled: true,
+    })
+    expect(await poll(t)).toMatchObject({ status: 'ok' })
+    expect((await cursor(t))!.lastLedger).toBe(START + 1_000)
+  })
+
   it('detects a testnet reset when the ledger sequence drops', async () => {
     const t = convexTest(schema, modules)
     const chain = fakeChain()
