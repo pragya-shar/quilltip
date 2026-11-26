@@ -43,8 +43,6 @@ export const recordArweaveUpload = internalMutation({
     articleId: v.id('articles'),
     txId: v.string(),
     url: v.string(),
-    version: v.number(),
-    contentHash: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.articleId, {
@@ -52,8 +50,6 @@ export const recordArweaveUpload = internalMutation({
       arweaveUrl: args.url,
       arweaveStatus: 'uploaded',
       arweaveTimestamp: Date.now(),
-      contentVersion: args.version,
-      contentHash: args.contentHash,
       updatedAt: Date.now(),
     })
 

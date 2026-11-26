@@ -9,6 +9,7 @@ export default defineConfig({
       'scripts/network/*.test.ts',
       'scripts/profile/*.test.ts',
       'scripts/health/*.test.ts',
+      'scripts/chain/*.test.ts',
     ],
   },
 })
