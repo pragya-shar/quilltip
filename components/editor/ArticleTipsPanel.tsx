@@ -1,7 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useId, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
 import type { Id } from '@/convex/_generated/dataModel'
 import {
   useArticleChainActions,
@@ -51,6 +58,22 @@ const RETRY_LABEL: Record<ArticleAction, string> = {
 
 const EXPLORER = 'https://stellar.expert/explorer/testnet/tx/'
 
+/**
+ * Failures a second attempt cannot fix: the article is already registered,
+ * or this site's settings do not match. Retrying would only fail again.
+ */
+const NO_RETRY_CODES = new Set(['AlreadyRegistered', 'CHECK', 'CONFIG'])
+
+/** Announced when the panel reaches a state after an action. */
+const ANNOUNCE: Record<string, string> = {
+  'registered:none': 'Tips enabled for this article.',
+  'registered:accept':
+    'Old wallet approved. Approve with your new wallet next.',
+  'registered:propose': 'Tips paused for the move to your new wallet.',
+  review: 'The transaction needs a check before tips turn on.',
+  not_registered: 'Tips are off for this article.',
+}
+
 const PERCENT_PROBLEMS = new Set(['NOT_POSITIVE', 'NOT_INTEGER'])
 
 let rowCounter = 0
@@ -81,6 +104,28 @@ export function ArticleTipsPanel({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [totalError, setTotalError] = useState<string | null>(null)
   const [validated, setValidated] = useState(false)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const failureRef = useRef<HTMLDivElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+
+  // After an action the panel's content is replaced and the focused button
+  // disappears. Move focus to the heading so keyboard and screen-reader
+  // users keep their place, except on the first load.
+  const stateKey =
+    view.kind === 'registered' ? `registered:${view.move}` : view.kind
+  const lastStateKey = useRef(stateKey)
+  const [announcement, setAnnouncement] = useState('')
+  useEffect(() => {
+    const previous = lastStateKey.current
+    lastStateKey.current = stateKey
+    if (previous !== stateKey && previous !== 'loading') {
+      headingRef.current?.focus()
+      setAnnouncement(ANNOUNCE[stateKey] ?? '')
+    }
+  }, [stateKey])
+  useEffect(() => {
+    if (actions.failure) failureRef.current?.focus()
+  }, [actions.failure])
 
   if (view.kind === 'hidden') return null
 
@@ -108,15 +153,18 @@ export function ArticleTipsPanel({
           'Enter a percentage, such as 25 or 12.5.'
       }
     })
-    if (Object.keys(nextErrors).length === 0) {
-      for (const problem of splitProblems(toSplits(list), { author })) {
-        const row = problem.index === undefined ? null : list[problem.index]
-        const field = PERCENT_PROBLEMS.has(problem.code)
-          ? 'percent'
-          : 'recipient'
-        const key = row ? `${row.key}.${field}` : null
-        if (key && !nextErrors[key]) nextErrors[key] = problem.message
-        else if (!row && !nextTotal) nextTotal = problem.message
+    // Report every field problem in one pass. A total that cannot be
+    // computed yet (a share is not a number) is left until the shares parse.
+    const unparsedShare = Object.keys(nextErrors).some((key) =>
+      key.endsWith('.percent')
+    )
+    for (const problem of splitProblems(toSplits(list), { author })) {
+      const row = problem.index === undefined ? null : list[problem.index]
+      const field = PERCENT_PROBLEMS.has(problem.code) ? 'percent' : 'recipient'
+      const key = row ? `${row.key}.${field}` : null
+      if (key && !nextErrors[key]) nextErrors[key] = problem.message
+      else if (!row && !nextTotal && !unparsedShare) {
+        nextTotal = problem.message
       }
     }
     setErrors(nextErrors)
@@ -133,7 +181,14 @@ export function ArticleTipsPanel({
   const onEnable = (event: FormEvent) => {
     event.preventDefault()
     setValidated(true)
-    if (!validate()) return
+    if (!validate()) {
+      // Take the user to the first field that needs a fix.
+      const form = formRef.current
+      requestAnimationFrame(() =>
+        form?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+      )
+      return
+    }
     start('register')
   }
 
@@ -146,8 +201,13 @@ export function ArticleTipsPanel({
 
   const failure = actions.failure ? (
     <ArticleTipsFailure
+      focusRef={failureRef}
       message={actions.failure.message}
-      retryLabel={RETRY_LABEL[actions.failure.action]}
+      retryLabel={
+        NO_RETRY_CODES.has(actions.failure.code ?? '')
+          ? null
+          : RETRY_LABEL[actions.failure.action]
+      }
       onRetry={() => {
         actions.dismissFailure()
         if (actions.failure!.action === 'register') {
@@ -197,7 +257,12 @@ export function ArticleTipsPanel({
       break
     case 'not_registered':
       body = (
-        <form className="tips-form" onSubmit={onEnable} noValidate>
+        <form
+          ref={formRef}
+          className="tips-form"
+          onSubmit={onEnable}
+          noValidate
+        >
           <p>
             Register this article on Stellar testnet so readers can tip it. Tips
             go to <span translate="no">{shortAddress(author)}</span>
@@ -332,6 +397,12 @@ export function ArticleTipsPanel({
               Tips are paused until the move to your new wallet finishes.
             </p>
           )}
+          {view.lastFailed && !actions.failure && (
+            <p className="tips-note">
+              The last change did not finish. Nothing changed on Stellar
+              testnet.
+            </p>
+          )}
           <dl className="tips-facts">
             <div>
               <dt>Pays</dt>
@@ -409,9 +480,14 @@ export function ArticleTipsPanel({
       aria-labelledby={headingId}
       data-state={view.kind}
     >
-      <h2 id={headingId}>
+      <h2 id={headingId} ref={headingRef} tabIndex={-1}>
         Tips <span className="tips-network">Stellar testnet</span>
       </h2>
+      {/* Stays mounted, empty until an action changes the state, so the
+          result is announced once and not read twice on a normal load. */}
+      <p className="sr-only" aria-live="polite" aria-atomic="true">
+        {announcement}
+      </p>
       {body}
       {progress}
       {failure}

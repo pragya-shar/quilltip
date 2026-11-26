@@ -113,6 +113,12 @@ test('enables tips: prepare, sign, send, pending, confirmed', async ({
     panel.getByRole('link', { name: /View the transaction/ })
   ).toBeVisible()
   await expect(panel.getByText('Readers can tip this article.')).toBeVisible()
+  // The panel's content was replaced: focus returns to its heading, and the
+  // result is announced.
+  await expect(panel.getByRole('heading', { name: /^Tips/ })).toBeFocused()
+  await expect(panel.locator('[aria-live="polite"]')).toHaveText(
+    'Tips enabled for this article.'
+  )
   await expect(
     panel.getByRole('link', { name: /View the registration/ })
   ).toBeVisible()
@@ -170,6 +176,8 @@ test('co-author shares are validated beside each field, then sent as basis point
   ).toBeVisible()
   const address = shares.getByLabel('Co-author 1’s Stellar address')
   await expect(address).toHaveAttribute('aria-invalid', 'true')
+  // Submitting moves focus to the first field that needs a fix.
+  await expect(address).toBeFocused()
   // The error marks only the field that caused it.
   await expect(
     shares.getByLabel('Co-author 1’s share, percent')
@@ -277,9 +285,13 @@ test('an already registered article is reported from simulation', async ({
   const panel = await open(page, 'state=ready&server=already-registered')
   await panel.getByRole('button', { name: 'Enable tips' }).click()
   await chooseVarial(page)
-  await expect(panel.getByRole('alert')).toContainText(
-    'This article is already registered on Stellar.'
+  const alert = panel.getByRole('alert')
+  await expect(alert).toContainText(
+    'Tips are already on for this article. Refresh the page to see them.'
   )
+  // Focus moves to the message, and no retry is offered: it would fail again.
+  await expect(alert).toBeFocused()
+  await expect(alert.getByRole('button', { name: /Try/ })).toHaveCount(0)
   const { signed, failed } = await log(page)
   expect(signed).toEqual([])
   expect(failed).toMatchObject([
@@ -292,7 +304,7 @@ test('a send error is shown and recorded', async ({ page }) => {
   await panel.getByRole('button', { name: 'Enable tips' }).click()
   await chooseVarial(page)
   await expect(panel.getByRole('alert')).toContainText(
-    'Stellar did not accept the transaction'
+    'Stellar testnet did not accept the transaction'
   )
   expect((await log(page)).failed).toMatchObject([{ reason: 'send_error' }])
 })
