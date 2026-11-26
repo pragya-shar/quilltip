@@ -190,10 +190,17 @@ secrets:
    | Fonts the page requests                      | 220 KB |         181 KB |
    | Render-blocking stylesheets                  |      6 |              4 |
    | CLS (median of 3)                            |    0.1 |          0.016 |
-   | LCP element in the server HTML               |    yes |            yes |
-   | LCP image URL in the server HTML (if an img) |    yes |            yes |
+   | LCP element in the server HTML (2 of 3 runs) |    yes |            yes |
+   | LCP image URL in the server HTML (2 of 3)    |    yes |            yes |
 
-   Bytes are compressed sizes as served by `next start`.
+   Bytes are compressed sizes as served by `next start`. Which element the
+   browser reports as the largest paint can depend on timing: on a slow run
+   the landing page's client-side opening animation can be reported. So the
+   LCP element checks pass when two of the three runs pass, like the medians,
+   and a single miss adds a warning that names the element. A page whose main
+   content is rendered only in the browser fails every run. The element's
+   text is compared with the server HTML's visible text, so escaped
+   characters and inline tags do not cause a false miss.
 
 5. It reports LCP (median and range of the three runs) and the scripts loaded
    after the first HTML (for example the highlight editor), without gating
