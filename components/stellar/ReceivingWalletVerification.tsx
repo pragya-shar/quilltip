@@ -8,7 +8,10 @@ import {
   describeConnectFailure,
   type WalletMessage,
 } from '@/lib/stellar/v2/wallet-errors'
-import { useWalletOwnership } from '@/hooks/useWalletOwnership'
+import {
+  intendWalletProof,
+  useWalletOwnership,
+} from '@/hooks/useWalletOwnership'
 
 const STEP_COPY = {
   challenge: 'Preparing the request…',
@@ -52,9 +55,14 @@ export function ReceivingWalletVerification({
     if (busy) return
     setConnectError(null)
     if (!isConnected) {
+      intendWalletProof(true)
       try {
-        if (!(await connect())) return
+        if (!(await connect())) {
+          intendWalletProof(false)
+          return
+        }
       } catch (error) {
+        intendWalletProof(false)
         const failure = describeConnectFailure(error)
         if (failure.action === 'install') {
           setConnectError({

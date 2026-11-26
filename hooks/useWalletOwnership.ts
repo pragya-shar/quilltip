@@ -44,9 +44,31 @@ const IDLE: OwnershipState = {
 /** One proof at a time across the app, so two callers share one prompt. */
 let inflight: Promise<OwnershipResult> | null = null
 
-/** True while a proof is running anywhere in the app. */
-export function walletProofInFlight(): boolean {
-  return inflight !== null
+/**
+ * Set while a verify button connects a wallet to prove it: the proof it
+ * starts once connected is about to run, so `WalletReverify` must not start
+ * its own. Wallets answer connect at different speeds, so "wait a turn" is
+ * not enough on its own.
+ */
+let proofIntended = false
+/** The address the last successful proof verified, in this page. */
+let lastProvedAddress: string | null = null
+
+export function intendWalletProof(intended: boolean): void {
+  proofIntended = intended
+}
+
+/**
+ * True while a proof is running, or about to, anywhere in the app, or when
+ * `address` was just proved here: a fast wallet can finish before a caller
+ * waiting a turn looks.
+ */
+export function walletProofInFlight(address?: string): boolean {
+  return (
+    inflight !== null ||
+    proofIntended ||
+    (address !== undefined && address === lastProvedAddress)
+  )
 }
 
 /** Copy for any failure of `proveWalletOwnership`; null when cancelled. */
@@ -82,6 +104,7 @@ export function useWalletOwnership() {
       if (mounted.current) setState((prev) => ({ ...prev, ...next }))
     }
     update({ status: 'challenge', error: null, result: null })
+    proofIntended = false
     try {
       inflight ??= proveWalletOwnership({
         wallet,
@@ -97,6 +120,7 @@ export function useWalletOwnership() {
         inflight = null
       })
       const result = await inflight
+      lastProvedAddress = result.address
       update({ status: 'verified', result })
       return result
     } catch (error) {
