@@ -22,6 +22,7 @@
     "test:beta": "vitest run --config scripts/beta/convex.config.mts",
     "test:chain": "vitest run --config scripts/chain/convex.config.mts",
     "test:local-network": "bun scripts/integration/run.ts --start",
+    "test:local-network:nft-v2": "vitest run --config scripts/integration/nft-v2.config.mts",
     "test:tips": "vitest run --config scripts/tips/convex.config.mts",
     "test:component-organization": "node --test scripts/eslint/one-component-per-file.test.mjs",
     "format": "prettier --write .",
