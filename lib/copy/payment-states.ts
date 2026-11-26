@@ -1,8 +1,9 @@
 /**
  * Copy for the shared payment kit (components/payments). The state matrix in
  * docs/design-system/payment-states.md quotes these strings; a unit test keeps
- * the two in step. Sentence case, no exclamation marks, and every failure
- * says whether anything was paid.
+ * the two in step. Sentence case, no exclamation marks. "Nothing was sent"
+ * appears only where the client knows no transaction left the wallet, and
+ * copy speaks about money only from server-verified chain data.
  */
 import { TIPS_UNAVAILABLE_COPY } from './tips-unavailable'
 import type {
@@ -78,7 +79,7 @@ export function gateCopy(
       const have = options.walletNetwork ?? 'another network'
       return {
         title: 'Switch your wallet to Testnet',
-        detail: `Your wallet is on ${have}. Switch it to Testnet, then check again. Nothing was signed.`,
+        detail: `Your wallet is on ${have}. Switch it to Testnet, then check again. Nothing was sent.`,
         action: 'Check again',
       }
     }
@@ -243,9 +244,10 @@ export const RESULT_COPY: Record<
     detail:
       'The payment went through on Stellar testnet, but the details did not match what QuillTip expected. Your XLM may have moved, so do not send it again. We are checking it.',
   },
+  /** A `FAILED` record with no client failure to show (for example after a reload). */
   failed: {
-    title: 'Not sent',
-    detail: 'Nothing was paid.',
+    title: 'Not completed',
+    detail: 'QuillTip recorded no payment for this request.',
   },
   declined: {
     title: 'Request declined in your wallet',
@@ -300,6 +302,23 @@ export const TAB_TIP_RESULT = {
   },
 } as const
 
+/**
+ * A tab operation that failed or timed out, known only from the client's
+ * own RPC polling: no claim about money, the tab state is the source.
+ */
+export const TAB_OPERATION_RESULT = {
+  failed: {
+    title: 'Not completed',
+    detail:
+      'Stellar testnet reported this transaction as failed. Your tab shows its current balance.',
+  },
+  expired: {
+    title: 'This request timed out',
+    detail:
+      'Stellar testnet did not confirm it in time. Check your tab before you try again.',
+  },
+} as const
+
 export const RETRY_LABEL = 'Try again'
 export const DONE_LABEL = 'Done'
 export const VIEW_TRANSACTION = 'View the transaction'
@@ -309,10 +328,11 @@ export const HELP_LABEL = 'Get help'
 // Failures ---------------------------------------------------------------------
 
 export const FAILURE_COPY = {
-  notSent: { title: 'Not sent', detail: 'Nothing was paid.' },
+  /** The client knows the transaction never left: simulation or send refused it. */
+  notSent: { title: 'Not sent', detail: 'Nothing was sent.' },
   notSentBusy: {
     title: 'Stellar testnet is busy',
-    detail: 'It was not sent, so nothing was paid. Try again in a minute.',
+    detail: 'Stellar testnet did not accept it. Try again in a minute.',
   },
 } as const
 
@@ -343,7 +363,7 @@ export const WALLET_FAILURE_COPY = {
   },
   'wrong-network': {
     title: 'Switch your wallet to Testnet',
-    detail: 'Switch it to Testnet, then try again. Nothing was signed.',
+    detail: 'Switch it to Testnet, then try again. Nothing was sent.',
   },
   failed: {
     title: 'Your wallet reported a problem',
@@ -351,33 +371,31 @@ export const WALLET_FAILURE_COPY = {
   },
 } as const
 
-/** Convex tab refusals with no notice of their own. Nothing was paid in any. */
+/** Convex tab refusals with no notice of their own. The server accepted nothing. */
 export const TAB_REFUSAL_COPY = {
   aboveMax: {
     title: 'This tip is above the quick-tip maximum',
-    detail:
-      'Choose a smaller amount, or tip from your wallet. Nothing was paid.',
+    detail: 'Choose a smaller amount, or tip from your wallet.',
   },
   belowMinimum: {
     title: 'This tip is below the minimum',
-    detail: 'Choose a larger amount. Nothing was paid.',
+    detail: 'Choose a larger amount.',
   },
   selfTip: {
     title: 'You can’t tip your own article',
-    detail: 'Nothing was paid.',
+    detail: 'This tip was not accepted.',
   },
   noPrice: {
     title: 'No XLM price right now',
-    detail:
-      'QuillTip can’t convert this amount yet. Try again in a minute. Nothing was paid.',
+    detail: 'QuillTip can’t convert this amount yet. Try again in a minute.',
   },
   timedOut: {
     title: 'This tip took too long',
-    detail: 'Nothing was paid. Send it again.',
+    detail: 'This tip was not accepted. Send it again.',
   },
   duplicate: {
     title: 'This tip was already sent',
-    detail: 'Your tab already counts it, so nothing more was paid.',
+    detail: 'Your tab already counts it.',
   },
   noWithdrawal: {
     title: 'No withdrawal is waiting',
@@ -385,20 +403,19 @@ export const TAB_REFUSAL_COPY = {
   },
   unavailable: {
     title: 'Quick tips are unavailable right now',
-    detail: 'Tip from your wallet, or try again later. Nothing was paid.',
+    detail: 'Tip from your wallet, or try again later.',
   },
   otherAccount: {
     title: 'This wallet’s tab belongs to another account',
-    detail:
-      'Sign in to the account that opened it, or use another wallet. Nothing was paid.',
+    detail: 'Sign in to the account that opened it, or use another wallet.',
   },
   badVoucher: {
     title: 'QuillTip could not accept this tip',
-    detail: 'Set up quick tips again on this device. Nothing was paid.',
+    detail: 'Set up quick tips again on this device.',
   },
   generic: {
     title: 'QuillTip could not accept this',
-    detail: 'Nothing was paid. Try again in a minute.',
+    detail: 'Try again in a minute.',
   },
 } as const
 
@@ -414,7 +431,7 @@ export const STATUS_LABEL: Record<PaymentPhase, string> = {
   confirmed: 'Confirmed',
   'sent-to-registered': 'Sent to updated address',
   'under-review': 'Under review',
-  failed: 'Not sent',
+  failed: 'Not completed',
   expired: 'Timed out',
   accepted: 'Settling',
   settled: 'Settled',
@@ -498,7 +515,7 @@ export const NOTICE_COPY = {
   tipsUnavailable: TIPS_UNAVAILABLE_COPY,
   basketItemUnavailable: {
     title: 'An article in your basket can’t take tips right now',
-    detail: 'Remove it to send the rest. Nothing was paid.',
+    detail: 'Remove it to send the rest. Nothing was sent.',
   },
   withdrawalPending: (unlockDate?: string): CopyBlock => ({
     title: unlockDate

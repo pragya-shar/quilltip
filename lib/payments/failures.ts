@@ -133,9 +133,11 @@ export function noticeFromContractFailure(
 export function failureFromContract(
   failure: ContractFailureLike
 ): PaymentFailure {
+  const { detail } = FAILURE_COPY.notSent
+  const message = failure.message.trim()
   return {
     title: FAILURE_COPY.notSent.title,
-    detail: `${failure.message} ${FAILURE_COPY.notSent.detail}`,
+    detail: message.endsWith(detail) ? message : `${message} ${detail}`,
   }
 }
 
@@ -233,7 +235,7 @@ export type TabRefusal =
   | { kind: 'notice'; notice: TabNotice }
   | { kind: 'gate'; gate: WalletGateState }
   | { kind: 'tips-unavailable'; reason: TipsUnavailableReason }
-  /** A plain refusal: nothing was created or paid; the start form stays. */
+  /** A plain refusal: the server accepted nothing; the start form stays. */
   | { kind: 'refused'; copy: CopyBlock }
 
 export type TabNotice =
@@ -318,7 +320,7 @@ export const TAB_REFUSAL_CODES: readonly string[] = Object.keys(TAB_REFUSALS)
 
 /**
  * The kit state for a `ConvexError` code from `convex/tabs.ts`. An unknown
- * code is a plain refusal with generic copy: nothing was paid.
+ * code is a plain refusal with generic copy.
  */
 export function refusalFromTabError(code: string): TabRefusal {
   return (
