@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useWallet } from '@/components/providers/WalletProvider'
+import { describeConnectFailure } from '@/lib/stellar/v2/wallet-errors'
 export function WritingWallet({
   onSaved,
 }: {
@@ -18,16 +19,20 @@ export function WritingWallet({
     setBusy(true)
     setError('')
     try {
-      if (!(await connect())) throw new Error('Choose a wallet and try again.')
-      const { walletAdapter } = await import('@/lib/stellar/wallet-adapter')
-      const address = await walletAdapter.getPublicKey()
+      if (!(await connect())) return
+      const { wallet } = await import('@/lib/stellar/v2/wallet-kit')
+      const address = wallet.getConnection()?.address ?? null
       if (!address)
         throw new Error('Your wallet did not return an address. Try again.')
       await updateProfile({ stellarAddress: address })
       onSaved(address)
     } catch (e) {
+      const failure = describeConnectFailure(e)
+      if (failure.action === 'ignore') return
       setError(
-        e instanceof Error ? e.message : 'Could not connect your wallet.'
+        failure.action === 'install'
+          ? 'No Stellar wallet found. Install Varial (formerly Freighter) or xBull in this browser, then try again.'
+          : `${failure.message.title}. ${failure.message.detail}`
       )
     } finally {
       setBusy(false)

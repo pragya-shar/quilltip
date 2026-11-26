@@ -10,7 +10,6 @@ import {
   type TransactionSource,
 } from '@stellar/stellar-sdk'
 import { bytesToHex } from './bytes'
-import { loadWalletKit } from './wallet-kit-loader'
 export const RECIPIENT =
   'GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR'
 export const AMOUNT = '1'
@@ -105,28 +104,5 @@ export async function checkPractice(
       throw error
     return closed > record.expires ? 'expired' : 'unknown'
   }
-}
-export async function makeKit() {
-  const {
-    StellarWalletsKit,
-    FreighterModule,
-    xBullModule,
-    AlbedoModule,
-    WalletNetwork,
-  } = await loadWalletKit()
-  return new StellarWalletsKit({
-    network: WalletNetwork.TESTNET,
-    modules: [new FreighterModule(), new xBullModule(), new AlbedoModule()],
-  })
-}
-export type PracticeKit = Awaited<ReturnType<typeof makeKit>>
-export async function ensureNetwork(kit: PracticeKit, id: string) {
-  if (
-    id === 'freighter' &&
-    (await kit.getNetwork()).networkPassphrase !== Networks.TESTNET
-  )
-    throw new Error(
-      'Switch Freighter to Testnet, then try again. No transaction was sent.'
-    )
 }
 export { Networks }
