@@ -79,11 +79,11 @@ const BUDGETS = {
   // Heaviest route: 206 KB (article). Per-route first-load budgets and the
   // module rules are in scripts/perf/first-load.ts.
   scriptKb: 230,
-  // Heaviest route: 43 KB (landing).
+  // Heaviest route: 38 KB (landing).
   cssKb: 50,
   // Heaviest route: 181 KB (landing, ten faces).
   fontKb: 220,
-  // Heaviest route: 4 (landing).
+  // Heaviest route: 3 (landing).
   renderBlockingStylesheets: 6,
   cls: 0.1,
 }

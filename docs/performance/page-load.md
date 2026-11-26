@@ -302,14 +302,12 @@ Checked and left as they are:
   `/login` and `/articles`. Getting under 2 s with scripts counted needs a
   product decision: fewer typefaces on the landing page (ten faces, 142 KB
   before first paint) and a smaller framework footprint.
-- **Article page, applied mobile (2098 ms) and the simulated floor
-  (2306 ms):** the 29 KB HTML, the 25 KB global stylesheet and three preloaded
-  fonts (60 KB) share Slow 4G bandwidth, so the global stylesheet finishes at
-  about 2.0 s and the first paint follows. The global stylesheet carries the
-  Tailwind utilities of the whole app. Splitting it per route, or not
-  preloading the interface and title fonts on article pages (which would make
-  them swap after the first paint), are the options; both are larger than this
-  change.
+- **Article page, applied mobile (2098 ms):** resolved by lazy body images
+  (1770 ms); see
+  [Applied throttling: stylesheet and body images](#applied-throttling-stylesheet-and-body-images-405-428).
+  The simulated floor without scripts (2306 ms) remains: its CSS and font
+  requests start about 20 ms later in the observed load than on `/articles`;
+  not attributed further.
 - **`/` applied:** 1873 ms against 1801 ms before. In the new runs the Syne
   font finishes before the global stylesheet instead of after it; the bytes on
   the critical path are the same.
@@ -323,6 +321,86 @@ CLS is 0.049 on mobile before and after: the reader header moves once the
 signed-in reader's highlight rail appears. It is under the 0.1 target and not
 changed here. The account menu and the tip flow load after hydration, so
 signing in adds nothing to the first load.
+
+## Applied throttling: stylesheet and body images (#405, #428)
+
+Measured 2026-11-27, same method as above (local production builds, seeded
+local backend, Lighthouse 12.8.2, five runs, median). Before: `overhaul/v2`
+with the first-load change merged (`8768f25`). After: this change.
+
+| Route       | Applied mobile, before | Applied mobile, after | Simulated mobile, before | Simulated mobile, after | Desktop, after | CLS after (mobile / desktop) |
+| ----------- | ---------------------: | --------------------: | -----------------------: | ----------------------: | -------------: | ---------------------------: |
+| `/`         |                   1919 |                  1841 |                 **3847** |                **3826** |            835 |                0.002 / 0.004 |
+| `/login`    |                   1585 |                  1580 |                 **2911** |                **2912** |            620 |                0.016 / 0.000 |
+| `/articles` |                   1841 |                  1830 |                 **3814** |                **4048** |            763 |                0.005 / 0.003 |
+| Article     |               **2083** |                  1770 |                 **3517** |                **3510** |            700 |                0.000 / 0.001 |
+
+Applied mobile now meets LCP < 2 s on every route, with 159 to 420 ms to
+spare. `/articles` simulated mobile moves between about 3810 and 4050 ms from
+run to run in both builds (the cover image's timing); the change does not
+touch that page's first load.
+
+### Cause
+
+Under applied throttling the page paints when its render-blocking stylesheets
+have arrived. They share the Slow 4G connection with the preloaded fonts and,
+on the article page, with the body images: the two images of the measured
+article (198 KB and 368 KB, far below the first screen) were requested at
+about 610 ms, at the same time as the stylesheet, and took two of the six
+connections the local server allows. The global stylesheet finished at about
+2.0 s and the article painted at 2.08 s.
+
+### What changed
+
+- **Body images load lazily.** The server-rendered article body marks every
+  image after the first two top-level blocks `loading="lazy"` and
+  `decoding="async"` (`lib/tiptap/markBodyImagesLazy.ts`). An image in the
+  opening blocks may be on the first screen, or be the largest paint, so it
+  stays eager. Images keep their `width` and `height`, so their space is
+  reserved: scrolling to them after load shifts nothing (CLS 0.000 at 375 and
+  1440 px). Article applied LCP: 2083 to 1770 ms.
+- **The highlight stylesheet left the root layout.** `highlights.css` was
+  render-blocking on every page (3.5 KB gzip), and none of its rules apply at
+  first paint on these four routes. It now lives in
+  `components/highlights/highlights.css` and is imported by the highlight
+  components, so it arrives with them (on article pages, during hydration).
+
+### Checked and not changed
+
+- **Splitting the global stylesheet by route.** Rule coverage at first paint,
+  at 412 and 1350 px: each route uses 106 to 120 KB of the 144 KB global
+  stylesheet (raw), and every rule in it is used by at least one of the four
+  routes. Splitting the Tailwind output per route would save at most about
+  38 KB raw (about 6 KB gzip) per route, for a restructure of the whole
+  stylesheet. `components/articles/reader.css` (about 2.5 KB gzip) is shared
+  with skeletons, the writing workspace and profile pages, so it stays global.
+- **Font preloads on the article page.** The three preloaded faces are all on
+  the first screen at 412 and 1350 px: Syne 600 (title), Work Sans 400 (byline,
+  return link) and Alegreya 400 (subtitle, body). None can stop preloading
+  without a visible swap after the first paint.
+
+### What simulated mobile under 2 s would need
+
+Lighthouse's simulation charges the bytes that finish, and the scripts that
+run, before the observed first paint (see
+[Why simulated mobile LCP stays above 2 s](#why-simulated-mobile-lcp-stays-above-2-s)).
+From the measured runs: the median with today's first load, the "floor" with
+the same bytes but scripts delayed past the first paint, and the cost per
+kilobyte between the two. The allowance is what keeps LCP at 1900 ms (100 ms
+margin).
+
+| Route       | Simulated LCP | Charged before first paint (JS / fonts / CSS / HTML / image), KB | Floor without scripts | ms per KB | Allowed for 1900 ms | What it would take                                                                                                                                                           |
+| ----------- | ------------: | ---------------------------------------------------------------: | --------------------: | --------: | ------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`         |          3826 |                                          203 / 142 / 42 / 10 / 0 |      1512 ms (112 KB) |       8.1 |             ~160 KB | First paint before the scripts run, and about 35 KB fewer font bytes before first paint. Without scripts the fonts, CSS and HTML alone (194 KB) give about 2180 ms.          |
+| `/login`    |          2912 |                                            194 / 44 / 32 / 9 / 0 |       1213 ms (56 KB) |       7.6 |             ~146 KB | Scripts before first paint at most about 60 KB (today 194 KB; Next.js and React alone are larger), or first paint before the scripts run.                                    |
+| `/articles` |   3814 – 4048 |                                          207 / 93 / 33 / 28 / 61 |      1815 ms (140 KB) |       7.9 |             ~151 KB | First paint before the scripts run, and about 65 KB fewer font and image bytes before first paint.                                                                           |
+| Article     |          3510 |                                          212 / 110 / 29 / 29 / 0 |      2306 ms (117 KB) |       4.6 |                none | Not reachable by trimming: the floor without any scripts is already 2306 ms. Its CSS and font requests start later in the observed load than on `/articles`; not attributed. |
+
+Every row needs the first paint to happen before the page's scripts run in the
+unthrottled observed load, which a Next.js page does not control, or a first
+load far below the framework's own size. The options that remain are owner
+decisions: fewer typefaces on the first screen (the landing page uses ten),
+or accepting applied throttling (or field data) as the measure for #405.
 
 ## Regression check
 
@@ -342,7 +420,7 @@ secrets:
    | Gate                                         | Budget | Heaviest route |
    | -------------------------------------------- | -----: | -------------: |
    | Scripts referenced by the server HTML        | 230 KB |         206 KB |
-   | Stylesheets referenced by the server HTML    |  50 KB |          41 KB |
+   | Stylesheets referenced by the server HTML    |  50 KB |          38 KB |
    | Fonts the page requests                      | 220 KB |         181 KB |
    | Render-blocking stylesheets                  |      6 |              3 |
    | CLS (median of 3)                            |    0.1 |          0.016 |
