@@ -569,12 +569,14 @@ export const create = mutation({
       args
     )
     const author = await ctx.db.get(article.authorId)
+    // Tips are recorded only against an address the author proved control of.
+    const authorAddress = verifiedStellarAddress(author)
     if (
-      !author?.stellarAddress ||
-      typeof author.stellarAddress !== 'string' ||
-      !StrKey.isValidEd25519PublicKey(author.stellarAddress)
+      !author ||
+      !authorAddress ||
+      !StrKey.isValidEd25519PublicKey(authorAddress)
     ) {
-      throw new Error('Author has not configured a valid receiving wallet')
+      throw new Error('Author has not verified a receiving wallet')
     }
 
     const expectedHighlightId = await generateHighlightIdServer(
@@ -595,7 +597,7 @@ export const create = mutation({
     }
     if (
       args.stellarDestinationAccount !== undefined &&
-      args.stellarDestinationAccount !== author.stellarAddress
+      args.stellarDestinationAccount !== authorAddress
     ) {
       throw new Error('Highlight receipt does not match the article author')
     }
@@ -668,7 +670,7 @@ export const create = mutation({
       amountUsd: amountCents / 100,
       amountCents,
       expectedSourceAccount: args.stellarSourceAccount,
-      expectedDestinationAccount: author.stellarAddress,
+      expectedDestinationAccount: authorAddress,
       expectedHighlightId,
       expectedArticleSymbol,
       expectedAmountStroops: paidStroops.toString(),
@@ -705,12 +707,12 @@ export const create = mutation({
       stellarLedger: args.stellarLedger,
       stellarFeeCharged: args.stellarFeeCharged,
       stellarSourceAccount: args.stellarSourceAccount,
-      stellarDestinationAccount: author.stellarAddress,
+      stellarDestinationAccount: authorAddress,
       stellarAmountXlm: stroopsToXlm(paidStroops.toString()),
       contractTipId: args.contractTipId,
       highlightTipIntentId: intentId,
       expectedSourceAccount: args.stellarSourceAccount,
-      expectedDestinationAccount: author.stellarAddress,
+      expectedDestinationAccount: authorAddress,
       expectedHighlightId,
       expectedArticleSymbol,
       expectedAmountStroops: paidStroops.toString(),

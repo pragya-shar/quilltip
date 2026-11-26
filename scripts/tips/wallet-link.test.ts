@@ -480,6 +480,56 @@ describe('addresses linked before proof was required', () => {
     ).rejects.toThrow('Author has not verified a receiving wallet')
   })
 
+  it('cannot have a highlight tip recorded through the receipt path', async () => {
+    const { t, reader, articleId } = await legacy()
+    await t.run(({ db }) =>
+      db.patch(articleId, {
+        content: {
+          type: 'doc',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'Hello world' }],
+            },
+          ],
+        },
+      })
+    )
+    await expect(
+      as(t, reader).mutation(api.highlightTips.create, {
+        highlightId: 'x',
+        articleId,
+        highlightText: 'Hello',
+        startOffset: 0,
+        endOffset: 5,
+        amountCents: 100,
+        stellarTxId: 'ab'.repeat(32),
+        stellarMemo: 'x',
+        stellarSourceAccount: Keypair.random().publicKey(),
+        stellarAmountXlm: '5',
+      })
+    ).rejects.toThrow('Author has not verified a receiving wallet')
+  })
+
+  it('cannot publish a new article until verified', async () => {
+    const { t, writer } = await legacy()
+    const draft = await t.run(({ db }) =>
+      db.insert('articles', {
+        slug: 'draft',
+        title: 'Draft',
+        content: { type: 'doc', content: [] },
+        published: false,
+        authorId: writer,
+        authorUsername: 'legacy',
+        createdAt: T0,
+        updatedAt: T0,
+      })
+    )
+    await expect(
+      as(t, writer).mutation(api.articles.publishArticle, { id: draft })
+    ).rejects.toThrow('Verify your receiving wallet before publishing')
+  })
+
   it('keep recorded v1 tips in the writer’s received list', async () => {
     const { t, writer, reader, articleId } = await legacy()
     await t.run(({ db }) =>
