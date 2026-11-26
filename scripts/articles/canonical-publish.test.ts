@@ -81,10 +81,17 @@ const expectedHash = (
     contentVersion,
   })
 
+// publishArticle schedules the Arweave upload with runAfter(0), and
+// convex-test runs scheduled functions on timers. On real timers that upload
+// runs in the background: it can overlap a direct call to the same action, or
+// fire during a later test. Fake timers keep every scheduled function from
+// running until a test fires it.
 beforeEach(() => {
   uploads.length = 0
+  vi.useFakeTimers()
 })
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllEnvs()
 })
 
@@ -130,8 +137,10 @@ test('the Arweave body is the canonical bytes and hashes to contentHash', async 
   vi.stubEnv('ARWEAVE_WALLET_KEY', '{"kty":"RSA"}')
   const { t, author, authorId, id } = await setup()
   await author.mutation(api.articles.publishArticle, { id })
-  // Run the upload that publish scheduled.
-  await t.action(internal.arweave.uploadArticleToArweave, { articleId: id })
+  // Run the upload that publish scheduled, once. Its follow-up verification
+  // is scheduled 10 minutes later and stays pending.
+  vi.runOnlyPendingTimers()
+  await t.finishInProgressScheduledFunctions()
 
   expect(uploads).toHaveLength(1)
   const [upload] = uploads
