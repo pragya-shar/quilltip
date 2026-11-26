@@ -14,6 +14,8 @@ import type { Id } from '../../convex/_generated/dataModel'
 import {
   MAX_BATCH_TRANSFERS,
   PRICE_MAX_AGE_MS,
+  RECORD_RATE_LIMIT,
+  RECORD_RATE_WINDOW_MS,
   TIP_V2_ERROR_CODES,
   baseUnitsToXlm,
   centsToBaseUnits,
@@ -519,6 +521,42 @@ describe('prepareDirectTip', () => {
     expect(await code(highlight(t, s, {}, 'req-same'))).toBe('REQUEST_CONFLICT')
   })
 
+  it('treats a changed message on a replayed requestId as a conflict', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const reader = as(t, s.readerId)
+    const send = (message?: string) =>
+      reader.mutation(api.tipsV2.prepareDirectTip, {
+        requestId: 'req-msg',
+        articleId: s.articleId,
+        amountCents: 100,
+        ...(message === undefined ? {} : { message }),
+      })
+    const first = await send('Thank you')
+    expect(await send('Thank you')).toEqual({ ...first, existing: true })
+    expect(await code(send('Thanks'))).toBe('REQUEST_CONFLICT')
+    expect(await code(send())).toBe('REQUEST_CONFLICT')
+
+    // Without a message first, adding one is a conflict too.
+    const plain = await direct(t, s.readerId, s.articleId, 100, 'req-plain')
+    expect(await direct(t, s.readerId, s.articleId, 100, 'req-plain')).toEqual({
+      ...plain,
+      existing: true,
+    })
+    expect(
+      await code(
+        reader.mutation(api.tipsV2.prepareDirectTip, {
+          requestId: 'req-plain',
+          articleId: s.articleId,
+          amountCents: 100,
+          message: 'Hello',
+        })
+      )
+    ).toBe('REQUEST_CONFLICT')
+    const tips = await t.run((ctx) => ctx.db.query('tips').collect())
+    expect(tips).toHaveLength(2)
+  })
+
   it('accepts min_tip exactly and refuses min_tip − 1', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
@@ -701,9 +739,15 @@ describe('prepareDirectTip', () => {
     )
     vi.stubEnv('CHAIN_V2_ENABLED', 'true')
     vi.stubEnv('TOKEN_CONTRACT_ID', '')
-    expect(await code(direct(t, s.readerId, s.articleId))).toBe(
-      'CHAIN_CONFIG_MISSING'
-    )
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const missing = await errorData(direct(t, s.readerId, s.articleId))
+    expect(missing).toEqual({
+      code: 'CHAIN_CONFIG_MISSING',
+      message: 'Tipping is not configured on this deployment.',
+    })
+    // The variable names go to the server log only.
+    expect(String(log.mock.calls.at(-1)?.[0])).toContain('TOKEN_CONTRACT_ID')
+    log.mockRestore()
     vi.stubEnv('TOKEN_CONTRACT_ID', 'not-a-contract')
     expect(await code(direct(t, s.readerId, s.articleId))).toBe(
       'CHAIN_CONFIG_INVALID'
@@ -770,6 +814,115 @@ describe('prepareHighlightTip', () => {
     expect(await code(highlight(t, s, { text: '   ' }))).toBe(
       'HIGHLIGHT_INVALID'
     )
+  })
+
+  it('treats any changed passage field on a replayed requestId as a conflict', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const send = (
+      passage: Partial<{
+        text: string
+        startOffset: number
+        endOffset: number
+        startContainerPath: string
+        endContainerPath: string
+      }> = {},
+      message?: string
+    ) =>
+      as(t, s.readerId).mutation(api.tipsV2.prepareHighlightTip, {
+        requestId: 'req-hl',
+        articleId: s.articleId,
+        amountCents: 50,
+        highlight: {
+          text: HL_TEXT,
+          startOffset: HL_START,
+          endOffset: HL_END,
+          ...passage,
+        },
+        ...(message === undefined ? {} : { message }),
+      })
+    const first = await send()
+    const replay = { ...first, existing: true }
+    expect(await send()).toEqual(replay)
+    // Container paths are hints: the canonical ones match, omitted ones match.
+    expect(
+      await send({
+        startContainerPath: `text.${HL_START + 1}`,
+        endContainerPath: `text.${HL_END + 1}`,
+      })
+    ).toEqual(replay)
+
+    const shorter = 'The quick brown fox'
+    const changed = [
+      // One field at a time; the replay check runs before the passage check.
+      { text: HL_TEXT.replace('fox', 'cat') },
+      { startOffset: HL_START + 1 },
+      { endOffset: HL_END - 1 },
+      // Consistent passages elsewhere in the article.
+      { text: shorter, endOffset: HL_START + shorter.length },
+      {
+        text: HL_TEXT.slice(4),
+        startOffset: HL_START + 4,
+      },
+      { endOffset: HL_END - 1, text: HL_TEXT.slice(0, -1) },
+      {
+        startContainerPath: `text.${HL_START + 2}`,
+        endContainerPath: `text.${HL_END + 1}`,
+      },
+      {
+        startContainerPath: `text.${HL_START + 1}`,
+        endContainerPath: `text.${HL_END + 2}`,
+      },
+    ]
+    for (const passage of changed) {
+      expect(await code(send(passage))).toBe('REQUEST_CONFLICT')
+    }
+    expect(await code(send({}, 'A note'))).toBe('REQUEST_CONFLICT')
+    // A direct tip under the same requestId is a conflict as well.
+    expect(await code(direct(t, s.readerId, s.articleId, 50, 'req-hl'))).toBe(
+      'REQUEST_CONFLICT'
+    )
+
+    const rows = await t.run(async (ctx) => ({
+      highlightTips: (await ctx.db.query('highlightTips').collect()).length,
+      tips: (await ctx.db.query('tips').collect()).length,
+      submissions: (await ctx.db.query('chainSubmissions').collect()).length,
+    }))
+    expect(rows).toEqual({ highlightTips: 1, tips: 0, submissions: 1 })
+  })
+
+  it('treats a changed passage in one batch item as a conflict', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const items = [
+      { articleId: s.articleId },
+      { articleId: s.articleId, highlight: true },
+    ]
+    const first = await batch(t, s.readerId, items, 'req-batch-hl')
+    expect(await batch(t, s.readerId, items, 'req-batch-hl')).toEqual({
+      ...first,
+      existing: true,
+    })
+    const shorter = 'The quick brown fox'
+    expect(
+      await code(
+        as(t, s.readerId).mutation(api.tipsV2.prepareBatch, {
+          requestId: 'req-batch-hl',
+          items: [
+            { articleId: s.articleId, amountCents: 100 },
+            {
+              articleId: s.articleId,
+              amountCents: 100,
+              highlight: {
+                text: shorter,
+                startOffset: HL_START,
+                endOffset: HL_START + shorter.length,
+              },
+            },
+          ],
+        })
+      )
+    ).toBe('REQUEST_CONFLICT')
   })
 })
 
@@ -1002,6 +1155,35 @@ describe('lifecycle', () => {
     }
   )
 
+  it('reports amounts from the chain event when they differ from prepare', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const prepared = await direct(t, s.readerId, s.articleId)
+    expect(prepared.items[0]!.tipInput.amount).toBe('40000000')
+    const gross = BigInt(39_999_999)
+    const fee = (gross * BigInt(250)) / BigInt(10_000)
+    const result = await submitAndVerify(t, s, prepared, () =>
+      successResponse(HASH, [[eventFor(prepared, 0, { gross })]])
+    )
+    expect(result).toMatchObject({
+      status: 'MISMATCH',
+      mismatchReason: 'field:gross',
+      canRetry: false,
+    })
+    const [item] = result.items
+    expect(item!.preparedBaseUnits).toBe('40000000')
+    expect(item!.chain).toMatchObject({
+      grossBaseUnits: gross.toString(),
+      feeBaseUnits: fee.toString(),
+      netBaseUnits: (gross - fee).toString(),
+    })
+    expect(result.chainTotals).toEqual({
+      grossBaseUnits: gross.toString(),
+      feeBaseUnits: fee.toString(),
+      netBaseUnits: (gross - fee).toString(),
+    })
+  })
+
   it('MISMATCH no_event: a SUCCESS transaction without the event never fails', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
@@ -1232,6 +1414,104 @@ describe('lifecycle', () => {
     const rows = await t.run((ctx) => ctx.db.query('tips').collect())
     expect(rows.filter((r) => r.stellarTxId === HASH)).toHaveLength(1)
   })
+
+  it('rate limits record calls per user; a repeat with the stored hash is free', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    stubRpc(() => notFoundResponse(HASH))
+    const reader = as(t, s.readerId)
+    const key = `tipsV2:record:${s.readerId}`
+    const counted = () =>
+      t.run(
+        async (ctx) =>
+          (
+            await ctx.db
+              .query('rateLimits')
+              .withIndex('by_key', (q) => q.eq('key', key))
+              .unique()
+          )?.count ?? 0
+      )
+
+    // A batch of 10 is one record call; repeats of the stored hash are free.
+    const items = Array.from({ length: 10 }, () => ({ articleId: s.articleId }))
+    const big = await batch(t, s.readerId, items)
+    await reader.mutation(api.tipsV2.recordSubmitted, {
+      submissionId: big.submissionId,
+      txHash: HASH,
+    })
+    for (let i = 0; i < 5; i++) {
+      const again = await reader.mutation(api.tipsV2.recordSubmitted, {
+        tipId: big.items[i]!.tipId,
+        txHash: HASH.toUpperCase(),
+      })
+      expect(again.duplicate).toBe(true)
+    }
+    expect(await counted()).toBe(1)
+    const failed = await direct(t, s.readerId, s.articleId)
+    await reader.mutation(api.tipsV2.recordSendFailed, {
+      submissionId: failed.submissionId,
+      reason: 'wallet_rejected',
+    })
+    expect(await counted()).toBe(2)
+
+    // At the limit, both record calls are refused and write nothing.
+    await t.run(async (ctx) => {
+      const row = (await ctx.db
+        .query('rateLimits')
+        .withIndex('by_key', (q) => q.eq('key', key))
+        .unique())!
+      await ctx.db.patch(row._id, { count: RECORD_RATE_LIMIT })
+    })
+    const pending = await direct(t, s.readerId, s.articleId)
+    const limited = await errorData(
+      reader.mutation(api.tipsV2.recordSendFailed, {
+        submissionId: pending.submissionId,
+        reason: 'simulation_failed',
+      })
+    )
+    expect(limited.code).toBe('RATE_LIMITED')
+    expect(limited.retryAfterMs).toBeGreaterThan(0)
+    expect(limited.retryAfterMs).toBeLessThanOrEqual(RECORD_RATE_WINDOW_MS)
+    expect(
+      await code(
+        reader.mutation(api.tipsV2.recordSubmitted, {
+          submissionId: pending.submissionId,
+          txHash: HASH2,
+        })
+      )
+    ).toBe('RATE_LIMITED')
+    expect((await status(t, s, pending)).status).toBe('PREPARED')
+    expect(await counted()).toBe(RECORD_RATE_LIMIT)
+    // The stored hash still answers, and another user is not affected.
+    expect(
+      (
+        await reader.mutation(api.tipsV2.recordSubmitted, {
+          submissionId: big.submissionId,
+          txHash: HASH,
+        })
+      ).duplicate
+    ).toBe(true)
+    const other = await direct(t, s.reader2Id, s.articleId)
+    await as(t, s.reader2Id).mutation(api.tipsV2.recordSendFailed, {
+      submissionId: other.submissionId,
+      reason: 'send_error',
+    })
+
+    // The window reopens.
+    const windowStart = await t.run(
+      async (ctx) =>
+        (await ctx.db
+          .query('rateLimits')
+          .withIndex('by_key', (q) => q.eq('key', key))
+          .unique())!.windowStart
+    )
+    vi.setSystemTime(windowStart + RECORD_RATE_WINDOW_MS)
+    await reader.mutation(api.tipsV2.recordSubmitted, {
+      submissionId: pending.submissionId,
+      txHash: HASH2,
+    })
+    expect((await status(t, s, pending)).status).toBe('SUBMITTED')
+  }, 30_000)
 
   it('records only the caller’s own tip submissions', async () => {
     const t = convexTest(schema, modules)

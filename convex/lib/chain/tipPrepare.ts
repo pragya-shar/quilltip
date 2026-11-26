@@ -120,6 +120,13 @@ export const PRICE_MAX_AGE_MS = 30 * 60 * 1000
 /** Prepare calls per user per window. A replayed `requestId` is free. */
 export const PREPARE_RATE_LIMIT = 10
 export const PREPARE_RATE_WINDOW_MS = 60_000
+/**
+ * `recordSubmitted` and `recordSendFailed` together, per user. A client makes
+ * one record call per prepare (at most 10 a minute), so 30 leaves room for
+ * retries. Repeating `recordSubmitted` with the stored hash is not counted.
+ */
+export const RECORD_RATE_LIMIT = 30
+export const RECORD_RATE_WINDOW_MS = 60_000
 export const MAX_MESSAGE_LENGTH = 500
 const MAX_HIGHLIGHT_TEXT = 5_000
 const STROOPS_PER_XLM = 10_000_000
@@ -215,12 +222,41 @@ type TipperContext = {
 export function requireTipChain(): TipperContext['chain'] {
   const chain = requireChainV2Enabled()
   if (!chain.coreContractId || !chain.tokenContractId) {
+    // The detail stays in the server log; the client sees the code only.
+    console.error('tipsV2: CORE_CONTRACT_ID and TOKEN_CONTRACT_ID must be set.')
     tipError(
       'CHAIN_CONFIG_MISSING',
-      'CORE_CONTRACT_ID and TOKEN_CONTRACT_ID must be set.'
+      'Tipping is not configured on this deployment.'
     )
   }
   return chain as TipperContext['chain']
+}
+
+/**
+ * Counts one record call (07-security-and-recovery.md, section 7.2: the limiter runs on
+ * every prepare and submit). A refused call throws, so it writes nothing.
+ */
+export async function consumeRecordLimit(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  now: number
+): Promise<void> {
+  const limit = await consumeFixedWindow(
+    ctx,
+    `tipsV2:record:${userId}`,
+    RECORD_RATE_LIMIT,
+    RECORD_RATE_WINDOW_MS,
+    now
+  )
+  if (!limit.ok) {
+    tipError(
+      'RATE_LIMITED',
+      'Too many requests in a short time. Wait a moment.',
+      {
+        retryAfterMs: limit.retryAfterMs,
+      }
+    )
+  }
 }
 
 /** The cached Core config for the configured contract set, or null. */
@@ -536,22 +572,43 @@ export async function preparedResponse(
   }
 }
 
-/** What the caller asked for, compared with a replayed submission. */
-type RequestShape = Array<{
-  articleId: string
-  amountCents: number
-  highlight: boolean
-}>
-
-function sameRequest(rows: TipRow[], tables: string[], shape: RequestShape) {
+/**
+ * Whether a replayed `requestId` asks for exactly what the stored rows hold:
+ * the same items in the same order, with the same article, amount, message
+ * and highlight passage. The stored passage is the canonical one, whose text
+ * and offsets equal the original input; container paths are hints derived
+ * from the offsets, so an omitted path matches and a supplied one must equal
+ * the stored path.
+ */
+function sameRequest(
+  loaded: Array<{ table: string; row: TipRow }>,
+  items: TipItemInput[]
+): boolean {
   return (
-    rows.length === shape.length &&
-    shape.every(
-      (item, i) =>
-        rows[i]!.articleId === item.articleId &&
-        rows[i]!.amountCents === item.amountCents &&
-        (tables[i] === 'highlightTips') === item.highlight
-    )
+    loaded.length === items.length &&
+    items.every((item, i) => {
+      const { table, row } = loaded[i]!
+      if (
+        row.articleId !== item.articleId ||
+        row.amountCents !== item.amountCents ||
+        (row.message || '') !== (item.message || '')
+      ) {
+        return false
+      }
+      const highlight = item.highlight ?? null
+      if (table !== 'highlightTips') return highlight === null
+      if (highlight === null) return false
+      const stored = row as Doc<'highlightTips'>
+      return (
+        stored.highlightText === highlight.text &&
+        stored.startOffset === highlight.startOffset &&
+        stored.endOffset === highlight.endOffset &&
+        (highlight.startContainerPath === undefined ||
+          highlight.startContainerPath === stored.startContainerPath) &&
+        (highlight.endContainerPath === undefined ||
+          highlight.endContainerPath === stored.endContainerPath)
+      )
+    })
   )
 }
 
@@ -587,19 +644,10 @@ export async function prepareTips(
     .first()
   if (prior) {
     const loaded = await loadTipRows(ctx, prior)
-    const shape = args.items.map((item) => ({
-      articleId: item.articleId as string,
-      amountCents: item.amountCents,
-      highlight: !!item.highlight,
-    }))
     if (
       prior.userId !== args.userId ||
       (prior.kind !== 'tip' && prior.kind !== 'tip_batch') ||
-      !sameRequest(
-        loaded.map((r) => r.row),
-        loaded.map((r) => r.table),
-        shape
-      )
+      !sameRequest(loaded, args.items)
     ) {
       tipError(
         'REQUEST_CONFLICT',

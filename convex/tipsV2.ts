@@ -32,6 +32,7 @@ import {
   MAX_BATCH_TRANSFERS,
   assertNotSelfTip,
   cachedCoreConfig,
+  consumeRecordLimit,
   freshPrice,
   isTipSubmission,
   minimumCents,
@@ -186,11 +187,11 @@ async function ownTipSubmission(
 async function requireOwnTipSubmission(
   ctx: MutationCtx,
   ref: { submissionId?: Id<'chainSubmissions'>; tipId?: string }
-): Promise<Doc<'chainSubmissions'>> {
+): Promise<{ userId: Id<'users'>; submission: Doc<'chainSubmissions'> }> {
   const userId = await requireUserId(ctx)
   const submission = await ownTipSubmission(ctx, userId, ref)
   if (!submission) tipError('NOT_FOUND', 'Tip not found.')
-  return submission
+  return { userId, submission }
 }
 
 /**
@@ -198,7 +199,8 @@ async function requireOwnTipSubmission(
  * `chain.submissions.recordSubmitted`, the one code path for every v2
  * submission: the hash is stored once, a repeat with the same hash is a
  * no-op, and a hash already on another submission is refused, so a
- * `(txHash, clientRef)` pair is accepted once only.
+ * `(txHash, clientRef)` pair is accepted once only. Record calls share a
+ * per-user limit (`RECORD_RATE_LIMIT`); a repeat with the stored hash is free.
  */
 export const recordSubmitted = mutation({
   args: {
@@ -214,7 +216,11 @@ export const recordSubmitted = mutation({
     status: Doc<'chainSubmissions'>['status']
     duplicate: boolean
   }> => {
-    const submission = await requireOwnTipSubmission(ctx, args)
+    const { userId, submission } = await requireOwnTipSubmission(ctx, args)
+    // A repeat with the stored hash is a no-op and is not counted.
+    if (submission.txHash !== args.txHash.trim().toLowerCase()) {
+      await consumeRecordLimit(ctx, userId, Date.now())
+    }
     const result = await ctx.runMutation(
       api.chain.submissions.recordSubmitted,
       { submissionId: submission._id, txHash: args.txHash }
@@ -244,7 +250,8 @@ export const recordSendFailed = mutation({
     ctx,
     args
   ): Promise<{ submissionId: Id<'chainSubmissions'>; status: 'FAILED' }> => {
-    const submission = await requireOwnTipSubmission(ctx, args)
+    const { userId, submission } = await requireOwnTipSubmission(ctx, args)
+    await consumeRecordLimit(ctx, userId, Date.now())
     const result = await ctx.runMutation(
       api.chain.submissions.recordSendFailed,
       {
