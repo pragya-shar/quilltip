@@ -110,21 +110,21 @@ const MISMATCH_COPY: Record<
   PaymentFailure
 > = {
   network: {
-    title: 'This request does not match QuillTip’s settings',
-    detail: 'QuillTip prepared it for another network. Nothing was signed.',
+    title: 'This request does not match Quilltip’s settings',
+    detail: 'Quilltip prepared it for another network. Nothing was signed.',
   },
   contract: {
-    title: 'This request does not match QuillTip’s settings',
-    detail: 'QuillTip prepared it for another contract. Nothing was signed.',
+    title: 'This request does not match Quilltip’s settings',
+    detail: 'Quilltip prepared it for another contract. Nothing was signed.',
   },
   address: {
     title: 'This request does not match your wallet',
-    detail: 'QuillTip prepared it for another address. Nothing was signed.',
+    detail: 'Quilltip prepared it for another address. Nothing was signed.',
   },
 }
 
 const UNREACHABLE: PaymentFailure = {
-  title: 'QuillTip could not prepare this',
+  title: 'Quilltip could not prepare this',
   detail: 'Check your connection and try again. Nothing was sent.',
 }
 

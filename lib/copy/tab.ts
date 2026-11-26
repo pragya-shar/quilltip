@@ -11,7 +11,7 @@ export const TAB_PAGE = {
   loading: 'Loading your tab…',
   unavailableTitle: 'Tabs are not available on this site yet',
   unavailableDetail:
-    'This QuillTip deployment has not turned on tips on Stellar. Nothing was sent.',
+    'This Quilltip deployment has not turned on tips on Stellar. Nothing was sent.',
   gateHeading: 'Before you open a tab',
 } as const
 
@@ -92,7 +92,7 @@ export const TAB_KEYS = {
   pendingAction: 'Finish setting up',
   stoppedTitle: 'Quick tips are stopped on this device',
   stoppedDetail:
-    'This device’s tab history did not match QuillTip’s, so it stopped using its key. Your balance is safe and tips you already sent still settle. Set up quick tips again to keep tipping.',
+    'This device’s tab history did not match Quilltip’s, so it stopped using its key. Your balance is safe and tips you already sent still settle. Set up quick tips again to keep tipping.',
   storageTitle: 'This browser can’t keep a quick-tip key',
   storageDetail:
     'Its storage is blocked, which some private windows do. Tip from your wallet, or use a normal window.',
@@ -138,9 +138,9 @@ export const TAB_CLOSE = {
 export const TAB_SETTLEMENT = {
   offTitle: 'Settlement is switched off',
   offReader:
-    'QuillTip is not settling tab tips right now. Tips you sent are recorded and stay counted against your tab until they settle. New quick tips are paused.',
+    'Quilltip is not settling tab tips right now. Tips you sent are recorded and stay counted against your tab until they settle. New quick tips are paused.',
   offWriter:
-    'QuillTip is not settling tab tips right now. Tips readers sent you are recorded and settle once it is back on.',
+    'Quilltip is not settling tab tips right now. Tips readers sent you are recorded and settle once it is back on.',
 } as const
 
 export const TAB_TIP = {
@@ -154,11 +154,11 @@ export const TAB_TIP = {
   another: 'Send another',
   unavailable: 'Quick tips are unavailable right now',
   settlementOff:
-    'QuillTip is not settling tab tips at the moment, so it accepts none. Tip from your wallet instead. Nothing was paid.',
+    'Quilltip is not settling tab tips at the moment, so it accepts none. Tip from your wallet instead. Nothing was paid.',
   unconfirmedTitle: 'We could not confirm this tip',
   unconfirmedDetail:
     'The connection dropped after it was sent. It may have been accepted: check your tab before sending it again.',
-  unreachableTitle: 'QuillTip could not be reached',
+  unreachableTitle: 'Quilltip could not be reached',
   unreachableDetail: 'Check your connection and try again. Nothing was paid.',
   stoppedTitle: 'This tip was not signed',
   checkTab: 'Check your tab',
@@ -167,7 +167,7 @@ export const TAB_TIP = {
 export const COLLECT = {
   heading: 'Tab earnings',
   intro:
-    'Readers with a tab tip you without a wallet prompt. QuillTip settles those tips on Stellar testnet, and you collect them to your wallet when you choose.',
+    'Readers with a tab tip you without a wallet prompt. Quilltip settles those tips on Stellar testnet, and you collect them to your wallet when you choose.',
   ready: 'Ready to collect',
   readyNote: 'In the Tab contract for you now.',
   waiting: 'Waiting for settlement',
