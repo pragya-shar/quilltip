@@ -5,6 +5,7 @@ import { internal } from './_generated/api'
 import type { MutationCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { markWaitlistJoined } from './waitlist'
+import { classifyNewAccount } from './lib/internalAccounts'
 import {
   PASSWORD_MIN_LENGTH,
   PASSWORD_REGEX,
@@ -104,13 +105,30 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   ],
   callbacks: {
     async afterUserCreatedOrUpdated(ctx, { userId, existingUserId, profile }) {
-      // A new account closes the matching waitlist entry, if any.
-      if (existingUserId) return
-      await markWaitlistJoined(
-        ctx as unknown as MutationCtx,
-        userId as Id<'users'>,
-        profile.email
-      )
+      await afterAccountCreatedOrUpdated(ctx as unknown as MutationCtx, {
+        userId: userId as Id<'users'>,
+        existingUserId: (existingUserId ?? null) as Id<'users'> | null,
+        email: profile.email,
+      })
     },
   },
 })
+
+/**
+ * Runs after Convex Auth writes an account. Only a new account is handled:
+ * sign-in and password reset pass `existingUserId` and change nothing here.
+ */
+export async function afterAccountCreatedOrUpdated(
+  ctx: MutationCtx,
+  args: {
+    userId: Id<'users'>
+    existingUserId: Id<'users'> | null
+    email: string | undefined
+  }
+) {
+  if (args.existingUserId) return
+  // A new account closes the matching waitlist entry, if any.
+  await markWaitlistJoined(ctx, args.userId, args.email)
+  // Internal (staff) accounts by email domain, for usage metrics.
+  await classifyNewAccount(ctx, args.userId, args.email)
+}
