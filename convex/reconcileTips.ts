@@ -148,12 +148,15 @@ export const cleanupExpiredTipIntents = internalAction({
 export const getRecentConfirmedArticleTipsForReconcile = internalQuery({
   args: { cutoffMs: v.number() },
   handler: async (ctx, args) => {
-    const tips = await ctx.db
+    const confirmed = await ctx.db
       .query('tips')
       .withIndex('by_status_created', (q) =>
         q.eq('status', 'CONFIRMED').gt('createdAt', args.cutoffMs)
       )
       .collect()
+    // v2 rows are verified against the v2 Core contract by
+    // convex/chain/submissions.ts; the v1 reconciler must never reverse them.
+    const tips = confirmed.filter((tip) => tip.contractVersion !== 'v2')
 
     // Preload author stellar addresses so the action doesn't need to fan out
     // to a second query per tip. Order preserved.

@@ -21,8 +21,9 @@ export interface PublicUser {
  */
 export async function enrichWithUser(
   ctx: { db: DatabaseReader },
-  userId: Id<'users'>
+  userId: Id<'users'> | undefined
 ): Promise<PublicUser | null> {
+  if (!userId) return null
   const user = (await ctx.db.get(userId)) as UserDoc | null
   if (!user) return null
   return {
