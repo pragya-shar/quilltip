@@ -10,27 +10,42 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ArrowUpRight } from 'lucide-react'
+import {
+  OFFERED_WALLETS,
+  WALLET_CATALOG,
+  type WalletCatalogEntry,
+} from '@/lib/stellar/wallet-catalog'
+import { WalletIcon } from './WalletIcon'
 
-type WalletInstallLink = {
-  name: string
-  href: string
-  note?: string
-}
+type InstallLink = { entry: WalletCatalogEntry; href: string; note: string }
 
-// Official sites, as listed by Stellar Wallets Kit 2.x.
-const WALLET_INSTALL_LINKS: WalletInstallLink[] = [
-  {
-    name: 'Varial',
-    href: 'https://varialwallet.com',
-    note: 'Formerly Freighter',
-  },
-  { name: 'xBull', href: 'https://xbull.app' },
-  { name: 'LOBSTR', href: 'https://lobstr.co' },
-  {
-    name: 'Albedo',
-    href: 'https://albedo.link',
-    note: 'Web wallet; needs an HTTPS page',
-  },
+const EXTENSIONS: InstallLink[] = OFFERED_WALLETS.filter(
+  (entry) => entry.kind === 'extension' || entry.kind === 'extension-or-web'
+).map((entry) => ({
+  entry,
+  href: entry.url,
+  note: entry.formerly
+    ? `Formerly ${entry.formerly}. Browser extension`
+    : 'Browser extension',
+}))
+
+const WEB_WALLETS: InstallLink[] = OFFERED_WALLETS.filter(
+  (entry) => entry.kind === 'web' || entry.kind === 'extension-or-web'
+).map((entry) => ({
+  entry,
+  href: entry.webUrl ?? entry.url,
+  note: entry.needsHttps
+    ? 'Web wallet; needs an HTTPS page'
+    : 'Web wallet; opens in a new window',
+}))
+
+const NOT_SUPPORTED = WALLET_CATALOG.filter((entry) => !entry.offered)
+  .map((entry) => entry.name)
+  .join(', ')
+
+const GROUPS = [
+  { id: 'extensions', heading: 'Browser extensions', links: EXTENSIONS },
+  { id: 'web', heading: 'Web wallets, nothing to install', links: WEB_WALLETS },
 ]
 
 export function InstallWalletDialog({
@@ -63,46 +78,60 @@ export function InstallWalletDialog({
         }}
       >
         <DialogHeader>
-          <span className="wallet-install-eyebrow">
-            Your wallet · Stellar testnet
-          </span>
           <DialogTitle>Make room for a little appreciation.</DialogTitle>
           <DialogDescription>
-            Choose a Stellar wallet, follow its setup steps, then return here to
-            connect. If you just installed it, reload when your current task is
-            saved.
+            Choose a Stellar wallet and follow its setup steps. QuillTip uses
+            Stellar testnet. An extension needs a reload once it is installed,
+            so save your current task first.
           </DialogDescription>
         </DialogHeader>
 
         <div className="wallet-install-body">
-          <div className="wallet-install-options">
-            {WALLET_INSTALL_LINKS.map((w) => (
-              <a
-                key={w.name}
-                href={w.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="wallet-install-option"
+          {GROUPS.map((group) => (
+            <section
+              key={group.id}
+              className="wallet-group"
+              aria-labelledby={`wallet-install-${group.id}`}
+            >
+              <h3
+                id={`wallet-install-${group.id}`}
+                className="wallet-group-heading"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="wallet-install-name">{w.name}</div>
-                    {w.note ? (
-                      <div className="wallet-install-note">{w.note}</div>
-                    ) : null}
-                  </div>
-                  <span className="wallet-install-destination">
-                    Open site
-                    <ArrowUpRight size={18} aria-hidden />
-                  </span>
-                </div>
-              </a>
-            ))}
-          </div>
+                {group.heading}
+              </h3>
+              <ul className="wallet-install-options">
+                {group.links.map(({ entry, href, note }) => (
+                  <li key={`${group.id}-${entry.id}`}>
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="wallet-install-option wallet-picker-option"
+                    >
+                      <span className="wallet-row-body">
+                        <WalletIcon name={entry.name} src={entry.icon} />
+                        <span className="wallet-row-text">
+                          <span className="wallet-install-name">
+                            {entry.name}
+                          </span>
+                          <span className="wallet-install-note">{note}</span>
+                        </span>
+                      </span>
+                      <span className="wallet-install-destination">
+                        Open site
+                        <ArrowUpRight size={16} aria-hidden />
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
 
           <p className="wallet-install-note">
             Reading is free. Keep your recovery phrase private; QuillTip will
-            never ask for it. Use Testnet and free test XLM for practice.
+            never ask for it. Use Testnet and free test XLM for practice. Not
+            supported yet: {NOT_SUPPORTED}.
           </p>
           <button
             type="button"

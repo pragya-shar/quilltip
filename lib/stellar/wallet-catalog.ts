@@ -17,6 +17,8 @@ export const WALLET_IDS = {
   lobstr: 'lobstr',
   rabet: 'rabet',
   hana: 'hana',
+  scopuly: 'scopuly',
+  dcent: 'dcent',
   hot: 'hot-wallet',
   ledger: 'LEDGER',
   trezor: 'TREZOR',
@@ -66,9 +68,15 @@ export type WalletCatalogEntry = {
   kind: WalletKind
   /** Where to install or open the wallet. */
   url: string
-  /** The kit's icon for the wallet (CDN allowed by `img-src`). */
-  icon: string
-  /** The page must be served over HTTPS (Albedo refuses http origins). */
+  /** The web wallet's own address, when it differs from `url`. */
+  webUrl?: string
+  /**
+   * The wallet's icon on the kit's CDN, which `img-src` allows. Absent when
+   * the CDN has none: the picker then uses the kit module's own icon if it
+   * is a `data:` URL, and otherwise the wallet's initial.
+   */
+  icon?: string
+  /** The page must be served over HTTPS (WebUSB, WalletConnect). */
   needsHttps: boolean
   /** The wallet opens its own window, which a pop-up blocker can stop. */
   opensWindow: boolean
@@ -107,20 +115,10 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     name: 'xBull',
     kind: 'extension-or-web',
     url: 'https://xbull.app',
+    webUrl: 'https://wallet.xbull.app',
     icon: `${KIT_ICONS}/xbull.png`,
     needsHttps: false,
     opensWindow: true,
-    capabilities: { ...FULL, authEntry: false, reportsNetwork: false },
-    offered: true,
-  },
-  {
-    id: WALLET_IDS.lobstr,
-    name: 'LOBSTR',
-    kind: 'extension',
-    url: 'https://lobstr.co',
-    icon: `${KIT_ICONS}/lobstr.png`,
-    needsHttps: false,
-    opensWindow: false,
     capabilities: { ...FULL, authEntry: false, reportsNetwork: false },
     offered: true,
   },
@@ -152,12 +150,33 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     offered: true,
   },
   {
+    id: WALLET_IDS.scopuly,
+    name: 'Scopuly',
+    kind: 'extension',
+    url: 'https://extension.scopuly.com',
+    needsHttps: false,
+    opensWindow: false,
+    capabilities: FULL,
+    offered: true,
+  },
+  {
+    id: WALLET_IDS.dcent,
+    name: "D'CENT",
+    kind: 'extension',
+    url: 'https://dcentwallet.com',
+    needsHttps: false,
+    opensWindow: false,
+    capabilities: FULL,
+    offered: true,
+  },
+  {
     id: WALLET_IDS.albedo,
     name: 'Albedo',
     kind: 'web',
     url: 'https://albedo.link',
     icon: `${KIT_ICONS}/albedo.png`,
-    needsHttps: true,
+    // Albedo answers http pages too (checked on http://127.0.0.1).
+    needsHttps: false,
     opensWindow: true,
     // Albedo has a message intent, but its output is not SEP-53, so the kit
     // reports it as unsupported and the address proof signs a transaction.
@@ -170,11 +189,23 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     offered: true,
   },
   {
+    id: WALLET_IDS.lobstr,
+    name: 'LOBSTR',
+    kind: 'extension',
+    url: 'https://lobstr.co',
+    icon: `${KIT_ICONS}/lobstr.png`,
+    needsHttps: false,
+    opensWindow: false,
+    capabilities: { ...FULL, authEntry: false, reportsNetwork: false },
+    offered: false,
+    notOfferedReason:
+      'The LOBSTR signer extension signs for Stellar mainnet only and has no testnet setting.',
+  },
+  {
     id: WALLET_IDS.hot,
     name: 'HOT Wallet',
     kind: 'extension',
     url: 'https://hot-labs.org/wallet',
-    icon: 'https://storage.herewallet.app/logo.png',
     needsHttps: false,
     opensWindow: true,
     capabilities: { ...FULL, reportsNetwork: true },
@@ -224,7 +255,6 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     name: 'MetaMask',
     kind: 'extension',
     url: 'https://metamask.io',
-    icon: `${KIT_ICONS}/metamask.png`,
     needsHttps: false,
     opensWindow: false,
     capabilities: FULL,

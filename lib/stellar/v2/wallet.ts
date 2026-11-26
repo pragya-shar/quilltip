@@ -102,8 +102,10 @@ export type WalletAccess = 'installed' | 'web' | 'not-installed' | 'unavailable'
 
 export type WalletOption = Pick<
   ISupportedWallet,
-  'id' | 'name' | 'isAvailable' | 'url' | 'icon'
+  'id' | 'name' | 'isAvailable' | 'url'
 > & {
+  /** An icon `img-src` allows, or none (the picker shows the initial). */
+  icon?: string
   access: WalletAccess
   kind: WalletKind
   formerly?: string
@@ -224,38 +226,70 @@ export function unavailableReason(
   return undefined
 }
 
-/**
- * Runs `request` and fails it with `popup-blocked` as soon as the wallet's
- * call to `open` returns no window. The original `open` is restored when the
- * last watched request settles.
- */
+/** How often a watched wallet window is checked, and the wait after it closes. */
+export const POPUP_POLL_MS = 250
+export const POPUP_CLOSED_GRACE_MS = 1_000
+
+type PopupObserver = (opened: { closed?: boolean } | null) => void
 let watchers = 0
 let restoreOpen: (() => void) | null = null
-let onBlocked = new Set<() => void>()
+const observers = new Set<PopupObserver>()
 
+/**
+ * Runs a request to a wallet that opens its own window (xBull's web wallet,
+ * Albedo) and ends it early when the window shows the outcome:
+ * - `popup-blocked` at once when the browser returns no window;
+ * - `rejected` when the reader closes the window and the wallet has not
+ *   answered a second later (Albedo never answers a closed window).
+ * The page's `open` is wrapped only while a request is watched.
+ */
 export function watchPopups<T>(
   host: WalletPage['popupHost'],
   walletId: string,
   request: () => Promise<T>
 ): Promise<T> {
   if (!host) return request()
-  let blocked: () => void = () => {}
-  const blockedPromise = new Promise<never>((_, reject) => {
-    blocked = () =>
-      reject(
+  const timers: ReturnType<typeof setTimeout>[] = []
+  let fail: (error: WalletError) => void = () => {}
+  const failed = new Promise<never>((_, reject) => {
+    fail = reject
+  })
+  const observer: PopupObserver = (opened) => {
+    if (!opened) {
+      fail(
         new WalletError(
           'popup-blocked',
           'The browser blocked the wallet window',
           { walletId }
         )
       )
-  })
-  onBlocked.add(blocked)
+      return
+    }
+    const poll = setInterval(() => {
+      if (!opened.closed) return
+      clearInterval(poll)
+      timers.push(
+        setTimeout(
+          () =>
+            fail(
+              new WalletError(
+                'rejected',
+                'The wallet window was closed before the request was approved',
+                { walletId }
+              )
+            ),
+          POPUP_CLOSED_GRACE_MS
+        )
+      )
+    }, POPUP_POLL_MS)
+    timers.push(poll)
+  }
+  observers.add(observer)
   if (watchers++ === 0) {
     const original = host.open
     const wrapped = (...args: never[]) => {
-      const opened = original.apply(host, args)
-      if (!opened) onBlocked.forEach((notify) => notify())
+      const opened = original.apply(host, args) as { closed?: boolean } | null
+      observers.forEach((notify) => notify(opened ?? null))
       return opened
     }
     host.open = wrapped
@@ -263,12 +297,12 @@ export function watchPopups<T>(
       if (host.open === wrapped) host.open = original
     }
   }
-  return Promise.race([request(), blockedPromise]).finally(() => {
-    onBlocked.delete(blocked)
+  return Promise.race([request(), failed]).finally(() => {
+    timers.forEach((timer) => clearTimeout(timer))
+    observers.delete(observer)
     if (--watchers === 0) {
       restoreOpen?.()
       restoreOpen = null
-      onBlocked = new Set()
     }
   })
 }
@@ -481,7 +515,8 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
         name: entry?.name ?? name,
         isAvailable: access === 'installed' || access === 'web',
         url: entry?.url ?? url,
-        icon: entry?.icon ?? icon,
+        // Only icons `img-src` allows: the kit CDN, or a module's data: URL.
+        icon: entry?.icon ?? (icon?.startsWith('data:') ? icon : undefined),
         access,
         kind: entry?.kind ?? 'extension',
         ...(entry?.formerly ? { formerly: entry.formerly } : {}),

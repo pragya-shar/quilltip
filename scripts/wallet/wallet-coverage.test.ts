@@ -17,6 +17,8 @@ import {
   TransactionBuilder,
 } from '@stellar/stellar-sdk'
 import {
+  POPUP_CLOSED_GRACE_MS,
+  POPUP_POLL_MS,
   createWalletAdapter,
   watchPopups,
   type KitBundle,
@@ -52,14 +54,19 @@ describe('catalog', () => {
     expect(OFFERED_WALLETS.map((w) => w.id)).toEqual([
       'varial',
       'xbull',
-      'lobstr',
       'rabet',
       'hana',
+      'scopuly',
+      'dcent',
       'albedo',
     ])
     for (const entry of WALLET_CATALOG) {
       expect(entry.url).toMatch(/^https:\/\//)
-      expect(entry.icon).toMatch(/^https:\/\//)
+      if (entry.icon) {
+        expect(entry.icon).toMatch(
+          /^https:\/\/stellar\.creit\.tech\/wallet-icons\//
+        )
+      }
       if (!entry.offered) expect(entry.notOfferedReason).toBeTruthy()
     }
   })
@@ -72,7 +79,7 @@ describe('catalog', () => {
   })
 
   test('the wallets that cannot sign for testnet are not offered', () => {
-    for (const id of ['hot-wallet', 'metamask', 'TREZOR', 'LEDGER']) {
+    for (const id of ['lobstr', 'hot-wallet', 'metamask', 'TREZOR', 'LEDGER']) {
       expect(walletEntry(id)?.offered).toBe(false)
     }
   })
@@ -132,9 +139,14 @@ const WALLET_ERRORS: [string, unknown, WalletErrorKind][] = [
     },
     'failed',
   ],
-  // LOBSTR (@lobstrco/signer-extension-api)
-  ['lobstr', { code: -1, message: 'Lobstr is not connected' }, 'no-wallet'],
-  ['lobstr', { code: -1, message: 'User declined' }, 'rejected'],
+  [
+    'varial',
+    {
+      code: -1,
+      message: 'The wallet is locked. Unlock Varial and try again.',
+    },
+    'locked',
+  ],
   // Rabet (window.rabet)
   ['rabet', { code: -1, message: 'Rabet is not installed' }, 'no-wallet'],
   [
@@ -156,6 +168,32 @@ const WALLET_ERRORS: [string, unknown, WalletErrorKind][] = [
   ['hana', { code: -1, message: 'Hana Wallet is not installed' }, 'no-wallet'],
   ['hana', { code: -1, message: 'User rejected the request' }, 'rejected'],
   ['hana', { code: -1, message: 'Wallet is locked' }, 'locked'],
+  // Scopuly (window.scopuly)
+  [
+    'scopuly',
+    {
+      code: -3,
+      message:
+        'Scopuly provider is not available. Install the Scopuly browser extension or open the dApp inside the Scopuly app.',
+    },
+    'no-wallet',
+  ],
+  ['scopuly', { code: -4, message: 'User rejected the request' }, 'rejected'],
+  // D'CENT (window.dcentStellarProvider)
+  [
+    'dcent',
+    { code: -1, message: "D'CENT Stellar provider is not available" },
+    'no-wallet',
+  ],
+  [
+    'dcent',
+    {
+      code: -3,
+      message:
+        "Getting the address from D'CENT is not allowed, please request access first.",
+    },
+    'locked',
+  ],
   // Any wallet
   ['varial', { code: -2, message: 'Request timed out' }, 'timeout'],
   ['xbull', 'Something broke', 'failed'],
@@ -284,7 +322,7 @@ async function rejection(promise: Promise<unknown>): Promise<WalletError> {
 }
 
 describe('listing', () => {
-  const ids = ['varial', 'xbull', 'lobstr', 'rabet', 'hana', 'albedo']
+  const ids = ['varial', 'xbull', 'rabet', 'hana', 'scopuly', 'albedo']
 
   test('groups wallets as installed, web and not installed', async () => {
     const fake = fakeKit(ids, ['varial', 'xbull', 'albedo'])
@@ -297,9 +335,9 @@ describe('listing', () => {
     expect(list.map((w) => [w.id, w.access])).toEqual([
       ['varial', 'installed'],
       ['xbull', 'web'],
-      ['lobstr', 'not-installed'],
       ['rabet', 'not-installed'],
       ['hana', 'not-installed'],
+      ['scopuly', 'not-installed'],
       ['albedo', 'web'],
     ])
     expect(list[0]).toMatchObject({
@@ -346,6 +384,41 @@ describe('pop-ups', () => {
     expect(error.kind).toBe('popup-blocked')
     expect(error.walletId).toBe('albedo')
     expect(host.open).toBe(original)
+  })
+
+  test('closing the wallet window ends the request as declined', async () => {
+    vi.useFakeTimers()
+    const popup = { closed: false }
+    const host = { open: vi.fn(() => popup) as (...args: never[]) => unknown }
+    const pending = rejection(
+      watchPopups(host, 'albedo', () => {
+        host.open()
+        return new Promise(() => {})
+      })
+    )
+    await vi.advanceTimersByTimeAsync(POPUP_POLL_MS * 4)
+    popup.closed = true
+    await vi.advanceTimersByTimeAsync(POPUP_POLL_MS + POPUP_CLOSED_GRACE_MS)
+    const error = await pending
+    expect(error.kind).toBe('rejected')
+    expect(walletErrorMessage(error)?.detail).toMatch(
+      /^The Albedo window was closed or the request was declined/
+    )
+  })
+
+  test('a wallet that answers as its window closes is not overridden', async () => {
+    vi.useFakeTimers()
+    const popup = { closed: false }
+    const host = { open: vi.fn(() => popup) as (...args: never[]) => unknown }
+    const result = watchPopups(host, 'albedo', async () => {
+      host.open()
+      await new Promise((resolve) => setTimeout(resolve, POPUP_POLL_MS * 2))
+      popup.closed = true
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      return 'signed'
+    })
+    await vi.advanceTimersByTimeAsync(POPUP_POLL_MS * 2 + 100)
+    await expect(result).resolves.toBe('signed')
   })
 
   test('an opened window does not interrupt the request', async () => {
@@ -460,7 +533,7 @@ describe('signature check for wallets that cannot report a network', () => {
     return { wallet, fake }
   }
 
-  test.each(['xbull', 'lobstr', 'rabet', 'hana', 'albedo'])(
+  test.each(['xbull', 'rabet', 'hana', 'albedo'])(
     '%s on testnet: the signature is accepted',
     async (walletId) => {
       const { wallet } = adapter(walletId, (xdr) => signFor(xdr, KEY, TESTNET))
@@ -473,7 +546,7 @@ describe('signature check for wallets that cannot report a network', () => {
     }
   )
 
-  test.each(['xbull', 'lobstr', 'rabet', 'hana', 'albedo'])(
+  test.each(['xbull', 'rabet', 'hana', 'albedo'])(
     '%s on mainnet: the signature is refused as the wrong network, nothing sent',
     async (walletId) => {
       const { wallet } = adapter(walletId, (xdr) =>

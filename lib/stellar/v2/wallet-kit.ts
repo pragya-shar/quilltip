@@ -3,10 +3,11 @@
  * the browser. Only this file imports the kit at runtime.
  *
  * Modules: Varial (formerly Freighter), xBull (extension, or its web wallet
- * in a new window), Albedo, LOBSTR, Rabet and Hana. `docs/wallets.md` lists
- * the wallets that are not offered and why: HOT Wallet and MetaMask sign for
- * Stellar mainnet only, Trezor cannot sign Soroban calls, and Ledger would
- * sign a bare transaction hash.
+ * in a new window), Rabet, Hana, Scopuly, D'CENT and Albedo, the order of
+ * `OFFERED_WALLETS` in `../wallet-catalog.ts`. `docs/wallets.md` lists the
+ * wallets that are not offered and why: LOBSTR's extension, HOT Wallet and
+ * MetaMask sign for Stellar mainnet only, Trezor cannot sign Soroban calls
+ * through the kit, and Ledger would sign a bare transaction hash.
  *
  * WalletConnect (mobile wallets) is not supported yet. The kit's WalletConnect
  * module depends on Reown AppKit, which this app runs on zod 4 through a
@@ -59,27 +60,31 @@ export async function loadWalletKitBundle(): Promise<KitBundle> {
     { KitEventType },
     { VarialModule },
     { xBullModule },
-    { AlbedoModule },
-    { LobstrModule },
     { RabetModule },
     { HanaModule },
+    { ScopulyModule },
+    { DcentModule },
+    { AlbedoModule },
   ] = await Promise.all([
     import('@creit.tech/stellar-wallets-kit/sdk'),
     import('@creit.tech/stellar-wallets-kit/types'),
     import('@creit.tech/stellar-wallets-kit/modules/varial'),
     import('@creit.tech/stellar-wallets-kit/modules/xbull'),
-    import('@creit.tech/stellar-wallets-kit/modules/albedo'),
-    import('@creit.tech/stellar-wallets-kit/modules/lobstr'),
     import('@creit.tech/stellar-wallets-kit/modules/rabet'),
     import('@creit.tech/stellar-wallets-kit/modules/hana'),
+    import('@creit.tech/stellar-wallets-kit/modules/scopuly'),
+    import('@creit.tech/stellar-wallets-kit/modules/dcent'),
+    import('@creit.tech/stellar-wallets-kit/modules/albedo'),
   ])
+  // In the order of OFFERED_WALLETS; the picker keeps the kit's order.
   const modules: ModuleInterface[] = [
     new VarialModule(),
     new xBullModule(),
-    new AlbedoModule(),
-    new LobstrModule(),
     new RabetModule(),
     new HanaModule(),
+    new ScopulyModule(),
+    new DcentModule(),
+    new AlbedoModule(),
   ]
   return {
     kit: StellarWalletsKit as unknown as KitBundle['kit'],
