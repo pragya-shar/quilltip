@@ -715,7 +715,7 @@ export async function resolveWithoutTransaction(
     const events = await ctx.db
       .query('chainEvents')
       .withIndex('by_client_ref', (q) => q.eq('clientRef', clientRef))
-      .collect()
+      .take(20)
     const event = events.find(
       (e) => e.contractId === submission.contractId && e.type === 'tipped'
     )

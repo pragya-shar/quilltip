@@ -28,10 +28,10 @@ export const setContractVersionV1 = internalMutation({
   },
   handler: async (ctx, args) => {
     const apply = args.apply === true
-    const numItems = Math.min(
-      Math.max(1, Math.floor(args.pageSize ?? DEFAULT_PAGE_SIZE)),
-      MAX_PAGE_SIZE
-    )
+    const requested = Math.floor(args.pageSize ?? DEFAULT_PAGE_SIZE)
+    const numItems = Number.isFinite(requested)
+      ? Math.min(Math.max(1, requested), MAX_PAGE_SIZE)
+      : DEFAULT_PAGE_SIZE
     const page = await ctx.db
       .query(args.table)
       .paginate({ cursor: args.cursor ?? null, numItems })

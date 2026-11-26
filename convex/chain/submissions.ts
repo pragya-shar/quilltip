@@ -44,6 +44,7 @@ import { verifyTippedTransaction } from '../lib/chain/verify'
 const TX_HASH = /^[0-9a-f]{64}$/
 const RECHECK_LEASE_TTL_MS = 110_000
 const RECHECK_BATCH = 50
+const RECHECK_RUN_BUDGET_MS = 80_000
 
 /** Backoff for verification retries: 2, 4, 8 … 60 seconds. */
 export function verifyRetryDelayMs(attempt: number): number {
@@ -452,12 +453,16 @@ export const recheckPending = internalAction({
     )
     if (!acquired) return { skipped: true, checked: 0 }
     let checked = 0
+    const startedAt = Date.now()
     try {
       const ids = await ctx.runQuery(
         internal.chain.submissions.listRecheckCandidates,
         { now: Date.now() }
       )
       for (const submissionId of ids) {
+        // Stop well inside the lease so two runs never overlap; the rest are
+        // reached on the next run.
+        if (Date.now() - startedAt > RECHECK_RUN_BUDGET_MS) break
         checked++
         const { result } = await checkSubmission(ctx, submissionId)
         if (result === 'not_found' || result === 'skipped') {
