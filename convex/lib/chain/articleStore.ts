@@ -12,6 +12,7 @@ import { v, type Infer } from 'convex/values'
 import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx } from '../../_generated/server'
 import {
+  ARTICLE_CONFIRMED,
   ARTICLE_EVENT_FOR_KIND,
   isArticleSubmissionKind,
   matchArticleEvent,
@@ -259,7 +260,7 @@ export async function resolveArticleSubmissionFromEvent(
     return 'none'
   }
   await ctx.db.patch(submission._id, {
-    status: 'CONFIRMED',
+    status: ARTICLE_CONFIRMED,
     needsReview: false,
     txHash: submission.txHash ?? args.txHash,
     ledger: args.ledger,
@@ -304,7 +305,7 @@ export async function resolveArticleSubmissionFromState(
   }
   if (!reached) return false
   await ctx.db.patch(submission._id, {
-    status: 'CONFIRMED',
+    status: ARTICLE_CONFIRMED,
     needsReview: false,
     ...(article.txHash && !submission.txHash && submission.kind === 'register'
       ? { txHash: article.txHash }

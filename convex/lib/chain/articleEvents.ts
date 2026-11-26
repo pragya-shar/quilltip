@@ -166,8 +166,18 @@ export function articleEventFacts(event: {
   }
 }
 
+/**
+ * The confirmed state of an article submission. Article submissions are not
+ * tip rows; tip rows are confirmed only through `confirmedTipPatch`.
+ */
+export const ARTICLE_CONFIRMED = 'CONFIRMED' as const
+
 export type ArticleVerification =
-  | { status: 'CONFIRMED'; needsReview: false; facts: ArticleEventFacts }
+  | {
+      status: typeof ARTICLE_CONFIRMED
+      needsReview: false
+      facts: ArticleEventFacts
+    }
   | {
       status: 'MISMATCH'
       mismatchReason: string
@@ -232,7 +242,7 @@ export function matchArticleEvent(
     if (facts.newAuthor !== expected.newAuthor) return mismatch('new')
     if (facts.previous !== expected.author) return mismatch('previous')
   }
-  return { status: 'CONFIRMED', needsReview: false, facts }
+  return { status: ARTICLE_CONFIRMED, needsReview: false, facts }
 }
 
 /**
