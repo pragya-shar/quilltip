@@ -92,10 +92,12 @@ It passes `--meta source_repo` and `--meta commit_sha`, writes `SHA256SUMS` and
 `sizes.tsv`, and fails when a Wasm exceeds 120,000 bytes. CI runs it twice and
 compares the hashes.
 
-Skeleton sizes (Stellar CLI 30.0.1, `--optimize`):
+Skeleton sizes from the reproducible build (Stellar CLI 30.0.1, `--optimize`,
+including the `source_repo` and `commit_sha` metadata). Two builds of one
+commit produced identical hashes.
 
 | Wasm                        | Bytes |
 | --------------------------- | ----: |
-| `quilltip_core.wasm`        |   459 |
-| `quilltip_tab.wasm`         |   455 |
-| `quilltip_article_nft.wasm` |   463 |
+| `quilltip_core.wasm`        |   576 |
+| `quilltip_tab.wasm`         |   572 |
+| `quilltip_article_nft.wasm` |   580 |
