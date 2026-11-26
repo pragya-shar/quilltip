@@ -1,21 +1,24 @@
 /**
  * Payment kit fixture. `?state=<id>` renders one state from `states.tsx`;
- * `?state=live-progress` and `?state=live-gate` are driven by the spec
- * through `window.__payments`; no parameter lists every state.
- * `&theme=dark` renders the dark palette.
+ * `?state=live-progress`, `?state=live-gate` and `?state=live-notice` are
+ * driven by the spec through `window.__payments`; no parameter lists every
+ * state. `&theme=dark` renders the dark palette; `&surface=page` renders the
+ * live progress on a page surface instead of the tip dialog.
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AmountSummary } from '../../../components/payments/AmountSummary'
+import { PaymentNotice } from '../../../components/payments/PaymentNotice'
 import { TransactionProgress } from '../../../components/payments/TransactionProgress'
 import { WalletGate } from '../../../components/payments/WalletGate'
 import type {
   PaymentPhase,
+  ProgressSource,
   WalletGateState,
 } from '../../../components/payments/payment-types'
 import '../../../components/tipping/tipping.css'
 import './fixture.css'
-import { HASH, STATES, record, type Surface } from './states'
+import { HASH, STATES, record, sourceForPhase, type Surface } from './states'
 
 const params = new URLSearchParams(location.search)
 const id = params.get('state')
@@ -23,8 +26,11 @@ if (params.get('theme') === 'dark')
   document.documentElement.classList.add('dark')
 
 type Driver = {
+  /** Sets the record (and client state) that produces this phase. */
   phase?: (phase: PaymentPhase) => void
+  source?: (source: ProgressSource) => void
   gate?: (state: WalletGateState) => void
+  notice?: (shown: boolean) => void
 }
 const driver: Driver = {}
 ;(window as unknown as { __payments: Driver }).__payments = driver
@@ -58,12 +64,16 @@ function Frame({
 }
 
 function LiveProgress() {
-  const [phase, setPhase] = useState<PaymentPhase | null>(null)
+  const [source, setSource] = useState<ProgressSource | null>(null)
+  const surface: Surface = params.get('surface') === 'page' ? 'page' : 'dialog'
   useEffect(() => {
-    driver.phase = setPhase
+    driver.source = setSource
+    driver.phase = (phase) => setSource(sourceForPhase(phase))
   }, [])
+  const hasHash =
+    source !== null && 'record' in source && source.record.status !== 'PREPARED'
   return (
-    <Frame surface="dialog">
+    <Frame surface={surface}>
       {/* Somewhere else to keep focus, as a reader does mid-article. */}
       <a href="#elsewhere" id="elsewhere">
         Elsewhere
@@ -71,29 +81,50 @@ function LiveProgress() {
       <AmountSummary
         total="10000000"
         breakdown={[
-          { label: 'To the author · 97.5%', amount: '9750000' },
-          { label: 'Platform fee · 2.5%', amount: '250000' },
+          { label: 'To the author', amount: '9750000' },
+          { label: 'Platform fee', amount: '250000' },
         ]}
       />
-      {phase === null ? (
+      {source === null ? (
         <button
           type="button"
           className="pay-fixture-send"
-          onClick={() => setPhase('simulating')}
+          onClick={() => setSource(sourceForPhase('simulating'))}
         >
           Send tip
         </button>
       ) : (
         <TransactionProgress
           flow="direct-tip"
-          phase={phase}
-          txHash={['simulating', 'signing'].includes(phase) ? null : HASH}
+          source={source}
+          txHash={hasHash ? HASH : null}
+          summary={{ amount: '10000000', to: 'Ada Lovelace' }}
+          onCancel={record('cancel')}
           onRetry={() => {
             record('retry')()
-            setPhase('simulating')
+            setSource(sourceForPhase('simulating'))
           }}
         />
       )}
+    </Frame>
+  )
+}
+
+function LiveNotice() {
+  const [shown, setShown] = useState(false)
+  useEffect(() => {
+    driver.notice = setShown
+  }, [])
+  return (
+    <Frame surface="dialog">
+      <button
+        type="button"
+        className="pay-fixture-send"
+        onClick={() => setShown(true)}
+      >
+        Send tip
+      </button>
+      {shown ? <PaymentNotice kind="paused" announce /> : null}
     </Frame>
   )
 }
@@ -141,6 +172,7 @@ function Index() {
 function Fixture() {
   if (id === 'live-progress') return <LiveProgress />
   if (id === 'live-gate') return <LiveGate />
+  if (id === 'live-notice') return <LiveNotice />
   const state = STATES.find((entry) => entry.id === id)
   if (!state) return <Index />
   return (

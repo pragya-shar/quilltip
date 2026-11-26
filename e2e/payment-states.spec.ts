@@ -83,9 +83,22 @@ for (const width of WIDTHS) {
   })
 }
 
+const RETRYABLE = new Set([
+  'result-failed',
+  'result-declined',
+  'result-failed-wallet',
+  'result-failed-long',
+  'result-failed-busy',
+  'result-expired',
+  'result-tab-op-failed',
+  'result-tab-op-expired',
+])
+
 test.describe('retry rule', () => {
-  for (const state of STATES.filter((entry) => entry.group === 'result')) {
-    const retryable = /^result-(failed|expired)/.test(state.id)
+  for (const state of STATES.filter(
+    (entry) => entry.group === 'result' || entry.group === 'progress'
+  )) {
+    const retryable = RETRYABLE.has(state.id)
     test(`${state.id} ${retryable ? 'offers' : 'never offers'} a retry`, async ({
       page,
     }) => {
@@ -110,6 +123,64 @@ test.describe('retry rule', () => {
     )
     await expect(page.getByRole('button')).toHaveCount(0)
   })
+
+  test('an unknown status is safe: checking, no retry, not confirmed', async ({
+    page,
+  }) => {
+    await open(page, 'progress-unknown-status')
+    await expect(page.locator('.pay-progress')).toHaveAttribute(
+      'data-phase',
+      'resuming'
+    )
+    await expect(page.locator('.pay-inline-status')).toHaveText(
+      'Checking whether this payment went through. This can take up to 5 minutes.'
+    )
+    await expect(page.locator('.pay-steps')).toHaveCount(0)
+  })
+})
+
+test.describe('testnet label', () => {
+  test.use({ viewport: { width: 375, height: 900 } })
+
+  test('every state with an amount or a transaction link names Stellar testnet', async ({
+    page,
+  }) => {
+    const missing: string[] = []
+    let checked = 0
+    for (const state of STATES) {
+      await open(page, state.id)
+      const root = page.locator('[aria-label="Fixture"]')
+      const text = await root.innerText()
+      const hasAmount = /\d XLM/.test(text)
+      const hasLink =
+        (await root.locator('a[href*="stellar.expert"]').count()) > 0
+      if (!hasAmount && !hasLink) continue
+      checked++
+      const labels = await root.locator('.pay-network-name').allInnerTexts()
+      if (!labels.some((label) => label.toLowerCase() === 'stellar testnet')) {
+        missing.push(state.id)
+      }
+    }
+    expect(checked).toBeGreaterThan(30)
+    expect(missing).toEqual([])
+  })
+
+  test('tab tips with no transaction of their own have no explorer link', async ({
+    page,
+  }) => {
+    for (const id of [
+      'tab-tip-accepted',
+      'tab-tip-shortfall',
+      'tab-tip-unpaid',
+      'tab-tip-rejected',
+      'tab-tip-void-reset',
+    ]) {
+      await open(page, id)
+      await expect(page.locator('a[href*="stellar.expert"]')).toHaveCount(0)
+    }
+    await open(page, 'tab-tip-settled')
+    await expect(page.locator('a[href*="stellar.expert"]')).toHaveCount(1)
+  })
 })
 
 test.describe('keyboard', () => {
@@ -130,7 +201,7 @@ test.describe('keyboard', () => {
     const actions: Record<string, string> = {
       'gate-signed-out': 'Sign in',
       'gate-no-wallet': 'Set up wallet',
-      'gate-locked': 'Try again',
+      'gate-locked': 'Connect again',
       'gate-wrong-network': 'Check again',
       'gate-unverified': 'Confirm wallet',
     }
@@ -185,45 +256,106 @@ test.describe('live regions and focus', () => {
     )
   }
 
-  test('each step is announced politely and a failure assertively', async ({
+  test('nothing is announced on page load', async ({ page }) => {
+    const loud: string[] = []
+    for (const state of STATES) {
+      await open(page, state.id)
+      await page.waitForTimeout(250)
+      for (const region of await page.locator('[aria-live]').all()) {
+        const text = (await region.textContent())?.trim()
+        if (text) loud.push(`${state.id}: ${text}`)
+      }
+    }
+    expect(loud).toEqual([])
+  })
+
+  test('focus stays in the payment while it runs, then moves to the result', async ({
     page,
   }) => {
     await open(page, 'live-progress')
     await page.getByRole('button', { name: 'Send tip' }).click()
-    await expect(polite(page)).toHaveText(
-      'Checking the details with Stellar testnet…'
-    )
+    // The start button is gone: focus moves to the hidden progress heading,
+    // which reads the step as its description, so it is not also announced.
+    const progress = page.getByRole('heading', { name: 'Payment progress' })
+    await expect(progress).toBeFocused()
+    await expect(progress).toHaveAccessibleDescription('Checking the details…')
+    await expect(polite(page)).toHaveText('')
     await drive(page, 'signing')
     await expect(polite(page)).toHaveText(
       'Approve the request in your wallet. It shows the network fee.'
     )
+    await expect(progress).toBeFocused()
     await expect(
       page.locator('.pay-steps [aria-current="step"]')
     ).toContainText('Approve in wallet')
-    await drive(page, 'checking')
-    await expect(polite(page)).toContainText(
-      'Waiting for Stellar testnet to confirm.'
+    await expect(page.locator('.pay-signing-help')).toHaveText(
+      'Don’t see the request? Open your wallet extension.'
     )
+    await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
+    await drive(page, 'checking')
+    await expect(polite(page)).toHaveText(
+      'Waiting for confirmation. You can close this. The result shows in your tip history.'
+    )
+    await expect(progress).toBeFocused()
     await drive(page, 'failed')
-    // The button that started the payment is gone; focus moves to the result
-    // title, which reads its detail as the description. The live regions stay
-    // quiet so the result is not read twice.
+    // The result title takes focus and reads its detail; the live regions
+    // stay quiet so the result is not read twice.
     const title = page.getByRole('heading', { name: 'Not sent' })
     await expect(title).toBeFocused()
-    await expect(title).toHaveAccessibleDescription('Nothing was paid.')
+    await expect(title).toHaveAccessibleDescription(/Nothing was paid\./)
     await expect(assertive(page)).toHaveText('')
     await expect(polite(page)).toHaveText('')
     await page.keyboard.press('Tab')
     await expect(page.getByRole('button', { name: 'Try again' })).toBeFocused()
     await page.keyboard.press('Enter')
-    await expect(polite(page)).toHaveText(
-      'Checking the details with Stellar testnet…'
-    )
+    // "Try again" is gone too: focus goes back to the progress heading.
+    await expect(
+      page.getByRole('heading', { name: 'Payment progress' })
+    ).toBeFocused()
   })
 
-  test('a confirmation is announced and focused without a retry', async ({
+  test('a payment started from the keyboard shows where focus is', async ({
     page,
   }) => {
+    await open(page, 'live-progress')
+    await page.getByRole('button', { name: 'Send tip' }).focus()
+    await page.keyboard.press('Enter')
+    await expect(
+      page.getByRole('heading', { name: 'Payment progress' })
+    ).toBeFocused()
+    expect(
+      await page
+        .locator('.pay-progress')
+        .evaluate((node) => getComputedStyle(node).outlineStyle)
+    ).toBe('solid')
+  })
+
+  test('a wallet refusal is declined, and retry waits for the record', async ({
+    page,
+  }) => {
+    await open(page, 'live-progress')
+    await page.getByRole('button', { name: 'Send tip' }).click()
+    await drive(page, 'signing')
+    await page.evaluate(() =>
+      (
+        window as unknown as {
+          __payments: { source: (s: object) => void }
+        }
+      ).__payments.source({ record: { status: 'PREPARED' }, declined: true })
+    )
+    const title = page.getByRole('heading', {
+      name: 'Request declined in your wallet',
+    })
+    await expect(title).toBeFocused()
+    await expect(title).toHaveAccessibleDescription(
+      /Nothing was signed or sent\./
+    )
+    await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0)
+    await drive(page, 'declined')
+    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
+  })
+
+  test('a confirmation is focused without a retry', async ({ page }) => {
     await open(page, 'live-progress')
     await page.getByRole('button', { name: 'Send tip' }).click()
     await drive(page, 'checking')
@@ -231,7 +363,7 @@ test.describe('live regions and focus', () => {
     const title = page.getByRole('heading', { name: 'Tip confirmed' })
     await expect(title).toBeFocused()
     await expect(title).toHaveAccessibleDescription(
-      'Your tip is recorded on Stellar testnet.'
+      /1 XLM to Ada Lovelace.*Your tip is recorded on Stellar testnet\./
     )
     await expect(page.getByRole('button', { name: 'Try again' })).toHaveCount(0)
   })
@@ -247,6 +379,8 @@ test.describe('live regions and focus', () => {
     await expect(assertive(page)).toHaveText('Not sent. Nothing was paid.')
     await expect(page.getByRole('link', { name: 'Elsewhere' })).toBeFocused()
     await drive(page, 'checking')
+    await expect(polite(page)).toContainText('Waiting for confirmation.')
+    await expect(page.getByRole('link', { name: 'Elsewhere' })).toBeFocused()
     await drive(page, 'sent-to-registered')
     await expect(polite(page)).toContainText(
       'Tip sent to the article’s registered payout address.'
@@ -280,14 +414,18 @@ test.describe('live regions and focus', () => {
         state
       )
     const live = page.locator('.pay-gate > [role="status"]')
+    await page.waitForTimeout(250)
+    await expect(live).toHaveText('')
     await page.keyboard.press('Tab')
     await expect(
       page.getByRole('button', { name: 'Connect wallet' })
     ).toBeFocused()
     await gate({ kind: 'locked' })
-    await expect(page.getByRole('button', { name: 'Try again' })).toBeFocused()
+    await expect(
+      page.getByRole('button', { name: 'Connect again' })
+    ).toBeFocused()
     await expect(live).toHaveText(
-      'Your wallet is locked. Unlock your wallet, allow QuillTip to connect, then try again.'
+      'Your wallet is locked. Unlock your wallet, then connect again.'
     )
     await gate({ kind: 'wrong-network', walletNetwork: 'Mainnet' })
     await expect(
@@ -296,6 +434,19 @@ test.describe('live regions and focus', () => {
     await expect(live).toContainText('Your wallet is on Mainnet.')
     await gate({ kind: 'ready' })
     await expect(page.getByRole('button', { name: 'Send tip' })).toBeFocused()
+  })
+
+  test('a notice that appears after an action is announced once', async ({
+    page,
+  }) => {
+    await open(page, 'live-notice')
+    await page.getByRole('button', { name: 'Send tip' }).click()
+    const live = page.locator('.pay-notice > [role="status"]')
+    await expect(live).toHaveText(
+      'Payments are paused. QuillTip has paused new payments on Stellar testnet. Tips you already sent still settle, and you can still withdraw your tab.'
+    )
+    // The region existed, empty, before its text arrived.
+    await expect(page.locator('.pay-notice [role="status"]')).toHaveCount(1)
   })
 })
 
@@ -365,6 +516,122 @@ test.describe('motion', () => {
         .evaluate((node) => getComputedStyle(node).animationName)
     ).toBe('none')
   })
+
+  // The tab, writer and NFT surfaces are not inside the tip dialog, whose own
+  // stylesheet also stops animation; this checks the kit's own rules.
+  for (const reduce of [false, true]) {
+    test(`on a page surface, ${reduce ? 'reduced motion stops' : 'normal motion plays'} the entrance, tick and spinner`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({
+        reducedMotion: reduce ? 'reduce' : 'no-preference',
+      })
+      await open(page, 'live-progress', '&surface=page')
+      await expect(page.locator('.tip-dialog')).toHaveCount(0)
+      await page.getByRole('button', { name: 'Send tip' }).click()
+      const spinner = page.locator('.pay-steps .pay-spinner')
+      expect(
+        await spinner.evaluate((node) => getComputedStyle(node).animationName)
+      ).toBe(reduce ? 'none' : 'pay-spin')
+      await page.evaluate(() =>
+        (
+          window as unknown as { __payments: { phase: (p: string) => void } }
+        ).__payments.phase('confirmed')
+      )
+      const panel = page.locator('.pay-panel')
+      await expect(panel).toHaveAttribute('data-enter', '')
+      expect(
+        await panel.evaluate((node) => getComputedStyle(node).animationName)
+      ).toBe(reduce ? 'none' : 'pay-rise')
+      expect(
+        await page
+          .locator('.pay-check path')
+          .evaluate((node) => getComputedStyle(node).animationName)
+      ).toBe(reduce ? 'none' : 'pay-draw')
+    })
+  }
+})
+
+test.describe('details', () => {
+  test.use({ viewport: { width: 375, height: 900 } })
+
+  test('the busy gate spinner takes the button text colour', async ({
+    page,
+  }) => {
+    await open(page, 'gate-busy')
+    const colours = await page.locator('.pay-action').evaluate((button) => ({
+      text: getComputedStyle(button).color,
+      ring: getComputedStyle(button.querySelector('.pay-spinner')!)
+        .borderTopColor,
+    }))
+    expect(colours.ring).toBe(colours.text)
+  })
+
+  test('history labels stay on one line', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 900 })
+    await open(page, 'label-status')
+    for (const label of await page.locator('.pay-status').all()) {
+      const box = await label.boundingBox()
+      expect(box!.height).toBeLessThan(26)
+    }
+    await expect(page.getByText('Sent to updated address')).toBeVisible()
+  })
+
+  test('the quote reads as real XLM and an estimate says About', async ({
+    page,
+  }) => {
+    await open(page, 'amount-tip')
+    await expect(page.locator('.pay-amount-caption')).toContainText(
+      'About $0.12 in real XLM'
+    )
+    await open(page, 'amount-basket-full')
+    await expect(page.locator('.pay-amount-caption')).toContainText(
+      'Under $0.01 in real XLM'
+    )
+    await open(page, 'amount-estimate')
+    await expect(page.locator('.pay-amount-total strong')).toHaveText(
+      'About 1 XLM'
+    )
+    await expect(page.locator('.pay-amount-caption')).toContainText(
+      'Final amount shown before you approve'
+    )
+  })
+
+  test('the unverified gate shows a short address with the full one in the tooltip', async ({
+    page,
+  }) => {
+    await open(page, 'gate-unverified')
+    const detail = page.locator('.pay-panel-detail p')
+    await expect(detail).toContainText('GBZX…MADI')
+    await expect(detail).toHaveAttribute(
+      'title',
+      'GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI'
+    )
+  })
+
+  test('under review gives a reference and help', async ({ page }) => {
+    await open(page, 'result-under-review')
+    await expect(page.locator('.pay-result-reference')).toContainText(
+      'Reference: k57d9x2tq0hf3m8r1c4v6w'
+    )
+    await expect(page.getByRole('link', { name: 'Get help' })).toBeVisible()
+  })
+
+  test('the next step on a notice is a primary button', async ({ page }) => {
+    await open(page, 'notice-withdrawal-ready')
+    const withdraw = page.getByRole('button', { name: 'Withdraw 8.4 XLM' })
+    const outline = await page.evaluate(
+      () =>
+        getComputedStyle(document.querySelector('.pay-action')!).backgroundColor
+    )
+    await expect(withdraw).toBeVisible()
+    await open(page, 'notice-settlement-delayed-writer')
+    const secondary = await page.evaluate(
+      () =>
+        getComputedStyle(document.querySelector('.pay-action')!).backgroundColor
+    )
+    expect(outline).not.toBe(secondary)
+  })
 })
 
 test.describe('long content', () => {
@@ -413,7 +680,7 @@ test.describe('zoom and reflow', () => {
 
   test('text spacing overrides do not clip content', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 })
-    await open(page, 'notice-key-missing')
+    await open(page, 'notice-key-none')
     await page.addStyleTag({
       content:
         '* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }',
@@ -428,8 +695,13 @@ test.describe('dark theme', () => {
     'result-failed',
     'result-under-review',
     'notice-withdrawal-ready',
+    'notice-insufficient-tab',
+    'tab-tip-rejected',
+    'result-declined',
+    'key-rows',
     'label-status',
     'amount-tip',
+    'amount-basket',
   ]) {
     test(`${id} passes the scan in dark mode`, async ({ page }) => {
       await open(page, id, '&theme=dark')
