@@ -83,12 +83,16 @@ for (const viewport of [
     for (const published of [false, true]) {
       await page.goto('/write?desk=writing')
       const desk = page.getByRole('dialog', { name: 'Your writing' })
-      const entry = published
-        ? desk
-            .locator('.publication-row')
-            .filter({ hasText: title })
-            .getByRole('link', { name: 'Edit', exact: true })
-        : desk.getByRole('link').filter({ hasText: title })
+      if (published) {
+        // Published articles are locked: the desk offers only the article.
+        const row = desk.locator('.publication-row').filter({ hasText: title })
+        await expect(row.getByRole('link', { name: 'Edit' })).toHaveCount(0)
+        await expect(
+          row.getByRole('link', { name: `View article: ${title}` })
+        ).toBeVisible()
+        continue
+      }
+      const entry = desk.getByRole('link').filter({ hasText: title })
       await entry.click()
       await expect(
         page.getByRole('textbox', { name: 'Article title' })

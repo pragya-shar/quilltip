@@ -9,3 +9,7 @@ export function useArticleTipStats(articleId: Id<'articles'>) {
 export function useAuthorEarnings() {
   return useQuery(api.tips.getAuthorEarnings, {})
 }
+
+export function useMyEarningsSummary() {
+  return useQuery(api.tips.getMyEarningsSummary, {})
+}

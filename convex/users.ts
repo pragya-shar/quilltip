@@ -1,4 +1,5 @@
 import { v } from 'convex/values'
+import { verifiedTipFilter } from './lib/verifiedTips'
 import { query, mutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { syncReadingRoomWriter } from './lib/readingRoomIndex'
@@ -50,6 +51,8 @@ export const getUserByUsername = query({
       nftsCreated: user.nftsCreated,
       nftsOwned: user.nftsOwned,
       createdAt: user.createdAt,
+      // Lets public pages label QA and demo accounts.
+      isTestAccount: user.isTestAccount === true,
     }
   },
 })
@@ -171,7 +174,7 @@ export const getUserStats = query({
     const tipsReceived = await ctx.db
       .query('tips')
       .withIndex('by_author', (q) => q.eq('authorId', userId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const totalEarnings = tipsReceived.reduce(

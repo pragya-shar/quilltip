@@ -1,4 +1,5 @@
 import { v } from 'convex/values'
+import { verifiedTipFilter } from './lib/verifiedTips'
 import { query, mutation, internalQuery } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { enrichWithUser } from './lib/enrich'
@@ -123,7 +124,7 @@ export const getNFTByArticle = query({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const totalTipsUsd = tips.reduce((sum, tip) => sum + tip.amountUsd, 0)
@@ -280,7 +281,7 @@ export const loadArticleTipsForNftMetadata = internalQuery({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
     return { article, tips }
   },
@@ -330,7 +331,7 @@ export const mintNFT = mutation({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const totalTipsUsd = tips.reduce((sum, tip) => sum + tip.amountUsd, 0)
@@ -531,6 +532,16 @@ export const checkMintingThreshold = query({
     const article = await ctx.db.get(args.articleId)
     if (!article) return { eligible: false, totalTips: 0, threshold: 0 }
 
+    // Same verified total that mintNFT and getNFTByArticle use; the article
+    // counter is not trusted here.
+    const tips = await ctx.db
+      .query('tips')
+      .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
+      .filter(verifiedTipFilter)
+      .collect()
+    const totalTipsUsd =
+      Math.round(tips.reduce((sum, tip) => sum + tip.amountUsd, 0) * 100) / 100
+
     // Check if NFT already exists
     const existingNft = await ctx.db
       .query('articleNFTs')
@@ -540,13 +551,12 @@ export const checkMintingThreshold = query({
     if (existingNft) {
       return {
         eligible: false,
-        totalTips: article.totalTipsUsd || 0,
+        totalTips: totalTipsUsd,
         threshold: args.threshold || 10,
         alreadyMinted: true,
       }
     }
 
-    const totalTipsUsd = article.totalTipsUsd || 0
     const thresholdUsd = args.threshold || 10 // Default $10
 
     return {
@@ -572,7 +582,7 @@ export const generateNFTMetadata = query({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     return buildNftMetadataPayload(article, tips, args.xlmPrice)

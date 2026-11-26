@@ -126,3 +126,29 @@
     flex-direction: column;
   }
 }
+.legal-analytics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.legal-analytics-actions button {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius, 8px);
+  background: transparent;
+  color: var(--ui-foreground);
+  font: inherit;
+  font-family: var(--ui-font);
+  cursor: pointer;
+}
+.legal-analytics-actions button[aria-pressed='true'] {
+  border-color: var(--ui-primary);
+  color: var(--ui-primary);
+  font-weight: 600;
+}
+.legal-analytics-actions button:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}

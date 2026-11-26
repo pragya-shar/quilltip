@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import { getConvexHttpClient } from '@/lib/convex-http-client'
 import { STELLAR_CONFIG } from './config'
 import { loadStellarSdk } from './sdk-loader'
+import { fallbackXlmPrice } from './price-fallback'
 import { api } from '@/convex/_generated/api'
 import type { Keypair } from '@stellar/stellar-sdk'
 import type {
@@ -83,14 +84,16 @@ const PRICE_CACHE_TTL = 60 * 1000 // 1 minute in-tab cache
  * oracle hits across all users.
  *
  * If the Convex query fails or the cache is empty/stale (cold deploy,
- * extended oracle outage), we fall back to STELLAR_CONFIG.XLM_TO_USD_RATE
- * so tipping never blocks. Same fallback behavior as before.
+ * extended oracle outage), TESTNET falls back to STELLAR_CONFIG.XLM_TO_USD_RATE
+ * so practice tipping never blocks. Any other network fails closed: the quote
+ * throws instead of pricing real funds from a fixed rate.
  */
 async function fetchXLMPrice(): Promise<number> {
   if (xlmPriceCache && Date.now() - xlmPriceCache.timestamp < PRICE_CACHE_TTL) {
     return xlmPriceCache.price
   }
 
+  let failure: unknown = null
   try {
     const cached = await getConvexHttpClient().query(
       api.xlmPrice.getCachedXlmPrice,
@@ -107,24 +110,25 @@ async function fetchXLMPrice(): Promise<number> {
       )
       return cached.priceUsd
     }
-    console.warn(
-      '[XLM Price] server cache empty or stale — using fallback rate $' +
-        STELLAR_CONFIG.XLM_TO_USD_RATE
-    )
   } catch (error) {
-    console.warn(
-      '[XLM Price] Convex price query failed, using fallback rate $' +
-        STELLAR_CONFIG.XLM_TO_USD_RATE,
-      error
-    )
+    failure = error
   }
 
+  // Throws on any network other than TESTNET; nothing is cached in that case.
+  const price = fallbackXlmPrice(
+    STELLAR_CONFIG.NETWORK,
+    STELLAR_CONFIG.XLM_TO_USD_RATE
+  )
+  console.warn(
+    `[XLM Price] ${failure ? 'Convex price query failed' : 'server cache empty or stale'}, using testnet fallback rate $${price}`,
+    failure ?? ''
+  )
   xlmPriceCache = {
-    price: STELLAR_CONFIG.XLM_TO_USD_RATE,
+    price,
     timestamp: Date.now(),
     source: 'Fallback',
   }
-  return STELLAR_CONFIG.XLM_TO_USD_RATE
+  return price
 }
 
 type StellarSdkContext = {

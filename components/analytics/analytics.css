@@ -1,0 +1,71 @@
+.analytics-consent {
+  position: fixed;
+  z-index: 60;
+  left: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: min(420px, calc(100vw - 32px));
+  padding: 18px 20px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius, 8px);
+  background: var(--ui-surface);
+  color: var(--ui-foreground);
+  box-shadow: var(--ui-shadow);
+  font-family: var(--ui-font);
+  animation: analytics-consent-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.analytics-consent h2 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.analytics-consent p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ui-muted-foreground);
+  text-wrap: pretty;
+}
+.analytics-consent a {
+  color: var(--ui-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.analytics-consent-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.analytics-consent-actions button {
+  flex: 1;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: var(--ui-radius, 8px);
+  border: 1px solid var(--ui-border);
+  background: transparent;
+  color: var(--ui-foreground);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: transform 120ms ease-out;
+}
+.analytics-consent-actions button:active {
+  transform: scale(0.97);
+}
+.analytics-consent :is(a, button):focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+@keyframes analytics-consent-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .analytics-consent {
+    animation: none;
+  }
+}

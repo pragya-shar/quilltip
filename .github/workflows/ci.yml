@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, overhaul/v2]
   pull_request:
-    branches: [main]
+    branches: [main, overhaul/v2]
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
@@ -38,14 +38,23 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Bun version guard
+        run: bun scripts/check-bun-version.ts
+
       - name: Component convention fixtures
         run: bun run test:component-organization
+
+      - name: Unit tests (network, guard, health, profile)
+        run: bun run test:unit
 
       - name: Highlight behavior regressions
         run: bun run test:highlights
 
       - name: Reader end-matter regressions
         run: bun run test:reader
+
+      - name: Waitlist, feedback and analytics regressions
+        run: bun run test:beta
 
       - name: Dependency compatibility regressions
         run: bun run test:dependency-compatibility
@@ -138,11 +147,65 @@ jobs:
       - run: bun run test:security
       - run: bun run security:audit
 
+  contracts:
+    name: Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # Each crate pins its toolchain and wasm target in rust-toolchain.toml.
+      # rustup selects it from the working directory, so run cargo inside it.
+      - name: Build and test each contract
+        run: |
+          for dir in contracts/*/; do
+            echo "::group::$dir"
+            (
+              cd "$dir"
+              rustup toolchain install
+              rustc --version
+              cargo build --locked --target wasm32v1-none --release
+              cargo test --locked
+            )
+            echo "::endgroup::"
+          done
+
+  e2e-fixtures:
+    name: Playwright (fixtures)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    needs: quality
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run fixture suites (no secrets, no backend)
+        run: bun run test:e2e:fixtures
+
   required:
     name: Required
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [quality, build, audit]
+    needs: [quality, build, audit, contracts, e2e-fixtures]
     if: always()
     steps:
       - name: Check required CI jobs
@@ -150,6 +213,8 @@ jobs:
           QUALITY_RESULT: ${{ needs.quality.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          E2E_FIXTURES_RESULT: ${{ needs.e2e-fixtures.result }}
         run: |
           failed=0
 
@@ -166,5 +231,7 @@ jobs:
           check_result "Lint & Typecheck" "$QUALITY_RESULT"
           check_result "Build" "$BUILD_RESULT"
           check_result "Dependency Audit" "$AUDIT_RESULT"
+          check_result "Contracts" "$CONTRACTS_RESULT"
+          check_result "Playwright (fixtures)" "$E2E_FIXTURES_RESULT"
 
           exit "$failed"

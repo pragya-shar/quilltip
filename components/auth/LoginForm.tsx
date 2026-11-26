@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { rememberResetEmail } from '@/lib/auth/passwordReset'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useRouter } from 'next/navigation'
 import { getLoginCopy } from '@/lib/copy/auth-intent'
@@ -46,7 +48,6 @@ export default function LoginForm({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [recoveryNotice, setRecoveryNotice] = useState(false)
   const submitting = useRef(false)
 
   const router = useRouter()
@@ -57,6 +58,7 @@ export default function LoginForm({
   const {
     register,
     handleSubmit,
+    getValues,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: loginResolver,
@@ -150,9 +152,13 @@ export default function LoginForm({
         label="Password"
         error={errors.password?.message}
         action={
-          <button type="button" onClick={() => setRecoveryNotice(true)}>
+          <Link
+            className="account-forgot-link"
+            href="/forgot-password"
+            onClick={() => rememberResetEmail(getValues('email') ?? '')}
+          >
             Forgot password?
-          </button>
+          </Link>
         }
       >
         <div className="account-password">
@@ -170,11 +176,6 @@ export default function LoginForm({
           />
         </div>
       </AccountField>
-      {recoveryNotice && (
-        <p role="status" className="account-hint account-recovery-notice">
-          Password recovery is not yet available. No reset email has been sent.
-        </p>
-      )}
       <button className="account-primary" type="submit" disabled={isLoading}>
         {isLoading ? (
           'One moment…'

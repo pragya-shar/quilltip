@@ -46,6 +46,14 @@ export function AccountSurface({ children }: { children: ReactNode }) {
           >
             Stats
           </Link>
+          <Link
+            href="/dashboard/feedback"
+            aria-current={
+              pathname === '/dashboard/feedback' ? 'page' : undefined
+            }
+          >
+            Feedback
+          </Link>
           {user?.username && (
             <span className="account-name">@{user.username}</span>
           )}

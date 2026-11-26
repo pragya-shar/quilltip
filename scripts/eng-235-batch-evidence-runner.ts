@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { StellarClient } from '../lib/stellar/client'
 import { STELLAR_CONFIG } from '../lib/stellar/config'
 import { loadStellarSdk } from '../lib/stellar/sdk-loader'
+import { assertScriptTestnetOnly } from './lib/network-guard'
 import type {
   ArticleBatchTipParams,
   ArticleBatchTipQuote,
@@ -113,6 +114,8 @@ export type RunBatchEvidenceOptions = {
   contractId?: string
   secretKey?: string
   deps?: BatchEvidenceRunnerDependencies
+  /** Environment checked by the testnet guard. Defaults to process.env. */
+  env?: Record<string, string | undefined>
 }
 
 type CliOptions = {
@@ -230,6 +233,7 @@ export async function signPreparedXdr(
 export async function submitSignedBatchTransaction(
   signedXdr: string
 ): Promise<BatchSubmitResult> {
+  assertScriptTestnetOnly(`${ISSUE_ID} batch transaction submit`)
   const StellarSdk = await loadStellarSdk()
   const sorobanServer = new StellarSdk.rpc.Server(
     STELLAR_CONFIG.SOROBAN_RPC_URL
@@ -270,6 +274,8 @@ export async function submitSignedBatchTransaction(
 export async function runBatchEvidence(
   options: RunBatchEvidenceOptions
 ): Promise<BatchEvidenceLine[]> {
+  // Refuse before reading input or contacting any network.
+  assertScriptTestnetOnly(`${ISSUE_ID} batch evidence`, options.env)
   const input = await loadBatchEvidenceInput(options.inputPath)
   const outputPath = options.outputPath ?? DEFAULT_EVIDENCE_PATH
   const contractId = options.contractId ?? STELLAR_CONFIG.TIPPING_CONTRACT_ID

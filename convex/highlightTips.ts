@@ -1,4 +1,5 @@
 import { getTipArticleSummary } from './lib/tipArticleSummary'
+import { verifiedTipFilter } from './lib/verifiedTips'
 import { mutation, query } from './_generated/server'
 import { ConvexError, v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -739,7 +740,7 @@ export const getByHighlight = query({
     const tips = await ctx.db
       .query('highlightTips')
       .withIndex('by_highlight', (q) => q.eq('highlightId', args.highlightId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const totalAmountCents = tips.reduce((sum, tip) => sum + tip.amountCents, 0)
@@ -763,7 +764,7 @@ export const getByArticle = query({
     const tips = await ctx.db
       .query('highlightTips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const groups = new Map<
@@ -839,7 +840,7 @@ export const getByAuthor = query({
     const tips = await ctx.db
       .query('highlightTips')
       .withIndex('by_author', (q) => q.eq('authorId', authorId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .order('desc')
       .collect()
     return await Promise.all(
@@ -864,7 +865,7 @@ export const getArticleStats = query({
     let tipsQuery = ctx.db
       .query('highlightTips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
 
     if (args.sinceMs !== undefined) {
       tipsQuery = tipsQuery.filter((q) =>
