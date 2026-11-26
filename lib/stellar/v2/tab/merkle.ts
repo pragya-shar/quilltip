@@ -4,6 +4,8 @@
  * the shared encoder in `encoding.ts`; this module only adds the hex
  * boundary and input checks.
  */
+import './buffer-global'
+
 import { bytesToHex, hexToBytes, isHexOfLength, parseAmount } from './bytes'
 import {
   merkleProof,

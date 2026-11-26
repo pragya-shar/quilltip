@@ -5,10 +5,12 @@
  * The types mirror `tabs.prepareTip` and `tabs.submitTip` in Convex. The id
  * type parameter lets a caller keep Convex's `Id<'tips'> | Id<'highlightTips'>`.
  */
+import './buffer-global'
+
 import { StrKey } from '@stellar/stellar-sdk'
 
 import { bytesToHex, hexToBytes, isHexOfLength, parseAmount } from './bytes'
-import { sha256, voucherPayloadBytes } from './encoding'
+import { TabEncodingError, sha256, voucherPayloadBytes } from './encoding'
 import { TabClientError } from './errors'
 import {
   MAX_RECEIPTS_PER_PAIR,
@@ -151,7 +153,8 @@ export function buildReceipt<Id extends string>(
   try {
     amount = parseAmount(prepared.amount, 'amount')
     before = parseAmount(prepared.cumulativeBefore, 'cumulativeBefore')
-  } catch {
+  } catch (error) {
+    if (!(error instanceof TabClientError)) throw error
     return fail('malformed', 'amount and cumulativeBefore must be integers.')
   }
   if (amount <= BigInt(0)) fail('malformed', 'amount must be positive.')
@@ -177,7 +180,10 @@ export function buildReceipt<Id extends string>(
   try {
     // Parses every field and length.
     receiptLeafHex(receipt)
-  } catch {
+  } catch (error) {
+    // Anything else (a missing runtime global, say) is not the server's fault.
+    if (!(error instanceof TabClientError || error instanceof TabEncodingError))
+      throw error
     fail('malformed', 'The receipt fields are not valid.')
   }
   if (
