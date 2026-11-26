@@ -59,14 +59,14 @@ describe('tab configuration', () => {
   it('takes an explicit config in place of v2Config()', () => {
     const deps = defaultTabSigningDeps({
       readerAddress: READER,
-      maxAmount: 5n,
+      maxAmount: BigInt(5),
       config: { passphrase: Networks.TESTNET, tabContractId: TAB },
     })
     expect(deps).toMatchObject({
       networkPassphrase: Networks.TESTNET,
       tabContractId: TAB,
       readerAddress: READER,
-      maxAmount: 5n,
+      maxAmount: BigInt(5),
     })
   })
 })
