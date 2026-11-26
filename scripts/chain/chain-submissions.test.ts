@@ -1041,6 +1041,30 @@ describe('retries, recheck and expiry', () => {
     })
   })
 
+  it('recheck rotates through open records instead of retrying the same batch', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const ids: Id<'chainSubmissions'>[] = []
+    for (let i = 0; i < 52; i++) {
+      const { submissionId } = await prepare(t, s, [articleItem(s)], `req-${i}`)
+      ids.push(submissionId)
+    }
+    const maxTime = (await submission(t, ids[0]!)).maxTime
+    // No indexer coverage: every record stays open after a check.
+    vi.setSystemTime((maxTime + 1) * 1000)
+    stubRpc(() => notFoundResponse(HASH))
+    await t.action(internal.chain.submissions.recheckPending, {})
+    vi.setSystemTime((maxTime + 121) * 1000)
+    await t.action(internal.chain.submissions.recheckPending, {})
+    const checkedAt = await t.run(async (ctx) =>
+      Promise.all(ids.map(async (id) => (await ctx.db.get(id))!.updatedAt))
+    )
+    // The two records the first run could not reach were checked second.
+    expect(
+      checkedAt.slice(50).every((at) => at >= (maxTime + 121) * 1000)
+    ).toBe(true)
+  })
+
   it('recheck runs under a single lease', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)

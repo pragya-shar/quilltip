@@ -273,6 +273,8 @@ export const noteAttempt = internalMutation({
     if (!submission) return
     await ctx.db.patch(args.submissionId, {
       attempts: submission.attempts + 1,
+      // Also rotates the record in the recheck order (by_status_updated).
+      updatedAt: Date.now(),
       ...(args.error ? { lastError: args.error.slice(0, 300) } : {}),
     })
   },

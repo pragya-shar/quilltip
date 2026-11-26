@@ -768,5 +768,8 @@ export async function resolveWithoutTransaction(
     })
     return 'flagged'
   }
+  // Move the record to the back of the recheck order so other due records
+  // are reached on the next run.
+  await ctx.db.patch(submission._id, { updatedAt: args.now })
   return 'waiting'
 }
