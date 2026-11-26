@@ -141,12 +141,12 @@ async function openTab(deposit: bigint): Promise<Reader> {
 
 describe('settleDue end to end', () => {
   it('settles vouchers from several readers to several writers, to the stroop', async () => {
+    const firstLedger = await h.latestLedger()
     // Readers 0..7 each tip writers 0..3 (32 pairs); reader 0 also tips writer 4.
     const readers = await Promise.all(
       Array.from({ length: 8 }, () => openTab(BigInt(20) * XLM))
     )
     const writers = await h.accounts(5)
-    const startLedger = (await h.latestLedger()) - 200
 
     convexEnv()
     const t = convexTest(schema, modules)
@@ -171,8 +171,9 @@ describe('settleDue end to end', () => {
     })
 
     async function ingestChainEvents() {
+      const health = await localRpc.getHealth()
       const page = await localRpc.getEvents({
-        startLedger: startLedger,
+        startLedger: Math.max(firstLedger, health.oldestLedger),
         filters: [{ type: 'contract', contractIds: [tabId] }],
         pagination: { limit: 1000 },
       })
