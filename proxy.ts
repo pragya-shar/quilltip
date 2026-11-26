@@ -5,6 +5,22 @@ import { publicContentPath } from '@/lib/routing/publicContentPath'
 
 const ROUTE_CHECK_TIMEOUT_MS = 1500
 
+// A writer page's name and article titles repaint when these typefaces arrive,
+// which sets the largest paint on slow phones. The stylesheet only reveals them
+// after the content renders, and app/loading.tsx keeps a page's own preload
+// hints out of the HTML head, so send them with the response instead.
+const WRITER_PAGE_FONT_PRELOADS = [
+  '</prototype/fonts/library-syne.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin',
+  '</prototype/fonts/library-alegreya.woff>; rel=preload; as=font; type="font/woff"; crossorigin',
+].join(', ')
+
+// Profile settings and new-writer setup lay out in this typeface once the
+// signed-in content renders. Fetching it with the response keeps the headings
+// from reflowing when it arrives.
+const ACCOUNT_FONT_PRELOAD =
+  '</account/fonts/syne-variable.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin'
+const ACCOUNT_FONT_PATHS = new Set(['/settings', '/welcome'])
+
 type RouteCheck =
   | { kind: 'found' }
   | { kind: 'missing' }
@@ -16,6 +32,37 @@ type RouteCheck =
  * missing one answers 404 and an earlier handle redirects. Any failure lets
  * the request through unchanged.
  */
+/**
+ * Recent "found" answers, per server instance. A found writer or article page
+ * renders normally, so reusing the answer briefly only skips a backend round
+ * trip before the HTML starts. Missing and moved answers are never reused, so
+ * new articles and handle changes take effect at once.
+ */
+const FOUND_TTL_MS = 60_000
+const FOUND_CACHE_LIMIT = 500
+const recentlyFound = new Map<string, number>()
+
+function foundKey(target: { username: string; slug?: string }) {
+  return `${target.username}\u0000${target.slug ?? ''}`
+}
+
+function wasRecentlyFound(key: string) {
+  const expires = recentlyFound.get(key)
+  if (expires === undefined) return false
+  if (expires > Date.now()) return true
+  recentlyFound.delete(key)
+  return false
+}
+
+function rememberFound(key: string) {
+  if (recentlyFound.size >= FOUND_CACHE_LIMIT) {
+    // Maps keep insertion order: drop the oldest entry.
+    const oldest = recentlyFound.keys().next().value
+    if (oldest !== undefined) recentlyFound.delete(oldest)
+  }
+  recentlyFound.set(key, Date.now() + FOUND_TTL_MS)
+}
+
 async function checkPublicContent(
   request: NextRequest
 ): Promise<RouteCheck | null> {
@@ -24,15 +71,19 @@ async function checkPublicContent(
   if (request.headers.get('rsc') === '1') return null
   const target = publicContentPath(request.nextUrl.pathname)
   if (!target) return null
+  const key = foundKey(target)
+  if (wasRecentlyFound(key)) return { kind: 'found' }
 
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    return await Promise.race([
+    const check = await Promise.race([
       fetchQuery(api.publicRoutes.resolvePublicRoute, target),
       new Promise<null>((resolve) => {
         timer = setTimeout(() => resolve(null), ROUTE_CHECK_TIMEOUT_MS)
       }),
     ])
+    if (check?.kind === 'found') rememberFound(key)
+    return check
   } catch {
     return null
   } finally {
@@ -65,6 +116,12 @@ export async function proxy(request: NextRequest) {
 
   if (check?.kind === 'moved') {
     response.headers.set('Cache-Control', 'no-store')
+  }
+  if (check?.kind === 'found' && !publicContentPath(pathname)?.slug) {
+    response.headers.append('Link', WRITER_PAGE_FONT_PRELOADS)
+  }
+  if (ACCOUNT_FONT_PATHS.has(pathname) && request.headers.get('rsc') !== '1') {
+    response.headers.append('Link', ACCOUNT_FONT_PRELOAD)
   }
 
   // Security headers (apply to all routes)

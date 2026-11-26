@@ -238,6 +238,22 @@
   line-height: 1.6;
 }
 
+/* The static article body stands in for the read-only editor until it loads.
+   Mirror the editor's base text rules (Tiptap's injected .ProseMirror style)
+   so lines wrap the same way and the swap does not shift or resize text. */
+.article-static-body {
+  position: relative;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0;
+}
+
+.article-static-body pre {
+  white-space: pre-wrap;
+}
+
 /* Prose Overrides for Better Readability */
 .prose {
   max-width: none;

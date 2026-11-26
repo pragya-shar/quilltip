@@ -1,7 +1,13 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { ProfilePageClient } from '@/components/profile/ProfilePageClient'
-import { getPublicProfile, movedPublicPath } from '@/lib/seo/publicContent'
+import {
+  getPublicProfile,
+  getPublicProfileArticles,
+  movedPublicPath,
+} from '@/lib/seo/publicContent'
+import { parseProfilePage } from '@/lib/profile/profileArticles'
+import { parseProfileTab } from '@/lib/profile/profileTab'
 import {
   SITE_NAME,
   profilePath,
@@ -58,13 +64,35 @@ export default async function ProfilePage({
   searchParams,
 }: ProfilePageProps) {
   const { username } = await params
-  if ((await getPublicProfile(username)) === null) {
-    const moved = await movedPublicPath(username, undefined, await searchParams)
+  const query = await searchParams
+  const profile = await getPublicProfile(username)
+  if (profile === null) {
+    const moved = await movedPublicPath(username, undefined, query)
     // Temporary: writers can switch back to an earlier handle.
     if (moved) redirect(moved)
     notFound()
   }
-  return <ProfilePageClient username={username} />
+  // Render the writer and their first articles in the HTML. These reads are
+  // anonymous, so they show only what any reader can see; the browser then
+  // takes over with live queries. `undefined` (backend unreachable) falls back
+  // to loading in the browser.
+  const page = parseProfilePage(query.page)
+  const onArticlesTab = parseProfileTab(firstValue(query.tab)) === 'articles'
+  const initialArticles =
+    profile && onArticlesTab
+      ? await getPublicProfileArticles(profile.username, page)
+      : undefined
+  return (
+    <ProfilePageClient
+      username={username}
+      initialProfile={profile}
+      initialArticles={initialArticles}
+    />
+  )
+}
+
+function firstValue(value: string | string[] | undefined): string | null {
+  return (Array.isArray(value) ? value[0] : value) ?? null
 }
 
 export const dynamic = 'force-dynamic'

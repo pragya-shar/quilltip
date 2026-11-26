@@ -4,6 +4,7 @@
 /* User-selected cover URLs are displayed directly in article settings. */
 /* eslint-disable @next/next/no-img-element */
 import { useState, useRef, useEffect } from 'react'
+import { SignedInAccountMenu } from '@/components/layout/SignedInAccountMenu'
 import { EditorContent } from '@tiptap/react'
 import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
 import { ArticleReaderHeader } from '@/components/articles/ArticleReaderHeader'
@@ -314,6 +315,7 @@ export function WritingWorkspaceView({
           >
             Preview <span aria-hidden="true">↗</span>
           </button>
+          <SignedInAccountMenu triggerClassName="editor-account-trigger" />
         </div>
       </header>
       <nav className="editor-destinations" aria-label="Main navigation">

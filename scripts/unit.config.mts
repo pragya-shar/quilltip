@@ -10,6 +10,7 @@ export default defineConfig({
       'scripts/profile/*.test.ts',
       'scripts/health/*.test.ts',
       'scripts/chain/*.test.ts',
+      'scripts/pr-hygiene/*.test.ts',
     ],
   },
 })

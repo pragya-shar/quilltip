@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { ArticlePageClient } from '@/components/articles/ArticlePageClient'
 import { getPublishedArticle, movedPublicPath } from '@/lib/seo/publicContent'
+import { renderArticleHtml } from '@/lib/tiptap/renderArticleHtml'
 import {
   SITE_NAME,
   articleMetaDescription,
@@ -74,6 +75,7 @@ export default async function ArticlePage({
       username={username}
       slug={slug}
       initialArticle={initialArticle ?? undefined}
+      initialBodyHtml={renderArticleHtml(initialArticle?.content)}
     />
   )
 }

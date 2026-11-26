@@ -3,13 +3,27 @@ import { test, expect, type Page } from '@playwright/test'
 const mainNavigation = (page: Page) =>
   page.getByRole('navigation', { name: 'Main navigation', exact: true })
 const accountButton = (page: Page) =>
-  mainNavigation(page).getByRole('button', { name: 'Account', exact: true })
+  mainNavigation(page).getByRole('button', {
+    name: 'Account menu',
+    exact: true,
+  })
 
+// Account menu order, then the main links.
+const ACCOUNT_LINKS = [
+  'View profile',
+  'Settings',
+  'Drafts',
+  'Stats',
+  'Wallet',
+  'Help & support',
+]
 const destinations = [
+  ['View profile', null, null],
+  ['Settings', '/settings', '/settings'],
   ['Drafts', '/drafts', '/write?desk=writing'],
-  ['Public profile', null, null],
-  ['Wallet', '/dashboard/wallet', '/dashboard/wallet'],
   ['Stats', '/dashboard/stats', '/dashboard/stats'],
+  ['Wallet', '/dashboard/wallet', '/dashboard/wallet'],
+  ['Help & support', '/support', '/support'],
   ['Articles', '/articles', '/articles'],
   ['Your library', '/library', '/library'],
   ['Writing desk', '/write', '/write'],
@@ -36,17 +50,22 @@ async function expectDestination(page: Page, label: string, path: string) {
         page.getByRole('heading', { name: 'Your library.', exact: true })
       ).toBeVisible()
       break
-    case 'Public profile':
+    case 'View profile':
       await expect(page.getByText('Writer', { exact: true })).toBeVisible()
-      await page
-        .getByRole('link', { name: /Profile photo, handle and NFT collection/ })
-        .click()
-      await expect(page).toHaveURL(
-        (url) => url.pathname === path && url.searchParams.get('tab') === 'nfts'
-      )
       await expect(
-        page.getByRole('button', { name: 'Change profile photo', exact: true })
+        page.getByRole('link', { name: 'Edit profile', exact: true })
+      ).toHaveAttribute('href', '/settings')
+      break
+    case 'Settings':
+      await expect(
+        page.getByRole('heading', { name: 'Profile', exact: true })
       ).toBeVisible()
+      await expect(
+        page.getByLabel('Display name', { exact: true })
+      ).toBeVisible()
+      break
+    case 'Help & support':
+      await expect(page.locator('main h1').first()).toBeVisible()
       break
     case 'Articles':
       await expect(
@@ -133,12 +152,16 @@ test.describe('signed-in account navigation on a development backend', () => {
       await page.keyboard.press('Enter')
       const menu = page.getByRole('menu')
       await expect(menu).toBeVisible()
+      await expect(menu.getByRole('menuitem')).toHaveText([
+        ...ACCOUNT_LINKS,
+        'Sign out',
+      ])
       await expect(
-        menu.getByRole('menuitem', { name: 'Drafts', exact: true })
+        menu.getByRole('menuitem', { name: 'View profile', exact: true })
       ).toBeFocused()
       await page.keyboard.press('ArrowDown')
       await expect(
-        menu.getByRole('menuitem', { name: 'Public profile', exact: true })
+        menu.getByRole('menuitem', { name: 'Settings', exact: true })
       ).toBeFocused()
       await page.keyboard.press('Escape')
       await expect(menu).toBeHidden()
@@ -146,12 +169,7 @@ test.describe('signed-in account navigation on a development backend', () => {
 
       for (const [label, href, finalPath] of destinations) {
         await page.goto('/support')
-        const isAccountLink = [
-          'Drafts',
-          'Public profile',
-          'Wallet',
-          'Stats',
-        ].includes(label)
+        const isAccountLink = ACCOUNT_LINKS.includes(label)
         if (isAccountLink) await trigger.press('ArrowDown')
         const link = isAccountLink
           ? menu.getByRole('menuitem', { name: label, exact: true })
