@@ -83,14 +83,20 @@ function articleKey(event: IndexedEvent): string {
   return hex(event.doc.topics[1], 32, 'article_id')
 }
 
+/**
+ * The article row of the event's chain epoch. Article keys stay the same
+ * after a testnet reset, so a row from an earlier epoch must never match.
+ */
 async function findArticle(
   ctx: MutationCtx,
-  key: string
+  key: string,
+  chainEpoch: string
 ): Promise<Doc<'chainArticles'> | null> {
-  return ctx.db
+  const rows = await ctx.db
     .query('chainArticles')
     .withIndex('by_article_key', (q) => q.eq('articleKey', key))
-    .first()
+    .take(20)
+  return rows.find((row) => row.chainEpoch === chainEpoch) ?? null
 }
 
 /**
@@ -102,7 +108,11 @@ async function applyArticleEvent(
   event: IndexedEvent,
   patch: (article: Doc<'chainArticles'>) => Partial<Doc<'chainArticles'>>
 ): Promise<HandlerResult> {
-  const article = await findArticle(ctx, articleKey(event))
+  const article = await findArticle(
+    ctx,
+    articleKey(event),
+    event.doc.chainEpoch
+  )
   if (!article) return 'orphan'
   if (article.lastEventId && article.lastEventId >= event.doc.eventId) {
     return 'done'
@@ -160,7 +170,11 @@ const tipped: ChainEventHandler = async (ctx, event) => {
   const stored = storedTippedFromEvent(event)
 
   // Article totals include tips made outside the app (section 6.5).
-  const article = await findArticle(ctx, stored.article_id)
+  const article = await findArticle(
+    ctx,
+    stored.article_id,
+    event.doc.chainEpoch
+  )
   if (article) {
     const current = article.totals[stored.token]
     if (current === undefined || BigInt(stored.total_after) > BigInt(current)) {

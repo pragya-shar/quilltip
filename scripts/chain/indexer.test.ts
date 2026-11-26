@@ -725,6 +725,38 @@ describe('reconciliation from events', () => {
 })
 
 describe('article and config handlers', () => {
+  it('updates only the article row of the current chain epoch', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seedArticle(t)
+    // After a testnet reset the earlier row (same article key, older epoch,
+    // later event id) is created first and the current epoch's row second.
+    const currentRow = await t.run(async (ctx) => {
+      const row = (await ctx.db.get(s.chainArticleId))!
+      await ctx.db.patch(s.chainArticleId, {
+        chainEpoch: 'testnet-before-reset',
+        lastEventId: '9'.repeat(19) + '-' + '9'.repeat(10),
+        totals: { [SNAPSHOT_TOKEN]: '999' },
+      })
+      const { _id, _creationTime, ...fields } = row
+      void _id
+      void _creationTime
+      return ctx.db.insert('chainArticles', fields)
+    })
+    const chain = fakeChain()
+    chain.state.events = [
+      tippedEvent(START + 5, {
+        clientRef: 'd'.repeat(32),
+        totalAfter: BigInt(10_000_000),
+      }),
+    ]
+    await poll(t)
+    const [current, old] = await t.run((ctx) =>
+      Promise.all([ctx.db.get(currentRow), ctx.db.get(s.chainArticleId)])
+    )
+    expect(current!.totals[SNAPSHOT_TOKEN]).toBe('10000000')
+    expect(old!.totals[SNAPSHOT_TOKEN]).toBe('999')
+  })
+
   it('each Core event updates the right table', async () => {
     const t = convexTest(schema, modules)
     const s = await seedArticle(t)
