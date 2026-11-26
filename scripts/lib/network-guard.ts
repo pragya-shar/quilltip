@@ -12,6 +12,7 @@ import {
   NETWORK_GUARD_OPT_IN_ENV,
   NetworkGuardError,
   assertTestnetOnly,
+  type NetworkGuardRefusal,
   type NetworkGuardResult,
 } from '../../convex/lib/networkGuard'
 import {
@@ -98,6 +99,13 @@ export function resolveScriptStellarNetwork(
   env: EnvLike = process.env
 ): ScriptStellarNetwork {
   const guard = assertScriptTestnetOnly(operation, env)
+  return resolveWithGuard(guard, env)
+}
+
+function resolveWithGuard(
+  guard: NetworkGuardResult,
+  env: EnvLike
+): ScriptStellarNetwork {
   // Check the two public names agree even when STELLAR_RPC_URL takes effect.
   const publicRpcUrl = pickRpcUrl(
     env.NEXT_PUBLIC_STELLAR_RPC_URL,
@@ -114,6 +122,64 @@ export function resolveScriptStellarNetwork(
     horizonUrl: env.HORIZON_URL?.trim() || env.NEXT_PUBLIC_HORIZON_URL,
   })
   return { ...resolved, guard }
+}
+
+/**
+ * Stellar-only variant for scripts that touch no Convex backend (contract
+ * deploy, extend, restore, redeploy). It applies the opt-in, network,
+ * passphrase and endpoint checks, including the LOCAL rules, and so always
+ * refuses mainnet. It needs no Convex target, and it refuses to run while a
+ * Convex deploy key or a live-backend approval is set, so it cannot stand in
+ * for the Convex checks of `assertScriptTestnetOnly`
+ * (docs/architecture/v2/06-app-integration.md, section 6.8).
+ */
+export function assertScriptStellarTestnetOnly(
+  operation: string,
+  env: EnvLike = process.env
+): NetworkGuardResult {
+  const refusals: NetworkGuardRefusal[] = []
+  if (env.CONVEX_DEPLOY_KEY?.trim()) {
+    refusals.push({
+      code: 'CONVEX_KEY_FOR_STELLAR_ONLY',
+      message:
+        'CONVEX_DEPLOY_KEY is set. Stellar-only tools never use a Convex deploy key; unset it for this run.',
+    })
+  }
+  if (env[LIVE_BACKEND_APPROVAL_ENV]?.trim()) {
+    refusals.push({
+      code: 'APPROVAL_NOT_FOR_DEPLOY',
+      message: `${LIVE_BACKEND_APPROVAL_ENV} does not apply to Stellar-only tools. Unset it.`,
+    })
+  }
+  let result: NetworkGuardResult | null = null
+  try {
+    result = assertTestnetOnly({
+      operation,
+      kind: 'operational',
+      optIn: env[NETWORK_GUARD_OPT_IN_ENV],
+      checkConvex: false,
+      ...stellarInputs(env),
+    })
+  } catch (error) {
+    if (!(error instanceof NetworkGuardError)) throw error
+    refusals.push(...error.refusals)
+  }
+  if (refusals.length > 0 || !result) {
+    throw new NetworkGuardError(operation, refusals)
+  }
+  return result
+}
+
+/**
+ * `assertScriptStellarTestnetOnly`, then the network, RPC URL, passphrase and
+ * Horizon URL the script must pass on explicitly.
+ */
+export function resolveScriptStellarOnlyNetwork(
+  operation: string,
+  env: EnvLike = process.env
+): ScriptStellarNetwork {
+  const guard = assertScriptStellarTestnetOnly(operation, env)
+  return resolveWithGuard(guard, env)
 }
 
 /**

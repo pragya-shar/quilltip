@@ -132,6 +132,7 @@ export type NetworkGuardCode =
   | 'LIVE_IN_ALLOWLIST'
   | 'APPROVAL_NOT_FOR_DEPLOY'
   | 'INVALID_APPROVAL'
+  | 'CONVEX_KEY_FOR_STELLAR_ONLY'
 
 export type NetworkGuardRefusal = {
   code: NetworkGuardCode
