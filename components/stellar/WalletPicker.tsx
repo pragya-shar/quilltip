@@ -133,6 +133,8 @@ export function WalletPicker() {
 
   const network = networkLabel(STELLAR_CONFIG.NETWORK_PASSPHRASE)
   const groups = options ? groupOptions(options) : []
+  const showPairing = pairing !== null && pending?.access === 'mobile'
+  const offersPhone = options?.some((o) => o.access === 'mobile') ?? false
 
   return (
     <Dialog
@@ -165,7 +167,7 @@ export function WalletPicker() {
         </DialogHeader>
 
         <div className="wallet-install-body">
-          {pairing && pending?.access === 'mobile' ? (
+          {showPairing && pairing ? (
             <WalletConnectPairing pairing={pairing} onBack={backToWallets} />
           ) : options === null ? (
             <p className="wallet-picker-loading" role="status">
@@ -200,11 +202,14 @@ export function WalletPicker() {
             ))
           )}
           <p className="wallet-picker-status" role="status" aria-live="polite">
-            {pending ? pendingMessage(pending) : ''}
+            {/* The pairing step says what to do itself. */}
+            {pending && !showPairing ? pendingMessage(pending) : ''}
           </p>
           <p className="wallet-install-note">
-            Keep your recovery phrase private; QuillTip will never ask for it.
-            Hardware and mobile wallets are not supported yet.
+            Keep your recovery phrase private; QuillTip will never ask for it.{' '}
+            {offersPhone
+              ? 'Hardware wallets are not supported yet.'
+              : 'Hardware and mobile wallets are not supported yet.'}
           </p>
         </div>
       </DialogContent>
