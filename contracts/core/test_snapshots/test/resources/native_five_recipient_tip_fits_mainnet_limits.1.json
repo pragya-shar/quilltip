@@ -191,7 +191,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4BV5"
                 },
                 {
-                  "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                  "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
                 },
                 {
                   "address": "CAJS4RVGLFL2ANWW7W6Q4RGOZQXSVXW5BQKJ7A3ISE4EOUM5HHO77CQL"
@@ -418,7 +418,7 @@
                     "symbol": "Article"
                   },
                   {
-                    "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                    "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
                   }
                 ]
               },
@@ -856,7 +856,7 @@
                     "symbol": "Total"
                   },
                   {
-                    "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                    "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
                   },
                   {
                     "address": "CAJS4RVGLFL2ANWW7W6Q4RGOZQXSVXW5BQKJ7A3ISE4EOUM5HHO77CQL"
@@ -1691,7 +1691,7 @@
                 "symbol": "tipped"
               },
               {
-                "bytes": "b3f47606b8f81080f40ba5f5f63715ae7c2ac385cdeee04815f23901c79efadc"
+                "bytes": "40bd44eb918d5c8733019c759aaa5dbd3f2af87c98f025bbbca6795782c49761"
               },
               {
                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"

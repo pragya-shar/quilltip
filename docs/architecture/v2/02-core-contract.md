@@ -76,12 +76,14 @@ fn __constructor(e: Env, admin: Address, pauser: Address, upgrader: Address,
 ### Article registration
 
 ```rust
-fn register_article(e: Env, author: Address, article_id: BytesN<32>, content_hash: BytesN<32>,
-                    arweave_id: Option<BytesN<32>>, splits: Vec<Split>)
+fn register_article(e: Env, author: Address, article_ref: BytesN<32>, content_hash: BytesN<32>,
+                    arweave_id: Option<BytesN<32>>, splits: Vec<Split>) -> BytesN<32>
 ```
 
 - **Auth:** `author`. **Paused:** blocked.
+- **Derivation:** `article_id = SHA-256("quilltip:article:v2:" + author ‖ article_ref)` ([section 1.4](01-architecture.md#14-identifiers)). Another account that submits the same `article_ref` gets a different ID, so it cannot claim the author's ID first. Returns `article_id`.
 - **Preconditions:**
+  - `article_ref` is non-zero, else `InvalidHash`.
   - No `Article(article_id)`, else `AlreadyRegistered`.
   - Hashes are non-zero, else `InvalidHash`.
   - The split rules hold.
@@ -182,6 +184,7 @@ fn tip_batch(e: Env, tipper: Address, token: Address, items: Vec<TipInput>)
 
 | Function                                           | Returns                                                       |
 | -------------------------------------------------- | ------------------------------------------------------------- |
+| `article_id(author, article_ref) -> BytesN<32>`    | The ID `register_article` derives                             |
 | `get_article(article_id) -> Option<ArticleRecord>` | Record or `None`                                              |
 | `article_author(article_id) -> Address`            | Author. Panics with `NotRegistered`.                          |
 | `article_total(article_id, token) -> i128`         | Gross cumulative total; `0` if none                           |
@@ -226,7 +229,7 @@ Topics are listed in order. The first topic is the event name, the default for
 
 | Event               | Topics                                       | Data (map)                                                                                                                              |
 | ------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `ArticleRegistered` | `article_registered`, `article_id`, `author` | `content_hash`, `arweave_id`, `splits`                                                                                                  |
+| `ArticleRegistered` | `article_registered`, `article_id`, `author` | `article_ref`, `content_hash`, `arweave_id`, `splits`                                                                                   |
 | `ContentUpdated`    | `content_updated`, `article_id`              | `content_hash`, `arweave_id`, `content_version`                                                                                         |
 | `SplitsSet`         | `splits_set`, `article_id`                   | `splits`                                                                                                                                |
 | `AuthorProposed`    | `author_proposed`, `article_id`              | `new_author`, `live_until_ledger`                                                                                                       |
@@ -249,7 +252,7 @@ Notes:
 | ---- | ----------------------- | ----------------------------------------------------------------------------- |
 | 1    | `NotRegistered`         | tips, updates, views that require an article                                  |
 | 2    | `AlreadyRegistered`     | `register_article`                                                            |
-| 3    | `InvalidHash`           | zero `article_id`, `content_hash` or `arweave_id`                             |
+| 3    | `InvalidHash`           | zero `article_ref`, `content_hash` or `arweave_id`                            |
 | 4    | `InvalidSplits`         | split rules                                                                   |
 | 5    | `TooManyRecipients`     | more than 5 splits                                                            |
 | 6    | `TokenNotAllowed`       | unknown or disabled token                                                     |

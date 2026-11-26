@@ -154,7 +154,9 @@ impl Fixture {
 
     fn receipts(&self) -> std::vec::Vec<TipReceipt> {
         let e = &self.e;
-        let article = ids::article_id(e, &Bytes::from_slice(e, ARTICLE_CONVEX_IDS[0].as_bytes()));
+        let article_ref =
+            ids::article_ref(e, &Bytes::from_slice(e, ARTICLE_CONVEX_IDS[0].as_bytes()));
+        let article = ids::article_id(e, &Address::from_str(e, &self.writer_g), &article_ref);
         let content = bytes32(e, seed("content-hash-1"));
         let highlight =
             ids::highlight_id(e, &Bytes::from_slice(e, HIGHLIGHT_SOURCES[0].as_bytes()));
@@ -202,13 +204,27 @@ fn receipt_json(r: &TipReceipt, e: &Env) -> Value {
 fn build_vectors(f: &Fixture) -> Value {
     let e = &f.e;
 
-    let article_ids: std::vec::Vec<Value> = ARTICLE_CONVEX_IDS
+    let article_refs: std::vec::Vec<Value> = ARTICLE_CONVEX_IDS
         .iter()
         .map(|id| {
-            let derived = ids::article_id(e, &Bytes::from_slice(e, id.as_bytes()));
-            json!({ "convex_id": id, "article_id": hex32(&derived) })
+            let derived = ids::article_ref(e, &Bytes::from_slice(e, id.as_bytes()));
+            json!({ "convex_id": id, "article_ref": hex32(&derived) })
         })
         .collect();
+
+    // One G and one C author for each article reference.
+    let mut article_ids: std::vec::Vec<Value> = std::vec::Vec::new();
+    for id in ARTICLE_CONVEX_IDS {
+        let article_ref = ids::article_ref(e, &Bytes::from_slice(e, id.as_bytes()));
+        for author in [&f.writer_g, &f.writer_c] {
+            let derived = ids::article_id(e, &Address::from_str(e, author), &article_ref);
+            article_ids.push(json!({
+                "author": author,
+                "article_ref": hex32(&article_ref),
+                "article_id": hex32(&derived),
+            }));
+        }
+    }
 
     let highlight_ids: std::vec::Vec<Value> = HIGHLIGHT_SOURCES
         .iter()
@@ -298,6 +314,8 @@ fn build_vectors(f: &Fixture) -> Value {
             "network_id": hex32(&f.network_id),
         },
         "identifiers": {
+            "article_ref_prefix": quilltip_shared::ARTICLE_REF_PREFIX,
+            "article_refs": article_refs,
             "article_id_prefix": quilltip_shared::ARTICLE_ID_PREFIX,
             "article_ids": article_ids,
             "highlight_ids": highlight_ids,

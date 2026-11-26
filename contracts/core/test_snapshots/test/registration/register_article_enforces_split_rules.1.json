@@ -300,7 +300,7 @@
                     "symbol": "Article"
                   },
                   {
-                    "bytes": "3490841d412c8205ffa6b20b478e4734225c42d54f53c5a3c115984cc737002b"
+                    "bytes": "63ac3ada26297af78c5c06bb74585d500c0594fd4b08e2dceef39c0d13b38872"
                   }
                 ]
               },
@@ -415,7 +415,7 @@
                     "symbol": "Article"
                   },
                   {
-                    "bytes": "417f949509da8d56dc5ea9730b4e69238146fe42ccce21336d45d985fb9d12a3"
+                    "bytes": "81b6a68ebc4a8a1c07882241e109b07d6ea77f04d81ff7ebe474851ce4894af4"
                   }
                 ]
               },
@@ -1090,7 +1090,7 @@
                 "symbol": "article_registered"
               },
               {
-                "bytes": "417f949509da8d56dc5ea9730b4e69238146fe42ccce21336d45d985fb9d12a3"
+                "bytes": "81b6a68ebc4a8a1c07882241e109b07d6ea77f04d81ff7ebe474851ce4894af4"
               },
               {
                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"
@@ -1098,6 +1098,14 @@
             ],
             "data": {
               "map": [
+                {
+                  "key": {
+                    "symbol": "article_ref"
+                  },
+                  "val": {
+                    "bytes": "417f949509da8d56dc5ea9730b4e69238146fe42ccce21336d45d985fb9d12a3"
+                  }
+                },
                 {
                   "key": {
                     "symbol": "content_hash"

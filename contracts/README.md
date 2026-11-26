@@ -32,11 +32,12 @@ encoders in Convex and the client.
 | ----------- | ------------------------------------------------------------------------------------------------------------------- |
 | `constants` | `DAY`, `TTL_THRESHOLD`, `TTL_EXTEND_TO`, `FEE_BPS`, `BPS_DENOMINATOR`, Tab signing domains, `MAX_RECEIPTS_PER_PAIR` |
 | `errors`    | Error-code ranges: Core 1–29, Tab 30–69, NFT 70–89, reserved 90–99                                                  |
-| `ids`       | Identifier types, `is_zero`, `article_id` and `highlight_id` derivations                                            |
+| `ids`       | Identifier types, `is_zero`, `article_ref`, `article_id`, `highlight_id`                                            |
 | `ttl`       | `extend_instance`, `extend_persistent`, `extend_temporary`, `ledgers_until`                                         |
 | `fee`       | Checked `fee`, `fee_and_net`, `tab_fee` (cumulative rule) and `share`, with property tests                          |
 | `payload`   | `TipReceipt`, `VoucherPayload`, `AcceptancePayload` and their signed bytes                                          |
 | `merkle`    | `receipt_leaf`, `merkle_root`, `merkle_proof`, `verify_receipt` (OpenZeppelin `Verifier<Sha256>`)                   |
+| `roles`     | Self-administered `upgrader` role: only an upgrader grants, revokes or re-admins it                                 |
 
 ### Test vectors
 

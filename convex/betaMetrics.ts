@@ -3,6 +3,7 @@ import { internalAction, internalQuery } from './_generated/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { loadTestAccountIds } from './lib/testAccounts'
+import { contractVersionOf, countsAsPaid } from './lib/tipReads'
 
 // Usage metrics for the beta. Internal only: callable from the Convex
 // dashboard or CLI by someone with deployment access, never from the app.
@@ -11,7 +12,9 @@ import { loadTestAccountIds } from './lib/testAccounts'
 //
 // Test accounts are excluded by default. A tip is excluded when either the
 // tipper or the writer is a test account. Tip counts are reported by status;
-// `verified` counts CONFIRMED rows that carry a server verification time.
+// `verified` counts paid rows that carry a server verification time: v1
+// CONFIRMED, and v2 CONFIRMED or MISMATCH. `byVersion` splits rows by
+// `contractVersion` (a row without it is v1).
 // Each table is read in pages by a separate query, so no single query reads a
 // whole table. The result is a near-snapshot, not a single transaction.
 
@@ -47,14 +50,6 @@ const METRICS_TABLES: MetricsTable[] = [
 
 type TipRow = Doc<'tips'> | Doc<'highlightTips'>
 
-function isVerifiedTip(tip: TipRow) {
-  return (
-    tip.status === 'CONFIRMED' &&
-    typeof tip.verifiedAt === 'number' &&
-    tip.verifiedAt > 0
-  )
-}
-
 type PageCounts = {
   counts: Record<string, number>
   tippers: string[]
@@ -85,7 +80,10 @@ export const countPage = internalQuery({
         add(`${prefix}.total`)
         add(`${prefix}.byStatus.${tip.status}`)
         out.tippers.push(tip.tipperId)
-        if (isVerifiedTip(tip)) {
+        add(`${prefix}.byVersion.${contractVersionOf(tip)}`)
+        // v1: CONFIRMED with verifiedAt. v2: CONFIRMED or MISMATCH with
+        // verifiedAt (the payment happened on chain).
+        if (countsAsPaid(tip)) {
           add(`${prefix}.verified`)
           out.verifiedTippers.push(tip.tipperId)
         }

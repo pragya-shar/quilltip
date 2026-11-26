@@ -111,15 +111,48 @@ export async function articleContentHashHex(
   return bytesToHex(await articleContentHash(article))
 }
 
-/** Prefix of the `article_id` preimage. */
-export const ARTICLE_ID_PREFIX = 'quilltip:article:v1:'
+/** Prefix of the `article_ref` preimage. */
+export const ARTICLE_REF_PREFIX = 'quilltip:article:v1:'
 
-/** `article_id`: SHA-256 of `"quilltip:article:v1:" + <Convex articles _id>`. */
-export async function articleIdHex(convexArticleId: string): Promise<string> {
+/** Prefix of the `article_id` preimage. */
+export const ARTICLE_ID_PREFIX = 'quilltip:article:v2:'
+
+/** A 56-character Stellar G (account) or C (contract) address. */
+const AUTHOR_ADDRESS = /^[GC][A-Z2-7]{55}$/
+
+/**
+ * `article_ref`: SHA-256 of `"quilltip:article:v1:" + <Convex articles _id>`.
+ * The app's reference to an article, passed to `Core.register_article`.
+ */
+export async function articleRefHex(convexArticleId: string): Promise<string> {
   if (!convexArticleId) throw new CanonicalArticleError('articleId is empty')
   return bytesToHex(
-    await sha256(new TextEncoder().encode(ARTICLE_ID_PREFIX + convexArticleId))
+    await sha256(new TextEncoder().encode(ARTICLE_REF_PREFIX + convexArticleId))
   )
+}
+
+/**
+ * `article_id`: the ID Core stores for an article,
+ * SHA-256 of `"quilltip:article:v2:" + <author address> + <article_ref bytes>`.
+ * Core derives the same value in `register_article`, so only `author` can
+ * register it. Compute it once, with the author's address at registration,
+ * and store it: it does not change when the article's author changes later.
+ */
+export async function articleIdHex(
+  authorAddress: string,
+  articleRef: string
+): Promise<string> {
+  if (!AUTHOR_ADDRESS.test(authorAddress)) {
+    throw new CanonicalArticleError('author must be a G or C address')
+  }
+  if (!isHexOfLength(articleRef, 32)) {
+    throw new CanonicalArticleError('articleRef must be 32 bytes of hex')
+  }
+  const prefix = new TextEncoder().encode(ARTICLE_ID_PREFIX + authorAddress)
+  const preimage = new Uint8Array(prefix.length + 32)
+  preimage.set(prefix)
+  preimage.set(hexToBytes(articleRef), prefix.length)
+  return bytesToHex(await sha256(preimage))
 }
 
 /**

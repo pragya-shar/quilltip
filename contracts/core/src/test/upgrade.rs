@@ -152,8 +152,11 @@ fn upgrader_contract_upgrades_and_migrates_atomically() {
     let s = write_state(&f);
 
     let upgrader_contract = f.e.register(TestUpgrader, ());
-    f.core
-        .grant_role(&upgrader_contract, &Symbol::new(&f.e, "upgrader"), &f.admin);
+    f.core.grant_role(
+        &upgrader_contract,
+        &Symbol::new(&f.e, "upgrader"),
+        &f.upgrader,
+    );
     let v2_hash = f.e.deployer().upload_contract_wasm(v2.as_slice());
     f.e.invoke_contract::<()>(
         &upgrader_contract,
