@@ -449,6 +449,21 @@ describe('verification (rule (a))', () => {
     expect(status).toMatchObject({ status: 'CONFIRMED', canRetry: false })
   })
 
+  it('a confirmed v2 tip is never handed to the v1 reconciler', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const { submissionId } = await prepare(t, s)
+    await submitAndVerify(t, s, submissionId, (refs) =>
+      successResponse(HASH, [[tipped(refs[0]!)]])
+    )
+    expect((await rows(t, submissionId))[0]!.status).toBe('CONFIRMED')
+    const forV1 = await t.query(
+      internal.reconcileTips.getRecentConfirmedArticleTipsForReconcile,
+      { cutoffMs: 0 }
+    )
+    expect(forV1.filter(({ tip }) => tip.contractVersion === 'v2')).toEqual([])
+  })
+
   it('confirms a highlight tip with the expected highlight_id', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
@@ -1248,6 +1263,13 @@ describe('backfill', () => {
       } as never)
     )
     await prepare(t, s) // a v2 row stays v2
+    // A non-numeric page size falls back to the default page.
+    expect(
+      await t.mutation(internal.chain.backfill.setContractVersionV1, {
+        table: 'tips',
+        pageSize: Number.NaN,
+      })
+    ).toMatchObject({ apply: false, scanned: 2 })
     const dry = await t.mutation(internal.chain.backfill.setContractVersionV1, {
       table: 'tips',
     })
