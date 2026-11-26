@@ -55,10 +55,9 @@ fn setup<'a>() -> RealCore<'a> {
     let author = Address::generate(&e);
     let tipper = Address::generate(&e);
     StellarAssetClient::new(&e, &token).mint(&tipper, &(10 * THRESHOLD));
-    let article = article_id(&e, 7);
-    core.register_article(
+    let article = core.register_article(
         &author,
-        &article,
+        &article_id(&e, 7),
         &BytesN::from_array(&e, &[0xAB; 32]),
         &None,
         &vec![&e],

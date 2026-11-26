@@ -108,7 +108,7 @@
               "function_name": "update_content",
               "args": [
                 {
-                  "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                  "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                 },
                 {
                   "bytes": "ab03030303030303030303030303030303030303030303030303030303030303"
@@ -131,7 +131,7 @@
               "function_name": "set_splits",
               "args": [
                 {
-                  "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                  "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                 },
                 {
                   "vec": []
@@ -153,7 +153,7 @@
               "function_name": "propose_author",
               "args": [
                 {
-                  "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                  "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXI7N"
@@ -178,7 +178,7 @@
               "function_name": "cancel_author_proposal",
               "args": [
                 {
-                  "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                  "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                 }
               ]
             }
@@ -197,7 +197,7 @@
               "function_name": "propose_author",
               "args": [
                 {
-                  "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                  "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXI7N"
@@ -222,7 +222,7 @@
               "function_name": "accept_author",
               "args": [
                 {
-                  "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                  "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                 }
               ]
             }
@@ -296,7 +296,7 @@
                     "symbol": "Article"
                   },
                   {
-                    "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                    "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                   }
                 ]
               },
@@ -970,7 +970,7 @@
                 "symbol": "author_changed"
               },
               {
-                "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
               }
             ],
             "data": {

@@ -106,7 +106,7 @@
               "function_name": "update_content",
               "args": [
                 {
-                  "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                  "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                 },
                 {
                   "bytes": "ab05050505050505050505050505050505050505050505050505050505050505"
@@ -154,7 +154,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAXI7N"
                 },
                 {
-                  "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                  "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                 },
                 {
                   "address": "CAJS4RVGLFL2ANWW7W6Q4RGOZQXSVXW5BQKJ7A3ISE4EOUM5HHO77CQL"
@@ -321,7 +321,7 @@
                     "symbol": "Article"
                   },
                   {
-                    "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                    "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                   }
                 ]
               },
@@ -699,7 +699,7 @@
                     "symbol": "Total"
                   },
                   {
-                    "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                    "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
                   },
                   {
                     "address": "CAJS4RVGLFL2ANWW7W6Q4RGOZQXSVXW5BQKJ7A3ISE4EOUM5HHO77CQL"
@@ -1311,7 +1311,7 @@
                 "symbol": "tipped"
               },
               {
-                "bytes": "b06e65cb98e89db2d635c5a2cf75138489e90049686e09492f43fe361685c2a1"
+                "bytes": "0f44222ce9180daded80d74b626fafb6001366274f57030754bbe4f5beab6700"
               },
               {
                 "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAARQG5"

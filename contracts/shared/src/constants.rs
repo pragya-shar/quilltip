@@ -27,8 +27,11 @@ pub const TAB_ACCEPT_DOMAIN: &str = "quilltip_tab_accept_v1";
 /// Maximum receipts anchored by one `(reader, key_id, writer)` voucher chain.
 pub const MAX_RECEIPTS_PER_PAIR: u32 = 256;
 
-/// Prefix of the article identifier preimage.
-pub const ARTICLE_ID_PREFIX: &str = "quilltip:article:v1:";
+/// Prefix of the `article_ref` preimage (the app's reference to an article).
+pub const ARTICLE_REF_PREFIX: &str = "quilltip:article:v1:";
+
+/// Prefix of the `article_id` preimage, which binds the reference to its author.
+pub const ARTICLE_ID_PREFIX: &str = "quilltip:article:v2:";
 
 /// Value for the `source_repo` contract metadata entry.
 pub const SOURCE_REPO: &str = "github:pragya-shar/QuillTip";
