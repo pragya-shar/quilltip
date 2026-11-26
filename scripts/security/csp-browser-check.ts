@@ -44,6 +44,11 @@ async function main(): Promise<number> {
   })
   try {
     await waitForApp()
+    // The first request to a route compiles its server data; warm the routes
+    // so a cold start cannot race the spec's first assertions.
+    for (const path of ['/', '/articles', '/wallet/practice']) {
+      await fetch(`${BASE_URL}${path}`).catch(() => {})
+    }
     return await run(
       'bunx',
       ['playwright', 'test', 'e2e/content-security-policy.spec.ts'],
