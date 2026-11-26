@@ -1,4 +1,5 @@
 import { preload } from 'react-dom'
+import { preloadUiFont } from '@/lib/fonts/preloadFonts'
 
 // The article body font is only found once the stylesheet is parsed. Preload it
 // from this synchronous layout so the hint ships with the page head (the page
@@ -13,5 +14,6 @@ export default function ArticleLayout({
     type: 'font/woff2',
     crossOrigin: 'anonymous',
   })
+  preloadUiFont()
   return children
 }

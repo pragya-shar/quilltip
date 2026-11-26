@@ -78,3 +78,6 @@ scripts/eng-236-batch-input.local.json
 .agents/*
 certificates
 .gstack/
+
+# page-load budget output (bun run perf:budget)
+perf-budget-results.json
