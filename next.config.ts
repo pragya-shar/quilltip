@@ -19,6 +19,10 @@ const nextConfig: NextConfig = {
   // list, so all crawlers and link previews see article titles and tags. Pages
   // that set metadata already await the same data, so nothing is delayed.
   htmlLimitedBots: /.*/,
+  // Playwright's default base URL is http://127.0.0.1:3100. `next dev` serves
+  // its client bundles only to allowed hosts, so without this a page opened on
+  // 127.0.0.1 never hydrates. Development server only.
+  allowedDevOrigins: ['127.0.0.1'],
   // Pages render per request (proxy.ts adds a CSP nonce). React would then
   // send font preloads as Link response headers, so fonts start before the
   // HTML is parsed and compete with the render-blocking stylesheets. Keep
