@@ -1,6 +1,10 @@
 import { cache } from 'react'
 import { fetchQuery } from 'convex/nextjs'
 import { api } from '@/convex/_generated/api'
+import {
+  PROFILE_ARTICLES_PER_PAGE,
+  toProfileArticlesPage,
+} from '@/lib/profile/profileArticles'
 
 /**
  * Server-side reads for public pages. These run without the visitor's auth token,
@@ -27,6 +31,26 @@ export const getPublicProfile = cache(async (username: string) => {
     return undefined
   }
 })
+
+/**
+ * The first view of a writer's articles for the server-rendered page, or
+ * undefined when the backend could not be reached (the client then loads it).
+ */
+export const getPublicProfileArticles = cache(
+  async (username: string, page: number) => {
+    try {
+      const data = await fetchQuery(api.articles.listArticles, {
+        author: username,
+        page,
+        limit: PROFILE_ARTICLES_PER_PAGE,
+      })
+      return toProfileArticlesPage(data)
+    } catch (error) {
+      console.error('Server profile articles fetch failed', error)
+      return undefined
+    }
+  }
+)
 
 /**
  * When a writer page is missing, checks whether the handle moved (an earlier
