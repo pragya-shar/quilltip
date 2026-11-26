@@ -5,6 +5,7 @@
  * test vectors stand in for Convex.
  */
 import { ed25519 } from '@noble/curves/ed25519'
+import { StrKey } from '@stellar/stellar-sdk'
 
 import shared from '../../../contracts/shared/test-vectors.json'
 import { bytesToHex, hexToBytes } from '../../../lib/stellar/v2/tab/bytes'
@@ -27,6 +28,7 @@ import {
   type SessionKeyScope,
   type SignTabTipDeps,
   type StoredReceipt,
+  type SubmittedTabTip,
 } from '../../../lib/stellar/v2/tab'
 
 const voucher = shared.vouchers[0]!
@@ -53,6 +55,51 @@ const items: StoredReceipt[] = shared.receipts.items.map((r) => ({
   highlightId: r.highlight_id,
   seq: r.seq,
 }))
+
+const randomHex = (n: number) =>
+  bytesToHex(crypto.getRandomValues(new Uint8Array(n)))
+
+/** A writer address of its own for each test round. */
+const writerOf = (i: number) =>
+  StrKey.encodeEd25519PublicKey(
+    new Uint8Array(32).fill(i + 1) as unknown as Buffer
+  )
+
+/** The pair state Convex shows in a prepare. */
+type PairState = { cumulative: string; leafHashes: string[] }
+
+/** A `tabs.prepareTip` result on top of `state`, as Convex builds one. */
+function prepareOn(
+  writer: string,
+  keyId: number,
+  state: PairState,
+  amount: number
+): PreparedTabTip {
+  const seq = state.leafHashes.length + 1
+  const receipt: StoredReceipt = {
+    amount: String(amount),
+    articleId: randomHex(32),
+    clientRef: randomHex(16),
+    contentHash: randomHex(32),
+    cumulativeAfter: (BigInt(state.cumulative) + BigInt(amount)).toString(),
+    highlightId: null,
+    seq,
+  }
+  return {
+    prepareId: `prep_${randomHex(8)}`,
+    tabContractId: SCOPE.tabContractId,
+    readerAddress: SCOPE.readerAddress,
+    writer,
+    keyId,
+    seq,
+    cumulativeBefore: state.cumulative,
+    amount: String(amount),
+    receipt,
+    leafHashes: [...state.leafHashes],
+    expiresAt: 10_000,
+    existing: false,
+  }
+}
 
 function deps(forceFallback = false): SignTabTipDeps {
   return {
@@ -317,6 +364,115 @@ const api = {
       leafHashes: [receiptLeafHex(items[0]!)],
     })
     return result.status
+  },
+
+  /**
+   * The stored key record as IndexedDB holds it, and what `exportKey` does
+   * with its `CryptoKey`.
+   */
+  async rawKeys() {
+    const all = (await inTransaction({}, [KEYS_STORE], 'readonly', (tx) =>
+      request(tx.objectStore(KEYS_STORE).getAll())
+    )) as Record<string, unknown>[]
+    const out = []
+    for (const record of all) {
+      const key = record.privateKey as CryptoKey | undefined
+      const exports: Record<string, string> = {}
+      if (key)
+        for (const format of ['pkcs8', 'jwk', 'raw'] as const) {
+          try {
+            await crypto.subtle.exportKey(format, key)
+            exports[format] = 'exported'
+          } catch (error) {
+            exports[format] = (error as Error).name
+          }
+        }
+      out.push({
+        backend: record.backend,
+        extractable: record.extractable,
+        isCryptoKey: key instanceof CryptoKey,
+        keyExtractable: key?.extractable ?? null,
+        usages: key?.usages ?? null,
+        hasSeed: record.seed !== undefined,
+        exports,
+      })
+    }
+    return out
+  },
+
+  /**
+   * Signs a prepare with the generated key, then calls `signTabTip` again
+   * with the same prepare (a resubmit after a lost response).
+   */
+  async replay() {
+    const d = deps()
+    const p = prepareOn(
+      writerOf(200),
+      GENERATED_KEY_ID,
+      { cumulative: '0', leafHashes: [] },
+      5
+    )
+    const first = await signTabTip(p, d)
+    const again = await signTabTip(structuredClone(p), d)
+    if (first.kind !== 'signed' || again.kind !== 'signed')
+      return { first: first.kind, again: again.kind }
+    const key = (await d.keys.get(SCOPE, GENERATED_KEY_ID))!
+    const payload = voucherPayloadFor({
+      tabContractId: SCOPE.tabContractId,
+      networkPassphrase: PASSPHRASE,
+      reader: SCOPE.readerAddress,
+      writer: p.writer,
+      keyId: GENERATED_KEY_ID,
+      publicKey: key.publicKey(),
+      cumulative: '5',
+      receiptsRoot: first.voucher.receiptsRoot,
+    })
+    const fresh = bytesToHex(await key.sign(payload))
+    return {
+      first: first.kind,
+      again: again.kind,
+      replay: again.replay,
+      same: again.submit.signature === first.submit.signature,
+      /** True on engines that sign with a random nonce. */
+      freshDiffers: fresh !== first.submit.signature,
+      verifies: ed25519.verify(
+        hexToBytes(first.submit.signature, 64),
+        payload,
+        key.publicKey()
+      ),
+    }
+  },
+
+  writerOf,
+
+  /** `signTabTip` with the vector key on a prepare built on `state`. */
+  async tipOn(writer: string, state: PairState, amount: number) {
+    const prepared = prepareOn(writer, VECTOR_KEY_ID, state, amount)
+    const result = await signTabTip(prepared, deps())
+    if (result.kind !== 'signed')
+      return {
+        kind: result.kind,
+        reason: result.reason,
+        prepared,
+      }
+    return {
+      kind: result.kind,
+      reason: null,
+      prepared,
+      submit: result.submit,
+      leafHash: receiptLeafHex(prepared.receipt),
+      receiptsRoot: result.voucher.receiptsRoot,
+      publicKey: result.voucher.publicKey,
+    }
+  },
+
+  /** `commitAcceptedTip` for an acceptance from the test's server. */
+  async commit(accepted: SubmittedTabTip) {
+    return (await commitAcceptedTip(accepted, deps())).status
+  },
+
+  async ledgerFor(writer: string) {
+    return deps().ledger.read(SCOPE, VECTOR_KEY_ID, writer)
   },
 
   async ledger() {

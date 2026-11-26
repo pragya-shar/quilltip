@@ -14,11 +14,14 @@
  * ever holds a voucher this browser signed, so promotion adds no exposure.
  *
  * Concurrency: every read-check-write runs in one IndexedDB `readwrite`
- * transaction (see `idb.ts`). The Web Locks API is not used: a transaction
- * already serialises writers across browser tabs, and Web Locks would add a
- * second mechanism for no extra safety. Signing is asynchronous WebCrypto
- * work and cannot run inside a transaction, so the write after signing is a
- * compare-and-set against the state the check saw.
+ * transaction (see `idb.ts`), so each record stays consistent across browser
+ * tabs. Signing is asynchronous and runs outside a transaction, so two tabs
+ * (or one tab with two prepares) can sign the same `seq`; both pending
+ * entries are kept. Convex accepts at most one voucher per `seq` and refuses
+ * the other with `TAB_STALE_PREPARE`, and that tab prepares again. The write
+ * after signing is a compare-and-set on the committed state: it detects an
+ * acceptance committed by another tab since the check, not another tab's
+ * pending entry. Web Locks are not used; see README "Concurrency".
  */
 import { isHexOfLength, parseAmount } from './bytes'
 import { TabClientError } from './errors'

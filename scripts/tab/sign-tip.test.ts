@@ -393,6 +393,46 @@ describe('signTabTip: the ledger rule', () => {
     ).toMatchObject({ seq: 3, cumulative: '20' })
   })
 
+  it('a replay never signs again (engines with a random nonce)', async () => {
+    const { deps, server } = await setup()
+    // Every signature after the first differs, as in WebKit.
+    let calls = 0
+    const keys: SignTabTipDeps['keys'] = {
+      ...deps.keys,
+      get: async (scope, keyId) => {
+        const key = await deps.keys.get(scope, keyId)
+        if (!key) return null
+        return {
+          ...key,
+          info: key.info,
+          publicKey: () => key.publicKey(),
+          sign: async (message) =>
+            ++calls === 1
+              ? key.sign(message)
+              : crypto.getRandomValues(new Uint8Array(64)),
+        }
+      },
+    }
+    const randomized = { ...deps, keys }
+    const prepared = server.prepare({
+      keyId: 0,
+      writer: WRITER_G,
+      amount: BigInt(9),
+    })
+    const first = await signTabTip(prepared, randomized)
+    if (first.kind !== 'signed') throw new Error('not signed')
+    // The response is lost; the same prepare is signed again.
+    const again = await signTabTip(
+      server.prepareAgain(prepared.prepareId),
+      randomized
+    )
+    expect(again).toMatchObject({ kind: 'signed', replay: true })
+    if (again.kind === 'signed')
+      expect(again.submit.signature).toBe(first.submit.signature)
+    expect(calls).toBe(1)
+    expect(server.submit(first.submit).status).toBe('ACCEPTED')
+  })
+
   it('resubmitting the same prepared tip reuses the signature', async () => {
     const { deps, server } = await setup()
     const prepared = server.prepare({

@@ -84,7 +84,8 @@ if (result.kind === 'signed') {
     already signed here (same `prepareId`); the stored signature is reused.
   - `{ kind: 'retry_prepare', reason }`. Prepare once more with a new
     `requestId` and call `signTabTip` again. `reason` is a `MismatchReason`
-    or `concurrent_update` (another browser tab changed the pair meanwhile).
+    or `concurrent_update` (another browser tab committed an acceptance for
+    the pair meanwhile).
   - `{ kind: 'stop', reason, message }`. Do not sign. See the table below.
 - `commitAcceptedTip(accepted, deps)` appends the accepted leaf. It is safe to
   repeat and safe with two browser tabs. It throws `TabClientError`
@@ -171,13 +172,33 @@ The Tab contract id fixes the network, so the network is not a key part.
 
 ### Concurrency
 
-Every read-check-write is one IndexedDB `readwrite` transaction. IndexedDB
-runs `readwrite` transactions on a store one at a time across all connections
-of the origin, so two browser tabs cannot interleave inside one. The Web Locks
-API is not used: it would add a second mechanism without more safety. Signing
-is asynchronous and cannot run inside a transaction, so the write after
-signing is a compare-and-set: it re-checks the pair against the prepared state
-and writes nothing if another tab moved it (`concurrent_update`).
+Each read-check-write is one IndexedDB `readwrite` transaction, and IndexedDB
+runs those one at a time across all tabs of the origin. That keeps each
+record consistent. It does not serialise tips: signing is asynchronous and
+runs outside a transaction.
+
+What this gives, and what it does not:
+
+- **Two browser tabs can sign the same `seq`.** Both check the same committed
+  state, both sign, and both store a pending entry. One tab that prepares
+  twice for the same `seq` can also sign twice.
+- **Convex accepts at most one of them.** `submitTabTip` accepts a voucher
+  only on top of the pair's current state; the other gets
+  `TAB_STALE_PREPARE` (spec 5.6, step 3.3). That tab prepares again on the
+  new state and signs the next `seq`.
+- **The reader never pays more than intended.** A voucher is cumulative and
+  carries only this reader's own amounts on the history Convex showed, so
+  whichever voucher for the pair settles pays at most what the reader meant
+  to tip.
+- The write after signing is a compare-and-set against the committed state
+  the check saw. It returns `retry_prepare` with `concurrent_update` when
+  another tab committed an acceptance for the pair in the meantime. It does
+  not detect another tab's pending entry.
+
+Web Locks are not used. A per-pair lock would stop two tabs signing the same
+`seq`, but it needs a rule for a lock held by a tab that closed, and Convex
+already refuses the second voucher. The fixture suite tests the two-tab case
+in all three engines.
 
 ### The ledger rule (spec 5.6, step 2)
 
