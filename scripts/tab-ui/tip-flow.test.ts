@@ -48,7 +48,9 @@ async function setup() {
     },
     submitTip: async (args: SubmitTipArgs) => server.submit(args),
     sign: (prepared: PreparedTabTip) => signTabTip(prepared, signing),
-    commit: (accepted) => commitAcceptedTip(accepted, signing),
+    commit: async (accepted) => {
+      await commitAcceptedTip(accepted, signing)
+    },
     newRequestId: () => `req-${++n}`,
     onStep: (s) => steps.push(s),
     sleep: async () => {},
@@ -103,12 +105,10 @@ describe('runTabTip', () => {
 
   it('prepares once more with a new requestId on retry_prepare, and not twice', async () => {
     const { deps, requests } = await setup()
-    const sign = vi
-      .fn<TabTipDeps['sign']>()
-      .mockResolvedValue({
-        kind: 'retry_prepare',
-        reason: 'concurrent_update',
-      } as never)
+    const sign = vi.fn<TabTipDeps['sign']>().mockResolvedValue({
+      kind: 'retry_prepare',
+      reason: 'concurrent_update',
+    } as never)
     deps.sign = sign
     const out = await runTabTip(deps, input)
     expect(out).toMatchObject({ kind: 'refused' })

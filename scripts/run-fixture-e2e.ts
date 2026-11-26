@@ -57,6 +57,15 @@ const FIXTURES = [
     config: 'e2e/fixtures/tab/playwright.config.ts',
     env: {},
   },
+  {
+    // Tab screens (#449): every state in Chromium, the session-key and
+    // voucher paths in Chromium, Firefox and WebKit (its own config).
+    server: 'e2e/fixtures/tab-ui/server.mjs',
+    port: 4183,
+    spec: 'e2e/tab-ui(-keys)?.spec.ts',
+    config: 'e2e/fixtures/tab-ui/playwright.config.ts',
+    env: {},
+  },
 ] as const satisfies readonly {
   server: string
   port: number

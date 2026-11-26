@@ -9,7 +9,6 @@ import {
   TransactionBuilder,
   rpc,
   scValToNative,
-  xdr,
 } from '@stellar/stellar-sdk'
 import { Client as TabClient } from '@/lib/stellar/v2/bindings/tab'
 import type { ContractCall } from '@/lib/stellar/v2/tx'

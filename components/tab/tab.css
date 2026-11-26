@@ -1,0 +1,450 @@
+/*
+ * Tab screens (issue #449). They live on the account surface
+ * (components/account/account.css) and reuse its paper, ink, wine and rule
+ * colours, type and rows. `.tab-ui` restates the tokens so the quick-tip
+ * action also renders inside the tip dialog, which has no account surface.
+ */
+.tab-ui {
+  --tab-paper: #faf5ec;
+  --tab-ink: #390c18;
+  --tab-wine: #790333;
+  --tab-wine-deep: #610329;
+  --tab-muted: #5e535a;
+  --tab-rule: #cdb9b4;
+  --tab-wash: #f3ebe0;
+  --tab-ease: cubic-bezier(0.32, 0.72, 0, 1);
+  color: var(--tab-ink);
+  font-variant-numeric: tabular-nums;
+}
+.tab-ui :is(h2, h3, p, ol, ul, dl, dd) {
+  margin: 0;
+}
+.tab-ui ::selection {
+  background: #e7cfc9;
+  color: var(--tab-ink);
+}
+
+/* Sections: rules between, generous space above each heading. */
+.tab-page {
+  max-width: 1120px;
+  display: grid;
+  gap: 56px;
+}
+.tab-section {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.tab-section > header {
+  display: grid;
+  gap: 8px;
+  max-width: 68ch;
+}
+.tab-section > header p {
+  color: var(--tab-muted);
+}
+.tab-section-title {
+  font:
+    400 28px/1.25 'Account Alegreya',
+    Georgia,
+    serif;
+  letter-spacing: -0.01em;
+}
+.tab-subtle {
+  color: var(--tab-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Balance: three figures on one rule, like the stats page. */
+.tab-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--tab-rule);
+}
+.tab-figure {
+  min-width: 0;
+  padding: 24px 24px 28px 0;
+  border-top: 1px solid var(--tab-rule);
+  color: var(--tab-muted);
+}
+.tab-figure dt {
+  font-size: 15px;
+}
+.tab-figure dd {
+  margin-top: 12px;
+  color: var(--tab-ink);
+  font:
+    400 40px/1.15 'Account Alegreya',
+    Georgia,
+    serif;
+  overflow-wrap: anywhere;
+}
+.tab-figure[data-primary] dd {
+  color: var(--tab-wine);
+}
+.tab-figure .tab-figure-note {
+  display: block;
+  margin-top: 6px;
+  font:
+    400 14px/1.45 'Account Syne',
+    sans-serif;
+  color: var(--tab-muted);
+}
+.tab-figure-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 14px;
+}
+
+.tab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+/* Buttons follow .account-primary / .account-secondary. */
+.tab-primary,
+.tab-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  border-radius: 2px;
+  padding: 11px 17px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    background-color 150ms ease-out,
+    transform 150ms ease-out;
+}
+.tab-primary {
+  background: var(--tab-wine);
+  color: var(--tab-paper);
+  border: 1px solid var(--tab-wine);
+}
+.tab-secondary {
+  background: transparent;
+  color: var(--tab-ink);
+  border: 1px solid var(--tab-rule);
+  font-weight: 500;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tab-primary:hover:not(:disabled) {
+    background: var(--tab-wine-deep);
+  }
+  .tab-secondary:hover:not(:disabled) {
+    border-color: var(--tab-ink);
+  }
+}
+.tab-primary:active:not(:disabled),
+.tab-secondary:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.tab-primary:disabled,
+.tab-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.tab-ui :is(button, a, input, summary):focus-visible {
+  outline: 2px solid var(--tab-wine);
+  outline-offset: 4px;
+}
+.tab-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--tab-wine);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 6px;
+  cursor: pointer;
+}
+
+/* Fund form (open or top up). */
+.tab-form {
+  display: grid;
+  gap: 18px;
+  max-width: 560px;
+  padding: 24px;
+  border: 1px solid var(--tab-rule);
+  border-radius: 4px;
+  background: #fffdf8;
+}
+.tab-form-title {
+  font:
+    400 24px/1.3 'Account Alegreya',
+    Georgia,
+    serif;
+}
+.tab-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.tab-presets legend {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--tab-muted);
+}
+.tab-preset {
+  min-height: 44px;
+  min-width: 76px;
+  padding: 8px 14px;
+  border: 1px solid var(--tab-rule);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--tab-ink);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease-out,
+    background-color 150ms ease-out;
+}
+.tab-preset[aria-pressed='true'] {
+  border-color: var(--tab-wine);
+  background: var(--tab-wash);
+  color: var(--tab-wine);
+  font-weight: 600;
+}
+.tab-field {
+  display: grid;
+  gap: 8px;
+}
+.tab-field label {
+  font-weight: 500;
+}
+.tab-input-wrap {
+  position: relative;
+  max-width: 280px;
+}
+.tab-input-wrap input {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 56px 10px 14px;
+  border: 1px solid var(--tab-rule);
+  border-radius: 2px;
+  background: #fff;
+  color: var(--tab-ink);
+  font: inherit;
+  font-size: 16px;
+}
+.tab-input-wrap input[aria-invalid='true'] {
+  border-color: #9b1c2e;
+}
+.tab-input-unit {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--tab-muted);
+  pointer-events: none;
+}
+.tab-field-error {
+  color: #8f1427;
+  font-size: 14px;
+}
+.tab-statement {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 3px;
+  background: var(--tab-wash);
+  font-size: 15px;
+}
+
+/* Rows: keys and tab tips, ruled like the wallet tip history. */
+.tab-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+}
+.tab-list > li {
+  border-top: 1px solid var(--tab-rule);
+  min-width: 0;
+}
+.tab-list > li:last-child {
+  border-bottom: 1px solid var(--tab-rule);
+}
+.tab-tip-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 24px;
+  align-items: center;
+  padding: 18px 0;
+}
+.tab-tip-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.tab-tip-title {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.tab-tip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--tab-muted);
+  font-size: 14px;
+}
+.tab-tip-side {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  text-align: right;
+}
+.tab-tip-amount {
+  font-size: 18px;
+  font-weight: 500;
+}
+.tab-device-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: #e9f0e4;
+  color: #2c4a22;
+  font-size: 13px;
+  font-weight: 500;
+}
+.tab-key-item {
+  display: grid;
+  gap: 6px;
+  padding: 4px 0 12px;
+}
+
+/* Close and withdraw: a two-step timeline. */
+.tab-timeline {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  max-width: 560px;
+}
+.tab-timeline li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 14px;
+  padding-bottom: 20px;
+  position: relative;
+}
+.tab-timeline li:last-child {
+  padding-bottom: 0;
+}
+.tab-timeline li::before {
+  content: '';
+  position: absolute;
+  left: 11px;
+  top: 24px;
+  bottom: 0;
+  width: 2px;
+  background: var(--tab-rule);
+}
+.tab-timeline li:last-child::before {
+  display: none;
+}
+.tab-timeline-mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--tab-rule);
+  background: var(--tab-paper);
+  display: grid;
+  place-items: center;
+}
+.tab-timeline li[data-done] .tab-timeline-mark {
+  border-color: var(--tab-wine);
+  background: var(--tab-wine);
+  color: var(--tab-paper);
+}
+.tab-timeline-mark svg {
+  width: 14px;
+  height: 14px;
+}
+.tab-timeline strong {
+  display: block;
+  font-weight: 600;
+}
+
+/* Quick tip action: compact, for the tip dialog. */
+.tab-tip-action {
+  display: grid;
+  gap: 14px;
+}
+.tab-tip-action-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+.tab-tip-action-title {
+  font-weight: 600;
+  font-size: 17px;
+}
+
+/* Skeleton lines while the tab loads. */
+.tab-skeleton {
+  display: grid;
+  gap: 14px;
+}
+.tab-skeleton span {
+  display: block;
+  height: 18px;
+  border-radius: 2px;
+  background: #eee4db;
+}
+
+@media (max-width: 760px) {
+  .tab-page {
+    gap: 44px;
+  }
+  .tab-figures {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tab-figure {
+    padding: 18px 0 22px;
+  }
+  .tab-figure dd {
+    font-size: 34px;
+  }
+  .tab-form {
+    padding: 18px 16px;
+  }
+  .tab-actions > :is(.tab-primary, .tab-secondary) {
+    flex: 1 1 100%;
+  }
+  .tab-tip-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tab-tip-side {
+    justify-items: start;
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-primary,
+  .tab-secondary,
+  .tab-preset {
+    transition: none;
+  }
+  .tab-primary:active:not(:disabled),
+  .tab-secondary:active:not(:disabled) {
+    transform: none;
+  }
+}
