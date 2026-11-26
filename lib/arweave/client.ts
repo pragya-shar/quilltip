@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import { ARWEAVE_CONFIG } from './config'
+import type { ArticleUpload } from './articleUpload'
 import type {
   ArweaveArticleContent,
   ArweaveDataTag,
@@ -41,18 +42,27 @@ export function parseWalletKey(jwkString: string): JWKInterface {
 }
 
 /**
- * Upload article content to Arweave via Turbo SDK
- * Uses server-side wallet for authenticated signing
- * FREE for files under 100 KiB
+ * Upload an article data item built by `buildArticleUpload`. The body is sent
+ * unchanged; the hash is checked again here so a body that does not match its
+ * `Content-Hash` tag is never uploaded.
  */
 export async function uploadArticle(
-  content: ArweaveArticleContent,
+  upload: ArticleUpload,
   jwk: JWKInterface
 ): Promise<ArweaveUploadResult> {
   try {
-    const data = JSON.stringify(content)
-    const dataBuffer = Buffer.from(data)
+    const dataBuffer = Buffer.from(
+      upload.body.buffer,
+      upload.body.byteOffset,
+      upload.body.byteLength
+    )
     const contentHash = createHash('sha256').update(dataBuffer).digest('hex')
+    if (contentHash !== upload.contentHash) {
+      return {
+        success: false,
+        error: 'Upload body does not match its content hash',
+      }
+    }
     const sizeBytes = dataBuffer.length
     const sizeKiB = sizeBytes / 1024
 
@@ -81,19 +91,7 @@ export async function uploadArticle(
     const result = await turbo.upload({
       data: dataBuffer,
       signal: AbortSignal.timeout(60000), // 60s timeout
-      dataItemOpts: {
-        tags: [
-          { name: 'Content-Type', value: 'application/json' },
-          { name: 'App-Name', value: ARWEAVE_CONFIG.APP_NAME },
-          { name: 'App-Version', value: ARWEAVE_CONFIG.APP_VERSION },
-          { name: 'Article-Title', value: content.title },
-          { name: 'Author', value: content.author },
-          { name: 'Author-Id', value: content.authorId },
-          { name: 'Timestamp', value: content.timestamp.toString() },
-          { name: 'Version', value: content.version.toString() },
-          { name: 'Content-Hash', value: contentHash },
-        ],
-      },
+      dataItemOpts: { tags: upload.tags },
     })
 
     return {

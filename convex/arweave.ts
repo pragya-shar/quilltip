@@ -3,6 +3,7 @@
 import { v } from 'convex/values'
 import { internalAction } from './_generated/server'
 import { internal } from './_generated/api'
+import { ARTICLE_SCHEMA } from './lib/chain/ids'
 
 // Main upload action (background job) - Node.js runtime
 export const uploadArticleToArweave = internalAction({
@@ -39,17 +40,38 @@ export const uploadArticleToArweave = internalAction({
 
     const { article, authorUsername } = data
 
-    // Dynamic import for Node.js module
+    // Publish stored the content anchor. The body must reproduce it exactly.
+    if (
+      article.contentHashSchema !== ARTICLE_SCHEMA ||
+      !article.contentHash ||
+      !article.contentVersion
+    ) {
+      await ctx.runMutation(internal.arweaveHelpers.recordArweaveFailure, {
+        articleId: args.articleId,
+        error: 'Article has no canonical content hash',
+      })
+      return
+    }
+
     const { uploadArticle, parseWalletKey } =
       await import('../lib/arweave/client')
+    const { buildArticleUpload } = await import('../lib/arweave/articleUpload')
 
-    const content = {
-      title: article.title,
-      body: article.content,
-      author: authorUsername,
+    const upload = await buildArticleUpload({
+      articleId: article._id,
       authorId: article.authorId,
-      timestamp: Date.now(),
-      version: (article.contentVersion || 0) + 1,
+      title: article.title,
+      content: article.content,
+      contentVersion: article.contentVersion,
+      authorUsername,
+      uploadedAt: Date.now(),
+    })
+    if (upload.contentHash !== article.contentHash) {
+      await ctx.runMutation(internal.arweaveHelpers.recordArweaveFailure, {
+        articleId: args.articleId,
+        error: 'Article changed after its content hash was recorded',
+      })
+      return
     }
 
     // Retry logic with exponential backoff
@@ -58,15 +80,13 @@ export const uploadArticleToArweave = internalAction({
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const result = await uploadArticle(content, parseWalletKey(walletKey))
+        const result = await uploadArticle(upload, parseWalletKey(walletKey))
 
         if (result.success && result.txId) {
           await ctx.runMutation(internal.arweaveHelpers.recordArweaveUpload, {
             articleId: args.articleId,
             txId: result.txId,
             url: result.url || `https://arweave.net/${result.txId}`,
-            version: content.version,
-            contentHash: result.contentHash,
           })
           return
         }

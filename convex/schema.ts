@@ -113,8 +113,13 @@ export default defineSchema({
     arweaveTimestamp: v.optional(v.number()),
     arweaveVerifyAttempts: v.optional(v.number()), // Track verification retries
     arweaveErrorMessage: v.optional(v.string()), // Store error details
+    // Content anchor. With contentHashSchema 'quilltip-article-v1', contentHash
+    // is SHA-256 of canonicalArticleBytes (convex/lib/chain/ids.ts) at
+    // contentVersion. Without it, contentHash is a legacy hash of an earlier
+    // upload body and is kept unchanged.
     contentVersion: v.optional(v.number()),
-    contentHash: v.optional(v.string()), // SHA-256 hash of Arweave content
+    contentHash: v.optional(v.string()),
+    contentHashSchema: v.optional(v.string()),
 
     // Timestamps
     createdAt: v.number(),
