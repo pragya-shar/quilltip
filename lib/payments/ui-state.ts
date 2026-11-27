@@ -159,10 +159,13 @@ export function phaseFromRecord(
       return record.mismatchReason === 'author'
         ? 'sent-to-registered'
         : 'under-review'
+    // `needsReview` on a failed or expired record means an event for it
+    // arrived after all: the payment may have landed (tipUiState agrees).
     case 'FAILED':
+      if (record.needsReview === true) return 'under-review'
       return client.declined ? 'declined' : 'failed'
     case 'EXPIRED':
-      return 'expired'
+      return record.needsReview === true ? 'under-review' : 'expired'
     case 'PREPARED':
       if (client.declined) return 'declined'
       return client.step ?? 'resuming'
@@ -187,7 +190,11 @@ export function recordAllowsRetry(record: ChainRecord): boolean {
 }
 
 /** A row of a batch record (`getSubmissionStatus().rows`). */
-export type BatchRow = { status: string; mismatchReason?: string | null }
+export type BatchRow = {
+  status: string
+  mismatchReason?: string | null
+  needsReview?: boolean
+}
 
 /**
  * The phase of a basket payment from its rows. Any row under review puts the

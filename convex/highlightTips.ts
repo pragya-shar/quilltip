@@ -49,6 +49,7 @@ import {
 } from './lib/stellarTransactionHash'
 import { xlmStringToStroops } from './stellarVerify'
 import { verifiedStellarAddress } from './lib/walletVerification'
+import { requireV1PreparesEnabled } from './lib/v1Prepares'
 
 const MAX_OUTSTANDING_HIGHLIGHT_TIP_INTENTS = 5
 const MAX_HIGHLIGHT_CONTAINER_PATH_LENGTH = 256
@@ -96,6 +97,8 @@ export const prepareHighlightTip = mutation({
     }),
   }),
   handler: async (ctx, args) => {
+    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
+    requireV1PreparesEnabled()
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
@@ -517,6 +520,8 @@ export const create = mutation({
     authorShare: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
+    requireV1PreparesEnabled()
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 

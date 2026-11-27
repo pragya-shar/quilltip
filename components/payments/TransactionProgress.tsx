@@ -33,6 +33,7 @@ import {
   RETRY_LABEL,
   SIGNING_HELP,
   STEP_COPY,
+  TAB_OPERATION_RESULT,
   TAB_TIP_RESULT,
   TAB_TIP_SENDING,
   basketConfirmed,
@@ -82,6 +83,12 @@ interface TransactionProgressProps {
   onRetry?: () => void
   /** `resolvePaymentView().canRetry`: false while a pause or gate blocks it. */
   retryAllowed?: boolean
+  /**
+   * The view mounted because the user just pressed the start action. Only
+   * then may it take focus and announce its first step at mount; a view that
+   * renders with the page (a reload, a pending payment) leaves focus alone.
+   */
+  startedByUser?: boolean
   /** Offered while the wallet prompt is open. Client only: nothing is signed. */
   onCancel?: () => void
   /** Copy for `failed`, from `viewFromTxOutcome` or `failureFromContract`. */
@@ -137,9 +144,6 @@ const HAS_TRANSACTION = new Set<PaymentPhase>([
   'settled',
 ])
 
-/** Client steps start because the user acted, so they may be announced at mount. */
-const USER_STARTED = new Set<PaymentPhase>(['simulating', 'signing', 'sending'])
-
 function resultCopy(
   flow: PaymentFlow,
   phase: Result,
@@ -148,8 +152,13 @@ function resultCopy(
     audience: 'reader' | 'writer'
     redirected: number
     unlocksAround?: string
+    tabOperation: boolean
   }
 ): CopyBlock {
+  // A tab operation's failure is known only from the client's own polling.
+  if (options.tabOperation && (phase === 'failed' || phase === 'expired')) {
+    return TAB_OPERATION_RESULT[phase]
+  }
   switch (phase) {
     case 'confirmed':
       if (flow === 'tip-basket') return basketConfirmed(options.redirected)
@@ -201,6 +210,7 @@ export function TransactionProgress({
   txHash,
   onRetry,
   retryAllowed = true,
+  startedByUser = false,
   onCancel,
   failure,
   slow = false,
@@ -223,6 +233,7 @@ export function TransactionProgress({
         audience,
         redirected,
         unlocksAround,
+        tabOperation: 'tabOperation' in source,
       })
   const sentence = running
     ? runningSentence(flow, phase as RunningPhase, slow, resultPlace)
@@ -236,6 +247,8 @@ export function TransactionProgress({
   /** The phase whose text a focused heading already reads. */
   const quiet = useRef<PaymentPhase | null>(null)
   const [entered, setEntered] = useState(false)
+  // Read once: only the first render can be a start the user just made.
+  const startedAtMount = useRef(startedByUser)
 
   // Focus. While a payment runs, focus a hidden heading at the top when it
   // would otherwise fall to the page (the start or "Try again" button is
@@ -247,7 +260,11 @@ export function TransactionProgress({
     if (was === phase) return
     const node = root.current
     let target: HTMLElement | null = null
-    if (running && (was === null || !isRunning(was))) {
+    // At mount, only a step the user just started takes focus; a payment
+    // already running when the page loads (a reload, a pending tab
+    // operation) leaves focus where it is.
+    const started = was === null ? startedAtMount.current : !isRunning(was)
+    if (running && started) {
       target = progressHeading.current
     } else if (!running && was !== null) {
       setEntered(true)
@@ -267,7 +284,7 @@ export function TransactionProgress({
   const baseline = useRef<string | null>(sentence)
   useEffect(() => {
     const atMount = baseline.current !== null && sentence === baseline.current
-    if (atMount && !USER_STARTED.has(phase)) return
+    if (atMount && !(startedAtMount.current && isRunning(phase))) return
     baseline.current = null
     const text = quiet.current === phase ? '' : sentence
     const apply = () => {

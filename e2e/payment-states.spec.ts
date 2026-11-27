@@ -300,9 +300,11 @@ test.describe('live regions and focus', () => {
     await drive(page, 'failed')
     // The result title takes focus and reads its detail; the live regions
     // stay quiet so the result is not read twice.
-    const title = page.getByRole('heading', { name: 'Not sent' })
+    const title = page.getByRole('heading', { name: 'Not completed' })
     await expect(title).toBeFocused()
-    await expect(title).toHaveAccessibleDescription(/Nothing was paid\./)
+    await expect(title).toHaveAccessibleDescription(
+      /QuillTip recorded no payment for this request\./
+    )
     await expect(assertive(page)).toHaveText('')
     await expect(polite(page)).toHaveText('')
     await page.keyboard.press('Tab')
@@ -376,7 +378,9 @@ test.describe('live regions and focus', () => {
     await drive(page, 'checking')
     await page.getByRole('link', { name: 'Elsewhere' }).focus()
     await drive(page, 'failed')
-    await expect(assertive(page)).toHaveText('Not sent. Nothing was paid.')
+    await expect(assertive(page)).toHaveText(
+      'Not completed. QuillTip recorded no payment for this request.'
+    )
     await expect(page.getByRole('link', { name: 'Elsewhere' })).toBeFocused()
     await drive(page, 'checking')
     await expect(polite(page)).toContainText('Waiting for confirmation.')
@@ -397,6 +401,28 @@ test.describe('live regions and focus', () => {
       'data-enter',
       ''
     )
+    // A payment already running at load (a reload) leaves focus alone too.
+    for (const id of ['progress-checking', 'progress-resuming']) {
+      await open(page, id)
+      await page.waitForTimeout(100)
+      await expect(page.locator('body')).toBeFocused()
+    }
+  })
+
+  test('no state moves focus when it first renders', async ({ page }) => {
+    const moved: string[] = []
+    for (const state of STATES) {
+      await open(page, state.id)
+      await page.waitForTimeout(100)
+      const active = await page.evaluate(() => {
+        const node = document.activeElement
+        return !node || node === document.body
+          ? null
+          : `${node.tagName.toLowerCase()} ${node.textContent?.trim().slice(0, 40)}`
+      })
+      if (active) moved.push(`${state.id}: ${active}`)
+    }
+    expect(moved).toEqual([])
   })
 
   test('the gate keeps focus across states and hands it to the content', async ({
@@ -659,7 +685,7 @@ test.describe('long content', () => {
       panel!.x + panel!.width
     )
     await expect(page.locator('.pay-panel-detail')).toContainText(
-      'Nothing was paid.'
+      'Nothing was sent.'
     )
   })
 })

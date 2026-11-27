@@ -165,7 +165,7 @@ own HTTP-action origin, provided by Convex and used in `convex/auth.config.ts`.
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
 | App/auth               | Generated Convex URL                                                                                                     | `SITE_URL`; Auth signing configuration                             |
 | Article/highlight tips | `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`                                                        | `TIPPING_CONTRACT_ID`, `STELLAR_NETWORK=TESTNET`                   |
-| NFT                    | `NEXT_PUBLIC_NFT_CONTRACT_ID`; optional `NEXT_PUBLIC_NFT_METADATA_URL`                                                   | Check the affected backend function's requirements                 |
+| NFT (v1)               | `NEXT_PUBLIC_NFT_CONTRACT_ID`; optional `NEXT_PUBLIC_NFT_METADATA_URL`                                                   | Check the affected backend function's requirements                 |
 | Permanent publishing   | `ARWEAVE_ENABLED=false` by default                                                                                       | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY` when intentionally enabled |
 | Product analytics      | `NEXT_PUBLIC_ANALYTICS_ENABLED=false` by default; server-only `ANALYTICS_POSTHOG_KEY`, optional `ANALYTICS_POSTHOG_HOST` | None                                                               |
 | Password reset         | None                                                                                                                     | `AUTH_RESEND_KEY`, `AUTH_EMAIL_FROM`; uses `SITE_URL` for the link |
@@ -256,6 +256,19 @@ cutover. Its Convex variables, all testnet:
   are set.
 - `OPS_USER_IDS`: comma-separated Convex user IDs that may read the indexer
   status at `/ops/chain`.
+- `CHAIN_V1_PREPARES_ENABLED`: unset (or `true`) keeps v1 tip and NFT
+  preparation running. `false` pauses it for the cutover: the v1 prepare
+  functions refuse new records, while v1 submit, verification, recovery and
+  reads continue, so v1 tips already in flight complete. Any other value also
+  pauses. With v2 off and v1 paused, articles show "Tips are paused for a short
+  time while payments are updated."
+
+The Next.js side reads `NEXT_PUBLIC_CORE_CONTRACT_ID`,
+`NEXT_PUBLIC_TAB_CONTRACT_ID`, `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` and
+`NEXT_PUBLIC_TOKEN_CONTRACT_ID`. The v2 NFT name differs from
+`NEXT_PUBLIC_NFT_CONTRACT_ID`, which the v1 NFT code reads until it is
+removed. The cutover order is in
+[payments-v2-cutover.md](operations/payments-v2-cutover.md).
 
 Every function that reads the chain calls `assertBackendTestnet()` first. The
 `recheck pending chain submissions` cron (2 minutes) and the
