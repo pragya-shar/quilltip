@@ -1,5 +1,5 @@
 {
-  "buildCommand": "bun scripts/next/hydrate-after-paint.ts && next build",
+  "buildCommand": "next build",
   "outputDirectory": ".next",
   "framework": "nextjs",
   "installCommand": "bun install --frozen-lockfile",
