@@ -55,6 +55,9 @@ const ROUTES: { name: string; path: string; gateMovement: boolean }[] = [
   { name: 'articles', path: '/articles', gateMovement: true },
   { name: 'article', path: FIXTURE_ARTICLE_PATH, gateMovement: true },
   { name: 'guide', path: '/guide', gateMovement: true },
+  // The application shell's reading page: Source Serif 4 and its
+  // next/font fallback.
+  { name: 'shell reading', path: '/system/reading', gateMovement: true },
   ...(process.env.PERF_FONT_ROUTES ?? '')
     .split(/[\s,]+/)
     .filter(Boolean)

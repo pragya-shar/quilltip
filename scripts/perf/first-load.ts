@@ -15,6 +15,9 @@ export const FIRST_LOAD_ROUTES = [
   '/login',
   '/articles',
   '/[username]/[slug]',
+  // The application shell (app/(app)) on a public reading page: its own
+  // providers, navigation and design system, with no legacy code.
+  '/system/reading',
 ] as const
 export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
 
@@ -29,6 +32,8 @@ export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
   '/login': 202, // measured 199.4
   '/articles': 216, // measured 214.0
   '/[username]/[slug]': 219, // measured 216.9
+  // Target for public routes of the application shell (rebuild plan 4.1).
+  '/system/reading': 150,
 }
 
 /**

@@ -77,9 +77,7 @@ test('no horizontal page scroll at 360, 375 and 390', async ({
   }
 })
 
-test('focus follows the page order and is always visible', async ({
-  page,
-}) => {
+test('focus follows the page order and is always visible', async ({ page }) => {
   await open(page)
   await page.keyboard.press(tabKey(page))
   const skip = page.getByRole('link', { name: 'Skip to content' })
@@ -99,8 +97,11 @@ test('focus follows the page order and is always visible', async ({
       const box = el.closest('.qt-tray__other, .qt-field__control')
       return {
         index: all.indexOf(el),
-        name: el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 30),
-        visible: el.matches(':focus-visible') && (ring(el) || (box ? ring(box) : false)),
+        name:
+          el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 30),
+        visible:
+          el.matches(':focus-visible') &&
+          (ring(el) || (box ? ring(box) : false)),
         positive: el.tabIndex > 0,
       }
     })
@@ -121,9 +122,13 @@ test('the tip control works from the keyboard', async ({ page }) => {
   await page.keyboard.press('Enter')
   const tray = group.getByRole('radiogroup', { name: 'Tip amount' })
   await expect(tray).toBeVisible()
-  await expect(tray.getByRole('radio', { name: '$1', exact: true })).toBeFocused()
+  await expect(
+    tray.getByRole('radio', { name: '$1', exact: true })
+  ).toBeFocused()
   await page.keyboard.press('ArrowRight')
-  await expect(tray.getByRole('radio', { name: '$2', exact: true })).toBeChecked()
+  await expect(
+    tray.getByRole('radio', { name: '$2', exact: true })
+  ).toBeChecked()
   await expect(tip).toHaveText('Tip $2')
   await page.keyboard.press('Escape')
   await expect(tray).toBeHidden()
@@ -209,13 +214,17 @@ test('a sheet takes focus, keeps it, gives it back, and closes three ways', asyn
   await expect(sheet).toBeHidden()
   await expect(opener).toBeFocused()
   expect(
-    await page.evaluate(() => 'scrollLocked' in document.documentElement.dataset)
+    await page.evaluate(
+      () => 'scrollLocked' in document.documentElement.dataset
+    )
   ).toBe(false)
 
   await press(page, opener)
   await expect(sheet).toBeVisible()
   expect(
-    await page.evaluate(() => 'scrollLocked' in document.documentElement.dataset)
+    await page.evaluate(
+      () => 'scrollLocked' in document.documentElement.dataset
+    )
   ).toBe(true)
   await press(page, sheet.getByRole('button', { name: 'Close' }))
   await expect(sheet).toBeHidden()
@@ -277,7 +286,9 @@ test('a menu opens from the keyboard and returns focus', async ({ page }) => {
 
   await press(page, trigger)
   await press(page, menu.getByRole('menuitem', { name: 'Copy link' }))
-  await expect(page.getByRole('status').filter({ hasText: 'Link copied' })).toBeVisible()
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Link copied' })
+  ).toBeVisible()
 })
 
 test('tabs move with arrow keys', async ({ page }) => {
@@ -301,7 +312,9 @@ test('a failure toast is announced as an alert, others politely', async ({
   await open(page)
   await press(page, page.getByRole('button', { name: 'Failed', exact: true }))
   await expect(
-    page.locator('.qt-toasts [role="alert"]').getByText('That tip did not go through')
+    page
+      .locator('.qt-toasts [role="alert"]')
+      .getByText('That tip did not go through')
   ).toBeVisible()
   await press(page, page.getByRole('button', { name: 'Sent', exact: true }))
   await expect(

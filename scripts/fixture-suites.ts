@@ -103,6 +103,16 @@ export const FIXTURES = [
     config: 'e2e/fixtures/tab-ui/playwright.config.ts',
     env: {},
   },
+  {
+    // The design system gallery and the application shell: 390 with touch,
+    // 768 and 1440 in Chromium and WebKit (its own config).
+    name: 'system',
+    server: 'e2e/fixtures/system/server.mjs',
+    port: 4185,
+    spec: 'e2e/system-(gallery|shell).spec.ts',
+    config: 'e2e/fixtures/system/playwright.config.ts',
+    env: { SYSTEM_FIXTURES: '1' },
+  },
 ] as const satisfies readonly {
   name: string
   server: string

@@ -68,6 +68,13 @@ const ROUTES = [
     // Measured: HTML 40 KB, stylesheets 26 KB, fonts 98 KB.
     budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
   },
+  {
+    // The application shell's reading page (app/(app)), held to the legacy
+    // article page's budget until the real article page replaces both.
+    name: 'shell reading',
+    path: '/system/reading',
+    budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
+  },
 ] as const
 
 type DeviceName = 'mobile' | 'desktop'

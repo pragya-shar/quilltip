@@ -19,7 +19,9 @@ export type ContrastFailure = {
 export type HitFailure = { name: string; width: number; height: number }
 
 /** Every visible text run against the ground it sits on. */
-export async function auditTextContrast(page: Page): Promise<ContrastFailure[]> {
+export async function auditTextContrast(
+  page: Page
+): Promise<ContrastFailure[]> {
   return page.evaluate(() => {
     const canvas = document.createElement('canvas')
     canvas.width = canvas.height = 1
@@ -43,7 +45,10 @@ export async function auditTextContrast(page: Page): Promise<ContrastFailure[]> 
       })
       return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!
     }
-    const ratio = (a: [number, number, number], b: [number, number, number]) => {
+    const ratio = (
+      a: [number, number, number],
+      b: [number, number, number]
+    ) => {
       const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p) as [number, number]
       return (x + 0.05) / (y + 0.05)
     }
@@ -76,7 +81,10 @@ export async function auditTextContrast(page: Page): Promise<ContrastFailure[]> 
         )
       )
     const failures: ContrastFailure[] = []
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+    const walker = document.createTreeWalker(
+      document.body,
+      NodeFilter.SHOW_TEXT
+    )
     const seen = new Set<Element>()
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const el = n.parentElement
@@ -136,7 +144,10 @@ export async function auditControlContrast(
       })
       return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!
     }
-    const ratio = (a: [number, number, number], b: [number, number, number]) => {
+    const ratio = (
+      a: [number, number, number],
+      b: [number, number, number]
+    ) => {
       const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p) as [number, number]
       return (x + 0.05) / (y + 0.05)
     }
@@ -190,7 +201,12 @@ export async function auditHitAreas(page: Page): Promise<HitFailure[]> {
     for (const el of document.querySelectorAll<HTMLElement>(selector)) {
       const r = el.getBoundingClientRect()
       if (r.width === 0 || r.height === 0) continue
-      if (el.closest('.qt-visually-hidden, [aria-hidden="true"], dialog:not([open])')) continue
+      if (
+        el.closest(
+          '.qt-visually-hidden, [aria-hidden="true"], dialog:not([open])'
+        )
+      )
+        continue
       if (el.matches('.qt-skip')) continue
       if (el.matches('.qt-prose a, .qt-link[data-variant="inline"]')) continue
       if (el.matches('.qt-activity__link')) {
