@@ -622,6 +622,60 @@ fall in bands under 2000 ms (`<1000`, `1000-1499`, `1500-1999`), and 75
 percent of its CLS events in `<0.05` or `0.05-0.099`. The privacy page says
 that page-speed ratings are recorded with consent.
 
+## Public reading without scripts (#428)
+
+A reader whose scripts never run (JavaScript off, a script blocked, a
+connection that drops the script files) can find and read a public article.
+
+**Before:** the only loading boundary was `app/loading.tsx` at the root, around
+every page. React sends a boundary's content later as a hidden segment
+(`<div hidden id="S:…">`) when the page waits for data or when the content is
+larger than its chunk size (12,800 bytes), and an inline script reveals it in
+an animation frame. So `/`, `/articles` and a writer's page arrived as "Loading
+page…" plus hidden content:
+
+- with JavaScript off they never showed anything else;
+- in WebKit, which does not paint the near-empty fallback, the reveal waited
+  for the page's scripts.
+
+**Now:** the public reading pages (`/`, `/articles`, `/{username}`,
+`/{username}/{slug}`) have no loading boundary above them, so their content is
+in the first HTML. The signed-in sections keep the same loading state, from
+their own `loading.tsx` (`dashboard`, `write`, `drafts`, `library`,
+`settings`, `welcome`, `ops`, `profile`, all rendering
+`components/layout/RouteLoading.tsx`).
+
+What each public page waits for on the server before its first byte:
+
+| Page                 | Waits for                                                  |
+| -------------------- | ---------------------------------------------------------- |
+| `/`                  | nothing (the page does not fetch)                          |
+| `/articles`          | the first page of the article list                         |
+| `/{username}`        | the proxy's route check, the writer, the writer's articles |
+| `/{username}/{slug}` | the proxy's route check, the article (cached briefly)      |
+
+Costs:
+
+- On `/articles`, the first byte waits for the list query.
+- A client-side navigation into a public page no longer shows "Loading page…";
+  the current page stays until the next one arrives. Navigations into the
+  signed-in sections show it as before.
+
+`bun run perf:no-script-reading` (`scripts/perf/no-script-reading.ts`) checks
+this in Chromium and WebKit, with JavaScript off and with `/_next/static`
+scripts blocked:
+
+- the home page links to the article list;
+- the list links to an article by its title, and following the link opens it;
+- the article shows its title as a heading and its prose;
+- the writer's page shows the writer and the article;
+- a draft or unknown article and an unknown writer answer 404 without article
+  text.
+
+The routes and texts are in one object (`READING`), and the assertions use
+roles and text only. The check runs in the Page-load Budget CI job, and fails
+with JavaScript off on a build that has the root `app/loading.tsx`.
+
 ## Regression check
 
 `bun run perf:budget` (`scripts/perf/page-load-budget.ts`) runs without
