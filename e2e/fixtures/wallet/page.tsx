@@ -3,14 +3,14 @@ import { Toaster } from 'sonner'
 import { WalletActivationProvider } from '../../../components/providers/WalletActivationContext'
 import { WalletProvider } from '../../../components/providers/WalletProvider'
 import { WalletConnectButton } from '../../../components/stellar/WalletConnectButton'
-import { TipButtonV1 as TipButton } from '../../../components/tipping/TipButtonV1'
+import { ArticleTipV2 } from '../../../components/tipping/v2/ArticleTipV2'
 import type { Id } from '../../../types/convex'
 import { ReceivingWalletVerification } from '../../../components/stellar/ReceivingWalletVerification'
 import { InstallWalletDialog } from '../../../components/stellar/InstallWalletDialog'
 import { WalletAccountContent } from '../../../components/dashboard/WalletAccountContent'
 import type { CurrentUserDoc } from '../../../types/convex'
 import '../../../components/account/account.css'
-import { AUTHOR, fixtureUser } from './runtime'
+import { ARTICLE, fixtureUser } from './runtime'
 
 const params = new URLSearchParams(location.search)
 const view = params.get('view')
@@ -58,11 +58,11 @@ function Fixture() {
         <WalletConnectButton />
       </section>
       <section aria-label="Tip">
-        <TipButton
+        <ArticleTipV2
           articleTitle="The words we keep"
-          articleId={'qa-article' as Id<'articles'>}
+          articleId={ARTICLE.id as Id<'articles'>}
+          articleSlug={ARTICLE.slug}
           authorName="Writer"
-          authorStellarAddress={AUTHOR}
         />
       </section>
     </main>
