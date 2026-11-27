@@ -77,11 +77,22 @@ function makeRun(options: RunOptions) {
     })
   }
 
-  /** A finger tap on a control a reader can see and reach. */
+  /** Waits until a swipe's momentum has stopped moving `target`. */
+  async function settle(page: Page, target: Locator) {
+    let last = -1
+    for (let i = 0; i < 20; i++) {
+      const y = (await target.boundingBox())?.y ?? -1
+      if (y === last) return
+      last = y
+      await page.waitForTimeout(150)
+    }
+  }
+
   /** Swipes the content under the finger until `target` is on screen. */
   async function reach(page: Page, target: Locator, what: string) {
     const viewport = page.viewportSize()!
     for (let i = 0; i < 6; i++) {
+      await settle(page, target)
       const box = await target.boundingBox()
       if (!box) return
       const y = box.y + box.height / 2
@@ -101,6 +112,7 @@ function makeRun(options: RunOptions) {
     }
   }
 
+  /** A finger tap on a control a reader can see and reach. */
   async function tap(page: Page, target: Locator, what: string) {
     await target.waitFor({ state: 'visible', timeout: 20_000 })
     await reach(page, target, what)
@@ -111,7 +123,13 @@ function makeRun(options: RunOptions) {
     const viewport = page.viewportSize()!
     const state = await target.evaluate(
       (el, p) => {
-        const top = document.elementFromPoint(p.x, p.y)
+        // The tap lands in the visual viewport; `elementFromPoint` reads the
+        // layout viewport, which a touch scroll can leave behind.
+        const vv = window.visualViewport
+        const top = document.elementFromPoint(
+          p.x + (vv?.offsetLeft ?? 0),
+          p.y + (vv?.offsetTop ?? 0)
+        )
         return {
           onTop: !!top && (top === el || el.contains(top)),
           top: top ? `${top.tagName.toLowerCase()}.${top.className}` : null,
