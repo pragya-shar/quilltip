@@ -14,6 +14,9 @@ import {
 import SampleReadingPage from '../../../app/(app)/(public)/system/reading/page'
 import ShelfPage from '../../../app/(app)/(public)/shelf/page'
 import PocketPage from '../../../app/(app)/(signed-in)/pocket/page'
+import { registerSheet } from '../../../shell/sheetRegistry'
+import { SIGN_IN_SHEET } from '../../../shell/signIn'
+import { DemoSignInSheet } from './DemoSignInSheet'
 
 // The design system gallery, the sample reading page and the shell's own
 // pages inside the real application shell, with no backend: what
@@ -33,6 +36,9 @@ const reading =
   readings[new URLSearchParams(location.search).get('balance') ?? 'ready'] ??
   readings.ready!
 const useFakeBalance = () => reading
+// `?signin=sheet`: a stand-in for the Account surface's sign-in sheet.
+if (new URLSearchParams(location.search).get('signin') === 'sheet')
+  registerSheet(SIGN_IN_SHEET, DemoSignInSheet)
 
 const pages: Record<string, () => React.ReactNode> = {
   '/': () => <Gallery />,

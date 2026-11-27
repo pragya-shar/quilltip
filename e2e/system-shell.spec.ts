@@ -38,7 +38,9 @@ test('one navigation: three places and the balance, as real links', async ({
   const shelf = nav(page).getByRole('link', { name: 'Shelf' })
   await expect(shelf).toHaveAttribute('href', '/shelf')
   await expect(shelf).toHaveAttribute('aria-current', 'page')
-  const balance = nav(page).getByRole('link', { name: /^Pocket, \$18\.40/ })
+  const balance = nav(page).getByRole('link', {
+    name: /^Balance, \$18\.40 ready to tip$/,
+  })
   await expect(balance).toHaveAttribute('href', '/pocket')
   await expect(balance).toContainText('$18.40')
   if (wide()) {
@@ -66,17 +68,17 @@ test('the balance opens the Pocket over the page and gives focus back', async ({
   page,
 }) => {
   await page.goto('/shelf')
-  const item = nav(page).getByRole('link', { name: /^Pocket/ })
+  const item = nav(page).getByRole('link', { name: /^Balance/ })
   await press(item)
   await expect(page).toHaveURL(/\/shelf/)
   const pocket = wide()
-    ? page.getByRole('complementary', { name: 'Pocket' })
-    : page.getByRole('dialog', { name: 'Pocket' })
+    ? page.getByRole('complementary', { name: 'Balance' })
+    : page.getByRole('dialog', { name: 'Balance' })
   await expect(pocket).toBeVisible()
   await expect(pocket.locator('.qt-money')).toContainText('$18.40')
   await expect(pocket.getByText('Ready to tip')).toBeVisible()
   await expect(pocket.getByText('Testnet. Practice money only.')).toBeVisible()
-  await expect(pocket.getByRole('heading', { name: 'Pocket' })).toBeFocused()
+  await expect(pocket.getByRole('heading', { name: 'Balance' })).toBeFocused()
   expect(
     await page.evaluate(
       () => getComputedStyle(document.activeElement as Element).outlineStyle
@@ -92,10 +94,34 @@ test('the balance opens the Pocket over the page and gives focus back', async ({
   await expect(item).toHaveAttribute('aria-expanded', 'false')
 })
 
+test('while no amount is known, the item reads Balance, not a figure', async ({
+  page,
+}) => {
+  await page.goto('/shelf?balance=unavailable')
+  const item = nav(page).getByRole('link', { name: 'Balance' })
+  await expect(item).toHaveText('Balance')
+  await expect(item).not.toContainText('$')
+})
+
+test('signed out, a registered sign-in sheet opens over the page', async ({
+  page,
+}) => {
+  await page.goto('/shelf?balance=signed-out&signin=sheet')
+  await press(nav(page).getByRole('link', { name: 'Sign in' }))
+  const sheet = page.getByRole('dialog', { name: 'Sign in to Quilltip' })
+  await expect(sheet).toBeVisible()
+  await expect(page).toHaveURL(/\/shelf/)
+  await expect(
+    sheet.getByRole('heading', { name: 'Sign in to Quilltip' })
+  ).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
+})
+
 test('the Pocket page, for links and for no script', async ({ page }) => {
   await page.goto('/pocket')
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Pocket' })
+    page.getByRole('heading', { level: 1, name: 'Balance' })
   ).toBeVisible()
   await expect(page.getByText('Ready to tip')).toBeVisible()
   if (!wide()) await expect(page.locator('.qt-navbar')).toBeHidden()

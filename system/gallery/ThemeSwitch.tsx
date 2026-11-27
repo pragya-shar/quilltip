@@ -17,23 +17,29 @@ const ITEMS = [
  * in the address picks one on load.
  */
 export function ThemeSwitch() {
-  const [theme, setTheme] = useState<Theme>('system')
+  // Null until the page has been read: nothing changes before that.
+  const [theme, setTheme] = useState<Theme | null>(null)
   useEffect(() => {
     const asked = new URLSearchParams(window.location.search).get('theme')
-    if (asked === 'light' || asked === 'dark') setTheme(asked)
+    const stored = document.documentElement.dataset.theme
+    const start = asked ?? stored
+    setTheme(start === 'light' || start === 'dark' ? start : 'system')
   }, [])
   useEffect(() => {
+    if (theme === null) return
     const root = document.documentElement
+    const before = root.dataset.theme
     if (theme === 'system') delete root.dataset.theme
     else root.dataset.theme = theme
     return () => {
-      delete root.dataset.theme
+      if (before) root.dataset.theme = before
+      else delete root.dataset.theme
     }
   }, [theme])
   return (
     <Tabs
       items={ITEMS}
-      value={theme}
+      value={theme ?? 'system'}
       onChange={(id) => setTheme(id as Theme)}
       label="Theme"
       variant="segmented"

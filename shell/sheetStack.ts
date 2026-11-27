@@ -4,12 +4,18 @@
  * that the surfaces add). It lives in the shell, so a sheet survives a
  * change of place. `SheetHost` renders it.
  *
- * To add a sheet: add its id to `SheetId` and its component to
- * `shell/SheetHost.tsx`.
+ * The Pocket is the shell's own sheet. A surface adds its sheets with
+ * `registerSheet` (shell/sheetRegistry.ts) and opens them here.
  */
-export type SheetId = 'pocket'
+export type SheetId = 'pocket' | (string & {})
 
-export type SheetEntry = { key: number; id: SheetId; open: boolean }
+export type SheetEntry = {
+  key: number
+  id: SheetId
+  open: boolean
+  /** What the sheet was opened with, passed to its component. */
+  props: unknown
+}
 
 type Listener = () => void
 
@@ -30,9 +36,9 @@ export const sheetStack = {
     }
   },
   /** Opens a sheet on top. A sheet already open is not opened twice. */
-  open(id: SheetId) {
+  open(id: SheetId, props?: unknown) {
     if (entries.some((entry) => entry.id === id && entry.open)) return
-    entries = [...entries, { key: nextKey++, id, open: true }]
+    entries = [...entries, { key: nextKey++, id, open: true, props }]
     emit()
   },
   /** Closes the topmost open sheet with this id (or the top one). */

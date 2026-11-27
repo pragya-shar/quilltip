@@ -62,13 +62,13 @@ export function PocketPanel({
         ref={title}
         tabIndex={-1}
       >
-        Pocket
+        Balance
       </h2>
       <PocketContent />
       <button
         type="button"
         className="qt-modal__close"
-        aria-label="Close the Pocket"
+        aria-label="Close the balance"
         onClick={onClose}
       >
         <Icon icon={CloseIcon} size={24} />

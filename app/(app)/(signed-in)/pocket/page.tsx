@@ -4,7 +4,7 @@ import { PocketContent } from '@/shell/pocket/PocketContent'
 import { PushedScreen } from '@/shell/PushedScreen'
 
 export const metadata: Metadata = {
-  title: 'Pocket',
+  title: 'Balance',
   robots: { index: false, follow: false },
 }
 
@@ -18,7 +18,7 @@ export default function PocketPage() {
     <PushedScreen>
       <div className="qt-page qt-placeholder">
         <Heading level={1} variant="title">
-          Pocket
+          Balance
         </Heading>
         <PocketContent />
       </div>

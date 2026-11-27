@@ -8,6 +8,7 @@ import { AppProviders } from '@/shell/AppProviders'
 import { AppShell } from '@/shell/AppShell'
 import { PaymentsSlot } from '@/shell/PaymentsSlot'
 import { SheetHost } from '@/shell/SheetHost'
+import { NONCE_HEADER } from '@/lib/security/contentSecurityPolicy'
 import { SITE_NAME, SITE_ORIGIN } from '@/lib/seo/siteMetadata'
 
 export const metadata: Metadata = {
@@ -30,6 +31,9 @@ export const viewport: Viewport = {
   ],
 }
 
+const THEME_SCRIPT =
+  "try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}"
+
 /**
  * The application's root layout, beside app/(legacy)'s. It loads only the
  * design system's CSS and the reading face, and composes its own providers.
@@ -41,14 +45,23 @@ export default async function AppRootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   // Reading the request renders every page per request, so Next.js adds the
-  // CSP nonce from proxy.ts (NONCE_HEADER) to its own scripts. The shell has
-  // no inline script of its own: the theme follows the system setting.
-  await headers()
+  // CSP nonce from proxy.ts to its own scripts; the theme script gets it too.
+  const nonce = (await headers()).get(NONCE_HEADER) ?? undefined
   return (
     <html
       lang="en"
       className={`${readingFace.variable} ${readingItalicFace.variable}`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* A light or dark choice made on the legacy pages (next-themes,
+            key "theme") applies before paint, so crossing between the two
+            root layouts never flashes the other theme. */}
+        <script
+          nonce={nonce}
+          dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }}
+        />
+      </head>
       <body>
         <AppProviders>
           <AppShell

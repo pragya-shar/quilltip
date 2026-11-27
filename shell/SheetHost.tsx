@@ -5,6 +5,7 @@ import { Sheet } from '@/system/components/Sheet'
 import { firstPage } from './firstPage'
 import { PocketContent } from './pocket/PocketContent'
 import { PocketPanel } from './pocket/PocketPanel'
+import { sheetFor } from './sheetRegistry'
 import { sheetStack } from './sheetStack'
 import { useSheets } from './useSheets'
 import { useWide } from './useWide'
@@ -32,12 +33,23 @@ export function SheetHost() {
                 key={entry.key}
                 open={entry.open}
                 onClose={close}
-                title="Pocket"
+                title="Balance"
                 hideTitle
               >
                 <PocketContent />
               </Sheet>
             )
+          default: {
+            const Registered = sheetFor(entry.id)
+            return Registered ? (
+              <Registered
+                key={entry.key}
+                open={entry.open}
+                onClose={close}
+                props={entry.props}
+              />
+            ) : null
+          }
         }
       })}
     </>

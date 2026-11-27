@@ -5,6 +5,7 @@ import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { BalanceIcon } from '@/system/icons'
 import { useBalanceReading } from './balance'
 import { POCKET } from './navigation'
+import { openSignIn } from './signIn'
 import { sheetStack } from './sheetStack'
 import { useSheets } from './useSheets'
 
@@ -26,11 +27,13 @@ export function BalanceItem({ className }: { className: string }) {
         : reading.status === 'loading'
           ? 'loading'
           : 'none'
+  // "Balance" is a plain word for the item while no amount is known; the
+  // product's name for the sheet is the design session's call.
   const label = signedOut
     ? 'Sign in'
     : figure === 'value'
-      ? `Pocket, ${reading.available!.display} ready to tip`
-      : 'Pocket'
+      ? `Balance, ${reading.available!.display} ready to tip`
+      : 'Balance'
   return (
     <a
       href={signedOut ? POCKET.signIn : POCKET.href}
@@ -40,9 +43,13 @@ export function BalanceItem({ className }: { className: string }) {
       aria-haspopup={signedOut ? undefined : 'dialog'}
       aria-expanded={signedOut ? undefined : open}
       onClick={(event) => {
-        if (signedOut) return
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
           return
+        if (signedOut) {
+          // The sign-in sheet when a surface has registered it; else the link.
+          if (openSignIn()) event.preventDefault()
+          return
+        }
         event.preventDefault()
         sheetStack.toggle('pocket')
       }}
@@ -56,7 +63,7 @@ export function BalanceItem({ className }: { className: string }) {
         ) : figure === 'loading' ? (
           <MoneyFigure value={null} status="loading" size="s" />
         ) : (
-          'Pocket'
+          'Balance'
         )}
       </span>
     </a>
