@@ -325,7 +325,7 @@ test('a sheet drags down to dismiss with a finger', async ({ page }, info) => {
   const cdp = await page.context().newCDPSession(page)
   const x = head!.x + head!.width / 2
   let y = head!.y + 10
-  const touch = (type: string) =>
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd') =>
     cdp.send('Input.dispatchTouchEvent', {
       type,
       touchPoints: type === 'touchEnd' ? [] : [{ x, y }],
