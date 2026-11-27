@@ -60,11 +60,13 @@ import {
   balanceViewOf,
   effectiveChoice,
   readerItemsOf,
+  pageState,
   unansweredEntries,
   type ActivityEntry,
   type DeviceState,
 } from '@/lib/payments/views'
 import { EarningsWatch } from './EarningsWatch'
+import { useAsOf } from './useAsOf'
 import { TipContextWatch } from './TipContextWatch'
 import { WriterWatch } from './WriterWatch'
 
@@ -364,6 +366,7 @@ export function PaymentsEngine() {
     [session, binding, queue, outbox, setJob]
   )
 
+  const asOf = useAsOf(online && session !== undefined, now)
   const balance = useMemo(
     () =>
       balanceViewOf({
@@ -374,8 +377,9 @@ export function PaymentsEngine() {
         device,
         online,
         now,
+        asOf,
       }),
-    [isLoading, isAuthenticated, session, entries, device, online, now]
+    [isLoading, isAuthenticated, session, entries, device, online, now, asOf]
   )
   const readerActivity = useMemo(
     () => ({
@@ -391,7 +395,8 @@ export function PaymentsEngine() {
         session,
         now,
       }),
-      canLoadMore: reader.status === 'CanLoadMore',
+      canLoadMore: pageState(reader.status).canLoadMore,
+      loadingMore: pageState(reader.status).loadingMore,
       loadMore: () => reader.loadMore(READER_PAGE),
     }),
     [reader, entries, session, now, hasBalance]
@@ -563,7 +568,9 @@ export function PaymentsEngine() {
         />
       ))}
       {watches.writer > 0 ? <WriterWatch now={now} /> : null}
-      {watches.earnings > 0 ? <EarningsWatch now={now} /> : null}
+      {watches.earnings > 0 ? (
+        <EarningsWatch now={now} online={online} />
+      ) : null}
     </>
   )
 }

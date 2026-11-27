@@ -30,7 +30,15 @@ The signed-in reader's balance.
 | `unavailable` | payments could not load or answer   | `null`; reading is unaffected                                                                                           |
 
 Also: `device` (`loading`, `ready`, `needs-setup`, `unavailable`): whether
-this device can tip without a prompt; `online`; `settlement.expectedWithinMs`.
+this device can tip without a prompt; `online`; `settlement.expectedWithinMs`;
+`exact` (`{ token: 'XLM', available }`: spendable in base units, the figure
+behind "≈", null until read); `asOf` (client time the figures were last
+known current: it follows the clock while online and stops when offline, so
+a screen can say "as of 4 minutes ago"; null until read).
+
+If the reader spent from the balance outside the app, spendable can be
+below zero on the ledger: `available` reads "≈ $0.00" and no amount fits
+(`noAmountReason: 'balance'`).
 
 Never: prints a placeholder zero, asks for a wallet signature, or moves money.
 
@@ -62,7 +70,8 @@ server accepted, follows the writer, saves a highlight, or shares anything.
 ### `useActivity(role): ActivityView`
 
 `role` `reader`: tips sent; `writer`: tips received. Newest first, paged
-(`canLoadMore`, `loadMore()`); `status` `loading`, `ready` or `unavailable`.
+(`canLoadMore`, `loadMore()`, `loadingMore` while a further page loads);
+`status` `loading` (the first page), `ready` or `unavailable`.
 Each `ActivityItem`:
 
 - `amount`: the tip as the reader sent it, whole cents, exact. Show this in
@@ -73,6 +82,10 @@ Each `ActivityItem`:
   way), `on-chain` ("Added to earnings"), `not-paid` with `reason`
   (`shortfall`: on hold until the reader adds money; others final).
   `paid`, `paidNet`: what reached the writer of a tip paid in part.
+- `fee`: the platform's 2.5% of the tip (`amount - net`); `unpaid`,
+  `unpaidNet`: what is not paid yet, and the writer's share of it. All
+  exact, from the server: a screen never subtracts amounts. A sending row
+  has `net` and `fee` of zero until the server prices it.
 - `lagging`: accepted and older than settlement normally takes.
 - `requestId`: the same on both sides and in the server's receipt.
 - The writer's `counterparty` is always "A reader".
@@ -80,16 +93,35 @@ Each `ActivityItem`:
 ### `useEarnings(): EarningsView`
 
 The signed-in writer's money. Figures exist only when `status` is `ready`.
+`status: 'none'`: signed in, never published and never received a tip:
+there are no earnings to show (not earnings of zero). `asOf` as on the
+balance.
 
 - `available`: paid on chain and collectable now ("Ready to withdraw").
 - `pending`: accepted, not yet paid ("On its way").
 - `collected`: already in the writer's wallet ("Paid to your wallet"); the
   only figure that may say "paid to your wallet".
 - `onHold`, `notPaid` with `counts`; `lagging`; `exact` token amounts.
-- A tip paid in part counts its paid part as available and the rest as on
-  hold (rule of PR 567; the live figures follow it from that merge).
+- A tip paid in part counts its paid part as available (once, as one tip)
+  and the rest as on hold or not paid.
 
 `useNow(everyMs)` gives the time for "4 min ago" and lag notices.
+
+## A tip on hold (shortfall)
+
+When a tip is paid out and the reader's balance is short, the tip is on hold
+until the reader adds money. Where it sits:
+
+|              | Reader (`useBalance`, `useActivity('reader')`)                          | Writer (`useEarnings`, `useActivity('writer')`)                                        |
+| ------------ | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Figure       | inside `pending` (its unpaid part stays reserved); never in `available` | in `onHold` (its unpaid share) with `counts.onHold`; never in `pending` or `available` |
+| Row          | `not-paid`, `reason: 'shortfall'`, `unpaid`                             | `not-paid`, `reason: 'shortfall'`, `unpaidNet`                                         |
+| Told         | the balance was short; add money and it goes through                    | waiting on a reader's balance                                                          |
+| Paid in part | the paid part has left the balance; `unpaid` stays reserved             | the paid part is in `available`; the rest in `onHold`                                  |
+
+A tip can be accepted for a reader whose balance later empties (spent
+outside the app): until the payout is attempted it reads "on its way"
+(`pending`) on the writer's side; at the payout it moves to on hold.
 
 ## Showing money
 
@@ -117,6 +149,10 @@ Scenarios (`FAKE_SCENARIOS`): `ready`, `sending`, `sent`, `pending`,
 `available`, `lagging`, `failed`, `partly-paid`, `empty`, `loading`,
 `unavailable`, `offline`. Each is a fixed snapshot; the hooks' actions do
 nothing. `fakePayments(name)` returns the raw views for tests.
+
+`fakeRuntime(name, { role })`: `both` (default; tips sent to another writer
+on the reader side, tips received on the writer side), `reader` (earnings
+`none`) or `writer` (balance `none`, tips unavailable: `no-balance`).
 
 ---
 

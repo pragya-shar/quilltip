@@ -317,6 +317,85 @@ describe('exactly once per tip', () => {
   })
 })
 
+describe('what each side is told', () => {
+  it('states each tip’s fee and unpaid part, so no screen subtracts', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 25 }) // 2.5 M base units
+    const entry = async (role: 'reader' | 'writer') =>
+      (
+        await as(t, role === 'reader' ? s.readerId : s.authorId).query(
+          api.activity.mine,
+          { role, paginationOpts: page }
+        )
+      ).page[0]!
+    expect(await entry('writer')).toMatchObject({
+      amountCents: 25,
+      netCents: 24.375,
+      feeCents: 0.625,
+      paidCents: 0,
+      unpaidCents: 25,
+      unpaidNetCents: 24.375,
+    })
+    // Paid for 0.5 M of 2.5 M: a fifth.
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(2_500_000),
+        paidAfter: BigInt(500_000),
+        gross: BigInt(500_000),
+      })
+    )
+    expect(await entry('writer')).toMatchObject({
+      feeCents: 0.625,
+      paidCents: 5,
+      paidNetCents: 4.875,
+      unpaidCents: 20,
+      unpaidNetCents: 19.5,
+    })
+    expect(await entry('reader')).toMatchObject({
+      paidCents: 5,
+      unpaidCents: 20,
+    })
+  })
+
+  it('places a tip on hold for shortfall: reserved for the reader, on hold for the writer, ready for neither', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t) // 10 XLM on chain
+    await tip(t, s, { cents: 100 })
+    await ingest(t, ev.voucherSkipped(BigInt(10_000_000), 4))
+    const v = (await checkInvariants(t, s)).views
+    // The reader: inside pending (still reserved), never in spendable.
+    expect(v.session).toMatchObject({ pendingCents: 100, availableCents: 900 })
+    expect(v.readerActivity.page[0]).toMatchObject({
+      state: 'not-paid',
+      notPaidReason: 'shortfall',
+      unpaidCents: 100,
+    })
+    // The writer: neither on its way nor ready; on hold, with its count.
+    expect(v.earnings).toMatchObject({
+      pendingCents: 0,
+      availableCents: 0,
+      onHoldCents: 97.5,
+      onHoldCount: 1,
+    })
+    expect(v.writerActivity.page[0]).toMatchObject({
+      state: 'not-paid',
+      notPaidReason: 'shortfall',
+      unpaidNetCents: 97.5,
+    })
+  })
+
+  it('tells someone who never published or received a tip that they are not a writer', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const reader = await as(t, s.readerId).query(api.earnings.mine, {})
+    expect(reader!.isWriter).toBe(false)
+    const writer = await as(t, s.authorId).query(api.earnings.mine, {})
+    expect(writer!.isWriter).toBe(true)
+  })
+})
+
 describe('a device asks about its own tips by request id', () => {
   it('answers for a tip older than the newest accepted ids, and only to its reader', async () => {
     const t = convexTest(schema, modules)

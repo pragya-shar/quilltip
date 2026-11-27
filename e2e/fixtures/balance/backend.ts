@@ -144,6 +144,7 @@ const toCents = (base: bigint) =>
     ? 0
     : Math.floor((Number(base) * state.price * 100) / STROOPS)
 const share = (cents: number) => Math.round(cents * 0.975 * 10_000) / 10_000
+const grid = (cents: number) => Math.round(cents * 10_000) / 10_000
 const reserves = (s: Status) => s === 'ACCEPTED' || s === 'SHORTFALL'
 
 function session(user: User) {
@@ -232,6 +233,7 @@ function entry(r: Receipt, role: 'reader' | 'writer') {
         : r.status === 'REJECTED'
           ? 'rejected'
           : null
+  const paid = r.status === 'SETTLED' ? r.amountCents : (r.paidCents ?? 0)
   const net = (
     BigInt(r.base) -
     (BigInt(r.base) * BigInt(250)) / BigInt(10_000)
@@ -253,10 +255,11 @@ function entry(r: Receipt, role: 'reader' | 'writer') {
     amountCents: r.amountCents,
     // Exact shares, as `activity.mine` returns them.
     netCents: share(r.amountCents),
-    paidCents: r.status === 'SETTLED' ? r.amountCents : (r.paidCents ?? 0),
-    paidNetCents: share(
-      r.status === 'SETTLED' ? r.amountCents : (r.paidCents ?? 0)
-    ),
+    paidCents: paid,
+    paidNetCents: share(paid),
+    feeCents: grid(r.amountCents - share(r.amountCents)),
+    unpaidCents: grid(r.amountCents - paid),
+    unpaidNetCents: grid(share(r.amountCents) - share(paid)),
     state: state_,
     notPaidReason: reason,
     at: r.at,
@@ -358,7 +361,8 @@ export function query(name: string, args: Record<string, unknown>): unknown {
         : { page: [], isDone: true, continueCursor: '' }
       break
     case 'earnings:mine':
-      value = user ? earnings() : null
+      // Only the writer has published; readers have no earnings to show.
+      value = user ? { ...earnings(), isWriter: user === 'w' } : null
       break
     case 'balance:acceptedRequests':
       value = user

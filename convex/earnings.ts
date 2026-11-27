@@ -66,6 +66,16 @@ export const mine = query({
       .query('authorEarnings')
       .withIndex('by_user', (q) => q.eq('userId', me.userId))
       .first()
+    // A writer has published an article or received a tip; anyone else
+    // has no earnings to show (`isWriter` false), not earnings of zero.
+    const isWriter =
+      !!row ||
+      !!(await ctx.db
+        .query('articles')
+        .withIndex('by_author_published', (q) =>
+          q.eq('authorId', me.userId).eq('published', true)
+        )
+        .first())
     const token = me.chain.tokenContractId ?? ''
     const tab = tabSettledOf(row, token)
     const settled = tab.cents
@@ -75,6 +85,7 @@ export const mine = query({
     const walletCents = row?.v2EarnedCents ?? 0
     const collectedCents = roundCents(tabCollected + walletCents)
     return {
+      isWriter,
       writerAddress: me.address,
       pendingCents,
       availableCents,

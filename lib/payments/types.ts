@@ -92,6 +92,14 @@ export type BalanceView = {
   settlement: { enabled: boolean; expectedWithinMs: number }
   online: boolean
   network: 'testnet'
+  /** The exact token amount of `available`. Null until read. */
+  exact?: { token: 'XLM'; available: string } | null
+  /**
+   * When these figures were last known current (client time): it advances
+   * while online and stops when offline, so a screen can say how old they
+   * are. Null until read.
+   */
+  asOf?: number | null
 }
 
 export type ActivityItem = {
@@ -109,6 +117,12 @@ export type ActivityItem = {
    * tip paid short), and the writer's share of it. */
   paid: Money
   paidNet: Money
+  /** The platform's 2.5% of this tip (`amount - net`), exact. */
+  fee: Money
+  /** What of the tip is not paid on chain (`amount - paid`), and the
+   * writer's share of it (`net - paidNet`). Zero once paid in full. */
+  unpaid: Money
+  unpaidNet: Money
   status: 'sending' | 'sent' | 'on-chain' | 'not-paid'
   reason: NotPaidReason | null
   at: number
@@ -123,12 +137,18 @@ export type ActivityView = {
   status: 'loading' | 'ready' | 'unavailable'
   items: ActivityItem[]
   canLoadMore: boolean
+  /** A further page is loading (the first load is `status: 'loading'`). */
+  loadingMore?: boolean
   loadMore(): void
 }
 
-/** Figures exist only when `status` is `ready`; otherwise they are `null`. */
+/**
+ * Figures exist only when `status` is `ready`; otherwise they are `null`.
+ * `none`: signed in, never published and never received a tip, so there
+ * are no earnings to show (not earnings of zero).
+ */
 export type EarningsView = {
-  status: 'loading' | 'signed-out' | 'ready' | 'unavailable'
+  status: 'loading' | 'signed-out' | 'none' | 'ready' | 'unavailable'
   pending: Money | null
   /** Paid on chain and collectable now. */
   available: Money | null
@@ -146,6 +166,8 @@ export type EarningsView = {
   /** Some pending tips are older than settlement normally takes. */
   lagging: boolean
   exact: { token: 'XLM'; available: string; collected: string } | null
+  /** As `BalanceView.asOf`. */
+  asOf?: number | null
 }
 
 export type TipController = {

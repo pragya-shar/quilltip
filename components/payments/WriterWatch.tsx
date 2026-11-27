@@ -5,7 +5,11 @@ import { useConvexAuth, usePaginatedQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { paymentsStore } from '@/lib/payments/store'
 import type { ActivityView } from '@/lib/payments/types'
-import { activityItemOf, type ActivityEntry } from '@/lib/payments/views'
+import {
+  activityItemOf,
+  pageState,
+  type ActivityEntry,
+} from '@/lib/payments/views'
 
 export const WRITER_PAGE = 20
 
@@ -19,11 +23,12 @@ export function WriterWatch({ now }: { now: number }) {
   )
   const view = useMemo<ActivityView>(
     () => ({
-      status: writer.status === 'LoadingFirstPage' ? 'loading' : 'ready',
+      status: pageState(writer.status).firstLoad ? 'loading' : 'ready',
       items: (writer.results as ActivityEntry[]).map((e) =>
         activityItemOf(e, now)
       ),
-      canLoadMore: writer.status === 'CanLoadMore',
+      canLoadMore: pageState(writer.status).canLoadMore,
+      loadingMore: pageState(writer.status).loadingMore,
       loadMore: () => writer.loadMore(WRITER_PAGE),
     }),
     [writer, now]

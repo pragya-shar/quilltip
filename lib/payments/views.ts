@@ -11,7 +11,13 @@ import type { FunctionReturnType } from 'convex/server'
 import type { api } from '@/convex/_generated/api'
 import { approxMoney, baseUnitsToCents, money, readyMoney } from './money'
 import type { OutboxEntry } from './outbox'
-import type { ActivityItem, BalanceView, EarningsView, Money } from './types'
+import type {
+  ActivityItem,
+  ActivityView,
+  BalanceView,
+  EarningsView,
+  Money,
+} from './types'
 
 export type SessionRead = FunctionReturnType<typeof api.balance.session>
 export type ActivityEntry = FunctionReturnType<
@@ -98,6 +104,8 @@ export function balanceViewOf(input: {
   device: DeviceState
   online: boolean
   now: number
+  /** When the figures were last known current (`useAsOf`). */
+  asOf?: number | null
 }): BalanceView {
   const { session } = input
   const base: BalanceView = {
@@ -115,6 +123,8 @@ export function balanceViewOf(input: {
     },
     online: input.online,
     network: 'testnet',
+    exact: null,
+    asOf: null,
   }
   if (input.authLoading) return base
   if (!input.signedIn || session === null)
@@ -127,6 +137,8 @@ export function balanceViewOf(input: {
       status: 'none',
       available: approxMoney(0),
       pending: money(0),
+      exact: { token: 'XLM', available: '0' },
+      asOf: input.asOf ?? null,
     }
 
   const price = session.prices[0]?.usd ?? 0
@@ -172,6 +184,11 @@ export function balanceViewOf(input: {
     status: session.status === 'closing' ? 'closing' : 'ready',
     // Converted from the token at today's price: an estimate.
     available: approxMoney(availableCents),
+    exact: {
+      token: 'XLM',
+      available: (left > BigInt(0) ? left : BigInt(0)).toString(),
+    },
+    asOf: input.asOf ?? null,
     pending: money(session.pendingCents + sendingCents),
     deviceReady: input.device === 'ready',
     limits,
@@ -208,6 +225,9 @@ export function activityItemOf(
     net: money(entry.netCents),
     paid: money(entry.paidCents),
     paidNet: money(entry.paidNetCents),
+    fee: money(entry.feeCents),
+    unpaid: money(entry.unpaidCents),
+    unpaidNet: money(entry.unpaidNetCents),
     status,
     reason: entry.notPaidReason,
     at: entry.at,
@@ -227,9 +247,13 @@ export function sendingItemOf(entry: OutboxEntry): ActivityItem {
     article: { title: entry.meta.articleTitle, href: entry.meta.href },
     passage: entry.passage?.text ?? null,
     amount: money(entry.amountCents),
+    // Net and fee are known once the server accepts and prices the tip.
     net: money(0),
     paid: money(0),
     paidNet: money(0),
+    fee: money(0),
+    unpaid: money(entry.amountCents),
+    unpaidNet: money(0),
     status: 'sending',
     reason: null,
     at: entry.createdAt,
@@ -263,6 +287,7 @@ export function earningsViewOf(input: {
   /** The newest page of the writer's list, for the lag notice. */
   entries: ActivityEntry[]
   now: number
+  asOf?: number | null
 }): EarningsView {
   const e = input.earnings
   const empty: EarningsView = {
@@ -276,11 +301,14 @@ export function earningsViewOf(input: {
     counts: null,
     lagging: false,
     exact: null,
+    asOf: null,
   }
   if (!input.signedIn || e === null) return { ...empty, status: 'signed-out' }
   if (e === undefined) return empty
+  if (!e.isWriter) return { ...empty, status: 'none', asOf: input.asOf ?? null }
   return {
     status: 'ready',
+    asOf: input.asOf ?? null,
     pending: money(e.pendingCents),
     available: readyMoney(e.availableCents, e.baseUnits.available),
     collected: money(e.collectedCents),
@@ -302,5 +330,18 @@ export function earningsViewOf(input: {
       available: e.baseUnits.available,
       collected: e.baseUnits.collected,
     },
+  }
+}
+
+/** A paged list's state from `usePaginatedQuery`'s status. */
+export function pageState(
+  status: 'LoadingFirstPage' | 'CanLoadMore' | 'LoadingMore' | 'Exhausted'
+): Pick<ActivityView, 'canLoadMore' | 'loadingMore'> & {
+  firstLoad: boolean
+} {
+  return {
+    firstLoad: status === 'LoadingFirstPage',
+    canLoadMore: status === 'CanLoadMore',
+    loadingMore: status === 'LoadingMore',
   }
 }

@@ -12,6 +12,10 @@
  * the tip as sent and the writer's exact share). `tip()`, `setAmount()`,
  * `reset()` and `loadMore()` do nothing: a scenario never changes.
  *
+ * `role` picks the person: `both` (default: tips sent to another writer on
+ * the reader side, tips received on the writer side), `reader` (no earnings:
+ * `status: 'none'`) or `writer` (no balance: `status: 'none'`).
+ *
  * The figures are the real run's (50¢, 10¢ and 10¢ tips; 68.25¢ to the
  * writer) at $0.127328 per testnet XLM.
  */
@@ -20,6 +24,7 @@ import type {
   ActivityItem,
   ActivityView,
   BalanceView,
+  Cents,
   EarningsView,
   Money,
   PaymentsRuntime,
@@ -44,6 +49,8 @@ export const FAKE_SCENARIOS = [
 ] as const
 
 export type FakeScenario = (typeof FAKE_SCENARIOS)[number]
+export type FakeRole = 'reader' | 'writer' | 'both'
+export type FakeOptions = { now?: number; role?: FakeRole }
 
 export type FakePayments = {
   balance: BalanceView
@@ -54,18 +61,28 @@ export type FakePayments = {
 }
 
 const MIN = 60_000
-const share = (cents: number) => Math.round(cents * 0.975 * 10_000) / 10_000
+const PRICE_CENTS_PER_XLM = 12.7328
+const grid = (cents: Cents) => Math.round(cents * 10_000) / 10_000
+const share = (cents: Cents) => grid(cents * 0.975)
+const units = (cents: Cents) =>
+  String(Math.max(0, Math.floor((cents * 10_000_000) / PRICE_CENTS_PER_XLM)))
 const noop = () => {}
 
 function activity(
   items: ActivityItem[],
   status: ActivityView['status'] = 'ready'
 ): ActivityView {
-  return { status, items, canLoadMore: false, loadMore: noop }
+  return {
+    status,
+    items,
+    canLoadMore: false,
+    loadingMore: false,
+    loadMore: noop,
+  }
 }
 
-function balance(over: Partial<BalanceView> = {}): BalanceView {
-  return {
+function balance(over: Partial<BalanceView>, asOf: number): BalanceView {
+  const view: BalanceView = {
     status: 'ready',
     available: approxMoney(254.66),
     pending: money(0),
@@ -82,11 +99,21 @@ function balance(over: Partial<BalanceView> = {}): BalanceView {
     settlement: { enabled: true, expectedWithinMs: 80_000 },
     online: true,
     network: 'testnet',
+    asOf,
     ...over,
+  }
+  return {
+    ...view,
+    exact:
+      over.exact !== undefined
+        ? over.exact
+        : view.available
+          ? { token: 'XLM', available: units(view.available.cents) }
+          : null,
   }
 }
 
-const LOADING_BALANCE = balance({
+const LOADING_BALANCE: Partial<BalanceView> = {
   status: 'loading',
   available: null,
   pending: null,
@@ -94,7 +121,9 @@ const LOADING_BALANCE = balance({
   device: 'loading',
   limits: null,
   amounts: [],
-})
+  exact: null,
+  asOf: null,
+}
 
 function earnings(over: Partial<EarningsView> = {}): EarningsView {
   return {
@@ -108,6 +137,7 @@ function earnings(over: Partial<EarningsView> = {}): EarningsView {
     counts: { pending: 0, onHold: 0, notPaid: 0, settled: 0 },
     lagging: false,
     exact: { token: 'XLM', available: '0', collected: '0' },
+    asOf: null,
     ...over,
   }
 }
@@ -122,6 +152,7 @@ const NO_EARNINGS = earnings({
   notPaid: null,
   counts: null,
   exact: null,
+  asOf: null,
 })
 
 function tipControl(over: Partial<TipController> = {}): TipController {
@@ -141,30 +172,41 @@ function tipControl(over: Partial<TipController> = {}): TipController {
   }
 }
 
-/** One tip as both sides see it. `cents` is the tip as the reader sent it. */
+type Row = [
+  cents: number,
+  status: ActivityItem['status'],
+  over?: Partial<ActivityItem>,
+]
+
+/** One tip. `cents` is the tip as the reader sent it. */
 function item(
   role: 'reader' | 'writer',
   n: number,
-  cents: number,
-  status: ActivityItem['status'],
-  now: number,
-  over: Partial<ActivityItem> = {}
+  [cents, status, over = {}]: Row,
+  now: number
 ): ActivityItem {
   const paidCents = status === 'on-chain' ? cents : 0
-  return {
+  const base: ActivityItem = {
     id: `${role}-${n}`,
-    requestId: `request-${n}`,
+    // Tips sent and tips received are different tips.
+    requestId: role === 'reader' ? `sent-${n}` : `received-${n}`,
     role,
     counterparty:
       role === 'reader'
-        ? { name: 'Theo Marsh', username: 'theo' }
+        ? { name: 'Wen Hsu', username: 'wen_hsu' }
         : { name: 'A reader', username: null },
-    article: { title: 'Leave It Overnight', href: '/theo/leave-it-overnight' },
+    article:
+      role === 'reader'
+        ? { title: 'The Winter Shelf', href: '/wen_hsu/the-winter-shelf' }
+        : { title: 'Leave It Overnight', href: '/theo/leave-it-overnight' },
     passage: 'Leave it overnight.',
     amount: money(cents),
-    net: money(share(cents)),
+    net: money(status === 'sending' ? 0 : share(cents)),
     paid: money(paidCents),
     paidNet: money(share(paidCents)),
+    fee: money(0),
+    unpaid: money(0),
+    unpaidNet: money(0),
     status,
     reason: null,
     at: now - n * MIN,
@@ -173,152 +215,189 @@ function item(
     exact:
       status === 'sending'
         ? null
-        : {
-            token: 'XLM',
-            gross: String(Math.floor((cents * 10_000_000) / 12.7328)),
-            net: String(Math.floor((share(cents) * 10_000_000) / 12.7328)),
-          },
+        : { token: 'XLM', gross: units(cents), net: units(share(cents)) },
     ...over,
+  }
+  // The same subtractions the server makes, so a surface never does.
+  return {
+    ...base,
+    fee: money(grid(base.amount.cents - base.net.cents)),
+    unpaid: money(grid(base.amount.cents - base.paid.cents)),
+    unpaidNet: money(grid(base.net.cents - base.paidNet.cents)),
   }
 }
 
-/** Both sides of the same tips, so a scenario reads the same on each. */
-function both(
-  rows: [
-    cents: number,
-    status: ActivityItem['status'],
-    over?: Partial<ActivityItem>,
-  ][],
-  now: number
-) {
-  // The writer sees a tip only once the server accepted it.
-  const make = (role: 'reader' | 'writer') =>
-    rows
-      .map(([cents, status, over], i) =>
-        item(role, i + 1, cents, status, now, over)
-      )
-      .filter((i) => role === 'reader' || i.status !== 'sending')
-  return { reader: make('reader'), writer: make('writer') }
+/** The reader's tips sent and the writer's tips received. */
+function sides(rows: Row[], now: number) {
+  return {
+    reader: rows.map((r, i) => item('reader', i + 1, r, now)),
+    // The writer sees a tip only once the server accepted it.
+    writer: rows
+      .filter(([, status]) => status !== 'sending')
+      .map((r, i) => item('writer', i + 1, r, now)),
+  }
 }
 
 function sum(items: ActivityItem[], pick: (i: ActivityItem) => number) {
-  return Math.round(items.reduce((s, i) => s + pick(i), 0) * 10_000) / 10_000
+  return grid(items.reduce((s, i) => s + pick(i), 0))
 }
 
-/** The views for one scenario, at `now`. */
+function readyEarnings(writer: ActivityItem[], asOf: number): EarningsView {
+  const of = (
+    test: (i: ActivityItem) => boolean,
+    pick: (i: ActivityItem) => number
+  ) => sum(writer.filter(test), pick)
+  const shortfall = (i: ActivityItem) =>
+    i.status === 'not-paid' && i.reason === 'shortfall'
+  const final = (i: ActivityItem) =>
+    i.status === 'not-paid' && i.reason !== 'shortfall'
+  const pending = of(
+    (i) => i.status === 'sent',
+    (i) => i.net.cents
+  )
+  // A tip paid in part: its paid part is ready, the rest on hold or not paid.
+  const ready = grid(
+    of(
+      (i) => i.status === 'on-chain',
+      (i) => i.net.cents
+    ) +
+      of(
+        (i) => i.status === 'not-paid',
+        (i) => i.paidNet.cents
+      )
+  )
+  return earnings({
+    pending: money(pending),
+    available: readyMoney(ready, units(ready)),
+    total: money(grid(pending + ready)),
+    onHold: money(of(shortfall, (i) => i.unpaidNet.cents)),
+    notPaid: money(of(final, (i) => i.unpaidNet.cents)),
+    counts: {
+      pending: writer.filter((i) => i.status === 'sent').length,
+      onHold: writer.filter(shortfall).length,
+      notPaid: writer.filter(final).length,
+      settled: writer.filter((i) => i.status === 'on-chain').length,
+    },
+    lagging: writer.some((i) => i.lagging),
+    exact: { token: 'XLM', available: units(ready), collected: '0' },
+    asOf,
+  })
+}
+
+/** Narrows a scenario to a person who only reads or only writes. */
+function forRole(v: FakePayments, role: FakeRole): FakePayments {
+  if (role === 'reader')
+    return {
+      ...v,
+      writerActivity: activity([], v.writerActivity.status),
+      earnings:
+        v.earnings.status === 'ready'
+          ? { ...NO_EARNINGS, status: 'none', asOf: v.earnings.asOf }
+          : v.earnings,
+    }
+  if (role === 'writer')
+    return {
+      ...v,
+      readerActivity: activity([], v.readerActivity.status),
+      balance:
+        v.balance.status === 'ready'
+          ? balance(
+              {
+                status: 'none',
+                available: approxMoney(0),
+                pending: money(0),
+                exact: { token: 'XLM', available: '0' },
+                deviceReady: false,
+                device: 'needs-setup',
+                limits: null,
+                amounts: [],
+                online: v.balance.online,
+              },
+              v.balance.asOf ?? 0
+            )
+          : v.balance,
+      tip:
+        v.tip.ready && !v.tip.unavailable
+          ? tipControl({ unavailable: 'no-balance', amount: null, amounts: [] })
+          : v.tip,
+    }
+  return v
+}
+
+/** The views for one scenario. */
 export function fakePayments(
   name: FakeScenario,
-  now: number = Date.now()
+  options: FakeOptions | number = {}
 ): FakePayments {
-  const settled = both(
-    [
-      [10, 'on-chain'],
-      [10, 'on-chain'],
-      [50, 'on-chain'],
-    ],
-    now
-  )
-  const readyEarnings = (
-    writer: ActivityItem[],
-    over: Partial<EarningsView> = {}
-  ) => {
-    const pending = sum(
-      writer.filter((i) => i.status === 'sent'),
-      (i) => i.net.cents
-    )
-    const available = sum(
-      writer.filter((i) => i.status === 'on-chain'),
-      (i) => i.net.cents
-    )
-    const onHold = sum(
-      writer.filter((i) => i.status === 'not-paid' && i.reason === 'shortfall'),
-      (i) => i.net.cents - i.paidNet.cents
-    )
-    const notPaid = sum(
-      writer.filter((i) => i.status === 'not-paid' && i.reason !== 'shortfall'),
-      (i) => i.net.cents - i.paidNet.cents
-    )
-    const paidPart = sum(
-      writer.filter((i) => i.status === 'not-paid'),
-      (i) => i.paidNet.cents
-    )
-    const ready = available + paidPart
-    const units = String(Math.floor((ready * 10_000_000) / 12.7328))
-    return earnings({
-      pending: money(pending),
-      available: readyMoney(ready, units),
-      total: money(pending + ready),
-      onHold: money(onHold),
-      notPaid: money(notPaid),
-      counts: {
-        pending: writer.filter((i) => i.status === 'sent').length,
-        onHold: writer.filter((i) => i.reason === 'shortfall').length,
-        notPaid: writer.filter(
-          (i) => i.status === 'not-paid' && i.reason !== 'shortfall'
-        ).length,
-        settled: writer.filter((i) => i.status === 'on-chain').length,
-      },
-      lagging: writer.some((i) => i.lagging),
-      exact: { token: 'XLM', available: units, collected: '0' },
-      ...over,
-    })
-  }
+  const { now = Date.now(), role = 'both' } =
+    typeof options === 'number' ? { now: options } : options
+  return forRole(scenario(name, now), role)
+}
+
+function scenario(name: FakeScenario, now: number): FakePayments {
+  const settled: Row[] = [
+    [10, 'on-chain'],
+    [10, 'on-chain'],
+    [50, 'on-chain'],
+  ]
   const views = (
-    rows: ReturnType<typeof both>,
-    over: { balance?: Partial<BalanceView>; tip?: Partial<TipController> } = {}
-  ): FakePayments => ({
-    balance: balance(over.balance),
-    tip: tipControl(over.tip),
-    readerActivity: activity(rows.reader),
-    writerActivity: activity(rows.writer),
-    earnings: readyEarnings(rows.writer),
-  })
+    rows: Row[],
+    over: {
+      balance?: Partial<BalanceView>
+      tip?: Partial<TipController>
+      asOf?: number
+    } = {}
+  ): FakePayments => {
+    const both = sides(rows, now)
+    const asOf = over.asOf ?? now
+    return {
+      balance: balance(over.balance ?? {}, asOf),
+      tip: tipControl(over.tip),
+      readerActivity: activity(both.reader),
+      writerActivity: activity(both.writer),
+      earnings: readyEarnings(both.writer, asOf),
+    }
+  }
   const phase = (p: TipPhase) => ({ state: p })
   const amount: Money = money(10)
 
   switch (name) {
     case 'ready':
+    case 'available':
       return views(settled)
-    case 'sending': {
-      const rows = both([[10, 'sending']], now)
-      return views(rows, {
+    case 'sending':
+      return views([[10, 'sending']], {
         balance: { available: approxMoney(244.66) },
-        tip: phase({ phase: 'sending', requestId: 'request-1', amount }),
+        tip: phase({ phase: 'sending', requestId: 'sent-1', amount }),
       })
-    }
     case 'sent':
-      return views(both([[10, 'sent']], now), {
+      return views([[10, 'sent']], {
         balance: { available: approxMoney(244.66), pending: money(10) },
-        tip: phase({ phase: 'sent', requestId: 'request-1', amount }),
+        tip: phase({ phase: 'sent', requestId: 'sent-1', amount }),
       })
     case 'pending':
       return views(
-        both(
-          [
-            [50, 'sent'],
-            [10, 'on-chain'],
-          ],
-          now
-        ),
+        [
+          [50, 'sent'],
+          [10, 'on-chain'],
+        ],
         { balance: { pending: money(50) } }
       )
-    case 'available':
-      return views(settled)
     case 'lagging': {
-      const rows = both([[10, 'sent', { lagging: true }]], now)
-      for (const r of [...rows.reader, ...rows.writer]) r.at = now - 8 * MIN
-      return views(rows, { balance: { pending: money(10) } })
+      const v = views([[10, 'sent', { lagging: true, at: now - 8 * MIN }]], {
+        balance: { pending: money(10) },
+      })
+      return v
     }
     case 'failed':
       return views(
-        both(
-          [
-            [10, 'not-paid', { reason: 'expired' }],
-            [50, 'not-paid', { reason: 'shortfall' }],
-          ],
-          now
-        ),
+        [
+          [10, 'not-paid', { reason: 'expired' }],
+          [50, 'not-paid', { reason: 'shortfall' }],
+        ],
         {
+          // The tip on hold still reserves the reader's balance.
+          balance: { pending: money(50) },
           tip: phase({ phase: 'failed', code: 'TAB_STALE_PREPARE', amount }),
         }
       )
@@ -329,20 +408,18 @@ export function fakePayments(
         paidNet: money(share(10)),
       })
       return views(
-        both(
-          [
-            [25, 'not-paid', part('shortfall')],
-            [25, 'not-paid', part('expired')],
-          ],
-          now
-        )
+        [
+          [25, 'not-paid', part('shortfall')],
+          [25, 'not-paid', part('expired')],
+        ],
+        { balance: { pending: money(15) } }
       )
     }
     case 'empty':
-      return views({ reader: [], writer: [] })
+      return views([])
     case 'loading':
       return {
-        balance: LOADING_BALANCE,
+        balance: balance(LOADING_BALANCE, 0),
         tip: tipControl({ ready: false, amount: null, amounts: [] }),
         readerActivity: activity([], 'loading'),
         writerActivity: activity([], 'loading'),
@@ -351,11 +428,10 @@ export function fakePayments(
     case 'unavailable': {
       const reason: UnavailableReason = 'not-loaded'
       return {
-        balance: {
-          ...LOADING_BALANCE,
-          status: 'unavailable',
-          device: 'unavailable',
-        },
+        balance: balance(
+          { ...LOADING_BALANCE, status: 'unavailable', device: 'unavailable' },
+          0
+        ),
         tip: tipControl({ unavailable: reason, amount: null, amounts: [] }),
         readerActivity: activity([], 'unavailable'),
         writerActivity: activity([], 'unavailable'),
@@ -363,9 +439,11 @@ export function fakePayments(
       }
     }
     case 'offline':
+      // The last figures read, six minutes ago.
       return views(settled, {
         balance: { online: false },
         tip: phase({ phase: 'offline', amount }),
+        asOf: now - 6 * MIN,
       })
   }
 }
@@ -373,9 +451,9 @@ export function fakePayments(
 /** A runtime for `PaymentsRuntimeContext` that always reads `name`. */
 export function fakeRuntime(
   name: FakeScenario,
-  now: number = Date.now()
+  options: FakeOptions | number = {}
 ): PaymentsRuntime {
-  const views = fakePayments(name, now)
+  const views = fakePayments(name, options)
   return {
     useBalance: () => views.balance,
     useTip: () => views.tip,
