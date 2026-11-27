@@ -512,3 +512,15 @@
     transition: none;
   }
 }
+
+/* Skeletons in the final size of the figures, so nothing shifts. */
+.qt-figure-skeleton {
+  width: 60%;
+  height: clamp(3.5rem, 18vw, 5.75rem);
+}
+.qt-line-skeleton {
+  display: inline-block;
+  width: 4.5rem;
+  height: 1.25rem;
+  vertical-align: middle;
+}

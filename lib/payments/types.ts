@@ -57,7 +57,7 @@ export type TipPhase =
   | { phase: 'failed'; code: string; amount: Money }
   /** Checked before sending: nothing was sent. */
   | { phase: 'offline'; amount: Money }
-  | { phase: 'needs-funds'; amount: Money; available: Money }
+  | { phase: 'needs-funds'; amount: Money; available: Money | null }
 
 export type BalanceView = {
   /** `unavailable`: payments could not load or answer; reading is unaffected. */
@@ -68,10 +68,11 @@ export type BalanceView = {
     | 'ready'
     | 'closing'
     | 'unavailable'
-  /** What a tip can use now, including tips sent from this device. */
-  available: Money
+  /** What a tip can use now, including tips sent from this device.
+   * Null until the server answered: never a placeholder zero. */
+  available: Money | null
   /** Accepted tips not yet paid on chain, at their own dollars. */
-  pending: Money
+  pending: Money | null
   /** This device holds a key that can tip without a prompt. */
   deviceReady: boolean
   device: 'loading' | 'ready' | 'needs-setup' | 'unavailable'
@@ -123,17 +124,23 @@ export type ActivityView = {
   loadMore(): void
 }
 
+/** Figures exist only when `status` is `ready`; otherwise they are `null`. */
 export type EarningsView = {
   status: 'loading' | 'signed-out' | 'ready' | 'unavailable'
-  pending: Money
+  pending: Money | null
   /** Paid on chain and collectable now. */
-  available: Money
+  available: Money | null
   /** Already in the writer's wallet. */
-  collected: Money
-  total: Money
-  onHold: Money
-  notPaid: Money
-  counts: { pending: number; onHold: number; notPaid: number; settled: number }
+  collected: Money | null
+  total: Money | null
+  onHold: Money | null
+  notPaid: Money | null
+  counts: {
+    pending: number
+    onHold: number
+    notPaid: number
+    settled: number
+  } | null
   /** Some pending tips are older than settlement normally takes. */
   lagging: boolean
   exact: { token: 'XLM'; available: string; collected: string } | null

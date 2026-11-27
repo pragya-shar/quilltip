@@ -110,10 +110,9 @@ export function PassageTip({
   }, [state.phase, trayOpen, onClose])
 
   const short = (display: string) => display.replace(/\.00$/, '')
-  const left =
-    balance.status === 'ready'
-      ? `${balance.available.display} ready to tip.`
-      : ''
+  const left = balance.available
+    ? `${balance.available.display} ready to tip.`
+    : ''
   let status: PassageTipBarProps['status'] = {
     text: lastSent ? `${lastSent} ${left}`.trim() : left,
   }
@@ -145,7 +144,7 @@ export function PassageTip({
     status = { text: 'You are offline. Tip again when you are back online.' }
   else if (state.phase === 'needs-funds')
     status = {
-      text: `You have ${state.available.display}.`,
+      text: state.available ? `You have ${state.available.display}.` : '',
       link: {
         href: ADD_MONEY_HREF,
         label: `Add money to tip ${short(state.amount.display)}`,

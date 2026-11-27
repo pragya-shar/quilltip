@@ -20,6 +20,7 @@ import type { TipPhase } from '../../lib/payments/types'
 import {
   balanceViewOf,
   defaultChoice,
+  earningsViewOf,
   effectiveChoice,
   readerItemsOf,
   tipChoices,
@@ -117,7 +118,7 @@ describe('money arithmetic matches the server', () => {
 
   it('marks converted figures as estimates and stored ones as exact', () => {
     // Spendable is converted from the token at today's price.
-    expect(view(session()).available.display).toBe('≈ $6.95')
+    expect(view(session()).available!.display).toBe('≈ $6.95')
     expect(approxMoney(1728).display).toBe('≈ $17.28')
     // A tip's cents are stored at tip time: exact on the button and rows.
     expect(money(25).display).toBe('$0.25')
@@ -215,12 +216,12 @@ describe('optimistic balance and reconciliation', () => {
     const before = view(session())
     const tip = outboxEntry('r1', 100)
     const during = view(session(), [tip])
-    expect(during.available.cents).toBe(
+    expect(during.available!.cents).toBe(
       baseUnitsToCents(BigInt(200_000_000) - BigInt(tip.estimate), PRICE)
     )
-    expect(during.pending.cents).toBe(100)
+    expect(during.pending!.cents).toBe(100)
     expect(
-      before.available.cents - during.available.cents
+      before.available!.cents - during.available!.cents
     ).toBeGreaterThanOrEqual(99)
     // The server accepted: its own figures include the tip, the entry is ignored.
     const accepted = session({
@@ -239,7 +240,7 @@ describe('optimistic balance and reconciliation', () => {
     })
     const after = view(accepted, [tip])
     expect(after.available).toEqual(during.available)
-    expect(after.pending.cents).toBe(100)
+    expect(after.pending!.cents).toBe(100)
   })
 
   it('offers ladder amounts within every limit, never the raw ceiling', () => {
@@ -302,6 +303,29 @@ describe('optimistic balance and reconciliation', () => {
       now: NOW,
     })
     expect(listed.map((i) => [i.id, i.status])).toEqual([['receipt-1', 'sent']])
+  })
+
+  it('never returns a figure that was not read', () => {
+    for (const v of [view(undefined), view(null)]) {
+      expect(v.available).toBeNull()
+      expect(v.pending).toBeNull()
+      expect(v.amounts).toEqual([])
+    }
+    // A confirmed account with no balance is a real zero.
+    expect(view(session({ status: 'none' })).available?.display).toBe('≈ $0.00')
+    const loading = earningsViewOf({
+      signedIn: true,
+      earnings: undefined,
+      entries: [],
+      now: NOW,
+    })
+    expect(loading).toMatchObject({
+      status: 'loading',
+      pending: null,
+      available: null,
+      collected: null,
+      counts: null,
+    })
   })
 
   it('is signed out without a session and empty without a balance', () => {

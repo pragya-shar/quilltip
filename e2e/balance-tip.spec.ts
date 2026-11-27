@@ -601,3 +601,48 @@ test.describe('contrast and partly paid tips', () => {
     await expect(page.getByText(/not charged/)).toHaveCount(0)
   })
 })
+
+test.describe('figures appear only when read', () => {
+  const CURRENCY = /\$\s?\d|<\$0\.01/
+
+  test('an outage shows no dollar figure of any kind on either screen', async ({
+    page,
+  }) => {
+    await open(page, 'balance', 'reader-outage')
+    await expect(page.getByTestId('balance-unavailable')).toBeVisible({
+      timeout: 10_000,
+    })
+    expect(await page.locator('body').innerText()).not.toMatch(CURRENCY)
+    await open(page, 'earnings', 'writer-outage')
+    await expect(page.getByTestId('earnings-unavailable')).toBeVisible({
+      timeout: 10_000,
+    })
+    expect(await page.locator('body').innerText()).not.toMatch(CURRENCY)
+  })
+
+  test('loading shows skeletons in place of every figure, and no figure', async ({
+    page,
+  }) => {
+    await open(page, 'balance', 'loading')
+    await expect(page.getByLabel('Loading your balance')).toBeVisible()
+    expect(await page.locator('body').innerText()).not.toMatch(CURRENCY)
+    await open(page, 'earnings', 'loading')
+    await expect(page.getByLabel('Loading your earnings')).toBeVisible()
+    await expect(
+      page.getByTestId('earnings-pending').getByLabel('Loading')
+    ).toBeVisible()
+    await expect(
+      page.getByTestId('earnings-collected').getByLabel('Loading')
+    ).toBeVisible()
+    expect(await page.locator('body').innerText()).not.toMatch(CURRENCY)
+  })
+
+  test('a confirmed empty account shows real zeros', async ({ page }) => {
+    await open(page, 'earnings', 'writer-empty')
+    await expect(page.getByTestId('earnings-available')).toHaveText('$0.00')
+    await expect(page.getByTestId('earnings-pending')).toHaveText('$0.00')
+    await expect(page.getByTestId('earnings-collected')).toHaveText('$0.00')
+    await open(page, 'balance', 'reader-none')
+    await expect(page.getByTestId('balance-available')).toHaveText('≈ $0.00')
+  })
+})

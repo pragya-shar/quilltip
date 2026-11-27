@@ -34,6 +34,18 @@ export function money(cents: Cents): Money {
   return { cents, display: formatMoney(cents) }
 }
 
+/**
+ * A ready-to-collect figure: its token amount and its cents come from the
+ * same tips and claims, so a positive token amount below one cent reads
+ * "<$0.01", never "$0.00". Allowed only for the ready figure and its rows;
+ * never on a tip button or a receipt, whose cents are exact.
+ */
+export function readyMoney(cents: Cents, baseUnits: string): Money {
+  if (BigInt(baseUnits || '0') > BigInt(0) && Math.floor(cents + 1e-9) < 1)
+    return { cents, display: '<$0.01' }
+  return money(cents)
+}
+
 /** A figure converted from the token at today's price: "≈ $17.28". */
 export function approxMoney(cents: Cents): Money {
   return { cents, display: `≈ ${formatMoney(cents)}` }

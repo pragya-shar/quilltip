@@ -172,16 +172,15 @@ async function checkInvariants(t: T, s: Seeded) {
   expect(e.settledCount).toBe(
     writerRows.filter((r) => r.status === 'SETTLED').length
   )
-  // Base units: available is what the chain paid minus what was collected.
+  // Base units: available is the settled tips' net minus what was
+  // collected, the same tips as the cents (never the pairs' part payments).
   const writerPairs = pairs.filter((p) => p.authorId === s.authorId)
-  const earned = writerPairs.reduce(
-    (sum, p) => sum + BigInt(p.earnedNet),
-    BigInt(0)
-  )
+  const settledBase = writerRows
+    .filter((r) => r.status === 'SETTLED')
+    .reduce((sum, r) => sum + receiptNet(r), BigInt(0))
+  const ready = settledBase - BigInt(e.baseUnits.collected)
   expect(BigInt(e.baseUnits.available)).toBe(
-    earned - BigInt(e.baseUnits.collected) > BigInt(0)
-      ? earned - BigInt(e.baseUnits.collected)
-      : BigInt(0)
+    ready > BigInt(0) ? ready : BigInt(0)
   )
   expect(BigInt(e.baseUnits.pendingAndOnHold)).toBe(
     writerPairs.reduce((sum, p) => sum + BigInt(p.pendingNet), BigInt(0))
@@ -435,9 +434,10 @@ describe('money states across settlement', () => {
       onHoldCount: 2,
       pendingCents: 0,
     })
-    // The exact token amount is what the chain paid, collectable now.
+    // Ready counts fully paid tips in both units: the 10 cent tip's net.
+    // (The pair's part payment of the next tip shows on that tip's row.)
     expect(partial.views.earnings.baseUnits.available).toBe(
-      netOf(BigInt(1_500_000)).toString()
+      receiptNet({ amount: '1000000', cumulativeAfter: '1000000' }).toString()
     )
   })
 
@@ -716,33 +716,6 @@ describe('totals at any history length and across collects (D10)', () => {
     expect(reopened).toEqual(after)
   })
 
-  it('gives available in base units by the lifetime totals formula', async () => {
-    const t = convexTest(schema, modules)
-    const s = await seed(t)
-    const net = await settleTwo(t, s)
-    await ingest(t, ev.claimed(WRITER, net / BigInt(3)))
-    const e = (await as(t, s.authorId).query(api.earnings.mine, {}))!
-    const row = await t.run(async (ctx) =>
-      ctx.db
-        .query('authorEarnings')
-        .withIndex('by_user', (q) => q.eq('userId', s.authorId))
-        .first()
-    )
-    const units = (r?: Record<string, string>) => BigInt(r?.[TOKEN] ?? '0')
-    expect(BigInt(e.baseUnits.available)).toBe(
-      units(row?.earnedBaseUnits) -
-        units(row?.walletEarnedBaseUnits) -
-        units(row?.collectedBaseUnits)
-    )
-    expect(BigInt(e.baseUnits.available)).toBe(net - net / BigInt(3))
-    // The settled totals are the lifetime totals' fields.
-    expect(row).toMatchObject({
-      tabTipCount: 2,
-      tabEarnedCents: 390,
-      tabSettledBaseUnits: { [TOKEN]: net.toString() },
-    })
-  })
-
   it('values a partial collect at the average cost of what is available', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
@@ -989,4 +962,165 @@ describe('spendable between a settlement result and its indexed event', () => {
     // A tip above the real on-chain balance is refused.
     expect(await errorCode(tip(t, s, { cents: 100 }))).toBe('TAB_OVER_BALANCE')
   })
+})
+
+describe('ready to collect counts balance tips only, in both units', () => {
+  const WALLET_SHARE = BigInt(48_007_262_8) // a wallet tip's net, paid to the wallet
+  const WALLET_CENTS = 536
+
+  /** A wallet tip credited as the v2 earnings sync credits it. */
+  async function walletTip(t: T, s: Seeded, with567: boolean) {
+    await t.run(async (ctx) => {
+      const row = await (
+        await ctx.db.query('authorEarnings').collect()
+      ).find((r) => r.userId === s.authorId)
+      const base = {
+        earnedBaseUnits: {
+          ...row?.earnedBaseUnits,
+          [TOKEN]: (
+            BigInt(row?.earnedBaseUnits?.[TOKEN] ?? '0') + WALLET_SHARE
+          ).toString(),
+        },
+        v2EarnedCents: (row?.v2EarnedCents ?? 0) + WALLET_CENTS,
+        v2TipCount: (row?.v2TipCount ?? 0) + 1,
+        totalEarnedCents: (row?.totalEarnedCents ?? 0) + WALLET_CENTS,
+        ...(with567
+          ? { walletEarnedBaseUnits: { [TOKEN]: WALLET_SHARE.toString() } }
+          : {}),
+      }
+      if (row) await ctx.db.patch(row._id, base)
+      else
+        await ctx.db.insert('authorEarnings', {
+          userId: s.authorId,
+          totalEarnedUsd: 0,
+          availableBalanceUsd: 0,
+          availableBalanceCents: 0,
+          pendingBalanceUsd: 0,
+          pendingBalanceCents: 0,
+          withdrawnUsd: 0,
+          withdrawnCents: 0,
+          tipCount: 1,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          ...base,
+        })
+    })
+  }
+  async function balanceTips(t: T, s: Seeded) {
+    await tip(t, s, { cents: 100 })
+    await tip(t, s, { cents: 300 })
+    const gross = BigInt(40_000_000)
+    return { gross, net: netOf(gross) }
+  }
+  async function settle(t: T, gross: bigint) {
+    await ingest(
+      t,
+      ev.tabSettled({ cumulative: gross, paidAfter: gross, gross })
+    )
+  }
+
+  async function check(
+    t: T,
+    s: Seeded,
+    expected: { readyBase: bigint; readyCents: number }
+  ) {
+    const e = (await as(t, s.authorId).query(api.earnings.mine, {}))!
+    expect(BigInt(e.baseUnits.available)).toBe(expected.readyBase)
+    expect(e.availableCents).toBe(expected.readyCents)
+    // The same tips in both units: no token units means no cents, and
+    // cents mean token units (a few units may round below a cent).
+    if (e.baseUnits.available === '0') expect(e.availableCents).toBe(0)
+    if (e.availableCents > 0)
+      expect(BigInt(e.baseUnits.available) > BigInt(0)).toBe(true)
+    // Lifetime = pending + ready + paid to the wallet.
+    expectCents(
+      e.totalCents,
+      e.pendingCents + e.availableCents + e.collectedCents
+    )
+    // With the lifetime totals' fields present, their formula agrees.
+    const row = await t.run(async (ctx) =>
+      (await ctx.db.query('authorEarnings').collect()).find(
+        (r) => r.userId === s.authorId
+      )
+    )
+    if (row?.walletEarnedBaseUnits) {
+      const u = (r?: Record<string, string>) => BigInt(r?.[TOKEN] ?? '0')
+      expect(
+        u(row.earnedBaseUnits) -
+          u(row.walletEarnedBaseUnits) -
+          u(row.collectedBaseUnits)
+      ).toBe(expected.readyBase)
+    }
+    return e
+  }
+
+  it('leaves one base unit after a claim: token amount shown, cents below one', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await walletTip(t, s, false)
+    const { gross, net } = await balanceTips(t, s)
+    await settle(t, gross)
+    await ingest(t, ev.claimed(WRITER, net - BigInt(1)))
+    const e = await check(t, s, { readyBase: BigInt(1), readyCents: 0 })
+    expect(e.baseUnits.available).toBe('1')
+  })
+
+  for (const with567 of [false, true]) {
+    const label = with567
+      ? 'with the lifetime totals fields'
+      : 'on a row that predates them'
+    it(`wallet tips only: nothing ready (${label})`, async () => {
+      const t = convexTest(schema, modules)
+      const s = await seed(t)
+      await walletTip(t, s, with567)
+      const e = await check(t, s, { readyBase: BigInt(0), readyCents: 0 })
+      expect(e.collectedCents).toBe(WALLET_CENTS)
+    })
+    it(`balance tips only (${label})`, async () => {
+      const t = convexTest(schema, modules)
+      const s = await seed(t)
+      const { gross, net } = await balanceTips(t, s)
+      await settle(t, gross)
+      if (with567)
+        await t.run(async (ctx) => {
+          const row = (await (
+            await ctx.db.query('authorEarnings').collect()
+          ).find((r) => r.userId === s.authorId))!
+          await ctx.db.patch(row._id, { walletEarnedBaseUnits: {} })
+        })
+      await check(t, s, { readyBase: net, readyCents: 390 })
+    })
+    it(`wallet and balance tips (${label})`, async () => {
+      const t = convexTest(schema, modules)
+      const s = await seed(t)
+      await walletTip(t, s, with567)
+      const { gross, net } = await balanceTips(t, s)
+      await settle(t, gross)
+      const e = await check(t, s, { readyBase: net, readyCents: 390 })
+      expect(e.collectedCents).toBe(WALLET_CENTS)
+    })
+    it(`wallet and balance tips with a partial claim (${label})`, async () => {
+      const t = convexTest(schema, modules)
+      const s = await seed(t)
+      await walletTip(t, s, with567)
+      const { gross, net } = await balanceTips(t, s)
+      await settle(t, gross)
+      await ingest(t, ev.claimed(WRITER, net / BigInt(4)))
+      const e = await check(t, s, {
+        readyBase: net - net / BigInt(4),
+        readyCents: 292.5,
+      })
+      expectCents(e.collectedCents, WALLET_CENTS + 97.5)
+    })
+    it(`wallet and balance tips with a claim before the settlement (${label})`, async () => {
+      const t = convexTest(schema, modules)
+      const s = await seed(t)
+      await walletTip(t, s, with567)
+      const { gross, net } = await balanceTips(t, s)
+      await ingest(t, ev.claimed(WRITER, net))
+      await settle(t, gross)
+      const e = await check(t, s, { readyBase: BigInt(0), readyCents: 0 })
+      expectCents(e.collectedCents, WALLET_CENTS + 390)
+    })
+  }
 })

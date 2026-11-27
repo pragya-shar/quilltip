@@ -135,6 +135,15 @@ export const SCENARIOS: Record<string, (s: FixtureState) => void> = {
   'writer-empty': (s) => {
     s.user = 'w'
   },
+  'reader-outage': (s) => {
+    s.user = 'a'
+    s.accounts.a = { confirmed: XLM(20) }
+    s.sessionFault = 'throwing'
+  },
+  'writer-outage': (s) => {
+    s.user = 'w'
+    s.sessionFault = 'throwing'
+  },
   'two-readers': (s) => {
     s.user = 'a'
     s.accounts.a = { confirmed: XLM(20) }

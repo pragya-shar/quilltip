@@ -26,17 +26,16 @@ export function BalanceScreen({
   const unavailable = balance.status === 'unavailable'
   return (
     <div className="qt-pay qt-screen" data-testid="balance-screen">
-      {loading ? (
-        <span
-          className="qt-skeleton"
-          style={{ width: '60%', height: 80 }}
-          aria-label="Loading your balance"
-        />
-      ) : unavailable ? null : (
+      {balance.available ? (
         <p className="qt-figure" data-testid="balance-available">
           {balance.available.display}
         </p>
-      )}
+      ) : loading ? (
+        <span
+          className="qt-skeleton qt-figure-skeleton"
+          aria-label="Loading your balance"
+        />
+      ) : null}
       <h1 className="qt-figure-label">Ready to tip</h1>
       <p className="qt-testnet">Testnet. Practice money only.</p>
       {unavailable ? (

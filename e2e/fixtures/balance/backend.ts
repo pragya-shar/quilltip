@@ -325,11 +325,15 @@ const cache = new Map<string, unknown>()
 
 /** A query's answer, stable per backend version (like a subscription). */
 export function query(name: string, args: Record<string, unknown>): unknown {
-  if (name === 'balance:session' && state.user && state.sessionFault)
+  if (
+    (name === 'balance:session' || name === 'earnings:mine') &&
+    state.user &&
+    state.sessionFault
+  )
     throw new Error(
       state.sessionFault === 'missing'
-        ? "[CONVEX Q(balance:session)] Server Error Could not find public function for 'balance:session'."
-        : '[CONVEX Q(balance:session)] Server Error'
+        ? `[CONVEX Q(${name})] Server Error Could not find public function for '${name}'.`
+        : `[CONVEX Q(${name})] Server Error`
     )
   if (state.hold || state.authLoading) return undefined
   const key = `${name}:${JSON.stringify(args)}`

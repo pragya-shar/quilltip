@@ -26,17 +26,16 @@ export function EarningsScreen({
   const unavailable = earnings.status === 'unavailable'
   return (
     <div className="qt-pay qt-screen" data-testid="earnings-screen">
-      {loading ? (
-        <span
-          className="qt-skeleton"
-          style={{ width: '60%', height: 80 }}
-          aria-label="Loading your earnings"
-        />
-      ) : unavailable ? null : (
+      {earnings.available ? (
         <p className="qt-figure" data-testid="earnings-available">
           {earnings.available.display}
         </p>
-      )}
+      ) : loading ? (
+        <span
+          className="qt-skeleton qt-figure-skeleton"
+          aria-label="Loading your earnings"
+        />
+      ) : null}
       <h1 className="qt-figure-label">Ready to withdraw</h1>
       <p className="qt-testnet">Testnet. Practice money only.</p>
       {unavailable ? (
@@ -49,21 +48,41 @@ export function EarningsScreen({
           nothing is lost.
         </p>
       ) : null}
-      {earnings.exact && earnings.available.cents > 0 ? (
+      {earnings.exact && earnings.exact.available !== '0' ? (
         <p className="qt-figure-note">
           Exact amount {formatTokenAmount(earnings.exact.available)}
         </p>
       ) : null}
-      <dl className="qt-lines">
-        <div>
-          <dt>On its way</dt>
-          <dd data-testid="earnings-pending">{earnings.pending.display}</dd>
-        </div>
-        <div className="qt-history">
-          <dt>Paid to your wallet</dt>
-          <dd data-testid="earnings-collected">{earnings.collected.display}</dd>
-        </div>
-      </dl>
+      {unavailable ? null : (
+        <dl className="qt-lines">
+          <div>
+            <dt>On its way</dt>
+            <dd data-testid="earnings-pending">
+              {earnings.pending ? (
+                earnings.pending.display
+              ) : (
+                <span
+                  className="qt-skeleton qt-line-skeleton"
+                  aria-label="Loading"
+                />
+              )}
+            </dd>
+          </div>
+          <div className="qt-history">
+            <dt>Paid to your wallet</dt>
+            <dd data-testid="earnings-collected">
+              {earnings.collected ? (
+                earnings.collected.display
+              ) : (
+                <span
+                  className="qt-skeleton qt-line-skeleton"
+                  aria-label="Loading"
+                />
+              )}
+            </dd>
+          </div>
+        </dl>
+      )}
       {earnings.lagging ? (
         <p
           className="qt-notice qt-neutral"
@@ -75,13 +94,13 @@ export function EarningsScreen({
           they arrive.
         </p>
       ) : null}
-      {earnings.counts.onHold > 0 ? (
+      {earnings.counts && earnings.counts.onHold > 0 ? (
         <p className="qt-notice qt-neutral" data-testid="earnings-on-hold">
           {tipsCount(earnings.counts.onHold)} on hold, waiting on a
           reader&apos;s balance.
         </p>
       ) : null}
-      {earnings.counts.notPaid > 0 ? (
+      {earnings.counts && earnings.counts.notPaid > 0 ? (
         <p className="qt-notice qt-neutral" data-testid="earnings-not-paid">
           {tipsCount(earnings.counts.notPaid)} did not complete. Each row says
           what arrived.

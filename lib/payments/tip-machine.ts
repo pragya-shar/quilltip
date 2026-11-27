@@ -17,7 +17,8 @@ export type JobStatus =
 
 export type TapCheck = {
   online: boolean
-  available: Money
+  /** Null until the balance is read: nothing is sent then. */
+  available: Money | null
   /** Null when the reader can tip here. */
   unavailable: string | null
 }
@@ -38,6 +39,7 @@ export function onTap(
   const amount = money(cents)
   if (check.unavailable) return { send: false, phase }
   if (!check.online) return { send: false, phase: { phase: 'offline', amount } }
+  if (!check.available) return { send: false, phase }
   if (cents > check.available.cents)
     return {
       send: false,

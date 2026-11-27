@@ -23,7 +23,6 @@ import type {
   TipTarget,
 } from './types'
 
-const ZERO: Money = { cents: 0, display: '$0.00' }
 const ONE: Money = { cents: 100, display: '$1.00' }
 
 export type EngineState = 'idle' | 'loading' | 'ready' | 'failed'
@@ -49,8 +48,8 @@ export type PaymentsState = {
 
 const LOADING_BALANCE: BalanceView = {
   status: 'loading',
-  available: ZERO,
-  pending: ZERO,
+  available: null,
+  pending: null,
   deviceReady: false,
   device: 'loading',
   limits: null,
@@ -68,13 +67,13 @@ const LOADING_ACTIVITY: ActivityView = {
 }
 const LOADING_EARNINGS: EarningsView = {
   status: 'loading',
-  pending: ZERO,
-  available: ZERO,
-  collected: ZERO,
-  total: ZERO,
-  onHold: ZERO,
-  notPaid: ZERO,
-  counts: { pending: 0, onHold: 0, notPaid: 0, settled: 0 },
+  pending: null,
+  available: null,
+  collected: null,
+  total: null,
+  onHold: null,
+  notPaid: null,
+  counts: null,
   lagging: false,
   exact: null,
 }

@@ -4,10 +4,10 @@
  *
  * - `pending`: tab tips accepted by the server, not yet paid on chain
  *   (`tabPendingCents`).
- * - `available`: paid on chain and collectable now. Token amount: the
- *   lifetime totals' "ready to collect", `earnedBaseUnits -
- *   walletEarnedBaseUnits - collectedBaseUnits` (#552). Cents: settled tab
- *   cents minus collected ones (`tabEarnedCents - tabCollectedCents`).
+ * - `available`: balance tips paid on chain and collectable now. Token
+ *   amount: settled tab base units minus collected ones
+ *   (`readyToCollectBaseUnits`). Cents: settled tab cents minus collected
+ *   ones (`tabEarnedCents - tabCollectedCents`). The same tips in both units.
  * - `collected`: already in the writer's wallet: collected tab tips plus
  *   tips paid straight to the wallet (`v2EarnedCents`).
  *
@@ -27,12 +27,19 @@ import { caller, settlementExpectation } from './lib/moneyViews'
 const ZERO = BigInt(0)
 const big = (value: string | undefined) => (value ? BigInt(value) : ZERO)
 
-/** "Ready to collect" in base units, as the lifetime totals define it. */
+/**
+ * Ready to collect, in base units, from balance-tip figures only: tab tips
+ * settled on chain (`tabSettledBaseUnits`) minus what indexed `Claimed`
+ * events collected (`collectedBaseUnits`). Wallet tips are never part of it
+ * (they were paid straight to the wallet), so it does not read
+ * `earnedBaseUnits`, and it needs no field that only the lifetime totals
+ * change writes. Never below zero for display; a negative value is flagged.
+ */
 export function readyToCollectBaseUnits(
   row:
     | {
-        earnedBaseUnits?: Record<string, string>
-        walletEarnedBaseUnits?: Record<string, string>
+        userId?: string
+        tabSettledBaseUnits?: Record<string, string>
         collectedBaseUnits?: Record<string, string>
       }
     | null
@@ -40,10 +47,20 @@ export function readyToCollectBaseUnits(
   token: string
 ): bigint {
   const left =
-    big(row?.earnedBaseUnits?.[token]) -
-    big(row?.walletEarnedBaseUnits?.[token]) -
+    big(row?.tabSettledBaseUnits?.[token]) -
     big(row?.collectedBaseUnits?.[token])
-  return left > ZERO ? left : ZERO
+  if (left < ZERO) {
+    console.warn(
+      JSON.stringify({
+        code: 'EARNINGS_READY_NEGATIVE',
+        userId: row?.userId ?? null,
+        token,
+        value: left.toString(),
+      })
+    )
+    return ZERO
+  }
+  return left
 }
 
 export const mine = query({

@@ -9,7 +9,7 @@
  */
 import type { FunctionReturnType } from 'convex/server'
 import type { api } from '@/convex/_generated/api'
-import { approxMoney, baseUnitsToCents, money } from './money'
+import { approxMoney, baseUnitsToCents, money, readyMoney } from './money'
 import type { OutboxEntry } from './outbox'
 import type { ActivityItem, BalanceView, EarningsView, Money } from './types'
 
@@ -90,8 +90,6 @@ function utcDay(now: number): string {
   return new Date(now).toISOString().slice(0, 10)
 }
 
-const ZERO_MONEY = money(0)
-
 export function balanceViewOf(input: {
   authLoading: boolean
   signedIn: boolean
@@ -104,8 +102,8 @@ export function balanceViewOf(input: {
   const { session } = input
   const base: BalanceView = {
     status: 'loading',
-    available: ZERO_MONEY,
-    pending: ZERO_MONEY,
+    available: null,
+    pending: null,
     deviceReady: false,
     device: input.device,
     limits: null,
@@ -122,7 +120,14 @@ export function balanceViewOf(input: {
   if (!input.signedIn || session === null)
     return { ...base, status: 'signed-out' }
   if (session === undefined) return base
-  if (session.status === 'none') return { ...base, status: 'none' }
+  // The server answered: no balance yet is a real zero.
+  if (session.status === 'none')
+    return {
+      ...base,
+      status: 'none',
+      available: approxMoney(0),
+      pending: money(0),
+    }
 
   const price = session.prices[0]?.usd ?? 0
   const sending = unansweredEntries(input.outbox, session)
@@ -262,13 +267,13 @@ export function earningsViewOf(input: {
   const e = input.earnings
   const empty: EarningsView = {
     status: 'loading',
-    pending: ZERO_MONEY,
-    available: ZERO_MONEY,
-    collected: ZERO_MONEY,
-    total: ZERO_MONEY,
-    onHold: ZERO_MONEY,
-    notPaid: ZERO_MONEY,
-    counts: { pending: 0, onHold: 0, notPaid: 0, settled: 0 },
+    pending: null,
+    available: null,
+    collected: null,
+    total: null,
+    onHold: null,
+    notPaid: null,
+    counts: null,
     lagging: false,
     exact: null,
   }
@@ -277,7 +282,7 @@ export function earningsViewOf(input: {
   return {
     status: 'ready',
     pending: money(e.pendingCents),
-    available: money(e.availableCents),
+    available: readyMoney(e.availableCents, e.baseUnits.available),
     collected: money(e.collectedCents),
     total: money(e.totalCents),
     onHold: money(e.onHoldCents),
