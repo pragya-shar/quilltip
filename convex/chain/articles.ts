@@ -652,19 +652,22 @@ export const getRegistration = query({
  * tippable only once Core registration is confirmed and the on-chain author
  * is still the author's verified address (07-security-and-recovery.md).
  * With v2 off the result is `disabled` (v1 flow), or `paused` while
- * `CHAIN_V1_PREPARES_ENABLED=false`.
+ * `CHAIN_V1_PREPARES_ENABLED=false`. With v2 on and no `CORE_CONTRACT_ID`
+ * the result is `paused`: no flow can take the tip, so the article shows the
+ * paused note rather than a tip button.
  */
 export const getArticleTipAvailability = query({
   args: { articleId: v.id('articles') },
   handler: async (ctx, args) => {
     const chain = readChainEnv()
-    if (!chain.v2Enabled || !chain.coreContractId) {
+    if (!chain.v2Enabled) {
       // v2 is off: readers use the v1 flow, unless v1 preparation is paused
       // for the cutover (convex/lib/v1Prepares.ts).
       return v1PreparesEnabled()
         ? { status: 'disabled' as const }
         : { status: 'paused' as const }
     }
+    if (!chain.coreContractId) return { status: 'paused' as const }
     const article = await ctx.db.get(args.articleId)
     if (!article?.published) return { status: 'unregistered' as const }
     const row = await chainArticleFor(ctx, article._id, chain.chainEpoch)
