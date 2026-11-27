@@ -163,17 +163,17 @@ async function absoluteBalance(
         ledger: event.doc.ledger,
       })
     )
+    // The mark names the newest balance not applied (this one: an older
+    // mark returned above), so a balance between the two cannot clear it.
     return {
       applied: false,
-      patch: account.reconcileRequired
-        ? null
-        : {
-            reconcileRequired: {
-              eventId,
-              ledger: event.doc.ledger,
-              since: event.now,
-            },
-          },
+      patch: {
+        reconcileRequired: {
+          eventId,
+          ledger: event.doc.ledger,
+          since: account.reconcileRequired?.since ?? event.now,
+        },
+      },
     }
   }
   return {
