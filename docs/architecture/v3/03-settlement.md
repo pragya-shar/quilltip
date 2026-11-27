@@ -56,117 +56,32 @@ second fix.
   it to `spendable = $0.00` with `overCommitted: true`, and routing treats it
   as "no amount fits" (no balance route).
 
-#### B. A settlement whose event is never indexed (issue 573)
+#### B. A settlement whose event is never indexed (issue 573, tracked on `overhaul/v2`)
 
 If a `TabSettled` is never indexed, its paid amount stays in
-`settledUnindexed` for good: spendable is understated (the safe direction)
-and today nothing releases it. v3 adds a release path, unless the v2 ledger
-owner fixes it first.
+`settledUnindexed`: spendable is understated (the safe direction) and today
+nothing releases it. The owner of the tab ledger builds the release on
+`overhaul/v2` (issue 573), and `overhaul/v3` takes it by merge; v3 designs no
+second mechanism.
 
-**Proof that the event will not arrive.** For a voucher with an unindexed
-amount (`paidOnChain` above the total of `indexedPaid`), the last
-settlement record that paid it (`tabSettlements`, `CONFIRMED`, with `txHash`
-and `ledger`) is **stale** when all of these hold:
+- **Invariant v3 needs:** a reserve never outlives the chain's own record of
+  the payment. Once the contract's `paid` value for the pair covers a
+  settled amount, that amount leaves `settledUnindexed` exactly once, and a
+  later arrival of the event changes nothing.
 
-1. `chainCursor.status` is `OK` and `chainCursor.lastLedger ≥ ledger + 60`
-   (the indexer has covered the settlement's ledger with 5 minutes of margin;
-   the indexer never skips a range, it stops on a gap);
-2. no `chainEvents` row has that `txHash` (`by_tx`) with `type` `TabSettled`
-   for this pair, in any `handled` state (a `pending` or `error` row means the
-   event arrived and the handler must be fixed and re-dispatched, not
-   released);
-3. no settlement for this reader is open (`PREPARED` or `SUBMITTED`).
+#### C. Bounded balance bookkeeping (`settledSinceBalance`, tracked on `overhaul/v2`)
 
-A settlement record that is not `CONFIRMED` never moved money
-(`finishSettlement` applies only confirmed results), so a failed transaction
-needs no release.
+`tabAccounts.settledSinceBalance` keeps at most `MAX_SETTLED_SINCE_BALANCE`
+(256) debits. With more than 256 settlements for one reader between two
+absolute balance events, followed by a re-dispatch of a dropped event, the
+debit applies twice (the safe direction). At a 15 s cadence an active reader
+reaches 256 in about an hour. The owner of the tab ledger reproduces it in a
+test on `overhaul/v2` and fixes it or opens an issue; `overhaul/v3` takes the
+result by merge.
 
-**Release: reconcile from chain, never a bare release.** A stale reserve is
-not simply dropped, because the chain did pay it: dropping it without the
-debit would raise spendable. Instead `internal.tabLedger.reconcileAccount`
-(an action, P5) reads the reader's state by simulation at the latest ledger
-`L`: `Tab.account(reader)` and `Tab.paid(reader, key_id, writer)` for each of
-the reader's ACTIVE pairs. In one mutation it then:
-
-- sets `confirmedBalance` to the chain balance, with
-  `balanceEventId = afterLedgerEventId(L)`, an id that sorts after every event
-  of ledger `L` (the existing ordering rules then ignore every older balance
-  event and debit);
-- for each pair, raises `paidOnChain` to the chain's `paid` through
-  `applyPairSettlement` (so `outstanding` follows) and sets `indexedPaid` to
-  `[0, paid]`;
-- recomputes `settledUnindexed` as Σ (`paidOnChain` − total of `indexedPaid`),
-  which is now zero;
-- writes an audit row.
-
-A late `TabSettled` with an id below `afterLedgerEventId(L)` then debits
-nothing; its range is already in `indexedPaid`, so it releases nothing twice.
-
-**Who releases.** Both:
-
-- **Automatic:** the settler run checks the stale rule for accounts with an
-  unindexed amount (`settledUnindexed > 0`, bounded per run) and schedules
-  `reconcileAccount` with `reason: 'unindexed-stale'`.
-- **Operator:** `npx convex run tabLedger:reconcileAccount '{"tabAccountId":"…","reason":"operator","note":"…"}'`
-  for any account, at any time, under the same rules except the stale rule.
-
-**Audit record** (`tabReconciliations`): `tabAccountId`, `reason`
-(`unindexed-stale`, `since-balance-full` (section C), `operator`),
-`triggeredBy` (`auto` or the operator's user id), `ledger`, `before` and
-`after` (`confirmedBalance`, `outstanding`, `settledUnindexed`, per-pair
-`paidOnChain` and `indexedPaid` totals), the stale settlement hashes, `note`,
-`createdAt`. Any change to `confirmedBalance` other than the stale reserve's
-amount is logged as `CHAIN_TAB_RECONCILE_DRIFT`.
-
-**Tests:** a confirmed settlement whose event is withheld from the fake
-indexer is released only after the cursor passes `ledger + 60`; a `pending`
-event row blocks the release; an open settlement blocks it; after the
-release, spendable equals the chain view and a late event changes nothing;
-the operator path writes the audit row with the user id; a drift case logs
-`CHAIN_TAB_RECONCILE_DRIFT`.
-
-#### C. Bounded balance bookkeeping (`settledSinceBalance`)
-
-Today `TabSettled` debits are kept in `tabAccounts.settledSinceBalance`, at
-most `MAX_SETTLED_SINCE_BALANCE` (256) entries, for two jobs: skipping a
-debit already applied (by event id), and re-applying later debits when an
-older absolute balance event (`Deposited`, `WithdrawStarted`, `Withdrawn`)
-arrives late. With more than 256 settlements between two absolute balance
-events, the oldest entries are cut; a re-dispatch of a cut event then debits
-twice. At a 15 s cadence an active reader reaches 256 in about an hour. v3
-removes the bound in three steps (P5, in `tabEventHandlers.ts` and
-`tabLedger.ts`):
-
-1. **Idempotency by paid range, not by the list.** A `TabSettled` debits
-   `confirmedBalance` by exactly the part of its range
-   `[paid_after − gross, paid_after]` that is new to the pair's
-   `indexedPaid` (`rangesTotal(after) − rangesTotal(before)`). A replay or a
-   re-dispatch adds nothing to `indexedPaid`, so it debits nothing. Events for
-   a pair this deployment never accepted (today's `orphan` return) keep their
-   ranges in a small `tabOrphanPaid` row per (account, key, writer).
-2. **The list only orders, and is compacted.** `settledSinceBalance` keeps
-   only debits with an event id above the indexer's **dispatch watermark**:
-   the id below which every stored event is handled
-   (`chainCursor.dispatchedThrough`, kept by the indexer, P4: just below the
-   lowest `pending` event id, or the cursor when none is pending). An
-   absolute balance event at or below the watermark cannot arrive later, so
-   entries at or below it are dropped on every write. In normal operation the
-   list holds at most one page of events.
-3. **No silent cut.** If the list would still exceed 256 (an event stuck
-   `pending` holds the watermark back), the handler does not truncate: it
-   applies the debit, logs `CHAIN_TAB_SINCE_BALANCE_FULL`, and schedules
-   `reconcileAccount` with `reason: 'since-balance-full'`, which resets the
-   balance from chain (section B) and clears the list.
-
-- **Invariant:** each paid range of each pair is debited from
-  `confirmedBalance` exactly once, whatever the order, replay or re-dispatch
-  of events; `settledSinceBalance` never holds more than 256 entries and is
-  never truncated.
-- **Test:** 300 settlements for one reader between two `Deposited` events,
-  with one `TabSettled` held `pending` and re-dispatched last, plus a full
-  replay of the range: `confirmedBalance` equals the contract's balance and
-  each range is debited once; a forced overflow schedules a reconcile and
-  writes its audit row.
+- **Invariant v3 needs:** each `TabSettled` debits `confirmedBalance` exactly
+  once, whatever the number of settlements between absolute balance events
+  and whatever the order, replay or re-dispatch of events.
 
 ### Runbook rule: pushing Convex functions
 
