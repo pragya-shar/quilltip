@@ -66,7 +66,22 @@ export function exactCents(cents: number) {
     fraction = fraction.slice(0, -1)
   return `$${whole.toLocaleString('en-US')}.${fraction}`
 }
-const money = (cents: number): Money => ({ cents, display: exactCents(cents) })
+/** The spoken form the money layer writes: cents under a dollar ("9.75
+ * cents", "1 cent"), dollars and cents from a dollar up ("1 dollar 95",
+ * "2 dollars"). */
+function spokenAmount(cents: number) {
+  const exact = Math.round(cents * 10_000) / 10_000
+  if (exact < 100) return `${exact} ${exact === 1 ? 'cent' : 'cents'}`
+  const dollars = Math.floor(exact / 100)
+  const rest = Math.round((exact - dollars * 100) * 10_000) / 10_000
+  const word = dollars === 1 ? 'dollar' : 'dollars'
+  return rest === 0 ? `${dollars} ${word}` : `${dollars} ${word} ${rest}`
+}
+const money = (cents: number): Money => ({
+  cents,
+  display: exactCents(cents),
+  spoken: spokenAmount(cents),
+})
 /** The reader's balance, converted at today's price: the flag (the system
  * figure adds the approximate mark), two
  * decimals, floored once at the figure. */

@@ -652,16 +652,22 @@ test.describe('review cases', () => {
     await page.goto('/pocket?scenario=ready')
     await expect(
       page.getByRole('button', {
-        name: 'A reader, plus 0.0975 dollars, open receipt',
+        name: 'A reader, plus 9.75 cents, open receipt',
         exact: true,
       })
     ).toHaveCount(2)
     await expect(
       page.getByRole('button', {
-        name: 'Theo Marsh, minus 0 dollars 10, open receipt',
+        name: 'Theo Marsh, minus 10 cents, open receipt',
         exact: true,
       })
     ).toHaveCount(2)
+    await expect(
+      page.getByRole('button', {
+        name: 'Theo Marsh, minus 50 cents, open receipt',
+        exact: true,
+      })
+    ).toHaveCount(1)
   })
 
   test('a writer’s receipt shows the share and its own token amount', async ({

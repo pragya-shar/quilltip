@@ -22,6 +22,9 @@ export type Cents = number
 export type Money = {
   cents: Cents
   display: string
+  /** Asked of 561: the amount as a screen reader should say it, without a
+   * direction: "9.75 cents" under a dollar, "1 dollar 95" from a dollar up. */
+  spoken?: string
   /** Accepted for 561: a dollar figure converted from the token at
    * today's price (the reader's Ready to tip while the balance is held in
    * XLM). Two decimals; the money figure adds the approximate mark from this flag. Figures stored at tip

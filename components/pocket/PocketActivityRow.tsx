@@ -30,15 +30,16 @@ export function PocketActivityRow({
   const name = reader ? item.counterparty.name : 'A reader'
   const amount = rowAmount(item)
   // The row's control is named by the person, the amount as a screen reader
-  // says it, and what it opens: "A reader, plus 0.0975 dollars, open
-  // receipt". A tip that did not complete carries no direction, as on screen.
+  // says it, and what it opens: "A reader, plus 9.75 cents, open receipt".
+  // The money layer's spoken text first, the system's helper otherwise. A
+  // tip that did not complete carries no direction, as on screen.
+  const sign = words.status === 'failed' ? '' : reader ? '−' : '+'
+  const direction = sign === '−' ? 'minus ' : sign === '+' ? 'plus ' : ''
   const state = figureState(amount)
-  const said =
-    state.kind === 'value'
-      ? spokenDollars({
-          ...state.parts,
-          sign: words.status === 'failed' ? '' : reader ? '−' : '+',
-        })
+  const said = amount.spoken
+    ? `${direction}${amount.spoken}`
+    : state.kind === 'value'
+      ? spokenDollars({ ...state.parts, sign })
       : null
   const label = [name, said, 'open receipt'].filter(Boolean).join(', ')
   return (
