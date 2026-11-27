@@ -11,7 +11,7 @@ import { Buffer } from 'buffer'
 import { Address, nativeToScVal, xdr } from '@stellar/stellar-sdk'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
-import type { Id } from '../../convex/_generated/dataModel'
+import type { Doc, Id } from '../../convex/_generated/dataModel'
 import type { RawRpcEvent } from '../../convex/lib/chain/rpc'
 import {
   DAY_LEDGERS,
@@ -1540,5 +1540,131 @@ describe('tab screens read models (tabActivity)', () => {
     // 2.5% of 1.5 M, rounded down (I-31).
     expect(writer?.fee).toBe('37500')
     expect(await t.query(api.tabActivity.getMyTabEarnings, {})).toBeNull()
+  })
+
+  it('lists the newest tip after 1000 older receipts to writers that sort first', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await t.run(async (ctx) => {
+      const real = (await ctx.db.query('tabReceipts').first())!
+      const { _id, _creationTime, ...rest } = real
+      for (let i = 0; i < 1000; i++) {
+        await ctx.db.insert('tabReceipts', {
+          ...rest,
+          writerAddress: 'GA' + String(i % 4).repeat(54),
+          seq: Math.floor(i / 4) + 1,
+          clientRef: `old-${i}`,
+          acceptedAt: real.acceptedAt - 1_000_000 - i,
+        })
+      }
+    })
+    const view = await as(t, s.readerId).query(api.tabActivity.getMyTabTips, {
+      limit: 3,
+    })
+    expect(view?.tips.map((r) => [r.writer, r.seq])).toEqual([
+      [WRITER, 1],
+      ['GA' + '0'.repeat(54), 1],
+      ['GA' + '1'.repeat(54), 1],
+    ])
+  }, 60_000)
+
+  it('links an earlier receipt to the settlement that paid it, not a later one', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    const first = BigInt(1_000_000)
+    await ingest(t, {
+      ...ev.tabSettled(
+        { cumulative: first, paidAfter: first, gross: first },
+        { ledger: LEDGER + 1, id: 'settle-first' }
+      ),
+      txHash: '11'.repeat(32),
+    })
+    vi.advanceTimersByTime(1_000)
+    await tip(t, s, { cents: 25 })
+    const second = BigInt(3_500_000)
+    await ingest(t, {
+      ...ev.tabSettled(
+        { cumulative: second, paidAfter: second, gross: second - first },
+        { ledger: LEDGER + 2, id: 'settle-second' }
+      ),
+      txHash: '22'.repeat(32),
+    })
+    const view = await as(t, s.readerId).query(api.tabActivity.getMyTabTips, {})
+    const bySeq = Object.fromEntries(
+      (view?.tips ?? []).map((r) => [r.seq, [r.status, r.settledTxHash]])
+    )
+    expect(bySeq[2]).toEqual(['SETTLED', '22'.repeat(32)])
+    expect(bySeq[1]).toEqual(['SETTLED', '11'.repeat(32)])
+  })
+
+  it('shows no tab to another user who verified the same address', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    const otherId = await t.run((ctx) =>
+      ctx.db.insert('users', {
+        username: 'second-reader',
+        email: 'second@example.test',
+        stellarAddress: READER,
+        stellarAddressVerifiedAt: Date.now(),
+        stellarAddressVerifiedNetwork: PASSPHRASE,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    )
+    expect(
+      await as(t, s.readerId).query(api.tabActivity.getMyTabTips, {})
+    ).not.toBeNull()
+    expect(
+      await as(t, otherId).query(api.tabActivity.getMyTabTips, {})
+    ).toBeNull()
+  })
+
+  it('counts only UNPAID pairs as unpaid and blocked pairs as shortfall', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    const earnings = () =>
+      as(t, s.authorId).query(api.tabActivity.getMyTabEarnings, {})
+    const setPair = (patch: Partial<Doc<'tabVouchers'>>) =>
+      t.run(async (ctx) => {
+        const pair = (await ctx.db.query('tabVouchers').first())!
+        await ctx.db.patch(pair._id, patch)
+      })
+    expect(await earnings()).toMatchObject({
+      unpaidPairs: 0,
+      shortfallPairs: 0,
+      shortfallNet: '0',
+    })
+    await setPair({ settleQueue: 'blocked' })
+    const blocked = await earnings()
+    expect(blocked?.shortfallPairs).toBe(1)
+    expect(blocked?.shortfallNet).toBe(blocked?.pendingNet)
+    expect(blocked?.shortfallNet).not.toBe('0')
+    for (const state of ['REJECTED', 'VOID_RESET'] as const) {
+      await setPair({ state })
+      expect(await earnings()).toMatchObject({
+        unpaidPairs: 0,
+        shortfallPairs: 0,
+      })
+    }
+    await setPair({ state: 'UNPAID' })
+    expect(await earnings()).toMatchObject({
+      unpaidPairs: 1,
+      shortfallPairs: 0,
+    })
+  })
+
+  it('reports whether settlement is on without a tab or a sign-in', async () => {
+    const t = convexTest(schema, modules)
+    expect(await t.query(api.tabActivity.getTabSettlement, {})).toEqual({
+      settlementEnabled: true,
+    })
+    vi.stubEnv('SETTLEMENT_ENABLED', '')
+    expect(await t.query(api.tabActivity.getTabSettlement, {})).toEqual({
+      settlementEnabled: false,
+    })
   })
 })

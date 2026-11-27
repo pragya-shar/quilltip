@@ -22,7 +22,6 @@ export const SETTLE_WINDOW_ALERT_LEDGERS = 2 * DAY_LEDGERS
 export const DEFAULT_TIP_LIMIT = 20
 export const MAX_TIP_LIMIT = 50
 
-const RECEIPT_SCAN = 1000
 const VOUCHER_SCAN = 1000
 const SETTLEMENT_SCAN = 200
 
@@ -152,6 +151,17 @@ export type TabTipRow = {
 }
 
 /**
+ * Whether this deployment settles tab tips. Convex signs acceptances only
+ * while `SETTLEMENT_ENABLED=true` (`loadAcceptor`), so while it is off no
+ * quick tip is accepted. Needs no tab and no sign-in: the screens state it
+ * before a reader opens or tops up a tab.
+ */
+export const getTabSettlement = query({
+  args: {},
+  handler: async () => ({ settlementEnabled: settlementEnabled() }),
+})
+
+/**
  * The reader's latest tab tips, newest first, with the settlement health of
  * the reader's tab. Null when the caller has no verified address or no tab.
  */
@@ -170,13 +180,14 @@ export const getMyTabTips = query({
       Math.max(1, Math.floor(args.limit ?? DEFAULT_TIP_LIMIT)),
       MAX_TIP_LIMIT
     )
-    const receipts = await ctx.db
+    // Newest first from the index: a bounded page however many receipts exist.
+    const latest = await ctx.db
       .query('tabReceipts')
-      .withIndex('by_pair_seq', (q) => q.eq('tabAccountId', account._id))
-      .take(RECEIPT_SCAN)
-    const latest = receipts
-      .sort((a, b) => b.acceptedAt - a.acceptedAt || b.seq - a.seq)
-      .slice(0, limit)
+      .withIndex('by_account_accepted', (q) =>
+        q.eq('tabAccountId', account._id)
+      )
+      .order('desc')
+      .take(limit)
     const vouchers = await ctx.db
       .query('tabVouchers')
       .withIndex('by_pair', (q) => q.eq('tabAccountId', account._id))
@@ -239,11 +250,18 @@ export const getMyTabEarnings = query({
     let earnedNet = BigInt(0)
     let pendingNet = BigInt(0)
     let unpaidPairs = 0
+    let shortfallPairs = 0
+    let shortfallNet = BigInt(0)
     for (const row of vouchers) {
       settledGross += BigInt(row.paidOnChain)
       earnedNet += BigInt(row.earnedNet)
       pendingNet += BigInt(row.pendingNet)
       if (row.state === 'UNPAID') unpaidPairs += 1
+      // Skipped as SHORTFALL: waits for the reader to top up the tab.
+      if (row.state === 'ACTIVE' && row.settleQueue === 'blocked') {
+        shortfallPairs += 1
+        shortfallNet += BigInt(row.pendingNet)
+      }
     }
     const token = caller.chain.tokenContractId
     const earnings = await ctx.db
@@ -263,6 +281,8 @@ export const getMyTabEarnings = query({
       pendingNet: pendingNet.toString(),
       collected,
       unpaidPairs,
+      shortfallPairs,
+      shortfallNet: shortfallNet.toString(),
       settlementEnabled: settlementEnabled(),
       oldestUnsettledAt: oldestUnsettled(vouchers),
       settleWindowEndsSoon: windowEndsSoon(
