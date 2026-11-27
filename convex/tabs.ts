@@ -27,7 +27,7 @@ import {
   prepareTabTip,
   requireTabChain,
   reservedOf,
-  spendableOf,
+  readerSpendable,
   sweepExpiredPairs,
   settlementVoucher,
   submitTabTip,
@@ -340,7 +340,7 @@ export const getMyTab = query({
       // Accepted and unsettled, plus settled amounts whose debit is not
       // indexed yet: `confirmedBalance − outstanding` is always `available`.
       outstanding: reservedOf(account).toString(),
-      available: spendableOf(account).toString(),
+      available: readerSpendable(account).toString(),
       acceptedToday: account.acceptedToday,
       acceptedDay: account.acceptedDay,
       withdrawUnlockLedger: account.withdrawUnlockLedger ?? null,

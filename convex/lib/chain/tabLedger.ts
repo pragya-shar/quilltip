@@ -411,7 +411,7 @@ export async function checkTabTip(
   if (seq > MAX_RECEIPTS_PER_PAIR) {
     tabError('TAB_RECEIPT_CAP', 'Register a new session key to keep tipping.')
   }
-  if (args.amount > spendableOf(account)) {
+  if (args.amount > readerSpendable(account)) {
     tabError('TAB_OVER_BALANCE', 'The tab balance is too low. Top up first.')
   }
   if (big(key.acceptedTotal) + args.amount > big(key.spendLimit)) {
@@ -1458,7 +1458,7 @@ export function reservedOf(
  * negative result means the tab is over-committed (for example after a
  * withdrawal, before unpaid pairs close) and accepts no tab tip.
  */
-export function spendableOf(
+export function readerSpendable(
   account: Pick<
     Doc<'tabAccounts'>,
     'confirmedBalance' | 'outstanding' | 'settledUnindexed'

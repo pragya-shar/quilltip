@@ -1,5 +1,5 @@
 /**
- * The reader's spendable tab amount has one definition: `spendableOf` in
+ * The reader's spendable tab amount has one definition: `readerSpendable` in
  * `convex/lib/chain/tabLedger.ts`. The tab tip check and the read models
  * call it, so the screen and the acceptance rule cannot disagree. This
  * source check fails when other code combines `confirmedBalance` and
@@ -48,7 +48,7 @@ function derivations(text: string): string[] {
 }
 
 describe('spendable tab amount', () => {
-  it('is derived only by spendableOf', () => {
+  it('is derived only by readerSpendable', () => {
     const found: string[] = []
     for (const dir of SCANNED) {
       for (const file of sources(join(ROOT, dir))) {
@@ -62,7 +62,9 @@ describe('spendable tab amount', () => {
 
   it('is what getMyTab shows and what the tab tip check uses', () => {
     const tabs = code(readFileSync(join(ROOT, 'convex/tabs.ts'), 'utf8'))
-    expect(tabs).toMatch(/available:\s*spendableOf\(account\)\.toString\(\)/)
+    expect(tabs).toMatch(
+      /available:\s*readerSpendable\(account\)\.toString\(\)/
+    )
     const ledger = code(
       readFileSync(join(ROOT, 'convex/lib/chain/tabLedger.ts'), 'utf8')
     )
@@ -70,7 +72,7 @@ describe('spendable tab amount', () => {
       ledger.indexOf('export async function checkTabTip'),
       ledger.indexOf('TAB_OVER_BALANCE')
     )
-    expect(check).toMatch(/args\.amount > spendableOf\(account\)/)
+    expect(check).toMatch(/args\.amount > readerSpendable\(account\)/)
   })
 
   it('catches the forms the check exists for', () => {
