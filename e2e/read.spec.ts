@@ -381,8 +381,10 @@ test('signed out, the tip opens sign-in with the intent and sends nothing', asyn
   page,
 }) => {
   await open(page, '&pay=signed-out')
+  // The public default amount shows before sign-in, never a bare "Tip".
   const link = page.locator('.qt-read__dock').getByRole('link', {
-    name: 'Tip Tomás',
+    name: 'Tip Tomás $1',
+    exact: true,
   })
   await expect(link).toHaveAttribute(
     'href',
@@ -394,7 +396,7 @@ test('signed out, the tip opens sign-in with the intent and sends nothing', asyn
   await tapLine(page, 'person next to')
   const line = page
     .locator('.qt-read__dock')
-    .getByRole('link', { name: 'Tip this line' })
+    .getByRole('link', { name: 'Tip this line $1', exact: true })
   await press(page, line)
   await expect(
     page.getByRole('dialog', { name: 'Sign in to Quilltip' })

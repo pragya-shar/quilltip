@@ -323,6 +323,17 @@
   .qt-read__signin:active {
     transform: scale(0.98);
   }
+  /* The words may be cut; the amount never is. */
+  .qt-read__signin-words {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .qt-read__signin-amount {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
   .qt-read__signin-nib {
     display: inline-flex;
     color: var(--qt-action-icon);

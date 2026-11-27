@@ -67,6 +67,19 @@ export type TipController = {
   warming: boolean
   queued: boolean
   unavailable: UnavailableReason | null
+  /**
+   * For a signed-out visitor: the default and the offered amounts, from
+   * public data only (minimum, cap, price), so the button says "Tip Tomás
+   * $1" before sign-in. Null when signed in. Asked of the money layer (pull
+   * request 561); the name may change when it lands.
+   */
+  signedOut: SignedOutOffer | null
+}
+
+export type SignedOutOffer = {
+  signedOut: true
+  amount: Money
+  amounts: Money[]
 }
 
 /** The part of `BalanceView` the reading view reads. */
@@ -87,6 +100,23 @@ export type ReadPaymentsRuntime = {
   useTip(target: TipTarget, meta: TipMeta): TipController
 }
 
+/**
+ * A stand-in for the money layer's signed-out offer until pull request 561
+ * provides it: replace it with the money layer's figures. The reading view
+ * never formats or computes these itself.
+ */
+const FAKE_SIGNED_OUT_OFFER: SignedOutOffer = {
+  signedOut: true,
+  amount: { cents: 100, display: '$1' },
+  amounts: [
+    { cents: 100, display: '$1' },
+    { cents: 200, display: '$2' },
+    { cents: 300, display: '$3' },
+    { cents: 500, display: '$5' },
+    { cents: 1000, display: '$10' },
+  ],
+}
+
 const absentTip: TipController = {
   state: { phase: 'idle' },
   amount: null,
@@ -99,6 +129,7 @@ const absentTip: TipController = {
   warming: false,
   queued: false,
   unavailable: 'absent',
+  signedOut: FAKE_SIGNED_OUT_OFFER,
 }
 const absentBalance: BalanceView = {
   status: 'unavailable',

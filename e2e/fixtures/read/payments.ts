@@ -153,6 +153,11 @@ function controller(target: TipTarget): TipController {
     warming: false,
     queued: false,
     unavailable: unavailable(),
+    // The public default for a signed-out visitor (minimum, cap, price).
+    signedOut:
+      scenario === 'signed-out'
+        ? { signedOut: true, amount: money(100), amounts: AMOUNTS }
+        : null,
   }
 }
 

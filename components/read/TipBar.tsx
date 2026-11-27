@@ -130,10 +130,13 @@ export function TipBar({
     balance.auth === 'signed-out' || tip.unavailable === 'signed-out'
   const busy = state.phase === 'sending' || state.phase === 'sent'
 
+  // A signed-out visitor sees the default amount from public data.
+  const offer = tip.signedOut
   const intent = {
     kind: 'tip' as const,
     articleId: article.id,
     href: article.href,
+    amount: offer?.amount ?? null,
     passage: passage
       ? {
           text: passage.text,
@@ -159,9 +162,12 @@ export function TipBar({
         <span className="qt-read__signin-nib" aria-hidden="true">
           <Icon icon={TipIcon} size={20} />
         </span>
-        <span>
+        <span className="qt-read__signin-words">
           {passage ? 'Tip this line' : `Tip ${article.writer.firstName}`}
         </span>
+        {offer ? (
+          <span className="qt-read__signin-amount">{offer.amount.display}</span>
+        ) : null}
       </a>
     )
   } else if (tip.unavailable === 'no-balance') {
