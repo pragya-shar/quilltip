@@ -96,13 +96,13 @@ export const EARNINGS_UPDATING_NOTE =
 
 /**
  * The USD note under an earnings figure, for example "≈ $14.87, testnet, no
- * real value". `lowerBound` adds "at least" (#552).
+ * real value". A lower bound reads "at least $14.87" (#552).
  */
 export function usdEstimateNote(
   amount: number,
   isTestnet: boolean,
   lowerBound = false
 ): string {
-  const usd = `${lowerBound ? 'at least ' : ''}≈ ${formatUsd(amount)}`
+  const usd = `${lowerBound ? 'at least' : '≈'} ${formatUsd(amount)}`
   return isTestnet ? `${usd}, ${TESTNET_NO_VALUE_NOTE}` : usd
 }

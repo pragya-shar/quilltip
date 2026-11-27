@@ -624,7 +624,7 @@ test('lower bounds say "At least" on the count, the XLM and the dollars (#552)',
   const stat = (label: string) =>
     page.locator('.account-stat').filter({ hasText: label })
   await expect(stat('Earned (testnet)').locator('dd')).toHaveText(
-    'At least1,950.98 XLMat least ≈ $195.10, testnet, no real value'
+    'At least1,950.98 XLMat least $195.10, testnet, no real value'
   )
   await expect(stat('Tips received').locator('dd')).toHaveText(
     'At least2,001From wallets and settled tabs'
@@ -634,8 +634,8 @@ test('lower bounds say "At least" on the count, the XLM and the dollars (#552)',
   const card = page.getByTestId('compact-earnings')
   await expect(card).toContainText('At least')
   await expect(card).toContainText('1,950.98 XLM')
-  await expect(card).toContainText('at least ≈ $195.10, testnet, no real value')
-  await expect(card).toContainText('At least 2001 testnet tips received')
+  await expect(card).toContainText('at least $195.10, testnet, no real value')
+  await expect(card).toContainText('At least 2,001 testnet tips received')
 })
 
 test('while the totals are rebuilt, both cards say so instead of a partial total (#552)', async ({

@@ -68,7 +68,7 @@ export function CompactEarningsFigures({
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             {bound ? `${AT_LEAST} ` : ''}
-            {tipCount} {networkLabelLowercase()} tip
+            {tipCount.toLocaleString('en-US')} {networkLabelLowercase()} tip
             {tipCount === 1 ? '' : 's'} received
           </p>
         </>
