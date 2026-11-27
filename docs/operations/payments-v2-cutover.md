@@ -559,8 +559,10 @@ window.
    (section 5.0.2 for the credential), or a dashboard backup. Record the
    live deployment's environment variable names and values in the owner's
    password store: a snapshot does not contain them. Record the latest testnet
-   ledger at the time of the snapshot (RPC `getLatestLedger`); a restore lists
-   payments from that ledger (section 6.2, step 3).
+   ledger just before you start the export (RPC `getLatestLedger`); a restore
+   lists payments from that ledger (section 6.2, step 3). Events between that
+   ledger and the export are listed twice, which is harmless: the indexer
+   recognises them as duplicates.
 
 **Check:** the tag points to the commit whose checks are recorded in 1.3, and
 the snapshot file opens (`unzip -l <file>.zip` lists one folder per table and
@@ -878,6 +880,14 @@ under 10 s; the full path, with checks, took about 10 minutes. A cloud
 deployment with live data takes longer; the owner confirms the path on a
 development deployment first (section 1.4).
 
+A second run added tab activity after the snapshot: a top-up, tab tips to two
+writers, a settlement with a skipped pair, a writer's own settlement, a claim,
+an accepted tip left unsettled and a settlement recorded but not yet indexed
+at the pause. The deployment was paused for 5 min 31 s, and the path from
+pause to reopened payments took 8 min 18 s. After the resume the indexer
+applied the late settlement, and every tab, payment and earnings figure
+matched the chain.
+
 Use the credential from section 5.0.2 for every command.
 
 #### Step 1. Stop every write
@@ -930,8 +940,12 @@ From the ledger of the stage 0 snapshot to now:
   function names the server verifies (`TIP_ARTICLE_FUNCTIONS` and
   `TIP_HIGHLIGHT_FUNCTIONS` in `convex/lib/constants.ts`; Horizon
   `/transactions/<hash>/operations`).
-- **Before the snapshot:** check that each payment row in the stage 0
-  snapshot has its transaction on chain (Horizon `/transactions/<hash>`).
+- **Before the snapshot:** check that each final payment row in the stage 0
+  snapshot that has a transaction hash has its transaction on chain (Horizon
+  `/transactions/<hash>`). Tab tips (`tips` rows with `channel` `tab`) have no
+  hash of their own: their payment is the settlement of their pair, which is
+  a `tabSettlements` row. A send that failed before it reached the chain has
+  no hash either.
 
 The result is a list of transaction hashes that the restored rows must match.
 
@@ -939,16 +953,16 @@ The result is a list of transaction hashes that the restored rows must match.
 
 Start from the stage 0 snapshot and decide per table, with the second export:
 
-| Table group                                                                                                                                             | Source in the restore file                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tables the defect damaged                                                                                                                               | Stage 0 snapshot. Re-apply rows from the second export only after review, one by one.                                                                                                                                                                                                                                                                                                         |
-| Other non-payment tables (`users`, `articles`, `authAccounts`, `authSessions`, `authRefreshTokens`, `_storage`, uploads, highlights, and the rest)      | Second export. This keeps new accounts, edited articles and drafts, uploaded files, profile changes and wallet verifications.                                                                                                                                                                                                                                                                 |
-| Payment tables with a transaction per row (`tips`, `highlightTips`, `articleNFTs`, `nftTransfers`, `chainSubmissions`, `tabSettlements`, `withdrawals`) | A row from the second export only if its transaction hash is in the step 3 list, or if it is not final yet (for example `PENDING`, `PREPARED` or `SUBMITTED`; verification, the recheck cron and the settler resolve it against the chain). Otherwise the stage 0 row if it existed, else leave it out and list it for review. Keep `earningsAppliedAt` and `earningsSkipReason` as exported. |
-| Tab ledger (`tabAccounts`, `tabSessionKeys`, `tabVouchers`, `tabReceipts`)                                                                              | Second export. Accepted vouchers and receipts are signed by the reader and settle on chain later; they have no transaction of their own.                                                                                                                                                                                                                                                      |
-| `chainArticles`                                                                                                                                         | Second export (the indexer needs these rows to link events).                                                                                                                                                                                                                                                                                                                                  |
-| `chainEvents`, `chainCursor`                                                                                                                            | Second export, unless the defect damaged them. They record which events are already applied to the rows above, so the indexer continues from its cursor and applies nothing twice.                                                                                                                                                                                                            |
-| `authorEarnings`                                                                                                                                        | Second export, unless the defect damaged it or a credited payment row is left out (see below).                                                                                                                                                                                                                                                                                                |
-| `chainLeases`, `chainConfig`                                                                                                                            | Left out; the leases restart empty and step 6 loads the config.                                                                                                                                                                                                                                                                                                                               |
+| Table group                                                                                                                                                             | Source in the restore file                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tables the defect damaged                                                                                                                                               | Stage 0 snapshot. Re-apply rows from the second export only after review, one by one.                                                                                                                                                                                                                                                                                                         |
+| Other non-payment tables (`users`, `articles`, `authAccounts`, `authSessions`, `authRefreshTokens`, `_storage`, uploads, highlights, and the rest)                      | Second export. This keeps new accounts, edited articles and drafts, uploaded files, profile changes and wallet verifications.                                                                                                                                                                                                                                                                 |
+| Payment tables with a transaction per row (`tips` except tab tips, `highlightTips`, `articleNFTs`, `nftTransfers`, `chainSubmissions`, `tabSettlements`, `withdrawals`) | A row from the second export only if its transaction hash is in the step 3 list, or if it is not final yet (for example `PENDING`, `PREPARED` or `SUBMITTED`; verification, the recheck cron and the settler resolve it against the chain). Otherwise the stage 0 row if it existed, else leave it out and list it for review. Keep `earningsAppliedAt` and `earningsSkipReason` as exported. |
+| Tab ledger (`tabAccounts`, `tabSessionKeys`, `tabVouchers`, `tabReceipts`, and the `tips` rows with `channel` `tab`)                                                    | Second export. Accepted vouchers and receipts are signed by the reader and settle on chain later; they have no transaction of their own. Each tab tip's `tips` row is linked to its receipt (`tabReceiptId`, `tipRowId`): keep the two together, or the receipt points to a missing tip and the writer's earnings lose it.                                                                    |
+| `chainArticles`                                                                                                                                                         | Second export (the indexer needs these rows to link events).                                                                                                                                                                                                                                                                                                                                  |
+| `chainEvents`, `chainCursor`                                                                                                                                            | Second export, unless the defect damaged them. They record which events are already applied to the rows above, so the indexer continues from its cursor and applies nothing twice.                                                                                                                                                                                                            |
+| `authorEarnings`                                                                                                                                                        | Second export, unless the defect damaged it or a credited payment row is left out (see below).                                                                                                                                                                                                                                                                                                |
+| `chainLeases`, `chainConfig`                                                                                                                                            | Left out; the leases restart empty and step 6 loads the config.                                                                                                                                                                                                                                                                                                                               |
 
 Rules for conflicts:
 
@@ -970,7 +984,20 @@ writers with such tips. So:
   keep the second export's rows. Do not apply `authorEarningsBackfill:run`.
 - Otherwise correct the affected writers' rows by hand from their payment
   rows, and record each correction. A rebuild of the writer totals that
-  covers v2 tips is tracked in #552.
+  covers v2 tips is tracked in #552. From the restored rows, per writer:
+  - cent fields (`totalEarnedCents`, `availableBalanceCents`, the USD
+    fields, `tipCount`, `monthlyEarnings`, `topArticles`): every `tips` and
+    `highlightTips` row of the writer with `earningsAppliedAt` set, each
+    counted at `amountCents × net ÷ gross` of its base units;
+  - `v2TipCount` and `v2EarnedCents`: the same, for direct v2 tips only;
+  - `earnedBaseUnits`: the net of the direct v2 tips plus the `earnedNet` of
+    the writer's `tabVouchers` rows;
+  - `pendingBaseUnits`: the `pendingNet` of those vouchers;
+  - `collectedBaseUnits`: the `Claimed` amounts for the writer's address.
+- A hand-written number in the restore file needs a decimal point (`7.0`,
+  not `7`): the import reads an integer as `int64` and refuses it for a
+  number field. Correcting the row in the dashboard after the import avoids
+  this.
 
 If `chainEvents` or `chainCursor` was damaged, leave both out and rebuild
 them with a replay in step 6. The replay applies every event again. Most
@@ -1036,8 +1063,10 @@ the incident) only when all of these are true:
    and registrations (`tips`, `highlightTips`, `chainSubmissions`), NFT mints
    and transfers (`articleNFTs`, `nftTransfers`) and settler settlements
    (`tabSettlements`). Tab deposits, withdrawals, claims and a writer's own
-   settlements only change existing rows. Every final `v2` payment row's hash
-   is in the step 3 list.
+   settlements only change existing rows. Every final `v2` payment row that
+   has a transaction hash has it in the step 3 list, or among the stage 0
+   rows checked in step 3. Tab tips are checked through their pair's
+   settlement.
 2. `/ops/chain` shows status `OK`, a `lastRunAt` within the last 2 minutes
    and `events.error: 0`. In the **Data** view, the `chainEvents` rows with
    `handled` `orphan` and `pending` are the same as in the second export.
@@ -1050,7 +1079,11 @@ the incident) only when all of these are true:
 4. The rows left out in step 4 are reviewed and recorded in the incident
    record.
 5. A comparison of a new export with the second export shows the expected
-   differences only: the damaged tables and the left-out rows.
+   differences only: the damaged tables and the left-out rows; `chainConfig`
+   and `chainLeases`, which step 4 left out and the deployment rebuilt; the
+   events indexed after the resume, with their effect on the rows they
+   apply to (`chainEvents`, `chainCursor`, and for example `tabAccounts` and
+   `tabVouchers` for a settlement indexed late); and the price cache.
 
 Then roll the site forward or back as needed, and remove the pause notice.
 
