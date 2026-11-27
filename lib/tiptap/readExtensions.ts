@@ -1,4 +1,4 @@
-import { Node, mergeAttributes } from '@tiptap/core'
+import { Extension, Node, mergeAttributes } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -49,6 +49,32 @@ const ReadOnlyResizableImage = Node.create({
   },
 })
 
+/**
+ * A paragraph's reading anchor (`lib/tiptap/readAnchors.ts`): set only by
+ * the reading view's renderer, rendered as the paragraph's `id`. Never
+ * parsed from HTML, so the editor never stores one.
+ */
+const ParagraphAnchor = Extension.create({
+  name: 'paragraphAnchor',
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['paragraph'],
+        attributes: {
+          anchor: {
+            default: null,
+            parseHTML: () => null,
+            renderHTML: (attributes) =>
+              typeof attributes.anchor === 'string'
+                ? { id: attributes.anchor }
+                : {},
+          },
+        },
+      },
+    ]
+  },
+})
+
 export function getReadOnlyExtensions() {
   return [
     StarterKit.configure({
@@ -66,5 +92,6 @@ export function getReadOnlyExtensions() {
     }),
     ReadOnlyResizableImage,
     createYoutubeExtension(),
+    ParagraphAnchor,
   ]
 }

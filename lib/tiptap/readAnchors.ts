@@ -1,13 +1,19 @@
 /**
  * Anchors into an article, one scheme for every surface that links into
- * one (Today's "Read more", the Shelf): `#s-{p}-{k}`, where `p` counts the
- * article's top-level paragraphs from 0 (headings, lists, quotes, images
- * and code are not counted) and `k` counts that paragraph's sentences from
- * 0. The server HTML gives every top-level paragraph the id `s-{p}-0`, so
- * a paragraph anchor scrolls there with no script; with scripts, the view
- * also brings a later sentence (`k` above 0) into view.
+ * one (Today's "Read more", the Shelf): `#s-{p}-{k}`.
  *
- * The anchor is positional: build it from the current article's content
+ * - `p` counts the article's body paragraphs from 0, the way Today's
+ *   opening counts them (`bodyParagraphs` in convex/lib/todayOpening.ts):
+ *   top-level paragraphs and the paragraphs directly inside a top-level
+ *   quote, in order, skipping paragraphs with no text. Headings, lists,
+ *   images, embeds and code are not counted.
+ * - `k` counts that paragraph's sentences from 0 (`hooks/read/sentences`).
+ *
+ * The server HTML gives every body paragraph the id `s-{p}-0`, so a
+ * paragraph anchor scrolls there with no script; with scripts, the view
+ * also brings a later sentence (`k` above 0) into view. Nothing is chosen.
+ *
+ * The anchor is positional: build it from the article's current content
  * when the link is made. A shared line uses `/p/<code>` and the passage
  * identity (pull request 603), never an anchor.
  */
@@ -27,12 +33,50 @@ export function parseReadAnchor(
     : null
 }
 
-/** The paragraph number of each top-level block: null for a non-paragraph. */
-export function paragraphNumbers(
+/** A node's text as Today reads it: hard breaks are spaces. */
+function textOf(node: JSONContent): string {
+  if (node.type === 'text') return node.text ?? ''
+  if (node.type === 'hardBreak') return ' '
+  return (node.content ?? []).map(textOf).join('')
+}
+
+const hasText = (node: JSONContent) =>
+  textOf(node).replace(/\s+/g, ' ').trim() !== ''
+
+/**
+ * The body paragraphs in order, as the paragraph nodes themselves, so a
+ * caller can mark them: `bodyParagraphNodes(doc)[p]` is paragraph `p`.
+ */
+export function bodyParagraphNodes(
   content: JSONContent | null | undefined
-): (number | null)[] {
-  let next = 0
-  return (content?.content ?? []).map((block) =>
-    block.type === 'paragraph' ? next++ : null
+): JSONContent[] {
+  const paragraphs: JSONContent[] = []
+  for (const block of content?.content ?? []) {
+    if (block.type === 'paragraph') {
+      if (hasText(block)) paragraphs.push(block)
+    } else if (block.type === 'blockquote') {
+      for (const child of block.content ?? [])
+        if (child.type === 'paragraph' && hasText(child)) paragraphs.push(child)
+    }
+  }
+  return paragraphs
+}
+
+/**
+ * A copy of the document whose body paragraphs carry `anchor: 's-{p}-0'`,
+ * which the read-only paragraph renders as its `id`.
+ */
+export function withParagraphAnchors(content: JSONContent): JSONContent {
+  const anchors = new Map(
+    bodyParagraphNodes(content).map((node, p) => [node, readAnchor(p)])
   )
+  const copy = (node: JSONContent): JSONContent => {
+    const anchor = anchors.get(node)
+    return {
+      ...node,
+      ...(anchor ? { attrs: { ...node.attrs, anchor } } : {}),
+      ...(node.content ? { content: node.content.map(copy) } : {}),
+    }
+  }
+  return copy(content)
 }
