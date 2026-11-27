@@ -1,6 +1,6 @@
 /**
  * Passage identity: sentence snapping and a stable `passageId`, one module for
- * the browser, the Convex functions and the counts backfill.
+ * the browser, the Convex functions and a later backfill of passage counts.
  *
  * Every rule here is plain string code with a fixed list of exceptions. It
  * uses no `Intl.Segmenter`, no locale and no engine-specific behaviour, so the
@@ -521,7 +521,7 @@ export async function identifyPassage(
 }
 
 /**
- * The passage of an existing highlight row (counts backfill; the highlight
+ * The passage of an existing highlight row (for a later backfill; the highlight
  * tables later). The row's offsets are mapped onto the article's current
  * text: when the text there still equals the row's stored `text`, the row
  * joins the snapped passage; otherwise (the article was edited, the offsets

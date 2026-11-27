@@ -1,5 +1,7 @@
 /**
- * Passage share links: `/p/<code>` (architecture slice-2.md section 3, D17).
+ * Passage share links: `/p/<code>`. A line the author removed or changed is
+ * never shown again through a shared link, and a link to an unpublished or
+ * deleted article cannot be told apart from a code that never existed.
  *
  * - `create` snaps a passage to whole sentences on the server. A share made
  *   without an account gets the line's canonical code (derived from the

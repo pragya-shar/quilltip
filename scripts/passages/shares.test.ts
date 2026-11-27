@@ -1,7 +1,8 @@
 /// <reference types="vite/client" />
 /**
- * Passage share links (`convex/shares.ts`): the backend cases of architecture
- * slice-2.md section 3 and package S2-A (D17).
+ * Passage share links (`convex/shares.ts`): a removed or changed line is never
+ * shown again through a shared link, a missing link is indistinguishable from
+ * one to a removed article, and a stale quote is not kept.
  */
 import { convexTest } from 'convex-test'
 import { ConvexError } from 'convex/values'
