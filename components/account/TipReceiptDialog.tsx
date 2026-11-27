@@ -7,8 +7,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import Link from 'next/link'
+import { RESULT_COPY, STATUS_LABEL } from '@/lib/copy/payment-states'
 
-export function tipStatusLabel(status: string) {
+/**
+ * A row's status in words. v1 statuses keep their labels; v2 statuses use
+ * the payment state kit's (`STATUS_LABEL`), as the tip flows show them.
+ */
+export function tipStatusLabel(status: string, mismatchReason?: string) {
   const labels: Record<string, string> = {
     CONFIRMED: 'Confirmed',
     PENDING: 'Pending',
@@ -16,8 +21,51 @@ export function tipStatusLabel(status: string) {
     FAILED: 'Failed',
     FRAUDULENT: 'Rejected',
     UNVERIFIED: 'Not verified',
+    // v2
+    PREPARED: STATUS_LABEL.sending,
+    SUBMITTED: STATUS_LABEL.checking,
+    MISMATCH:
+      mismatchReason === 'author'
+        ? STATUS_LABEL['sent-to-registered']
+        : STATUS_LABEL['under-review'],
+    EXPIRED: STATUS_LABEL.expired,
   }
   return labels[status] ?? `Unrecognized status (${status})`
+}
+
+/**
+ * "Testnet v1" for a row recorded with the earlier contracts
+ * (docs/operations/payments-v2-cutover.md, sections 4.1 and 7.1).
+ */
+export function tipGenerationLabel(
+  item: Pick<TipActivityItem, 'contractVersion' | 'stellarNetwork'>
+): string | null {
+  return item.contractVersion === 'v1' && item.stellarNetwork !== 'MAINNET'
+    ? 'Testnet v1'
+    : null
+}
+
+/** What a receipt says about a row that is not a confirmed payment. */
+export function receiptStatusNote(
+  item: Pick<TipActivityItem, 'status' | 'mismatchReason'>
+): string | null {
+  switch (item.status) {
+    case 'CONFIRMED':
+      return null
+    case 'PENDING':
+    case 'CONFIRMING':
+    case 'PREPARED':
+    case 'SUBMITTED':
+      return 'This tip is awaiting verification. It is not a confirmed payment yet.'
+    case 'MISMATCH':
+      return item.mismatchReason === 'author'
+        ? RESULT_COPY['sent-to-registered'].detail
+        : RESULT_COPY['under-review'].detail
+    case 'EXPIRED':
+      return 'Stellar testnet did not include it in time, so nothing was paid.'
+    default:
+      return 'This record does not represent a confirmed payment.'
+  }
 }
 export function recordedUsd(cents: number) {
   return Number.isSafeInteger(cents)
@@ -61,7 +109,7 @@ export function TipReceiptDialog({
         >
           <DialogTitle>Tip receipt</DialogTitle>
           <DialogDescription className="account-muted">
-            {tipStatusLabel(item.status)} ·{' '}
+            {tipStatusLabel(item.status, item.mismatchReason)} ·{' '}
             {new Date(item.createdAt).toLocaleDateString('en-US', {
               dateStyle: 'long',
             })}
@@ -93,8 +141,14 @@ export function TipReceiptDialog({
             )}
             <div>
               <dt>Status</dt>
-              <dd>{tipStatusLabel(item.status)}</dd>
+              <dd>{tipStatusLabel(item.status, item.mismatchReason)}</dd>
             </div>
+            {tipGenerationLabel(item) && (
+              <div>
+                <dt>Contract</dt>
+                <dd>{tipGenerationLabel(item)}</dd>
+              </div>
+            )}
             <div>
               <dt>Network</dt>
               <dd>
@@ -109,12 +163,8 @@ export function TipReceiptDialog({
               </div>
             )}
           </dl>
-          {item.status !== 'CONFIRMED' && (
-            <p className="account-muted">
-              {item.status === 'PENDING' || item.status === 'CONFIRMING'
-                ? 'This tip is awaiting verification. It is not a confirmed payment yet.'
-                : 'This record does not represent a confirmed payment.'}
-            </p>
+          {receiptStatusNote(item) && (
+            <p className="account-muted">{receiptStatusNote(item)}</p>
           )}
           {item.failureReason && (
             <p className="account-notice">{item.failureReason}</p>
