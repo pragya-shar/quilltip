@@ -21,6 +21,8 @@ export interface ContextualWalletSetupProps {
   onConnected?: () => void
   showHelp?: boolean
   className?: string
+  /** An element that describes the Connect button, such as the last used wallet. */
+  describedBy?: string
 }
 
 function getHeadline(mode: WalletSetupMode, recipientLabel?: string): string {
@@ -46,6 +48,7 @@ export function ContextualWalletSetup({
   onConnected,
   className,
   showHelp = true,
+  describedBy,
 }: ContextualWalletSetupProps) {
   const ownership = useWalletOwnership()
   const { isLoading, isRestoring, connect } = useWallet({
@@ -130,12 +133,13 @@ export function ContextualWalletSetup({
           type="button"
           onClick={() => void handleConnect()}
           aria-disabled={isConnecting || isLoading || isRestoring || undefined}
+          aria-describedby={describedBy}
           className="w-full"
           size="lg"
         >
           {isConnecting || isLoading || isRestoring ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              <Loader2 className="w-4 h-4 mr-2 motion-safe:animate-spin" />
               {isRestoring && !isConnecting
                 ? 'Checking your wallet…'
                 : 'Connecting wallet...'}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
@@ -26,8 +26,9 @@ export function OwnerWalletSettings({
     useWallet({
       activateOnMount: true,
     })
-  // A restored or switched wallet can be on another account than the saved
-  // one; payments sign with the saved one, so say so before any payment.
+  // The wallet can be on another account than the saved one. Tips, tab
+  // payments and NFT actions are signed by the saved (verified) address and
+  // refuse another account before the wallet is asked, so say so here first.
   const otherAccount =
     isConnected && publicKey && walletAddress && publicKey !== walletAddress
   const [removing, setRemoving] = useState(false)
@@ -35,6 +36,7 @@ export function OwnerWalletSettings({
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
   const mounted = useRef(true)
+  const lastUsedId = useId()
   const removeButton = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     mounted.current = true
@@ -125,18 +127,19 @@ export function OwnerWalletSettings({
             </p>
           )}
           {lastUsed && !isConnected && (
-            <p className="account-key">
+            <p id={lastUsedId} className="account-key">
               <span>Last used: {lastUsed.walletName}</span>
               <span>{lastUsed.address}</span>
             </p>
           )}
           {otherAccount && (
             <p className="account-key-mismatch">
-              This is not your saved address. To tip, switch your wallet to{' '}
+              This is not your saved address. Tips, tab payments and NFT actions
+              are signed by{' '}
               <span className="account-key-short">
                 {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
               </span>
-              .
+              , so switch your wallet to that account first.
             </p>
           )}
         </div>
@@ -160,6 +163,7 @@ export function OwnerWalletSettings({
               mode="send"
               className="account-connect"
               showHelp={false}
+              describedBy={lastUsed ? lastUsedId : undefined}
             />
           )}
         </div>

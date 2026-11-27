@@ -39,6 +39,7 @@ import {
   pruneBalanceDebits,
   recordBalanceDebit,
   insertTabAccount,
+  recordClaim,
   refreshSettleQueue,
   releaseIncludedReserves,
   resolveUnpaidPairs,
@@ -515,6 +516,18 @@ const claimed: ChainEventHandler = async (ctx, event) => {
   const user = await uniqueVerifiedUser(ctx, recipient, passphrase())
   // The treasury, or an address no single user verified.
   if (!user) return 'orphan'
+  // Once per event: a re-dispatch, replay or rebuilt event row finds the
+  // record and adds nothing.
+  const recorded = await recordClaim(ctx, {
+    doc: event.doc,
+    recipient,
+    userId: user._id,
+    token,
+    amount,
+    source: 'applied',
+    now: event.now,
+  })
+  if (!recorded) return 'done'
   await adjustBaseUnitEarnings(ctx, {
     userId: user._id,
     token,

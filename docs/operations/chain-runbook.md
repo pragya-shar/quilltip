@@ -295,6 +295,42 @@ the accepted amounts still unpaid. Running it on a reader with a pair limit
 (`keyId`, `writer`) may leave other pairs' reserves in place: that is safe,
 and a reader-wide run releases them.
 
+## Collected earnings
+
+A writer's collected tab earnings (`authorEarnings.collectedBaseUnits`) are
+the sum of their indexed `Claimed` events. Each applied event has a
+`tabClaims` record, keyed by the chain epoch and the RPC event id. That id
+is the event's ledger, transaction, operation and index, so a restore, a
+backfill or rebuilt `chainEvents` rows give the same id. An event with a
+record is not counted again, however it is re-dispatched.
+
+**Once after deploying this change**, record the claims applied before it
+(a dry run first; it changes no total):
+
+```bash
+bunx convex run chain/tabClaims:seedClaimRecords '{}'
+bunx convex run chain/tabClaims:seedClaimRecords '{"apply":true}'
+```
+
+Repeat with `"cursor"` set to the returned `continueCursor` while
+`isDone` is false. Until it has run, a re-dispatch of an older `Claimed`
+event would count it again. A deployment that indexed no `Claimed` event
+before this change has nothing to record: production at the v2 cutover is
+one, because `main` has no v2 indexer.
+
+**Check and correct**, for example after a restore:
+
+```bash
+bunx convex run chain/tabClaims:recomputeCollected '{}'
+bunx convex run chain/tabClaims:recomputeCollected '{"apply":true,"note":"<reason>"}'
+```
+
+It compares each writer's collected amount with the sum of their records
+(`"userId"` limits it to one writer; page with `"cursor"`). With `apply` it
+sets the amount to that sum and writes a `tabClaimCorrections` row for
+each change. The Tab contract keeps no total of past claims, only what is
+still claimable, so the records are the reference.
+
 ## Testnet reset
 
 Detection: the ledger sequence dropped below the highest ledger recorded for
