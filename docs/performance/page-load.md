@@ -369,9 +369,9 @@ connections the local server allows. The global stylesheet finished at about
   2083 to 1770 ms.
   - An earlier version kept the first image eager wherever it was. On the
     seeded article, whose first image comes about 7,700 characters after the
-    largest paint, that image (198 KB) then loaded with the stylesheet:
-    desktop render delay rose from 400 to 680 ms and simulated mobile LCP
-    from 2704 to 2855 ms (HTTP/2, five runs).
+    largest paint, that image (198 KB) then loaded with the stylesheet, and
+    desktop LCP rose to 848 ms. With the limit it is 545 ms (HTTP/2, five
+    runs; simulated mobile did not change).
   - Only images with a stored `width` and `height` reserve their space. The
     writing desk stores them only after a writer resizes an image, so other
     images reserve none, lazy or eager, as before this change. On the seeded
