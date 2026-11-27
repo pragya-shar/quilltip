@@ -122,8 +122,14 @@ export function createOutbox(store: Store | null = defaultStore()): Outbox {
 
   return {
     list: (userId) => read().filter((e) => e.userId === userId),
-    put: (entry) =>
-      write([...read().filter((e) => e.requestId !== entry.requestId), entry]),
+    // One entry per request id; putting it again keeps its signed submit.
+    put: (entry) => {
+      const entries = read()
+      const was = entries.find((e) => e.requestId === entry.requestId)
+      const next =
+        was?.submit && !entry.submit ? { ...entry, submit: was.submit } : entry
+      write([...entries.filter((e) => e.requestId !== entry.requestId), next])
+    },
     update: (requestId, patch) =>
       write(
         read().map((e) => (e.requestId === requestId ? { ...e, ...patch } : e))

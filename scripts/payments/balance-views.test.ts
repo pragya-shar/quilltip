@@ -243,6 +243,46 @@ describe('optimistic balance and reconciliation', () => {
     expect(after.pending!.cents).toBe(100)
   })
 
+  it('keeps one entry per request id: one Sending row, one reservation, the signed submit kept', () => {
+    const data = new Map<string, string>()
+    const outbox = createOutbox({
+      getItem: (k) => data.get(k) ?? null,
+      setItem: (k, v) => void data.set(k, v),
+    })
+    const tip = outboxEntry('r1', 100)
+    outbox.put(tip)
+    const submit = {
+      prepareId: 'p1',
+      receipt: {
+        amount: tip.estimate,
+        articleId: 'a1',
+        clientRef: 'r1',
+        contentHash: 'cc',
+        cumulativeAfter: tip.estimate,
+        highlightId: null,
+        seq: 1,
+      },
+      signature: 'sig-1',
+    }
+    outbox.update('r1', { submit })
+    // The same tip put again (a retry of the same tap): still one tip.
+    outbox.put(tip)
+    const entries = outbox.list('u1')
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.submit).toEqual(submit)
+    const items = readerItemsOf({
+      entries: [],
+      outbox: entries,
+      session: session(),
+      now: NOW,
+    })
+    expect(items.filter((i) => i.status === 'sending')).toHaveLength(1)
+    expect(view(session(), entries).available).toEqual(
+      view(session(), [tip]).available
+    )
+    expect(view(session(), entries).pending!.cents).toBe(100)
+  })
+
   it('offers ladder amounts within every limit, never the raw ceiling', () => {
     expect(view(session()).amounts.map((m) => m.cents)).toEqual([
       100, 200, 300, 500,
