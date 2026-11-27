@@ -94,22 +94,23 @@ starts (Node.js runtime only), and the runtime checks it on every page.
 
 ## Checks
 
-| Check                                                       | Where                                                      |
-| ----------------------------------------------------------- | ---------------------------------------------------------- |
-| The edits match the runtime exactly once, per route, SRI    | `scripts/next/next-patch.test.ts` (`test:unit`)            |
-| The installed Next.js is 16.4.6 and takes the patch         | `scripts/next/next-patch.test.ts`                          |
-| The development runtimes are unpatched                      | `scripts/next/next-patch.test.ts`                          |
-| Both production runtimes are patched; loader bytes counted  | `perf:first-load` (`scripts/perf/first-load-budget.ts`)    |
-| Server HTML: one blocking loader in `<head>`, one late copy | `perf:budget` (`scripts/perf/chunk-loading.ts`)            |
-| Both chunk paths, with and without immutable assets         | `scripts/next/next-patch.test.ts`, `chunk-loading.test.ts` |
-| The loader version matches the file; Vercel caches it       | `scripts/next/next-patch.test.ts`                          |
-| One loader download per view, none on a repeat view         | `e2e/hydrate-after-paint.spec.ts`                          |
-| Server HTML: no chunk script before the paint               | `perf:budget`                                              |
-| `/support` keeps Next.js's script loading                   | `perf:budget`                                              |
-| Without the registration, a patched runtime keeps Next.js   | `scripts/next/next-patch.test.ts`, `perf:stale-runtime`    |
-| The patch leaves a hardlinked (cached) runtime unchanged    | `scripts/next/next-patch.test.ts`                          |
-| A press the moment the page appears is held (slow loader)   | `e2e/hydrate-after-paint.spec.ts`                          |
-| Hydration, menus, forms, navigation in three browsers       | `e2e/hydrate-after-paint.spec.ts`                          |
+| Check                                                          | Where                                                      |
+| -------------------------------------------------------------- | ---------------------------------------------------------- |
+| The edits match the runtime exactly once, per route, SRI       | `scripts/next/next-patch.test.ts` (`test:unit`)            |
+| The installed Next.js is 16.4.6 and takes the patch            | `scripts/next/next-patch.test.ts`                          |
+| The development runtimes are unpatched                         | `scripts/next/next-patch.test.ts`                          |
+| Both production runtimes are patched; loader bytes counted     | `perf:first-load` (`scripts/perf/first-load-budget.ts`)    |
+| Server HTML: one blocking loader in `<head>`, one late copy    | `perf:budget` (`scripts/perf/chunk-loading.ts`)            |
+| Both chunk paths, with and without immutable assets            | `scripts/next/next-patch.test.ts`, `chunk-loading.test.ts` |
+| A build with immutable assets (as on Vercel) defers its chunks | `perf:chunk-paths` with `QUILLTIP_IMMUTABLE_ASSETS=1` (CI) |
+| The loader version matches the file; Vercel caches it          | `scripts/next/next-patch.test.ts`                          |
+| One loader download per view, none on a repeat view            | `e2e/hydrate-after-paint.spec.ts`                          |
+| Server HTML: no chunk script before the paint                  | `perf:budget`                                              |
+| `/support` keeps Next.js's script loading                      | `perf:budget`                                              |
+| Without the registration, a patched runtime keeps Next.js      | `scripts/next/next-patch.test.ts`, `perf:stale-runtime`    |
+| The patch leaves a hardlinked (cached) runtime unchanged       | `scripts/next/next-patch.test.ts`                          |
+| A press the moment the page appears is held (slow loader)      | `e2e/hydrate-after-paint.spec.ts`                          |
+| Hydration, menus, forms, navigation in three browsers          | `e2e/hydrate-after-paint.spec.ts`                          |
 
 Run the browser suite against a production build:
 

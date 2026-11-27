@@ -41,6 +41,7 @@
     "perf:budget": "bun scripts/perf/page-load-budget.ts",
     "perf:font-fallbacks": "bun scripts/perf/font-fallback-check.ts",
     "perf:stale-runtime": "bun scripts/next/stale-runtime-check.ts",
+    "perf:chunk-paths": "bun scripts/next/chunk-paths-check.ts",
     "perf:first-load": "next experimental-analyze --output && bun scripts/perf/first-load-budget.ts",
     "contracts:deploy-v2": "bun scripts/contracts/deploy-v2-testnet.ts",
     "contracts:extend-v2": "bun scripts/contracts/extend-v2-testnet.ts",

@@ -159,6 +159,24 @@ jobs:
       - name: Check a patched runtime without registration
         run: bun run perf:stale-runtime
 
+      # Vercel serves chunks from /_next/static/immutable/chunks/. Build once
+      # more that way and check that the patch defers those chunks too.
+      - name: Build with immutable assets, as on Vercel
+        run: bun run build
+        env:
+          QUILLTIP_IMMUTABLE_ASSETS: '1'
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      - name: Check chunk paths with immutable assets
+        run: bun run perf:chunk-paths
+        env:
+          PERF_EXPECT_IMMUTABLE: '1'
+
   # Text keeps its lines when the web fonts replace the metric-matched
   # fallback faces (app/font-fallbacks.css), in Chromium and WebKit. It runs
   # on macOS, which has Arial and Times New Roman, as Safari readers do. On
