@@ -20,6 +20,12 @@
  * - `qt_opened`: articles this browser opened, added on open;
  * - `qt_finished`: articles read to the end (98%), mirrored from the store.
  *
+ * **Removing a place** (`removePlace`, Shelf's remove with Undo) forgets
+ * where the reader was: no "Your place" row, no resume. It does not unread
+ * the article: `qt_opened` keeps its id, and a finished article stays in
+ * `qt_finished` until it ages out, so Today does not offer it again as new.
+ * `restorePlace` puts the removed entry back where it was.
+ *
  * `href` is the article's own URL (a site path, no `#anchor`): opening it
  * returns the reader to their place (`useReadingPosition`) with nothing
  * chosen, so resume never selects a line or arms the tip bar; an anchor
@@ -205,19 +211,74 @@ function writeCookie(name: string, ids: string[]) {
     : `${name}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
 }
 
+/**
+ * The finished ids for the cookie: the store's, newest first, then ids the
+ * cookie already holds for places since removed, at most 20.
+ */
+export function finishedIds(
+  places: ReadingPlace[],
+  cookie: string[]
+): string[] {
+  const stored = places.filter((p) => p.finished).map((p) => p.articleId)
+  const known = new Set(places.map((p) => p.articleId))
+  return [...stored, ...cookie.filter((id) => !known.has(id))].slice(
+    0,
+    PLACE_LIMIT
+  )
+}
+
+function writePlaces(places: ReadingPlace[]) {
+  localStorage.setItem(READING_PLACE_KEY, JSON.stringify(places))
+  writeCookie(
+    FINISHED_COOKIE,
+    finishedIds(places, cookieIds(document.cookie, FINISHED_COOKIE))
+  )
+}
+
 /** Saves a place and mirrors the finished ids. Storage may be blocked. */
 export function savePlace(
   next: Omit<ReadingPlace, 'finished'> & { finished?: boolean }
 ) {
   try {
-    const places = upsertPlace(readPlaces(), next)
-    localStorage.setItem(READING_PLACE_KEY, JSON.stringify(places))
-    writeCookie(
-      FINISHED_COOKIE,
-      places.filter((p) => p.finished).map((p) => p.articleId)
-    )
+    writePlaces(upsertPlace(readPlaces(), next))
   } catch {
     // Reading stays available when browser storage is blocked.
+  }
+}
+
+/** A removed place and where it stood, for `restorePlace`. */
+export type RemovedPlace = { place: ReadingPlace; index: number }
+
+/**
+ * Forgets the place of one article (see the header for what it keeps).
+ * Returns what `restorePlace` needs, or null when there was none.
+ */
+export function removePlace(articleId: string): RemovedPlace | null {
+  try {
+    const places = readPlaces()
+    const index = places.findIndex((p) => p.articleId === articleId)
+    if (index < 0) return null
+    const place = places[index]!
+    writePlaces(places.filter((_, i) => i !== index))
+    return { place, index }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Puts a removed place back at its position, unless the article has a newer
+ * place by now (the reader opened it again), which wins.
+ */
+export function restorePlace(removed: RemovedPlace) {
+  try {
+    const places = readPlaces()
+    if (places.some((p) => p.articleId === removed.place.articleId)) return
+    const next = [...places]
+    next.splice(Math.min(removed.index, next.length), 0, removed.place)
+    writePlaces(next.slice(0, PLACE_LIMIT))
+  } catch {
+    // Storage may be blocked; there is nothing to restore then.
   }
 }
 
