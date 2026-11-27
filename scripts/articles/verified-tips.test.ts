@@ -176,6 +176,7 @@ test('public and writer stats count verified tips only', async () => {
     network: 'TESTNET',
     tipCount: 2,
     writerShareStroops: '58500000',
+    earnedStroops: '58500000',
     estimatedUsd: 2.925,
     earnedBaseUnits: {},
     v2TipCount: 0,
