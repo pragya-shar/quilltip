@@ -1,0 +1,225 @@
+/*
+ * The application frame: phone bar, desktop rail, content area, skip link.
+ * Imported by app/(app)/layout.tsx after the design system.
+ */
+@layer components {
+  .qt-shell {
+    min-height: 100dvh;
+  }
+  .qt-shell__main {
+    display: block;
+    min-width: 0;
+    min-height: 100dvh;
+    /* Room for the floating bar, the home indicator and a host toolbar. */
+    padding-block-end: calc(
+      var(--qt-nav-h) + var(--qt-safe-bottom) + var(--qt-space-10)
+    );
+    padding-inline: max(var(--qt-gutter), var(--qt-safe-left))
+      max(var(--qt-gutter), var(--qt-safe-right));
+    padding-block-start: max(var(--qt-space-4), var(--qt-safe-top));
+  }
+  .qt-shell__main:focus-visible {
+    outline: none;
+  }
+
+  .qt-skip {
+    position: fixed;
+    inset-block-start: calc(var(--qt-safe-top) + var(--qt-space-2));
+    inset-inline-start: var(--qt-space-2);
+    z-index: var(--qt-z-skip);
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--qt-hit);
+    padding-inline: var(--qt-space-4);
+    border-radius: var(--qt-radius-pill);
+    background: var(--qt-action-bg);
+    color: var(--qt-action-ink);
+    font-weight: var(--qt-weight-ui-strong);
+    transform: translateY(calc(-100% - var(--qt-space-8) - var(--qt-safe-top)));
+  }
+  .qt-skip:focus-visible {
+    transform: none;
+  }
+
+  /* Phone bar: a floating pill in thumb reach. */
+  .qt-navbar {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: var(--qt-z-nav);
+    display: flex;
+    justify-content: center;
+    padding: var(--qt-space-8) var(--qt-gutter)
+      calc(var(--qt-safe-bottom) + var(--qt-space-3));
+    /* A paper fade so text never runs under the bar unreadably. */
+    background: linear-gradient(to top, var(--qt-paper) 45%, transparent);
+    pointer-events: none;
+  }
+  .qt-navbar__list {
+    display: flex;
+    gap: var(--qt-space-1);
+    height: var(--qt-nav-h);
+    padding: var(--qt-space-1);
+    border: 1px solid var(--qt-line);
+    border-radius: var(--qt-radius-pill);
+    background: var(--qt-surface);
+    box-shadow: var(--qt-shadow-float);
+    pointer-events: auto;
+  }
+  .qt-navbar__item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.125rem;
+    min-width: 3.75rem;
+    height: 100%;
+    padding-inline: var(--qt-space-2);
+    border-radius: var(--qt-radius-pill);
+    color: var(--qt-ink-2);
+    font-size: 0.6875rem;
+    font-weight: var(--qt-weight-ui-strong);
+    line-height: 1;
+    transition:
+      background-color var(--qt-dur-quick) var(--qt-ease-out),
+      transform var(--qt-dur-press) var(--qt-ease-out);
+  }
+  .qt-navbar__item[aria-current='page'] {
+    background: var(--qt-sunk);
+    color: var(--qt-ink);
+  }
+  .qt-navbar__item:active {
+    transform: scale(0.95);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .qt-navbar__item:hover {
+      color: var(--qt-ink);
+    }
+  }
+  .qt-nav__pending {
+    position: absolute;
+    inset-block-start: 0.375rem;
+    inset-inline-end: 0.625rem;
+    width: 0.375rem;
+    height: 0.375rem;
+    border-radius: 50%;
+    background: var(--qt-marker-ink);
+    opacity: 0;
+    transition: opacity var(--qt-dur-quick) var(--qt-ease-out);
+  }
+  .qt-nav__pending[data-pending] {
+    opacity: 1;
+    transition-delay: 120ms;
+  }
+
+  /* The bar steps aside for the on-screen keyboard and immersive pages. */
+  .qt-shell:has([data-shell-chrome='immersive']) .qt-navbar {
+    display: none;
+  }
+  @media (pointer: coarse) {
+    .qt-shell:has(:is(input, textarea, select, [contenteditable]):focus)
+      .qt-navbar {
+      display: none;
+    }
+  }
+
+  /* Desktop rail */
+  .qt-rail {
+    display: none;
+  }
+  @media (min-width: 64rem) {
+    .qt-navbar {
+      display: none;
+    }
+    .qt-shell__main {
+      margin-inline-start: var(--qt-rail-w);
+      padding-block-end: var(--qt-space-14);
+      padding-block-start: var(--qt-space-8);
+    }
+    .qt-rail {
+      position: fixed;
+      inset-block: 0;
+      inset-inline-start: 0;
+      z-index: var(--qt-z-nav);
+      display: flex;
+      flex-direction: column;
+      gap: var(--qt-space-6);
+      width: var(--qt-rail-w);
+      padding: var(--qt-space-6) var(--qt-space-4);
+      border-inline-end: 1px solid var(--qt-line);
+      background: var(--qt-paper);
+    }
+    .qt-rail__wordmark {
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--qt-hit);
+      padding-inline: var(--qt-space-3);
+      font-family: var(--qt-font-read);
+      font-size: 1.5rem;
+      font-weight: var(--qt-weight-title);
+      letter-spacing: -0.02em;
+    }
+    .qt-rail__list {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      gap: var(--qt-space-1);
+    }
+    .qt-rail__item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: var(--qt-space-3);
+      min-height: var(--qt-control-h);
+      padding-inline: var(--qt-space-3);
+      border-radius: var(--qt-radius-control);
+      color: var(--qt-ink-2);
+      font-size: var(--qt-text-ui-l);
+      font-weight: var(--qt-weight-ui-strong);
+      transition: background-color var(--qt-dur-quick) var(--qt-ease-out);
+    }
+    .qt-rail__item[aria-current='page'] {
+      background: var(--qt-sunk);
+      color: var(--qt-ink);
+    }
+    .qt-rail__item:hover {
+      background: var(--qt-hover);
+      color: var(--qt-ink);
+    }
+    .qt-rail__item .qt-nav__pending {
+      inset-block-start: 50%;
+      inset-inline-end: var(--qt-space-3);
+      transform: translateY(-50%);
+    }
+  }
+
+  /* The payments shell renders nothing visible of its own. */
+  .qt-payments-slot {
+    display: contents;
+  }
+
+  /* A page column. Surfaces pick a width; the gutter comes from the shell. */
+  .qt-page {
+    width: 100%;
+    max-width: 40rem;
+    margin-inline: auto;
+  }
+  .qt-page[data-width='read'] {
+    max-width: calc(var(--qt-measure) + 2 * var(--qt-gutter-read));
+  }
+  .qt-page[data-width='wide'] {
+    max-width: 72rem;
+  }
+}
+
+/* Cross-document navigations (into and out of the application, and full
+ * reloads within it) fade instead of flashing white. */
+@view-transition {
+  navigation: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
+}

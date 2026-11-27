@@ -1,0 +1,299 @@
+/*
+ * Quilltip design tokens. Values only: no selectors except the theme scopes.
+ *
+ * Components read the semantic names below (--qt-ink, --qt-surface,
+ * --qt-action-bg, ...) and never a raw value. The design hand-over replaces
+ * values in this file; it does not rename a token or touch a component. A new
+ * token is added here first, with its use in the comment.
+ *
+ * Scopes:
+ * - `:root`: light theme, phone sizes.
+ * - `[data-theme='dark']` on <html>, or the dark system preference when
+ *   <html> carries no `data-theme='light'`: the dark theme.
+ * - `forced-colors: active`: system colors (Windows contrast themes).
+ * - `min-width: 64rem`: desktop type steps.
+ *
+ * Color is OKLCH and inside sRGB. Contrast is checked in the browser by
+ * e2e/system-gallery.spec.ts for every text and control pair in both themes.
+ * Rules the colors encode:
+ * - Marker (lime) is the only money color. It is a fill, never text on a
+ *   light surface; text on marker is always --qt-on-marker.
+ * - Money in uses --qt-marker-ink. Money out uses --qt-ink.
+ * - --qt-danger means failure only, never a negative amount.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --qt-paper: oklch(0.985 0.003 230); /* page ground */
+  --qt-surface: oklch(1 0 0); /* cards, sheets, menus */
+  --qt-sunk: oklch(0.955 0.005 230); /* chips, inactive fills, skeletons */
+  --qt-line: oklch(0.9 0.006 230); /* hairlines, card rings */
+  --qt-line-strong: oklch(0.62 0.01 250); /* control borders (3:1 on paper) */
+  --qt-scrim: oklch(0.2 0.012 250 / 0.36); /* behind sheets and dialogs */
+
+  /* Text */
+  --qt-ink: oklch(0.2 0.012 250); /* body, titles */
+  --qt-ink-2: oklch(0.45 0.012 250); /* secondary */
+  --qt-ink-3: oklch(0.5 0.01 250); /* meta, captions, placeholders */
+  --qt-on-ink: oklch(0.985 0.003 230); /* text on an ink fill */
+
+  /* Money */
+  --qt-marker: oklch(0.93 0.2 124); /* tipped passage, sent state */
+  --qt-marker-soft: oklch(0.955 0.12 124); /* passage heat 2 */
+  --qt-marker-faint: oklch(0.975 0.055 124); /* passage heat 1, quiet panels */
+  --qt-marker-ink: oklch(0.46 0.13 135); /* money in, passage totals, nib */
+  --qt-on-marker: oklch(0.2 0.012 250); /* text on any marker fill */
+
+  /* The primary action (tip control, primary buttons) and its sent state.
+   * Light: ink pill with a lime nib. Dark: near-white pill, deep-lime nib.
+   * Sent is lime in both themes: lime always means money moved. */
+  --qt-action-bg: var(--qt-ink);
+  --qt-action-ink: var(--qt-on-ink);
+  --qt-action-icon: var(--qt-marker);
+  --qt-action-hover: oklch(0.3 0.012 250);
+  --qt-sent-bg: var(--qt-marker);
+  --qt-sent-ink: var(--qt-on-marker);
+
+  /* Toasts stay dark in both themes. */
+  --qt-toast-bg: oklch(0.2 0.012 250);
+  --qt-toast-ink: oklch(0.985 0.003 230);
+  --qt-toast-ink-2: oklch(0.82 0.006 250);
+  --qt-toast-accent: oklch(0.93 0.2 124);
+  --qt-toast-danger: oklch(0.78 0.13 27);
+
+  /* State */
+  --qt-danger: oklch(0.53 0.19 27); /* failure text and outlines */
+  --qt-danger-soft: oklch(0.96 0.03 27); /* failure panels */
+  --qt-focus: oklch(0.55 0.15 250); /* focus ring */
+  --qt-hover: oklch(0.2 0.012 250 / 0.05); /* hover wash on any ground */
+  --qt-press: oklch(0.2 0.012 250 / 0.09); /* pressed wash */
+
+  /* Type families. The UI uses the platform face, so nothing waits on a font
+   * in a wallet browser. Reading uses one self-hosted serif; its metric-
+   * matched fallback comes from next/font (system/fonts.ts), which sets
+   * --qt-face-read on <html>. */
+  --qt-font-ui:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
+    system-ui, sans-serif;
+  --qt-font-read:
+    var(--qt-face-read, 'Source Serif 4'), Charter, 'Iowan Old Style', Georgia,
+    serif;
+  --qt-font-read-italic:
+    var(--qt-face-read-italic, 'Source Serif 4'), Charter, 'Iowan Old Style',
+    Georgia, serif;
+
+  /* Type scale: size and line height. Phone values; desktop steps below. */
+  --qt-text-display: 2.125rem; /* 34 article title, serif 650 */
+  --qt-lh-display: 1.08;
+  --qt-text-title: 1.625rem; /* 26 screen and sheet titles, serif 650 */
+  --qt-lh-title: 1.15;
+  --qt-text-line: 1.375rem; /* 22 a passage in a feed, serif 450 */
+  --qt-lh-line: 1.36;
+  --qt-text-read: 1.1875rem; /* 19 article body, serif 400 */
+  --qt-lh-read: 1.6;
+  --qt-text-ui-l: 1.0625rem; /* 17 buttons, row titles */
+  --qt-lh-ui-l: 1.3;
+  --qt-text-ui: 0.9375rem; /* 15 default UI */
+  --qt-lh-ui: 1.4;
+  --qt-text-ui-s: 0.8125rem; /* 13 meta, captions */
+  --qt-lh-ui-s: 1.35;
+  --qt-text-ui-xs: 0.75rem; /* 12 the testnet line and legal text only */
+  --qt-lh-ui-xs: 1.35;
+  --qt-money-xl: 5.75rem; /* 92 balance, serif 600 */
+  --qt-money-l: 4.5rem; /* 72 earnings */
+  --qt-money-m: 2.75rem; /* 44 tip amount, receipt */
+  --qt-money-s: 1.0625rem; /* 17 inline figures, rows */
+  --qt-track-display: -0.022em;
+  --qt-track-money: -0.04em;
+  --qt-weight-ui: 500;
+  --qt-weight-ui-strong: 650;
+  --qt-weight-title: 650;
+  --qt-measure: 34rem; /* about 68 characters at 19 px */
+
+  /* Space: 4 px base */
+  --qt-space-1: 0.25rem;
+  --qt-space-2: 0.5rem;
+  --qt-space-3: 0.75rem;
+  --qt-space-4: 1rem;
+  --qt-space-5: 1.25rem;
+  --qt-space-6: 1.5rem;
+  --qt-space-8: 2rem;
+  --qt-space-10: 2.5rem;
+  --qt-space-14: 3.5rem;
+  --qt-gutter: 1rem; /* phone side gutter */
+  --qt-gutter-read: 1.5rem; /* article text gutter */
+
+  /* Radii */
+  --qt-radius-tag: 0.5rem;
+  --qt-radius-control: 0.875rem;
+  --qt-radius-card: 1.375rem;
+  --qt-radius-sheet: 1.75rem;
+  --qt-radius-toast: 1.25rem;
+  --qt-radius-pill: 999px;
+
+  /* Elevation: a ring for cards, soft tinted blur for what floats. */
+  --qt-shadow-card: 0 0 0 1px var(--qt-line);
+  --qt-shadow-float:
+    0 2px 6px oklch(0.2 0.012 250 / 0.08),
+    0 12px 32px oklch(0.2 0.012 250 / 0.12);
+  --qt-shadow-sheet: 0 -8px 40px oklch(0.2 0.012 250 / 0.16);
+
+  /* Sizes */
+  --qt-hit: 2.75rem; /* 44 minimum target, every control */
+  --qt-control-h: 3rem; /* 48 buttons and fields */
+  --qt-control-h-l: 3.5rem; /* 56 the tip control, primary actions */
+  --qt-nav-h: 3.625rem; /* 58 phone navigation bar */
+  --qt-rail-w: 16rem; /* 256 desktop navigation rail */
+  --qt-focus-width: 2px;
+  --qt-focus-offset: 2px;
+
+  /* Safe areas, read once so components never call env() themselves. */
+  --qt-safe-top: env(safe-area-inset-top, 0px);
+  --qt-safe-right: env(safe-area-inset-right, 0px);
+  --qt-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --qt-safe-left: env(safe-area-inset-left, 0px);
+
+  /* Motion. Under 300 ms except the marker stroke, the one authored moment.
+   * Exits run about 25 percent faster than entrances. */
+  --qt-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --qt-ease-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --qt-ease-sheet: cubic-bezier(0.32, 0.72, 0, 1);
+  --qt-ease-move: cubic-bezier(0.77, 0, 0.175, 1);
+  --qt-dur-press: 120ms;
+  --qt-dur-quick: 160ms;
+  --qt-dur-base: 220ms;
+  --qt-dur-sheet: 260ms;
+  --qt-dur-sheet-exit: 200ms;
+  --qt-dur-stroke: 320ms;
+  --qt-dur-count: 300ms;
+  --qt-dur-shimmer: 1400ms;
+
+  /* Layers. Nothing in a surface sets a z-index outside this list. */
+  --qt-z-base: 0;
+  --qt-z-sticky: 10; /* sticky headers, the tip dock */
+  --qt-z-nav: 20; /* navigation bar and rail */
+  --qt-z-menu: 30; /* menus and popovers */
+  --qt-z-sheet: 40; /* sheets and dialogs, with their scrim */
+  --qt-z-toast: 50; /* toasts, above sheets */
+  --qt-z-skip: 60; /* the skip link */
+}
+
+/* Dark: the same hues remapped. Text on marker stays ink. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --qt-paper: oklch(0.16 0.01 250);
+    --qt-surface: oklch(0.2 0.012 250);
+    --qt-sunk: oklch(0.24 0.012 250);
+    --qt-line: oklch(0.3 0.012 250);
+    --qt-line-strong: oklch(0.58 0.012 250);
+    --qt-scrim: oklch(0.05 0.01 250 / 0.6);
+    --qt-ink: oklch(0.96 0.005 250);
+    --qt-ink-2: oklch(0.78 0.01 250);
+    --qt-ink-3: oklch(0.7 0.01 250);
+    --qt-on-ink: oklch(0.16 0.01 250);
+    --qt-marker: oklch(0.9 0.19 124);
+    --qt-marker-soft: oklch(0.42 0.1 124);
+    --qt-marker-faint: oklch(0.28 0.05 124);
+    --qt-marker-ink: oklch(0.82 0.17 128);
+    --qt-danger: oklch(0.74 0.15 27);
+    --qt-danger-soft: oklch(0.28 0.06 27);
+    --qt-focus: oklch(0.75 0.12 250);
+    --qt-hover: oklch(0.96 0.005 250 / 0.06);
+    --qt-press: oklch(0.96 0.005 250 / 0.1);
+    --qt-action-bg: oklch(0.96 0.005 250);
+    --qt-action-ink: oklch(0.2 0.012 250);
+    --qt-action-icon: oklch(0.46 0.13 135);
+    --qt-action-hover: oklch(0.88 0.006 250);
+    --qt-toast-bg: oklch(0.3 0.012 250);
+    --qt-shadow-card: 0 0 0 1px var(--qt-line);
+    --qt-shadow-float:
+      0 2px 6px oklch(0 0 0 / 0.3), 0 12px 32px oklch(0 0 0 / 0.4);
+    --qt-shadow-sheet: 0 -8px 40px oklch(0 0 0 / 0.5);
+  }
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --qt-paper: oklch(0.16 0.01 250);
+  --qt-surface: oklch(0.2 0.012 250);
+  --qt-sunk: oklch(0.24 0.012 250);
+  --qt-line: oklch(0.3 0.012 250);
+  --qt-line-strong: oklch(0.58 0.012 250);
+  --qt-scrim: oklch(0.05 0.01 250 / 0.6);
+  --qt-ink: oklch(0.96 0.005 250);
+  --qt-ink-2: oklch(0.78 0.01 250);
+  --qt-ink-3: oklch(0.7 0.01 250);
+  --qt-on-ink: oklch(0.16 0.01 250);
+  --qt-marker: oklch(0.9 0.19 124);
+  --qt-marker-soft: oklch(0.42 0.1 124);
+  --qt-marker-faint: oklch(0.28 0.05 124);
+  --qt-marker-ink: oklch(0.82 0.17 128);
+  --qt-danger: oklch(0.74 0.15 27);
+  --qt-danger-soft: oklch(0.28 0.06 27);
+  --qt-focus: oklch(0.75 0.12 250);
+  --qt-hover: oklch(0.96 0.005 250 / 0.06);
+  --qt-press: oklch(0.96 0.005 250 / 0.1);
+  --qt-action-bg: oklch(0.96 0.005 250);
+  --qt-action-ink: oklch(0.2 0.012 250);
+  --qt-action-icon: oklch(0.46 0.13 135);
+  --qt-action-hover: oklch(0.88 0.006 250);
+  --qt-toast-bg: oklch(0.3 0.012 250);
+  --qt-shadow-card: 0 0 0 1px var(--qt-line);
+  --qt-shadow-float:
+    0 2px 6px oklch(0 0 0 / 0.3), 0 12px 32px oklch(0 0 0 / 0.4);
+  --qt-shadow-sheet: 0 -8px 40px oklch(0 0 0 / 0.5);
+}
+
+/* Forced colors: map every role to a system color. Components keep a
+ * transparent border where a fill alone draws a shape, so the shape stays
+ * visible here. */
+@media (forced-colors: active) {
+  :root {
+    --qt-paper: Canvas;
+    --qt-surface: Canvas;
+    --qt-sunk: Canvas;
+    --qt-line: CanvasText;
+    --qt-line-strong: CanvasText;
+    --qt-ink: CanvasText;
+    --qt-ink-2: CanvasText;
+    --qt-ink-3: GrayText;
+    --qt-on-ink: Canvas;
+    --qt-marker: Highlight;
+    --qt-marker-soft: Highlight;
+    --qt-marker-faint: Highlight;
+    --qt-marker-ink: CanvasText;
+    --qt-on-marker: HighlightText;
+    --qt-action-bg: ButtonFace;
+    --qt-action-ink: ButtonText;
+    --qt-action-icon: ButtonText;
+    --qt-action-hover: ButtonFace;
+    --qt-sent-bg: Highlight;
+    --qt-sent-ink: HighlightText;
+    --qt-toast-bg: Canvas;
+    --qt-toast-ink: CanvasText;
+    --qt-toast-ink-2: CanvasText;
+    --qt-toast-accent: CanvasText;
+    --qt-toast-danger: CanvasText;
+    --qt-danger: CanvasText;
+    --qt-danger-soft: Canvas;
+    --qt-focus: Highlight;
+    --qt-hover: transparent;
+    --qt-press: transparent;
+    --qt-shadow-card: none;
+    --qt-shadow-float: none;
+    --qt-shadow-sheet: none;
+  }
+}
+
+/* Desktop: the reading column widens; UI sizes stay. */
+@media (min-width: 64rem) {
+  :root {
+    --qt-text-display: 3rem; /* 48 */
+    --qt-text-line: 1.5rem; /* 24 */
+    --qt-text-read: 1.25rem; /* 20 */
+    --qt-money-xl: 6.5rem; /* 104 */
+    --qt-gutter: 1.5rem;
+  }
+}

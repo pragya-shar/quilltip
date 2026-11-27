@@ -17,7 +17,13 @@ export default [
   },
   ...tseslint.configs.recommended,
   {
-    files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}'],
+    files: [
+      'app/**/*.{ts,tsx}',
+      'components/**/*.{ts,tsx}',
+      'system/**/*.{ts,tsx}',
+      'shell/**/*.{ts,tsx}',
+      'surfaces/**/*.{ts,tsx}',
+    ],
     ignores: ['components/ui/**', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
     plugins: {
       local: { rules: { 'one-component-per-file': oneComponentPerFile } },
@@ -41,6 +47,9 @@ export default [
       'components/**/*.{ts,tsx}',
       'hooks/**/*.{ts,tsx}',
       'lib/**/*.{ts,tsx}',
+      'system/**/*.{ts,tsx}',
+      'shell/**/*.{ts,tsx}',
+      'surfaces/**/*.{ts,tsx}',
     ],
     ignores: ['lib/zod.ts'],
     rules: {

@@ -31,6 +31,8 @@ export default defineConfig({
       'scripts/tab-ui/*.test.ts',
       // Convex default-runtime code bundled as Convex bundles it.
       'scripts/convex-runtime/*.test.ts',
+      // The design system: money figure layout, navigation config.
+      'scripts/system/*.test.ts',
     ],
   },
 })

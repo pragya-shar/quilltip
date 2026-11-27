@@ -1,0 +1,192 @@
+'use client'
+
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type RefObject,
+} from 'react'
+import type { MoneyValue } from '../money/figure'
+import { centsFromInput } from '../money/tip'
+
+type AmountTrayProps = {
+  id: string
+  amounts: readonly MoneyValue[]
+  value: MoneyValue | null
+  allowOther: boolean
+  onChange: (cents: number) => void
+  /** `returnFocus`: put focus back on the amount button. */
+  onClose: (returnFocus: boolean) => void
+  anchor: RefObject<HTMLElement | null>
+}
+
+/**
+ * The amount choice above the tip control: a radio group of quick amounts
+ * and an "Other" field. Arrow keys move and choose, Enter or a tap chooses
+ * and closes, Escape closes. Choosing changes the button label; it never
+ * sends.
+ */
+export function AmountTray({
+  id,
+  amounts,
+  value,
+  allowOther,
+  onChange,
+  onClose,
+  anchor,
+}: AmountTrayProps) {
+  const labelId = useId()
+  const otherId = useId()
+  const errorId = useId()
+  const root = useRef<HTMLDivElement>(null)
+  const [other, setOther] = useState('')
+  const [otherError, setOtherError] = useState(false)
+  const checkedIndex = Math.max(
+    0,
+    amounts.findIndex((a) => a.cents === value?.cents)
+  )
+
+  // Focus the chosen amount on open, as a radio group does.
+  useEffect(() => {
+    root.current
+      ?.querySelector<HTMLButtonElement>('[role="radio"][tabindex="0"]')
+      ?.focus()
+  }, [])
+
+  // A press outside the tray and its button closes it.
+  useEffect(() => {
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (root.current?.contains(target) || anchor.current?.contains(target))
+        return
+      onClose(false)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [anchor, onClose])
+
+  const radios = () =>
+    Array.from(
+      root.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? []
+    )
+
+  const onRadioKey = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    index: number
+  ) => {
+    const forward = ['ArrowRight', 'ArrowDown']
+    const back = ['ArrowLeft', 'ArrowUp']
+    let next = index
+    // In a right-to-left page, left and right swap.
+    const rtl = getComputedStyle(event.currentTarget).direction === 'rtl'
+    if (forward.includes(event.key))
+      next = index + (rtl && event.key === 'ArrowRight' ? -1 : 1)
+    else if (back.includes(event.key))
+      next = index + (rtl && event.key === 'ArrowLeft' ? 1 : -1)
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = amounts.length - 1
+    else if (event.key === 'Escape') {
+      event.preventDefault()
+      onClose(true)
+      return
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      onClose(true)
+      return
+    } else return
+    event.preventDefault()
+    next = (next + amounts.length) % amounts.length
+    const choice = amounts[next]
+    if (!choice) return
+    onChange(choice.cents)
+    radios()[next]?.focus()
+  }
+
+  const submitOther = () => {
+    const cents = centsFromInput(other)
+    if (cents === null) {
+      setOtherError(true)
+      return
+    }
+    onChange(cents)
+    onClose(true)
+  }
+
+  return (
+    <div className="qt-tray" id={id} ref={root}>
+      <span className="qt-visually-hidden" id={labelId}>
+        Tip amount
+      </span>
+      <div
+        className="qt-tray__amounts"
+        role="radiogroup"
+        aria-labelledby={labelId}
+      >
+        {amounts.map((choice, index) => {
+          const checked = index === checkedIndex && value !== null
+          return (
+            <button
+              key={choice.cents}
+              type="button"
+              role="radio"
+              aria-checked={checked}
+              tabIndex={index === checkedIndex ? 0 : -1}
+              className="qt-tray__amount"
+              onClick={() => {
+                onChange(choice.cents)
+                onClose(true)
+              }}
+              onKeyDown={(event) => onRadioKey(event, index)}
+            >
+              {choice.display}
+            </button>
+          )
+        })}
+      </div>
+      {allowOther ? (
+        <form
+          className="qt-tray__other"
+          onSubmit={(event) => {
+            event.preventDefault()
+            submitOther()
+          }}
+        >
+          <label className="qt-visually-hidden" htmlFor={otherId}>
+            Other amount in dollars
+          </label>
+          <span className="qt-tray__currency" aria-hidden="true">
+            $
+          </span>
+          <input
+            id={otherId}
+            className="qt-tray__input"
+            inputMode="decimal"
+            enterKeyHint="done"
+            autoComplete="off"
+            placeholder="Other"
+            value={other}
+            aria-invalid={otherError || undefined}
+            aria-describedby={otherError ? errorId : undefined}
+            onChange={(event) => {
+              setOther(event.target.value)
+              setOtherError(false)
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                onClose(true)
+              }
+            }}
+          />
+          {otherError ? (
+            <span className="qt-tray__error" id={errorId} role="alert">
+              Enter an amount like 2.50
+            </span>
+          ) : null}
+        </form>
+      ) : null}
+    </div>
+  )
+}

@@ -21,6 +21,7 @@ export const APP_ROUTE_SEGMENTS = new Set([
   'settings',
   'status',
   'support',
+  'system',
   'terms',
   'waitlist',
   'wallet',

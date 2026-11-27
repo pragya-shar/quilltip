@@ -1,0 +1,138 @@
+/*
+ * Base for the application document. This stylesheet loads only in the
+ * application root layout (app/(app)/layout.tsx), so these element rules
+ * never reach the legacy pages, and theirs never reach these.
+ */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+  * {
+    margin: 0;
+  }
+  html {
+    background: var(--qt-paper);
+    color: var(--qt-ink);
+    font-family: var(--qt-font-ui);
+    font-size: 100%;
+    line-height: var(--qt-lh-ui);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    scroll-padding-top: calc(var(--qt-safe-top) + var(--qt-space-4));
+    scroll-padding-bottom: calc(
+      var(--qt-nav-h) + var(--qt-safe-bottom) + var(--qt-space-8)
+    );
+  }
+  body {
+    min-height: 100dvh;
+    font-size: var(--qt-text-ui);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    overflow-wrap: break-word;
+    /* No pull-to-refresh or rubber band behind fixed bars. */
+    overscroll-behavior-y: none;
+  }
+  img,
+  svg,
+  video,
+  canvas {
+    display: block;
+    max-width: 100%;
+  }
+  svg {
+    flex-shrink: 0;
+  }
+  input,
+  button,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+  }
+  input,
+  textarea,
+  select {
+    /* 16 px or more: iOS does not zoom the page on focus. */
+    font-size: max(16px, 1em);
+    caret-color: var(--qt-marker-ink);
+  }
+  button {
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled='true'] {
+    cursor: not-allowed;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  button,
+  a,
+  [role='button'],
+  [role='tab'],
+  [role='radio'],
+  [role='menuitem'],
+  label {
+    /* No 300 ms double-tap wait. */
+    touch-action: manipulation;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-size: inherit;
+    font-weight: inherit;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ul,
+  ol {
+    padding: 0;
+    list-style: none;
+  }
+  ::selection {
+    background: var(--qt-marker-soft);
+    color: var(--qt-ink);
+  }
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: var(--qt-focus-width) solid var(--qt-focus);
+    outline-offset: var(--qt-focus-offset);
+  }
+  [hidden] {
+    display: none !important;
+  }
+  @media (forced-colors: active) {
+    :focus-visible {
+      outline-color: Highlight;
+    }
+  }
+}
+
+/* Reduced motion: every transition and animation ends at once. Components
+ * that carry meaning in motion (the tip hold) carry it in text too. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
