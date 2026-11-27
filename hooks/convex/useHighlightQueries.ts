@@ -19,10 +19,6 @@ export function useUserHighlightsQuery(userId: Id<'users'> | undefined) {
   )
 }
 
-export function useHighlightTipsByHighlight(highlightId: string) {
-  return useQuery(api.highlightTips.getByHighlight, { highlightId })
-}
-
 export function useArticleHighlightTipStats(
   articleId: Id<'articles'>,
   opts?: { sinceMs?: number }
