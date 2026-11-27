@@ -13,10 +13,9 @@ import {
 import { ArticleTableOfContents } from '@/components/articles/ArticleTableOfContents'
 import { HighlightHeatmap } from '@/components/highlights/HighlightHeatmap'
 import { HighlightNotes } from '@/components/highlights/HighlightNotes'
-import { ArweaveStatus } from '@/components/articles/ArweaveStatus'
-import { isArweaveStatus } from '@/lib/arweave/types'
+import { ArticleStorageSection } from '@/components/articles/ArticleStorageSection'
 import { NftSidebarSkeleton } from '@/components/articles/ArticleEngagementSkeleton'
-import { Archive, DollarSign, MessageSquare, Trophy } from 'lucide-react'
+import { DollarSign, MessageSquare, Trophy } from 'lucide-react'
 import type { Id } from '@/types/convex'
 import type { TocHeading } from '@/lib/tiptap/headings'
 import type { Doc } from '@/convex/_generated/dataModel'
@@ -169,20 +168,12 @@ export function ArticleDetailsPanel({
               </DetailsSection>
             )}
 
-            {isArweaveStatus(arweaveStatus) && (
-              <DetailsSection>
-                <h4 className="reader-section-title">
-                  <Archive className="w-4 h-4 text-muted-foreground" />
-                  Permanent Storage
-                </h4>
-                <ArweaveStatus
-                  status={arweaveStatus}
-                  txId={arweaveTxId ?? undefined}
-                  url={arweaveUrl ?? undefined}
-                  timestamp={arweaveTimestamp ?? undefined}
-                />
-              </DetailsSection>
-            )}
+            <ArticleStorageSection
+              status={arweaveStatus}
+              txId={arweaveTxId}
+              url={arweaveUrl}
+              timestamp={arweaveTimestamp}
+            />
           </div>
         </AccordionContent>
       </AccordionItem>

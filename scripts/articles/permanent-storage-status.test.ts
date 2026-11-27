@@ -3,6 +3,9 @@ import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api } from '../../convex/_generated/api'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { ArticleStorageSection } from '../../components/articles/ArticleStorageSection'
 
 // No network: an upload would only be recorded, and none is expected to run.
 const uploads = vi.hoisted(() => [] as unknown[])
@@ -160,3 +163,28 @@ test.each(['uploaded', 'verified', 'failed'])(
     expect((await read(slug))?.arweaveStatus).toBe(status)
   }
 )
+
+test('the details panel claims no upload for a stored pending article while storage is off', async () => {
+  storageOn()
+  const { author, id, read } = await setup()
+  const { slug } = await author.mutation(api.articles.publishArticle, { id })
+  // What the article page passes to the details panel's storage section.
+  const section = async () => {
+    const article = await read(slug)
+    return renderToStaticMarkup(
+      createElement(ArticleStorageSection, {
+        status: article?.arweaveStatus,
+        txId: article?.arweaveTxId,
+        url: article?.arweaveUrl,
+        timestamp: article?.arweaveTimestamp,
+      })
+    )
+  }
+
+  expect(await section()).toContain('Uploading to Arweave')
+
+  storageOff()
+  const off = await section()
+  expect(off).not.toContain('Uploading to Arweave')
+  expect(off).not.toContain('Permanent Storage')
+})
