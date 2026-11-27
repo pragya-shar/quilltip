@@ -253,6 +253,13 @@ export function networkLabel(passphrase: string | undefined): string {
  * and name the wallet when the error says which one it was.
  * `cancelled` has no copy: closing the picker is not an error to report.
  */
+/** G…, shortened as the payment UI shows addresses. */
+function shortKey(address: string): string {
+  return address.length > 12
+    ? `${address.slice(0, 4)}…${address.slice(-4)}`
+    : address
+}
+
 export function walletErrorMessage(error: WalletError): WalletMessage | null {
   const entry = walletEntry(error.walletId)
   const name = entry?.name ?? 'your wallet'
@@ -309,8 +316,12 @@ export function walletErrorMessage(error: WalletError): WalletMessage | null {
     case 'wrong-account':
       return {
         title: 'Your wallet signed with another account',
+        // After the wallet answered, the error names the caller's signer
+        // (the linked address) when the caller gave one.
         detail:
-          'Switch back to the connected account in your wallet, or reconnect. Nothing was sent.',
+          error.expectedAddress && !error.walletAddress
+            ? `Switch your wallet to ${shortKey(error.expectedAddress)}, the address linked to your Quilltip account, or reconnect. Nothing was sent.`
+            : 'Switch back to the connected account in your wallet, or reconnect. Nothing was sent.',
       }
     case 'disconnected':
       return {

@@ -479,3 +479,63 @@ test.describe('a returning reader with an expired token', () => {
     })
   })
 })
+
+/** How long the sign-out's own navigation to /login is held (#608). */
+const SIGN_OUT_NAVIGATION_HOLD_MS = 3_000
+
+test('a sign-out whose navigation is slow still lands on login without a return path', async ({
+  page,
+}) => {
+  await page.goto(loginUrl('/dashboard/stats'))
+  await signIn(page)
+  await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({ timeout: 15_000 })
+  // A full load of the dashboard, so the client router has no /login route
+  // cached and its navigation must wait for the server.
+  await page.goto('/dashboard/stats')
+  await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({ timeout: 15_000 })
+  // Hold that navigation to plain /login, so the sign-out completes and the
+  // dashboard's guard runs while the navigation is pending.
+  let held = 0
+  await page.route(
+    (url) => url.pathname === '/login' && !url.searchParams.has('returnTo'),
+    async (route) => {
+      if (route.request().headers()['rsc'] === '1') {
+        held++
+        await new Promise((r) => setTimeout(r, SIGN_OUT_NAVIGATION_HOLD_MS))
+      }
+      await route.continue()
+    }
+  )
+  await page.getByRole('button', { name: 'Open navigation menu' }).click()
+  await page
+    .getByRole('dialog', { name: 'Find your way' })
+    .getByRole('button', { name: 'Sign out', exact: true })
+    .click()
+  await expect(page).toHaveURL('/login', {
+    timeout: SIGN_OUT_NAVIGATION_HOLD_MS + 10_000,
+  })
+  await staysOn(page, '/login', 2_000)
+  expect(held).toBeGreaterThan(0)
+  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+})
+
+test('a session ended in another tab keeps the return path', async ({
+  context,
+}) => {
+  const page = await context.newPage()
+  await page.goto(loginUrl('/dashboard/stats'))
+  await signIn(page)
+  await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({ timeout: 15_000 })
+  // This tab did not sign out: its guard keeps the reader's place.
+  const other = await context.newPage()
+  await other.goto('/articles')
+  await other.getByRole('button', { name: 'Open navigation menu' }).click()
+  await other
+    .getByRole('dialog', { name: 'Find your way' })
+    .getByRole('button', { name: 'Sign out', exact: true })
+    .click()
+  await expect(other).toHaveURL('/login')
+  await expect(page).toHaveURL(loginUrl('/dashboard/stats'), {
+    timeout: PROMPT_MS,
+  })
+})

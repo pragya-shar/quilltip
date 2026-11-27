@@ -226,7 +226,8 @@ Every v2 change to an existing table is additive or relaxes a field:
 
 - **New tables:** `chainConfig`, `chainArticles`, `chainSubmissions`,
   `chainEvents`, `chainCursor`, `chainLeases`, `tabAccounts`,
-  `tabSessionKeys`, `tabReceipts`, `tabVouchers`, `tabSettlements`, and
+  `tabSessionKeys`, `tabReceipts`, `tabVouchers`, `tabSettlements`,
+  `tabReserveReleases`, `tabClaims`, `tabClaimCorrections`, and
   `walletChallenges`. `overhaul/v2` also adds `feedback` and `rateLimits`,
   which are not payment tables but ship in the same release.
 - **New optional fields:** the v2 fields on `tips` and `highlightTips`
@@ -961,7 +962,7 @@ Start from the stage 0 snapshot and decide per table, with the second export:
 | Tab ledger (`tabAccounts`, `tabSessionKeys`, `tabVouchers`, `tabReceipts`, and the `tips` rows with `channel` `tab`)                                                    | Second export. Accepted vouchers and receipts are signed by the reader and settle on chain later; they have no transaction of their own. Each tab tip's `tips` row is linked to its receipt (`tabReceiptId`, `tipRowId`): keep the two together, or the receipt points to a missing tip and the writer's earnings lose it.                                                                    |
 | `chainArticles`                                                                                                                                                         | Second export (the indexer needs these rows to link events).                                                                                                                                                                                                                                                                                                                                  |
 | `chainEvents`, `chainCursor`                                                                                                                                            | Second export, unless the defect damaged them. They record which events are already applied to the rows above, so the indexer continues from its cursor and applies nothing twice.                                                                                                                                                                                                            |
-| `authorEarnings`                                                                                                                                                        | Second export, unless the defect damaged it or a credited payment row is left out (see below).                                                                                                                                                                                                                                                                                                |
+| `authorEarnings`, `tabClaims`, `tabClaimCorrections`                                                                                                                    | Second export, unless the defect damaged `authorEarnings` or a credited payment row is left out (see below). Take `tabClaims` from the same export as `authorEarnings`: a claim record marks a `Claimed` event as counted in `collectedBaseUnits`, so a record without its amount is never counted, and an amount without its record is counted again when `chainEvents` is rebuilt.          |
 | `chainLeases`, `chainConfig`                                                                                                                                            | Left out; the leases restart empty and step 6 loads the config.                                                                                                                                                                                                                                                                                                                               |
 
 Rules for conflicts:
@@ -993,17 +994,17 @@ writers with such tips. So:
   - `earnedBaseUnits`: the net of the direct v2 tips plus the `earnedNet` of
     the writer's `tabVouchers` rows;
   - `pendingBaseUnits`: the `pendingNet` of those vouchers;
-  - `collectedBaseUnits`: the `Claimed` amounts for the writer's address.
+  - `collectedBaseUnits`: not by hand. Step 6 sets it from the claim
+    records.
 - A hand-written number in the restore file needs a decimal point (`7.0`,
   not `7`): the import reads an integer as `int64` and refuses it for a
   number field. Correcting the row in the dashboard after the import avoids
   this.
 
 If `chainEvents` or `chainCursor` was damaged, leave both out and rebuild
-them with a replay in step 6. The replay applies every event again. Most
-handlers ignore an effect they already applied, but `Claimed` adds its amount
-to `collectedBaseUnits` each time: with `authorEarnings` from the second
-export, correct those fields by hand afterwards. A replay from `INDEXER_START_LEDGER` needs every
+them with a replay in step 6. The replay applies every event again, and each
+handler ignores an effect it already applied: a `Claimed` event with a
+`tabClaims` record adds nothing to `collectedBaseUnits`. A replay from `INDEXER_START_LEDGER` needs every
 event since that ledger within the RPC retention (about 7 days); older events
 come from an archive RPC or a hosted indexer through
 `chain/indexer:ingestBackfill`.
@@ -1051,8 +1052,14 @@ them out, rebuild them:
 bunx convex run chain/indexer:replayFrom '{"fromLedger": <INDEXER_START_LEDGER>}'
 ```
 
-The replay links each event to the restored rows. Then correct
-`collectedBaseUnits` if step 4 says so.
+The replay links each event to the restored rows.
+
+Then check collected tab earnings against the claim records (chain runbook,
+"Collected earnings"). Run `chain/tabClaims:seedClaimRecords` with
+`"apply": true` until `isDone`: it records each applied `Claimed` event that
+has no record and changes no total. Then run
+`chain/tabClaims:recomputeCollected` as a dry run. Apply it, with the
+incident note, only for the differences that step 4 explains.
 
 #### Step 7. Reopen payments
 
@@ -1084,6 +1091,9 @@ the incident) only when all of these are true:
    events indexed after the resume, with their effect on the rows they
    apply to (`chainEvents`, `chainCursor`, and for example `tabAccounts` and
    `tabVouchers` for a settlement indexed late); and the price cache.
+6. `chain/tabClaims:seedClaimRecords` reports `seeded: 0` and
+   `chain/tabClaims:recomputeCollected` reports no differences, both as dry
+   runs.
 
 Then roll the site forward or back as needed, and remove the pause notice.
 
