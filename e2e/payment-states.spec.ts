@@ -91,6 +91,7 @@ const RETRYABLE = new Set([
   'result-failed-busy',
   'result-expired',
   'result-tab-op-failed',
+  'result-tab-op-failed-busy',
   'result-tab-op-expired',
 ])
 
@@ -136,6 +137,29 @@ test.describe('retry rule', () => {
       'Checking whether this payment went through. This can take up to 5 minutes.'
     )
     await expect(page.locator('.pay-steps')).toHaveCount(0)
+  })
+
+  test('a tab operation shows the failure its flow passes, not the polling copy', async ({
+    page,
+  }) => {
+    await open(page, 'result-tab-op-failed-busy')
+    await expect(
+      page.getByRole('heading', { name: 'Stellar testnet is busy' })
+    ).toBeVisible()
+    await expect(page.locator('.pay-panel-detail')).toContainText(
+      'Stellar testnet did not accept it.'
+    )
+    await expect(page.locator('.pay-progress')).not.toContainText(
+      'reported this transaction as failed'
+    )
+
+    await open(page, 'result-tab-op-failed')
+    await expect(
+      page.getByRole('heading', { name: 'Not completed' })
+    ).toBeVisible()
+    await expect(page.locator('.pay-panel-detail')).toContainText(
+      'Stellar testnet reported this transaction as failed.'
+    )
   })
 })
 
@@ -257,6 +281,8 @@ test.describe('live regions and focus', () => {
   }
 
   test('nothing is announced on page load', async ({ page }) => {
+    // Opens every state, so the time grows with the state list.
+    test.slow()
     const loud: string[] = []
     for (const state of STATES) {
       await open(page, state.id)
@@ -410,6 +436,8 @@ test.describe('live regions and focus', () => {
   })
 
   test('no state moves focus when it first renders', async ({ page }) => {
+    // Opens every state, so the time grows with the state list.
+    test.slow()
     const moved: string[] = []
     for (const state of STATES) {
       await open(page, state.id)

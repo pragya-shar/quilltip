@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page } from './helpers/consoleGuard'
 import {
   installVarialEmulator,
   type VarialMode,
@@ -84,15 +84,18 @@ test('connects through the kit picker and signs a testnet tip', async ({
     .toBeTruthy()
 })
 
-test('no wallet: the install guide opens instead of the picker', async ({
+test('no extension: the picker opens with web wallets and install links', async ({
   page,
 }) => {
   await open(page, 'missing')
   await page.getByRole('button', { name: 'Connect Wallet' }).click()
+  const web = picker(page).getByRole('region', { name: 'No install needed' })
+  await expect(web.getByRole('button', { name: /^xBull/ })).toBeVisible()
   await expect(
-    page.getByRole('dialog', { name: 'Make room for a little appreciation.' })
-  ).toBeVisible()
-  await expect(picker(page)).toHaveCount(0)
+    picker(page)
+      .getByRole('region', { name: 'Not installed' })
+      .getByRole('link', { name: /^Varial/ })
+  ).toHaveAttribute('href', 'https://varialwallet.com')
 })
 
 test('locked wallet', async ({ page }) => {
