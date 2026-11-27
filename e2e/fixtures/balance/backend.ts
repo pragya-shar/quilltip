@@ -360,6 +360,13 @@ export function query(name: string, args: Record<string, unknown>): unknown {
     case 'earnings:mine':
       value = user ? earnings() : null
       break
+    case 'balance:acceptedRequests':
+      value = user
+        ? (args.requestIds as string[]).filter((id) =>
+            state.receipts.some((r) => r.requestId === id && r.reader === user)
+          )
+        : []
+      break
     default:
       value = undefined
   }

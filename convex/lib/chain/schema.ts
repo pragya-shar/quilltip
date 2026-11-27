@@ -311,7 +311,8 @@ export const tabTables = {
     /** A writer's receipts by time, for the writer's earnings list. */
     .index('by_author_accepted', ['authorId', 'acceptedAt'])
     .index('by_status_created', ['status', 'createdAt'])
-    .index('by_client_ref', ['clientRef']),
+    .index('by_client_ref', ['clientRef'])
+    .index('by_request', ['requestId']),
 
   tabVouchers: defineTable({
     network: chainNetworkValidator,

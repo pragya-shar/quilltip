@@ -96,7 +96,7 @@ export const session = query({
         pendingCents: 0,
         limits: null,
         devices: [],
-        recentRequestIds: [],
+        recentRequestIds: [] as string[],
         onChain: false,
       }
 
@@ -237,5 +237,38 @@ export const tipContext = query({
     if (me?.address && me.address === chainArticle.authorAddress)
       return no('own-article', true)
     return { tippable: true, reason: null, ownArticle: false }
+  },
+})
+
+/** How many request ids `acceptedRequests` looks up in one call. */
+export const ACCEPTED_LOOKUP_MAX = 50
+
+/**
+ * Which of these request ids (a device's unanswered tips, at most
+ * `ACCEPTED_LOOKUP_MAX`) the server accepted for this reader. The session
+ * lists only the newest accepted ids; this answers for the device's own
+ * tips at any position, so an accepted tip never stays "Sending" or
+ * reserved twice because other tips were accepted after it.
+ */
+export const acceptedRequests = query({
+  args: { requestIds: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const me = await caller(ctx)
+    if (!me?.address || !me.chain.tabContractId) return []
+    const account = await tabAccountForReader(
+      ctx,
+      me.address,
+      me.chain.chainEpoch
+    )
+    if (!account || account.userId !== me.userId) return []
+    const accepted: string[] = []
+    for (const requestId of args.requestIds.slice(0, ACCEPTED_LOOKUP_MAX)) {
+      const receipt = await ctx.db
+        .query('tabReceipts')
+        .withIndex('by_request', (q) => q.eq('requestId', requestId))
+        .first()
+      if (receipt?.tabAccountId === account._id) accepted.push(requestId)
+    }
+    return accepted
   },
 })

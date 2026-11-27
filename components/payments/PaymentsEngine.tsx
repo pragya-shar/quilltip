@@ -114,8 +114,11 @@ function useStoreValue<T>(
 
 export function PaymentsEngine() {
   const { isAuthenticated, isLoading } = useConvexAuth()
-  const session = useQuery(api.balance.session, isAuthenticated ? {} : 'skip')
-  const hasBalance = !!session && session.status !== 'none'
+  const rawSession = useQuery(
+    api.balance.session,
+    isAuthenticated ? {} : 'skip'
+  )
+  const hasBalance = !!rawSession && rawSession.status !== 'none'
   const reader = usePaginatedQuery(
     api.activity.mine,
     isAuthenticated && hasBalance ? { role: 'reader' } : 'skip',
@@ -130,10 +133,28 @@ export function PaymentsEngine() {
     outbox.version,
     () => 0
   )
-  const userId = session?.userId ?? null
+  const userId = rawSession?.userId ?? null
   const entries = useMemo(
     () => (userId ? outbox.list(userId) : []),
     [outbox, userId, outboxVersion] // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  // The session lists only the newest accepted ids; ask about this device's
+  // own unanswered tips by id, wherever they are in the reader's history.
+  const ownIds = entries.map((e) => e.requestId)
+  const acceptedOwn = useQuery(
+    api.balance.acceptedRequests,
+    isAuthenticated && ownIds.length > 0 ? { requestIds: ownIds } : 'skip'
+  )
+  const acceptedKey = acceptedOwn?.join(',') ?? ''
+  const session = useMemo(
+    () =>
+      rawSession && acceptedOwn && acceptedOwn.length > 0
+        ? {
+            ...rawSession,
+            recentRequestIds: [...rawSession.recentRequestIds, ...acceptedOwn],
+          }
+        : rawSession,
+    [rawSession, acceptedKey] // eslint-disable-line react-hooks/exhaustive-deps
   )
   const online = useSyncExternalStore(
     subscribeOnline,
