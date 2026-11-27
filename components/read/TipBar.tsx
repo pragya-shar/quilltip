@@ -11,6 +11,7 @@ import { TipIcon } from '@/system/icons'
 import { useBalanceReading } from '@/shell/balance'
 import { Dock } from '@/shell/Dock'
 import { sheetFor } from '@/shell/sheetRegistry'
+import { declaredSheet } from '@/shell/sheets'
 import { sheetStack } from '@/shell/sheetStack'
 import { openSignIn } from '@/shell/signIn'
 import type { ChosenPassage } from '@/hooks/read/usePassageSelection'
@@ -69,7 +70,9 @@ export function signInHref(returnTo: string) {
 /** The Pocket's add-money sheet (`ADD_MONEY_SHEET`), with the tip it is
  * for; the balance until the Pocket has registered it. */
 function openAddMoney(need: Money | null) {
-  if (sheetFor('add-money')) sheetStack.open('add-money', need ? { need } : {})
+  // Registered or declared lazily (shell/sheets/pocket.ts): either opens.
+  if (sheetFor('add-money') || declaredSheet('add-money'))
+    sheetStack.open('add-money', need ? { need } : {})
   else sheetStack.open('pocket')
 }
 
