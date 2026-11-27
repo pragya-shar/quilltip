@@ -644,7 +644,11 @@ describe('totals at any history length and across collects (D10)', () => {
     const seen = new Set<string>()
     let cursor: string | null = null
     for (;;) {
-      const p = await as(t, s.authorId).query(api.activity.mine, {
+      const p: {
+        page: { id: string }[]
+        isDone: boolean
+        continueCursor: string
+      } = await as(t, s.authorId).query(api.activity.mine, {
         role: 'writer',
         paginationOpts: { numItems: 50, cursor },
       })
