@@ -58,6 +58,8 @@ export const DEFAULT_TAB_DAILY_LIMIT = BigInt(200_000_000)
 export const DEFAULT_TAB_TIP_MAX = BigInt(50_000_000)
 /** Covered debit rows deleted per absolute balance (`pruneBalanceDebits`). */
 export const DEBIT_PRUNE_BATCH = 500
+/** Covered debit rows deleted with each new debit, so a backlog drains. */
+export const DEBIT_PRUNE_STEP = 8
 
 const ZERO = BigInt(0)
 const STROOPS_PER_XLM = 10_000_000
@@ -1501,6 +1503,14 @@ export async function recordBalanceDebit(
     gross: gross.toString(),
     createdAt: now,
   })
+  if (account.balanceEventId) {
+    await pruneBalanceDebits(
+      ctx,
+      account._id,
+      account.balanceEventId,
+      DEBIT_PRUNE_STEP
+    )
+  }
   return true
 }
 
@@ -1536,14 +1546,15 @@ export async function debitsAfter(
 export async function pruneBalanceDebits(
   ctx: MutationCtx,
   tabAccountId: Id<'tabAccounts'>,
-  beforeEventId: string
+  beforeEventId: string,
+  limit = DEBIT_PRUNE_BATCH
 ): Promise<number> {
   const rows = await ctx.db
     .query('tabBalanceDebits')
     .withIndex('by_account_event', (q) =>
       q.eq('tabAccountId', tabAccountId).lt('eventId', beforeEventId)
     )
-    .take(DEBIT_PRUNE_BATCH)
+    .take(limit)
   for (const row of rows) await ctx.db.delete(row._id)
   return rows.length
 }
