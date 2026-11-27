@@ -264,6 +264,28 @@ It refuses, and writes nothing, when it cannot prove the release:
 | `MISMATCH_PAID`    | The contract shows less paid than stored. Do not correct by hand: review the pair's settlements.                                                                                                            |
 | `BALANCE_MISMATCH` | The difference between the stored and on-chain balance is not explained by the unindexed payments (for example, a lost deposit or withdrawal event). Backfill the missing range instead, then run it again. |
 
+### Reconciliation required
+
+An absolute balance event (`Deposited`, `WithdrawStarted`,
+`WithdrawCancelled`, `Withdrawn`) subtracts every settlement debit indexed
+after it. If more than 1,000 such debits are waiting (only possible when the
+balance event itself arrives late, for example from a backfill), the indexer
+applies none of it. It logs `CHAIN_TAB_RECONCILE_REQUIRED`, marks the account
+`reconcileRequired`, and the account takes no tab tip until its balance is
+known again. The event still counts as handled, so the indexer does not stop.
+
+`/ops/chain` lists these accounts under "Waiting for a reconciliation", and
+so does:
+
+```bash
+bunx convex run chain/tabReconcile:listReconcileRequired '{}'
+```
+
+A newer absolute balance event clears the mark by itself. Otherwise run the
+correction above for the reader. For a marked account the reconciliation
+accepts any balance difference (the event it could not apply explains it),
+sets the contract's balance and clears the mark.
+
 The reconciliation never sets spendable above the contract's balance minus
 the accepted amounts still unpaid. Running it on a reader with a pair limit
 (`keyId`, `writer`) may leave other pairs' reserves in place: that is safe,
