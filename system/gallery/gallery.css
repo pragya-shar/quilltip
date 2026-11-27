@@ -21,6 +21,8 @@
   .qt-gallery__index a {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
+    min-width: var(--qt-hit);
     min-height: var(--qt-hit);
     color: var(--qt-ink-2);
     font-weight: var(--qt-weight-ui-strong);
