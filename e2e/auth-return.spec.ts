@@ -166,12 +166,36 @@ test('a tip resume after sign-in loads the page in full', async ({ page }) => {
   await staysOn(page, path, 1_000)
 })
 
+/** Wallet choices kept in this browser (#562), by storage key. */
+const walletKeys = (page: Page) =>
+  page.evaluate(() =>
+    Object.keys(localStorage)
+      .filter(
+        (key) =>
+          key.startsWith('quilltip:wallet:v1:') ||
+          key.startsWith('@StellarWalletsKit/')
+      )
+      .sort()
+  )
+
 test('signing out from the dashboard lands on login and stays', async ({
   page,
 }) => {
   await page.goto(loginUrl('/dashboard/stats'))
   await signIn(page)
   await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({ timeout: 15_000 })
+  // A remembered wallet choice, as the wallet restore stores it.
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'quilltip:wallet:v1:k17returnpathreader',
+      JSON.stringify({
+        walletId: 'freighter',
+        address: `G${'A'.repeat(55)}`,
+      })
+    )
+    localStorage.setItem('@StellarWalletsKit/selectedModuleId', 'freighter')
+  })
+  expect(await walletKeys(page)).toHaveLength(2)
   await page.getByRole('button', { name: 'Open navigation menu' }).click()
   await page
     .getByRole('dialog', { name: 'Find your way' })
@@ -180,4 +204,6 @@ test('signing out from the dashboard lands on login and stays', async ({
   await expect(page).toHaveURL('/login')
   await staysOn(page, '/login', 2_000)
   await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+  // Signed out, the browser keeps no wallet choice.
+  await expect.poll(() => walletKeys(page)).toEqual([])
 })
