@@ -121,8 +121,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
+      # WebKit for the no-script reading check.
+      - name: Install Chromium and WebKit
+        run: bunx playwright install --with-deps chromium webkit
 
       # Fixture data from a local stand-in (scripts/perf/convex-fixture.ts);
       # no backend or secrets.
@@ -152,6 +153,11 @@ jobs:
 
       - name: Check page-load budget
         run: bun run perf:budget
+
+      # Public reading works when scripts never run: JavaScript off and
+      # scripts blocked, in Chromium and WebKit (scripts/perf/no-script-reading.ts).
+      - name: Check reading without scripts
+        run: bun run perf:no-script-reading
 
   # Text keeps its lines when the web fonts replace the metric-matched
   # fallback faces (app/font-fallbacks.css), in Chromium and WebKit. It runs

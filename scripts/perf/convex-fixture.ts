@@ -110,6 +110,28 @@ export function answerFixtureQuery(
             ? ARTICLES[0]
             : null,
       }
+    // The writer page (/fixture-writer): public fields only, as the real
+    // query returns them.
+    case 'users:getUserByUsername':
+      return {
+        value:
+          args.username === FIXTURE_WRITER
+            ? {
+                _id: FIXTURE_AUTHOR.id,
+                _creationTime: BASE_TIME,
+                name: FIXTURE_AUTHOR.name,
+                username: FIXTURE_WRITER,
+                bio: 'Writes short stories about streets and the people on them.',
+                avatar: undefined,
+                stellarAddress: undefined,
+                articleCount: ARTICLES.length,
+                highlightCount: 0,
+                nftsCreated: 0,
+                nftsOwned: 0,
+                createdAt: BASE_TIME,
+              }
+            : null,
+      }
     case 'articles:listArticles':
       return {
         value: {
