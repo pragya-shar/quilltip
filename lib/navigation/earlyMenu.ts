@@ -15,8 +15,6 @@
 /** `open` or `closed` before the scripts run, `done` after. */
 export const EARLY_MENU_PROPERTY = '__earlyMenu'
 
-export const EARLY_MENU_SCRIPT = `(function(){var p="${EARLY_MENU_PROPERTY}";document.addEventListener("focusin",function(e){try{var m=document.querySelector(".app-mobile-menu:popover-open"),t=e.target;if(m&&t instanceof Element&&!m.contains(t)&&!t.closest("[popovertarget]"))m.hidePopover()}catch(x){}},true);document.addEventListener("toggle",function(e){var t=e.target;if(self[p]!=="done"&&t instanceof Element&&t.classList.contains("app-mobile-menu"))self[p]=e.newState},true)})()`
-
 /**
  * Called once when the scripts take over: whether the reader left the menu
  * open before then. Later toggles are not recorded.

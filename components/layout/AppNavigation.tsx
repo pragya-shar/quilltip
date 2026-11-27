@@ -10,6 +10,7 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { AuthActionsSkeleton } from './AuthActionsSkeleton'
 import { AccountNavigationMenu } from './AccountNavigationMenu'
 import { AppMobileMenu } from './AppMobileMenu'
+import { EarlyMenuScript } from './EarlyMenuScript'
 import { isProtectedPath } from '@/lib/navigation/protectedRoutes'
 import { takeEarlyMenuOpen } from '@/lib/navigation/earlyMenu'
 import {
@@ -102,6 +103,8 @@ export default function AppNavigation() {
           )}
           <ThemeToggle />
         </nav>
+        {/* Before the scripts run only (lib/navigation/earlyMenu.ts). */}
+        {!scriptsActive && <EarlyMenuScript />}
         <button
           ref={menuTriggerRef}
           type="button"
