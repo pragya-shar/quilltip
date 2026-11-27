@@ -2,7 +2,7 @@ name: PR Hygiene
 
 on:
   pull_request:
-    branches: [main, overhaul/v2]
+    branches: [main, overhaul/v2, overhaul/v3]
     types: [opened, edited, reopened, synchronize, ready_for_review]
 
 permissions: {}
