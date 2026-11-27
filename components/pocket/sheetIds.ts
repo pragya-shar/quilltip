@@ -6,3 +6,4 @@
 export const ADD_MONEY_SHEET = 'add-money'
 export const WITHDRAW_SHEET = 'withdraw'
 export const RECEIPT_SHEET = 'pocket-receipt'
+export const EXACT_AMOUNT_SHEET = 'pocket-exact-amount'

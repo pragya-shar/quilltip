@@ -371,15 +371,39 @@ test.describe('every money scenario', () => {
     await expect(digits(root, 'Ready to withdraw')).toHaveText('$0.00')
   })
 
-  test('the exact token amount is one tap away', async ({ page }) => {
+  test('the converted figure opens the exact token amount', async ({
+    page,
+  }) => {
     await page.goto('/pocket?scenario=ready')
-    const reveal = page.getByRole('button', { name: 'Show exact amount' })
-    await expect(page.getByText(/XLM on Stellar testnet/)).toBeHidden()
-    await press(reveal)
+    const figure = page.getByRole('button', { name: /Show the exact amount/ })
+    await expect(figure).toContainText('Ready to tip')
+    await figure.focus()
+    await press(figure)
+    const sheet = page.getByRole('dialog', { name: 'Exact amount' })
+    await expect(sheet).toBeVisible()
+    await expect(sheet.locator('.qt-pocket__token-figure')).toHaveText(
+      /^[\d,]+\.\d+ XLM$/
+    )
+    await expect(sheet).toContainText('Your balance is held in Lumens.')
+    await expect(sheet).toContainText('Tips are sent in dollars.')
+    await page.keyboard.press('Escape')
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          document.activeElement?.classList.contains('qt-pocket__figure-button')
+        )
+      )
+      .toBe(true)
+  })
+
+  test('an exact balance is not a button and says nothing about prices', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=none')
     await expect(
-      page.getByRole('button', { name: 'Hide exact amount' })
-    ).toHaveAttribute('aria-expanded', 'true')
-    await expect(page.getByText(/XLM on Stellar testnet/)).toBeVisible()
+      page.getByRole('button', { name: /Show the exact amount/ })
+    ).toHaveCount(0)
+    await expect(page.locator('.qt-pocket')).not.toContainText('Held in Lumens')
   })
 
   test('a tip sent elsewhere shows once, and once after a reload', async ({

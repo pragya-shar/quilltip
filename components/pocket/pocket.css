@@ -20,35 +20,38 @@
   .qt-pocket__spend > .qt-button {
     margin-block-start: var(--qt-space-2);
   }
-  .qt-pocket__estimate {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    column-gap: var(--qt-space-3);
+  /* A converted Ready to tip is a button that opens the exact amount. */
+  .qt-pocket__figure-button {
+    display: inline-flex;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    border-radius: var(--qt-radius-tag);
+    cursor: pointer;
   }
-  .qt-pocket__estimate > p[id] {
-    flex-basis: 100%;
+  @media (hover: hover) and (pointer: fine) {
+    .qt-pocket__figure-button:hover .qt-money__label {
+      text-decoration: underline;
+      text-underline-offset: 0.2em;
+    }
+  }
+  .qt-pocket__token-figure {
+    margin: 0;
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-money-m);
+    line-height: 1.1;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums lining-nums;
+    overflow-wrap: anywhere;
   }
   .qt-pocket__fine {
     margin: 0;
     font-size: var(--qt-text-ui-s);
     line-height: var(--qt-lh-ui-s);
     color: var(--qt-ink-2);
-  }
-  .qt-pocket__reveal {
-    min-height: var(--qt-hit);
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--qt-ink);
-    font: inherit;
-    font-size: var(--qt-text-ui-s);
-    font-weight: var(--qt-weight-ui-strong);
-    text-decoration: underline;
-    text-decoration-color: var(--qt-line-strong);
-    text-underline-offset: 0.2em;
-    border-radius: 4px;
-    cursor: pointer;
   }
   .qt-pocket__token {
     font-variant-numeric: tabular-nums;

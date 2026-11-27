@@ -15,6 +15,10 @@ export const sheets: SheetDeclarations = {
     title: 'Withdraw',
     load: () => import('@/components/pocket/sheets/Withdraw'),
   },
+  'pocket-exact-amount': {
+    title: 'Exact amount',
+    load: () => import('@/components/pocket/sheets/ExactAmount'),
+  },
   'pocket-receipt': {
     title: 'Receipt',
     load: () => import('@/components/pocket/sheets/Receipt'),

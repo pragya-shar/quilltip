@@ -1,6 +1,5 @@
 'use client'
 
-import { useId, useState } from 'react'
 import { Button } from '@/system/components/Button'
 import { Icon } from '@/system/components/Icon'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
@@ -8,7 +7,7 @@ import { Notice } from '@/system/components/Notice'
 import { AddIcon, PendingIcon } from '@/system/icons'
 import { sheetStack } from '@/shell/sheetStack'
 import { warmSheet } from '@/shell/sheets/preload'
-import { ADD_MONEY_SHEET } from './sheetIds'
+import { ADD_MONEY_SHEET, EXACT_AMOUNT_SHEET } from './sheetIds'
 import { usePocketSource } from './source'
 import type { BalanceView } from './types'
 
@@ -32,8 +31,6 @@ export function SpendableSection({
 }) {
   const source = usePocketSource()
   const addMoney = source.useAddMoney()
-  const [showExact, setShowExact] = useState(false)
-  const exactId = useId()
   const status =
     authLoading || balance.status === 'loading'
       ? 'loading'
@@ -49,39 +46,37 @@ export function SpendableSection({
     status === 'ready' && balance.pending && balance.pending.cents > 0
       ? balance.pending
       : null
+  const figure = (
+    <MoneyFigure
+      value={available}
+      status={status}
+      size={compact ? 'm' : 'xl'}
+      label="Ready to tip"
+      unavailableText="Not available right now"
+    />
+  )
   return (
     <section className="qt-pocket__spend" aria-label="Ready to tip">
-      <MoneyFigure
-        value={available}
-        status={status}
-        size={compact ? 'm' : 'xl'}
-        label="Ready to tip"
-        unavailableText="Not available right now"
-      />
+      {converted && exact ? (
+        // A converted figure is a button: it opens the exact token amount
+        // (screen 40f).
+        <button
+          type="button"
+          className="qt-pocket__figure-button"
+          aria-haspopup="dialog"
+          {...warmSheet(EXACT_AMOUNT_SHEET)}
+          onClick={() => sheetStack.open(EXACT_AMOUNT_SHEET)}
+        >
+          {figure}
+          <span className="qt-visually-hidden">. Show the exact amount</span>
+        </button>
+      ) : (
+        figure
+      )}
       {converted ? (
         <p className="qt-pocket__fine">
           Held in Lumens. The dollar figure moves with the price.
         </p>
-      ) : null}
-      {exact ? (
-        <div className="qt-pocket__estimate">
-          <button
-            type="button"
-            className="qt-pocket__reveal"
-            aria-expanded={showExact}
-            aria-controls={exactId}
-            onClick={() => setShowExact((on) => !on)}
-          >
-            {showExact ? 'Hide exact amount' : 'Show exact amount'}
-          </button>
-          <p id={exactId} className="qt-pocket__fine" hidden={!showExact}>
-            Held as{' '}
-            <span className="qt-pocket__token">
-              {source.format.token(exact.available)}
-            </span>{' '}
-            on Stellar testnet.
-          </p>
-        </div>
       ) : null}
       {outgoing ? (
         <p className="qt-pocket__line">
