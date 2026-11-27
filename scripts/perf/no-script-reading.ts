@@ -12,7 +12,8 @@
 //   native navigation shows the article's title and prose;
 // - the writer's page shows the writer and a link to the article;
 // - a draft or unknown article, and an unknown writer, answer 404 and show
-//   no article text.
+//   no article text;
+// - with scripts on, a signed-in section sends a signed-out reader to sign in.
 // The assertions use roles, link targets and visible text only, never class
 // names or file paths, so the same check can run against redesigned pages:
 // change READING below.
@@ -42,6 +43,11 @@ export const READING = {
     '/no-such-writer-428',
     '/no-such-writer-428/no-such-article',
   ],
+  /**
+   * A signed-in section and where it sends a signed-out reader. The redirect
+   * runs in the browser, so this one load has scripts on.
+   */
+  signedIn: { path: '/dashboard', signInPath: '/login' },
 }
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -126,6 +132,27 @@ async function main() {
         failures.push(`${path}: status ${response.status}, expected 404`)
       if (body.includes(READING.prose) || body.includes(READING.articleTitle))
         failures.push(`${path}: the response contains article text`)
+    }
+    // Guard: a signed-in section still sends a signed-out reader to sign in.
+    {
+      const browser = await chromium.launch()
+      try {
+        const page = await browser.newPage()
+        await page.goto(BASE_URL + READING.signedIn.path)
+        await page
+          .waitForURL((url) => url.pathname === READING.signedIn.signInPath, {
+            timeout: 15_000,
+          })
+          .catch(() => {})
+        const reached = new URL(page.url()).pathname
+        console.log(`signed out ${READING.signedIn.path} -> ${reached}`)
+        if (reached !== READING.signedIn.signInPath)
+          failures.push(
+            `${READING.signedIn.path}: signed out, ended at ${reached}, expected ${READING.signedIn.signInPath}`
+          )
+      } finally {
+        await browser.close()
+      }
     }
     for (const name of ENGINES) {
       const browser = await (name === 'webkit' ? webkit : chromium).launch()
