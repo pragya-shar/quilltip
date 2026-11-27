@@ -15,6 +15,10 @@
  *    may target it only when LIVE_BACKEND_APPROVAL_ENV names that deployment.
  *    Deploy-kind work (function pushes, schema pushes, imports, migrations,
  *    env changes) is refused on the live backend even with that approval.
+ *    The one exception is a scheduled maintenance window: the script-side
+ *    wrapper `scripts/live-window.ts` checks a window approval
+ *    (scripts/lib/live-window.ts) and only then passes
+ *    `liveWindowDeployment`. Nothing else sets that input.
  *
  * LOCAL mode needs the `local` opt-in, the standalone passphrase, Stellar
  * endpoints on localhost or 127.0.0.1, and a local Convex backend. It is never
@@ -90,6 +94,14 @@ export const EXTRA_PRODUCTION_DEPLOYMENTS_ENV =
 export const LIVE_BACKEND_APPROVAL_ENV =
   'QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL'
 
+/**
+ * Operator approval for one scheduled maintenance window on a live backend:
+ * `<deployment>@<release commit>@<UTC start>+<hours>h`. Set it per shell,
+ * never in a file. Only `scripts/live-window.ts` accepts it, for a fixed list
+ * of window operations; every other tool refuses to run while it is set.
+ */
+export const LIVE_WINDOW_APPROVAL_ENV = 'QUILLTIP_LIVE_WINDOW_APPROVAL'
+
 const TESTNET_HOSTS = new Set([
   new URL(STELLAR_NETWORK_DEFAULTS.TESTNET.horizonUrl).hostname,
   new URL(STELLAR_NETWORK_DEFAULTS.TESTNET.rpcUrl ?? '').hostname,
@@ -133,6 +145,17 @@ export type NetworkGuardCode =
   | 'APPROVAL_NOT_FOR_DEPLOY'
   | 'INVALID_APPROVAL'
   | 'CONVEX_KEY_FOR_STELLAR_ONLY'
+  | 'LIVE_WINDOW_INVALID'
+  | 'LIVE_WINDOW_NOT_STARTED'
+  | 'LIVE_WINDOW_EXPIRED'
+  | 'LIVE_WINDOW_COMMIT'
+  | 'LIVE_WINDOW_DIRTY'
+  | 'LIVE_WINDOW_IN_FILE'
+  | 'LIVE_WINDOW_OPERATION'
+  | 'LIVE_WINDOW_OTHER_TARGET'
+  | 'LIVE_WINDOW_CREDENTIAL'
+  | 'LIVE_WINDOW_NOT_FOR_TOOL'
+  | 'LIVE_WINDOW_LOG'
 
 export type NetworkGuardRefusal = {
   code: NetworkGuardCode
@@ -187,6 +210,15 @@ export type NetworkGuardInput = {
   extraProductionDeployments?: string | null
   /** Value of QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL. */
   liveBackendApproval?: string | null
+  /**
+   * Live deployment opened for one deploy-kind run in a scheduled maintenance
+   * window. Only `scripts/lib/live-window.ts` sets it, after it has checked
+   * the window approval (deployment, release commit, clean checkout, expiry
+   * and operation). It never applies to operational runs, LOCAL mode, a
+   * `prod:` deployment type or any other deployment, and it never relaxes the
+   * Stellar checks.
+   */
+  liveWindowDeployment?: string | null
   /** Set false to skip Stellar checks for Convex-only tools. */
   checkStellar?: boolean
   /** Set false to skip Convex checks (backend network check only). */
@@ -207,6 +239,8 @@ export type NetworkGuardResult = {
   convexDeployments: string[]
   /** True when an approved operational run targets a live backend. */
   liveBackendApproved: boolean
+  /** True when a maintenance-window deploy run targets a live backend. */
+  liveWindowApproved?: boolean
 }
 
 function present(value: string | null | undefined): value is string {
@@ -348,6 +382,7 @@ type Evaluation = {
   mode: GuardedNetwork | null
   deployments: string[]
   liveBackendApproved: boolean
+  liveWindowApproved: boolean
 }
 
 /**
@@ -385,7 +420,13 @@ function evaluate(input: NetworkGuardInput): Evaluation {
   }
 
   if (!(input.checkConvex ?? true)) {
-    return { refusals, mode, deployments: [], liveBackendApproved: false }
+    return {
+      refusals,
+      mode,
+      deployments: [],
+      liveBackendApproved: false,
+      liveWindowApproved: false,
+    }
   }
   const convex = collectConvexRefusals(input, mode)
   return {
@@ -393,6 +434,7 @@ function evaluate(input: NetworkGuardInput): Evaluation {
     mode,
     deployments: convex.deployments,
     liveBackendApproved: convex.liveBackendApproved,
+    liveWindowApproved: convex.liveWindowApproved,
   }
 }
 
@@ -471,6 +513,7 @@ function collectConvexRefusals(
   refusals: NetworkGuardRefusal[]
   deployments: string[]
   liveBackendApproved: boolean
+  liveWindowApproved: boolean
 } {
   const refusals: NetworkGuardRefusal[] = []
   const kind = input.kind ?? 'deploy'
@@ -479,6 +522,8 @@ function collectConvexRefusals(
   const extraAllowed = nameList(input.extraAllowedDeployments)
   const allowed = nameList(ALLOWED_CONVEX_DEPLOYMENTS)
   const approval = input.liveBackendApproval?.trim().toLowerCase() ?? ''
+  const windowDeployment =
+    input.liveWindowDeployment?.trim().toLowerCase() ?? ''
 
   for (const name of extraAllowed) {
     if (live.has(name)) {
@@ -507,6 +552,29 @@ function collectConvexRefusals(
       refusals.push({
         code: 'INVALID_APPROVAL',
         message: `${LIVE_BACKEND_APPROVAL_ENV} must name a live deployment.`,
+      })
+    }
+  }
+
+  if (windowDeployment) {
+    if (local) {
+      refusals.push({
+        code: 'LOCAL_LIVE_APPROVAL',
+        message:
+          'A maintenance-window approval is set. LOCAL mode runs against a local backend only.',
+      })
+    }
+    if (kind !== 'deploy') {
+      refusals.push({
+        code: 'LIVE_WINDOW_NOT_FOR_TOOL',
+        message:
+          'A maintenance-window approval applies to the listed deploy-kind window operations only, never to operational runs.',
+      })
+    }
+    if (!live.has(windowDeployment)) {
+      refusals.push({
+        code: 'LIVE_WINDOW_INVALID',
+        message: `The maintenance-window approval names "${windowDeployment}", which is not a live deployment.`,
       })
     }
   }
@@ -581,7 +649,16 @@ function collectConvexRefusals(
     })
   }
 
+  if (windowDeployment && hasLocalTarget) {
+    refusals.push({
+      code: 'LIVE_WINDOW_OTHER_TARGET',
+      message:
+        'A local Convex target is set together with a maintenance-window approval. Clear every other target.',
+    })
+  }
+
   let liveBackendApproved = false
+  let liveWindowApproved = false
   const seen = new Set<string>()
   for (const target of targets) {
     const key = `${target.label}:${target.name}`
@@ -595,8 +672,30 @@ function collectConvexRefusals(
       })
     }
 
+    if (windowDeployment && target.name !== windowDeployment) {
+      refusals.push({
+        code: 'LIVE_WINDOW_OTHER_TARGET',
+        message: `${target.label} targets "${target.name}", but the maintenance-window approval names "${windowDeployment}". Clear every other target.`,
+      })
+      continue
+    }
+
     if (live.has(target.name)) {
-      if (kind === 'deploy') {
+      if (windowDeployment && target.type === 'prod') {
+        // A production-type deployment is never opened, not even in a window.
+        refusals.push({
+          code: 'PROD_CONVEX_TYPE',
+          message: `${target.label} selects a production-type Convex deployment.`,
+        })
+      }
+      if (
+        kind === 'deploy' &&
+        windowDeployment === target.name &&
+        !local &&
+        target.type !== 'prod'
+      ) {
+        liveWindowApproved = true
+      } else if (kind === 'deploy') {
         refusals.push({
           code: 'LIVE_BACKEND_DEPLOY',
           message: `${target.label} targets live deployment "${target.name}". Deploys, schema pushes, imports, and migrations from developer tooling are never allowed there.`,
@@ -632,6 +731,7 @@ function collectConvexRefusals(
     refusals,
     deployments: [...new Set(targets.map((t) => t.name))],
     liveBackendApproved,
+    liveWindowApproved,
   }
 }
 
@@ -649,6 +749,7 @@ export function assertTestnetOnly(
     network: result.mode ?? 'TESTNET',
     convexDeployments: result.deployments,
     liveBackendApproved: result.liveBackendApproved,
+    ...(result.liveWindowApproved ? { liveWindowApproved: true } : {}),
   }
 }
 

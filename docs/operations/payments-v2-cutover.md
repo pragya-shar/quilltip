@@ -549,6 +549,65 @@ Use the same key for the stage 0 export, the stage 1 and stage 4
 reaches the same deployment. Unset `CONVEX_DEPLOY_KEY` at the end of the
 window.
 
+#### 5.0.3 Live window approval
+
+The network guard refuses every deploy-kind command on the live deployment.
+For this window only, `bun run live-window` runs the Convex steps of stages 0,
+1, 4 to 6 and section 6.2 under an operator approval. It builds each Convex CLI
+command itself, so no flag can select another deployment.
+
+The approval is one variable, set in the shell (never in a file):
+`QUILLTIP_LIVE_WINDOW_APPROVAL=<deployment>@<release commit>@<UTC start>+<hours>h`.
+The commit is the full 40-character SHA; the start is `YYYY-MM-DDTHH:MMZ`;
+the window lasts 1 to 4 hours. The tool refuses if the checkout is not at that
+commit or has any change or untracked file, if the window has not started or
+has ended, if the value is malformed, if a `.env*` file or a committed file
+holds it, if another Convex target is set, or if `CONVEX_DEPLOY_KEY` is not a
+development deploy key for that deployment. Mainnet is refused as always.
+
+1. Set it, in the clean checkout of the tag, after `bun install --frozen-lockfile`:
+
+   ```bash
+   unset CONVEX_DEPLOYMENT CONVEX_DEPLOYMENT_TOKEN CONVEX_SELF_HOSTED_URL CONVEX_SELF_HOSTED_ADMIN_KEY
+   export QUILLTIP_NETWORK_GUARD_OPT_IN=testnet NEXT_PUBLIC_STELLAR_NETWORK=TESTNET
+   read -rs CONVEX_DEPLOY_KEY && export CONVEX_DEPLOY_KEY
+   export QUILLTIP_LIVE_WINDOW_APPROVAL="upbeat-mockingbird-579@$(git rev-parse 'payments-v2-cutover.1^{commit}')@<YYYY-MM-DDTHH:MMZ>+3h"
+   ```
+
+2. Verify it (dry mode: local checks only, nothing is sent):
+   `bun run live-window check` lists the allowed operations, and
+   `bun run live-window check <operation> <args>` checks one command.
+3. Run each step as `bun run live-window run <operation> <args>`. Each run
+   prints the deployment, commit, operation and expiry, and appends a line to
+   `~/.quilltip/live-window.log` (`QUILLTIP_LIVE_WINDOW_LOG` to change it; it
+   must be outside the repository). The log holds no key or secret.
+
+   | Runbook command                                      | Window operation                                                                                |
+   | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+   | `convex deploy --dry-run`                            | `deploy-dry-run`                                                                                |
+   | `convex deploy`                                      | `deploy` (runs the dry run first; pushes only if it names the approved deployment and no other) |
+   | `convex export --include-file-storage --path <file>` | `export <file>.zip` (outside the repository, new file)                                          |
+   | `convex import --replace-all -y <file>`              | `import <file>.zip` (section 6.2 only)                                                          |
+   | `convex env set <NAME> <value>`                      | `env-set <NAME> <value>` (non-secret variables of section 3.1; values checked)                  |
+   | `convex env remove <NAME>`                           | `env-remove <NAME>` (contract IDs, `INDEXER_START_LEDGER`)                                      |
+   | `convex run <function> '<json>'`                     | `convex-run <function> '<json>'` (functions named in this runbook)                              |
+   | Dashboard pause or resume (section 6.2)              | `pause`, `resume` (recorded only; do it in the dashboard)                                       |
+
+4. Clear it at the end of the window, and check that the tool now refuses:
+
+   ```bash
+   unset QUILLTIP_LIVE_WINDOW_APPROVAL CONVEX_DEPLOY_KEY
+   bun run live-window check
+   ```
+
+Outside the approval: the secrets `TAB_ACCEPTOR_SECRET`, `TAB_SETTLER_SECRET`
+and `ARWEAVE_WALLET_KEY` (dashboard only), `ARWEAVE_ENABLED`, reading the
+deployment's variables, the dashboard **Data** and **Schedules** views, the
+Vercel settings and promotion of stage 2, and the contract steps of stage 3
+and 7. Contract tools refuse to run while the approval is set: unset it first,
+and set it again for the next Convex step. Maintenance functions that call
+`assertNonProductionBackend` stay refused on the live deployment.
+
 ### Stage 0. Freeze and tag
 
 1. Stop merges to `overhaul/v2` except cutover fixes.

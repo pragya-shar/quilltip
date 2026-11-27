@@ -9,6 +9,7 @@ import {
   CONVEX_ALLOWLIST_ENV,
   EXTRA_PRODUCTION_DEPLOYMENTS_ENV,
   LIVE_BACKEND_APPROVAL_ENV,
+  LIVE_WINDOW_APPROVAL_ENV,
   NETWORK_GUARD_OPT_IN_ENV,
   NetworkGuardError,
   assertTestnetOnly,
@@ -25,7 +26,42 @@ export { NetworkGuardError }
 
 type EnvLike = Record<string, string | undefined>
 
-function convexInputs(env: EnvLike) {
+/**
+ * Refusal for every tool except `scripts/live-window.ts` while a
+ * maintenance-window approval is set. The approval opens a fixed list of
+ * window operations only, never an unrelated script.
+ */
+export function liveWindowApprovalRefusal(
+  env: EnvLike
+): NetworkGuardRefusal | null {
+  if (!env[LIVE_WINDOW_APPROVAL_ENV]?.trim()) return null
+  return {
+    code: 'LIVE_WINDOW_NOT_FOR_TOOL',
+    message: `${LIVE_WINDOW_APPROVAL_ENV} is set. It applies only to \`bun run live-window\`. Unset it for this run.`,
+  }
+}
+
+/** Run `check`, adding the window-approval refusal to any refusals it throws. */
+function withoutWindowApproval(
+  operation: string,
+  env: EnvLike,
+  check: () => NetworkGuardResult
+): NetworkGuardResult {
+  const windowRefusal = liveWindowApprovalRefusal(env)
+  let result: NetworkGuardResult
+  try {
+    result = check()
+  } catch (error) {
+    if (windowRefusal && error instanceof NetworkGuardError) {
+      throw new NetworkGuardError(operation, [...error.refusals, windowRefusal])
+    }
+    throw error
+  }
+  if (windowRefusal) throw new NetworkGuardError(operation, [windowRefusal])
+  return result
+}
+
+export function convexInputs(env: EnvLike) {
   return {
     optIn: env[NETWORK_GUARD_OPT_IN_ENV],
     convexUrls: [
@@ -55,7 +91,7 @@ export const SCRIPT_PASSPHRASE_VARIABLES = [
   'NEXT_PUBLIC_NETWORK_PASSPHRASE',
 ] as const
 
-function stellarInputs(env: EnvLike) {
+export function stellarInputs(env: EnvLike) {
   return {
     stellarNetworks: [env.NEXT_PUBLIC_STELLAR_NETWORK, env.STELLAR_NETWORK],
     networkPassphrases: SCRIPT_PASSPHRASE_VARIABLES.map((name) => env[name]),
@@ -78,12 +114,14 @@ export function assertScriptTestnetOnly(
   operation: string,
   env: EnvLike = process.env
 ): NetworkGuardResult {
-  return assertTestnetOnly({
-    operation,
-    kind: 'operational',
-    ...convexInputs(env),
-    ...stellarInputs(env),
-  })
+  return withoutWindowApproval(operation, env, () =>
+    assertTestnetOnly({
+      operation,
+      kind: 'operational',
+      ...convexInputs(env),
+      ...stellarInputs(env),
+    })
+  )
 }
 
 export type ScriptStellarNetwork = ResolvedStellarNetwork & {
@@ -153,6 +191,8 @@ export function assertScriptStellarTestnetOnly(
       message: `${LIVE_BACKEND_APPROVAL_ENV} does not apply to Stellar-only tools. Unset it.`,
     })
   }
+  const windowRefusal = liveWindowApprovalRefusal(env)
+  if (windowRefusal) refusals.push(windowRefusal)
   let result: NetworkGuardResult | null = null
   try {
     result = assertTestnetOnly({
@@ -186,8 +226,9 @@ export function resolveScriptStellarOnlyNetwork(
 
 /**
  * Deploy-kind tools: function or schema pushes (`convex dev`), imports,
- * migrations, and env changes. Never allowed on a live backend, and the live
- * backend approval variable must not be set.
+ * migrations, and env changes. Never allowed on a live backend, and neither
+ * the live backend approval nor the maintenance-window approval may be set.
+ * The window operations run through `scripts/live-window.ts` instead.
  */
 export function assertScriptConvexDeployAllowed(
   operation: string,
@@ -201,20 +242,22 @@ export function assertScriptConvexDeployAllowed(
     env.CONVEX_DEPLOYMENT_TOKEN,
     env.CONVEX_SELF_HOSTED_URL,
   ]
-  if (!cliTargets.some((value) => value?.trim())) {
-    throw new NetworkGuardError(operation, [
-      {
-        code: 'UNKNOWN_CONVEX',
-        message:
-          'No Convex CLI target is set. Set CONVEX_DEPLOYMENT (or CONVEX_SELF_HOSTED_URL for a local backend) to an allowlisted deployment.',
-      },
-    ])
-  }
-  return assertTestnetOnly({
-    operation,
-    kind: 'deploy',
-    checkStellar: false,
-    ...convexInputs(env),
+  return withoutWindowApproval(operation, env, () => {
+    if (!cliTargets.some((value) => value?.trim())) {
+      throw new NetworkGuardError(operation, [
+        {
+          code: 'UNKNOWN_CONVEX',
+          message:
+            'No Convex CLI target is set. Set CONVEX_DEPLOYMENT (or CONVEX_SELF_HOSTED_URL for a local backend) to an allowlisted deployment.',
+        },
+      ])
+    }
+    return assertTestnetOnly({
+      operation,
+      kind: 'deploy',
+      checkStellar: false,
+      ...convexInputs(env),
+    })
   })
 }
 
