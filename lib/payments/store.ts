@@ -30,6 +30,9 @@ export type AuthState = 'loading' | 'signed-out' | 'signed-in'
 
 export type TipRegistration = { target: TipTarget; meta: TipMeta }
 
+/** A press made before the engine was ready, as it was at press time. */
+export type QueuedTap = TipRegistration & { cents: number; requestId: string }
+
 export type PaymentsState = {
   auth: AuthState
   engine: EngineState
@@ -42,7 +45,7 @@ export type PaymentsState = {
   /** Live controls and what they tip, for the engine. */
   registrations: Record<string, TipRegistration>
   /** Taps made before the engine was ready, by control id. */
-  queuedTaps: Record<string, number>
+  queuedTaps: Record<string, QueuedTap>
   watches: { writer: number; earnings: number }
   /** Mounted payments shells (the root layout mounts one). */
   shells: number
@@ -124,15 +127,24 @@ export function shellController(id: string): TipController {
     amounts: [],
     setAmount: () => {},
     tip: async () => {
-      if (absent || signedOut || failed) return
-      // Not lost: the engine acts on it once, when it is ready.
-      set({ queuedTaps: { ...state.queuedTaps, [id]: Date.now() } })
+      const reg = state.registrations[id]
+      if (absent || signedOut || failed || !reg || id in state.queuedTaps)
+        return
+      // Not lost: the engine sends it once, when ready, for what was pressed:
+      // this target and amount, under this request id.
+      set({
+        queuedTaps: {
+          ...state.queuedTaps,
+          [id]: { ...reg, cents: ONE.cents, requestId: crypto.randomUUID() },
+        },
+      })
       engineWanted?.()
     },
     reset: () => {},
     ready: absent || signedOut || failed,
     warming: !absent && state.auth === 'signed-in' && !failed,
     queued: id in state.queuedTaps,
+    signedOut: null,
     unavailable: absent
       ? 'absent'
       : signedOut
@@ -212,11 +224,12 @@ export const paymentsStore = {
     set({ registrations: rest, tips, queuedTaps })
   },
   /** Takes a queued tap once; the engine calls it when a control is ready. */
-  takeTap(id: string): boolean {
-    if (!(id in state.queuedTaps)) return false
+  takeTap(id: string): QueuedTap | undefined {
+    const tap = state.queuedTaps[id]
+    if (!tap) return undefined
     const { [id]: _taken, ...rest } = state.queuedTaps
     set({ queuedTaps: rest })
-    return true
+    return tap
   },
   watch(kind: 'writer' | 'earnings') {
     set({ watches: { ...state.watches, [kind]: state.watches[kind] + 1 } })

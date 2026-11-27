@@ -36,6 +36,15 @@ export const MONEY_TEXT_SAMPLES: {
     text: '$18.40',
   },
   { name: 'zero', cents: 0, text: '$0.00' },
+  // The tip button and the amount choices.
+  { name: 'short whole', cents: 100, format: { short: true }, text: '$1' },
+  { name: 'short cents', cents: 50, format: { short: true }, text: '$0.50' },
+  {
+    name: 'short dollars and cents',
+    cents: 250,
+    format: { short: true },
+    text: '$2.50',
+  },
   // Below the sixth decimal: zero; the token amount is on the item.
   { name: 'dust', cents: 0.00001, text: '$0.00' },
 ]

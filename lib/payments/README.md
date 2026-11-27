@@ -12,7 +12,8 @@ import { useActivity } from '@/hooks/payments/useActivity'
 import { useEarnings } from '@/hooks/payments/useEarnings'
 ```
 
-Types are in `types.ts`; money formatting in `money.ts`.
+Types are in `types.ts`; money formatting in `money.ts`; tip targets from a
+string article id in `target.ts`.
 
 ## Hooks
 
@@ -50,19 +51,34 @@ Never: prints a placeholder zero, asks for a wallet signature, or moves money.
 One control for an article or a passage. `target` names what is tipped;
 `meta` labels the optimistic row ("Sending") before the server answers.
 
+`TipTarget.articleId` is an `Id<'articles'>`. An article view that holds the
+id as a string from the server HTML makes the target with `tipTargetOf(id,
+passage?)` (or the id alone with `articleIdOf(id)`) from `target.ts`: each
+checks the string's shape and returns `null` when it is not a document id,
+so render no control. The server checks that the id is an article's; one
+that is not fails the tip, with nothing charged.
+
 - `ready` false: the balance, the device or the article check is loading.
   Show nothing, or the control disabled; `amount` is `null`.
 - `warming` true: signed in and the payments code is still loading. Show the
-  control; a tap is kept (`queued`) and sent once, when ready.
+  control; a tap is kept (`queued`) and sent once, when ready. The kept tap
+  holds what was pressed: the target, the amount (the button's $1) and a
+  request id, fixed at the press. A later change of target (the reader
+  selects another line) or of amount does not change it, and a second press
+  while it waits is ignored. When it is sent, its amount is a ceiling
+  against the reader's own ladder, as a tip intent below: never raised.
 - `unavailable` (not `null`): this reader cannot tip here from the balance
   (`signed-out`, `no-balance`, `closing`, `device`, `own-article`,
   `not-tippable`, `settlement-off`, `not-loaded`, `absent`). Keep any other
   tip path the page has; `absent` means no payments shell is mounted.
 - `amount`: what the button states and sends ("Tip this line $0.10");
   `amounts`: the quick choices within every limit; `setAmount(cents)`.
+  Write the button's and the choices' text with
+  `formatMoney(cents, { short: true })` ("$1", "$0.50"); `display` is the
+  row form ("$1.00").
 - `blocked`: `cap`, `daily`, `balance` or `choose`, with no token figure.
-- `signedOut`: for a signed-out visitor, `{ signedOut: true, amount,
-amounts }`: the default and the ladder from public data only (the minimum
+- `signedOut`: always present. For a signed-out visitor, `{ signedOut: true,
+amount, amounts }`: the default and the ladder from public data only (the minimum
   tip, the per-tip cap and the current price; never a balance or a daily
   remainder), so the button states an amount ("Tip Tomás $0.10") and opens
   sign-in. `amount` and `amounts` stay null and empty while signed out.
@@ -160,7 +176,11 @@ amount; a `Money`'s `display` is its output with the defaults.
 - **A top figure is the sum of its rows**, so a list never contradicts it.
 - **Options:** `sign: 'minus' | 'plus'` for a row's direction ("−$1.00",
   "+$1.95"); `converted` and `convertedStyle: 'plain' | 'approx'` for a
-  figure converted at today's price.
+  figure converted at today's price; `short: true` for the tip button and
+  the amount choices, which drops ".00" from whole dollars and keeps cents
+  otherwise ("$1", "$0.50", "$2.50"). Receipts and rows keep two decimals
+  ("−$1.00"): write a button's text with
+  `formatMoney(amount.cents, { short: true })`, a row's with `display`.
 - **Which figures are conversions** (`converted` is the only source for
   "≈", per figure):
 
@@ -188,11 +208,10 @@ amount; a `Money`'s `display` is its output with the defaults.
   is held in XLM, so its dollar figure moves with the price): `CONVERTED_STYLE` is `'approx'` ("≈ $2.54"); `'plain'` writes
   "$2.54". Change it there, not in a surface.
 - `null` means "not read yet": show a skeleton, never "$0.00".
-- `formatShort(cents)`: "$1" for whole dollars on a button label.
 - There is no `formatExactCents` (it was removed): every amount goes through
   `formatMoney`.
 - `money-samples.ts` exports `MONEY_TEXT_SAMPLES` (plain, six decimals,
-  signed, converted, zero, dust): sample outputs of `formatMoney` that a
+  signed, converted, zero, short, dust): sample outputs of `formatMoney` that a
   component parsing the text imports in its own tests.
 
 ## Without a backend: `fake.ts`

@@ -11,7 +11,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useBalance } from '@/hooks/payments/useBalance'
 import { tipLabel } from '@/lib/payments/tip-machine'
-import type { TipController } from '@/lib/payments/types'
+import { formatMoney } from '@/lib/payments/money'
+import type { Money, TipController } from '@/lib/payments/types'
 import { PassageTipBar, type PassageTipBarProps } from './PassageTipBar'
 
 const ADD_MONEY_HREF = '/dashboard/tab'
@@ -88,7 +89,7 @@ export function PassageTip({
   useEffect(() => {
     if (state.phase !== 'sent') return
     setLastSent(
-      `You tipped ${writerName} ${state.amount.display.replace(/\.00$/, '')}. Tips are final.`
+      `You tipped ${writerName} ${formatMoney(state.amount.cents, { short: true })}. Tips are final.`
     )
     const api = highlights()
     if (api && range.current) {
@@ -110,7 +111,7 @@ export function PassageTip({
     return () => document.removeEventListener('keydown', onKey)
   }, [state.phase, trayOpen, onClose])
 
-  const short = (display: string) => display.replace(/\.00$/, '')
+  const short = (m: Money) => formatMoney(m.cents, { short: true })
   const left = balance.available
     ? `${balance.available.display} ready to tip.`
     : ''
@@ -134,7 +135,7 @@ export function PassageTip({
     }
   if (state.phase === 'sending')
     status = {
-      text: `Sending ${short(state.amount.display)} to ${writerName}. ${left}`,
+      text: `Sending ${short(state.amount)} to ${writerName}. ${left}`,
     }
   else if (state.phase === 'failed')
     status = {
@@ -148,7 +149,7 @@ export function PassageTip({
       text: state.available ? `You have ${state.available.display}.` : '',
       link: {
         href: ADD_MONEY_HREF,
-        label: `Add money to tip ${short(state.amount.display)}`,
+        label: `Add money to tip ${short(state.amount)}`,
       },
     }
 

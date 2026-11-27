@@ -7,7 +7,7 @@
  * `job` is what the runtime knows about the tip in flight (from its own send
  * or, after a reload, from the session listing the request as accepted).
  */
-import { money } from './money'
+import { formatMoney, money } from './money'
 import type { Cents, Money, TipPhase } from './types'
 
 export type JobStatus =
@@ -89,7 +89,7 @@ export function tipLabel(
   amount: Money | null,
   passage: boolean
 ): string {
-  const short = (m: Money) => m.display.replace(/\.00$/, '')
+  const short = (m: Money) => formatMoney(m.cents, { short: true })
   switch (phase.phase) {
     case 'sending':
       return `Sending ${short(phase.amount)}`

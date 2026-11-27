@@ -585,12 +585,33 @@ export function PaymentsEngine() {
 
   useEffect(() => {
     paymentsStore.set({ tips: controllers })
-    // A tap made before the engine was ready: act on it once.
+    // A tap made before the engine was ready: send it once, for what was
+    // pressed (its own target, request id and amount, never raised), not
+    // for whatever the control shows now.
     for (const [id, controller] of Object.entries(controllers)) {
       if (!(id in queuedTaps)) continue
       if (!controller.ready) continue
-      if (paymentsStore.takeTap(id) && !controller.unavailable)
-        void controller.tip()
+      const tap = paymentsStore.takeTap(id)
+      if (!tap || controller.unavailable) continue
+      const cents = effectiveChoice(
+        tap.cents,
+        controller.amounts.map((a) => a.cents)
+      )
+      if (cents === null) continue
+      const b = balanceRef.current
+      const decision = tapOnce(
+        phases.current,
+        id,
+        cents,
+        { online: b.online, available: b.available, unavailable: null },
+        tap.requestId
+      )
+      setTipState((all) => ({
+        ...all,
+        [id]: { phase: decision.phase, chosen: all[id]?.chosen ?? null },
+      }))
+      if (decision.send)
+        sendRef.current(tap.target, cents, tap.meta, tap.requestId)
     }
   }, [controllers]) // eslint-disable-line react-hooks/exhaustive-deps
 

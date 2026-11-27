@@ -44,6 +44,9 @@ export type MoneyFormat = {
   converted?: boolean
   /** How a converted figure is written; `CONVERTED_STYLE` by default. */
   convertedStyle?: 'plain' | 'approx'
+  /** For the tip button and the amount choices: whole dollars without
+   * ".00" ("$1", "$0.50", "$2.50"). Receipts and rows keep two decimals. */
+  short?: boolean
 }
 
 const MINUS = '−'
@@ -64,17 +67,10 @@ export function formatMoney(cents: Cents, format: MoneyFormat = {}): string {
     format.sign === 'minus' ? MINUS : format.sign === 'plus' ? '+' : ''
   const approx =
     format.converted && (format.convertedStyle ?? CONVERTED_STYLE) === 'approx'
-  return `${approx ? '≈ ' : ''}${sign}$${dollars.toLocaleString('en-US')}.${fraction}`
+  const decimals = format.short && fraction === '00' ? '' : `.${fraction}`
+  return `${approx ? '≈ ' : ''}${sign}$${dollars.toLocaleString('en-US')}${decimals}`
 }
 
-/** "$1" for whole dollars (button labels), else exact ("$0.10"). */
-export function formatShort(cents: Cents): string {
-  return cents % 100 === 0
-    ? `$${(cents / 100).toLocaleString('en-US')}`
-    : formatMoney(cents)
-}
-
-/** A figure stored at tip time: exact, never a conversion. */
 /**
  * The spoken form, for a screen reader: "18 dollars 40", "9.75 cents"; a
  * converted figure reads to the cent with "about" in place of "≈" ("about

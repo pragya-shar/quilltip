@@ -12,6 +12,7 @@ import { useAsOf } from '../../components/payments/useAsOf'
 import { FAKE_SCENARIOS, fakePayments } from '../../lib/payments/fake'
 import { MONEY_TEXT_SAMPLES } from '../../lib/payments/money-samples'
 import { createOutbox } from '../../lib/payments/outbox'
+import { articleIdOf, tipTargetOf } from '../../lib/payments/target'
 import { tapOnce } from '../../lib/payments/tip-machine'
 import type { TipPhase } from '../../lib/payments/types'
 import {
@@ -496,5 +497,52 @@ describe('the review’s contract points', () => {
     expect(
       fakePayments('ready', { now: NOW, role: 'reader' }).earnings.isWriter
     ).toBe(false)
+  })
+})
+
+describe('the article view’s seam', () => {
+  it('writes a button’s amount without ".00", a row’s with two decimals', () => {
+    expect(formatMoney(100, { short: true })).toBe('$1')
+    expect(formatMoney(50, { short: true })).toBe('$0.50')
+    expect(formatMoney(250, { short: true })).toBe('$2.50')
+    expect(formatMoney(500_000, { short: true })).toBe('$5,000')
+    expect(formatMoney(9.75, { short: true })).toBe('$0.0975')
+    expect(formatMoney(100, { sign: 'minus' })).toBe('−$1.00')
+    expect(formatMoney(100)).toBe('$1.00')
+  })
+
+  it('reports signedOut on every controller, null when signed in', () => {
+    for (const name of FAKE_SCENARIOS) {
+      const tip = fakePayments(name, NOW).tip
+      expect('signedOut' in tip, name).toBe(true)
+      if (name.startsWith('signed-out'))
+        expect(tip.signedOut, name).toMatchObject({ signedOut: true })
+      else expect(tip.signedOut, name).toBeNull()
+    }
+  })
+
+  it('takes an article id as a string and checks it there', () => {
+    const id = 'jh7777s11fpgcd26ntb8fzy45s8k1jkb'
+    expect(articleIdOf(id)).toBe(id)
+    for (const bad of [
+      '',
+      'abc',
+      id.toUpperCase(),
+      `${id} `,
+      'jh7777s11fpgcd26ntb8fzy45s8k1jki',
+      'a'.repeat(38),
+      42,
+      null,
+      undefined,
+    ])
+      expect(articleIdOf(bad), String(bad)).toBeNull()
+    const passage = { text: 'A line', startOffset: 0, endOffset: 6 }
+    expect(tipTargetOf(id)).toEqual({ kind: 'article', articleId: id })
+    expect(tipTargetOf(id, passage)).toEqual({
+      kind: 'passage',
+      articleId: id,
+      passage,
+    })
+    expect(tipTargetOf('not an id', passage)).toBeNull()
   })
 })

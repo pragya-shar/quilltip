@@ -33,6 +33,7 @@ export type PassageRef = {
   endContainerPath?: string
 }
 
+/** From a string id: `tipTargetOf` in `target.ts`, which checks it. */
 export type TipTarget =
   | { kind: 'article'; articleId: Id<'articles'> }
   | { kind: 'passage'; articleId: Id<'articles'>; passage: PassageRef }
@@ -227,12 +228,12 @@ export type TipController = {
    * A signed-out visitor's offer, from public data only (the minimum tip,
    * the per-tip cap and the current price): `amount` is the default and
    * `amounts` the ladder, so the button can state an amount and open
-   * sign-in. Null (or absent) when signed in: the person's own amounts are
+   * sign-in. Always present: null when signed in, where the person's own amounts are
    * then `amount` and `amounts`, which stay null and empty while signed out.
    * A choice made here (`setAmount`) carries into the signed-in amounts and
    * is never raised.
    */
-  signedOut?: { signedOut: true; amount: Money; amounts: Money[] } | null
+  signedOut: { signedOut: true; amount: Money; amounts: Money[] } | null
 }
 
 /** What each screen reads. The live provider and the fixture supply it. */

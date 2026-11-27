@@ -12,6 +12,7 @@
  * a drag across it never pays.
  */
 import { CircleDollarSign, Highlighter, X } from 'lucide-react'
+import { formatMoney } from '@/lib/payments/money'
 import type { Money, TipPhase } from '@/lib/payments/types'
 import './balance.css'
 
@@ -149,7 +150,7 @@ export function PassageTipBar({
                   checked={m.cents === amount?.cents}
                   onChange={() => onChooseAmount(m.cents)}
                 />
-                <span>{m.display.replace(/\.00$/, '')}</span>
+                <span>{formatMoney(m.cents, { short: true })}</span>
               </label>
             ))}
           </fieldset>
