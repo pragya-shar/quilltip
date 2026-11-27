@@ -42,6 +42,7 @@ export function WalletConnectButton({
   const {
     isConnected,
     isLoading,
+    isRestoring,
     publicKey,
     network,
     error,
@@ -113,7 +114,7 @@ export function WalletConnectButton({
         variant={variant}
         className={className}
         aria-busy
-        aria-label="Wallet loading"
+        aria-label={isRestoring ? 'Checking your wallet' : 'Wallet loading'}
       >
         <Loader2 className="w-4 h-4 animate-spin" />
       </Button>
