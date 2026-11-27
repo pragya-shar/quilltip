@@ -74,14 +74,14 @@ async function expectCleanLoad(page: Page, path: string) {
   expect(await violations(), `${path} CSP violations`).toEqual([])
 }
 
-for (const path of ['/', '/login', '/articles', '/wallet/practice']) {
+for (const path of ['/', '/login', '/wallet/practice']) {
   test(`${path} loads with no CSP violations`, async ({ page }) => {
     await expectCleanLoad(page, path)
   })
 }
 
 test('an article page loads with no CSP violations', async ({ page }) => {
-  await page.goto('/articles')
+  await page.goto('/')
   const path = await publishedArticlePath(page)
   test.skip(!path, 'The backend has no published articles')
   await expectCleanLoad(page, path!)

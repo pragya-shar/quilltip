@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchQuery } from 'convex/nextjs'
 import { api } from '@/convex/_generated/api'
 import { publicContentPath } from '@/lib/routing/publicContentPath'
+import { redirectFor } from '@/lib/routing/redirects'
 import {
   buildContentSecurityPolicy,
   createNonce,
@@ -107,7 +108,10 @@ function movedUrl(request: NextRequest, username: string) {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const check = await checkPublicContent(request)
+  // Old paths that moved in the rebuild (lib/routing/redirects) answer 308
+  // and skip the writer check.
+  const moved = redirectFor(request.nextUrl)
+  const check = moved ? null : await checkPublicContent(request)
 
   // Production pages get a per-request nonce. Next.js reads it from the
   // request's CSP header and adds it to every script it renders, so the
@@ -138,8 +142,9 @@ export async function proxy(request: NextRequest) {
   // changes. Moved: a temporary redirect to the writer's current handle.
   // Writers can switch back to an earlier handle, so browsers must not cache
   // the redirect (a cached Alice -> Bob would loop once Alice is current).
-  const response =
-    check?.kind === 'missing'
+  const response = moved
+    ? NextResponse.redirect(moved, 308)
+    : check?.kind === 'missing'
       ? NextResponse.rewrite(request.nextUrl, {
           status: 404,
           request: { headers: requestHeaders },

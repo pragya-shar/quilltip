@@ -5,7 +5,6 @@ const DEV_CONSOLE_PATTERN = /development|dev mode|devtools|development build/i
 
 const PUBLIC_PAGES = [
   { name: 'home', path: '/' },
-  { name: 'articles', path: '/articles' },
   { name: 'wallet practice', path: '/wallet/practice' },
 ] as const
 
@@ -47,7 +46,7 @@ test.describe('ENG-224 public pages console', () => {
   test('article detail has no development-mode console messages', async ({
     page,
   }) => {
-    await page.goto('/articles', {
+    await page.goto('/', {
       waitUntil: 'networkidle',
       timeout: 60_000,
     })

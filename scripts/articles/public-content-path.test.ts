@@ -8,11 +8,14 @@ import {
   publicContentPath,
   writerPathUsername,
 } from '../../lib/routing/publicContentPath'
+import { REDIRECTED_SEGMENTS } from '../../lib/routing/redirects'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 const appPages = Object.keys(import.meta.glob('../../app/**/page.tsx'))
 
-test('every top-level app route is excluded from the writer check', () => {
+// A path that redirects keeps its segment reserved, so no writer can take
+// a handle that the redirect would hide.
+test('every top-level app route and redirect is excluded from the writer check', () => {
   const topLevel = new Set(
     appPages
       .map((file) =>
@@ -27,6 +30,7 @@ test('every top-level app route is excluded from the writer check', () => {
           !!segment && segment !== 'page.tsx' && !segment.startsWith('[')
       )
   )
+  for (const segment of REDIRECTED_SEGMENTS) topLevel.add(segment)
   expect([...topLevel].sort()).toEqual([...APP_ROUTE_SEGMENTS].sort())
 })
 

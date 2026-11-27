@@ -1,0 +1,243 @@
+/* Today (`/`): the opening, the rows for a returning person, More today.
+ * Tokens only. Nothing here animates: the text is the first thing drawn. */
+@layer surfaces {
+  .qt-today {
+    --qt-today-row-h: 3rem;
+    padding-block-end: var(--qt-space-10);
+  }
+
+  /* The wordmark and one line saying what Quilltip is. On a desktop the
+   * rail already shows the wordmark. */
+  .qt-today__head {
+    padding-inline: var(--qt-space-1);
+  }
+  .qt-today__wordmark {
+    margin: 0;
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-text-title);
+    line-height: var(--qt-lh-title);
+    font-weight: var(--qt-weight-title);
+    letter-spacing: var(--qt-track-display);
+    color: var(--qt-ink);
+  }
+  .qt-today__intro {
+    margin: var(--qt-space-1) 0 0;
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+    color: var(--qt-ink-3);
+  }
+  @media (min-width: 1024px) {
+    .qt-today__wordmark {
+      display: none;
+    }
+  }
+
+  /* The two rows. Their space exists only when <html> carries a
+   * reservation, set before the first paint; filling it moves nothing. */
+  .qt-today__slot {
+    min-height: 0;
+  }
+  :root[data-today-place] .qt-today__slot[data-slot='place'],
+  :root[data-today-draft] .qt-today__slot[data-slot='draft'] {
+    min-height: var(--qt-today-row-h);
+    border-block-end: 1px solid var(--qt-line);
+  }
+  :root:is([data-today-place], [data-today-draft]) .qt-today__resume {
+    margin-block-start: var(--qt-space-3);
+    border-block-start: 1px solid var(--qt-line);
+  }
+  /* A returning person knows what Quilltip is; the rows take its place. */
+  :root:is([data-today-place], [data-today-draft]) .qt-today__intro {
+    display: none;
+  }
+  .qt-today__row {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-3);
+    height: calc(var(--qt-today-row-h) - 1px);
+    padding-inline: var(--qt-space-1);
+    overflow: hidden;
+    color: var(--qt-ink-3);
+    border-radius: var(--qt-radius-tag);
+    transition: background-color var(--qt-dur-quick) var(--qt-ease-out);
+  }
+  .qt-today__row:active {
+    background: var(--qt-press);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .qt-today__row:hover {
+      background: var(--qt-hover);
+    }
+  }
+  .qt-today__row:focus-visible {
+    outline-offset: -2px;
+  }
+  .qt-today__row-label {
+    flex-shrink: 0;
+    font-size: var(--qt-text-ui);
+    font-weight: var(--qt-weight-ui-strong);
+    color: var(--qt-ink);
+  }
+  .qt-today__row-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-text-ui-l);
+    color: var(--qt-ink-2);
+  }
+  .qt-today__row-meta {
+    flex-shrink: 0;
+    font-size: var(--qt-text-ui-s);
+    font-variant-numeric: tabular-nums;
+    color: var(--qt-ink-3);
+  }
+
+  /* The opening. */
+  .qt-today__opening {
+    margin-block-start: var(--qt-space-8);
+    padding-inline: var(--qt-space-1);
+  }
+  .qt-today__opening .qt-heading {
+    margin: 0;
+    overflow-wrap: break-word;
+    text-wrap: balance;
+  }
+  .qt-today__byline {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-3);
+    margin: var(--qt-space-4) 0 var(--qt-space-6);
+  }
+  .qt-today__byline-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .qt-today__writer {
+    align-self: flex-start;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    font-size: var(--qt-text-ui);
+    font-weight: var(--qt-weight-ui-strong);
+    line-height: var(--qt-lh-ui);
+    color: var(--qt-ink);
+    text-decoration: none;
+  }
+  .qt-today__writer:hover {
+    text-decoration: underline;
+  }
+  .qt-today__meta {
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+    color: var(--qt-ink-3);
+  }
+  .qt-today__prose {
+    overflow-wrap: break-word;
+  }
+  /* The last paragraph shown, when the article goes on: it fades toward
+   * Read more, the way a page continues. Only the colour changes; the text
+   * stays in the document for every reader. */
+  .qt-today__prose p[data-continues] {
+    -webkit-mask-image: linear-gradient(to bottom, black 35%, transparent);
+    mask-image: linear-gradient(to bottom, black 35%, transparent);
+  }
+  .qt-today__onward {
+    margin: var(--qt-space-4) 0 0;
+  }
+
+  /* More today: a short list that ends. */
+  .qt-today__more {
+    margin-block-start: var(--qt-space-14);
+  }
+  .qt-today__more > .qt-heading {
+    margin: 0 var(--qt-space-1) var(--qt-space-2);
+    color: var(--qt-ink-2);
+  }
+  .qt-today__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-block-start: 1px solid var(--qt-line);
+  }
+  .qt-today__item {
+    position: relative;
+    padding: var(--qt-space-5) var(--qt-space-1);
+    border-block-end: 1px solid var(--qt-line);
+    border-radius: var(--qt-radius-tag);
+    transition: background-color var(--qt-dur-quick) var(--qt-ease-out);
+  }
+  .qt-today__item:active {
+    background: var(--qt-press);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .qt-today__item:hover {
+      background: var(--qt-hover);
+    }
+  }
+  .qt-today__item-title {
+    margin: 0;
+    font-size: var(--qt-text-ui-l);
+    overflow-wrap: break-word;
+  }
+  .qt-today__item-title.qt-heading[data-variant='title'] {
+    font-size: 1.25rem;
+  }
+  .qt-today__item-first {
+    margin: var(--qt-space-2) 0 var(--qt-space-3);
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-text-ui-l);
+    line-height: var(--qt-lh-read);
+    color: var(--qt-ink-2);
+    overflow-wrap: break-word;
+  }
+  .qt-today__item-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-2);
+    margin: 0;
+  }
+  .qt-today__item-by {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: var(--qt-text-ui-s);
+    color: var(--qt-ink-3);
+  }
+  /* One plain link per item; its box covers the item, so a tap anywhere
+   * opens the article. */
+  .qt-today__item-link {
+    flex-shrink: 0;
+    display: inline-block;
+    line-height: var(--qt-hit);
+    font-size: var(--qt-text-ui);
+    font-weight: var(--qt-weight-ui-strong);
+    color: var(--qt-ink);
+    text-decoration: none;
+  }
+  .qt-today__item-link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  .qt-today__item-link:focus-visible {
+    outline: none;
+  }
+  .qt-today__item:has(.qt-today__item-link:focus-visible) {
+    outline: var(--qt-focus-width) solid var(--qt-focus);
+    outline-offset: calc(-1 * var(--qt-focus-width));
+  }
+
+  /* The end of today's reading. */
+  .qt-today__end {
+    margin: var(--qt-space-8) 0 0;
+    text-align: center;
+    font-size: var(--qt-text-ui-s);
+    color: var(--qt-ink-3);
+  }
+}

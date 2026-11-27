@@ -45,22 +45,24 @@ const OUTPUT = process.env.PERF_OUTPUT ?? 'perf-budget-results.json'
  */
 const ROUTES = [
   {
-    name: 'landing',
+    // Today on the application shell: the shell reading page's byte
+    // budgets, and the rebuild plan's targets for a public route (4.1): CLS
+    // at most 0.05 and a mobile median LCP of at most 2.0 s, both gated.
+    name: 'today',
     path: '/',
-    // Measured: HTML 38 KB, stylesheets 39 KB, fonts 169 KB (ten faces).
-    budget: { htmlKb: 42, cssKb: 41, fontKb: 172 },
+    budget: {
+      htmlKb: 44,
+      cssKb: 28,
+      fontKb: 101,
+      cls: 0.05,
+      lcpMobileMs: 2000,
+    },
   },
   {
     name: 'login',
     path: '/login',
     // Measured: HTML 30 KB, stylesheets 29 KB, fonts 39 KB.
     budget: { htmlKb: 34, cssKb: 31, fontKb: 42 },
-  },
-  {
-    name: 'articles',
-    path: '/articles',
-    // Measured: HTML 44 KB, stylesheets 29 KB, fonts 79 KB.
-    budget: { htmlKb: 48, cssKb: 31, fontKb: 82 },
   },
   {
     name: 'article',
@@ -122,7 +124,7 @@ const BUDGETS = {
   // Heaviest route: 216 KB (article). Per-route first-load budgets and the
   // module rules are in scripts/perf/first-load.ts.
   scriptKb: 230,
-  // Heaviest route: 3 (landing).
+  // Stylesheets a route may block its first paint on.
   renderBlockingStylesheets: 4,
   cls: 0.1,
 }
@@ -399,8 +401,18 @@ async function main() {
           failures.push(
             `${label}: ${summary.fontKb} KB of fonts > ${route.budget.fontKb}`
           )
-        if (summary.cls > BUDGETS.cls)
-          failures.push(`${label}: CLS ${summary.cls} > ${BUDGETS.cls}`)
+        // A route may hold itself to a tighter CLS, and gate its mobile LCP.
+        const clsBudget = 'cls' in route.budget ? route.budget.cls : BUDGETS.cls
+        if (summary.cls > clsBudget)
+          failures.push(`${label}: CLS ${summary.cls} > ${clsBudget}`)
+        if (
+          device === 'mobile' &&
+          'lcpMobileMs' in route.budget &&
+          summary.lcpMs > route.budget.lcpMobileMs
+        )
+          failures.push(
+            `${label}: median LCP ${summary.lcpMs} ms > ${route.budget.lcpMobileMs} ms`
+          )
         if (!summary.lcpInServerHtml)
           failures.push(
             `${label}: LCP element is not in the server HTML in most runs:\n    ${summary.lcpElements.join('\n    ')}`

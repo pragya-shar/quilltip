@@ -6,12 +6,9 @@ export async function publishedArticlePath(page: Page): Promise<string | null> {
     .first()
     .getByRole('link', { name: /^Read / })
     .first()
-  const empty = page.getByRole('heading', {
-    name: 'No articles here yet.',
-    exact: true,
-  })
-  const failure = page.getByRole('heading', {
-    name: 'Articles couldn’t load.',
+  // Today (`/`): the opening's Read more, its empty state or its failure.
+  const empty = page.getByText('Nothing to read yet.', { exact: true })
+  const failure = page.getByText('Today’s article did not load.', {
     exact: true,
   })
 

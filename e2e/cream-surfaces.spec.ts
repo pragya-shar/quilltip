@@ -53,63 +53,6 @@ for (const viewport of [
         )
       })
 
-      test('landing cream dialog keeps readable ink and light native controls', async ({
-        page,
-      }) => {
-        await page.goto('/')
-        const trigger = page.getByRole('button', {
-          name: 'Add a tip',
-          exact: true,
-        })
-        await trigger.click()
-        const dialog = page.getByRole('dialog', {
-          name: 'Preview a little appreciation.',
-        })
-        const description = dialog.getByText(
-          'A little support for the words that stayed with you.'
-        )
-        await expectReadableText(description, dialog)
-        const selected = dialog.getByRole('radio', {
-          name: '2 test XLM',
-          exact: true,
-        })
-        const next = dialog.getByRole('radio', {
-          name: '5 test XLM',
-          exact: true,
-        })
-        await expect(selected).toBeChecked()
-        await expect(next).not.toBeChecked()
-        await expect(next).toHaveCSS('color-scheme', 'light')
-        await selected.focus()
-        await selected.press('ArrowRight')
-        await expect(next).toBeChecked()
-        await expect(next).toBeFocused()
-        await expect(selected).not.toBeChecked()
-        await expect(next).toHaveCSS('outline-style', 'solid')
-
-        // A root theme can change while the portaled surface is already open.
-        await toggleRootTheme(page)
-        await expectReadableText(description, dialog)
-        await expect(next).toHaveCSS('color-scheme', 'light')
-        const submit = dialog.getByRole('button', {
-          name: 'Preview 5 test XLM receipt',
-        })
-        await submit.scrollIntoViewIfNeeded()
-        await expect(submit).toBeInViewport()
-        expect(
-          await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)
-        ).toBe(true)
-        await next.press('Escape')
-        await expect(dialog).toBeHidden()
-        await expect(trigger).toBeFocused()
-        await trigger.click()
-        await expect(next).toBeChecked()
-        await submit.click()
-        await expect(
-          page.getByText('Demo receipt · nothing sent or saved')
-        ).toBeVisible()
-      })
-
       test('Appearance drawer keeps typography radios and explanatory ink legible', async ({
         page,
       }) => {

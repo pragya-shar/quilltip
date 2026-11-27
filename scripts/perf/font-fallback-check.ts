@@ -50,9 +50,8 @@ const ENGINE_NAMES = (process.env.PERF_FONT_ENGINES ?? 'chromium webkit')
 // for example `/support /terms`, to look at other pages: their faces and
 // widths are checked, their movement is only reported.
 const ROUTES: { name: string; path: string; gateMovement: boolean }[] = [
-  { name: 'landing', path: '/', gateMovement: true },
+  { name: 'today', path: '/', gateMovement: true },
   { name: 'login', path: '/login', gateMovement: true },
-  { name: 'articles', path: '/articles', gateMovement: true },
   { name: 'article', path: FIXTURE_ARTICLE_PATH, gateMovement: true },
   { name: 'guide', path: '/guide', gateMovement: true },
   // The application shell's reading page: Source Serif 4 and its

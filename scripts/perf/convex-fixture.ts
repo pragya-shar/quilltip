@@ -2,6 +2,12 @@
 // of the public queries the measured pages read, so CI can render real pages
 // without a backend or secrets. All text here is written for the fixture.
 
+import {
+  firstSentence,
+  openingOf,
+  windowOf,
+} from '../../convex/lib/todayOpening'
+
 export const FIXTURE_WRITER = 'fixture-writer'
 export const FIXTURE_SLUG = 'the-lamp-on-orchard-street'
 export const FIXTURE_ARTICLE_PATH = `/${FIXTURE_WRITER}/${FIXTURE_SLUG}`
@@ -91,6 +97,36 @@ const ARTICLES = Array.from({ length: 9 }, (_, index) => fixtureArticle(index))
 
 type QueryArgs = Record<string, unknown>
 
+/**
+ * Today's answer (`today.opening`): the first article opens, three others
+ * follow. Built with the query's own opening rule, so the page renders what
+ * the backend would send for these articles.
+ */
+function todayOpening(at: number) {
+  const card = (article: (typeof ARTICLES)[number]) => ({
+    articleId: article._id,
+    title: article.title,
+    href: `/${FIXTURE_WRITER}/${article.slug}`,
+    author: { name: FIXTURE_AUTHOR.name, username: FIXTURE_WRITER },
+    readMinutes: article.readTime,
+  })
+  const first = ARTICLES[0]!
+  const opening = openingOf(first.content)!
+  return {
+    window: windowOf(at),
+    opening: {
+      ...card(first),
+      publishedAt: first.publishedAt,
+      paragraphs: opening.paragraphs,
+      continues: opening.continues,
+    },
+    more: ARTICLES.slice(1, 4).map((article) => ({
+      ...card(article),
+      first: firstSentence(openingOf(article.content)!.paragraphs[0]!),
+    })),
+  }
+}
+
 /** Answers a public query by function path, or returns undefined if unknown. */
 export function answerFixtureQuery(
   path: string,
@@ -110,6 +146,8 @@ export function answerFixtureQuery(
             ? ARTICLES[0]
             : null,
       }
+    case 'today:opening':
+      return { value: todayOpening(Number(args.at) || BASE_TIME) }
     case 'articles:listArticles':
       return {
         value: {

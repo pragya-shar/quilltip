@@ -113,6 +113,18 @@ export const FIXTURES = [
     config: 'e2e/fixtures/system/playwright.config.ts',
     env: { SYSTEM_FIXTURES: '1' },
   },
+  {
+    // Today (`/`), rendered on the server and hydrated in the real shell:
+    // the opening, the rows without layout shift, the widths, in Chromium
+    // and WebKit (its own config). The production route is checked on the
+    // no-script job's build (scripts/today/app-check.ts).
+    name: 'today',
+    server: 'e2e/fixtures/today/server.mjs',
+    port: 4188,
+    spec: 'e2e/today.spec.ts',
+    config: 'e2e/fixtures/today/playwright.config.ts',
+    env: {},
+  },
 ] as const satisfies readonly {
   name: string
   server: string

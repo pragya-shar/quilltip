@@ -11,9 +11,9 @@ import { gzipSync } from 'zlib'
 
 /** The routes whose first load is budgeted, as Next.js names them. */
 export const FIRST_LOAD_ROUTES = [
+  // Today on the application shell (app/(app)/(public)/page.tsx).
   '/',
   '/login',
-  '/articles',
   '/[username]/[slug]',
   // The application shell (app/(app)) on a public reading page: its own
   // providers, navigation and design system, with no legacy code.
@@ -28,9 +28,10 @@ export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
  * docs/performance/page-load.md.
  */
 export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
-  '/': 211, // measured 208.9
+  // Today: the target for public routes of the application shell (rebuild
+  // plan 4.1).
+  '/': 150,
   '/login': 202, // measured 199.4
-  '/articles': 216, // measured 214.0
   '/[username]/[slug]': 219, // measured 216.9
   // Target for public routes of the application shell (rebuild plan 4.1).
   '/system/reading': 150,
