@@ -61,6 +61,17 @@ export const FIXTURES = [
     },
   },
   {
+    // v2 article, highlight and basket tips in every state.
+    name: 'tips-v2',
+    server: 'e2e/fixtures/tips-v2/server.mjs',
+    port: 4179,
+    spec: 'e2e/tips-v2.spec.ts',
+    env: {
+      TIPS_V2_FIXTURES: '1',
+      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4179',
+    },
+  },
+  {
     // Chromium, Firefox and WebKit (its own config); key storage and
     // WebCrypto Ed25519 differ between engines.
     name: 'tab',

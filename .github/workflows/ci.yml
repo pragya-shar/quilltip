@@ -322,6 +322,7 @@ jobs:
   e2e-fixtures:
     name: Playwright (fixtures, ${{ matrix.shard }})
     runs-on: ubuntu-latest
+    # Per shard; the longest shard took about 6 minutes on 8f7cc45.
     timeout-minutes: 15
     permissions:
       contents: read
@@ -341,6 +342,9 @@ jobs:
             browsers: chromium
           - shard: article-tips
             suites: article-tips
+            browsers: chromium
+          - shard: tips-v2
+            suites: tips-v2
             browsers: chromium
           # The tab session-key suite runs in all three engines.
           - shard: tab

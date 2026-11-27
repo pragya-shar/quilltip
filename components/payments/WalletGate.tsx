@@ -87,6 +87,7 @@ export function WalletGate({
           walletNetwork:
             state.kind === 'wrong-network' ? state.walletNetwork : undefined,
           address: address ? shortAddress(address) : undefined,
+          ended: state.kind === 'disconnected' ? state.ended : undefined,
         })
 
   // Announce a change of state once, through a region that already exists;

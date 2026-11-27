@@ -171,6 +171,11 @@ function Index() {
 }
 
 function Fixture() {
+  // The root's effect runs after every child's effect in the first commit,
+  // so the spec can wait for this instead of a fixed time.
+  useEffect(() => {
+    document.body.dataset.settled = 'true'
+  }, [])
   if (id === 'live-progress') return <LiveProgress />
   if (id === 'live-gate') return <LiveGate />
   if (id === 'live-notice') return <LiveNotice />
