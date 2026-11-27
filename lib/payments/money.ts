@@ -1,13 +1,24 @@
 /**
- * Dollars on screen, and the conversions the optimistic balance needs.
+ * Money text (design rule N2) and the conversions the optimistic balance
+ * needs.
  *
- * Exact or approximate: a dollar figure stored at tip time (the amount on
- * the tip button, the receipt, a row's tip amount, the writer's per-tip
- * amounts and their sums) is exact and shown as "$1.00". A dollar figure
- * converted from the token at today's price (the reader's spendable
- * balance) is an estimate and shown with "≈" (`approxMoney`). The
- * conversions repeat the server's arithmetic exactly (`centsToStroops` in
- * `convex/lib/chain/tabLedger.ts`, `centsFromBaseUnits` in
+ * Exact always: two decimals, and more only when the amount has fractions
+ * of a cent, up to six ("$1.00", "$1.95", "$0.0975", "$2.925",
+ * "$0.04875"); trailing zeros after the second decimal are dropped; nothing
+ * is rounded for display. Cents carry at most 1/10,000 of a cent, so six
+ * decimals always suffice; an amount below that shows "$0.00", with its
+ * exact token amount one tap away. "<$0.01" is never used on Quilltip's own
+ * figures. A top figure is the sum of its rows.
+ *
+ * Converted figures. A figure converted from a token amount at today's
+ * price (the reader's spendable balance) carries `converted: true`; one
+ * stored at tip time (a tip, a share, the earnings figures) carries
+ * `converted: false`. How a converted figure is written is one decision,
+ * `CONVERTED_STYLE`, which every surface reads through `formatMoney`; views
+ * never bake it into a string of their own.
+ *
+ * The conversions repeat the server's arithmetic exactly (`centsToStroops`
+ * in `convex/lib/chain/tabLedger.ts`, `centsFromBaseUnits` in
  * `convex/lib/moneyViews.ts`), so the figure shown at the tap is the figure
  * the server shows after acceptance.
  */
@@ -16,60 +27,57 @@ import type { Cents, Money } from './types'
 const STROOPS_PER_XLM = 10_000_000
 
 /**
- * "$4.20". The one rounding rule for a figure: fractions of a cent are
- * floored, once, at the figure. Totals are summed from exact shares (cents
- * on a 1/10,000-cent grid) and floored only when shown, so a displayed total
- * never exceeds what the writer can collect or the reader can spend.
+ * How a converted figure is written: `plain` ("$2.54", the design's rule N2
+ * today) or `approx` ("≈ $2.54"). The one place this is decided.
  */
-export function formatMoney(cents: Cents): string {
-  const whole = Math.max(0, Math.floor(cents + 1e-9))
-  const dollars = Math.floor(whole / 100)
-  const rest = String(whole % 100).padStart(2, '0')
-  return `$${dollars.toLocaleString('en-US')}.${rest}`
+export const CONVERTED_STYLE: 'plain' | 'approx' = 'plain'
+
+export type MoneyFormat = {
+  /** A row's direction: `minus` for a tip sent ("−$1.00"), `plus` for one
+   * received ("+$1.95"). None by default. */
+  sign?: 'minus' | 'plus'
+  /** The figure is a conversion at today's price. */
+  converted?: boolean
+  /** How a converted figure is written; `CONVERTED_STYLE` by default. */
+  convertedStyle?: 'plain' | 'approx'
 }
 
-/** "$1" for whole dollars (button labels), else "$1.50". */
+const MINUS = '−'
+
+/** "$4.20", "$0.0975": exact, two to six decimals (N2). */
+export function formatMoney(cents: Cents, format: MoneyFormat = {}): string {
+  const millionths = Math.round(Math.max(0, cents) * 10_000)
+  const dollars = Math.floor(millionths / 1_000_000)
+  const fraction = String(millionths % 1_000_000)
+    .padStart(6, '0')
+    .replace(/0+$/, '')
+    .padEnd(2, '0')
+  const sign =
+    format.sign === 'minus' ? MINUS : format.sign === 'plus' ? '+' : ''
+  const approx =
+    format.converted && (format.convertedStyle ?? CONVERTED_STYLE) === 'approx'
+  return `${approx ? '≈ ' : ''}${sign}$${dollars.toLocaleString('en-US')}.${fraction}`
+}
+
+/** "$1" for whole dollars (button labels), else exact ("$0.10"). */
 export function formatShort(cents: Cents): string {
   return cents % 100 === 0
     ? `$${(cents / 100).toLocaleString('en-US')}`
     : formatMoney(cents)
 }
 
-/**
- * An exact amount for a detail line, never floored: "48.75¢" below a
- * dollar, "$4.875" from a dollar up. Cents carry at most 1/10,000 of a cent.
- */
-export function formatExactCents(cents: Cents): string {
-  const tenThousandths = Math.round(Math.max(0, cents) * 10_000)
-  const whole = Math.floor(tenThousandths / 10_000)
-  const part = String(tenThousandths % 10_000)
-    .padStart(4, '0')
-    .replace(/0+$/, '')
-  if (whole < 100) return `${whole}${part ? `.${part}` : ''}¢`
-  const dollars = Math.floor(whole / 100)
-  const fraction = `${String(whole % 100).padStart(2, '0')}${part ? String(tenThousandths % 10_000).padStart(4, '0') : ''}`
-  return `$${dollars.toLocaleString('en-US')}.${fraction.replace(/(\d{2})(\d*?)0*$/, '$1$2')}`
-}
-
+/** A figure stored at tip time: exact, never a conversion. */
 export function money(cents: Cents): Money {
-  return { cents, display: formatMoney(cents) }
+  return { cents, display: formatMoney(cents), converted: false }
 }
 
-/**
- * A ready-to-collect figure: its token amount and its cents come from the
- * same tips and claims, so a positive token amount below one cent reads
- * "<$0.01", never "$0.00". Allowed only for the ready figure and its rows;
- * never on a tip button or a receipt, whose cents are exact.
- */
-export function readyMoney(cents: Cents, baseUnits: string): Money {
-  if (BigInt(baseUnits || '0') > BigInt(0) && Math.floor(cents + 1e-9) < 1)
-    return { cents, display: '<$0.01' }
-  return money(cents)
-}
-
-/** A figure converted from the token at today's price: "≈ $17.28". */
-export function approxMoney(cents: Cents): Money {
-  return { cents, display: `≈ ${formatMoney(cents)}` }
+/** A figure converted from a token amount at today's price. */
+export function convertedMoney(cents: Cents): Money {
+  return {
+    cents,
+    display: formatMoney(cents, { converted: true }),
+    converted: true,
+  }
 }
 
 /** Base units for a cent amount at `priceUsd` per XLM, as prepare converts. */

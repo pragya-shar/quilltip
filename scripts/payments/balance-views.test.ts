@@ -9,9 +9,9 @@ import { describe, expect, it } from 'vitest'
 import {
   baseUnitsToCents,
   centsToBaseUnits,
+  CONVERTED_STYLE,
   formatMoney,
   formatTokenAmount,
-  approxMoney,
   money,
 } from '../../lib/payments/money'
 import { createOutbox, type OutboxEntry } from '../../lib/payments/outbox'
@@ -116,10 +116,18 @@ describe('money arithmetic matches the server', () => {
         )
   })
 
-  it('marks converted figures as estimates and stored ones as exact', () => {
-    // Spendable is converted from the token at today's price.
-    expect(view(session()).available!.display).toBe('≈ $6.95')
-    expect(approxMoney(1728).display).toBe('≈ $17.28')
+  it('marks converted figures as converted and stored ones as not', () => {
+    // Spendable is converted from the token at today's price: the view says
+    // so, and its text follows the one style constant.
+    const available = view(session()).available!
+    expect(available).toMatchObject({ cents: 695, converted: true })
+    expect(available.display).toBe(
+      formatMoney(695, { converted: true, convertedStyle: CONVERTED_STYLE })
+    )
+    expect(view(session()).exact).toEqual({
+      token: 'XLM',
+      available: '200000000',
+    })
     // A tip's cents are stored at tip time: exact on the button and rows.
     expect(money(25).display).toBe('$0.25')
     expect(tipLabel({ phase: 'idle' }, money(25), true)).toBe(
@@ -127,8 +135,8 @@ describe('money arithmetic matches the server', () => {
     )
   })
 
-  it('shows dollars floored and the exact token amount', () => {
-    expect(formatMoney(97.5)).toBe('$0.97')
+  it('shows exact dollars and the exact token amount', () => {
+    expect(formatMoney(97.5)).toBe('$0.975')
     expect(formatMoney(123456)).toBe('$1,234.56')
     expect(formatTokenAmount('28776978')).toBe('2.8776978 XLM')
     expect(formatTokenAmount('10000000')).toBe('1 XLM')
@@ -355,7 +363,10 @@ describe('optimistic balance and reconciliation', () => {
       expect(v.amounts).toEqual([])
     }
     // A confirmed account with no balance is a real zero.
-    expect(view(session({ status: 'none' })).available?.display).toBe('≈ $0.00')
+    expect(view(session({ status: 'none' })).available).toMatchObject({
+      cents: 0,
+      converted: true,
+    })
     const loading = earningsViewOf({
       signedIn: true,
       earnings: undefined,

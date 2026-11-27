@@ -3,13 +3,13 @@
  * 9). Never "tab", "voucher", "settle", "session key", "contract" or base
  * units; a count of tips says "tips" (D13).
  */
-import { formatExactCents } from './money'
+import { formatMoney } from './money'
 import type { ActivityItem } from './types'
 
 /**
  * A row's label and detail. Settled balance tips are "Added to earnings";
  * "Paid to your wallet" is only for collected money. Details state exact
- * amounts (`formatExactCents`); only figures are floored.
+ * amounts (`formatMoney`, design rule N2).
  */
 export function statusCopy(item: ActivityItem): {
   label: string
@@ -17,7 +17,7 @@ export function statusCopy(item: ActivityItem): {
   tone: 'plain' | 'done' | 'danger'
 } {
   const reader = item.role === 'reader'
-  const short = (cents: number) => formatExactCents(cents)
+  const short = (cents: number) => formatMoney(cents)
   switch (item.status) {
     case 'sending':
       return { label: 'Sending', detail: null, tone: 'plain' }

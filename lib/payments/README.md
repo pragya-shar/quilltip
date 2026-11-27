@@ -20,24 +20,24 @@ Types are in `types.ts`; money formatting in `money.ts`.
 
 The signed-in reader's balance.
 
-| `status`      | Meaning                             | Figures                                                                                                                 |
-| ------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `loading`     | auth or the first answer is pending | `available`, `pending`, `limits` are `null`; `amounts` is empty                                                         |
-| `signed-out`  | no reader                           | as loading                                                                                                              |
-| `none`        | signed in, answered, no balance yet | real zeros ("≈ $0.00", "$0.00")                                                                                         |
-| `ready`       | answered                            | `available` ("≈ $2.54", converted at today's price), `pending` (accepted tips not yet paid, exact), `limits`, `amounts` |
-| `closing`     | the balance is being withdrawn      | figures as ready; tips are refused                                                                                      |
-| `unavailable` | payments could not load or answer   | `null`; reading is unaffected                                                                                           |
+| `status`      | Meaning                             | Figures                                                                                                                         |
+| ------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `loading`     | auth or the first answer is pending | `available`, `pending`, `limits` are `null`; `amounts` is empty                                                                 |
+| `signed-out`  | no reader                           | as loading                                                                                                                      |
+| `none`        | signed in, answered, no balance yet | real zeros ("$0.00")                                                                                                            |
+| `ready`       | answered                            | `available` (converted at today's price: `converted: true`), `pending` (accepted tips not yet paid, exact), `limits`, `amounts` |
+| `closing`     | the balance is being withdrawn      | figures as ready; tips are refused                                                                                              |
+| `unavailable` | payments could not load or answer   | `null`; reading is unaffected                                                                                                   |
 
 Also: `device` (`loading`, `ready`, `needs-setup`, `unavailable`): whether
 this device can tip without a prompt; `online`; `settlement.expectedWithinMs`;
-`exact` (`{ token: 'XLM', available }`: spendable in base units, the figure
-behind "≈", null until read); `asOf` (client time the figures were last
+`exact` (`{ token: 'XLM', available }`: spendable in base units, the token
+amount behind the converted figure, null until read); `asOf` (client time the figures were last
 known current: it follows the clock while online and stops when offline, so
 a screen can say "as of 4 minutes ago"; null until read).
 
 If the reader spent from the balance outside the app, spendable can be
-below zero on the ledger: `available` reads "≈ $0.00" and no amount fits
+below zero on the ledger: `available` reads "$0.00" and no amount fits
 (`noAmountReason: 'balance'`).
 
 Never: prints a placeholder zero, asks for a wallet signature, or moves money.
@@ -82,10 +82,11 @@ server accepted, follows the writer, saves a highlight, or shares anything.
 `status` `loading` (the first page), `ready` or `unavailable`.
 Each `ActivityItem`:
 
-- `amount`: the tip as the reader sent it, whole cents, exact. Show this in
-  a list on both sides.
-- `net`: the writer's exact share (1/10,000 cent). Show it in the detail with
-  `formatExactCents` ("48.75¢"), never floored.
+- `amount`: the tip as the reader sent it, whole cents ("−$1.00" on a
+  reader's row).
+- `net`: the writer's exact share, up to six decimals ("+$0.0975" on a
+  writer's row, then "from a $0.10 tip" from `amount`). Both are on the
+  item; a screen never computes one from the other.
 - `status`: `sending` (reader only, not answered), `sent` (accepted, on its
   way), `on-chain` ("Added to earnings"), `not-paid` with `reason`
   (`shortfall`: on hold until the reader adds money; others final).
@@ -131,17 +132,28 @@ A tip can be accepted for a reader whose balance later empties (spent
 outside the app): until the payout is attempted it reads "on its way"
 (`pending`) on the writer's side; at the payout it moves to on hold.
 
-## Showing money
+## Showing money (design rule N2)
 
-- A figure is floored to the cent once, at the figure (`formatMoney`); totals
-  are exact sums, so a total never exceeds what can be spent or collected,
-  and rows never add up to more than their total.
-- Dollars converted at today's price carry "≈" (`approxMoney`); dollars
-  stored at tip time are exact.
-- A ready figure with a positive token amount below a cent reads "<$0.01"
-  (`readyMoney`), never "$0.00".
+One formatter, `formatMoney(cents, options)` in `money.ts`, writes every
+amount; a `Money`'s `display` is its output with the defaults.
+
+- **Exact always:** two decimals, more only for fractions of a cent, up to
+  six ("$1.00", "$0.0975", "$2.925"); trailing zeros after the second
+  decimal dropped; nothing rounded for display. An amount below the sixth
+  decimal reads "$0.00", with its exact token amount (`exact`) one tap away.
+  "<$0.01" is never used on these figures.
+- **A top figure is the sum of its rows**, so a list never contradicts it.
+- **Options:** `sign: 'minus' | 'plus'` for a row's direction ("−$1.00",
+  "+$1.95"); `converted` and `convertedStyle: 'plain' | 'approx'` for a
+  figure converted at today's price.
+- **Converted figures:** a `Money` converted from a token amount at today's
+  price (the reader's spendable `available`) has `converted: true`; its
+  price time is the view's `asOf` and its token amount the view's `exact`.
+  Figures stored at tip time have `converted: false`. How a converted figure
+  is written is one constant, `CONVERTED_STYLE` (`'plain'`, "$2.54", per N2
+  today; `'approx'` writes "≈ $2.54"): change it there, not in a surface.
 - `null` means "not read yet": show a skeleton, never "$0.00".
-- Details may show exact fractions (`formatExactCents`); lists never do.
+- `formatShort(cents)`: "$1" for whole dollars on a button label.
 
 ## Without a backend: `fake.ts`
 

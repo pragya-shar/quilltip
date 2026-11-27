@@ -96,18 +96,18 @@ test.describe('passage tip from the balance', () => {
     await open(page, 'tip', 'reader-slow')
     const bar = await choosePassage(page)
     const status = bar.getByRole('status')
-    await expect(status).toHaveText('≈ $7.00 ready to tip.')
+    await expect(status).toHaveText('$7.00 ready to tip.')
     await expect(tipButton(page)).toHaveText('Tip this line $1')
     await tipButton(page).click()
     // Sending: nothing is final yet, and the figure dropped at once.
     await expect(tipButton(page)).toHaveText('Sending $1')
     await expect(status).toContainText(
-      'Sending $1 to Ada Lovelace. ≈ $6.00 ready to tip.'
+      'Sending $1 to Ada Lovelace. $6.00 ready to tip.'
     )
     await page.screenshot({ path: info.outputPath('tip-sending.png') })
     await expect(tipButton(page)).toHaveText('Sent $1', { timeout: 10_000 })
     await expect(status).toContainText(
-      'You tipped Ada Lovelace $1. Tips are final. ≈ $6.00 ready to tip.'
+      'You tipped Ada Lovelace $1. Tips are final. $6.00 ready to tip.'
     )
     await page.screenshot({ path: info.outputPath('tip-sent.png') })
     const state = await backend(page)
@@ -164,7 +164,7 @@ test.describe('passage tip from the balance', () => {
     )
     await expect(bar.getByRole('link', { name: 'Add money' })).toBeVisible()
     await tipButton(page).click()
-    await expect(bar.getByRole('status')).toContainText('You have ≈ $0.07.')
+    await expect(bar.getByRole('status')).toContainText('You have $0.07.')
     await page.screenshot({ path: info.outputPath('tip-needs-funds.png') })
     expect((await backend(page)).calls.prepare).toBe(0)
     await open(page, 'tip', 'reader-ready')
@@ -276,7 +276,7 @@ test.describe('passage tip from the balance', () => {
     const again = await page.context().newPage()
     await open(again, 'balance', 'reader-slow', run)
     await expect(again.getByTestId('activity-row')).toHaveCount(1)
-    await expect(again.getByTestId('balance-available')).toHaveText('≈ $6.00')
+    await expect(again.getByTestId('balance-available')).toHaveText('$6.00')
   })
 
   test('sign-out mid-send keeps reader A apart from reader B, and A gets the tip once', async ({
@@ -298,7 +298,7 @@ test.describe('passage tip from the balance', () => {
     await control(page, 'signIn', 'b')
     await open(page, 'balance', 'two-readers', run)
     // B sees nothing of A: no row, A's tip not off B's balance.
-    await expect(page.getByTestId('balance-available')).toHaveText('≈ $3.50')
+    await expect(page.getByTestId('balance-available')).toHaveText('$3.50')
     await expect(page.getByText('Your tips show up here.')).toBeVisible()
     await control(page, 'latency', 100)
     await control(page, 'signIn', 'a')
@@ -404,11 +404,11 @@ test.describe('earnings screen', () => {
       if (name === 'lagging')
         await expect(page.getByTestId('earnings-lagging')).toBeVisible()
       if (name === 'available') {
-        await expect(available).toHaveText('$2.92')
-        await expect(pending).toHaveText('$0.97')
+        await expect(available).toHaveText('$2.925')
+        await expect(pending).toHaveText('$0.975')
       }
       if (name === 'collected') {
-        await expect(available).toHaveText('$0.97')
+        await expect(available).toHaveText('$0.975')
         await expect(page.getByTestId('earnings-collected')).toHaveText('$1.95')
       }
       if (name === 'failed') {
@@ -420,7 +420,7 @@ test.describe('earnings screen', () => {
         )
         await expect(page.getByText('No one was charged')).toHaveCount(0)
         // A failed payout never shows as available.
-        await expect(available).toHaveText('$0.97')
+        await expect(available).toHaveText('$0.975')
       }
       if (name === 'empty')
         await expect(
@@ -473,7 +473,7 @@ test.describe('states the ledger can reach', () => {
     page,
   }) => {
     await open(page, 'balance', 'reader-overdrawn')
-    await expect(page.getByTestId('balance-available')).toHaveText('≈ $0.00')
+    await expect(page.getByTestId('balance-available')).toHaveText('$0.00')
     await open(page, 'tip', 'reader-overdrawn')
     const bar = await choosePassage(page)
     await expect(bar.getByRole('status')).toContainText(
@@ -498,7 +498,7 @@ test.describe('earnings rows and their total', () => {
     page,
   }) => {
     await open(page, 'earnings', 'writer-three')
-    await expect(page.getByTestId('earnings-available')).toHaveText('$0.68')
+    await expect(page.getByTestId('earnings-available')).toHaveText('$0.6825')
     const rows = page.getByTestId('activity-row')
     await expect(rows.locator('.qt-row-amount')).toHaveText([
       '$0.10',
@@ -512,9 +512,9 @@ test.describe('earnings rows and their total', () => {
     ])
     for (let i = 0; i < 3; i++) await rows.nth(i).getByRole('button').click()
     await expect(rows.getByTestId('row-share')).toHaveText([
-      '9.75¢ (you keep 97.5%)',
-      '9.75¢ (you keep 97.5%)',
-      '48.75¢ (you keep 97.5%)',
+      '$0.0975 (you keep 97.5%)',
+      '$0.0975 (you keep 97.5%)',
+      '$0.4875 (you keep 97.5%)',
     ])
     await expect(page.getByTestId('earnings-rows-note')).toContainText(
       'Your earnings are 97.5% of each tip'
@@ -523,12 +523,10 @@ test.describe('earnings rows and their total', () => {
     await expect(rows.getByText(/Paid to/)).toHaveCount(0)
   })
 
-  test('the total is the exact sum rounded once, not the sum of rounded rows', async ({
-    page,
-  }) => {
-    // Seven 9.75¢ shares: flooring each gives $0.63; the exact sum is 68.25¢.
+  test('the total is the exact sum of the shares', async ({ page }) => {
+    // Seven shares of $0.0975: the figure is their exact sum.
     await open(page, 'earnings', 'writer-seven')
-    await expect(page.getByTestId('earnings-available')).toHaveText('$0.68')
+    await expect(page.getByTestId('earnings-available')).toHaveText('$0.6825')
     const rows = page.getByTestId('activity-row')
     await expect(rows).toHaveCount(7)
     await expect(rows.locator('.qt-row-amount')).toHaveText(
@@ -579,12 +577,9 @@ test.describe('payments never take reading with them', () => {
       // The backend catches up: payments recover without a reload.
       await control(page, 'sessionFault', null)
       await page.getByRole('link', { name: 'Balance' }).click()
-      await expect(page.getByTestId('balance-available')).toHaveText(
-        '≈ $7.00',
-        {
-          timeout: 15_000,
-        }
-      )
+      await expect(page.getByTestId('balance-available')).toHaveText('$7.00', {
+        timeout: 15_000,
+      })
       await expect(page.getByTestId('app-fallback')).toHaveCount(0)
     })
   }
@@ -703,12 +698,12 @@ test.describe('contrast and partly paid tips', () => {
     await expect(rows.first()).toContainText('Paid in part')
     await rows.nth(0).getByRole('button').click()
     await expect(
-      page.getByText('10¢ was paid. 15¢ is back in your balance.')
+      page.getByText('$0.10 was paid. $0.15 is back in your balance.')
     ).toBeVisible()
     await rows.nth(1).getByRole('button').click()
     await expect(
       page.getByText(
-        '10¢ was paid. 15¢ waits on your balance; add money and it goes through.'
+        '$0.10 was paid. $0.15 waits on your balance; add money and it goes through.'
       )
     ).toBeVisible()
     await open(page, 'earnings', 'writer-partial')
@@ -718,7 +713,7 @@ test.describe('contrast and partly paid tips', () => {
     await wrows.nth(1).getByRole('button').click()
     await expect(
       page.getByText(
-        "9.75¢ arrived. 14.625¢ is waiting on the reader's balance."
+        "$0.0975 arrived. $0.14625 is waiting on the reader's balance."
       )
     ).toBeVisible()
     await expect(page.getByText(/not charged/)).toHaveCount(0)
@@ -766,6 +761,6 @@ test.describe('figures appear only when read', () => {
     await expect(page.getByTestId('earnings-pending')).toHaveText('$0.00')
     await expect(page.getByTestId('earnings-collected')).toHaveText('$0.00')
     await open(page, 'balance', 'reader-none')
-    await expect(page.getByTestId('balance-available')).toHaveText('≈ $0.00')
+    await expect(page.getByTestId('balance-available')).toHaveText('$0.00')
   })
 })

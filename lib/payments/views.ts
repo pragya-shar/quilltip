@@ -9,7 +9,7 @@
  */
 import type { FunctionReturnType } from 'convex/server'
 import type { api } from '@/convex/_generated/api'
-import { approxMoney, baseUnitsToCents, money, readyMoney } from './money'
+import { baseUnitsToCents, convertedMoney, money } from './money'
 import type { OutboxEntry } from './outbox'
 import type {
   ActivityItem,
@@ -149,7 +149,7 @@ export function balanceViewOf(input: {
     return {
       ...base,
       status: 'none',
-      available: approxMoney(0),
+      available: convertedMoney(0),
       pending: money(0),
       exact: { token: 'XLM', available: '0' },
       asOf: input.asOf ?? null,
@@ -197,7 +197,7 @@ export function balanceViewOf(input: {
     ...base,
     status: session.status === 'closing' ? 'closing' : 'ready',
     // Converted from the token at today's price: an estimate.
-    available: approxMoney(availableCents),
+    available: convertedMoney(availableCents),
     exact: {
       token: 'XLM',
       available: (left > BigInt(0) ? left : BigInt(0)).toString(),
@@ -324,7 +324,7 @@ export function earningsViewOf(input: {
     status: 'ready',
     asOf: input.asOf ?? null,
     pending: money(e.pendingCents),
-    available: readyMoney(e.availableCents, e.baseUnits.available),
+    available: money(e.availableCents),
     collected: money(e.collectedCents),
     total: money(e.totalCents),
     onHold: money(e.onHoldCents),

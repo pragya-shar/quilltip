@@ -9,7 +9,7 @@
 import { useId, useState } from 'react'
 import { ChevronDown, Clock } from 'lucide-react'
 import { TX_LINK, statusCopy, whenCopy } from '@/lib/payments/copy'
-import { formatExactCents, formatTokenAmount } from '@/lib/payments/money'
+import { formatMoney, formatTokenAmount } from '@/lib/payments/money'
 import type { ActivityItem } from '@/lib/payments/types'
 
 export function ActivityRow({
@@ -82,7 +82,7 @@ export function ActivityRow({
               <>
                 <dt>Your earnings</dt>
                 <dd data-testid="row-share">
-                  {formatExactCents(item.net.cents)} (you keep 97.5%)
+                  {formatMoney(item.net.cents)} (you keep 97.5%)
                 </dd>
               </>
             ) : null}

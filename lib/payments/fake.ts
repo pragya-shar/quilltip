@@ -8,7 +8,7 @@
  *
  * Every hook in `hooks/payments/` reads from it. A scenario is a fixed
  * snapshot that follows the same rules as the live runtime (figures are
- * `null` unless the view is ready, converted dollars carry "≈", rows state
+ * `null` unless the view is ready, converted figures carry `converted`, rows state
  * the tip as sent and the writer's exact share). `tip()`, `setAmount()`,
  * `reset()` and `loadMore()` do nothing: a scenario never changes.
  *
@@ -19,7 +19,7 @@
  * The figures are the real run's (50¢, 10¢ and 10¢ tips; 68.25¢ to the
  * writer) at $0.127328 per testnet XLM.
  */
-import { approxMoney, money, readyMoney } from './money'
+import { convertedMoney, money } from './money'
 import type {
   ActivityItem,
   ActivityView,
@@ -86,7 +86,7 @@ function activity(
 function balance(over: Partial<BalanceView>, asOf: number): BalanceView {
   const view: BalanceView = {
     status: 'ready',
-    available: approxMoney(254.66),
+    available: convertedMoney(254),
     pending: money(0),
     deviceReady: true,
     device: 'ready',
@@ -296,7 +296,7 @@ function readyEarnings(writer: ActivityItem[], asOf: number): EarningsView {
   )
   return earnings({
     pending: money(pending),
-    available: readyMoney(ready, units(ready)),
+    available: money(ready),
     total: money(grid(pending + ready)),
     onHold: money(of(shortfall, (i) => i.unpaidNet.cents)),
     notPaid: money(of(final, (i) => i.unpaidNet.cents)),
@@ -332,7 +332,7 @@ function forRole(v: FakePayments, role: FakeRole): FakePayments {
           ? balance(
               {
                 status: 'none',
-                available: approxMoney(0),
+                available: convertedMoney(0),
                 pending: money(0),
                 exact: { token: 'XLM', available: '0' },
                 deviceReady: false,
@@ -395,12 +395,12 @@ function scenario(name: FakeScenario, now: number): FakePayments {
       return views(settled)
     case 'sending':
       return views([[10, 'sending']], {
-        balance: { available: approxMoney(244.66) },
+        balance: { available: convertedMoney(244) },
         tip: phase({ phase: 'sending', requestId: 'sent-1', amount }),
       })
     case 'sent':
       return views([[10, 'sent']], {
-        balance: { available: approxMoney(244.66), pending: money(10) },
+        balance: { available: convertedMoney(244), pending: money(10) },
         tip: phase({ phase: 'sent', requestId: 'sent-1', amount }),
       })
     case 'pending':

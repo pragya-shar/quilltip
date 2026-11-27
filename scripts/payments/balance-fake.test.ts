@@ -58,8 +58,8 @@ describe('fake scenarios follow the live rules', () => {
       const ready = v.balance.status === 'ready'
       expect(v.balance.available === null).toBe(!ready)
       expect(v.balance.pending === null).toBe(!ready)
-      if (v.balance.available)
-        expect(v.balance.available.display.startsWith('≈ ')).toBe(true)
+      // Spendable is a conversion; its text follows the one style constant.
+      if (v.balance.available) expect(v.balance.available.converted).toBe(true)
       const e = v.earnings
       for (const figure of [e.pending, e.available, e.collected, e.total])
         expect(figure === null).toBe(e.status !== 'ready')
@@ -88,7 +88,7 @@ describe('fake scenarios follow the live rules', () => {
     })
   }
 
-  it('the available scenario is the real run: three tips, $0.68 ready', () => {
+  it('the available scenario is the real run: three tips, $0.6825 ready', () => {
     const v = fakePayments('available', NOW)
     expect(v.writerActivity.items.map((i) => i.amount.display)).toEqual([
       '$0.10',
@@ -98,7 +98,7 @@ describe('fake scenarios follow the live rules', () => {
     expect(v.writerActivity.items.map((i) => i.net.cents)).toEqual([
       9.75, 9.75, 48.75,
     ])
-    expect(v.earnings.available!.display).toBe('$0.68')
+    expect(v.earnings.available!.display).toBe('$0.6825')
   })
 
   it('states each phase where the scenario says', () => {
@@ -151,9 +151,9 @@ async function render(name: FakeScenario) {
 
 describe('the real hooks read the fake runtime', () => {
   it('renders a ready, a loading and an unavailable screen', async () => {
-    expect(await render('available')).toBe('ready|≈ $2.54|$0.68|3|idle')
+    expect(await render('available')).toBe('ready|$2.54|$0.6825|3|idle')
     expect(await render('loading')).toBe('loading|-|-|0|idle')
     expect(await render('unavailable')).toBe('unavailable|-|-|0|idle')
-    expect(await render('sending')).toBe('ready|≈ $2.44|$0.00|1|sending')
+    expect(await render('sending')).toBe('ready|$2.44|$0.00|1|sending')
   })
 })

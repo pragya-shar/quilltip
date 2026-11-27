@@ -10,8 +10,14 @@ import type { Id } from '@/convex/_generated/dataModel'
 /** Integer US cents (running figures may carry 1/10,000 of a cent). */
 export type Cents = number
 
-/** An amount in dollars and its display text ("$4.20"). */
-export type Money = { cents: Cents; display: string }
+/**
+ * An amount in dollars and its display text ("$4.20", exact; `formatMoney`).
+ * `converted`: converted from a token amount at today's price (the reader's
+ * spendable); false or absent for a figure stored at tip time. Its display
+ * follows `CONVERTED_STYLE` in `money.ts`; write it yourself with
+ * `formatMoney(cents, { converted, convertedStyle })` to choose otherwise.
+ */
+export type Money = { cents: Cents; display: string; converted?: boolean }
 
 export type PassageRef = {
   text: string

@@ -6,7 +6,12 @@
  */
 import { describe, expect, it } from 'vitest'
 import { statusCopy } from '../../lib/payments/copy'
-import { formatExactCents, formatMoney } from '../../lib/payments/money'
+import {
+  CONVERTED_STYLE,
+  convertedMoney,
+  formatMoney,
+  money,
+} from '../../lib/payments/money'
 import { activityItemOf, type ActivityEntry } from '../../lib/payments/views'
 
 const NOW = 1_800_000_000_000
@@ -38,27 +43,53 @@ function entry(over: Partial<ActivityEntry>): ActivityEntry {
 const copyOf = (over: Partial<ActivityEntry>) =>
   statusCopy(activityItemOf(entry(over), NOW))
 
-describe('exact amounts', () => {
-  it('formats exact shares without flooring', () => {
-    expect(formatExactCents(48.75)).toBe('48.75¢')
-    expect(formatExactCents(9.75)).toBe('9.75¢')
-    expect(formatExactCents(14.625)).toBe('14.625¢')
-    expect(formatExactCents(10)).toBe('10¢')
-    expect(formatExactCents(0.0001)).toBe('0.0001¢')
-    expect(formatExactCents(100)).toBe('$1.00')
-    expect(formatExactCents(487.5)).toBe('$4.875')
-    expect(formatExactCents(123456.78)).toBe('$1,234.5678')
+describe('money text (N2)', () => {
+  it('writes amounts exactly: two to six decimals, nothing rounded', () => {
+    expect(formatMoney(100)).toBe('$1.00')
+    expect(formatMoney(195)).toBe('$1.95')
+    expect(formatMoney(9.75)).toBe('$0.0975')
+    expect(formatMoney(292.5)).toBe('$2.925')
+    expect(formatMoney(4.875)).toBe('$0.04875')
+    expect(formatMoney(14.625)).toBe('$0.14625')
+    expect(formatMoney(0.0001)).toBe('$0.000001')
+    expect(formatMoney(123456.78)).toBe('$1,234.5678')
+    expect(formatMoney(28040.75)).toBe('$280.4075')
+    // Below the sixth decimal: zero, with the token amount one tap away.
+    expect(formatMoney(0.00001)).toBe('$0.00')
+    expect(formatMoney(0)).toBe('$0.00')
   })
 
-  it('floors a total once; flooring each row first would show less', () => {
+  it("writes a row's direction", () => {
+    expect(formatMoney(100, { sign: 'minus' })).toBe('\u2212$1.00')
+    expect(formatMoney(195, { sign: 'plus' })).toBe('+$1.95')
+  })
+
+  it('writes a converted figure by one style constant, either way', () => {
+    expect(formatMoney(254, { converted: true, convertedStyle: 'plain' })).toBe(
+      '$2.54'
+    )
+    expect(
+      formatMoney(254, { converted: true, convertedStyle: 'approx' })
+    ).toBe('≈ $2.54')
+    // A figure stored at tip time is never approximate.
+    expect(formatMoney(254, { convertedStyle: 'approx' })).toBe('$2.54')
+    // The default is the constant, and the views use it.
+    expect(convertedMoney(254)).toEqual({
+      cents: 254,
+      converted: true,
+      display: formatMoney(254, {
+        converted: true,
+        convertedStyle: CONVERTED_STYLE,
+      }),
+    })
+    expect(money(254).converted).toBe(false)
+  })
+
+  it('sums rows into the figure exactly', () => {
     const shares = [48.75, 9.75, 9.75]
-    const total = shares.reduce((a, b) => a + b, 0)
-    expect(formatMoney(total)).toBe('$0.68')
+    expect(formatMoney(shares.reduce((a, b) => a + b, 0))).toBe('$0.6825')
     const seven = Array(7).fill(9.75) as number[]
-    const exact = seven.reduce((a, b) => a + b, 0)
-    const flooredRows = seven.reduce((a, b) => a + Math.floor(b), 0)
-    expect(formatMoney(exact)).toBe('$0.68')
-    expect(formatMoney(flooredRows)).toBe('$0.63')
+    expect(formatMoney(seven.reduce((a, b) => a + b, 0))).toBe('$0.6825')
   })
 })
 
@@ -99,12 +130,12 @@ describe('row wording', () => {
     }
     expect(copyOf(partial)).toMatchObject({
       label: 'Paid in part',
-      detail: "9.75¢ arrived. 14.625¢ is waiting on the reader's balance.",
+      detail: "$0.0975 arrived. $0.14625 is waiting on the reader's balance.",
     })
     expect(copyOf({ ...partial, role: 'reader' })).toMatchObject({
       label: 'Paid in part',
       detail:
-        '10¢ was paid. 15¢ waits on your balance; add money and it goes through.',
+        '$0.10 was paid. $0.15 waits on your balance; add money and it goes through.',
     })
   })
 
