@@ -180,17 +180,38 @@ https://verify.walletconnect.com` (Verify registers the page's origin from a
 hidden iframe; the client tries both hosts). No Reown AppKit, API, font,
 image or analytics host is allowed.
 
+### Checked against the real relay
+
+With the project ID, from `http://localhost:3124` and the app's own content
+security policy: the page connected to `wss://relay.walletconnect.org`,
+loaded the Verify attestation frame from `verify.walletconnect.org`, and
+showed the pairing code, with no console error and no policy violation. No
+other WalletConnect or Reown host was contacted. Approving on a phone was not
+part of this check.
+
+### Licence and plan
+
+`@walletconnect/sign-client` 2.23 is distributed under the WalletConnect
+Community License. It requires a commercial licence above 500 monthly active
+users or 2,500,000 monthly remote processing calls; it counts a user as a
+unique account that authenticates and connects to the app in 30 days. The
+Reown pricing page counts its 500 Starter users as sign-in-with-wallet or
+embedded-wallet users, which Quilltip does not use. Quilltip uses its own
+Stellar RPC and no Reown RPC.
+
 ### Reown project settings
 
-Allowed origins (the app sends its own origin as the WalletConnect metadata
-URL, so each origin a reader can pair from must be listed):
+Allowed origins. Once a domain is listed, only listed domains can use the
+project, and Verify marks a pairing verified when the page's origin matches
+the metadata URL, which the app sets to its own origin. No file or DNS record
+is needed on the domain:
 
 - Production: `https://www.quilltip.me` (`https://quilltip.me` redirects to it).
 - Integration preview (`overhaul/v2` branch alias):
   `https://quilltip-git-overhaul-v2-pragya-sharmas-projects-a6320130.vercel.app`.
   Per-deployment preview URLs change with each build and are not listed.
 - Local development: `http://localhost:3000` and `http://127.0.0.1:3000`, plus
-  any other port a developer runs on.
+  any other port a developer runs on (for example `http://localhost:3124`).
 
 ## Sources
 
