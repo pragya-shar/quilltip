@@ -155,8 +155,15 @@ function resultCopy(
     tabOperation: boolean
   }
 ): CopyBlock {
-  // A tab operation's failure is known only from the client's own polling.
-  if (options.tabOperation && (phase === 'failed' || phase === 'expired')) {
+  // Without a failure from the flow, a tab operation's failure is known only
+  // from the client's own polling. A failure the flow passes (send refused,
+  // network busy) is more specific and wins.
+  const flowFailure = phase === 'failed' && !!options.failure
+  if (
+    options.tabOperation &&
+    !flowFailure &&
+    (phase === 'failed' || phase === 'expired')
+  ) {
     return TAB_OPERATION_RESULT[phase]
   }
   switch (phase) {
