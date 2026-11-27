@@ -16,7 +16,7 @@ import {
   type MoneyActPhase,
   type PocketSource,
 } from '../../../components/pocket/source'
-import type { ActivityItem } from '../../../components/pocket/types'
+import type { ActivityItem, Money } from '../../../components/pocket/types'
 import {
   SCENARIOS,
   elsewhereTip,
@@ -70,7 +70,27 @@ export function sendElsewhere() {
 }
 
 const NOW = Date.now()
-const views = forRole(scenario(name, NOW), role)
+// `?writer-converted`: the money layer marks the writer's figures as
+// converted at today's price (D24), written "≈" with two decimals.
+const base = forRole(scenario(name, NOW), role)
+const approx = (figure: Money | null): Money | null =>
+  figure && {
+    cents: figure.cents,
+    display: `≈ $${(Math.floor(figure.cents + 1e-9) / 100).toFixed(2)}`,
+    converted: true,
+  }
+const views =
+  params.has('writer-converted') && base.earnings.status === 'ready'
+    ? {
+        ...base,
+        earnings: {
+          ...base.earnings,
+          available: approx(base.earnings.available),
+          pending: approx(base.earnings.pending),
+          collected: approx(base.earnings.collected),
+        },
+      }
+    : base
 
 function useFakeAct(
   label: string,

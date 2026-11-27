@@ -121,6 +121,15 @@ export function EarningsSection({
           usually within a minute.
         </p>
       ) : null}
+      {[available, earnings.pending, earnings.collected].some(
+        (figure) => ready && figure?.converted === true
+      ) ? (
+        // Only when the money layer marks a figure as a conversion (D24).
+        <p className="qt-pocket__fine">
+          Held in Lumens. Figures move with the price; each tip below shows its
+          dollars at the time.
+        </p>
+      ) : null}
       <p className="qt-pocket__fine">
         These are your share. You keep 97.5% of every tip.
       </p>

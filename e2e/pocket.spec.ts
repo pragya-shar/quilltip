@@ -166,14 +166,15 @@ const SCENARIOS: Record<string, Expect> = {
     earnings: { withdraw: '$0.6825', onWay: '$0.00' },
     rows: 6,
     texts: [
-      'An estimate at today’s price.',
+      'Held in Lumens. The dollar figure moves with the price.',
       'New accounts get $5 of testnet practice money.',
       'Withdrawing arrives in a later update.',
       'These are your share. You keep 97.5% of every tip.',
       'Quilltip runs on Stellar testnet. Tips are practice money.',
     ],
-    // No "Pocket" on screen; "≈" only on the converted balance.
-    absent: [/Pocket/, /≈.*≈/],
+    // No "Pocket" on screen; "≈" only on the converted balance, and no
+    // earnings line about prices while their figures are not converted.
+    absent: [/Pocket/, /≈.*≈/, /Figures move with the price/],
   },
   available: {
     spend: '≈$2.54',
@@ -343,6 +344,22 @@ test.describe('every money scenario', () => {
       page.getByRole('heading', { name: 'Your earnings' })
     ).toHaveCount(0)
     await expect(page.locator('.qt-pocket__rows > li')).toHaveCount(3)
+  })
+
+  test('writer figures carry "≈" and the section line only when converted', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=ready&role=writer&writer-converted')
+    const root = page.locator('.qt-pocket')
+    await expect(digits(root, 'Ready to withdraw')).toHaveText('≈$0.68')
+    await expect(digits(root, 'Paid to your wallet')).toHaveText('≈$0.00')
+    await expect(root).toContainText(
+      'Held in Lumens. Figures move with the price; each tip below shows its dollars at the time.'
+    )
+    // Rows stay exact: the share at the time of the tip.
+    await expect(
+      root.locator('.qt-pocket__rows .qt-money__digits').first()
+    ).toHaveText('+$0.0975')
   })
 
   test('pending stays apart from available while settlement lags', async ({

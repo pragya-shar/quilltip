@@ -41,8 +41,9 @@ export function SpendableSection({
         ? 'unavailable'
         : 'ready'
   const available = status === 'ready' ? balance.available : null
-  const estimate =
-    available?.converted ?? available?.display.startsWith('≈') ?? false
+  // The money layer says which figure is a conversion (D24); the screen
+  // never decides it.
+  const converted = available?.converted === true
   const exact = status === 'ready' ? balance.exact : null
   const outgoing =
     status === 'ready' && balance.pending && balance.pending.cents > 0
@@ -57,13 +58,13 @@ export function SpendableSection({
         label="Ready to tip"
         unavailableText="Not available right now"
       />
+      {converted ? (
+        <p className="qt-pocket__fine">
+          Held in Lumens. The dollar figure moves with the price.
+        </p>
+      ) : null}
       {exact ? (
         <div className="qt-pocket__estimate">
-          {estimate ? (
-            <p className="qt-pocket__fine">
-              An estimate at today&rsquo;s price.
-            </p>
-          ) : null}
           <button
             type="button"
             className="qt-pocket__reveal"
