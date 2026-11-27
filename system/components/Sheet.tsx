@@ -25,10 +25,11 @@ const DISMISS_SHARE = 0.25
 const DISMISS_SPEED = 0.6 // px per ms
 
 /**
- * A bottom sheet on a phone, a centred panel from 40rem. Modal: focus stays
- * inside, Escape and the visible close button close it, focus returns to
- * what opened it, and the page behind does not scroll. On touch, the grip
- * and header drag down to dismiss; the close button is always there too.
+ * A bottom sheet on a phone, a centred panel from 40rem. Modal: it opens
+ * with focus on its title (or on a control marked `data-autofocus`), never
+ * on Close; Tab and Option+Tab wrap inside; Escape and the visible close
+ * button close it; focus returns to what opened it; the page behind does
+ * not scroll. On touch, the grip and header drag down to dismiss.
  */
 export function Sheet({
   open,
@@ -41,6 +42,7 @@ export function Sheet({
   children,
 }: SheetProps) {
   const ref = useModal(open, onClose)
+  const scrimPress = useRef(false)
   const titleId = useId()
   const descriptionId = useId()
   const panel = useRef<HTMLDivElement>(null)
@@ -83,9 +85,15 @@ export function Sheet({
       data-kind="sheet"
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
+      onPointerDown={(event) => {
+        scrimPress.current = event.target === event.currentTarget
+      }}
       onClick={(event) => {
-        // A press on the scrim (the dialog itself, outside the panel).
-        if (event.target === event.currentTarget) onClose()
+        // A press that began and ended on the scrim (the dialog itself,
+        // outside the panel); a text selection dragged out of it is not.
+        if (scrimPress.current && event.target === event.currentTarget)
+          onClose()
+        scrimPress.current = false
       }}
     >
       <div className="qt-modal__panel" ref={panel}>
@@ -101,7 +109,12 @@ export function Sheet({
             className="qt-modal__titles"
             data-hidden={hideTitle || undefined}
           >
-            <h2 className="qt-modal__title" id={titleId}>
+            <h2
+              className="qt-modal__title"
+              id={titleId}
+              tabIndex={-1}
+              data-modal-title=""
+            >
               {title}
             </h2>
             {description ? (
@@ -110,17 +123,18 @@ export function Sheet({
               </p>
             ) : null}
           </div>
-          <button
-            type="button"
-            className="qt-modal__close"
-            aria-label="Close"
-            onClick={onClose}
-          >
-            <Icon icon={CloseIcon} size={24} />
-          </button>
         </div>
         {children ? <div className="qt-modal__body">{children}</div> : null}
         {actions ? <div className="qt-modal__actions">{actions}</div> : null}
+        {/* Last in the order, first in the corner: focus never opens here. */}
+        <button
+          type="button"
+          className="qt-modal__close"
+          aria-label="Close"
+          onClick={onClose}
+        >
+          <Icon icon={CloseIcon} size={24} />
+        </button>
       </div>
     </dialog>
   )

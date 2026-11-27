@@ -160,9 +160,24 @@
     color: var(--qt-action-icon);
   }
   .qt-tip__label {
+    display: inline-flex;
+    gap: 0.3em;
+    min-width: 0;
+  }
+  /* The words may be cut; the amount never is. */
+  .qt-tip__words {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .qt-tip__amount {
+    flex-shrink: 0;
+  }
+  .qt-tip__button {
+    max-width: 100%;
+  }
+  .qt-tip__button:not(button) {
+    cursor: default;
   }
   @media (hover: hover) and (pointer: fine) {
     .qt-tip:is([data-phase='idle'], [data-phase='failed'])
@@ -211,7 +226,7 @@
   .qt-tip[data-phase='unavailable'] .qt-tip__button {
     cursor: not-allowed;
   }
-  .qt-tip__hint {
+  .qt-tip__note {
     max-width: 18rem;
     padding: var(--qt-space-2) var(--qt-space-3);
     border-radius: var(--qt-radius-control);
@@ -299,6 +314,17 @@
   .qt-tray__input::placeholder {
     color: var(--qt-ink-3);
     font-weight: var(--qt-weight-ui);
+  }
+  .qt-tray__set {
+    flex-shrink: 0;
+    min-width: var(--qt-hit);
+    min-height: var(--qt-hit);
+    margin-inline-end: calc(-1 * var(--qt-space-2));
+    padding-inline: var(--qt-space-3);
+    border-radius: calc(var(--qt-radius-control) - 2px);
+    background: var(--qt-action-bg);
+    color: var(--qt-action-ink);
+    font-weight: var(--qt-weight-ui-strong);
   }
   .qt-tray__error {
     position: absolute;

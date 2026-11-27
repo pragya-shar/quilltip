@@ -113,7 +113,20 @@ test('focus follows the page order and is always visible', async ({ page }) => {
   }
 })
 
-test('the tip control works from the keyboard', async ({ page }) => {
+/** Where focus is now: the element's class and text. */
+const focused = (page: Page) =>
+  page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null
+    return {
+      className: el?.className ?? '',
+      text: el?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+      ring: el ? getComputedStyle(el).outlineStyle !== 'none' : false,
+    }
+  })
+
+test('the tip control works from the keyboard, and focus follows the tip', async ({
+  page,
+}) => {
   await open(page)
   const group = liveTip(page)
   const amount = group.getByRole('button', { name: 'Change amount' })
@@ -136,14 +149,22 @@ test('the tip control works from the keyboard', async ({ page }) => {
   await page.keyboard.press(tabKey(page))
   await expect(tip).toBeFocused()
   await page.keyboard.press('Enter')
-  const button = group.locator('.qt-tip__button')
-  await expect(button).toHaveText('Sending $2')
-  await expect(button).toHaveText('Sent $2')
-  await expect(group.getByRole('status')).toHaveText('Sent $2 to Tomás Reyes.')
-  await expect(button).toHaveText('Tip $2')
+  const pill = group.locator('.qt-tip__button')
+  await expect(pill).toHaveText('Sending $2')
+  await expect.poll(async () => (await focused(page)).text).toBe('Sending $2')
+  await expect(pill).toHaveText(/^Sent \$2 to Tomás Reyes$/)
+  await expect
+    .poll(async () => (await focused(page)).text)
+    .toBe('Sent $2 to Tomás Reyes')
+  // Read once, by focus: the control has no live region of its own.
+  await expect(
+    group.locator('[role="status"], [role="alert"], [aria-live]')
+  ).toHaveCount(0)
+  await expect(tip).toHaveText('Tip $2')
+  await expect(tip).toBeFocused()
 })
 
-test('the tip control works by touch or pointer, and a refusal says so', async ({
+test('focus follows the tip by touch or pointer too, with no ring', async ({
   page,
 }) => {
   await open(page)
@@ -154,17 +175,32 @@ test('the tip control works by touch or pointer, and a refusal says so', async (
   await expect(group.getByRole('radiogroup')).toBeHidden()
   await expect(button).toHaveText('Tip $5')
   await press(page, button)
-  await expect(button).toHaveText('Sent $5')
+  await expect.poll(async () => (await focused(page)).text).toBe('Sending $5')
+  expect((await focused(page)).ring).toBe(false)
+  await expect
+    .poll(async () => (await focused(page)).text)
+    .toBe('Sent $5 to Tomás Reyes')
+  expect((await focused(page)).ring).toBe(false)
   // Pressing while sent sends nothing more.
   await press(page, button)
   await expect(button).toHaveText('Tip $5')
+})
 
+test('a refused tip moves focus to the reason, and Try again is there', async ({
+  page,
+}) => {
+  await open(page)
+  const group = liveTip(page)
+  const button = group.locator('.qt-tip__button')
   await press(page, page.getByText('Refuse the next tip'))
   await press(page, button)
   await expect(button).toHaveText('Try again')
-  await expect(group.getByRole('alert')).toHaveText(
-    'That tip did not go through. You were not charged.'
-  )
+  await expect
+    .poll(async () => (await focused(page)).text)
+    .toBe('That tip did not go through. You were not charged.')
+  await expect(
+    group.getByRole('button', { name: 'Try again' })
+  ).toHaveAttribute('aria-describedby', /.+/)
 })
 
 test('another amount: typed, checked, chosen without sending', async ({
@@ -187,48 +223,93 @@ test('another amount: typed, checked, chosen without sending', async ({
   await expect(group.locator('.qt-tip__button')).toHaveText('Tip $2.50')
 })
 
-test('a sheet takes focus, keeps it, gives it back, and closes three ways', async ({
-  page,
-}) => {
-  await open(page)
-  const opener = page.getByRole('button', { name: 'Open the sheet' })
-  const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
+for (const kind of [
+  { opener: 'Open the sheet', name: 'Add money to tip $3', close: 'Close' },
+  { opener: 'Open the dialog', name: 'Sign out?', close: 'Stay' },
+]) {
+  test(`${kind.opener.slice(9)}: opens on its title, wraps Tab, returns focus`, async ({
+    page,
+    browserName,
+  }) => {
+    await open(page)
+    const opener = page.getByRole('button', { name: kind.opener })
+    const modal = page.getByRole('dialog', { name: kind.name })
 
-  await opener.focus()
-  await page.keyboard.press('Enter')
-  await expect(sheet).toBeVisible()
-  // The page behind is inert: Tab never reaches it. (Past the last control
-  // the browser may take focus to its own toolbar, outside the page.)
-  for (let step = 0; step < 6; step++) {
-    await page.keyboard.press('Tab')
+    // By keyboard: focus lands on the title, never on Close.
+    await opener.focus()
+    await page.keyboard.press('Enter')
+    await expect(modal).toBeVisible()
+    await expect(modal.getByRole('heading', { name: kind.name })).toBeFocused()
+
+    // Tab and Shift+Tab move through every control and wrap; the last
+    // control is the way out (Close, or the safe choice).
+    const names = await modal.evaluate((el) =>
+      [...el.querySelectorAll<HTMLElement>('button, a[href], input')]
+        .filter((b) => b.getClientRects().length > 0)
+        .map((b) => b.getAttribute('aria-label') ?? b.textContent?.trim())
+    )
+    expect(names.at(-1)).toBe(kind.close)
+    const keys = browserName === 'webkit' ? ['Tab', 'Alt+Tab'] : ['Tab']
+    for (const key of keys) {
+      for (let i = 0; i < names.length; i++) await page.keyboard.press(key)
+      // From the title, one lap lands on the last control...
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              (document.activeElement as HTMLElement | null)?.getAttribute(
+                'aria-label'
+              ) ?? document.activeElement?.textContent?.trim()
+          )
+        )
+        .toBe(kind.close)
+      // ...and one more wraps to the first.
+      await page.keyboard.press(key)
+      expect(
+        await modal.evaluate((el) => el.contains(document.activeElement))
+      ).toBe(true)
+      await page.keyboard.press(`Shift+${key}`)
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              (document.activeElement as HTMLElement | null)?.getAttribute(
+                'aria-label'
+              ) ?? document.activeElement?.textContent?.trim()
+          )
+        )
+        .toBe(kind.close)
+      // Back to the title for the next key.
+      await modal.getByRole('heading', { name: kind.name }).focus()
+    }
+
+    await page.keyboard.press('Escape')
+    await expect(modal).toBeHidden()
+    await expect(opener).toBeFocused()
     expect(
-      await sheet.evaluate(
-        (el) =>
-          el.contains(document.activeElement) ||
-          document.activeElement === document.body ||
-          document.activeElement === null
+      await page.evaluate(
+        () => 'scrollLocked' in document.documentElement.dataset
+      )
+    ).toBe(false)
+
+    // By touch or pointer: the title again, and no focus ring anywhere.
+    await press(page, opener)
+    await expect(modal).toBeVisible()
+    await expect(modal.getByRole('heading', { name: kind.name })).toBeFocused()
+    expect(
+      await page.evaluate(
+        () => getComputedStyle(document.activeElement as Element).outlineStyle
+      )
+    ).toBe('none')
+    expect(
+      await page.evaluate(
+        () => 'scrollLocked' in document.documentElement.dataset
       )
     ).toBe(true)
-  }
-  await page.keyboard.press('Escape')
-  await expect(sheet).toBeHidden()
-  await expect(opener).toBeFocused()
-  expect(
-    await page.evaluate(
-      () => 'scrollLocked' in document.documentElement.dataset
-    )
-  ).toBe(false)
-
-  await press(page, opener)
-  await expect(sheet).toBeVisible()
-  expect(
-    await page.evaluate(
-      () => 'scrollLocked' in document.documentElement.dataset
-    )
-  ).toBe(true)
-  await press(page, sheet.getByRole('button', { name: 'Close' }))
-  await expect(sheet).toBeHidden()
-})
+    await press(page, modal.getByRole('button', { name: kind.close }))
+    await expect(modal).toBeHidden()
+  })
+}
 
 test('a sheet drags down to dismiss with a finger', async ({ page }, info) => {
   test.skip(
@@ -256,17 +337,6 @@ test('a sheet drags down to dismiss with a finger', async ({ page }, info) => {
   }
   await touch('touchEnd')
   await expect(sheet).toBeHidden()
-})
-
-test('a dialog asks, and Escape keeps the safe choice', async ({ page }) => {
-  await open(page)
-  const opener = page.getByRole('button', { name: 'Open the dialog' })
-  await press(page, opener)
-  const dialog = page.getByRole('dialog', { name: 'Sign out?' })
-  await expect(dialog).toBeVisible()
-  await expect(dialog.getByRole('button', { name: 'Stay' })).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(dialog).toBeHidden()
 })
 
 test('a menu opens from the keyboard and returns focus', async ({ page }) => {

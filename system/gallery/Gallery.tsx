@@ -6,6 +6,7 @@ import { ListsSection } from './ListsSection'
 import { MoneySection } from './MoneySection'
 import { OverlaysSection } from './OverlaysSection'
 import { ReadingSection } from './ReadingSection'
+import { ShellSection } from './ShellSection'
 import { ThemeSwitch } from './ThemeSwitch'
 import { TokensSection } from './TokensSection'
 
@@ -17,6 +18,7 @@ const INDEX = [
   ['lists', 'Rows'],
   ['forms', 'Fields'],
   ['reading', 'Reading'],
+  ['shell', 'Balance'],
 ] as const
 
 /**
@@ -53,6 +55,7 @@ export function Gallery() {
       <ListsSection />
       <FormsSection />
       <ReadingSection />
+      <ShellSection />
     </div>
   )
 }

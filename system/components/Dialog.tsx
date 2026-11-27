@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, type ReactNode } from 'react'
+import { useId, useRef, type ReactNode } from 'react'
 import { cx } from '../cx'
 import { useModal } from './useModal'
 
@@ -9,7 +9,7 @@ type DialogProps = {
   onClose: () => void
   title: ReactNode
   description?: ReactNode
-  /** Buttons, the safe choice last (nearest the thumb and the default). */
+  /** Buttons in reading order: the act first, the safe choice last. */
   actions: ReactNode
   /** alert: a decision the reader must make; the scrim does not close it. */
   role?: 'dialog' | 'alertdialog'
@@ -19,7 +19,7 @@ type DialogProps = {
 /**
  * A short question in the centre of the screen: a title, a sentence and two
  * buttons. For anything longer use Sheet. Modal, with focus kept inside and
- * returned on close; Escape closes it.
+ * returned on close; Escape closes it. It opens with focus on the title.
  */
 export function Dialog({
   open,
@@ -31,6 +31,7 @@ export function Dialog({
   className,
 }: DialogProps) {
   const ref = useModal(open, onClose)
+  const scrimPress = useRef(false)
   const titleId = useId()
   const descriptionId = useId()
   return (
@@ -44,13 +45,27 @@ export function Dialog({
       data-kind="dialog"
       aria-labelledby={titleId}
       aria-describedby={description ? descriptionId : undefined}
+      onPointerDown={(event) => {
+        scrimPress.current = event.target === event.currentTarget
+      }}
       onClick={(event) => {
-        if (role === 'dialog' && event.target === event.currentTarget) onClose()
+        if (
+          role === 'dialog' &&
+          scrimPress.current &&
+          event.target === event.currentTarget
+        )
+          onClose()
+        scrimPress.current = false
       }}
     >
       <div className="qt-modal__panel">
         <div className="qt-modal__titles">
-          <h2 className="qt-modal__title" id={titleId}>
+          <h2
+            className="qt-modal__title"
+            id={titleId}
+            tabIndex={-1}
+            data-modal-title=""
+          >
             {title}
           </h2>
           {description ? (

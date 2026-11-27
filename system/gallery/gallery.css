@@ -222,6 +222,11 @@
     border-radius: var(--qt-radius-control);
     background: var(--qt-surface);
   }
+  .qt-gallery__bar {
+    width: max-content;
+    height: var(--qt-nav-h);
+    box-shadow: none;
+  }
   .qt-gallery__list {
     display: flex;
     flex-direction: column;

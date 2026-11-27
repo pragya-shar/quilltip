@@ -7,6 +7,8 @@ export {
   HighlighterIcon as TipIcon,
   Wallet01Icon as BalanceIcon,
   Home01Icon as ReadIcon,
+  Home01Icon as TodayIcon,
+  Bookshelf01Icon as ShelfIcon,
   PencilEdit02Icon as WriteIcon,
   Search01Icon as SearchIcon,
   UserCircleIcon as YouIcon,

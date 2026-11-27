@@ -22,6 +22,7 @@ export default function AppError({
     <div className="qt-page">
       <Notice
         tone="failure"
+        live
         title="This page did not load"
         action={
           <Button variant="secondary" onClick={reset}>

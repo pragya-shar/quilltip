@@ -2,13 +2,10 @@
 
 import { useEffect, useId, useRef, useState } from 'react'
 import { cx } from '../cx'
+import { focusDestination, watchInputModality } from '../inputModality'
 import { AmountIcon, CloseIcon, DoneIcon, TipIcon } from '../icons'
 import type { MoneyValue } from '../money/figure'
-import {
-  tipAnnouncement,
-  tipButtonLabel,
-  type TipControlPhase,
-} from '../money/tip'
+import { tipButtonParts, tipNote, type TipControlPhase } from '../money/tip'
 import { AmountTray } from './AmountTray'
 import { Icon } from './Icon'
 import { Spinner } from './Spinner'
@@ -38,12 +35,26 @@ export type TipControlProps = {
   className?: string
 }
 
+/** Focus is lost when it sits on the body, or on a box around the control. */
+function focusLost(root: HTMLElement | null): boolean {
+  const active = document.activeElement
+  return (
+    !active ||
+    active === document.body ||
+    (root !== null && active !== root && active.contains(root))
+  )
+}
+
 /**
  * The main action: a labelled button that states the amount ("Tip $1"),
  * with a visible amount button beside it that works by tap and by keyboard.
- * A tap on the button sends; choosing an amount never sends. It shows
- * Sending while the server decides, Sent only after it accepted, and
- * "Try again" when it refused. No swipe, no long press, no Undo.
+ * A press sends; choosing an amount never sends. While the server decides,
+ * the button becomes a status ("Sending $1") and focus moves to it; when it
+ * accepts, the status reads "Sent $1" and keeps focus; when it refuses, focus
+ * moves to the reason. Focus never depends on the pressed button keeping it
+ * (Safari does not focus a button on click), and each change is read once,
+ * by focus, with no second live announcement. No swipe, no long press, no
+ * Undo.
  */
 export function TipControl({
   state,
@@ -60,25 +71,54 @@ export function TipControl({
   className,
 }: TipControlProps) {
   const trayId = useId()
-  const hintId = useId()
+  const noteId = useId()
   const [trayOpen, setTrayOpen] = useState(false)
-  const [offlineHint, setOfflineHint] = useState(false)
+  const [offlineNote, setOfflineNote] = useState(false)
+  const root = useRef<HTMLDivElement>(null)
   const amountButton = useRef<HTMLButtonElement>(null)
+  const tipButton = useRef<HTMLButtonElement>(null)
+  const status = useRef<HTMLDivElement>(null)
+  const note = useRef<HTMLParagraphElement>(null)
+  const previous = useRef(state.phase)
   const busy = state.phase === 'sending' || state.phase === 'sent'
-  const label = unavailable ?? tipButtonLabel(state, amount, target)
-  const announcement = tipAnnouncement(state, recipient)
+  const stuck = state.phase === 'needs-funds' && !onAddMoney
+  const parts = unavailable
+    ? { words: unavailable, amount: null }
+    : tipButtonParts(state, amount, target)
+  const noteText =
+    state.phase === 'offline'
+      ? offlineNote
+        ? tipNote(state)
+        : null
+      : tipNote(state)
 
+  // Focus follows the tip: to the status when it starts, to the result when
+  // it ends, back to the button when the result clears and focus was lost.
   useEffect(() => {
-    if (state.phase !== 'offline') setOfflineHint(false)
+    const before = previous.current
+    previous.current = state.phase
+    if (before === state.phase) return
+    if (state.phase === 'sending' || state.phase === 'sent') {
+      focusDestination(status.current)
+    } else if (state.phase === 'failed') {
+      focusDestination(note.current)
+    } else if (state.phase === 'idle' && focusLost(root.current)) {
+      tipButton.current?.focus({ preventScroll: true })
+    }
+    if (state.phase !== 'offline') setOfflineNote(false)
   }, [state.phase])
+  useEffect(() => {
+    if (offlineNote) focusDestination(note.current)
+  }, [offlineNote])
+  useEffect(() => watchInputModality(), [])
   useEffect(() => {
     if (busy) setTrayOpen(false)
   }, [busy])
 
   const press = () => {
-    if (busy || unavailable) return
+    if (busy || unavailable || stuck) return
     if (state.phase === 'offline') {
-      setOfflineHint(true)
+      setOfflineNote(true)
       return
     }
     if (state.phase === 'needs-funds') {
@@ -97,17 +137,43 @@ export function TipControl({
     if (returnFocus) amountButton.current?.focus()
   }
 
+  const face = (
+    <>
+      <span className="qt-tip__nib" aria-hidden="true">
+        {state.phase === 'sending' ? (
+          <Spinner />
+        ) : state.phase === 'sent' ? (
+          <Icon icon={DoneIcon} size={20} />
+        ) : (
+          <Icon icon={TipIcon} size={20} />
+        )}
+      </span>
+      <span className="qt-tip__label">
+        <span className="qt-tip__words">{parts.words}</span>{' '}
+        {parts.amount ? (
+          <span className="qt-tip__amount">{parts.amount}</span>
+        ) : null}
+      </span>
+    </>
+  )
+
   return (
     <div
+      ref={root}
       className={cx('qt-tip', className)}
       role="group"
       aria-label={`Tip ${recipient}`}
       data-phase={unavailable ? 'unavailable' : state.phase}
       data-target={target}
+      onBlur={(event) => {
+        // Focus left the control and its tray: the tray closes.
+        if (trayOpen && !event.currentTarget.contains(event.relatedTarget))
+          setTrayOpen(false)
+      }}
     >
-      {offlineHint ? (
-        <p className="qt-tip__hint" id={hintId}>
-          You are offline. Tip again when you are back online.
+      {noteText ? (
+        <p className="qt-tip__note" id={noteId} ref={note} tabIndex={-1}>
+          {noteText}
         </p>
       ) : null}
       {trayOpen ? (
@@ -140,40 +206,40 @@ export function TipControl({
             className="qt-tip__round"
             data-variant="action"
             aria-label="Change amount"
-            aria-haspopup="true"
             aria-expanded={trayOpen}
             aria-controls={trayOpen ? trayId : undefined}
             disabled={busy}
             onClick={() => setTrayOpen((open) => !open)}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && trayOpen) {
+                event.preventDefault()
+                setTrayOpen(false)
+              }
+            }}
           >
             <Icon icon={AmountIcon} size={24} />
           </button>
         ) : null}
-        <button
-          type="button"
-          className="qt-tip__button"
-          aria-disabled={busy || Boolean(unavailable) || undefined}
-          aria-describedby={offlineHint ? hintId : undefined}
-          onClick={press}
-        >
-          <span className="qt-tip__nib" aria-hidden="true">
-            {state.phase === 'sending' ? (
-              <Spinner />
-            ) : state.phase === 'sent' ? (
-              <Icon icon={DoneIcon} size={20} />
-            ) : (
-              <Icon icon={TipIcon} size={20} />
-            )}
-          </span>
-          <span className="qt-tip__label">{label}</span>
-        </button>
+        {busy ? (
+          <div ref={status} className="qt-tip__button" tabIndex={-1}>
+            {face}
+            {state.phase === 'sent' ? (
+              <span className="qt-visually-hidden"> to {recipient}</span>
+            ) : null}
+          </div>
+        ) : (
+          <button
+            ref={tipButton}
+            type="button"
+            className="qt-tip__button"
+            aria-disabled={Boolean(unavailable) || stuck || undefined}
+            aria-describedby={noteText ? noteId : undefined}
+            onClick={press}
+          >
+            {face}
+          </button>
+        )}
       </div>
-      <span className="qt-visually-hidden" role="status">
-        {announcement.polite}
-      </span>
-      <span className="qt-visually-hidden" role="alert">
-        {announcement.assertive}
-      </span>
     </div>
   )
 }

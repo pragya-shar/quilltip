@@ -8,6 +8,32 @@ pages in the same pull request.
 See the components in every state at `/system` (local: `bun run dev`, then
 open `/system`). A sample public reading page is at `/system/reading`.
 
+## The structure (D20)
+
+Three places and a balance. The bar (phone) and the rail (desktop, from
+1024 px) hold **Today** (`/`), **Shelf** (`/shelf`), **Write** (`/write`) and
+the **balance**, labelled with the live amount or "Sign in". The balance is
+not a place: it opens the **Pocket** over whatever the person is doing, as a
+sheet on a phone and a right panel on a desktop (`/pocket` for links and
+for no script). Articles (`/{username}/{slug}`), a shared line
+(`/p/<code>`), a writer's page (`/{username}`, `/@handle` redirects there),
+search, the editor (`/write/<id>`), You (`/you`) and the line pager
+(`/lines`) are **pushed screens**. Every money act and the sign-in are
+**sheets**.
+
+- A place is a page under `app/(app)/`, listed in `shell/navigation.ts`.
+- A pushed screen wraps its page in `PushedScreen` (`@/shell/PushedScreen`):
+  the phone bar hides, and the screen slides in only when reached by
+  navigation, never on a first load. Its URL, browser back and the edge
+  swipe are the browser's own; add no horizontal touch handlers near the
+  screen edges.
+- A sheet over everything goes on the shell's stack: add its id to
+  `shell/sheetStack.ts` and its component to `shell/SheetHost.tsx`, then
+  `sheetStack.open('<id>')`. A sheet local to one screen renders `Sheet`
+  itself.
+- The bar and the Pocket read the balance through `useBalanceReading()`
+  (`@/shell/balance`); never subscribe to the balance again in a surface.
+
 ## Where things live
 
 | Path                             | What                                                                          | Who changes it                                    |
@@ -70,6 +96,30 @@ for a missing token, component or state.
 - Links are `next/link` or `TextLink`: real `<a href>` in the HTML.
 - The tip control, menus, sheets and the payments runtime attach to text
   that is already there. They never wrap it.
+
+## Sheets, dialogs and focus
+
+`Sheet` and `Dialog` follow these rules; a surface that moves focus itself
+follows them too (use `focusDestination` from `@/system/inputModality`).
+
+1. **Where a sheet or dialog opens.** Focus lands on its title, or on the
+   first meaningful control when that control has `data-autofocus`; never on
+   Close. Close is visible, reachable and last in the Tab order.
+2. **Rings only for the keyboard.** A focus ring shows only after keyboard
+   use. Opening by touch or pointer draws no ring, because Chrome carries
+   `:focus-visible` into the next script focus.
+3. **Tab wraps, in every engine.** Tab and Shift+Tab move through every
+   control and wrap, and so do Option+Tab and Shift+Option+Tab in Safari
+   (by default Safari's plain Tab reaches only text fields).
+4. **Focus goes back.** On close, focus returns to the element that opened
+   the sheet, or to the page content (`#content`) if that element is gone.
+5. **Focus after a payment starts.** Safari does not focus a button on
+   click, so never rely on the pressed button holding focus. When a tip or
+   any money act starts, move focus to its status ("Sending $1"); when it
+   finishes, to the result ("Sent $1 to Tomás", or the reason it failed). If
+   focus is on the body or on a box around the control, treat it as lost
+   and move it. The change is read once, by focus: no live region repeats
+   it. `TipControl` does all of this; a surface's own money sheets must too.
 
 ## Money
 

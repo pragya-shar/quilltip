@@ -7,6 +7,7 @@ import { ToastRegion } from '@/system/components/ToastRegion'
 import { AppProviders } from '@/shell/AppProviders'
 import { AppShell } from '@/shell/AppShell'
 import { PaymentsSlot } from '@/shell/PaymentsSlot'
+import { SheetHost } from '@/shell/SheetHost'
 import { SITE_NAME, SITE_ORIGIN } from '@/lib/seo/siteMetadata'
 
 export const metadata: Metadata = {
@@ -53,6 +54,7 @@ export default async function AppRootLayout({
           <AppShell
             beside={
               <>
+                <SheetHost />
                 <ToastRegion />
                 <PaymentsSlot />
               </>

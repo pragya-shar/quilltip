@@ -1,7 +1,12 @@
 'use client'
 
-import { useRef, type KeyboardEvent } from 'react'
+import { useId, useRef, type KeyboardEvent } from 'react'
 import { cx } from '../cx'
+
+/** The DOM id of a tab, for a panel's aria-labelledby. */
+export function tabId(base: string, id: string): string {
+  return `${base}-tab-${id}`
+}
 
 export type TabItem = {
   id: string
@@ -20,6 +25,8 @@ type TabsProps = {
    * choice inside a screen). */
   variant?: 'tabs' | 'segmented'
   className?: string
+  /** A stable base for tab ids, when a panel must name its tab. */
+  idBase?: string
 }
 
 /**
@@ -34,8 +41,11 @@ export function Tabs({
   label,
   variant = 'tabs',
   className,
+  idBase,
 }: TabsProps) {
   const list = useRef<HTMLDivElement>(null)
+  const auto = useId()
+  const base = idBase ?? auto
   const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const rtl = getComputedStyle(event.currentTarget).direction === 'rtl'
     const step = { ArrowRight: rtl ? -1 : 1, ArrowLeft: rtl ? 1 : -1 }[
@@ -69,7 +79,7 @@ export function Tabs({
             key={item.id}
             type="button"
             role="tab"
-            id={`tab-${item.id}`}
+            id={tabId(base, item.id)}
             aria-selected={selected}
             aria-controls={item.panelId}
             tabIndex={selected ? 0 : -1}

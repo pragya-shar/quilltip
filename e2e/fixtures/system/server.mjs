@@ -65,11 +65,10 @@ Bun.serve({
             : 'text/javascript',
         },
       })
-    if (url.pathname === '/' || url.pathname === '/reading')
-      return new Response(
-        html(url.pathname === '/' ? 'Design system' : 'Reading page sample'),
-        { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-      )
+    if (['/', '/reading', '/shelf', '/pocket'].includes(url.pathname))
+      return new Response(html('Quilltip system fixture'), {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
     return new Response('Not found', { status: 404 })
   },
 })

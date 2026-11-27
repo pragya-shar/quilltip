@@ -13,64 +13,54 @@ export type TipControlPhase =
   | { phase: 'offline'; amount: MoneyValue }
   | { phase: 'needs-funds'; amount: MoneyValue; available: MoneyValue | null }
 
-/** The words on the tip button for a phase. One place, one copy. */
+/**
+ * The words on the tip button for a phase, and the amount apart from them:
+ * the words may be cut with an ellipsis, the amount never is.
+ */
+export function tipButtonParts(
+  state: TipControlPhase,
+  amount: MoneyValue | null,
+  target: 'article' | 'passage'
+): { words: string; amount: string | null } {
+  switch (state.phase) {
+    case 'sending':
+      return { words: 'Sending', amount: state.amount.display }
+    case 'sent':
+      return { words: 'Sent', amount: state.amount.display }
+    case 'failed':
+      return { words: 'Try again', amount: null }
+    case 'offline':
+      return { words: 'Offline', amount: null }
+    case 'needs-funds':
+      return { words: 'Add money to tip', amount: state.amount.display }
+    case 'idle':
+      if (!amount) return { words: 'Choose an amount', amount: null }
+      return {
+        words: target === 'passage' ? 'Tip this line' : 'Tip',
+        amount: amount.display,
+      }
+  }
+}
+
+/** The whole label, as a screen reader and a test read it. */
 export function tipButtonLabel(
   state: TipControlPhase,
   amount: MoneyValue | null,
   target: 'article' | 'passage'
 ): string {
-  switch (state.phase) {
-    case 'sending':
-      return `Sending ${state.amount.display}`
-    case 'sent':
-      return `Sent ${state.amount.display}`
-    case 'failed':
-      return 'Try again'
-    case 'offline':
-      return 'Offline'
-    case 'needs-funds':
-      return `Add money to tip ${state.amount.display}`
-    case 'idle':
-      if (!amount) return 'Choose an amount'
-      return target === 'passage'
-        ? `Tip this line ${amount.display}`
-        : `Tip ${amount.display}`
-  }
+  const parts = tipButtonParts(state, amount, target)
+  return parts.amount ? `${parts.words} ${parts.amount}` : parts.words
 }
 
-/** What a screen reader hears when the phase changes, once. */
-export function tipAnnouncement(
-  state: TipControlPhase,
-  recipient: string
-): { polite: string; assertive: string } {
+/** The line under the control that explains a failure or a block, if any. */
+export function tipNote(state: TipControlPhase): string | null {
   switch (state.phase) {
-    case 'sending':
-      return {
-        polite: `Sending ${state.amount.display} to ${recipient}.`,
-        assertive: '',
-      }
-    case 'sent':
-      return {
-        polite: `Sent ${state.amount.display} to ${recipient}.`,
-        assertive: '',
-      }
     case 'failed':
-      return {
-        polite: '',
-        assertive: 'That tip did not go through. You were not charged.',
-      }
+      return 'That tip did not go through. You were not charged.'
     case 'offline':
-      return {
-        polite: 'You are offline. Tip again when you are back online.',
-        assertive: '',
-      }
-    case 'needs-funds':
-      return {
-        polite: `Add money to tip ${state.amount.display}.`,
-        assertive: '',
-      }
-    case 'idle':
-      return { polite: '', assertive: '' }
+      return 'You are offline. Tip again when you are back online.'
+    default:
+      return null
   }
 }
 

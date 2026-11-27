@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Tabs } from '../components/Tabs'
+import { Tabs, tabId } from '../components/Tabs'
 import { TextField } from '../components/TextField'
 import { GallerySection } from './GallerySection'
 import { Specimen } from './Specimen'
@@ -57,11 +57,17 @@ export function FormsSection() {
         />
       </Specimen>
       <Specimen name="Tabs" wide>
-        <Tabs items={FEED} value={tab} onChange={setTab} label="Feed" />
+        <Tabs
+          items={FEED}
+          value={tab}
+          onChange={setTab}
+          label="Feed"
+          idBase="gallery-feed"
+        />
         <div
           id="gallery-feed-panel"
           role="tabpanel"
-          aria-labelledby={`tab-${tab}`}
+          aria-labelledby={tabId('gallery-feed', tab)}
           className="qt-gallery__text"
         >
           Showing {FEED.find((item) => item.id === tab)?.label}.

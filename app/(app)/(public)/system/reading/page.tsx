@@ -9,7 +9,7 @@ import { Prose } from '@/system/components/Prose'
 import { TextLink } from '@/system/components/TextLink'
 import { SampleTipDock } from '@/system/gallery/SampleTipDock'
 import { BackIcon } from '@/system/icons'
-import { Immersive } from '@/shell/Immersive'
+import { PushedScreen } from '@/shell/PushedScreen'
 
 export const metadata: Metadata = {
   title: 'Reading page sample',
@@ -24,64 +24,65 @@ export const metadata: Metadata = {
  */
 export default function SampleReadingPage() {
   return (
-    <div className="qt-page qt-sample" data-width="read">
-      <Immersive />
-      <header className="qt-sample__top">
-        <Link
-          href="/"
-          className="qt-icon-button"
-          data-variant="plain"
-          aria-label="Back to reading"
-        >
-          <Icon icon={BackIcon} size={24} />
-        </Link>
-      </header>
-      <article className="qt-sample__article">
-        <Heading level={1} variant="display">
-          What my grandmother’s ledger taught me about money
-        </Heading>
-        <p className="qt-sample__byline">
-          <Avatar name="Tomás Reyes" size={24} decorative />
-          <span>Tomás Reyes</span>
-          <span aria-hidden="true">·</span>
-          <span>6 min</span>
-        </p>
-        <Prose>
-          <p>
-            My grandmother kept a ledger in the drawer under the bread. It was
-            not a budget. There were no columns for rent or groceries, and the
-            totals never added up to anything.
+    <PushedScreen>
+      <div className="qt-page qt-sample" data-width="read">
+        <header className="qt-sample__top">
+          <Link
+            href="/"
+            className="qt-icon-button"
+            data-variant="plain"
+            aria-label="Back to reading"
+          >
+            <Icon icon={BackIcon} size={24} />
+          </Link>
+        </header>
+        <article className="qt-sample__article">
+          <Heading level={1} variant="display">
+            What my grandmother’s ledger taught me about money
+          </Heading>
+          <p className="qt-sample__byline">
+            <Avatar name="Tomás Reyes" size={24} decorative />
+            <span>Tomás Reyes</span>
+            <span aria-hidden="true">·</span>
+            <span>6 min</span>
           </p>
-          <p>
-            <PassageMark heat={2} total="$4 · 9" totalLabel="$4 from 9 tips">
-              Two pesos to the boy who carried her bags.
-            </PassageMark>{' '}
-            For thirty years she wrote one line each time she gave something
-            away: a date, a name, a coin. Five to Señora Ruiz,{' '}
-            <em>for the medicine</em>. One to a singer on the 14 bus.
-          </p>
-          <p>
-            <PassageMark
-              heat={3}
-              total="$14 · 23"
-              totalLabel="$14 from 23 tips"
-            >
-              She wrote down every coin she ever gave away. Not to remember the
-              money, but to remember the people.
-            </PassageMark>
-          </p>
-          <p>
-            When she died we read it aloud, one line each, around the table.
-            Nobody cried until the singer on the 14 bus.
-          </p>
-        </Prose>
-        <footer className="qt-sample__end">
-          <TextLink href="/articles" variant="standalone">
-            Read more articles
-          </TextLink>
-        </footer>
-      </article>
-      <SampleTipDock />
-    </div>
+          <Prose>
+            <p>
+              My grandmother kept a ledger in the drawer under the bread. It was
+              not a budget. There were no columns for rent or groceries, and the
+              totals never added up to anything.
+            </p>
+            <p>
+              <PassageMark heat={2} total="$4 · 9" totalLabel="$4 from 9 tips">
+                Two pesos to the boy who carried her bags.
+              </PassageMark>{' '}
+              For thirty years she wrote one line each time she gave something
+              away: a date, a name, a coin. Five to Señora Ruiz,{' '}
+              <em>for the medicine</em>. One to a singer on the 14 bus.
+            </p>
+            <p>
+              <PassageMark
+                heat={3}
+                total="$14 · 23"
+                totalLabel="$14 from 23 tips"
+              >
+                She wrote down every coin she ever gave away. Not to remember
+                the money, but to remember the people.
+              </PassageMark>
+            </p>
+            <p>
+              When she died we read it aloud, one line each, around the table.
+              Nobody cried until the singer on the 14 bus.
+            </p>
+          </Prose>
+          <footer className="qt-sample__end">
+            <TextLink href="/articles" variant="standalone">
+              Read more articles
+            </TextLink>
+          </footer>
+        </article>
+        <SampleTipDock />
+      </div>
+    </PushedScreen>
   )
 }

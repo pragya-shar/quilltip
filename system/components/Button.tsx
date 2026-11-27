@@ -98,7 +98,7 @@ export function Button(props: ButtonProps) {
       aria-busy={loading || undefined}
       // A busy button stays focusable (focus is not lost) but ignores presses.
       aria-disabled={loading || undefined}
-      onClick={loading ? undefined : onClick}
+      onClick={loading ? (event) => event.preventDefault() : onClick}
     >
       {inner}
     </button>

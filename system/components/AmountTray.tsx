@@ -180,6 +180,9 @@ export function AmountTray({
               }
             }}
           />
+          <button type="submit" className="qt-tray__set">
+            Set
+          </button>
           {otherError ? (
             <span className="qt-tray__error" id={errorId} role="alert">
               Enter an amount like 2.50

@@ -112,6 +112,11 @@
     outline: var(--qt-focus-width) solid var(--qt-focus);
     outline-offset: var(--qt-focus-offset);
   }
+  /* A title, status or result that received focus by script after a press
+   * draws no ring (system/inputModality.ts). */
+  [data-focus-ring='off']:focus-visible {
+    outline: none;
+  }
   [hidden] {
     display: none !important;
   }

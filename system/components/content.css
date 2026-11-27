@@ -307,13 +307,19 @@
   .qt-tabs__tab {
     position: relative;
     flex-shrink: 0;
+    min-width: var(--qt-hit);
     min-height: var(--qt-hit);
+    padding-inline: var(--qt-space-1);
     color: var(--qt-ink-2);
     font-weight: var(--qt-weight-ui-strong);
     white-space: nowrap;
   }
   .qt-tabs__tab[aria-selected='true'] {
     color: var(--qt-ink);
+  }
+  /* The list scrolls sideways, which would clip a ring drawn outside. */
+  .qt-tabs__tab:focus-visible {
+    outline-offset: -2px;
   }
   .qt-tabs[data-variant='tabs'] .qt-tabs__tab[aria-selected='true']::after {
     position: absolute;

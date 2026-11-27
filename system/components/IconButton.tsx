@@ -63,7 +63,7 @@ export function IconButton(props: IconButtonProps) {
       type={type}
       aria-busy={loading || undefined}
       aria-disabled={loading || undefined}
-      onClick={loading ? undefined : onClick}
+      onClick={loading ? (event) => event.preventDefault() : onClick}
     >
       {glyph}
     </button>

@@ -4,9 +4,9 @@ import { NavRail } from './NavRail'
 
 /**
  * The frame every page of the application renders in: a skip link, the
- * desktop rail, the content, the phone bar, and `beside` (the toast region
- * and the payments shell), which sits next to the content and never wraps
- * it. The frame lives in the root layout, so it does not remount when the
+ * desktop rail, the content, the phone bar, and `beside` (the sheet stack,
+ * the toast region and the payments shell), which sits next to the content
+ * and never wraps it. The frame lives in the root layout, so it does not remount when the
  * page changes. Nothing here suspends: the content arrives in the first
  * response (D19).
  */
