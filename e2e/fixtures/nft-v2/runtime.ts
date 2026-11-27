@@ -72,8 +72,6 @@ const confirmDelay = Number(params.get('confirmDelay') ?? 600)
 // usernames, the largest u32 token ID, a total far past the threshold);
 // `data=empty`: nothing tipped yet.
 const data = params.get('data') ?? 'demo'
-/** `v1paused=1`: v1 NFT actions are paused (`CHAIN_V1_PREPARES_ENABLED=false`). */
-const v1Paused = params.get('v1paused') === '1'
 const LONG_USER = 'bartholomew_fitzgera'
 const TOKEN_ID = data === 'worst' ? 4_294_967_295 : 7
 
@@ -191,10 +189,10 @@ const v1Unminted = {
   rarity: 'common',
 }
 
-/** `nfts.getNFTByArticle` as #520 returns it: with `v1ActionsPaused`. */
+/** `nfts.getNFTByArticle` as the backend returns it, with `v1ActionsPaused`. */
 function nftRecord(record: unknown) {
   return record && typeof record === 'object'
-    ? { ...record, v1ActionsPaused: v1Paused }
+    ? { ...record, v1ActionsPaused: false }
     : record
 }
 
@@ -782,14 +780,7 @@ export function useMutation(ref: unknown) {
   return fn
 }
 
-// --- v1 stand-ins (the v1 panel when v2 is off) ----------------------------
-
-export function useNFTByArticle() {
-  return nftRecord(store.record)
-}
 export const useWalletActivation = () => ({ activateWallet: () => {} })
-export const stellarClient = { getXLMPrice: async () => 0.2 }
-export const nftClient = {}
 export const InstallWalletDialog = () => null
 
 // --- lib/stellar/v2/chain-runtime stand-in -----------------------------------

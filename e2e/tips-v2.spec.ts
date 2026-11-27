@@ -379,8 +379,8 @@ const STATES: State[] = [
     query: 'article=v1-paused',
     run: async (page) => page.locator('main'),
     check: async (scope) => {
-      // Before v2 is on, v1 preparation is paused (#520): a note replaces
-      // both tip buttons, and no basket appears.
+      // No flow can take a tip (`paused`): a note replaces both tip
+      // buttons, and no basket appears.
       await expect(
         scope
           .locator('.reader-support')
@@ -444,12 +444,18 @@ const STATES: State[] = [
   {
     id: 'v2-disabled',
     query: 'v2=off',
-    run: async (page) => page.locator('.reader-support'),
+    run: async (page) => page.locator('main'),
     check: async (scope) => {
-      // The v1 flow renders unchanged; no basket.
+      // Payments v2 off (`disabled`): the paused note in place of both tip
+      // buttons; no basket.
       await expect(
-        scope.getByRole('button', { name: 'Tip article' })
-      ).toBeVisible()
+        scope.getByText(
+          'Tips are paused for a short time while payments are updated.'
+        )
+      ).toHaveCount(2)
+      await expect(
+        scope.getByRole('button', { name: /Tip (article|passage)/ })
+      ).toHaveCount(0)
       await expect(
         scope.page().getByRole('button', { name: /Tip basket/ })
       ).toHaveCount(0)
