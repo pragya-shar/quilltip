@@ -19,11 +19,13 @@ import {
   receiptNet,
 } from '../../convex/lib/chain/tabLedger'
 import { tabShareCents } from '../../convex/lib/authorEarnings'
+import { syncCollectedCents } from '../../convex/lib/chain/balanceFigures'
 import {
   centsFromBaseUnits,
   receiptShareCents,
 } from '../../convex/lib/moneyViews'
 import { SETTLE_REQUEST_LEASE } from '../../convex/lib/chain/settleSchedule'
+import { RECENT_REQUESTS } from '../../convex/balance'
 import {
   ACCEPTOR_PUBLIC,
   EPOCH,
@@ -265,6 +267,30 @@ describe('exactly once per tip', () => {
     const { views: v } = await checkInvariants(t, s)
     expect(v.readerActivity.page).toHaveLength(1)
     expect(v.writerActivity.page).toHaveLength(1)
+  })
+})
+
+describe('a device asks about its own tips by request id', () => {
+  it('answers for a tip older than the newest accepted ids, and only to its reader', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10, requestId: 'mine-oldest' })
+    for (let i = 0; i < RECENT_REQUESTS; i++) await tip(t, s, { cents: 10 })
+    const reader = as(t, s.readerId)
+    const session = await reader.query(api.balance.session, {})
+    expect(session!.recentRequestIds).toHaveLength(RECENT_REQUESTS)
+    expect(session!.recentRequestIds).not.toContain('mine-oldest')
+    expect(
+      await reader.query(api.balance.acceptedRequests, {
+        requestIds: ['mine-oldest', 'never-sent'],
+      })
+    ).toEqual(['mine-oldest'])
+    // The writer is another user: it learns nothing about the reader's ids.
+    expect(
+      await as(t, s.authorId).query(api.balance.acceptedRequests, {
+        requestIds: ['mine-oldest'],
+      })
+    ).toEqual([])
   })
 })
 
@@ -762,6 +788,121 @@ describe('totals at any history length and across collects (D10)', () => {
     await ingest(t, ev.claimed(WRITER, net - quarter))
     e = (await checkInvariants(t, s)).views.earnings
     expect(e).toMatchObject({ availableCents: 0, collectedCents: 390 })
+  })
+
+  // The running fields as on a deployment that predates them: settled
+  // receipts and indexed collects, with no running figures yet.
+  async function clearRunningFigures(t: T) {
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('authorEarnings').collect())
+        await ctx.db.patch(row._id, {
+          tabTipCount: undefined,
+          tabEarnedCents: undefined,
+          tabSettledBaseUnits: undefined,
+          tabPendingCents: undefined,
+          tabPendingCount: undefined,
+          tabOnHoldCents: undefined,
+          tabOnHoldCount: undefined,
+          tabNotPaidCents: undefined,
+          tabNotPaidCount: undefined,
+          tabCollectedCents: undefined,
+          tabMatchedBaseUnits: undefined,
+          tabAheadBaseUnits: undefined,
+          tabCollectedAppliedBaseUnits: undefined,
+        })
+      for (const r of await ctx.db.query('tabReceipts').collect())
+        await ctx.db.patch(r._id, { moneyAppliedStatus: undefined })
+      for (const a of await ctx.db.query('tabAccounts').collect())
+        await ctx.db.patch(a._id, { reservedCents: undefined })
+    })
+  }
+
+  async function backfill(t: T) {
+    await t.mutation(internal.balanceBackfill.start, {})
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+  }
+
+  it('backfills settled and collected history, twice, and a later tip is ready, not collected', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const net = await settleTwo(t, s) // 400 cents, 39 M base units net
+    await ingest(t, ev.claimed(WRITER, net))
+    const live = await as(t, s.authorId).query(api.earnings.mine, {})
+    expect(live).toMatchObject({ availableCents: 0, collectedCents: 390 })
+
+    await clearRunningFigures(t)
+    await backfill(t)
+    const once = (await checkInvariants(t, s)).views.earnings
+    expect(once).toEqual(live)
+    await backfill(t)
+    expect(await as(t, s.authorId).query(api.earnings.mine, {})).toEqual(live)
+
+    // A new tip after the backfill: ready to withdraw, not collected.
+    await tip(t, s, { cents: 100 })
+    const before = BigInt(40_000_000)
+    const after = BigInt(50_000_000)
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: after,
+        paidAfter: after,
+        gross: after - before,
+      })
+    )
+    const e = (await checkInvariants(t, s)).views.earnings
+    expect(e).toMatchObject({
+      pendingCents: 0,
+      availableCents: 97.5,
+      collectedCents: 390,
+      totalCents: 487.5,
+      baseUnits: {
+        available: (netOf(after) - netOf(before)).toString(),
+        collected: net.toString(),
+      },
+    })
+  })
+
+  it('repairs collected figures a backfill without settled history left wrong', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const net = await settleTwo(t, s)
+    await ingest(t, ev.claimed(WRITER, net))
+    const live = await as(t, s.authorId).query(api.earnings.mine, {})
+    // As left by the earlier backfill: settled history missing, the whole
+    // collect held as ahead of it.
+    await clearRunningFigures(t)
+    await t.run(async (ctx) => {
+      for (const r of await ctx.db.query('tabReceipts').collect())
+        await ctx.db.patch(r._id, { moneyAppliedStatus: r.status })
+      const row = (await ctx.db.query('authorEarnings').collect()).find(
+        (e) => e.userId === s.authorId
+      )!
+      await ctx.db.patch(row._id, {
+        tabAheadBaseUnits: { [TOKEN]: net.toString() },
+        tabMatchedBaseUnits: { [TOKEN]: '0' },
+        tabCollectedAppliedBaseUnits: { [TOKEN]: net.toString() },
+        tabCollectedCents: 0,
+      })
+    })
+    await backfill(t)
+    expect(await as(t, s.authorId).query(api.earnings.mine, {})).toEqual(live)
+    await backfill(t)
+    expect(await as(t, s.authorId).query(api.earnings.mine, {})).toEqual(live)
+  })
+
+  it('moves the same indexed collect once when its sync runs twice', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const net = await settleTwo(t, s)
+    await ingest(t, ev.claimed(WRITER, net / BigInt(4)))
+    const once = await as(t, s.authorId).query(api.earnings.mine, {})
+    expect(once).toMatchObject({ collectedCents: 97.5, availableCents: 292.5 })
+    // The same `Claimed` total applied again, past the indexer's event check.
+    await t.run(async (ctx) => {
+      await syncCollectedCents(ctx, s.authorId, TOKEN, Date.now())
+      await syncCollectedCents(ctx, s.authorId, TOKEN, Date.now())
+    })
+    expect(await as(t, s.authorId).query(api.earnings.mine, {})).toEqual(once)
   })
 
   it('matches a collect indexed before the settlement that funded it', async () => {
