@@ -9,6 +9,8 @@ import { createRoot } from 'react-dom/client'
 
 import { TabServicesContext } from '../../../hooks/tab/TabServicesContext'
 import { CollectPanel } from '../../../components/tab/CollectPanel'
+import { CreatorStatsPanel } from '../../../components/dashboard/CreatorStatsPanel'
+import { CompactEarningsFigures } from '../../../components/dashboard/CompactEarningsFigures'
 import { TabHome } from '../../../components/tab/TabHome'
 import { TabTipAction } from '../../../components/tab/TabTipAction'
 import '../../../components/account/account.css'
@@ -49,6 +51,36 @@ function Fixture() {
                   document.body.setAttribute('data-wallet-tip', 'opened')
                 }
               />
+            </div>
+          ) : view === 'stats' && scenario?.stats ? (
+            <div className="tab-ui" style={{ paddingTop: 24 }}>
+              <CreatorStatsPanel
+                articleCount={4}
+                tipsReceivedCount={scenario.stats.tipCount}
+                earnedStroops={scenario.stats.earnedStroops}
+                estimatedUsd={scenario.stats.estimatedUsd}
+                isTestnet
+                nftsOwned={0}
+                complete={scenario.stats.complete ?? true}
+                updating={scenario.stats.updating ?? false}
+                source={scenario.stats.source ?? 'lifetime'}
+              />
+              {/* The dashboard card, from the same summary. */}
+              <div
+                className="compact-earnings"
+                data-testid="compact-earnings"
+                style={{ marginTop: 32, maxWidth: 320 }}
+              >
+                <CompactEarningsFigures
+                  earnedStroops={scenario.stats.earnedStroops}
+                  estimatedUsd={scenario.stats.estimatedUsd}
+                  tipCount={scenario.stats.tipCount}
+                  isTestnet
+                  complete={scenario.stats.complete ?? true}
+                  unpricedTipCount={0}
+                  updating={scenario.stats.updating ?? false}
+                />
+              </div>
             </div>
           ) : (
             <div className="tab-ui" style={{ paddingTop: 24 }}>
