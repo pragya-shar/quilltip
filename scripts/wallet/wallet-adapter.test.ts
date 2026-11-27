@@ -464,7 +464,10 @@ describe('signTransaction', () => {
       verifySignature: async () => 'wrong-account',
     })
     await wallet.connect({ walletId: 'xbull' })
-    fake.kit.signTransaction.mockResolvedValue({ signedTxXdr: 'AAAA:signed' })
+    fake.kit.signTransaction.mockResolvedValue({
+      signedTxXdr: 'AAAA:signed',
+      signerAddress: ADDRESS,
+    })
     expect(
       await rejection(wallet.signTransaction('AAAA', { address: ADDRESS }))
     ).toMatchObject({ kind: 'wrong-account', expectedAddress: ADDRESS })
