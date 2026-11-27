@@ -46,9 +46,16 @@ async function holdChunks(page: Page, ms: number) {
 async function scriptShape(page: Page) {
   return page.evaluate(() => {
     const tags = [...document.querySelectorAll('script')]
+    const loaders = tags.filter((s) =>
+      s.src.includes('/hydrate-after-paint.js?c=')
+    )
     return {
-      loaders: tags.filter((s) => s.src.includes('/hydrate-after-paint.js?c='))
-        .length,
+      // The copy that runs before the first paint: in <head>, without async.
+      loaders: loaders.filter(
+        (s) => !s.hasAttribute('async') && s.closest('head') !== null
+      ).length,
+      // The async bootstrap copy (`&b=1`), which does nothing when it runs.
+      lateLoaders: loaders.filter((s) => s.hasAttribute('async')).length,
       inert: tags
         .filter((s) => s.hasAttribute('data-hydrate-after-paint'))
         .map((s) => s.getAttribute('data-hydrate-after-paint')!),
@@ -69,6 +76,7 @@ for (const path of PATCHED_ROUTES) {
     await waitForHydration(page)
     const shape = await scriptShape(page)
     expect(shape.loaders).toBe(1)
+    expect(shape.lateLoaders).toBe(1)
     // Every inert tag, including those of parts that streamed in later, was
     // started as a real script.
     for (const src of shape.inert)
@@ -116,6 +124,27 @@ test('the mobile menu opens from a press made before hydration', async ({
     {
       timeout: 15_000,
     }
+  )
+})
+
+test('a press right after the first paint is held, even when the loader is slow', async ({
+  page,
+}) => {
+  // The loader is in <head> without async, so nothing is parsed or painted
+  // before it has started holding presses. With the earlier async loader, a
+  // press between the first paint and the loader's arrival was lost: the
+  // button was on screen and did nothing.
+  await page.setViewportSize({ width: 375, height: 812 })
+  await holdChunks(page, 2500)
+  await page.route(/\/hydrate-after-paint\.js\?/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    await route.continue()
+  })
+  await page.goto('/articles', { waitUntil: 'commit' })
+  // Pressed as soon as the button is on the page.
+  await page.getByRole('button', { name: 'Open navigation menu' }).click()
+  await expect(page.getByRole('dialog', { name: 'Find your way' })).toBeVisible(
+    { timeout: 15_000 }
   )
 })
 
