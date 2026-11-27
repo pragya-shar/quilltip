@@ -1,13 +1,7 @@
 import { syncReadingRoomEngagement } from './lib/readingRoomIndex'
 import { getTipArticleSummary } from './lib/tipArticleSummary'
 import { ConvexError, v } from 'convex/values'
-import {
-  query,
-  mutation,
-  internalMutation,
-  type QueryCtx,
-} from './_generated/server'
-import type { Id } from './_generated/dataModel'
+import { query, mutation, internalMutation } from './_generated/server'
 import { paginationOptsValidator } from 'convex/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
@@ -34,15 +28,10 @@ import { readChainEnv } from './lib/chain/env'
 import { requireV1PreparesEnabled } from './lib/v1Prepares'
 import { getMonthKey, roundCents, writerShareCents } from './lib/authorEarnings'
 import {
-  addLifetimeTotals,
-  addUnits,
-  emptyLifetimeTotals,
   lifetimeFigures,
+  previousFigures,
   readLifetimeTotals,
   reverseV1TipTotals,
-  tipRowTotals,
-  totalsFromHistory,
-  type LifetimeTotals,
 } from './lib/lifetimeEarnings'
 import {
   AGGREGATE_LIMIT,
@@ -56,7 +45,6 @@ import {
   publicTipFields,
   registeredTotals,
   withTipper,
-  type TipRow,
 } from './lib/tipReads'
 
 const MAX_OUTSTANDING_ARTICLE_TIP_INTENTS = 5
@@ -849,29 +837,25 @@ export const getAuthorEarnings = query({
 
 // The caller's earnings as a writer. Owner only.
 //
-// `earnedStroops`, `estimatedUsd` and `tipCount` cover the same tips (#552):
-// verified v1 tips, confirmed v2 wallet tips (the caller's recipient share)
-// and tab tips settled on chain. A tab tip accepted but not settled is in
-// none of them. Each is the sum of lifetime totals on `authorEarnings`,
-// credited in the same mutation as each tip (convex/lib/lifetimeEarnings.ts):
+// For a row rebuilt from its history (`lifetimeTotalsAt`, #552), the figures
+// are lifetime totals on `authorEarnings`, credited with each tip
+// (convex/lib/lifetimeEarnings.ts), and cover the same tips: verified v1 tips,
+// confirmed v2 wallet tips (the caller's recipient share) and the net paid on
+// chain for tab tips:
 // - XLM: `v1ShareStroops` + `walletEarnedBaseUnits` + `tabSettledBaseUnits`
 //   (native XLM, `TOKEN_CONTRACT_ID`).
 // - USD: `v1EarnedCents` + `v2EarnedCents` + `tabEarnedCents`.
 // - Count: `v1TipCount` + `v2TipCount` + `tabTipCount`.
+// `source` is then `lifetime`. Any other row, or no row, gets the figures as
+// computed before the lifetime totals (`previousFigures`), `source:
+// 'previous'`. `updating` is true while the row's rebuild is in progress.
 // Other fields:
 // - `writerShareStroops`: the v1 part of the XLM.
 // - `earnedBaseUnits`, `v2TipCount`: as stored (section 6.2).
 // - `unpricedTipCount`: legacy v1 tips without a trusted USD amount. They are
 //   in the XLM and the count, so the USD is a lower bound.
-// - `updating`: the row's totals are being rebuilt from its history
-//   (`earningsTotalsBackfill`), or wait for it and the history is longer
-//   than one read. The figures are then zero and not shown.
-// - `complete`: false while `updating`, and for a user without an earnings
-//   row (nothing credited, so only v1 rows can count) whose v1 history is
-//   longer than one read (AGGREGATE_LIMIT rows per table): the figures are
-//   then lower bounds over the same v1 tips.
-// A row not rebuilt yet whose whole history fits in one read gets its figures
-// from that history, by the same rules.
+// - `complete`: false when the previous figures read only the first
+//   AGGREGATE_LIMIT rows of a table: they are then lower bounds.
 // The network is returned so the UI can label testnet amounts as having no
 // real value.
 export const getMyEarningsSummary = query({
@@ -889,6 +873,7 @@ export const getMyEarningsSummary = query({
       unpricedTipCount: v.number(),
       complete: v.boolean(),
       updating: v.boolean(),
+      source: v.union(v.literal('lifetime'), v.literal('previous')),
     })
   ),
   handler: async (ctx) => {
@@ -904,101 +889,27 @@ export const getMyEarningsSummary = query({
     } catch {
       // Not a v2 deployment: v1 rows only.
     }
-    const stored = {
-      network: getStellarNetwork(),
-      earnedBaseUnits: earnings?.earnedBaseUnits ?? {},
-      v2TipCount: earnings?.v2TipCount ?? 0,
-    }
-    const updating = {
-      ...stored,
-      tipCount: 0,
-      writerShareStroops: '0',
-      earnedStroops: '0',
-      estimatedUsd: 0,
-      unpricedTipCount: 0,
-      complete: false,
-      updating: true,
-    }
-
-    let totals: LifetimeTotals
-    let complete = true
-    if (earnings?.lifetimeRebuild) return updating
-    if (earnings?.lifetimeTotalsAt !== undefined) {
-      totals = readLifetimeTotals(earnings)
-    } else {
-      const history = await readEarningsHistory(ctx, userId)
-      if (earnings) {
-        if (!history.complete) return updating
-        totals = totalsFromHistory(
-          history.totals,
-          history.pairNet,
-          earnings.earnedBaseUnits
-        )
-      } else {
-        totals = history.totals
-        complete = history.complete
-      }
-    }
-    const figures = lifetimeFigures(totals, earnings, xlmToken)
+    const lifetime =
+      earnings?.lifetimeTotalsAt !== undefined && !earnings.lifetimeRebuild
+    const figures = lifetime
+      ? {
+          ...lifetimeFigures(readLifetimeTotals(earnings), earnings, xlmToken),
+          complete: true,
+        }
+      : await previousFigures(ctx.db, userId, earnings, xlmToken)
     return {
-      ...stored,
+      network: getStellarNetwork(),
       tipCount: figures.tipCount,
       writerShareStroops: figures.v1Stroops,
       earnedStroops: figures.stroops.toString(),
       // Cents carry four decimals; dollars six, without float noise.
       estimatedUsd: Math.round(figures.cents * 10_000) / 1_000_000,
+      earnedBaseUnits: earnings?.earnedBaseUnits ?? {},
+      v2TipCount: earnings?.v2TipCount ?? 0,
       unpricedTipCount: figures.unpriced,
-      complete,
-      updating: false,
+      complete: figures.complete,
+      updating: !!earnings?.lifetimeRebuild,
+      source: lifetime ? ('lifetime' as const) : ('previous' as const),
     }
   },
 })
-
-/**
- * The v1 and tab totals of the user's history and their tab pairs' earned
- * net, by the rules of the lifetime totals, as far as one read allows
- * (AGGREGATE_LIMIT tip rows per table, tab pairs per writer address).
- * `complete` is false when a read stopped there.
- */
-async function readEarningsHistory(
-  ctx: QueryCtx,
-  userId: Id<'users'>
-): Promise<{
-  totals: LifetimeTotals
-  pairNet: Record<string, string>
-  complete: boolean
-}> {
-  let totals = emptyLifetimeTotals()
-  let complete = true
-  const writers = new Set<string>()
-  for (const table of ['tips', 'highlightTips'] as const) {
-    const rows: TipRow[] = await ctx.db
-      .query(table)
-      .withIndex('by_author', (q) => q.eq('authorId', userId))
-      .take(AGGREGATE_LIMIT + 1)
-    if (rows.length > AGGREGATE_LIMIT) complete = false
-    for (const row of rows.slice(0, AGGREGATE_LIMIT)) {
-      const delta = tipRowTotals(row)
-      if (delta) totals = addLifetimeTotals(totals, delta)
-      if (row.channel === 'tab' && row.expectedAuthorAddress) {
-        writers.add(row.expectedAuthorAddress)
-      }
-    }
-  }
-  const user = await ctx.db.get(userId)
-  if (user?.stellarAddress) writers.add(user.stellarAddress)
-  let pairNet: Record<string, string> = {}
-  for (const writerAddress of writers) {
-    const pairs = await ctx.db
-      .query('tabVouchers')
-      .withIndex('by_writer', (q) => q.eq('writerAddress', writerAddress))
-      .take(AGGREGATE_LIMIT + 1)
-    if (pairs.length > AGGREGATE_LIMIT) complete = false
-    for (const pair of pairs.slice(0, AGGREGATE_LIMIT)) {
-      if (pair.authorId === userId) {
-        pairNet = addUnits(pairNet, { [pair.tokenContractId]: pair.earnedNet })
-      }
-    }
-  }
-  return { totals, pairNet, complete }
-}

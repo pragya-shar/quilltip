@@ -73,7 +73,11 @@ describe('lifetime totals writers (#552)', () => {
 
   test('the tab settlement is the only live writer of the tab totals', () => {
     expect(callers('creditTabTipTotals')).toEqual([
-      'convex/lib/chain/tabLedger.ts:setReceiptStatus',
+      'convex/lib/chain/tabLedger.ts:creditTabPaidRange',
+    ])
+    // Called once, where a pair's paid amount grows.
+    expect(callers('creditTabPaidRange')).toEqual([
+      'convex/lib/chain/tabLedger.ts:applyPairSettlement',
     ])
   })
 

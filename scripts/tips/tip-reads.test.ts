@@ -827,12 +827,13 @@ describe('earnings access and mixed summary', () => {
       unpricedTipCount: 0,
       complete: true,
       updating: false,
+      source: 'previous',
     })
   })
 
-  // The live totals equal the totals rebuilt from history (#552): forget
-  // them as a row from before this change, read the history, rebuild, and
-  // compare the three reads.
+  // The figures equal the lifetime totals rebuilt from history (#552): forget
+  // the totals as a row from before this change (the previous figures),
+  // rebuild, and compare.
   async function bothReads(t: T, userId: Id<'users'>) {
     const read = () =>
       asUser(t, userId).query(api.tips.getMyEarningsSummary, {})
@@ -853,12 +854,16 @@ describe('earnings access and mixed summary', () => {
         lifetimeTotalsAt: undefined,
       })
     })
-    expect(await read()).toEqual(live)
+    expect(await read()).toMatchObject({ source: 'previous' })
+    vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'true')
     await t.action(internal.earningsTotalsBackfill.run, {})
     const row = await earningsOf(t, userId)
     expect(row?.lifetimeTotalsAt).toBeTypeOf('number')
-    expect(await read()).toEqual(live)
-    return live!
+    const rebuilt = (await read())!
+    // The same figures, now from the lifetime totals.
+    expect(rebuilt.source).toBe('lifetime')
+    expect({ ...rebuilt, source: live!.source }).toEqual(live)
+    return rebuilt
   }
 
   it('v1 rows and v2 rows: a legacy tip without a trusted USD amount keeps its XLM and its place in the count (#552)', async () => {

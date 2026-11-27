@@ -23,7 +23,11 @@ import {
   newRowTotalsFields,
   tabShareCents,
 } from '../authorEarnings'
-import { creditTabTipTotals, notePairEarned } from '../lifetimeEarnings'
+import {
+  creditTabTipTotals,
+  notePairEarned,
+  tabPaidDelta,
+} from '../lifetimeEarnings'
 import {
   isStellarAddressVerified,
   verifiedStellarAddress,
@@ -1236,6 +1240,55 @@ export async function recomputePairEarnings(
 // ---------------------------------------------------------------------------
 // Receipt states
 
+/**
+ * The writer's net of the part of a receipt that the pair's `paid` amount
+ * covers (#552). The receipt spans `cumulativeAfter − amount` to
+ * `cumulativeAfter` of the pair's cumulative amount, so over a pair's receipts
+ * this sums to `netOf(paid)`; a fully paid receipt gives `receiptNet`.
+ */
+export function receiptPaidNet(
+  r: Pick<Doc<'tabReceipts'>, 'amount' | 'cumulativeAfter'>,
+  paid: bigint
+): bigint {
+  const after = big(r.cumulativeAfter)
+  const before = after - big(r.amount)
+  if (paid <= before) return ZERO
+  return netOf(paid < after ? paid : after) - netOf(before)
+}
+
+/**
+ * Credits the writers' lifetime tab totals with what each receipt of the pair
+ * gained when its paid amount grew from `oldPaid` to `newPaid` (#552). It runs
+ * once per paid range, so a replayed or repeated settlement adds nothing.
+ */
+async function creditTabPaidRange(
+  ctx: MutationCtx,
+  voucher: Doc<'tabVouchers'>,
+  oldPaid: bigint,
+  newPaid: bigint
+): Promise<void> {
+  for (const receipt of await pairReceipts(ctx, voucher)) {
+    const before = receiptPaidNet(receipt, oldPaid)
+    const after = receiptPaidNet(receipt, newPaid)
+    if (after === before) continue
+    const row = (await ctx.db.get(receipt.tipRowId)) as TipRow | null
+    if (!row) continue
+    await creditTabTipTotals(
+      ctx,
+      receipt.authorId,
+      ctx.db.normalizeId('tips', row._id) ? 'tips' : 'highlightTips',
+      row,
+      tabPaidDelta(
+        row.amountCents,
+        big(receipt.amount),
+        voucher.tokenContractId,
+        before,
+        after
+      )
+    )
+  }
+}
+
 /** The writer's net for one receipt under the cumulative fee rule. */
 export function receiptNet(
   r: Pick<Doc<'tabReceipts'>, 'amount' | 'cumulativeAfter'>
@@ -1275,16 +1328,6 @@ async function setReceiptStatus(
       earningsAppliedAt: now,
       updatedAt: now,
     })
-    // The settled row, by the lifetime totals' rule (#552).
-    const settled = (await ctx.db.get(row._id)) as TipRow | null
-    if (settled) {
-      await creditTabTipTotals(
-        ctx,
-        receipt.authorId,
-        ctx.db.normalizeId('tips', settled._id) ? 'tips' : 'highlightTips',
-        settled
-      )
-    }
     return
   }
   await patchTipRow(ctx, row._id, { status, updatedAt: now })
@@ -1431,6 +1474,7 @@ export async function applyPairSettlement(
         updatedAt: args.now,
       })
     }
+    await creditTabPaidRange(ctx, voucher, oldPaid, newPaid)
   }
   await applyPairPayment(ctx, voucher._id, {
     shortfallUpTo:

@@ -53,4 +53,6 @@ export const lifetimeTotalsFields = {
   lifetimeRebuild: v.optional(lifetimeRebuildValidator),
   /** When the rebuild last advanced; orders the rebuild queue. */
   lifetimeRebuildTurnAt: v.optional(v.number()),
+  /** The last rebuild error for the row; cleared when the row is rebuilt. */
+  lifetimeRebuildError: v.optional(v.string()),
 }

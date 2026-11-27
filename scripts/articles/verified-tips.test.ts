@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from 'convex-test'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -156,15 +156,17 @@ test('a v1 verification credits the lifetime totals the summary reads (#552)', a
     estimatedUsd: 1.95,
     complete: true,
   }
-  // Before the rebuild the summary reads the history; after it, the totals.
-  expect(await read()).toMatchObject(expected)
+  // Before the rebuild, the previous figures; after it, the totals.
+  expect(await read()).toMatchObject({ ...expected, source: 'previous' })
+  vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'true')
   await t.action(internal.earningsTotalsBackfill.run, {})
+  vi.unstubAllEnvs()
   expect(await row()).toMatchObject({
     v1TipCount: 2,
     v1ShareStroops: '39000000',
     lifetimeTotalsAt: expect.any(Number),
   })
-  expect(await read()).toMatchObject(expected)
+  expect(await read()).toMatchObject({ ...expected, source: 'lifetime' })
 })
 
 test('public and writer stats count verified tips only', async () => {
@@ -223,6 +225,7 @@ test('public and writer stats count verified tips only', async () => {
     unpricedTipCount: 0,
     complete: true,
     updating: false,
+    source: 'previous',
   })
 })
 

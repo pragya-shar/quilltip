@@ -34,7 +34,7 @@
  */
 import type { Infer } from 'convex/values'
 import type { Doc, Id } from '../_generated/dataModel'
-import type { MutationCtx } from '../_generated/server'
+import type { DatabaseReader, MutationCtx } from '../_generated/server'
 import {
   roundCents,
   tabShareCents,
@@ -45,7 +45,12 @@ import type {
   lifetimeRebuildValidator,
   lifetimeTotalsValidator,
 } from './lifetimeTotalsFields'
-import { contractVersionOf, countsAsPaid, type TipRow } from './tipReads'
+import {
+  AGGREGATE_LIMIT,
+  contractVersionOf,
+  countsAsPaid,
+  type TipRow,
+} from './tipReads'
 
 export type LifetimeTotals = Infer<typeof lifetimeTotalsValidator>
 export type LifetimeRebuild = Infer<typeof lifetimeRebuildValidator>
@@ -133,16 +138,45 @@ export function tipRowTotals(row: TipRow): Partial<LifetimeTotals> | null {
       ),
     }
   }
-  if (row.channel !== 'tab' || row.earningsAppliedAt === undefined) return null
-  const net = BigInt(row.netBaseUnits ?? '0')
+  return null
+}
+
+/**
+ * What a tab tip adds once `paidNet` of its receipt is paid on chain: the
+ * net itself, the tip's quoted cents in proportion to the paid share of the
+ * receipt's gross (the same grid as `tabShareCents`), and the tip once, from
+ * its first paid part. Nothing while nothing is paid.
+ */
+export function tabPaidTotals(
+  paidNet: bigint,
+  amountCents: number,
+  gross: bigint,
+  token: string
+): Partial<LifetimeTotals> | null {
+  if (paidNet <= BigInt(0)) return null
   return {
     tabTipCount: 1,
-    tabEarnedCents: tabShareCents(
-      row.amountCents,
-      net,
-      BigInt(row.grossBaseUnits ?? '0')
+    tabEarnedCents: tabShareCents(amountCents, paidNet, gross),
+    tabSettledBaseUnits: { [token]: paidNet.toString() },
+  }
+}
+
+/** The change of a tab tip's totals when its paid net goes `before` → `after`. */
+export function tabPaidDelta(
+  amountCents: number,
+  gross: bigint,
+  token: string,
+  before: bigint,
+  after: bigint
+): Partial<LifetimeTotals> {
+  const was = tabPaidTotals(before, amountCents, gross, token)
+  const now = tabPaidTotals(after, amountCents, gross, token)
+  return {
+    tabTipCount: (now ? 1 : 0) - (was ? 1 : 0),
+    tabEarnedCents: roundCents(
+      (now?.tabEarnedCents ?? 0) - (was?.tabEarnedCents ?? 0)
     ),
-    tabSettledBaseUnits: { [row.tokenContractId ?? '']: net.toString() },
+    tabSettledBaseUnits: { [token]: (after - before).toString() },
   }
 }
 
@@ -170,18 +204,23 @@ async function earningsRow(ctx: MutationCtx, userId: Id<'users'>) {
 
 /**
  * The only live writer of the `tab*` totals: the tab settlement credit
- * (`setReceiptStatus`, once per receipt, when it becomes `SETTLED` and its
- * row gets `earningsAppliedAt`). Writes nothing for any other row.
+ * (`creditTabPaidRange` in `applyPairSettlement`, once per paid range of a
+ * pair), with the change `tabPaidDelta` gives for the tip's receipt. Writes
+ * only the `tab*` fields, and nothing for a row that is not a tab tip.
  */
 export async function creditTabTipTotals(
   ctx: MutationCtx,
   userId: Id<'users'>,
   table: TipTable,
-  row: TipRow
+  row: TipRow,
+  delta: Partial<LifetimeTotals>
 ): Promise<void> {
-  const delta = tipRowTotals(row)
-  if (delta?.tabTipCount !== 1) return
-  await creditRowTotals(ctx, userId, table, row, delta)
+  if (row.channel !== 'tab') return
+  await creditRowTotals(ctx, userId, table, row, {
+    tabTipCount: delta.tabTipCount,
+    tabEarnedCents: delta.tabEarnedCents,
+    tabSettledBaseUnits: delta.tabSettledBaseUnits,
+  })
 }
 
 /**
@@ -352,6 +391,90 @@ export function totalsFromHistory(
   return {
     ...rows,
     walletEarnedBaseUnits: subtractUnits(earnedBaseUnits ?? {}, tabPairsNet),
+  }
+}
+
+/** Every lifetime field unset: the shape of a row from before #552. */
+export function clearedLifetimeTotals() {
+  return {
+    v1TipCount: undefined,
+    v1EarnedCents: undefined,
+    v1ShareStroops: undefined,
+    v1UnpricedTipCount: undefined,
+    tabTipCount: undefined,
+    tabEarnedCents: undefined,
+    tabSettledBaseUnits: undefined,
+    walletEarnedBaseUnits: undefined,
+  }
+}
+
+/** The totals that differ between two sets, by field name. */
+export function changedLifetimeFields(
+  a: LifetimeTotals,
+  b: LifetimeTotals
+): string[] {
+  const key = (value: unknown) =>
+    value && typeof value === 'object'
+      ? JSON.stringify(
+          Object.entries(value).filter(([, n]) => n !== '0').sort()
+        )
+      : String(value)
+  return (Object.keys(a) as (keyof LifetimeTotals)[]).filter(
+    (field) => key(a[field]) !== key(b[field])
+  )
+}
+
+/**
+ * The figures as the summary computed them before the lifetime totals (#552),
+ * for a row that is not rebuilt yet: the v1 rows read (at most
+ * AGGREGATE_LIMIT per table; `complete` is false beyond), plus
+ * `v2EarnedCents`, `v2TipCount` and `earnedBaseUnits` as stored.
+ */
+export async function previousFigures(
+  db: DatabaseReader,
+  userId: Id<'users'>,
+  earnings: Doc<'authorEarnings'> | null,
+  xlmToken: string | null
+): Promise<{
+  stroops: bigint
+  cents: number
+  tipCount: number
+  v1Stroops: string
+  unpriced: number
+  complete: boolean
+}> {
+  let complete = true
+  let v1Stroops = BigInt(0)
+  let v1Cents = 0
+  let v1Count = 0
+  let unpriced = 0
+  for (const table of ['tips', 'highlightTips'] as const) {
+    const rows: TipRow[] = await db
+      .query(table)
+      .withIndex('by_author', (q) => q.eq('authorId', userId))
+      .take(AGGREGATE_LIMIT + 1)
+    if (rows.length > AGGREGATE_LIMIT) complete = false
+    for (const row of rows.slice(0, AGGREGATE_LIMIT)) {
+      if (contractVersionOf(row) !== 'v1' || !countsAsPaid(row)) continue
+      v1Count += 1
+      v1Stroops += writerShareStroops(row) ?? BigInt(0)
+      if ('amountUsdSuspicious' in row && row.amountUsdSuspicious) {
+        unpriced += 1
+      } else {
+        v1Cents += writerShareCents(row.amountCents, row.expectedAmountStroops)
+      }
+    }
+  }
+  const v2Xlm = xlmToken
+    ? BigInt(earnings?.earnedBaseUnits?.[xlmToken] ?? '0')
+    : BigInt(0)
+  return {
+    stroops: v1Stroops + v2Xlm,
+    cents: roundCents(v1Cents + (earnings?.v2EarnedCents ?? 0)),
+    tipCount: v1Count + (earnings?.v2TipCount ?? 0),
+    v1Stroops: v1Stroops.toString(),
+    unpriced,
+    complete,
   }
 }
 
