@@ -9,10 +9,16 @@
  * every branch that runs the script gets the same result.
  */
 
-/** Old spelling to new spelling. Case-sensitive; the order does not matter. */
+/**
+ * Old spelling to new spelling. Case-sensitive; no two rules can match the
+ * same text, so the order does not matter.
+ */
 export const RULES: ReadonlyArray<{ from: string; to: string }> = [
   { from: 'QuillTip', to: 'Quilltip' },
   { from: 'Quill Tip', to: 'Quilltip' },
+  // The wordmark draws the Q as the logo and writes the rest as element text:
+  // `<svg>…</svg><span>uillTip</span>`.
+  { from: '>uillTip<', to: '>uilltip<' },
 ]
 
 /**

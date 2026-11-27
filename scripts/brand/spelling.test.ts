@@ -39,6 +39,22 @@ describe('applySpelling', () => {
     ])
   })
 
+  it('rewrites the text after the drawn Q of the wordmark', () => {
+    const { text, changed } = applySpelling(
+      'a.tsx',
+      '<svg aria-hidden="true"></svg><span aria-hidden="true">uillTip</span>',
+      []
+    )
+    expect(text).toBe(
+      '<svg aria-hidden="true"></svg><span aria-hidden="true">uilltip</span>'
+    )
+    expect(changed).toHaveLength(1)
+    // Inside the full name, only the full-name rule applies.
+    expect(applySpelling('a.html', '<b>QuillTip</b>', []).text).toBe(
+      '<b>Quilltip</b>'
+    )
+  })
+
   it('leaves the new spelling, all capitals, lower case and env names alone', () => {
     const input =
       'Quilltip QUILLTIP quilltip.app QUILLTIP_NETWORK_GUARD_OPT_IN quill tip'

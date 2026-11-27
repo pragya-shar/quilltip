@@ -26,7 +26,7 @@ export function WritingBrand() {
         <circle cx="68" cy="74" r="6" fill="var(--paper)" />
         <path d="M68 74 98 106" stroke="var(--paper)" strokeWidth="3" />
       </svg>
-      <span className="brand-word">uillTip</span>
+      <span className="brand-word">uilltip</span>
       <span className="desk-label"> / Writing desk</span>
     </a>
   )
