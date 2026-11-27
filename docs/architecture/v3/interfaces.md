@@ -142,9 +142,15 @@ export type EarningsView = {
   status: 'loading' | 'none' | 'ready'
   /** Accepted (balance) or submitted (wallet), not yet settled on chain. */
   pending: Money
-  /** Settled on chain and collectable now: claimable in the Tab, minus nothing collected. */
+  /**
+   * Settled on chain and collectable now: claimable in the Tab. Correct under
+   * event replay only with issue 584's fix (section 2.6).
+   */
   available: Money
-  /** Reached the writer's wallet: collected with `claim`, paid out in `settle`, or paid by `Core.tip`. */
+  /**
+   * Reached the writer's wallet: collected with `claim`, paid out in `settle`,
+   * or paid by `Core.tip`. Correct under event replay only with issue 584's fix.
+   */
   collected: Money
   /** pending + available + collected. */
   total: Money

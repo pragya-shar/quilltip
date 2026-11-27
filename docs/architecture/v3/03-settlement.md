@@ -26,7 +26,7 @@ wallet in the same transaction.
 ### Preconditions for the fast cadence
 
 The fast cadence turns settlement results from rare to constant. P2 does not
-enable event-driven scheduling until all three preconditions below are on
+enable event-driven scheduling until all four preconditions below are on
 `overhaul/v3` and their tests pass there.
 
 #### A. Spendable during settlement (merged on `overhaul/v2`, PR 565)
@@ -56,32 +56,45 @@ second fix.
   it to `spendable = $0.00` with `overCommitted: true`, and routing treats it
   as "no amount fits" (no balance route).
 
-#### B. A settlement whose event is never indexed (issue 573, tracked on `overhaul/v2`)
+#### B. A settlement whose event is never indexed (issue 573, PR 577 on `overhaul/v2`)
 
 If a `TabSettled` is never indexed, its paid amount stays in
 `settledUnindexed`: spendable is understated (the safe direction) and today
-nothing releases it. The owner of the tab ledger builds the release on
-`overhaul/v2` (issue 573), and `overhaul/v3` takes it by merge; v3 designs no
-second mechanism.
+nothing releases it. The fix is PR 577 on `overhaul/v2` (issue 573, in
+review): an automatic release by ledger order, plus an operator
+reconciliation from `Tab.account` and `Tab.paid`. `overhaul/v3` takes it by
+merge; v3 designs no second mechanism.
 
 - **Invariant v3 needs:** a reserve never outlives the chain's own record of
   the payment. Once the contract's `paid` value for the pair covers a
   settled amount, that amount leaves `settledUnindexed` exactly once, and a
   later arrival of the event changes nothing.
 
-#### C. Bounded balance bookkeeping (`settledSinceBalance`, tracked on `overhaul/v2`)
+#### C. Bounded balance bookkeeping (`settledSinceBalance`, issue 576 on `overhaul/v2`)
 
 `tabAccounts.settledSinceBalance` keeps at most `MAX_SETTLED_SINCE_BALANCE`
 (256) debits. With more than 256 settlements for one reader between two
 absolute balance events, followed by a re-dispatch of a dropped event, the
 debit applies twice (the safe direction). At a 15 s cadence an active reader
-reaches 256 in about an hour. The owner of the tab ledger reproduces it in a
-test on `overhaul/v2` and fixes it or opens an issue; `overhaul/v3` takes the
-result by merge.
+reaches 256 in about an hour. Tracked as issue 576 on `overhaul/v2`, built
+together with issue 584 (section D) under one idempotence rule; `overhaul/v3`
+takes the fix by merge.
 
 - **Invariant v3 needs:** each `TabSettled` debits `confirmedBalance` exactly
   once, whatever the number of settlements between absolute balance events
   and whatever the order, replay or re-dispatch of events.
+
+#### D. A `Claimed` event counted twice (issue 584 on `overhaul/v2`)
+
+When a stored `Claimed` event is processed a second time (a replay or a
+re-dispatch, found in a full restore rehearsal), the writer's collected
+earnings rise again. With more frequent settlements and payouts, replays
+touch more events. Tracked as issue 584 on `overhaul/v2`, built with issue 576
+under one idempotence rule; `overhaul/v3` takes the fix by merge.
+
+- **Invariant v3 needs:** a `Claimed` event raises collected exactly once,
+  whatever replay or re-dispatch. The writer's `available` and `collected`
+  figures ([section 2.6](02-instant-state.md#26-earnings)) depend on it.
 
 ### Runbook rule: pushing Convex functions
 

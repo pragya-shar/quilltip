@@ -218,6 +218,12 @@ to `available` and the writer's `claim` moves it to `collected`. The labels are
 true in both: `available` is always what a `claim` would pay now, and
 `collected` is always what reached the wallet.
 
+**Replay dependency.** `collected` and `available` are correct under event
+replay or re-dispatch only with the fix of issue 584 on `overhaul/v2` (a
+`Claimed` event raises collected exactly once); v3 takes it by merge, and it
+is a precondition of the fast cadence
+([section 3.1.D](03-settlement.md#d-a-claimed-event-counted-twice-issue-584-on-overhaulv2)).
+
 `earnings.mine` returns the three figures, `total = pending + available +
 collected`, and the per-token base units. The v2 `earnedBaseUnits` and
 `totalEarnedCents` fields stay for audits and history.
