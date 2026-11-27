@@ -43,7 +43,6 @@ export function SheetHost() {
                 open={entry.open}
                 onClose={close}
                 title="Balance"
-                hideTitle
               >
                 <PocketBody />
               </Sheet>

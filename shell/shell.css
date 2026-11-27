@@ -108,15 +108,31 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  /* The balance item keeps its size while its figure arrives. */
-  .qt-navbar__item[data-balance] .qt-nav__label {
-    min-width: 3.25rem;
-    min-height: 0.75rem;
+  /* The balance item: one fixed slot (86 px) for "Sign in", "Balance",
+   * "$18.40" and "≈ $18.40" alike, so nothing beside it moves. */
+  .qt-balance-slot {
+    display: inline-block;
+    width: 5.375rem;
+    max-width: none;
     text-align: center;
   }
-  /* The balance reads as money: its figure, not a word, when known. */
+  .qt-rail__item .qt-balance-slot {
+    text-align: start;
+  }
+  .qt-balance-slot .qt-money {
+    display: inline-flex;
+  }
   .qt-navbar__item[data-balance] .qt-money__figure {
     font-size: 0.75rem;
+  }
+  .qt-rail__item[data-balance] .qt-money__figure {
+    font-size: var(--qt-text-ui-l);
+  }
+  /* Before auth is known: "Sign in", or "Balance" when a session token is
+   * held (set before paint by shell/prePaint.ts). */
+  :root:not([data-session='held']) .qt-balance-slot [data-when='held'],
+  :root[data-session='held'] .qt-balance-slot [data-when='signed-out'] {
+    display: none;
   }
   .qt-navbar__item[data-balance][aria-expanded='true'],
   .qt-rail__item[data-balance][aria-expanded='true'] {
@@ -269,9 +285,6 @@
     }
     .qt-rail__balance {
       margin-block-start: auto;
-    }
-    .qt-rail__item[data-balance] .qt-money__figure {
-      font-size: var(--qt-text-ui-l);
     }
     .qt-rail__item .qt-nav__pending {
       inset-block-start: 50%;

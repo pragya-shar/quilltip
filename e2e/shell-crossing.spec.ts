@@ -4,11 +4,11 @@ import { expect, test } from '@playwright/test'
 // load (two root layouts). A light or dark choice stored by the legacy pages
 // (next-themes, key "theme") must apply before the first paint, under the
 // production CSP (the theme script carries the nonce). Runs against a
-// production build (scripts/system/no-script-check.ts).
+// production build (scripts/app-checks/run.ts).
 
 test.skip(
   !process.env.NO_SCRIPT_CHECK,
-  'Needs a production build (bun scripts/system/no-script-check.ts)'
+  'Needs a production build (bun scripts/app-checks/run.ts)'
 )
 
 for (const [stored, system] of [
@@ -53,4 +53,25 @@ test('with no stored choice, the system setting decides', async ({ page }) => {
       () => getComputedStyle(document.documentElement).colorScheme
     )
   ).toBe('dark')
+})
+
+test('before scripts run, a held session shows Balance, never Sign in, at the same width', async ({
+  page,
+}) => {
+  // The app's own scripts never load, so what shows is the server HTML
+  // plus the pre-paint script, as on a slow phone.
+  await page.route('**/_next/static/chunks/**', (route) => route.abort())
+  const slot = page
+    .getByRole('navigation', { name: 'Main' })
+    .locator('.qt-balance-slot')
+  await page.goto('/shelf')
+  await expect(slot).toHaveText('Sign in')
+  const signedOut = await slot.boundingBox()
+  await page.evaluate(() =>
+    localStorage.setItem('__convexAuthJWT_test', 'held')
+  )
+  await page.goto('/shelf')
+  await expect(slot).toHaveText('Balance')
+  const held = await slot.boundingBox()
+  expect(held!.width).toBe(signedOut!.width)
 })

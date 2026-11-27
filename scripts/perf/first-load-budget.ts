@@ -67,7 +67,7 @@ function main(): number {
         `${route}: the analyzer found ${jsFiles} first-load files, the build ${chunks.length}. Re-run the analyzer on this build.`
       )
     const found = [
-      ...forbiddenModules(modules),
+      ...forbiddenModules(modules, route),
       ...forbiddenText(
         chunks.map((chunk) => ({
           file: chunk.file,

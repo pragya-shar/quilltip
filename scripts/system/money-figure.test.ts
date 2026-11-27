@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { figureParts, figureState } from '@/system/money/figure'
+import { figureParts, figureState, spokenDollars } from '@/system/money/figure'
 
 // The money figure lays out the money layer's display text (design N2):
 // exact, two decimals, up to six with fractions of a cent, "≈" only for a
@@ -103,5 +103,37 @@ describe('figureState', () => {
     expect(figureState({ cents: 0, display: '<$0.01' })).toEqual({
       kind: 'unavailable',
     })
+  })
+})
+
+describe('a converted figure (D24)', () => {
+  it('takes the approximate mark from the flag, not from the text', () => {
+    const state = figureState({
+      cents: 1840,
+      display: '$18.40',
+      converted: true,
+    })
+    expect(state).toMatchObject({
+      kind: 'value',
+      parts: { approx: true, spoken: 'about $18.40' },
+    })
+    expect(figureState({ cents: 1840, display: '$18.40' })).toMatchObject({
+      parts: { approx: false },
+    })
+  })
+})
+
+describe('spokenDollars', () => {
+  it('says the amount in words, with "about" for a conversion', () => {
+    const say = (display: string, converted = false) => {
+      const state = figureState({ cents: 0, display, converted })
+      return state.kind === 'value' ? spokenDollars(state.parts) : null
+    }
+    expect(say('$18.40', true)).toBe('about 18 dollars 40')
+    expect(say('$18.40')).toBe('18 dollars 40')
+    expect(say('$5')).toBe('5 dollars')
+    expect(say('$5.00')).toBe('5 dollars')
+    expect(say('$1,234.05')).toBe('1234 dollars 05')
+    expect(say('$0.0975')).toBe('0.0975 dollars')
   })
 })

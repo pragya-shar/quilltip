@@ -5,7 +5,11 @@ import {
   SURFACE_FONT_FALLBACK,
   SURFACE_PAGE_LOAD,
 } from './routes'
-import { FIRST_LOAD_BUDGET_KB, FIRST_LOAD_ROUTES } from './first-load'
+import {
+  FIRST_LOAD_BUDGET_KB,
+  FIRST_LOAD_ROUTES,
+  forbiddenModules,
+} from './first-load'
 
 describe('measured routes from scripts/perf/routes', () => {
   it('has one file per package', () => {
@@ -51,6 +55,19 @@ describe('measured routes from scripts/perf/routes', () => {
   it('keeps the shell reading page measured, at the public limits', () => {
     expect(FIRST_LOAD_BUDGET_KB['/system/reading']).toBe(150)
     const reading = SURFACE_PAGE_LOAD.find((e) => e.path === '/system/reading')
-    expect(reading?.budget).toMatchObject({ cls: 0.05, lcpMs: 2000 })
+    expect(reading?.budget).toMatchObject({ cls: 0.05, lcpMobileMs: 2000 })
+  })
+})
+
+describe('the balance code in a first load', () => {
+  const pocket = '[project]/components/pocket/PocketContent.tsx'
+  it('is refused on every route but the balance page', () => {
+    expect(forbiddenModules([pocket], '/system/reading')).toHaveLength(1)
+    expect(forbiddenModules([pocket], '/')).toHaveLength(1)
+    expect(forbiddenModules([pocket], '/pocket')).toEqual([])
+  })
+  it('a lazily loaded sheet is refused everywhere', () => {
+    const sheet = '[project]/components/pocket/sheets/AddMoney.tsx'
+    expect(forbiddenModules([sheet], '/pocket')).toHaveLength(1)
   })
 })

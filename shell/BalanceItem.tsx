@@ -3,6 +3,7 @@
 import { Icon } from '@/system/components/Icon'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { BalanceIcon } from '@/system/icons'
+import { figureState, spokenDollars } from '@/system/money/figure'
 import { useBalanceReading } from './balance'
 import { POCKET } from './navigation'
 import { preloadPocket } from './pocket/loadPocket'
@@ -11,38 +12,45 @@ import { sheetStack } from './sheetStack'
 import { useSheets } from './useSheets'
 
 /**
- * The fourth item: the balance, labelled with the live amount, or "Sign in"
- * when signed out. It is not a place: a press opens the Pocket over the
- * current page (a sheet on a phone, a panel on a desktop). It is a real
- * link, so with no script it goes to /pocket (or to sign in).
+ * The fourth item: the balance. It is not a place: a press opens it over
+ * the current page (a sheet on a phone, a panel on a desktop).
+ *
+ * Its label sits in a fixed slot (86 px), the same width in every state:
+ * - before auth is known, as the server sends it and with no script: "Sign
+ *   in", a real link to sign in (with no script nobody can be signed in);
+ *   when the pre-paint script found a session token (`data-session` on
+ *   <html>), it shows "Balance" instead, so a signed-in person never sees
+ *   "Sign in" flash;
+ * - signed out: "Sign in";
+ * - signed in: the amount ("≈ $18.40" when it is a conversion, D24), or
+ *   "Balance" while it loads or when payments cannot answer.
+ * A screen reader hears "Balance, about 18 dollars 40. Open balance".
  */
 export function BalanceItem({ className }: { className: string }) {
   const reading = useBalanceReading()
   const open = useSheets().some((entry) => entry.id === 'pocket' && entry.open)
+  const unknown = reading.auth === 'loading'
   const signedOut = reading.auth === 'signed-out'
-  const figure =
-    reading.auth === 'loading'
-      ? 'loading'
-      : reading.status === 'ready' && reading.available
-        ? 'value'
-        : reading.status === 'loading'
-          ? 'loading'
-          : 'none'
-  // "Balance" is a plain word for the item while no amount is known; the
-  // product's name for the sheet is the design session's call.
+  const state =
+    reading.auth === 'signed-in' && reading.status === 'ready'
+      ? figureState(reading.available)
+      : null
+  const parts = state?.kind === 'value' ? state.parts : null
   const label = signedOut
     ? 'Sign in'
-    : figure === 'value'
-      ? `Balance, ${reading.available!.display} ready to tip`
-      : 'Balance'
+    : parts
+      ? `Balance, ${spokenDollars(parts)}. Open balance`
+      : unknown
+        ? undefined
+        : 'Balance. Open balance'
   return (
     <a
-      href={signedOut ? POCKET.signIn : POCKET.href}
+      href={signedOut || unknown ? POCKET.signIn : POCKET.href}
       className={className}
       data-balance=""
       aria-label={label}
-      aria-haspopup={signedOut ? undefined : 'dialog'}
-      aria-expanded={signedOut ? undefined : open}
+      aria-haspopup={signedOut || unknown ? undefined : 'dialog'}
+      aria-expanded={signedOut || unknown ? undefined : open}
       onPointerEnter={signedOut ? undefined : preloadPocket}
       onFocus={signedOut ? undefined : preloadPocket}
       onClick={(event) => {
@@ -53,18 +61,24 @@ export function BalanceItem({ className }: { className: string }) {
           if (openSignIn()) event.preventDefault()
           return
         }
+        if (unknown) return
         event.preventDefault()
         sheetStack.toggle('pocket')
       }}
     >
       <Icon icon={BalanceIcon} size={24} />
-      <span className="qt-nav__label" aria-hidden="true">
-        {signedOut ? (
+      <span className="qt-nav__label qt-balance-slot">
+        {unknown ? (
+          <>
+            <span data-when="signed-out">Sign in</span>
+            <span data-when="held">Balance</span>
+          </>
+        ) : signedOut ? (
           'Sign in'
-        ) : figure === 'value' ? (
-          <MoneyFigure value={reading.available} size="s" />
-        ) : figure === 'loading' ? (
-          <MoneyFigure value={null} status="loading" size="s" />
+        ) : parts ? (
+          <span aria-hidden="true">
+            <MoneyFigure value={reading.available} size="s" />
+          </span>
         ) : (
           'Balance'
         )}

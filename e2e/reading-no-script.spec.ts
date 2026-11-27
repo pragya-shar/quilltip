@@ -2,13 +2,13 @@ import { expect, test } from '@playwright/test'
 
 // Public reading in the application shell works with no script (D19): the
 // article is in the first response, visible, with plain links. Runs against
-// a production build (scripts/system/no-script-check.ts) with JavaScript
+// a production build (scripts/app-checks/run.ts) with JavaScript
 // turned off, in Chromium and WebKit. Add each public route of the shell
 // here as it lands; the gallery is exempt.
 
 test.skip(
   !process.env.NO_SCRIPT_CHECK,
-  'Needs a production build (bun scripts/system/no-script-check.ts)'
+  'Needs a production build (bun scripts/app-checks/run.ts)'
 )
 
 const READING = [
@@ -75,4 +75,15 @@ test('/system/unreachable: a late read answers with the unreachable state', asyn
     'href',
     '/system/unreachable?line=3'
   )
+})
+
+test('/shelf: with no script, the balance item is a link to sign in', async ({
+  page,
+}) => {
+  await page.goto('/shelf')
+  const nav = page.getByRole('navigation', { name: 'Main' })
+  const item = nav.getByRole('link', { name: 'Sign in' })
+  await expect(item).toBeVisible()
+  await expect(item).toHaveAttribute('href', '/login')
+  await expect(nav.getByText('Balance', { exact: true })).toBeHidden()
 })
