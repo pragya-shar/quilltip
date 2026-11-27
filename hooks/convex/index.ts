@@ -16,7 +16,6 @@ export {
 } from './useArticles'
 export { useMyEarningsSummary } from './useTipsQueries'
 export {
-  useNFTByArticle,
   useNFTsByOwnerPaginated,
   useUserMintedNFTsPaginated,
   type NFTsByOwnerPaginatedArgs,
