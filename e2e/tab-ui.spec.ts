@@ -626,9 +626,7 @@ test('lower bounds say "At least" on the count, the XLM and the dollars (#552)',
   await expect(stat('Earned (testnet)').locator('dd')).toHaveText(
     'At least1,950.98 XLMat least $195.10, testnet, no real value'
   )
-  await expect(stat('Tips received').locator('dd')).toHaveText(
-    'At least2,001From wallets and settled tabs'
-  )
+  await expect(stat('Tips received').locator('dd')).toHaveText('At least2,001')
   await expect(stat('Articles').locator('dd')).toHaveText('4')
   // The dashboard card says the same.
   const card = page.getByTestId('compact-earnings')
@@ -638,25 +636,25 @@ test('lower bounds say "At least" on the count, the XLM and the dollars (#552)',
   await expect(card).toContainText('At least 2,001 testnet tips received')
 })
 
-test('while the totals are rebuilt, both cards say so instead of a partial total (#552)', async ({
+test('while the totals are rebuilt, both cards keep the previous figures and say so (#552)', async ({
   page,
 }) => {
   await open(page, 'stats-updating')
   const stat = (label: string) =>
     page.locator('.account-stat').filter({ hasText: label })
   await expect(stat('Earned (testnet)').locator('dd')).toHaveText(
-    'UpdatingRecounting your earnings. Check again in a few minutes.'
+    '114.58 XLM≈ $13.65, testnet, no real value'
   )
+  // The previous figures do not claim tab tips.
   await expect(stat('Tips received').locator('dd')).toHaveText(
-    'UpdatingFrom wallets and settled tabs'
+    '6Recounting your earnings. Check again in a few minutes.'
   )
   const card = page.getByTestId('compact-earnings')
-  await expect(card).toContainText('Updating')
+  await expect(card).toContainText('114.58 XLM')
+  await expect(card).toContainText('6 testnet tips received')
   await expect(card).toContainText(
     'Recounting your earnings. Check again in a few minutes.'
   )
-  await expect(card).not.toContainText('XLM')
-  await expect(card).not.toContainText('tips received')
 })
 
 test('keyboard only: the top-up form submits with Enter and focus follows the payment', async ({

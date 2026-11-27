@@ -89,8 +89,7 @@ export function formatUsd(amount: number): string {
 /** Shown before an earnings figure that is a lower bound (#552). */
 export const AT_LEAST = 'At least'
 
-/** Shown instead of the earnings figures while their totals are rebuilt. */
-export const EARNINGS_UPDATING = 'Updating'
+/** Shown with the earnings figures while their totals are being rebuilt. */
 export const EARNINGS_UPDATING_NOTE =
   'Recounting your earnings. Check again in a few minutes.'
 

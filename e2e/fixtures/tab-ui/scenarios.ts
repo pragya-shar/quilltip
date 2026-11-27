@@ -54,6 +54,7 @@ export type Scenario = {
     estimatedUsd: number
     complete?: boolean
     updating?: boolean
+    source?: 'lifetime' | 'previous'
   }
 }
 
@@ -990,16 +991,18 @@ const S: Scenario[] = [
   },
   {
     // The totals are being rebuilt: no figures, on either card.
+    // The integration writer while its row is rebuilt: the figures as they
+    // were computed before the lifetime totals, with a note.
     id: 'stats-updating',
     title: 'Stats: totals being rebuilt',
     view: 'stats',
     device: 'none',
     stats: {
-      tipCount: 0,
-      earnedStroops: '0',
-      estimatedUsd: 0,
-      complete: false,
+      tipCount: 6,
+      earnedStroops: '1145760615',
+      estimatedUsd: 13.65,
       updating: true,
+      source: 'previous',
     },
     seed: (s) => writer(s),
   },
@@ -1015,6 +1018,7 @@ const S: Scenario[] = [
       earnedStroops: '19509750000',
       estimatedUsd: 195.0975,
       complete: false,
+      source: 'previous',
     },
     seed: (s) => writer(s),
   },

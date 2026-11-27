@@ -1,6 +1,5 @@
 import {
   AT_LEAST,
-  EARNINGS_UPDATING,
   EARNINGS_UPDATING_NOTE,
   earningsLabel,
   formatXlmFromStroops,
@@ -18,8 +17,10 @@ type CreatorStatsPanelProps = {
   complete?: boolean
   /** Tips in the figures without a trusted USD amount. */
   unpricedTipCount?: number
-  /** The totals are being rebuilt: no figures to show yet. */
+  /** The row's lifetime totals are being rebuilt. */
   updating?: boolean
+  /** `lifetime`: the totals cover wallet and settled tab tips (#552). */
+  source?: 'lifetime' | 'previous'
 }
 
 export function CreatorStatsPanel({
@@ -32,33 +33,33 @@ export function CreatorStatsPanel({
   complete = true,
   unpricedTipCount = 0,
   updating = false,
+  source = 'lifetime',
 }: CreatorStatsPanelProps) {
   // The count and the earned figures cover the same tips (#552).
-  const bound = complete || updating ? undefined : AT_LEAST
+  const bound = complete ? undefined : AT_LEAST
+  const scope = updating
+    ? EARNINGS_UPDATING_NOTE
+    : source === 'lifetime'
+      ? 'From wallets and settled tabs'
+      : undefined
   const stats = [
     { label: 'Articles', value: articleCount.toLocaleString('en-US') },
     {
       label: 'Tips received',
       bound,
-      value: updating
-        ? EARNINGS_UPDATING
-        : tipsReceivedCount.toLocaleString('en-US'),
-      note: 'From wallets and settled tabs',
+      value: tipsReceivedCount.toLocaleString('en-US'),
+      note: scope,
     },
     { label: 'NFTs owned', value: nftsOwned.toLocaleString('en-US') },
     {
       label: isTestnet ? 'Earned (testnet)' : earningsLabel(),
       bound,
-      value: updating
-        ? EARNINGS_UPDATING
-        : formatXlmFromStroops(earnedStroops, 2),
-      note: updating
-        ? EARNINGS_UPDATING_NOTE
-        : usdEstimateNote(
-            estimatedUsd,
-            isTestnet,
-            !complete || unpricedTipCount > 0
-          ),
+      value: formatXlmFromStroops(earnedStroops, 2),
+      note: usdEstimateNote(
+        estimatedUsd,
+        isTestnet,
+        !complete || unpricedTipCount > 0
+      ),
     },
   ]
 

@@ -63,6 +63,7 @@ function Fixture() {
                 nftsOwned={0}
                 complete={scenario.stats.complete ?? true}
                 updating={scenario.stats.updating ?? false}
+                source={scenario.stats.source ?? 'lifetime'}
               />
               {/* The dashboard card, from the same summary. */}
               <div

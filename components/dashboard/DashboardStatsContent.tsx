@@ -41,6 +41,7 @@ export function DashboardStatsContent() {
         complete={earnings?.complete ?? true}
         unpricedTipCount={earnings?.unpricedTipCount ?? 0}
         updating={earnings?.updating ?? false}
+        source={earnings?.source ?? 'lifetime'}
       />
       <CollectPanelLoader />
     </div>
