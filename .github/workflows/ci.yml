@@ -506,6 +506,34 @@ jobs:
             ${{ runner.temp }}/integration/event-fixtures.json
           if-no-files-found: warn
 
+  # Sign-in from protected routes (issue #575) with real Convex Auth on a
+  # local anonymous Convex backend. No secrets: the run makes its own key and
+  # account.
+  e2e-auth:
+    name: Playwright (local auth)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    needs: quality
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium webkit
+
+      - name: Sign in from protected routes (WebKit and Chromium, phone)
+        run: bun run test:e2e:auth
+
   required:
     name: Required
     runs-on: ubuntu-latest
@@ -521,6 +549,7 @@ jobs:
         contracts,
         contracts-integration,
         e2e-fixtures,
+        e2e-auth,
       ]
     if: always()
     steps:
@@ -535,6 +564,7 @@ jobs:
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           CONTRACTS_INTEGRATION_RESULT: ${{ needs.contracts-integration.result }}
           E2E_FIXTURES_RESULT: ${{ needs.e2e-fixtures.result }}
+          E2E_AUTH_RESULT: ${{ needs.e2e-auth.result }}
         run: |
           failed=0
 
@@ -557,5 +587,6 @@ jobs:
           check_result "Contracts" "$CONTRACTS_RESULT"
           check_result "Contracts (local network)" "$CONTRACTS_INTEGRATION_RESULT"
           check_result "Playwright (fixtures)" "$E2E_FIXTURES_RESULT"
+          check_result "Playwright (local auth)" "$E2E_AUTH_RESULT"
 
           exit "$failed"

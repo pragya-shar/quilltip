@@ -89,7 +89,7 @@ Same as 5.2, with these differences:
    1. Checks the same eligibility as 5.2.
    2. Checks that the article has no co-author splits.
    3. Checks the key belongs to this reader, is not revoked, and `now + 1 day < valid_until`.
-   4. Checks `amount <= confirmedBalance - outstanding - settledUnindexed` and `spent + outstanding + amount <= spend_limit`. `settledUnindexed` is what the settler's own record shows as settled but the indexed `TabSettled` has not yet debited from `confirmedBalance`, so the check gives the same result in either arrival order.
+   4. Checks `amount <= confirmedBalance - outstanding - settledUnindexed` and `spent + outstanding + amount <= spend_limit`. `settledUnindexed` is what the settler's own record shows as settled but the indexed `TabSettled` has not yet debited from `confirmedBalance`, so the check gives the same result in either arrival order. If that event is never indexed, two paths release the reserve, each only when `confirmedBalance` already reflects the debit: an absolute balance event from a ledger after the payment (the pair's `paidLedger`), and an operator reconciliation that reads the contract's balance and `paid` amounts at one ledger ([chain runbook](../../operations/chain-runbook.md#stale-settlement-reserves)). A missing event that arrives later then neither debits nor releases again.
    5. Checks the Convex limits ([section 3.5](03-tab-contract.md#35-session-keys)) and the per-pair receipt cap.
    6. Checks the tab is not closing.
    7. Returns `{writer, key_id, seq, cumulative_before, amount, receipt fields, leafHashes[]}` for the pair `(reader, key_id, writer)`.

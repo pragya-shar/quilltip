@@ -125,7 +125,8 @@ export function WalletStatus({ className }: WalletStatusProps) {
                   tipping authors
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Supports Freighter, xBull, Albedo, Rabet, and more
+                  Supports Varial (formerly Freighter), xBull, Albedo, Rabet,
+                  and more
                 </p>
               </div>
               <Button

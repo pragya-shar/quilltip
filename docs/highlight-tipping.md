@@ -82,7 +82,7 @@ Existing table — extended with `highlightId: v.string()` (required after migra
 
 1. Reader selects text → TipTap `onSelectionUpdate` fires
 2. Popover appears with color picker + tip buttons
-3. Reader clicks tip amount → wallet popup (Freighter / xBull / Albedo)
+3. Reader clicks tip amount → wallet popup (Varial / xBull / Albedo)
 4. Stellar transaction submitted to unified contract
 5. On success: `highlightTips.create` mutation records in Convex
 6. Heatmap updates in real-time via Convex subscription

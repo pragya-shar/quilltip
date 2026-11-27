@@ -32,10 +32,12 @@ import {
   walletErrorMessage,
 } from '@/lib/stellar/v2/wallet-errors'
 
-const wallets: [string, string][] = [
-  ['varial', 'Varial (formerly Freighter)'],
-  ['xbull', 'xBull'],
-  ['albedo', 'Albedo'],
+// [id, name in the chooser, name on the Connect button]. The former name is
+// given once, where the reader picks the wallet.
+const wallets: [string, string, string][] = [
+  ['varial', 'Varial (formerly Freighter)', 'Varial'],
+  ['xbull', 'xBull', 'xBull'],
+  ['albedo', 'Albedo', 'Albedo'],
 ]
 export default function WalletPractice({ active }: { active: boolean }) {
   const lock = useRef(false)
@@ -426,7 +428,7 @@ export default function WalletPractice({ active }: { active: boolean }) {
                   disabled={Boolean(busy)}
                   onClick={connect}
                 >
-                  Connect {wallets.find((w) => w[0] === wallet)?.[1]}{' '}
+                  Connect {wallets.find((w) => w[0] === wallet)?.[2]}{' '}
                   <ArrowUpRight size={19} />
                 </button>
               </>
