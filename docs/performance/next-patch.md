@@ -4,7 +4,7 @@
 scripts on four public routes: `/`, `/login`, `/articles` and the article
 page (`/[username]/[slug]`). Every other page, `next dev`, and a build with
 subresource integrity keep Next.js's output. The measurements are in
-[page-load.md](page-load.md#chunk-scripts-after-the-first-paint).
+[page-load.md](page-load.md#chunk-scripts-after-the-first-paint-405-428).
 
 ## What it does
 
@@ -31,10 +31,17 @@ the earliest of these events:
 - at once, on the reader's first press, tap or key;
 - after 3 s.
 
-A press on a button, or a form submit, made before hydration is held. It
-starts the scripts at once and is replayed on the same element once React
-handles it, so it is not lost and the browser does not send the form itself.
-Links work before hydration, as before.
+A press on a button, or a form submit, made before React handles that
+element is held. It starts the scripts at once and is replayed on the same
+element once React has hydrated it, so it is not lost and the browser does
+not send the form itself. Links work before hydration, as before.
+
+- Each element is checked on its own, because React hydrates the page in
+  parts: the body has React's props before content that loads later.
+- An element React does not render never gets those props. Its press goes
+  through 5 s after the last chunk script has loaded, or 30 s after the
+  press.
+- After that point, presses are no longer held.
 
 There is no inline script, and the content security policy is unchanged:
 `script-src 'self' 'nonce-…'` already allows the loader and the chunks it

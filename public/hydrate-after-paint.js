@@ -15,14 +15,27 @@
   var added = {}
   var started = false
 
+  // Chunk scripts added and not yet loaded, and when the last one finished.
+  var pending = 0
+  var settledAt = 0
+
+  function finished() {
+    pending--
+    if (pending === 0) settledAt = Date.now()
+  }
+
   function add(src) {
     if (!src || added[src]) return
     added[src] = true
+    pending++
+    settledAt = 0
     var script = document.createElement('script')
     script.src = src
     script.async = true
     if (nonce) script.nonce = nonce
     if (crossOrigin) script.crossOrigin = crossOrigin
+    script.onload = finished
+    script.onerror = finished
     document.head.appendChild(script)
   }
 
@@ -46,23 +59,28 @@
     else setInterval(addInert, 250)
   }
 
-  // A press on a button that needs JavaScript before the page has hydrated
-  // is held, starts the scripts at once, and is replayed on the same button
-  // once React handles it. Links keep their default behaviour, which works
-  // without JavaScript; a form's own submit is held below.
+  // A press on a button that needs JavaScript before React handles it is
+  // held, starts the scripts at once, and is replayed on the same button once
+  // React has hydrated that button. Links keep their default behaviour, which
+  // works without JavaScript; a form's own submit is held below.
+  //
+  // React hydrates parts of the page at different times (the body before
+  // content that loads later), so each element is checked on its own. An
+  // element React does not render never gets its props: 5 s after the last
+  // chunk script has loaded, or 30 s after the press, the press goes through.
   function hydrated(element) {
     for (var key in element) if (key.indexOf('__reactProps') === 0) return true
     return false
   }
-  function replayWhenReady(element, tries) {
-    if (hydrated(element)) {
-      element.click()
-      return
-    }
-    if (tries > 0) setTimeout(replayWhenReady, 50, element, tries - 1)
+  function settled() {
+    return settledAt !== 0 && Date.now() - settledAt > 5000
+  }
+  function whenReady(element, action, deadline) {
+    if (hydrated(element) || settled() || Date.now() > deadline) action()
+    else setTimeout(whenReady, 50, element, action, deadline)
   }
   function holdPress(event) {
-    if (hydrated(document.body)) {
+    if (settled()) {
       removeEventListener('click', holdPress, true)
       return
     }
@@ -77,25 +95,22 @@
     event.preventDefault()
     event.stopPropagation()
     start()
-    replayWhenReady(button, 200)
+    whenReady(
+      button,
+      function () {
+        removeEventListener('click', holdPress, true)
+        button.click()
+        addEventListener('click', holdPress, true)
+      },
+      Date.now() + 30000
+    )
   }
   addEventListener('click', holdPress, true)
 
-  // A form sent before hydration is held the same way and sent again once
-  // React handles it, with the same submit button.
-  function resubmitWhenReady(form, submitter, tries) {
-    if (hydrated(form)) {
-      if (typeof form.requestSubmit === 'function')
-        form.requestSubmit(
-          submitter && submitter.form === form ? submitter : undefined
-        )
-      else form.submit()
-      return
-    }
-    if (tries > 0) setTimeout(resubmitWhenReady, 50, form, submitter, tries - 1)
-  }
+  // A form sent before React handles it is held the same way and sent again,
+  // with the same submit button.
   function holdSubmit(event) {
-    if (hydrated(document.body)) {
+    if (settled()) {
       removeEventListener('submit', holdSubmit, true)
       return
     }
@@ -104,7 +119,20 @@
     event.preventDefault()
     event.stopPropagation()
     start()
-    resubmitWhenReady(form, event.submitter, 200)
+    var submitter = event.submitter
+    whenReady(
+      form,
+      function () {
+        removeEventListener('submit', holdSubmit, true)
+        if (typeof form.requestSubmit === 'function')
+          form.requestSubmit(
+            submitter && submitter.form === form ? submitter : undefined
+          )
+        else form.submit()
+        addEventListener('submit', holdSubmit, true)
+      },
+      Date.now() + 30000
+    )
   }
   addEventListener('submit', holdSubmit, true)
 

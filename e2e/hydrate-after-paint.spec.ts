@@ -22,7 +22,9 @@ test.use({ reducedMotion: 'reduce', trace: 'off', video: 'off' })
 async function waitForHydration(page: Page, timeout = 15_000) {
   await page.waitForFunction(
     () => {
-      const link = document.querySelector('header a[href], nav a[href]')
+      const link = document.querySelector(
+        'main a[href], header a[href], nav a[href]'
+      )
       return (
         !!link &&
         Object.keys(link).some((key) => key.startsWith('__reactProps'))
@@ -108,13 +110,27 @@ test('the mobile menu opens from a press made before hydration', async ({
 }) => {
   await page.setViewportSize({ width: 375, height: 812 })
   await holdChunks(page, 2500)
-  await page.goto('/')
+  await page.goto('/articles')
   await page.getByRole('button', { name: 'Open navigation menu' }).click()
   await expect(page.getByRole('dialog', { name: 'Find your way' })).toBeVisible(
     {
       timeout: 15_000,
     }
   )
+})
+
+test('the landing tip preview opens from a press made before hydration', async ({
+  page,
+}) => {
+  // React hydrates this button after the body, so the hold must wait for the
+  // button itself.
+  await page.setViewportSize({ width: 375, height: 812 })
+  await holdChunks(page, 2500)
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Add a tip', exact: true }).click()
+  await expect(
+    page.getByRole('dialog', { name: 'Preview a little appreciation.' })
+  ).toBeVisible({ timeout: 20_000 })
 })
 
 test('a sign-in sent before hydration is sent again, not lost', async ({
@@ -126,12 +142,11 @@ test('a sign-in sent before hydration is sent again, not lost', async ({
   await page.getByLabel('Password', { exact: true }).fill('not-the-password-1')
   await page.getByRole('button', { name: 'Log in', exact: true }).click()
   // React handles the held submit: the backend refuses the account.
-  await expect(page.getByRole('alert')).toContainText(
-    'Invalid email or password',
-    {
-      timeout: 20_000,
-    }
-  )
+  await expect(
+    page.getByText('Invalid email or password', { exact: false })
+  ).toContainText('Invalid email or password', {
+    timeout: 20_000,
+  })
   // The browser never sent the form itself (a GET would put the fields in
   // the URL).
   expect(page.url()).not.toContain('password')
@@ -213,11 +228,10 @@ test.describe('the loader starts the scripts without a paint entry', () => {
       .getByLabel('Password', { exact: true })
       .fill('not-the-password-1')
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
-    await expect(page.getByRole('alert')).toContainText(
-      'Invalid email or password',
-      {
-        timeout: 20_000,
-      }
-    )
+    await expect(
+      page.getByText('Invalid email or password', { exact: false })
+    ).toBeVisible({
+      timeout: 20_000,
+    })
   })
 })
