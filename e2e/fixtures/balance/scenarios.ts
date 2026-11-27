@@ -135,6 +135,21 @@ export const SCENARIOS: Record<string, (s: FixtureState) => void> = {
   'writer-empty': (s) => {
     s.user = 'w'
   },
+  // The reader spent outside the app: the balance on chain is below what is
+  // reserved for accepted tips, so spendable is negative (shown as zero).
+  'reader-overdrawn': (s) => {
+    s.user = 'a'
+    s.accounts.a = { confirmed: '0' }
+    receipt(s, { cents: 25, status: 'ACCEPTED', ago: 2 * MIN })
+  },
+  // Tips on hold for a reader whose balance is empty: the writer sees them
+  // on hold, not on their way and not ready.
+  'writer-held-reader-empty': (s) => {
+    s.user = 'w'
+    s.accounts.a = { confirmed: '0' }
+    receipt(s, { cents: 25, status: 'SHORTFALL', ago: 30 * MIN })
+    receipt(s, { cents: 10, status: 'SHORTFALL', ago: 20 * MIN })
+  },
   // The real run's three tips: 50¢, 10¢, 10¢, settled (68.25¢ to the writer).
   'writer-three': (s) => {
     s.user = 'w'

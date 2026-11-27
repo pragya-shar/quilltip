@@ -427,6 +427,31 @@ test.describe('earnings screen', () => {
   }
 })
 
+test.describe('states the ledger can reach', () => {
+  test('a reader who spent outside the app sees zero to tip and no amount that fits', async ({
+    page,
+  }) => {
+    await open(page, 'balance', 'reader-overdrawn')
+    await expect(page.getByTestId('balance-available')).toHaveText('≈ $0.00')
+    await open(page, 'tip', 'reader-overdrawn')
+    const bar = await choosePassage(page)
+    await expect(bar.getByRole('status')).toContainText(
+      'Your balance is too low for a tip.'
+    )
+  })
+
+  test('tips on hold for an empty reader balance are on hold, not on their way', async ({
+    page,
+  }) => {
+    await open(page, 'earnings', 'writer-held-reader-empty')
+    await expect(page.getByTestId('earnings-pending')).toHaveText('$0.00')
+    await expect(page.getByTestId('earnings-available')).toHaveText('$0.00')
+    await expect(page.getByTestId('earnings-on-hold')).toContainText(
+      '2 tips on hold'
+    )
+  })
+})
+
 test.describe('earnings rows and their total', () => {
   test('three tips of 50¢, 10¢ and 10¢: rows as sent, exact shares, one total', async ({
     page,
