@@ -5,13 +5,19 @@
  * (`components/payments/PaymentsBoundary.tsx`, mounted by `PaymentsShell`
  * beside the page, never around it).
  */
-import { act, createElement as h, Fragment, useState, type ReactNode } from 'react'
+import {
+  act,
+  createElement as h,
+  Fragment,
+  useState,
+  type ReactNode,
+} from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PaymentsBoundary } from '../../components/payments/PaymentsBoundary'
-
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
-  true
+;(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
 
 const Page = () => h('p', { 'data-testid': 'page' }, 'Story time.')
 

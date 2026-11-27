@@ -5,7 +5,9 @@
 import { useEffect, useState } from 'react'
 import { PaymentsEngine as RealEngine } from '../../../components/payments/PaymentsEngine'
 
-const delay = Number(new URLSearchParams(location.search).get('engineDelay') ?? 0)
+const delay = Number(
+  new URLSearchParams(location.search).get('engineDelay') ?? 0
+)
 
 export function PaymentsEngine() {
   const [ready, setReady] = useState(delay <= 0)
