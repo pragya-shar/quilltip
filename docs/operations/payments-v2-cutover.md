@@ -98,12 +98,25 @@ stage 1.
    "Tips are paused for a short time while payments are updated." instead of
    the tip button. A direct call to a gated function returns the same message
    and creates nothing.
-4. **Client behaviour while `CHAIN_V2_ENABLED=true`.** On a registered
-   article, the tip buttons use the v2 flow (`tipsV2`), and the mint and
-   transfer actions use the v2 NFT functions. Today
-   `components/tipping/ArticleTipActionsInner.tsx` renders the v1
-   `TipButton` for a registered article, so this needs the #448 and #450
-   client work.
+4. **Client behaviour while `CHAIN_V2_ENABLED=true`.** `TipButton` and
+   `HighlightTipButton` read `chain/config:getChainConfig` and render the v2
+   flows (`ArticleTipV2`, `HighlightTipV2`, through `tipsV2`).
+   `NFTIntegration` renders `ArticleNftV2` (the v2 NFT functions). The v1
+   dialogs render only while v2 is off. On an article that is not
+   registered, the tip area shows the unregistered note, not a tip button.
+   Both contract IDs must be set before stage 6. If one is missing:
+   - No `CORE_CONTRACT_ID`: `chain/articles:getArticleTipAvailability`
+     returns `paused`, and the article tip area and the passage tip action
+     show the paused note from item 3.
+   - No `NFT_CONTRACT_ID`: `nftsV2:getMintProgress` returns `DISABLED`.
+     While the v1 code is deployed, the NFT section shows the v1 panel. After
+     the removal (section 8) it shows "Article NFTs aren’t available on this
+     site right now."
+   - No `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` on the site, or a value other
+     than `NFT_CONTRACT_ID`: the NFT section offers no mint or transfer. The
+     author sees "Minting isn’t available on this site yet", the owner
+     "Transfers aren’t available on this site yet", and other readers see
+     the NFT status only (section 2.5).
 5. **Contract version backfill.** `chain/backfill:setContractVersionV1` is in
    the release commit (it is on `overhaul/v2` today).
 
@@ -324,21 +337,38 @@ in the repository.
 Variables 9 to 12 are read only after the network guard passes. Never put a
 secret in `.env.example`, a commit, a PR or a log.
 
+**NFT token URI.** The indexer stores each minted token's metadata URL as
+`<SITE_URL>/api/nft/<token id>` (`convex/lib/chain/nftStore.ts`) when it
+records the mint, and the stored URL does not change afterwards. With
+`SITE_URL` unset it uses `https://www.quilltip.me`. Before the first v2 mint,
+read the live deployment's `SITE_URL` and confirm that it is the origin the
+site serves. Do not change it only for the NFT URL: `SITE_URL` also sets the
+password-reset link (`convex/lib/passwordResetEmail.ts`) and the origin that
+may request a wallet challenge (`convex/walletLink.ts`). If it changes, add
+the previous origin to `WALLET_LINK_ORIGINS`. On the integration deployment
+`SITE_URL` is a local URL, so its tokens point there. The NFT contract's own
+`base_uri` is set at deploy; after stage 3 records the `live` set in
+`docs/contracts/v2-testnet-deployment.md`, check that its `base_uri` is
+`https://www.quilltip.me/api/nft/`.
+
 ### 3.2 Vercel (site)
 
 `NEXT_PUBLIC_*` values are built into the site, so a change needs a new
 deployment. Set these on the production environment before stage 2:
 
-| Variable                                                                                                                              | Value          | When                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ------------------------------------------- |
-| `NEXT_PUBLIC_STELLAR_NETWORK`                                                                                                         | `TESTNET`      | Already set                                 |
-| `NEXT_PUBLIC_STELLAR_RPC_URL`, `NEXT_PUBLIC_NETWORK_PASSPHRASE`                                                                       | Testnet values | Stage 2                                     |
-| `NEXT_PUBLIC_CORE_CONTRACT_ID`, `NEXT_PUBLIC_TAB_CONTRACT_ID`, `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID`, `NEXT_PUBLIC_TOKEN_CONTRACT_ID` | The `live` set | Stage 2 (after stage 3 when the set is new) |
-| `NEXT_PUBLIC_NFT_CONTRACT_ID` (v1 NFT)                                                                                                | Unchanged      | Removed with the v1 code (section 2.5)      |
-| `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`, `NEXT_PUBLIC_HORIZON_URL`                                          | Unchanged      | Removed with the v1 code                    |
+| Variable                                                                                                                              | Value                | When                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_STELLAR_NETWORK`                                                                                                         | `TESTNET`            | Already set                                                                                                                                                |
+| `NEXT_PUBLIC_STELLAR_RPC_URL`, `NEXT_PUBLIC_NETWORK_PASSPHRASE`                                                                       | Testnet values       | Stage 2                                                                                                                                                    |
+| `NEXT_PUBLIC_CORE_CONTRACT_ID`, `NEXT_PUBLIC_TAB_CONTRACT_ID`, `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID`, `NEXT_PUBLIC_TOKEN_CONTRACT_ID` | The `live` set       | Stage 2 (after stage 3 when the set is new)                                                                                                                |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID`                                                                                                | The Reown project ID | Stage 2. Blank turns WalletConnect off; a malformed value stops the build. The project's domain allowlist must include `www.quilltip.me` and `quilltip.me` |
+| `NEXT_PUBLIC_NFT_CONTRACT_ID` (v1 NFT)                                                                                                | Unchanged            | Removed with the v1 code (section 2.5)                                                                                                                     |
+| `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`, `NEXT_PUBLIC_HORIZON_URL`                                          | Unchanged            | Removed with the v1 code                                                                                                                                   |
 
 If the live contract set is deployed after the site, rebuild the site once the
-contract IDs are set.
+contract IDs are set. `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` must equal the
+backend's `NFT_CONTRACT_ID`; unset or different, the NFT section offers no
+mint or transfer (section 1.2, item 4).
 
 ### 3.3 Arweave
 
@@ -668,6 +698,23 @@ drain.
    `reconcileTips:recoverStuckPendingHighlightTips` and
    `reconcileTips:recoverStuckPendingArticleTips` once from the dashboard.
 
+**Signed v1 transactions in browsers.** The v1 dialogs keep each signed
+transaction in the reader's browser storage
+(`quilltip:pendingArticleTipReceipt:v2:*` and
+`quilltip:pendingHighlightTipReceipt:v2:*`) so that the dialog can register
+it again after a reload. The dialogs store the transaction, register it with
+the server, and only then send it to Stellar. So a stored transaction is in
+one of two cases:
+
+- It was registered: its tip row is one of the rows that the drain above
+  waits for.
+- It was never registered: it was never sent, and its time bound (the intent
+  expiry, at most 15 minutes after prepare) has passed by step 2, so it can no
+  longer land on chain. Nothing was paid.
+
+After the drain no stored transaction can create a payment. The entries stay
+in browsers as inert data; the removal (section 8) stops reading them.
+
 **Check:** every filter returns 0 rows. An article page shows "Tips are
 paused for a short time while payments are updated." in place of the tip
 button, and so does the passage tip action. For the article's author or NFT
@@ -858,9 +905,26 @@ removed. Variables removed with the v1 code:
 `NEXT_PUBLIC_HORIZON_URL`, `NEXT_PUBLIC_SOROBAN_RPC_URL`,
 `TIPPING_CONTRACT_ID`, `HORIZON_URL`, `RECONCILE_TIPS_ENABLED` and
 `CHAIN_V1_PREPARES_ENABLED`. Remove each from Vercel and Convex only after the
-PR that stops reading it is deployed. `lib/stellar/v2/config.ts` also reads
-`NEXT_PUBLIC_HORIZON_URL` and `NEXT_PUBLIC_SOROBAN_RPC_URL` (to check them
-against the network guard), so the removal PR changes that file too.
+PR that stops reading it is deployed. `NEXT_PUBLIC_NFT_METADATA_URL` is also
+read by `lib/stellar/config.ts` into a value nothing uses; it goes with the v1
+client code.
+
+The Horizon and earlier RPC names have readers outside the v1 code. The PR
+that removes them changes each of these:
+
+| Variable                      | Readers outside the v1 code                                                                                                                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_HORIZON_URL`     | `lib/stellar/v2/config.ts` (checked against the network guard), `proxy.ts` and `lib/security/contentSecurityPolicy.ts` (`connect-src`), `scripts/lib/network-guard.ts`, `.github/workflows/ci.yml` |
+| `NEXT_PUBLIC_SOROBAN_RPC_URL` | The same files, and `convex/lib/stellarNetwork.ts`                                                                                                                                                 |
+| `HORIZON_URL`                 | `convex/lib/networkGuard.ts`, `scripts/lib/network-guard.ts`                                                                                                                                       |
+| `NEXT_PUBLIC_NFT_CONTRACT_ID` | `lib/stellar/v2/config.ts` (refuses a v2 NFT ID that equals the v1 one)                                                                                                                            |
+| `TIPPING_CONTRACT_ID`         | `scripts/tips/v1-prepare-switch.test.ts` and `scripts/articles/tip-quote.test.ts` (tests of the v1 functions)                                                                                      |
+
+The tests that set these variables change in the same PR.
+
+The practice wallet (`lib/stellar/practice.ts`) uses the testnet Horizon
+origin on its own, so the content security policy keeps that origin after
+the variables are gone.
 
 ## 9. Maintenance schedule
 

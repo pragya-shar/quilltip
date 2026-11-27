@@ -57,13 +57,14 @@ const requests = (page: Page) =>
     () => (window as unknown as { __walletRequests: Requests }).__walletRequests
   )
 
+/** Opens the v2 article tip dialog with the default amount ($1, 10 XLM). */
 async function openCheckout(page: Page) {
   await page.getByRole('button', { name: 'Tip article', exact: true }).click()
-  const dialog = page.getByRole('dialog')
-  await dialog.getByRole('button', { name: '1 test XLM' }).click()
-  await dialog
-    .getByRole('button', { name: 'Choose wallet', exact: true })
-    .click()
+  const dialog = page.getByRole('dialog', { name: 'Tip this article' })
+  await expect(dialog.getByRole('button', { name: '$1' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
   return dialog
 }
 
@@ -148,7 +149,7 @@ for (const c of CASES) {
       await expect(account).toContainText(/testnet/i)
 
       const dialog = await openCheckout(page)
-      await dialog.getByRole('button', { name: 'Review in wallet' }).click()
+      await dialog.getByRole('button', { name: 'Send tip' }).click()
       await expect.poll(() => signedXdr(page)).toBeTruthy()
       const signing = (await requests(page)).find((r) => /sign/i.test(r.method))
       // Rabet takes a network name; the others take the passphrase.
@@ -188,7 +189,7 @@ for (const c of CASES) {
       // The wallet cannot say which network it is on: its signature is
       // checked against testnet instead.
       const dialog = await openCheckout(page)
-      await dialog.getByRole('button', { name: 'Review in wallet' }).click()
+      await dialog.getByRole('button', { name: 'Send tip' }).click()
       await expect(
         dialog.getByText('Switch your wallet to Testnet')
       ).toBeVisible()
@@ -200,7 +201,7 @@ for (const c of CASES) {
       await open(page, 'reject')
       await connectWith(page, c.name)
       const dialog = await openCheckout(page)
-      await dialog.getByRole('button', { name: 'Review in wallet' }).click()
+      await dialog.getByRole('button', { name: 'Send tip' }).click()
       await expect(
         dialog.getByText('Request declined in your wallet')
       ).toBeVisible()
@@ -263,7 +264,7 @@ test.describe('xBull web wallet (no extension)', () => {
     ).toContainText(/testnet/i)
 
     const dialog = await openCheckout(page)
-    await dialog.getByRole('button', { name: 'Review in wallet' }).click()
+    await dialog.getByRole('button', { name: 'Send tip' }).click()
     await expect.poll(() => signedXdr(page)).toBeTruthy()
   })
 
@@ -327,7 +328,7 @@ test.describe('xBull web wallet (no extension)', () => {
     await page.getByRole('button', { name: 'Connect Wallet' }).click()
     await chooseXbull(page)
     const dialog = await openCheckout(page)
-    await dialog.getByRole('button', { name: 'Review in wallet' }).click()
+    await dialog.getByRole('button', { name: 'Send tip' }).click()
     await expect(
       dialog.getByText('Switch your wallet to Testnet')
     ).toBeVisible()
