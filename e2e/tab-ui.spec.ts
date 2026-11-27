@@ -314,6 +314,27 @@ for (const [id, text, retry] of RESULTS) {
   })
 }
 
+test('top-up signed by another account names the linked address on the tab page (#582)', async ({
+  page,
+}) => {
+  const errors = await open(page, 'op-wrong-account')
+  await startTopUp(page)
+  await expect(
+    visibleText(page, 'Your wallet signed with another account')
+  ).toBeVisible()
+  await expect(
+    visibleText(
+      page,
+      'Switch your wallet to GAUY…IUQ7, the address linked to your Quilltip account, or reconnect. Nothing was sent.'
+    )
+  ).toBeVisible()
+  await expect(
+    page.getByText('Switch back to the connected account')
+  ).toHaveCount(0)
+  expect(await axe(page)).toEqual([])
+  expect(errors).toEqual([])
+})
+
 // --- Settlement off: what the reader can and cannot do -----------------------
 
 test('settlement off, no tab: says why and offers no tab to open', async ({

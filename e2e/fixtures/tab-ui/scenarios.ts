@@ -500,6 +500,16 @@ const S: Scenario[] = [
     },
   },
   {
+    id: 'op-wrong-account',
+    title: 'The wallet signed with another account',
+    view: 'home',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.send = 'wrong-account'
+    },
+  },
+  {
     id: 'op-send-error',
     title: 'Send error',
     view: 'home',
