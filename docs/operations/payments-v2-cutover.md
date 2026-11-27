@@ -33,6 +33,8 @@ Start the window only when each line is true. Section 1 has the detail.
 5. The v1 admin key is available for stage 7, or the window runs without
    stage 7 and section 4.2 applies to v1 tips sent outside the app.
 6. The author notice is ready (section 1.5).
+7. The site origin is confirmed (section 1.6, item 6): the live deployment's
+   `SITE_URL` and `WALLET_LINK_ORIGINS` match the origin readers load.
 
 ## Terms
 
@@ -41,7 +43,7 @@ Start the window only when each line is true. Section 1 has the detail.
 | v1                         | The earlier testnet tipping contract (`contracts/tipping`), its Horizon-based verification in Convex, and the earlier NFT flow. Its records stay in the database after cutover. |
 | v2                         | The Core, Tab and Article NFT contracts, the Convex chain layer (`convex/chain/`, `convex/lib/chain/`) and the client modules in `lib/stellar/v2/`.                             |
 | Integration deployment     | The non-production Convex deployment `efficient-tern-39`. It has its own v2 contract set (`integration`).                                                                       |
-| Live deployment            | The Convex deployment that serves www.quilltip.me, `upbeat-mockingbird-579`. It gets its own v2 contract set (`live`) at cutover.                                               |
+| Live deployment            | The Convex deployment that serves the public site, `upbeat-mockingbird-579`. It gets its own v2 contract set (`live`) at cutover.                                               |
 | Release commit             | The commit on `overhaul/v2` that is merged into `main` for the cutover. Tag it before stage 1.                                                                                  |
 | Owner                      | The person who holds the live Convex deployment, the Vercel project and the live contract set keys. Only the owner changes the live deployment.                                 |
 | Prepare switch (v1 and v2) | Convex environment variables that allow or refuse new payment records: `CHAIN_V1_PREPARES_ENABLED` for v1, `CHAIN_V2_ENABLED` for v2.                                           |
@@ -191,6 +193,26 @@ Record each answer in the cutover tracking issue.
    window: backend first, site within minutes (section 5.0).
 5. **Author notice.** Who tells authors to verify their wallet and enable
    tips, and when.
+6. **Site origin.** Records disagree on the public origin:
+   `docs/DEPLOYMENT.md` sets `SITE_URL` to `https://quilltip.me`, and the site
+   is served at `https://www.quilltip.me`. Do not assume either. Before stage
+   0, the operator:
+   - checks the origin readers load: `curl -sI https://quilltip.me` and
+     `curl -sI https://www.quilltip.me`. The one that answers 200 rather than
+     redirecting is the site origin, written `<site origin>` in this runbook;
+   - reads `SITE_URL` and `WALLET_LINK_ORIGINS` on the live deployment
+     (`bunx convex env list --include-values` with the credential from
+     section 5.0.2, or the dashboard).
+
+   `SITE_URL` sets three things: the password-reset link
+   (`convex/lib/passwordResetEmail.ts`), the origin allowed to request a
+   wallet challenge (`convex/walletLink.ts`, together with the comma-separated
+   `WALLET_LINK_ORIGINS`), and the v2 NFT metadata URL (section 3.1). Wallet
+   verification from a browser on `<site origin>` is refused unless that
+   origin is `SITE_URL`'s origin or listed in `WALLET_LINK_ORIGINS`. If
+   `SITE_URL` is not `<site origin>`, either set it to `<site origin>` and add
+   the old value to `WALLET_LINK_ORIGINS`, or add `<site origin>` to
+   `WALLET_LINK_ORIGINS`. Record the decision before stage 0.
 
 ## 2. Schema and API compatibility
 
@@ -349,7 +371,8 @@ the previous origin to `WALLET_LINK_ORIGINS`. On the integration deployment
 `SITE_URL` is a local URL, so its tokens point there. The NFT contract's own
 `base_uri` is set at deploy; after stage 3 records the `live` set in
 `docs/contracts/v2-testnet-deployment.md`, check that its `base_uri` is
-`https://www.quilltip.me/api/nft/`.
+`<site origin>/api/nft/` (section 1.6, item 6). `contracts:deploy-v2` uses
+`https://www.quilltip.me/api/nft/` unless `--nft-base-uri` is given.
 
 ### 3.2 Vercel (site)
 
@@ -591,7 +614,7 @@ v2 crons do nothing without contract IDs. Do not push `main`'s previous schema
   HTML page with status 200. Run:
 
   ```bash
-  curl -fsS -H 'Accept: application/json' https://www.quilltip.me/api/health \
+  curl -fsS -H 'Accept: application/json' <site origin>/api/health \
     | jq -e --arg sha "<release sha>" '.status == "ok" and .backend == "ok"
         and .network == "TESTNET" and .commit == $sha'
   ```
@@ -600,7 +623,9 @@ v2 crons do nothing without contract IDs. Do not push `main`'s previous schema
   cannot parse it), a different commit, another network, or a backend that is
   `unreachable` or `unconfigured`.
 
-- A signed-in user can open settings and verify a wallet (wallet challenge).
+- A signed-in user on `<site origin>` can open settings and verify a wallet
+  (wallet challenge). If the challenge is refused with `ORIGIN_NOT_ALLOWED`,
+  check `SITE_URL` and `WALLET_LINK_ORIGINS` (section 1.6, item 6).
 - With `CHAIN_V2_ENABLED=false`, a v1 article tip to a verified author
   completes and appears in the tipper's history as v1.
 - The browser console shows no Content Security Policy violation on the
@@ -623,7 +648,8 @@ stage 5, fix the site forward instead.
    export NEXT_PUBLIC_STELLAR_NETWORK=TESTNET
    export NEXT_PUBLIC_STELLAR_RPC_URL=https://soroban-testnet.stellar.org
    export NEXT_PUBLIC_NETWORK_PASSPHRASE='Test SDF Network ; September 2015'
-   bun run contracts:deploy-v2 --set live --commit <sha> --keys-dir <dir>
+   bun run contracts:deploy-v2 --set live --commit <sha> --keys-dir <dir> \
+     --nft-base-uri <site origin>/api/nft/
    ```
 
    The command has no dry run: the `keys` step funds new accounts with
