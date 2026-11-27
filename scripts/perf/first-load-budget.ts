@@ -7,6 +7,10 @@
 // Fails when a route's first-load JavaScript (gzip) is over its budget, or when
 // wallet, SDK, contract-binding, IndexedDB or editor code is part of a route's
 // first load. See docs/performance/page-load.md, "First-load JavaScript".
+//
+// It also checks the Next.js patch (patches/next@16.4.6.ts): both production
+// runtimes must be patched and the chunk loader present, and the loader's
+// bytes count toward every route's first load.
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 import {
@@ -20,6 +24,12 @@ import {
   gzipBytes,
   type RouteBundleStats,
 } from './first-load'
+import { LOADER_PATH } from './chunk-loading'
+import {
+  REGISTRATION,
+  RUNTIMES,
+  installedNext,
+} from '../../patches/next@16.4.6'
 
 const STATS = '.next/diagnostics/route-bundle-stats.json'
 
@@ -30,6 +40,18 @@ function main(): number {
   }
   const stats = JSON.parse(readFileSync(STATS, 'utf8')) as RouteBundleStats
   const failures: string[] = []
+
+  const { root } = installedNext()
+  for (const runtime of RUNTIMES)
+    if (!readFileSync(path.join(root, runtime), 'utf8').includes(REGISTRATION))
+      failures.push(
+        `${runtime} is not patched. Build with \`bun run build\`, which applies patches/next@16.4.6.ts.`
+      )
+  const loaderFile = path.join('public', LOADER_PATH)
+  const loaderKb = existsSync(loaderFile)
+    ? gzipBytes(readFileSync(loaderFile)) / 1024
+    : 0
+  if (!existsSync(loaderFile)) failures.push(`${loaderFile} is missing`)
   for (const route of FIRST_LOAD_ROUTES) {
     const entry = stats.find((item) => item.route === route)
     if (!entry) {
@@ -40,8 +62,12 @@ function main(): number {
       file,
       contents: readFileSync(path.resolve(file)),
     }))
+    // The pages start their chunks through the loader, so it is part of
+    // every first load. Its two tags (the blocking copy in <head> and the
+    // async `#b` bootstrap copy) share one URL, so it downloads once.
     const kb =
-      chunks.reduce((sum, chunk) => sum + gzipBytes(chunk.contents), 0) / 1024
+      chunks.reduce((sum, chunk) => sum + gzipBytes(chunk.contents), 0) / 1024 +
+      loaderKb
     const budget = FIRST_LOAD_BUDGET_KB[route]
 
     const dataFile = analyzeDataPath(route)

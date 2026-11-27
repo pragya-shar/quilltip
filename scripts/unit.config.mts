@@ -21,6 +21,7 @@ export default defineConfig({
       'scripts/ci/*.test.ts',
       'scripts/contracts/*.test.ts',
       'scripts/perf/*.test.ts',
+      'scripts/next/*.test.ts',
       'scripts/payments/*.test.ts',
       'scripts/nft/*.test.ts',
       // The article storage status panel (components/articles/ArweaveStatus).

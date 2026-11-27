@@ -27,6 +27,28 @@ const nextConfig: NextConfig = {
   // preloads in the HTML, where the browser fetches stylesheets first, as it
   // did when these pages were prerendered.
   reactMaxHeadersLength: 0,
+  // Vercel serves chunks from /_next/static/immutable/chunks/ (its adapter
+  // turns this on). CI builds once with it to check that the Next.js patch
+  // handles that path too (perf:chunk-paths); deployments do not set it here.
+  ...(process.env.QUILLTIP_IMMUTABLE_ASSETS === '1' && {
+    experimental: { supportsImmutableAssets: true },
+  }),
+  // The chunk loader of patches/next@16.4.6.ts blocks the first paint, and
+  // its URL carries its version (`?v=`), so browsers keep it instead of
+  // fetching it again on every view. vercel.json sets the same on Vercel.
+  async headers() {
+    return [
+      {
+        source: '/hydrate-after-paint.js',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+    ]
+  },
   turbopack: {
     resolveAlias: {
       '@ngneat/elf-devtools': './lib/stubs/elf-devtools.ts',

@@ -622,6 +622,107 @@ fall in bands under 2000 ms (`<1000`, `1000-1499`, `1500-1999`), and 75
 percent of its CLS events in `<0.05` or `0.05-0.099`. The privacy page says
 that page-speed ratings are recorded with consent.
 
+## Chunk scripts after the first paint (#405, #428)
+
+Measured 2026-11-27 with the method of the previous section (HTTP/2, five
+runs, median), on one build of `dcfae16`: "without" is the same build with
+`QUILLTIP_HYDRATE_AFTER_PAINT=false`, so the four routes render with
+Next.js's own scripts. `patches/next@16.4.6.ts` makes the four routes start
+their Next.js chunk scripts after the first contentful paint; how it works,
+its checks, and how to upgrade or remove it are in
+[next-patch.md](next-patch.md).
+
+### Result
+
+LCP in ms, without → with the patch.
+
+| Route       | Simulated mobile | Applied mobile |   Desktop | CLS (max) | Simulated < 2 s | Applied < 2 s | CLS < 0.1 |
+| ----------- | ---------------: | -------------: | --------: | --------: | --------------- | ------------- | --------- |
+| `/`         |      2857 → 1804 |    2701 → 1839 | 572 → 404 |     0.000 | yes             | yes           | yes       |
+| `/login`    |      2255 → 1203 |    2282 → 1501 | 484 → 323 |     0.016 | yes             | yes           | yes       |
+| `/articles` |      2705 → 1654 |    2976 → 1865 | 524 → 363 |     0.001 | yes             | yes           | yes       |
+| Article     |      2854 → 1803 |    2931 → 1743 | 529 → 364 |     0.001 | yes             | yes           | yes       |
+
+The applied medians meet 2 s with small margins. Runs over 2 s with the
+patch: `/` two of five (2125 and 2167 ms), `/articles` two of five (2119 and
+2129 ms), the article page one of five (2034 ms). Simulated runs varied by
+2 ms at most.
+
+The loader now runs in `<head>` before the first paint (next-patch.md). That
+did not move LCP: the earlier build with a late, async loader measured
+1811 / 1212 / 1657 / 1805 ms simulated.
+
+**Immutable assets (Vercel).** Vercel serves chunks from
+`/_next/static/immutable/chunks/`; the patch handles both paths. A local
+build with `experimental.supportsImmutableAssets` writes 10 inert tags and no
+early chunk script on each of the four routes, and passes the browser suite in
+three engines. Simulated mobile LCP on that build, off → on, measured with the
+two modes interleaved on a heavily loaded machine (load average 19 to 84 on
+18 cores), so exploratory: `/` 2860 → 1810, `/login` 2280 → 1211,
+`/articles` 2707 → 1656, the article page 2855 → 1830 (one pair). The applied
+runs on that machine (for example `/` 3385 → 2278) are not comparable with the
+table above.
+
+### Cost: later hydration and more waiting
+
+The scripts start when the page has painted instead of alongside the
+stylesheet, so every control that needs JavaScript becomes ready later.
+
+Slow 4G and 4x CPU (Lighthouse's mobile values, applied through the
+DevTools protocol), HTTP/2, 375 px wide (the account menu at 1280 px,
+signed in), same build off and on. "Ready" is the time after navigation
+start at which React handles the control; median of 5.
+
+| Control ready (ms)                   |  Off |   On | Later by |
+| ------------------------------------ | ---: | ---: | -------: |
+| `/`: "Add a tip"                     | 3055 | 4126 |     1071 |
+| `/articles`: mobile menu             | 2974 | 3903 |      929 |
+| Article: mobile menu                 | 3019 | 3893 |      874 |
+| `/login`: sign-in form               | 2665 | 3424 |      759 |
+| Article: "Tip article"               | 6017 | 7016 |      999 |
+| `/articles`, signed in: account menu | 4470 | 5380 |      910 |
+
+An independent review on the earlier build measured 0.5 to 1.7 s later on
+the same profile (for example the `/articles` menu 3122 → 4763 ms). Both sets
+agree that every control is ready later; the size depends on the machine.
+
+A tap the moment the control appears on screen, median of 10 (ms after
+navigation start for "appears", ms after the tap for "answered"):
+
+| Control                 | Off: appears, answered | On: appears, answered | Lost, off / on |
+| ----------------------- | ---------------------: | --------------------: | -------------- |
+| `/articles` mobile menu |              3019, 865 |            1915, 2874 | 0 / 0          |
+| `/`: "Add a tip"        |             2972, 8210 |            1913, 3371 | 0 / 0          |
+| `/login`: "Log in"      |             2419, lost |            1911, 2834 | 10 / 0         |
+
+- With the patch the page appears about 1 s sooner, and no early tap is lost:
+  the loader holds it from the first paint and replays it once React has
+  hydrated the control. The earlier build lost a tap made between the first
+  paint and the loader's arrival (the review measured 5 of 5 on the menus
+  and "Add a tip").
+- The `/articles` menu answers later on the clock (4.8 s against 3.9 s after
+  navigation). "Add a tip" answers sooner (5.3 s against 11.2 s). Without the
+  patch, a sign-in sent before hydration is posted by the browser itself and
+  shows no result.
+
+Lighthouse, median of 5 (ms):
+
+| Route       | TBT simulated | TBT applied | TTI simulated |   TTI applied |
+| ----------- | ------------: | ----------: | ------------: | ------------: |
+| `/`         |        12 → 8 |   129 → 143 |   3177 → 3179 | 4249 → 10643¹ |
+| `/login`    |        23 → 3 |     13 → 13 |   2255 → 1651 |   2626 → 3390 |
+| `/articles` |         6 → 4 |     67 → 23 |   2714 → 2106 |   3156 → 4163 |
+| Article     |       37 → 31 |   297 → 118 |   5409 → 5476 |   6853 → 6827 |
+
+- ¹ The landing page's opening intro ends with a long task at about 10.5 s
+  in both builds. With the patch, prefetches after hydration end later, so
+  Lighthouse's 5-second quiet window closes only after that task, and it
+  counts toward TTI. The review measured the same: 4.2 to 10.7 s.
+- Applied TTI is about 0.8 to 1.0 s later on `/login` and `/articles`, as
+  hydration is.
+- Field data (INP, and how readers use the controls) after cutover shows
+  whether readers notice the later hydration.
+
 ## Regression check
 
 `bun run perf:budget` (`scripts/perf/page-load-budget.ts`) runs without
@@ -641,6 +742,7 @@ secrets:
    | -------------------------------------------- | -----: | -------------: |
    | Scripts referenced by the server HTML        | 230 KB |         216 KB |
    | Render-blocking stylesheets                  |      4 |              3 |
+   | Chunk scripts loaded before the first paint  |      0 |              0 |
    | CLS (median of 3)                            |    0.1 |          0.016 |
    | LCP element in the server HTML (2 of 3 runs) |    yes |            yes |
    | LCP image URL in the server HTML (2 of 3)    |    yes |            yes |
@@ -801,10 +903,14 @@ after the build. It runs `next experimental-analyze --output`, then for `/`,
 
    | Route                | Budget | Measured |
    | -------------------- | -----: | -------: |
-   | `/`                  | 211 KB | 208.7 KB |
-   | `/login`             | 202 KB | 199.2 KB |
-   | `/articles`          | 216 KB | 213.8 KB |
-   | `/[username]/[slug]` | 219 KB | 216.7 KB |
+   | `/`                  | 214 KB | 211.8 KB |
+   | `/login`             | 204 KB | 202.3 KB |
+   | `/articles`          | 218 KB | 216.1 KB |
+   | `/[username]/[slug]` | 222 KB | 219.9 KB |
+
+   The sizes include the chunk loader of the Next.js patch
+   (`public/hydrate-after-paint.js`, 2.4 KB gzip), which every route loads
+   once: its `<head>` tag and its bootstrap tag share one URL.
 
    Each budget is the measured size plus about 2 KB (CI measures about
    0.2 KB more than a local build), so removing a lazy boundary (the mobile
