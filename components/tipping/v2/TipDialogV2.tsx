@@ -130,14 +130,13 @@ export function TipDialogV2({
   // One amount for the dialog: with a quick tip on offer, no preset is above
   // the tab tip maximum. A pressed preset that no longer fits becomes the
   // largest that does.
-  const presets =
-    tabMaxCents === null
-      ? [...TIP_PRESET_CENTS]
-      : tabTipPresets(
-          TIP_PRESET_CENTS,
-          tabMaxCents,
-          eligibility.minTipCents ?? 1
-        )
+  const presets = (tabMaxCents === null
+    ? null
+    : tabTipPresets(
+        TIP_PRESET_CENTS,
+        tabMaxCents,
+        eligibility.minTipCents ?? 1
+      )) ?? [...TIP_PRESET_CENTS]
   const preset =
     picked === null
       ? presets[0]!
