@@ -162,7 +162,21 @@ export function useArticleNftV2({
     }
   }, [needsLiveRead, isArticleAuthor, articleId, liveKey])
 
+  // The client must know the same Article NFT contract as the server, or
+  // its check refuses every prepared call: say so instead of offering one.
+  const clientNftContract = useMemo(() => {
+    try {
+      return v2Runtime().config.nftContractId
+    } catch {
+      return null
+    }
+  }, [])
+  const clientConfigured =
+    !!clientNftContract &&
+    (!config?.nftContractId || config.nftContractId === clientNftContract)
+
   const panel = deriveNftPanel({
+    clientConfigured,
     v2Enabled: config === undefined ? undefined : v2,
     progress: progress ?? undefined,
     record: record as NftRecordLike | undefined,
@@ -178,7 +192,9 @@ export function useArticleNftV2({
 
   // Load the wallet runtime only when this viewer has an action here.
   const hasAction =
-    (panel.kind === 'progress' && panel.mint.kind !== 'none') ||
+    (panel.kind === 'progress' &&
+      panel.mint.kind !== 'none' &&
+      panel.mint.kind !== 'not-configured') ||
     (panel.kind === 'minted' && panel.viewerOwns)
   const walletContext = useWallet({ activateOnMount: hasAction })
   const walletRef = useRef(walletContext)

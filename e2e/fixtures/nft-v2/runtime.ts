@@ -81,8 +81,10 @@ const TOKEN_ID = data === 'worst' ? 4_294_967_295 : 7
 // minted, the owner in the owner states.
 const fixtureKey = Keypair.random()
 export const WALLET = fixtureKey.publicKey()
+/** `wallet=other`: the wallet is on another account than the linked one. */
+const OTHER_ACCOUNT = Keypair.random().publicKey()
 ;(window as unknown as { __fixtureWallet: unknown }).__fixtureWallet = {
-  address: WALLET,
+  address: params.get('wallet') === 'other' ? OTHER_ACCOUNT : WALLET,
   signMessage: (message: string) =>
     btoa(String.fromCharCode(...fixtureKey.signMessage(message))),
   signTransaction: (envelope: string) => {
@@ -808,7 +810,8 @@ export function v2Runtime() {
       allowHttp: true,
       coreContractId: CORE,
       tabContractId: TAB,
-      nftContractId: NFT,
+      // `clientNft=none`: NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID is not set.
+      nftContractId: params.get('clientNft') === 'none' ? null : NFT,
       tokenContractId: XLM,
     },
     latestLedger: async () => 1_234_567,

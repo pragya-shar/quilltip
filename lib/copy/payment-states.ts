@@ -284,6 +284,21 @@ export const RESULT_COPY: Record<
   },
 }
 
+/**
+ * `RESULT_COPY.failed` for flows that are not payments: an NFT mint or
+ * transfer that ended `FAILED` with no client failure to show.
+ */
+export const FAILED_COPY_BY_FLOW = {
+  'nft-mint': {
+    title: 'Not completed',
+    detail: 'Quilltip recorded no mint for this request. Nothing was sent.',
+  },
+  'nft-transfer': {
+    title: 'Not completed',
+    detail: 'Quilltip recorded no transfer for this request. Nothing was sent.',
+  },
+} as const satisfies Partial<Record<PaymentFlow, CopyBlock>>
+
 /** Tab tip results that read differently for the reader and the writer. */
 export const TAB_TIP_RESULT = {
   unpaid: {

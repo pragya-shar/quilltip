@@ -39,6 +39,11 @@ export type NftRunPhase = 'connecting' | TxStep | 'recording'
 export type NftRunResult =
   /** The local check refused the prepared call. Nothing was signed. */
   | { status: 'check_failed'; check: NftCallError['check']; message: string }
+  /**
+   * The wallet is on another account than the one that must sign (the
+   * linked address). Found before any signature: nothing was signed.
+   */
+  | { status: 'wrong_account'; expected: string; connected: string }
   | TxOutcome
 
 export type NftRunDeps = {
@@ -75,6 +80,8 @@ export function recordFor(
       return null
     case 'check_failed':
       return { reason: 'wallet_rejected', detail: 'client_check' }
+    case 'wrong_account':
+      return { reason: 'wallet_rejected', detail: 'wrong_account' }
     case 'wallet_failed':
       return { reason: 'wallet_rejected', detail: result.error.kind }
     case 'simulation_failed':
@@ -146,8 +153,9 @@ export async function runNftCall(deps: NftRunDeps): Promise<NftRunResult> {
   }
   if (address !== prepared.signer) {
     return finish({
-      status: 'wallet_failed',
-      error: new WalletError('wrong-account', 'wrong_account'),
+      status: 'wrong_account',
+      expected: prepared.signer,
+      connected: address,
     })
   }
 

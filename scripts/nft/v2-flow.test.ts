@@ -176,6 +176,29 @@ describe('deriveNftPanel', () => {
     expect(panel).toMatchObject({ kind: 'progress', progress: null })
   })
 
+  it('says minting and transfers are not available without the client NFT contract (#547)', () => {
+    expect(
+      deriveNftPanel({
+        v2Enabled: true,
+        progress: progress(),
+        record: null,
+        viewer: author,
+        eligibility: eligibility('ELIGIBLE'),
+        clientConfigured: false,
+      })
+    ).toMatchObject({ kind: 'progress', mint: { kind: 'not-configured' } })
+    expect(
+      deriveNftPanel({
+        v2Enabled: true,
+        progress: minted,
+        record: v2Row,
+        viewer: author,
+        eligibility: null,
+        clientConfigured: false,
+      })
+    ).toMatchObject({ kind: 'minted', transfer: 'not-configured' })
+  })
+
   it('keeps a v1 record labelled beside the v2 progress', () => {
     const panel = deriveNftPanel({
       v2Enabled: true,
@@ -555,6 +578,22 @@ describe('nftFlowReducer', () => {
     { type: 'prepared', prepared: preparedTransfer },
     { type: 'confirm' },
   ])
+
+  it('asks a wallet on another account to switch to the linked address (#547)', () => {
+    const state = nftFlowReducer(running, {
+      type: 'result',
+      result: { status: 'wrong_account', expected: OWNER, connected: READER },
+    })
+    expect(state).toMatchObject({ kind: 'tracking', declined: false })
+    const failure = (state as { failure: { title: string; detail: string } })
+      .failure
+    expect(failure.title).toMatch(/^Switch your wallet to G.+…/)
+    expect(failure.detail).toMatch(
+      /the address linked to your Quilltip account/
+    )
+    expect(failure.detail).toMatch(/Nothing was signed\.$/)
+    expect(failure.title).not.toMatch(/signed with another account/)
+  })
 
   it('reads a wallet refusal as declined and a closed picker as nothing', () => {
     expect(
