@@ -80,18 +80,19 @@ function useAwaitingConfirmation(): boolean {
     answeredToken: answered,
   })
 
-  const [timedOut, setTimedOut] = useState(false)
-  if (!unconfirmed && timedOut) setTimedOut(false)
+  // The bound belongs to one token: a new sign-in after a timed-out token
+  // gets its own wait.
+  const [timedOutToken, setTimedOutToken] = useState<string | null>(null)
   useEffect(() => {
-    if (!unconfirmed) return
+    if (!unconfirmed || token === null) return
     const timeout = setTimeout(
-      () => setTimedOut(true),
+      () => setTimedOutToken(token),
       TOKEN_CONFIRMATION_TIMEOUT_MS
     )
     return () => clearTimeout(timeout)
-  }, [unconfirmed])
+  }, [unconfirmed, token])
 
-  return unconfirmed && !timedOut
+  return unconfirmed && timedOutToken !== token
 }
 
 export function AuthSessionProvider({ children }: { children: ReactNode }) {

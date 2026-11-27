@@ -33,7 +33,10 @@ test.skip(
  */
 async function slowAuthConfirmation(
   page: Page,
-  /** 'never' drops the backend's messages instead: it never answers. */
+  /**
+   * 'never' drops the backend's messages instead, so it never answers the
+   * token; action results still pass, so the reader can sign in again.
+   */
   hold: number | 'never' = CONFIRMATION_DELAY_MS
 ) {
   await page.routeWebSocket(/\/api\/[^/]+\/sync/, (ws) => {
@@ -52,7 +55,11 @@ async function slowAuthConfirmation(
       server.send(message)
     })
     server.onMessage((message) => {
-      if (silent) return
+      if (silent) {
+        if (typeof message === 'string' && message.includes('"ActionResponse"'))
+          ws.send(message)
+        return
+      }
       const wait = holdUntil - Date.now()
       delivered = delivered
         .then(() =>
@@ -197,6 +204,10 @@ test('a sign-in the backend never answers ends on login at the bound', async ({
   expect(Date.now() - landed).toBeLessThan(
     TOKEN_CONFIRMATION_TIMEOUT_MS + 8_000
   )
+  // A second sign-in stores a new token, which gets its own wait.
+  await signIn(page)
+  await expect(page).toHaveURL('/dashboard/stats')
+  await staysOn(page, '/dashboard/stats', 5_000)
   expect(
     await page.evaluate(
       () => (window as unknown as { __sawProtected?: boolean }).__sawProtected
