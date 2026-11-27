@@ -523,6 +523,18 @@ function reference(path: string): unknown {
 }
 export const api: unknown = reference('')
 
+/** The signed-in viewer for the wallet runtime (`components/providers/AuthContext`). */
+export function useAuth() {
+  const viewer = viewerOf()
+  return viewer === 'signed-out'
+    ? { user: null, isAuthenticated: false, isLoading: false }
+    : {
+        user: { _id: `qa-${viewer}`, username: viewer, name: viewer },
+        isAuthenticated: true,
+        isLoading: false,
+      }
+}
+
 export function useQuery(ref: unknown, args?: unknown) {
   const name = String(ref)
   const current = useSyncExternalStore(subscribe, () => store)

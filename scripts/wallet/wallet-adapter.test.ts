@@ -588,6 +588,7 @@ describe('the account before signing (#547)', () => {
 
 describe('restore after a page load (#562)', () => {
   const KIT_KEY = '@StellarWalletsKit/selectedModuleId'
+  const KEY = 'quilltip:wallet:v1:reader-1'
   const record = (walletId: string, address = ADDRESS) =>
     JSON.stringify({ walletId, address })
 
@@ -630,13 +631,13 @@ describe('restore after a page load (#562)', () => {
     mem: ReturnType<typeof memory>
   ) {
     const wallet = adapterFor(fake, { storage: mem.storage })
-    wallet.setRemembering(true)
+    wallet.setRemembering('reader-1')
     return wallet
   }
 
   test('reconnects a remembered Varial with one read that cannot prompt', async () => {
     const { fake, read } = restoreKit()
-    const mem = memory({ 'quilltip:wallet': record('varial') })
+    const mem = memory({ [KEY]: record('varial') })
     const wallet = restoring(fake, mem)
     const events: unknown[] = []
     wallet.subscribe((event) => events.push(event))
@@ -659,17 +660,22 @@ describe('restore after a page load (#562)', () => {
     const mem = memory()
     const wallet = adapterFor(fake, { storage: mem.storage })
     await wallet.connect({ walletId: 'varial' })
-    expect(mem.store.has('quilltip:wallet')).toBe(false)
-    wallet.setRemembering(true)
-    expect(mem.store.get('quilltip:wallet')).toBe(record('varial'))
+    expect(mem.store.has(KEY)).toBe(false)
+    wallet.setRemembering('reader-1')
+    expect(mem.store.get(KEY)).toBe(record('varial'))
+    // No reader: the kit's copy goes; the reader's own record stays theirs
+    // (sign-out removes it through \`disconnect\`).
     mem.store.set(KIT_KEY, 'varial')
-    wallet.setRemembering(false)
-    expect([...mem.store.keys()]).toEqual([])
+    wallet.setRemembering(null)
+    expect([...mem.store.keys()]).toEqual([KEY])
+    await wallet.disconnect()
+    await wallet.connect({ walletId: 'varial' })
+    expect([...mem.store.keys()]).toEqual([KEY])
   })
 
   test('signed out: does not restore and asks nothing', async () => {
     const { fake, read } = restoreKit()
-    const mem = memory({ 'quilltip:wallet': record('varial') })
+    const mem = memory({ [KEY]: record('varial') })
     const wallet = adapterFor(fake, { storage: mem.storage })
     await expect(wallet.restore()).resolves.toBeNull()
     expect(read).not.toHaveBeenCalled()
@@ -685,12 +691,12 @@ describe('restore after a page load (#562)', () => {
   ]) {
     test(`${walletId} could prompt: not asked, the choice kept`, async () => {
       const { fake, read } = restoreKit()
-      const mem = memory({ 'quilltip:wallet': record(walletId) })
+      const mem = memory({ [KEY]: record(walletId) })
       const wallet = restoring(fake, mem)
       await expect(wallet.restore()).resolves.toBeNull()
       expect(read).not.toHaveBeenCalled()
       expect(fake.kit.setWallet).not.toHaveBeenCalled()
-      expect(mem.store.get('quilltip:wallet')).toBe(record(walletId))
+      expect(mem.store.get(KEY)).toBe(record(walletId))
     })
   }
 
@@ -706,12 +712,12 @@ describe('restore after a page load (#562)', () => {
   ] as const) {
     test(`tampered record, ${name}: no module selected, the record removed`, async () => {
       const { fake, read } = restoreKit()
-      const mem = memory({ 'quilltip:wallet': stored })
+      const mem = memory({ [KEY]: stored })
       const wallet = restoring(fake, mem)
       await expect(wallet.restore()).resolves.toBeNull()
       expect(fake.kit.setWallet).not.toHaveBeenCalled()
       expect(read).not.toHaveBeenCalled()
-      expect(mem.store.has('quilltip:wallet')).toBe(false)
+      expect(mem.store.has(KEY)).toBe(false)
     })
   }
 
@@ -725,7 +731,7 @@ describe('restore after a page load (#562)', () => {
         }
       })
     )
-    const mem = memory({ 'quilltip:wallet': record('varial') })
+    const mem = memory({ [KEY]: record('varial') })
     const wallet = restoring(fake, mem)
     await expect(wallet.restore()).resolves.toBeNull()
     expect(wallet.getConnection()).toBeNull()
@@ -735,24 +741,42 @@ describe('restore after a page load (#562)', () => {
   test('a wallet that never answers: gives up without a prompt', async () => {
     vi.useFakeTimers()
     const { fake } = restoreKit(vi.fn(() => new Promise<never>(() => {})))
-    const mem = memory({ 'quilltip:wallet': record('varial') })
+    const mem = memory({ [KEY]: record('varial') })
     const wallet = restoring(fake, mem)
     const result = wallet.restore()
     await vi.advanceTimersByTimeAsync(RESTORE_TIMEOUT_MS)
     await expect(result).resolves.toBeNull()
   })
 
-  test('account changed since the last visit: the wallet’s account is used and remembered', async () => {
-    const { fake } = restoreKit()
-    const mem = memory({ 'quilltip:wallet': record('varial', OTHER) })
+  test('account changed since the last visit: stays disconnected, the remembered wallet kept as last used', async () => {
+    const { fake, read } = restoreKit()
+    const mem = memory({ [KEY]: record('varial', OTHER) })
     const wallet = restoring(fake, mem)
-    await expect(wallet.restore()).resolves.toMatchObject({ address: ADDRESS })
-    expect(mem.store.get('quilltip:wallet')).toBe(record('varial', ADDRESS))
+    await expect(wallet.restore()).resolves.toBeNull()
+    expect(read).toHaveBeenCalledWith({ skipRequestAccess: true })
+    expect(wallet.getConnection()).toBeNull()
+    expect(wallet.rememberedWallet()).toEqual({
+      walletId: 'varial',
+      address: OTHER,
+    })
+  })
+
+  test('each reader has their own record; another reader’s is not read', async () => {
+    const { fake, read } = restoreKit()
+    const mem = memory({
+      'quilltip:wallet:v1:reader-2': record('varial'),
+    })
+    const wallet = restoring(fake, mem)
+    await expect(wallet.restore()).resolves.toBeNull()
+    expect(read).not.toHaveBeenCalled()
+    await wallet.connect({ walletId: 'varial' })
+    expect(mem.store.get(KEY)).toBe(record('varial'))
+    expect(mem.store.get('quilltip:wallet:v1:reader-2')).toBe(record('varial'))
   })
 
   test('a restored wallet on another account than the linked one is refused before it is asked to sign', async () => {
     const { fake } = restoreKit()
-    const mem = memory({ 'quilltip:wallet': record('varial') })
+    const mem = memory({ [KEY]: record('varial') })
     const wallet = restoring(fake, mem)
     await wallet.restore()
     const error = await rejection(
@@ -765,7 +789,7 @@ describe('restore after a page load (#562)', () => {
   test('wrong network: restored with the wallet’s network, and signing refused before the wallet is asked', async () => {
     const { fake } = restoreKit()
     fake.state.walletNetwork = PUBLIC
-    const mem = memory({ 'quilltip:wallet': record('varial') })
+    const mem = memory({ [KEY]: record('varial') })
     const wallet = restoring(fake, mem)
     await expect(wallet.restore()).resolves.toMatchObject({
       networkPassphrase: PUBLIC,
@@ -777,7 +801,7 @@ describe('restore after a page load (#562)', () => {
 
   test('Disconnect forgets the choice and the kit’s copy; nothing restores after it', async () => {
     const { fake, read } = restoreKit()
-    const mem = memory({ 'quilltip:wallet': record('varial') })
+    const mem = memory({ [KEY]: record('varial') })
     const wallet = restoring(fake, mem)
     await wallet.restore()
     mem.store.set(KIT_KEY, 'varial')
@@ -793,20 +817,20 @@ describe('restore after a page load (#562)', () => {
         throw { code: -3, message: 'not allowed' }
       })
     )
-    const mem = memory({ 'quilltip:wallet': record('varial') })
+    const mem = memory({ [KEY]: record('varial') })
     const wallet = restoring(fake, mem)
     await wallet.restore()
     await wallet.disconnect()
-    expect(mem.store.has('quilltip:wallet')).toBe(false)
+    expect(mem.store.has(KEY)).toBe(false)
   })
 
   test('the wallet ending the session forgets the choice', async () => {
     const { fake } = restoreKit()
-    const mem = memory({ 'quilltip:wallet': record('varial') })
+    const mem = memory({ [KEY]: record('varial') })
     const wallet = restoring(fake, mem)
     await wallet.restore()
     fake.fire('DISCONNECT', {})
-    expect(mem.store.has('quilltip:wallet')).toBe(false)
+    expect(mem.store.has(KEY)).toBe(false)
   })
 
   test('a connect by the reader while the wallet answers wins', async () => {
@@ -819,7 +843,7 @@ describe('restore after a page load (#562)', () => {
           })
       )
     )
-    const mem = memory({ 'quilltip:wallet': record('varial', OTHER) })
+    const mem = memory({ [KEY]: record('varial', OTHER) })
     const wallet = restoring(fake, mem)
     const restored = wallet.restore()
     await vi.waitFor(() => expect(fake.kit.setWallet).toHaveBeenCalled())

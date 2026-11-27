@@ -1,14 +1,17 @@
 import { describe, expect, test } from 'vitest'
 import {
-  REMEMBERED_WALLET_KEY,
   WALLET_KIT_STORAGE_KEYS,
+  forgetAllRememberedWallets,
   forgetRememberedWallet,
   readRememberedWallet,
   rememberWallet,
+  rememberedWalletKey,
 } from '../../lib/wallet/remembered-wallet'
 import { WALLET_CATALOG } from '../../lib/stellar/wallet-catalog'
 
 const ADDRESS = 'GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI'
+const USER = 'j57abc123def456'
+const KEY = `quilltip:wallet:v1:${USER}`
 
 function memory(initial: Record<string, string> = {}) {
   const store = new Map(Object.entries(initial))
@@ -18,30 +21,48 @@ function memory(initial: Record<string, string> = {}) {
       getItem: (key: string) => store.get(key) ?? null,
       setItem: (key: string, value: string) => void store.set(key, value),
       removeItem: (key: string) => void store.delete(key),
+      key: (index: number) => [...store.keys()][index] ?? null,
+      get length() {
+        return store.size
+      },
     },
   }
 }
 
 describe('the remembered wallet (#562)', () => {
-  test('stores the wallet ID and the public address, nothing else', () => {
+  test('stores the wallet ID and the public address under the reader’s key, nothing else', () => {
     const mem = memory()
-    rememberWallet(mem.storage, { walletId: 'varial', address: ADDRESS })
+    rememberWallet(mem.storage, USER, { walletId: 'varial', address: ADDRESS })
     expect([...mem.store.entries()]).toEqual([
-      [
-        REMEMBERED_WALLET_KEY,
-        JSON.stringify({ walletId: 'varial', address: ADDRESS }),
-      ],
+      [KEY, JSON.stringify({ walletId: 'varial', address: ADDRESS })],
     ])
-    expect(readRememberedWallet(mem.storage)).toEqual({
+    expect(readRememberedWallet(mem.storage, USER)).toEqual({
       walletId: 'varial',
       address: ADDRESS,
     })
+    expect(readRememberedWallet(mem.storage, 'another-reader')).toBeNull()
+  })
+
+  test('no reader, or an ID that cannot be one: nothing stored or read', () => {
+    const mem = memory()
+    for (const userId of [null, undefined, '', '../x', 'a b']) {
+      rememberWallet(mem.storage, userId, {
+        walletId: 'varial',
+        address: ADDRESS,
+      })
+      expect(readRememberedWallet(mem.storage, userId)).toBeNull()
+      expect(rememberedWalletKey(userId)).toBeNull()
+    }
+    expect(mem.store.size).toBe(0)
   })
 
   test('refuses to store a value that is not a wallet ID and an account ID', () => {
     const mem = memory()
-    rememberWallet(mem.storage, { walletId: 'varial', address: 'SSECRET' })
-    rememberWallet(mem.storage, { walletId: '<img>', address: ADDRESS })
+    rememberWallet(mem.storage, USER, {
+      walletId: 'varial',
+      address: 'SSECRET',
+    })
+    rememberWallet(mem.storage, USER, { walletId: '<img>', address: ADDRESS })
     expect(mem.store.size).toBe(0)
   })
 
@@ -77,50 +98,65 @@ describe('the remembered wallet (#562)', () => {
     ],
   ] as const) {
     test(`a malformed record (${name}) reads as none and is removed`, () => {
-      const mem = memory({ [REMEMBERED_WALLET_KEY]: raw })
-      expect(readRememberedWallet(mem.storage)).toBeNull()
-      expect(mem.store.has(REMEMBERED_WALLET_KEY)).toBe(false)
+      const mem = memory({ [KEY]: raw })
+      expect(readRememberedWallet(mem.storage, USER)).toBeNull()
+      expect(mem.store.has(KEY)).toBe(false)
     })
   }
 
-  test('forgetting removes the record and the kit’s copy, and leaves other keys', () => {
+  test('forgetting a reader removes their record and the kit’s copy, and leaves other readers', () => {
     const mem = memory({
-      [REMEMBERED_WALLET_KEY]: JSON.stringify({
+      [KEY]: JSON.stringify({ walletId: 'varial', address: ADDRESS }),
+      'quilltip:wallet:v1:other': JSON.stringify({
         walletId: 'varial',
         address: ADDRESS,
       }),
       ...Object.fromEntries(WALLET_KIT_STORAGE_KEYS.map((key) => [key, 'x'])),
       'quilltip:other': 'kept',
     })
-    forgetRememberedWallet(mem.storage)
+    forgetRememberedWallet(mem.storage, USER)
+    expect([...mem.store.keys()].sort()).toEqual([
+      'quilltip:other',
+      'quilltip:wallet:v1:other',
+    ])
+  })
+
+  test('the sign-in pages forget every reader’s record and the kit’s copy', () => {
+    const mem = memory({
+      [KEY]: 'x',
+      'quilltip:wallet:v1:other': 'x',
+      ...Object.fromEntries(WALLET_KIT_STORAGE_KEYS.map((key) => [key, 'x'])),
+      'quilltip:other': 'kept',
+    })
+    forgetAllRememberedWallets(mem.storage)
     expect([...mem.store.keys()]).toEqual(['quilltip:other'])
   })
 
   test('storage that throws is ignored', () => {
-    const broken = {
-      getItem: () => {
-        throw new Error('blocked')
-      },
-      setItem: () => {
-        throw new Error('quota')
-      },
-      removeItem: () => {
-        throw new Error('blocked')
-      },
+    const fail = () => {
+      throw new Error('blocked')
     }
-    expect(readRememberedWallet(broken)).toBeNull()
+    const broken = {
+      getItem: fail,
+      setItem: fail,
+      removeItem: fail,
+      key: fail,
+      length: 1,
+    }
+    expect(readRememberedWallet(broken, USER)).toBeNull()
     expect(() =>
-      rememberWallet(broken, { walletId: 'varial', address: ADDRESS })
+      rememberWallet(broken, USER, { walletId: 'varial', address: ADDRESS })
     ).not.toThrow()
-    expect(() => forgetRememberedWallet(broken)).not.toThrow()
-    expect(readRememberedWallet(null)).toBeNull()
+    expect(() => forgetRememberedWallet(broken, USER)).not.toThrow()
+    expect(() => forgetAllRememberedWallets(broken)).not.toThrow()
+    expect(readRememberedWallet(null, USER)).toBeNull()
   })
 
-  test('only Varial and the WalletConnect session restore without a prompt', () => {
+  test('only Varial restores on load without a prompt', () => {
     expect(
       WALLET_CATALOG.filter((entry) => entry.silentRestore).map(
         (entry) => entry.id
       )
-    ).toEqual(['varial', 'wallet_connect'])
+    ).toEqual(['varial'])
   })
 })

@@ -26,7 +26,8 @@ test.skip(
   'Start e2e/fixtures/wallet/server.mjs and set WALLET_FIXTURES=1.'
 )
 
-const KEY = 'quilltip:wallet'
+// The fixture's signed-in reader is \`qa-reader\` (e2e/fixtures/wallet/runtime.ts).
+const KEY = 'quilltip:wallet:v1:qa-reader'
 const READER = 'GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI'
 const secret = Keypair.random().secret()
 const address = Keypair.fromSecret(secret).publicKey()
@@ -38,7 +39,7 @@ const picker = (page: Page) =>
 const account = (page: Page) =>
   page.getByRole('button', { name: 'Open wallet menu' })
 const connectButton = (page: Page) =>
-  page.getByRole('button', { name: 'Connect Wallet' })
+  page.getByRole('button', { name: 'Connect Wallet', exact: true })
 
 async function open(page: Page, url = `/?secret=${secret}`) {
   await page.addInitScript(installVarialEmulator, {
@@ -78,10 +79,14 @@ const remembered = (page: Page) =>
 /** Waits until the restore on load has finished, either way. */
 async function settled(page: Page) {
   await expect(
-    page.getByRole('button', { name: 'Checking your wallet' })
+    page.getByRole('button', { name: 'Checking your wallet', exact: true })
   ).toHaveCount(0)
   await expect(account(page).or(connectButton(page))).toBeVisible()
 }
+
+const short = (key: string) => `${key.slice(0, 6)}...${key.slice(-6)}`
+const lastUsed = (page: Page, name: string, key: string) =>
+  page.getByText(`Last used: ${name}, ${short(key)}`)
 
 /** Prompts and wallet windows the reader would see. */
 const PROMPTS = ['REQUEST_ACCESS', 'SUBMIT_TRANSACTION', 'SUBMIT_BLOB']
@@ -116,12 +121,13 @@ test('access revoked: stays disconnected and asks nothing', async ({
   await page.reload()
   await settled(page)
   await expect(connectButton(page)).toBeVisible()
+  await expect(lastUsed(page, 'Varial', address)).toBeVisible()
   expect(
     (await requests(page)).filter((type) => PROMPTS.includes(type))
   ).toEqual([])
 })
 
-test('account changed since the last visit: the wallet’s current account is shown, and as not the saved one', async ({
+test('account changed since the last visit: stays disconnected with the remembered wallet as last used; connecting shows the new account as not the saved one', async ({
   page,
 }) => {
   await open(page)
@@ -129,10 +135,19 @@ test('account changed since the last visit: the wallet’s current account is sh
   const next = Keypair.random()
   // The same wallet, now on another account; the saved address is READER.
   await page.goto(`/?secret=${next.secret()}&view=dashboard&link=other`)
-  await expect(account(page)).toContainText(
-    `${next.publicKey().slice(0, 6)}...${next.publicKey().slice(-6)}`
-  )
+  await settled(page)
+  await expect(connectButton(page)).toBeVisible()
+  await expect(lastUsed(page, 'Varial', address)).toBeVisible()
   const wallet = page.getByRole('region', { name: 'Your wallet' })
+  await expect(wallet.getByText('Last used: Varial')).toBeVisible()
+  await expect(wallet.getByText(address)).toBeVisible()
+  expect(
+    (await requests(page)).filter((type) => PROMPTS.includes(type))
+  ).toEqual([])
+
+  // The reader connects: the first prompt is one they started.
+  await connectVarial(page)
+  await expect(account(page)).toContainText(short(next.publicKey()))
   await expect(wallet.getByText(next.publicKey())).toBeVisible()
   await expect(
     wallet.getByText(
@@ -143,9 +158,6 @@ test('account changed since the last visit: the wallet’s current account is sh
     walletId: 'varial',
     address: next.publicKey(),
   })
-  expect(
-    (await requests(page)).filter((type) => PROMPTS.includes(type))
-  ).toEqual([])
 })
 
 test('wrong network: restored with the network shown, and refused before any signature', async ({
@@ -251,12 +263,17 @@ test('a signed-out reader is not reconnected', async ({ page }) => {
   await open(page, `/?secret=${secret}&auth=out`)
   await settled(page)
   await expect(connectButton(page)).toBeVisible()
+  await expect(page.getByText(/Last used/)).toHaveCount(0)
   expect(await requests(page)).not.toContain('REQUEST_PUBLIC_KEY')
-  expect(await remembered(page)).toBeNull()
 })
 
-for (const walletId of ['xbull', 'albedo', 'rabet', 'hana']) {
-  test(`${walletId} needs a prompt to answer: not restored, and no window opens`, async ({
+for (const [walletId, name] of [
+  ['xbull', 'xBull'],
+  ['albedo', 'Albedo'],
+  ['rabet', 'Rabet'],
+  ['hana', 'Hana'],
+] as const) {
+  test(`${name} needs a prompt to answer: not restored, shown as last used, and no window opens`, async ({
     page,
   }) => {
     const popups: string[] = []
@@ -268,6 +285,7 @@ for (const walletId of ['xbull', 'albedo', 'rabet', 'hana']) {
     await open(page)
     await settled(page)
     await expect(connectButton(page)).toBeVisible()
+    await expect(lastUsed(page, name, address)).toBeVisible()
     await page.waitForTimeout(500)
     expect(popups).toEqual([])
     // The choice is kept: it was the reader's, and asks nothing on load.
@@ -323,7 +341,7 @@ for (const [name, value, outcome] of TAMPERED) {
   })
 }
 
-test('tampered storage, another account’s address: the wallet’s own account is used', async ({
+test('tampered storage, another account’s address: not restored, and the kit’s own key is not followed', async ({
   page,
 }) => {
   await page.addInitScript(
@@ -339,14 +357,14 @@ test('tampered storage, another account’s address: the wallet’s own account 
   const popups: string[] = []
   page.on('popup', (popup) => popups.push(popup.url()))
   await open(page)
-  await expect(account(page)).toContainText(
-    `${address.slice(0, 6)}...${address.slice(-6)}`
-  )
+  await settled(page)
+  // The wallet reports its own account, not the stored one: no restore.
+  await expect(connectButton(page)).toBeVisible()
+  await expect(lastUsed(page, 'Varial', READER)).toBeVisible()
   expect(popups).toEqual([])
-  expect(JSON.parse((await remembered(page))!)).toEqual({
-    walletId: 'varial',
-    address,
-  })
+  expect(
+    (await requests(page)).filter((type) => PROMPTS.includes(type))
+  ).toEqual([])
 })
 
 async function openTab(context: BrowserContext) {
@@ -438,14 +456,23 @@ test.describe('WalletConnect', () => {
     await expect(account(page)).toContainText('Mobile wallet')
   }
 
-  test('a live session is restored without a pairing step or a phone request', async ({
+  test('not restored on load: the sign client is not loaded; the reader’s Connect reuses the live session without a code', async ({
     page,
   }) => {
     await page.goto(`/?wc=1&secret=${secret}`)
     await pair(page)
     await page.reload()
+    await settled(page)
+    await expect(connectButton(page)).toBeVisible()
+    await expect(lastUsed(page, 'Mobile wallet', address)).toBeVisible()
+    // The sign client module was never loaded on this page.
+    expect(await page.evaluate(() => '__wcFake' in window)).toBe(false)
+
+    await connectButton(page).click()
+    await picker(page)
+      .getByRole('button', { name: /^Mobile wallet/ })
+      .click()
     await expect(account(page)).toContainText('Mobile wallet')
-    await expect(picker(page)).toHaveCount(0)
     const state = await wcState(page)
     expect(state.pairings).toBe(0)
     expect(state.requests).toEqual([])

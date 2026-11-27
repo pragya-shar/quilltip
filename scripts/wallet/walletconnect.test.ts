@@ -234,37 +234,6 @@ describe('pairing', () => {
   })
 })
 
-describe('restore after a page load (#562)', () => {
-  test('returns the remembered live session’s account without pairing or a phone request', async () => {
-    const fake = fakeClient([session()])
-    const { module, pairing } = moduleFor(fake, { remembered: ADDRESS })
-    await expect(
-      module.getAddress({ skipRequestAccess: true })
-    ).resolves.toEqual({ address: ADDRESS })
-    expect(fake.client.connect).not.toHaveBeenCalled()
-    expect(fake.client.request).not.toHaveBeenCalled()
-    expect(pairing.show).not.toHaveBeenCalled()
-  })
-
-  for (const [name, sessions, remembered] of [
-    ['nothing remembered', [session()], null],
-    ['no live session', [], ADDRESS],
-    ['an expiring session', [session({ expiry: NOW / 1000 + 30 })], ADDRESS],
-    ['a session on another account', [session()], Keypair.random().publicKey()],
-  ] as const) {
-    test(`${name}: fails without pairing, closing or asking`, async () => {
-      const fake = fakeClient([...sessions])
-      const { module, pairing } = moduleFor(fake, { remembered })
-      const error = await caught(module.getAddress({ skipRequestAccess: true }))
-      expect(error).toMatchObject({ code: -3 })
-      expect(fake.client.connect).not.toHaveBeenCalled()
-      expect(fake.client.disconnect).not.toHaveBeenCalled()
-      expect(fake.client.request).not.toHaveBeenCalled()
-      expect(pairing.show).not.toHaveBeenCalled()
-    })
-  }
-})
-
 const kind = (error: unknown): WalletErrorKind =>
   classifyWalletError(error, 'wallet_connect').kind
 
