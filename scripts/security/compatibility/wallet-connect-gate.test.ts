@@ -2,85 +2,103 @@
 import { afterEach, expect, it, vi } from 'vitest'
 
 /**
- * The WalletConnect module (and with it Reown AppKit and its zod-dependent
- * code) is never imported. With NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID unset the
- * other modules load; with it set the wallet refuses to start.
+ * WalletConnect is on with a Reown project ID, off without one, and a
+ * malformed ID stops the app. Neither the kit's WalletConnect module nor
+ * Reown AppKit is ever imported, and the sign client loads only when a
+ * reader pairs a phone, never while the kit loads.
  */
-const walletConnectImported = vi.hoisted(() => ({ count: 0 }))
+const imported = vi.hoisted(() => ({ kitModule: 0, appKit: 0, signClient: 0 }))
 
 vi.mock('@creit.tech/stellar-wallets-kit/modules/wallet-connect', () => {
-  walletConnectImported.count += 1
-  class WalletConnectModule {
-    productId = 'wallet_connect'
-    productName = 'WalletConnect'
-    constructor(readonly params: { projectId: string }) {}
-  }
-  return {
-    WalletConnectModule,
-    WalletConnectTargetChain: {
-      PUBLIC: 'stellar:pubnet',
-      TESTNET: 'stellar:testnet',
-    },
-  }
+  imported.kitModule += 1
+  return {}
 })
+vi.mock('@reown/appkit/core', () => {
+  imported.appKit += 1
+  return {}
+})
+vi.mock('@walletconnect/sign-client', () => {
+  imported.signClient += 1
+  return { SignClient: { init: vi.fn() } }
+})
+
+// Format only; not a Reown project.
+const FORMAT_ONLY_ID = '0123456789abcdef0123456789abcdef'
+const BROWSER_WALLETS = [
+  'varial',
+  'xbull',
+  'rabet',
+  'hana',
+  'scopuly',
+  'dcent',
+  'albedo',
+]
 
 afterEach(() => {
   vi.unstubAllEnvs()
   vi.resetModules()
-  walletConnectImported.count = 0
+  imported.kitModule = 0
+  imported.appKit = 0
+  imported.signClient = 0
 })
 
 async function loadIds(projectId: string | undefined) {
   vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET')
-  if (projectId !== undefined) {
-    vi.stubEnv('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID', projectId)
-  } else {
-    vi.stubEnv('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID', '')
-  }
+  vi.stubEnv('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID', projectId ?? '')
   const { loadWalletKitBundle } =
     await import('../../../lib/stellar/v2/wallet-kit')
   const bundle = await loadWalletKitBundle()
   return bundle.modules.map((m) => m.productId)
 }
 
-it('never imports the WalletConnect module without a project ID', async () => {
+it('leaves WalletConnect out without a project ID', async () => {
   for (const value of [undefined, '', '   ']) {
-    const ids = await loadIds(value)
-    expect(ids).toEqual([
-      'varial',
-      'xbull',
-      'rabet',
-      'hana',
-      'scopuly',
-      'dcent',
-      'albedo',
-    ])
-    expect(walletConnectImported.count).toBe(0)
+    expect(await loadIds(value)).toEqual(BROWSER_WALLETS)
     vi.resetModules()
   }
+  expect(imported).toEqual({ kitModule: 0, appKit: 0, signClient: 0 })
 })
 
-it('refuses to start, without importing the module, when a project ID is set', async () => {
-  await expect(loadIds('qa-project-id')).rejects.toThrow(
-    'WalletConnect is not supported yet'
-  )
-  expect(walletConnectImported.count).toBe(0)
+it('adds Quilltip’s WalletConnect module with a project ID, without loading the sign client yet', async () => {
+  expect(await loadIds(FORMAT_ONLY_ID)).toEqual([
+    ...BROWSER_WALLETS,
+    'wallet_connect',
+  ])
+  expect(imported).toEqual({ kitModule: 0, appKit: 0, signClient: 0 })
 })
 
-it('stops the build, dev server and production start when a project ID is set', async () => {
+it('refuses a malformed project ID in the browser', async () => {
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+  for (const value of [
+    'qa-project-id',
+    FORMAT_ONLY_ID.toUpperCase(),
+    `${FORMAT_ONLY_ID}0`,
+  ]) {
+    await expect(loadIds(value)).rejects.toThrow(
+      'NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is not a Reown project ID'
+    )
+    vi.resetModules()
+  }
+  errors.mockRestore()
+})
+
+it('stops the build, dev server and production start for a malformed project ID', async () => {
   const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
   vi.stubEnv('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID', 'qa-project-id')
   await expect(import('../../../next.config')).rejects.toThrow(
-    'WalletConnect is not supported yet'
+    'is not a Reown project ID'
   )
   expect(errors).toHaveBeenCalledWith(
-    expect.stringContaining('WalletConnect is not supported yet')
+    expect.stringContaining('is not a Reown project ID')
   )
   errors.mockRestore()
 })
 
-it('loads the Next.js config when no project ID is set', async () => {
-  vi.stubEnv('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID', '')
-  const config = await import('../../../next.config')
-  expect(config.default).toBeTruthy()
+it('loads the Next.js config with no project ID and with a well-formed one', async () => {
+  for (const value of ['', FORMAT_ONLY_ID]) {
+    vi.stubEnv('NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID', value)
+    const config = await import('../../../next.config')
+    expect(config.default).toBeTruthy()
+    vi.resetModules()
+  }
 })

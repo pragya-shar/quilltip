@@ -174,7 +174,39 @@ describe('buildContentSecurityPolicy', () => {
     expect(policy).not.toMatch(/horizon\.stellar\.org|mainnet/)
   })
 
-  it('allows no WalletConnect relay while WalletConnect is refused', () => {
+  it('allows no WalletConnect host while no project ID is set', () => {
     expect(buildContentSecurityPolicy('abc', {})).not.toMatch(/walletconnect/)
+    for (const id of ['', '   ', 'not-a-project-id']) {
+      expect(
+        buildContentSecurityPolicy('abc', {
+          NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: id,
+        })
+      ).not.toMatch(/walletconnect/)
+    }
+  })
+
+  it('adds exactly the relay and Verify hosts when WalletConnect is on', () => {
+    const policy = directives(
+      buildContentSecurityPolicy('abc', {
+        // Format only; not a real project.
+        NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID:
+          '0123456789abcdef0123456789abcdef',
+      })
+    )
+    const hosts = (name: string) =>
+      (policy.get(name) ?? []).filter((source) => /walletconnect/.test(source))
+    expect(hosts('connect-src')).toEqual(['wss://relay.walletconnect.org'])
+    expect(hosts('frame-src')).toEqual([
+      'https://verify.walletconnect.org',
+      'https://verify.walletconnect.com',
+    ])
+    for (const name of ['script-src', 'img-src', 'style-src', 'font-src']) {
+      expect(hosts(name)).toEqual([])
+    }
+    // No wildcards and nothing from Reown AppKit.
+    expect([...policy.values()].flat().join(' ')).not.toMatch(
+      /\*\.walletconnect|reown|web3modal|pulse\./
+    )
+    expect(policy.get('script-src')).not.toContain("'unsafe-inline'")
   })
 })
