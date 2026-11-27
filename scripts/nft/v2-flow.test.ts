@@ -8,6 +8,7 @@ import {
   NFT_FLOW_IDLE,
   canRetry,
   deriveNftPanel,
+  nftClientConfigured,
   isSettled,
   isSlow,
   nftFlowReducer,
@@ -174,6 +175,22 @@ describe('deriveNftPanel', () => {
       eligibility: null,
     })
     expect(panel).toMatchObject({ kind: 'progress', progress: null })
+  })
+
+  it('needs the client NFT contract, and the server one to match when it has one (#547)', () => {
+    const NFT = 'CCOJOXITZQM7R6FSFPICN4Y3GONM4TN4Y6QV64CARDHNNRUT3U5SCYT7'
+    const OTHER = 'CAFCGOIM6SKVBWCPFQODN22MY5HUJEJMW5AOMNGAOVZ4QBLJJ5RLOOMS'
+    // Neither side has one: nothing can be checked or signed here.
+    expect(nftClientConfigured(null, null)).toBe(false)
+    expect(nftClientConfigured(undefined, undefined)).toBe(false)
+    expect(nftClientConfigured('', null)).toBe(false)
+    // Only the server has one.
+    expect(nftClientConfigured(null, NFT)).toBe(false)
+    // Only the client has one: the server does not report it yet.
+    expect(nftClientConfigured(NFT, null)).toBe(true)
+    // Both, the same or different.
+    expect(nftClientConfigured(NFT, NFT)).toBe(true)
+    expect(nftClientConfigured(NFT, OTHER)).toBe(false)
   })
 
   it('says minting and transfers are not available without the client NFT contract (#547)', () => {

@@ -232,6 +232,20 @@ const ELIGIBILITY_MESSAGES = new Set([
 ])
 
 /**
+ * Whether this client can check and sign the server's NFT calls: it needs an
+ * Article NFT contract of its own (`NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID`),
+ * and the server's, when it reports one, must be the same. With neither, no
+ * mint is offered (#547).
+ */
+export function nftClientConfigured(
+  clientNftContract: string | null | undefined,
+  serverNftContract: string | null | undefined
+): boolean {
+  if (!clientNftContract) return false
+  return !serverNftContract || serverNftContract === clientNftContract
+}
+
+/**
  * What the panel shows. `eligibility` is `undefined` while the author's live
  * read runs and `null` when the viewer is not the author (readers never
  * cause a live read).

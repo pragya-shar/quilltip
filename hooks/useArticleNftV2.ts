@@ -22,6 +22,7 @@ import type {
   RecipientInput,
 } from '@/lib/stellar/v2/nft-calls'
 import {
+  nftClientConfigured,
   NFT_FLOW_IDLE,
   deriveNftPanel,
   isSettled,
@@ -171,9 +172,10 @@ export function useArticleNftV2({
       return null
     }
   }, [])
-  const clientConfigured =
-    !!clientNftContract &&
-    (!config?.nftContractId || config.nftContractId === clientNftContract)
+  const clientConfigured = nftClientConfigured(
+    clientNftContract,
+    config?.nftContractId
+  )
 
   // A mint from this page that the server confirmed. "Done" must not bring
   // the mint action back while the owner record is still on its way (#547).
