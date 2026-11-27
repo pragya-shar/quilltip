@@ -1,89 +1,18 @@
 /**
  * Run the Playwright suites that need no secrets and no backend: the NFT,
- * recovery, avatar, wallet, article tips, v2 tips and tab session-key fixture
- * pages.
- * Each fixture server bundles production components with stubbed wallet and
- * Convex collaborators.
+ * recovery, avatar, payment states, wallet, article tips, v2 tips and tab
+ * session-key fixture pages (`scripts/fixture-suites.ts`). Each fixture server
+ * bundles production components with stubbed wallet and Convex collaborators.
  *
  *   bun run test:e2e:fixtures
+ *   bun run test:e2e:fixtures --suite payments
+ *   bun run test:e2e:fixtures --suite nft,recovery,avatar
+ *
+ * `--suite` runs only the named suites and starts only their servers. CI runs
+ * the suites as parallel shards (`.github/workflows/ci.yml`).
  */
 import { spawn, type ChildProcess } from 'child_process'
-
-const FIXTURES = [
-  {
-    server: 'e2e/fixtures/nft/server.mjs',
-    port: 4174,
-    spec: 'e2e/nft-presentation.spec.ts',
-    env: { NFT_FIXTURES: '1' },
-  },
-  {
-    server: 'e2e/fixtures/recovery/server.mjs',
-    port: 4175,
-    spec: 'e2e/recovery-presentation.spec.ts',
-    env: { RECOVERY_FIXTURES: '1' },
-  },
-  {
-    server: 'e2e/fixtures/avatar/server.mjs',
-    port: 4176,
-    spec: 'e2e/profile-avatar-focus.spec.ts',
-    env: {
-      AVATAR_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4176',
-    },
-  },
-  {
-    server: 'e2e/fixtures/payments/server.mjs',
-    port: 4180,
-    spec: 'e2e/payment-states.spec.ts',
-    env: {
-      PAYMENT_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4180',
-    },
-  },
-  {
-    server: 'e2e/fixtures/wallet/server.mjs',
-    port: 4177,
-    spec: 'e2e/wallet-(states|verification|coverage|connect).spec.ts',
-    env: {
-      WALLET_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4177',
-    },
-  },
-  {
-    server: 'e2e/fixtures/article-tips/server.mjs',
-    port: 4178,
-    spec: 'e2e/article-tips.spec.ts',
-    env: {
-      ARTICLE_TIPS_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4178',
-    },
-  },
-  {
-    // v2 article, highlight and basket tips in every state.
-    server: 'e2e/fixtures/tips-v2/server.mjs',
-    port: 4179,
-    spec: 'e2e/tips-v2.spec.ts',
-    env: {
-      TIPS_V2_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4179',
-    },
-  },
-  {
-    // Chromium, Firefox and WebKit (its own config); key storage and
-    // WebCrypto Ed25519 differ between engines.
-    server: 'e2e/fixtures/tab/server.mjs',
-    port: 4181,
-    spec: 'e2e/tab-session-keys.spec.ts',
-    config: 'e2e/fixtures/tab/playwright.config.ts',
-    env: {},
-  },
-] as const satisfies readonly {
-  server: string
-  port: number
-  spec: string
-  config?: string
-  env: Record<string, string>
-}[]
+import { selectFixtures } from './fixture-suites'
 
 const READY_TIMEOUT_MS = 120_000
 
@@ -110,18 +39,40 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv) {
   })
 }
 
+/** True when something already answers on the port. */
+async function portAnswers(port: number): Promise<boolean> {
+  try {
+    await fetch(`http://127.0.0.1:${port}/`)
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function main(): Promise<number> {
-  const servers = FIXTURES.map((fixture) =>
+  const selected = selectFixtures(process.argv.slice(2))
+  // A server already on a suite's port would answer in place of ours, so the
+  // suite would test that server's code. Refuse instead.
+  const taken: number[] = []
+  for (const fixture of selected) {
+    if (await portAnswers(fixture.port)) taken.push(fixture.port)
+  }
+  if (taken.length > 0) {
+    throw new Error(
+      `Port ${taken.join(', ')} is already in use. Stop that server first.`
+    )
+  }
+  const servers = selected.map((fixture) =>
     spawn(process.execPath, [fixture.server], { stdio: 'inherit' })
   )
   try {
     await Promise.all(
-      FIXTURES.map((fixture, index) =>
+      selected.map((fixture, index) =>
         waitForPort(fixture.port, servers[index]!)
       )
     )
     let failed = 0
-    for (const fixture of FIXTURES) {
+    for (const fixture of selected) {
       const args =
         'config' in fixture
           ? ['x', 'playwright', 'test', '--config', fixture.config]
