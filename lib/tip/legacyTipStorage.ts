@@ -15,10 +15,8 @@ const LEGACY_PREFIXES = [
   'quilltip:pendingHighlightTipReceipt:v2:',
 ]
 
-/** Removes the v1 entries; storage that cannot be read is left alone. */
-export function clearLegacyTipStorage(storage?: Storage): void {
+function clearFrom(target: Storage): void {
   try {
-    const target = storage ?? window.localStorage
     const stale: string[] = []
     for (let i = 0; i < target.length; i += 1) {
       const key = target.key(i)
@@ -33,5 +31,24 @@ export function clearLegacyTipStorage(storage?: Storage): void {
     for (const key of stale) target.removeItem(key)
   } catch {
     // Private mode or blocked storage: nothing to clean.
+  }
+}
+
+/**
+ * Removes the v1 entries from `storage`, or from local and session storage:
+ * the sign-in tip intent was written to session storage first. Storage that
+ * cannot be read is left alone.
+ */
+export function clearLegacyTipStorage(storage?: Storage): void {
+  if (storage) {
+    clearFrom(storage)
+    return
+  }
+  for (const name of ['localStorage', 'sessionStorage'] as const) {
+    try {
+      clearFrom(window[name])
+    } catch {
+      // No window, or the storage cannot be opened.
+    }
   }
 }

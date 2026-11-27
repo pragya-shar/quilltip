@@ -40,6 +40,29 @@ describe('clearLegacyTipStorage', () => {
     ])
   })
 
+  it('cleans local and session storage when no storage is given', () => {
+    const local = memoryStorage({
+      'quilltip:pendingArticleTipReceipt:v2:a:b:TESTNET': '{}',
+      'quilltip:tip-basket:v2:u': '{}',
+    })
+    const session = memoryStorage({
+      'quilltip:pendingTipIntent': '{}',
+      'quilltip:pendingHighlightSelection': '{}',
+    })
+    const g = globalThis as unknown as { window?: unknown }
+    const before = g.window
+    g.window = { localStorage: local, sessionStorage: session }
+    try {
+      clearLegacyTipStorage()
+    } finally {
+      g.window = before
+    }
+    expect(local.getItem('quilltip:tip-basket:v2:u')).toBe('{}')
+    expect(local.length).toBe(1)
+    expect(session.getItem('quilltip:pendingHighlightSelection')).toBe('{}')
+    expect(session.length).toBe(1)
+  })
+
   it('does nothing when storage cannot be read', () => {
     const blocked = {
       get length(): number {
