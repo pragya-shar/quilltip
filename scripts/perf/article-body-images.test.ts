@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { JSONContent } from '@tiptap/core'
 import { renderArticleHtml } from '@/lib/tiptap/renderArticleHtml'
-import { markBodyImagesLazy } from '@/lib/tiptap/markBodyImagesLazy'
+import {
+  FIRST_SCREEN_TEXT_CHARS,
+  markBodyImagesLazy,
+} from '@/lib/tiptap/markBodyImagesLazy'
 
 const image = (name: string, size = true): JSONContent => ({
   type: 'resizableImage',
@@ -56,6 +59,19 @@ describe('article body images', () => {
         image('second'),
       ])
     ).toEqual({ first: null, second: 'lazy' })
+  })
+
+  it('makes the first image lazy when a screen of text comes before it', () => {
+    const long = 'A sentence that fills part of a line on a phone. '.repeat(11)
+    expect(long.length).toBeGreaterThan(FIRST_SCREEN_TEXT_CHARS)
+    expect(
+      loading([
+        heading('The harbour'),
+        paragraph(long),
+        image('far'),
+        image('farther'),
+      ])
+    ).toEqual({ far: 'lazy', farther: 'lazy' })
   })
 
   it('finds the first image inside a nested block', () => {
