@@ -11,6 +11,7 @@ import { TransferDialogV2 } from './TransferDialogV2'
 import { MintedView } from './MintedView'
 import { ProgressView } from './ProgressView'
 import { V1RecordLine } from './V1RecordLine'
+import { NftUnavailableView } from './NftUnavailableView'
 import '../nft.css'
 import './nft-v2.css'
 
@@ -19,7 +20,10 @@ export interface ArticleNftV2Props {
   authorId: Id<'users'>
   currentUserId?: Id<'users'>
   embedded?: boolean
-  /** The v1 panel, for a deployment whose NFT contract is not configured. */
+  /**
+   * The v1 panel, for a deployment with v2 off or no NFT contract set. Without
+   * it, that state shows `NftUnavailableView`.
+   */
   renderV1?: () => React.ReactNode
 }
 
@@ -46,7 +50,13 @@ export default function ArticleNftV2({
     // The same placeholder as the lazy boundary, so nothing jumps.
     return <NftSidebarSkeleton />
   }
-  if (panel.kind === 'v1') return renderV1 ? <>{renderV1()}</> : null
+  if (panel.kind === 'v1') {
+    return renderV1 ? (
+      <>{renderV1()}</>
+    ) : (
+      <NftUnavailableView embedded={embedded} />
+    )
+  }
   // An unpublished or missing article shows no NFT.
   if (panel.kind === 'hidden') return null
 

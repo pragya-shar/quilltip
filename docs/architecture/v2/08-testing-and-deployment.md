@@ -114,32 +114,36 @@ A mainnet release needs no contract redesign. It does need the following:
 
 ## 8.6 Removal after cutover
 
-One release after cutover ([section 6.9](06-app-integration.md#69-migration-cutover-and-rollback)), once v2 is verified on testnet, remove the following.
+One release after cutover ([section 6.9](06-app-integration.md#69-migration-cutover-and-rollback)), once v2 is verified on testnet, remove the following. The cutover runbook (`docs/operations/payments-v2-cutover.md`, sections 5 stage 8 and 8) sets the order.
 
-- **Contracts:**
-  - `contracts/tipping/` (the whole crate).
-  - The v1 `contracts/article-nft` code, which is replaced in place.
-- **Convex:** the functions listed in [section 6.3](06-app-integration.md#63-convex-functions).
+- **Contracts:** `contracts/tipping/` (the whole crate), its CI step and its `test:contracts` part. The v1 `contracts/article-nft` code is already replaced in place.
+- **Convex:** the functions listed in [section 6.3](06-app-integration.md#63-convex-functions), after the client that calls them is removed and deployed.
 - **Tables:**
-  - `articleTipIntents` and `highlightTipIntents`, once no v1 record is pending.
+  - `articleTipIntents` and `highlightTipIntents` stay as a read-only audit trail: existing tip rows refer to them.
   - `withdrawals` (unused).
 - **Client:**
-  - `lib/stellar/client.ts` (the v1 builders, including the batch builders).
-  - `lib/stellar/memo-utils.ts`.
-  - The v1 parts of `lib/stellar/nft-client.ts`.
-  - `lib/stellar/wallet-adapter.ts`, which `lib/stellar/v2/wallet.ts` replaces.
+  - The v1 fallbacks and what only they render: `TipButtonV1`, `HighlightTipButtonV1`, `NFTIntegrationV1`, `MintButton`, `TransferModal`, `NFTBadge`, the v1 tip steps and `WalletTooltip`. `TipButton`, `HighlightTipButton` and `NFTIntegration` stay and render only v2.
+  - `lib/stellar/client.ts` (the v1 builders, including the batch builders), `nft-client.ts` (the whole file is v1), `types.ts`, `sdk-loader.ts`, `memo-utils.ts`, `is-valid-stellar-account-id.ts`, `price-fallback.ts`, `stellar-flow-emitter.ts` and `tip-error-messages.ts`.
+  - The v1 sign-in resume (the v1 files in `lib/tip/`, not `lib/tip/v2/`, and `hooks/useArticleTipResume.ts`; the auth forms that read `pendingTipIntent` change with it) and the stored v1 receipts (`pendingArticleTipReceipt`, `pendingHighlightTipReceipt`).
+  - The v1 fields of `lib/stellar/config.ts`. The network fields stay.
+  - `lib/stellar/wallet-adapter.ts` is already gone; `lib/stellar/v2/wallet.ts` replaced it.
 - **Env:**
   - `NEXT_PUBLIC_TIPPING_CONTRACT_ID`
   - `NEXT_PUBLIC_PLATFORM_ADDRESS`
+  - `NEXT_PUBLIC_NFT_CONTRACT_ID` (the v1 NFT; v2 reads `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID`)
+  - `NEXT_PUBLIC_NFT_METADATA_URL`
   - `NEXT_PUBLIC_HORIZON_URL`
   - `NEXT_PUBLIC_SOROBAN_RPC_URL` (renamed)
   - `TIPPING_CONTRACT_ID`
   - `HORIZON_URL`
   - `RECONCILE_TIPS_ENABLED`
   - `CHAIN_V1_PREPARES_ENABLED`
+
+  Some of these have readers outside the v1 code (the network guard, the content security policy, CI); the runbook's section 8 lists them.
+
 - **Docs:** v2 documents replace `docs/tipping-contract-testnet-deploy.md` and `docs/highlight-tipping.md`.
 
-**Kept:** v1 data rows, labelled `contractVersion: 'v1'`.
+**Kept:** v1 data rows, labelled `contractVersion: 'v1'`, and the reads that show them (section 6.3).
 
 ## 8.7 Feature map
 
