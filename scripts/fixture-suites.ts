@@ -72,6 +72,17 @@ export const FIXTURES = [
     },
   },
   {
+    // The v2 article NFT: mint at the threshold and transfer, every state.
+    name: 'nft-v2',
+    server: 'e2e/fixtures/nft-v2/server.mjs',
+    port: 4182,
+    spec: 'e2e/nft-v2.spec.ts',
+    env: {
+      NFT_V2_FIXTURES: '1',
+      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4182',
+    },
+  },
+  {
     // Chromium, Firefox and WebKit (its own config); key storage and
     // WebCrypto Ed25519 differ between engines.
     name: 'tab',
@@ -79,6 +90,17 @@ export const FIXTURES = [
     port: 4181,
     spec: 'e2e/tab-session-keys.spec.ts',
     config: 'e2e/fixtures/tab/playwright.config.ts',
+    env: {},
+  },
+  {
+    // Tab screens (#449) and the tip dialog's tab section (#546): every
+    // state in Chromium, the session-key and voucher paths in Chromium,
+    // Firefox and WebKit (its own config).
+    name: 'tab-ui',
+    server: 'e2e/fixtures/tab-ui/server.mjs',
+    port: 4183,
+    spec: 'e2e/(tab-ui(-keys)?|tab-tip-dialog).spec.ts',
+    config: 'e2e/fixtures/tab-ui/playwright.config.ts',
     env: {},
   },
 ] as const satisfies readonly {

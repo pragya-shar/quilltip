@@ -23,8 +23,12 @@ export default defineConfig({
       'scripts/next/*.test.ts',
       'scripts/payments/*.test.ts',
       'scripts/nft/*.test.ts',
+      // The article storage status panel (components/articles/ArweaveStatus).
+      'scripts/storage/*.test.ts',
       // Browser tab modules over fake-indexeddb and Node WebCrypto.
       'scripts/tab/*.test.ts',
+      // Tab screens: flows and state models (lib/tab-ui).
+      'scripts/tab-ui/*.test.ts',
       // Convex default-runtime code bundled as Convex bundles it.
       'scripts/convex-runtime/*.test.ts',
     ],

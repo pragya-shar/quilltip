@@ -31,7 +31,7 @@
   color: var(--ink);
   font:
     15px/1.5 'Writing Syne',
-    'Syne Fallback',
+    'Syne 600 Fallback',
     sans-serif;
 }
 .writing-workspace button,
@@ -680,7 +680,7 @@
 .writing-workspace figcaption {
   font:
     14px/1.5 'Writing Syne',
-    'Syne Fallback',
+    'Syne 600 Fallback',
     sans-serif;
   color: #71565c;
   margin-top: 10px;

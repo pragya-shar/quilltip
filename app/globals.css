@@ -108,9 +108,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Keep unscoped UI and portal defaults on the current shared palette. */
+/* Keep unscoped UI and portal defaults on the current shared palette.
+   The always-light surfaces (see app/shared-ui.css) resolve these again from
+   their own light --ui-* tokens. */
 :root,
-.dark {
+.dark,
+.ui-light,
+.account-surface,
+.account-dialog {
   --surface: var(--ui-surface);
   --text: var(--ui-foreground);
   --background: var(--ui-surface);
@@ -150,7 +155,10 @@
   --collectible-foreground: var(--ui-collectible-foreground);
 }
 
-:root {
+:root,
+.ui-light,
+.account-surface,
+.account-dialog {
   --radius: 0.625rem;
 
   /* Card tokens */
@@ -545,7 +553,7 @@
 
 @theme inline {
   --font-sans: var(--ui-font);
-  --font-display: 'QuillTip Display', 'Syne Fallback', sans-serif;
+  --font-display: 'QuillTip Display', 'Syne 600 Fallback', sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-card: var(--card-radius);
   --shadow-card: var(--card-shadow);

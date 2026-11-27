@@ -1,4 +1,5 @@
 import { test, expect, type Page } from './helpers/consoleGuard'
+import { contrastScan, surfaceColours } from './helpers/lightSurface'
 import {
   installVarialEmulator,
   type VarialMode,
@@ -205,3 +206,130 @@ test('dashboard: a verified address loads with the wallet disconnected and no er
   )
   await page.waitForTimeout(1500)
 })
+
+// The dashboard sections stay light when the site is dark (#539): each
+// renders exactly as in light appearance, with no contrast violation.
+for (const [view, query, ready] of [
+  ['verify', 'link=unverified', 'Not verified'],
+  ['verify', 'link=verified', 'Verified'],
+  ['verify', 'link=none', 'No receiving address yet.'],
+  ['dashboard', 'link=unverified', /^Your receiving address is saved\./],
+  ['dashboard', 'link=verified', 'Not connected'],
+] as const) {
+  test(`${view} with ${query} looks the same in dark appearance`, async ({
+    page,
+  }) => {
+    const surface = '.account-surface'
+    await page.addInitScript(installVarialEmulator, {
+      mode: 'connected' as const,
+      address: UNUSED,
+    })
+    const show = async (theme: string) => {
+      await page.goto(`/?view=${view}&${query}${theme}`)
+      await expect(
+        page.locator(surface).getByText(ready, { exact: true }).first()
+      ).toBeVisible()
+      await page.waitForLoadState('networkidle')
+    }
+    await show('')
+    expect(await contrastScan(page, surface)).toEqual([])
+    const light = await surfaceColours(page, surface)
+    await show('&theme=dark')
+    await expect(page.locator('html.dark')).toBeAttached()
+    expect(await contrastScan(page, surface)).toEqual([])
+    expect(await surfaceColours(page, surface)).toEqual(light)
+  })
+}
+
+// The two account dialogs are portaled outside the dashboard surface and stay
+// light on their own (`.account-dialog`, #539). Each state, opened from the
+// real wallet page, renders exactly as in light appearance and passes the
+// contrast scan, at phone and desktop widths.
+const DIALOG = '.account-dialog'
+const receipt = (title: string) => async (page: Page) =>
+  page
+    .getByRole('button', { name: new RegExp(`^Receipt for ${title}`) })
+    .click()
+const removal =
+  (confirm: boolean) =>
+  async (page: Page): Promise<void> => {
+    await page.getByText('Manage receiving address').click()
+    await page.getByRole('button', { name: 'Remove receiving address' }).click()
+    if (confirm)
+      await page
+        .getByRole('dialog')
+        .getByRole('button', { name: 'Remove address' })
+        .click()
+  }
+const DIALOG_STATES = [
+  {
+    name: 'receipt, confirmed tip sent with a note',
+    query: 'link=verified&tips=1',
+    open: receipt('The quiet economics of attention'),
+    ready: 'A note with the tip',
+  },
+  {
+    name: 'receipt, failed tip received with an amount to review',
+    query: 'link=verified&tips=1',
+    open: receipt('Notes on slow reading'),
+    ready: 'The transaction was not found on Stellar testnet.',
+  },
+  {
+    name: 'receipt, pending passage tip',
+    query: 'link=verified&tips=1',
+    open: receipt('Why marginalia matter'),
+    ready: 'A margin is where a reader answers back.',
+  },
+  {
+    name: 'address removal, asking',
+    query: 'link=verified',
+    open: removal(false),
+    ready: 'Keep address',
+  },
+  {
+    name: 'address removal, removing',
+    query: 'link=verified',
+    open: removal(true),
+    ready: 'Removing…',
+  },
+  {
+    name: 'address removal, failed',
+    query: 'link=verified&server=remove-fails',
+    open: removal(true),
+    ready: 'Couldn’t remove the address. Please try again.',
+  },
+] as const
+
+for (const width of [375, 1440] as const) {
+  test.describe(`account dialogs at ${width}px`, () => {
+    test.use({ viewport: { width, height: 900 } })
+    for (const state of DIALOG_STATES) {
+      test(`${state.name} looks the same in dark appearance`, async ({
+        page,
+      }) => {
+        await page.addInitScript(installVarialEmulator, {
+          mode: 'connected' as const,
+          address: UNUSED,
+        })
+        const show = async (theme: string) => {
+          await page.goto(`/?view=dashboard&${state.query}${theme}`)
+          await state.open(page)
+          await expect(
+            page.locator(DIALOG).getByText(state.ready, { exact: true })
+          ).toBeVisible()
+          // Scan the settled dialog: it fades and zooms in.
+          await page.waitForFunction(() =>
+            document.getAnimations().every((a) => a.playState !== 'running')
+          )
+        }
+        await show('')
+        expect(await contrastScan(page, DIALOG)).toEqual([])
+        const light = await surfaceColours(page, DIALOG)
+        await show('&theme=dark')
+        await expect(page.locator('html.dark')).toBeAttached()
+        expect(await contrastScan(page, DIALOG)).toEqual([])
+        expect(await surfaceColours(page, DIALOG)).toEqual(light)
+      })
+    }
+  })
+}

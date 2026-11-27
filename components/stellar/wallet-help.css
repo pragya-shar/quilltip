@@ -13,7 +13,7 @@
 .wallet-setup-help {
   font:
     400 14px/1.65 'Wallet Syne',
-    'Syne Fallback',
+    'Syne 600 Fallback',
     sans-serif;
   text-align: left;
   overflow-wrap: anywhere;
@@ -80,7 +80,7 @@
   padding: 32px;
   font:
     400 15px/1.6 'Wallet Syne',
-    'Syne Fallback',
+    'Syne 600 Fallback',
     sans-serif;
   gap: 24px;
 }
@@ -150,7 +150,7 @@
   background: #faf5ec;
   font:
     400 14px/1.6 'Wallet Syne',
-    'Syne Fallback',
+    'Syne 600 Fallback',
     sans-serif;
 }
 .wallet-connection-notice p {

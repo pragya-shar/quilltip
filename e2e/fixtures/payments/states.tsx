@@ -250,6 +250,20 @@ export const STATES: FixtureState[] = [
     walletNetwork: 'Mainnet',
   }),
   gate('gate-unverified', { kind: 'unverified', address: ADDRESS }),
+  // The tab pages link to the wallet page instead of verifying in place.
+  {
+    id: 'gate-unverified-link',
+    group: 'gate' as const,
+    surface: 'page' as const,
+    render: () => (
+      <WalletGate
+        state={{ kind: 'unverified', address: ADDRESS }}
+        verifyHref="#wallet"
+      >
+        {send}
+      </WalletGate>
+    ),
+  },
   gate('gate-checking', { kind: 'checking' }),
   gate('gate-busy', { kind: 'disconnected' }, true),
   gate('gate-ready', { kind: 'ready' }),
@@ -770,6 +784,22 @@ export const STATES: FixtureState[] = [
       kind="withdrawal-ready"
       amount="84000000"
       action={{ onClick: record('withdraw') }}
+    />
+  ),
+  // A notice whose action is a link, as primary and as outline.
+  notice(
+    'notice-withdrawal-ready-link',
+    <PaymentNotice
+      kind="withdrawal-ready"
+      amount="84000000"
+      action={{ href: '#withdraw', emphasis: 'primary' }}
+    />
+  ),
+  notice(
+    'notice-key-none-link',
+    <PaymentNotice
+      kind="session-key-none"
+      action={{ href: '#keys', emphasis: 'secondary' }}
     />
   ),
   notice(

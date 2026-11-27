@@ -15,6 +15,12 @@ const result = await Bun.build({
     {
       name: 'isolated-nft-collaborators',
       setup(build) {
+        // Fonts are served by this server from public/, not bundled. The
+        // payment kit's stylesheet (in the lazy v2 NFT chunk) names them.
+        build.onResolve(
+          { filter: /^\/(landing|account|prototype\/writing)\/fonts\// },
+          (args) => ({ path: args.path, external: true })
+        )
         build.onResolve({ filter: /^next\/navigation$/ }, () => ({
           path: path.join(import.meta.dirname, 'navigation.ts'),
         }))
@@ -54,7 +60,8 @@ Bun.serve({
     const url = new URL(request.url)
     if (
       url.pathname.startsWith('/landing/fonts/') ||
-      url.pathname.startsWith('/account/fonts/')
+      url.pathname.startsWith('/account/fonts/') ||
+      url.pathname.startsWith('/prototype/writing/fonts/')
     )
       return new Response(
         await readFile(path.join(root, 'public', url.pathname)),

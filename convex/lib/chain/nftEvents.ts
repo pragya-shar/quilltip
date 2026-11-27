@@ -69,6 +69,8 @@ export const NFT_PREPARE_ERROR_CODES = [
   'SELF_TRANSFER',
   /** An earlier mint or transfer can still land. `submissionId`. */
   'PENDING',
+  /** The cached config says the NFT contract is paused. */
+  'PAUSED',
   /** `retryAfterMs`. */
   'RATE_LIMITED',
   'INVALID_PREPARE',

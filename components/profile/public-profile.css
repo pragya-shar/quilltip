@@ -6,7 +6,7 @@
   --profile-line: #cdb9b4;
   background: #d0a7a3;
   color: var(--profile-ink);
-  font-family: 'Reading Room Syne', 'Syne Fallback', sans-serif;
+  font-family: 'Reading Room Syne', 'Syne 600 Fallback', sans-serif;
   color-scheme: light;
 }
 .profile-folio {

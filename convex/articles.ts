@@ -38,6 +38,10 @@ import {
 import { syncArticleUploadReferences } from './lib/uploadReferences'
 import { verifiedStellarAddress } from './lib/walletVerification'
 import {
+  permanentStorageEnabled,
+  readableArweaveStatus,
+} from './permanentStorage'
+import {
   ARTICLE_SCHEMA,
   CanonicalArticleError,
   articleContentHashHex,
@@ -712,6 +716,7 @@ export const getArticleBySlug = query({
 
     return {
       ...stripWriterNotes(article),
+      arweaveStatus: readableArweaveStatus(article.arweaveStatus),
       author: {
         id: author._id,
         name: author.name,
@@ -1177,9 +1182,11 @@ export const publishArticle = mutation({
       }
     }
 
-    // Only schedule Arweave upload if one isn't already pending or completed
+    // Schedule an upload only when this deployment stores articles
+    // permanently, and none is already pending or completed.
     const shouldUpload =
-      !article.arweaveStatus || article.arweaveStatus === 'failed'
+      permanentStorageEnabled() &&
+      (!article.arweaveStatus || article.arweaveStatus === 'failed')
 
     await ctx.db.patch(args.id, {
       published: true,

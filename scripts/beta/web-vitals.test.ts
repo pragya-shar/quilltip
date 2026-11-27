@@ -28,6 +28,15 @@ test('page kinds come from the path without exposing its parts', () => {
   expect(webVitalRoute('/q3a2080e99bcf4027a2c')).toBe('other')
 })
 
+test('app pages with two segments and deeper paths are not articles', () => {
+  expect(webVitalRoute('/settings/profile')).toBe('other')
+  expect(webVitalRoute('/wallet/practice')).toBe('other')
+  expect(webVitalRoute('/demo/write')).toBe('other')
+  expect(webVitalRoute('/ops/chain')).toBe('other')
+  expect(webVitalRoute('/q3a2080e99bcf4027a2c/the-harbour/notes')).toBe('other')
+  expect(webVitalRoute('/a/b/c')).toBe('other')
+})
+
 test('measurements become a rating and a band, never the number', () => {
   expect(
     webVitalProperties(
@@ -59,6 +68,12 @@ test('measurements become a rating and a band, never the number', () => {
       390
     )
   ).toMatchObject({ band: '2000-2499' })
+})
+
+test('device class changes at 768 px', () => {
+  const lcp = { name: 'LCP', value: 900, rating: 'good' }
+  expect(webVitalProperties(lcp, '/', 767)).toMatchObject({ device: 'mobile' })
+  expect(webVitalProperties(lcp, '/', 768)).toMatchObject({ device: 'desktop' })
 })
 
 test('unknown measures, ratings and values are not reported', () => {
@@ -119,4 +134,40 @@ test('the relay forwards web_vital with fixed values only', async () => {
   expect(body.properties.value).toBeUndefined()
   expect(body.properties.element).toBeUndefined()
   expect(WEB_VITAL_BANDS).toContain('1500-1999')
+})
+
+test('the relay drops values outside each list', async () => {
+  vi.stubEnv('NEXT_PUBLIC_ANALYTICS_ENABLED', 'true')
+  vi.stubEnv('ANALYTICS_POSTHOG_KEY', 'phc_test')
+  vi.resetModules()
+  const { POST } = await import('../../app/api/analytics/route')
+  const response = await POST(
+    new Request('https://quilltip.test/api/analytics', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'sec-fetch-site': 'same-origin',
+      },
+      body: JSON.stringify({
+        event: 'web_vital',
+        distinctId: ID,
+        path: '/articles',
+        properties: {
+          metric: 'LCP',
+          rating: 'very good',
+          band: 'someone@example.com',
+          route: '/q/slug',
+          device: 'tablet',
+        },
+      }),
+    })
+  )
+  expect(response.status).toBe(204)
+  const call = upstream.mock.calls[0] as unknown as [string, RequestInit]
+  const body = JSON.parse(String(call[1].body))
+  expect(body.properties.metric).toBe('LCP')
+  for (const key of ['rating', 'band', 'route', 'device'])
+    expect(body.properties).not.toHaveProperty(key)
+  expect(JSON.stringify(body)).not.toContain('someone@example.com')
+  expect(JSON.stringify(body)).not.toContain('/q/slug')
 })

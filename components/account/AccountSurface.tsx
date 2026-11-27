@@ -9,6 +9,7 @@ import { SETTINGS_PATH } from '@/lib/navigation/siteNavigation'
 
 const ACCOUNT_SECTIONS = [
   { href: '/dashboard/wallet', label: 'Wallet' },
+  { href: '/dashboard/tab', label: 'Tab' },
   { href: '/dashboard/stats', label: 'Stats' },
   { href: '/dashboard/feedback', label: 'Feedback' },
   { href: SETTINGS_PATH, label: 'Settings' },

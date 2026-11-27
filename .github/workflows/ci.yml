@@ -150,6 +150,48 @@ jobs:
       - name: Check page-load budget
         run: bun run perf:budget
 
+  # Text keeps its lines when the web fonts replace the metric-matched
+  # fallback faces (app/font-fallbacks.css), in Chromium and WebKit. It runs
+  # on macOS, which has Arial and Times New Roman, as Safari readers do. On
+  # Linux, WebKit does not resolve the bold faces' local() names and Chromium
+  # wrapped two blocks differently, so the result there says little about the
+  # browsers readers use (docs/performance/page-load.md).
+  font-fallbacks:
+    name: Font Fallbacks
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Chromium and WebKit
+        run: bunx playwright install chromium webkit
+
+      - name: Build against the fixture backend
+        run: bun run build
+        env:
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      - name: Check font fallbacks
+        run: bun run perf:font-fallbacks
+
   csp:
     name: Content Security Policy
     runs-on: ubuntu-latest
@@ -360,9 +402,16 @@ jobs:
           - shard: tips-v2
             suites: tips-v2
             browsers: chromium
+          - shard: nft-v2
+            suites: nft-v2
+            browsers: chromium
           # The tab session-key suite runs in all three engines.
           - shard: tab
             suites: tab
+            browsers: chromium firefox webkit
+          # The tab screens: every state in Chromium, key paths in all three.
+          - shard: tab-ui
+            suites: tab-ui
             browsers: chromium firefox webkit
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -463,6 +512,7 @@ jobs:
         quality,
         build,
         perf-budget,
+        font-fallbacks,
         csp,
         audit,
         contracts,
@@ -476,6 +526,7 @@ jobs:
           QUALITY_RESULT: ${{ needs.quality.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           PERF_BUDGET_RESULT: ${{ needs.perf-budget.result }}
+          FONT_FALLBACKS_RESULT: ${{ needs.font-fallbacks.result }}
           CSP_RESULT: ${{ needs.csp.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
@@ -497,6 +548,7 @@ jobs:
           check_result "Lint & Typecheck" "$QUALITY_RESULT"
           check_result "Build" "$BUILD_RESULT"
           check_result "Page-load Budget" "$PERF_BUDGET_RESULT"
+          check_result "Font Fallbacks" "$FONT_FALLBACKS_RESULT"
           check_result "Content Security Policy" "$CSP_RESULT"
           check_result "Dependency Audit" "$AUDIT_RESULT"
           check_result "Contracts" "$CONTRACTS_RESULT"

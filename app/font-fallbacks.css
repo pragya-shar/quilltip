@@ -4,16 +4,37 @@
  * and line metrics, so the swap does not move lines or shift the layout.
  *
  * Values are computed the way next/font computes them (hhea ascent, descent
- * and line gap, and the average width of a Latin letter-frequency string,
- * against Arial for sans and Times New Roman for serif), one face per weight
- * because the weights differ in width. Where a system lacks the local font
- * the stack falls through to the generic family, as before.
+ * and line gap, and the average width of a Latin letter-frequency string),
+ * one face per weight because the weights differ in width:
+ * - regular faces against Arial (average width 934.51 of 2048 units, as in
+ *   next/font) or Times New Roman;
+ * - faces at 600 and above against Arial Bold (average width 1011.05 of 2048
+ *   units), and with Arial Bold as the source. WebKit draws `local('Arial')`
+ *   at 600 with Arial Bold, Chromium with regular Arial made bold, so only an
+ *   explicit bold source gives every engine the same glyphs.
+ * Liberation Sans and Liberation Serif have the same advance widths as Arial
+ * and Times New Roman, so the same values hold where only they are installed
+ * (most Linux systems). WebKit on Linux does not resolve the bold faces'
+ * full names, so there bold text falls through to the generic family, as
+ * before; perf:font-fallbacks runs on macOS for that reason.
  */
 
+/*
+ * Syne comes as three files (400, 600, 700), and the families that use it
+ * draw them in two ways, so each way has its own fallback family:
+ * - 'Syne Fallback' for families with one face per file (Landing Syne, and
+ *   Account Syne on the sign-in pages): 400 and 500 draw the 400 file, 600
+ *   the 600 file, 700 and 800 the 700 file.
+ * - 'Syne 600 Fallback' for families that draw the 600 file at every weight
+ *   (`font-weight: 400 800`): QuillTip Display, Reader, Reading Room, Library,
+ *   Writing and Wallet Syne, and Account Syne on the account pages.
+ */
 @font-face {
   font-family: 'Syne Fallback';
-  src: local('Arial'), local('ArialMT');
-  font-weight: 400;
+  src:
+    local('Arial'), local('ArialMT'), local('Liberation Sans'),
+    local('LiberationSans');
+  font-weight: 400 500;
   size-adjust: 99.63%;
   ascent-override: 92.84%;
   descent-override: 27.6%;
@@ -21,26 +42,54 @@
 }
 @font-face {
   font-family: 'Syne Fallback';
-  src: local('Arial'), local('ArialMT');
-  font-weight: 500 600;
+  src:
+    local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'),
+    local('LiberationSans-Bold');
+  font-weight: 600;
+  size-adjust: 106.71%;
+  ascent-override: 86.69%;
+  descent-override: 25.77%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Syne Fallback';
+  src:
+    local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'),
+    local('LiberationSans-Bold');
+  font-weight: 700 800;
+  size-adjust: 115.22%;
+  ascent-override: 80.28%;
+  descent-override: 23.87%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Syne 600 Fallback';
+  src:
+    local('Arial'), local('ArialMT'), local('Liberation Sans'),
+    local('LiberationSans');
+  font-weight: 400 500;
   size-adjust: 115.45%;
   ascent-override: 80.12%;
   descent-override: 23.82%;
   line-gap-override: 0%;
 }
 @font-face {
-  font-family: 'Syne Fallback';
-  src: local('Arial'), local('ArialMT');
-  font-weight: 700 800;
-  size-adjust: 124.66%;
-  ascent-override: 74.2%;
-  descent-override: 22.06%;
+  font-family: 'Syne 600 Fallback';
+  src:
+    local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'),
+    local('LiberationSans-Bold');
+  font-weight: 600 800;
+  size-adjust: 106.71%;
+  ascent-override: 86.69%;
+  descent-override: 25.77%;
   line-gap-override: 0%;
 }
 
 @font-face {
   font-family: 'Work Sans Fallback';
-  src: local('Arial'), local('ArialMT');
+  src:
+    local('Arial'), local('ArialMT'), local('Liberation Sans'),
+    local('LiberationSans');
   font-weight: 400 500;
   size-adjust: 112.07%;
   ascent-override: 82.98%;
@@ -49,17 +98,21 @@
 }
 @font-face {
   font-family: 'Work Sans Fallback';
-  src: local('Arial'), local('ArialMT');
+  src:
+    local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'),
+    local('LiberationSans-Bold');
   font-weight: 600 800;
-  size-adjust: 112.7%;
-  ascent-override: 82.52%;
-  descent-override: 21.56%;
+  size-adjust: 104.17%;
+  ascent-override: 89.28%;
+  descent-override: 23.33%;
   line-gap-override: 0%;
 }
 
 @font-face {
   font-family: 'DM Sans Fallback';
-  src: local('Arial'), local('ArialMT');
+  src:
+    local('Arial'), local('ArialMT'), local('Liberation Sans'),
+    local('LiberationSans');
   font-weight: 400 500;
   size-adjust: 105.13%;
   ascent-override: 94.36%;
@@ -68,17 +121,21 @@
 }
 @font-face {
   font-family: 'DM Sans Fallback';
-  src: local('Arial'), local('ArialMT');
+  src:
+    local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'),
+    local('LiberationSans-Bold');
   font-weight: 600 800;
-  size-adjust: 111.43%;
-  ascent-override: 89.02%;
-  descent-override: 27.82%;
+  size-adjust: 103%;
+  ascent-override: 96.31%;
+  descent-override: 30.1%;
   line-gap-override: 0%;
 }
 
 @font-face {
   font-family: 'Alegreya Fallback';
-  src: local('Times New Roman'), local('TimesNewRomanPSMT');
+  src:
+    local('Times New Roman'), local('TimesNewRomanPSMT'),
+    local('Liberation Serif'), local('LiberationSerif');
   font-style: normal;
   size-adjust: 100.55%;
   ascent-override: 101.05%;
@@ -87,7 +144,9 @@
 }
 @font-face {
   font-family: 'Alegreya Fallback';
-  src: local('Times New Roman Italic'), local('TimesNewRomanPS-ItalicMT');
+  src:
+    local('Times New Roman Italic'), local('TimesNewRomanPS-ItalicMT'),
+    local('Liberation Serif Italic'), local('LiberationSerif-Italic');
   font-style: italic;
   size-adjust: 89.13%;
   ascent-override: 113.99%;
@@ -97,7 +156,9 @@
 
 @font-face {
   font-family: 'Literata Fallback';
-  src: local('Times New Roman Italic'), local('TimesNewRomanPS-ItalicMT');
+  src:
+    local('Times New Roman Italic'), local('TimesNewRomanPS-ItalicMT'),
+    local('Liberation Serif Italic'), local('LiberationSerif-Italic');
   font-style: italic;
   size-adjust: 117.21%;
   ascent-override: 100.42%;
