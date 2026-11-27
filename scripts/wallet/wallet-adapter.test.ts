@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import type { ModuleInterface } from '@creit.tech/stellar-wallets-kit/types'
 import {
+  RESTORE_TIMEOUT_MS,
   classifyWalletError,
   createWalletAdapter,
   type KitBundle,
@@ -581,5 +582,273 @@ describe('the account before signing (#547)', () => {
       walletAddress: ADDRESS,
     })
     expect(fake.kit.signTransaction).not.toHaveBeenCalled()
+  })
+})
+
+describe('restore after a page load (#562)', () => {
+  const KIT_KEY = '@StellarWalletsKit/selectedModuleId'
+  const KEY = 'quilltip:wallet:v1:reader-1'
+  const record = (walletId: string, address = ADDRESS) =>
+    JSON.stringify({ walletId, address })
+
+  function memory(initial: Record<string, string> = {}) {
+    const store = new Map(Object.entries(initial))
+    return {
+      store,
+      storage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, value),
+        removeItem: (key: string) => void store.delete(key),
+      },
+    }
+  }
+
+  /** Every offered wallet, each with a `getAddress` the test watches. */
+  function restoreKit(
+    read = vi.fn(async (_params?: { skipRequestAccess?: boolean }) => ({
+      address: ADDRESS,
+    }))
+  ) {
+    const fake = fakeKit({
+      modules: [
+        'varial',
+        'xbull',
+        'rabet',
+        'hana',
+        'scopuly',
+        'dcent',
+        'albedo',
+        'lobstr',
+      ],
+    })
+    for (const m of fake.bundle.modules) Object.assign(m, { getAddress: read })
+    return { fake, read }
+  }
+
+  function restoring(
+    fake: ReturnType<typeof fakeKit>,
+    mem: ReturnType<typeof memory>
+  ) {
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    wallet.setRemembering('reader-1')
+    return wallet
+  }
+
+  test('reconnects a remembered Varial with one read that cannot prompt', async () => {
+    const { fake, read } = restoreKit()
+    const mem = memory({ [KEY]: record('varial') })
+    const wallet = restoring(fake, mem)
+    const events: unknown[] = []
+    wallet.subscribe((event) => events.push(event))
+    const connection = await wallet.restore()
+    expect(connection).toMatchObject({
+      address: ADDRESS,
+      walletId: 'varial',
+      networkPassphrase: TESTNET,
+      networkReported: true,
+    })
+    expect(read).toHaveBeenCalledTimes(1)
+    expect(read).toHaveBeenCalledWith({ skipRequestAccess: true })
+    expect(fake.kit.fetchAddress).not.toHaveBeenCalled()
+    expect(fake.kit.authModal).not.toHaveBeenCalled()
+    expect(events).toEqual([{ type: 'connected', connection, restored: true }])
+  })
+
+  test('remembers the choice only while a reader is signed in', async () => {
+    const fake = fakeKit()
+    const mem = memory()
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    await wallet.connect({ walletId: 'varial' })
+    expect(mem.store.has(KEY)).toBe(false)
+    wallet.setRemembering('reader-1')
+    expect(mem.store.get(KEY)).toBe(record('varial'))
+    // No reader: the kit's copy goes; the reader's own record stays theirs
+    // (sign-out removes it through \`disconnect\`).
+    mem.store.set(KIT_KEY, 'varial')
+    wallet.setRemembering(null)
+    expect([...mem.store.keys()]).toEqual([KEY])
+    await wallet.disconnect()
+    await wallet.connect({ walletId: 'varial' })
+    expect([...mem.store.keys()]).toEqual([KEY])
+  })
+
+  test('signed out: does not restore and asks nothing', async () => {
+    const { fake, read } = restoreKit()
+    const mem = memory({ [KEY]: record('varial') })
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    await expect(wallet.restore()).resolves.toBeNull()
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  for (const walletId of [
+    'xbull',
+    'rabet',
+    'hana',
+    'scopuly',
+    'dcent',
+    'albedo',
+  ]) {
+    test(`${walletId} could prompt: not asked, the choice kept`, async () => {
+      const { fake, read } = restoreKit()
+      const mem = memory({ [KEY]: record(walletId) })
+      const wallet = restoring(fake, mem)
+      await expect(wallet.restore()).resolves.toBeNull()
+      expect(read).not.toHaveBeenCalled()
+      expect(fake.kit.setWallet).not.toHaveBeenCalled()
+      expect(mem.store.get(KEY)).toBe(record(walletId))
+    })
+  }
+
+  for (const [name, stored] of [
+    ['an unknown wallet', record('evil')],
+    ['a wallet Quilltip does not offer', record('lobstr')],
+    ['an address that is not an account ID', record('varial', 'GABC')],
+    [
+      'an extra field',
+      JSON.stringify({ walletId: 'varial', address: ADDRESS, x: 1 }),
+    ],
+    ['not JSON', 'varial'],
+  ] as const) {
+    test(`tampered record, ${name}: no module selected, the record removed`, async () => {
+      const { fake, read } = restoreKit()
+      const mem = memory({ [KEY]: stored })
+      const wallet = restoring(fake, mem)
+      await expect(wallet.restore()).resolves.toBeNull()
+      expect(fake.kit.setWallet).not.toHaveBeenCalled()
+      expect(read).not.toHaveBeenCalled()
+      expect(mem.store.has(KEY)).toBe(false)
+    })
+  }
+
+  test('access revoked: the read fails, the wallet stays disconnected', async () => {
+    const { fake } = restoreKit(
+      vi.fn(async () => {
+        throw {
+          code: -3,
+          message:
+            'Getting the address from Varial is not allowed, please request access first.',
+        }
+      })
+    )
+    const mem = memory({ [KEY]: record('varial') })
+    const wallet = restoring(fake, mem)
+    await expect(wallet.restore()).resolves.toBeNull()
+    expect(wallet.getConnection()).toBeNull()
+    expect(fake.kit.fetchAddress).not.toHaveBeenCalled()
+  })
+
+  test('a wallet that never answers: gives up without a prompt', async () => {
+    vi.useFakeTimers()
+    const { fake } = restoreKit(vi.fn(() => new Promise<never>(() => {})))
+    const mem = memory({ [KEY]: record('varial') })
+    const wallet = restoring(fake, mem)
+    const result = wallet.restore()
+    await vi.advanceTimersByTimeAsync(RESTORE_TIMEOUT_MS)
+    await expect(result).resolves.toBeNull()
+  })
+
+  test('account changed since the last visit: stays disconnected, the remembered wallet kept as last used', async () => {
+    const { fake, read } = restoreKit()
+    const mem = memory({ [KEY]: record('varial', OTHER) })
+    const wallet = restoring(fake, mem)
+    await expect(wallet.restore()).resolves.toBeNull()
+    expect(read).toHaveBeenCalledWith({ skipRequestAccess: true })
+    expect(wallet.getConnection()).toBeNull()
+    expect(wallet.rememberedWallet()).toEqual({
+      walletId: 'varial',
+      address: OTHER,
+    })
+  })
+
+  test('each reader has their own record; another reader’s is not read', async () => {
+    const { fake, read } = restoreKit()
+    const mem = memory({
+      'quilltip:wallet:v1:reader-2': record('varial'),
+    })
+    const wallet = restoring(fake, mem)
+    await expect(wallet.restore()).resolves.toBeNull()
+    expect(read).not.toHaveBeenCalled()
+    await wallet.connect({ walletId: 'varial' })
+    expect(mem.store.get(KEY)).toBe(record('varial'))
+    expect(mem.store.get('quilltip:wallet:v1:reader-2')).toBe(record('varial'))
+  })
+
+  test('a restored wallet on another account than the linked one is refused before it is asked to sign', async () => {
+    const { fake } = restoreKit()
+    const mem = memory({ [KEY]: record('varial') })
+    const wallet = restoring(fake, mem)
+    await wallet.restore()
+    const error = await rejection(
+      wallet.signTransaction('XDR', { address: OTHER })
+    )
+    expect(error.kind).toBe('wrong-account')
+    expect(fake.kit.signTransaction).not.toHaveBeenCalled()
+  })
+
+  test('wrong network: restored with the wallet’s network, and signing refused before the wallet is asked', async () => {
+    const { fake } = restoreKit()
+    fake.state.walletNetwork = PUBLIC
+    const mem = memory({ [KEY]: record('varial') })
+    const wallet = restoring(fake, mem)
+    await expect(wallet.restore()).resolves.toMatchObject({
+      networkPassphrase: PUBLIC,
+    })
+    const error = await rejection(wallet.signTransaction('XDR'))
+    expect(error.kind).toBe('wrong-network')
+    expect(fake.kit.signTransaction).not.toHaveBeenCalled()
+  })
+
+  test('Disconnect forgets the choice and the kit’s copy; nothing restores after it', async () => {
+    const { fake, read } = restoreKit()
+    const mem = memory({ [KEY]: record('varial') })
+    const wallet = restoring(fake, mem)
+    await wallet.restore()
+    mem.store.set(KIT_KEY, 'varial')
+    await wallet.disconnect()
+    expect([...mem.store.keys()]).toEqual([])
+    await expect(wallet.restore()).resolves.toBeNull()
+    expect(read).toHaveBeenCalledTimes(1)
+  })
+
+  test('Disconnect with no wallet connected still forgets the choice', async () => {
+    const { fake } = restoreKit(
+      vi.fn(async () => {
+        throw { code: -3, message: 'not allowed' }
+      })
+    )
+    const mem = memory({ [KEY]: record('varial') })
+    const wallet = restoring(fake, mem)
+    await wallet.restore()
+    await wallet.disconnect()
+    expect(mem.store.has(KEY)).toBe(false)
+  })
+
+  test('the wallet ending the session forgets the choice', async () => {
+    const { fake } = restoreKit()
+    const mem = memory({ [KEY]: record('varial') })
+    const wallet = restoring(fake, mem)
+    await wallet.restore()
+    fake.fire('DISCONNECT', {})
+    expect(mem.store.has(KEY)).toBe(false)
+  })
+
+  test('a connect by the reader while the wallet answers wins', async () => {
+    let answer: (value: { address: string }) => void = () => {}
+    const { fake } = restoreKit(
+      vi.fn(
+        () =>
+          new Promise<{ address: string }>((resolve) => {
+            answer = resolve
+          })
+      )
+    )
+    const mem = memory({ [KEY]: record('varial', OTHER) })
+    const wallet = restoring(fake, mem)
+    const restored = wallet.restore()
+    await vi.waitFor(() => expect(fake.kit.setWallet).toHaveBeenCalled())
+    await wallet.connect({ walletId: 'varial' })
+    answer({ address: OTHER })
+    await restored
+    expect(wallet.getConnection()?.address).toBe(ADDRESS)
   })
 })

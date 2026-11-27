@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
@@ -22,14 +22,21 @@ export function OwnerWalletSettings({
   className = '',
 }: WalletSettingsProps) {
   const updateProfile = useMutation(api.users.updateProfile)
-  const { isConnected, publicKey, network, disconnect } = useWallet({
-    activateOnMount: true,
-  })
+  const { isConnected, isRestoring, lastUsed, publicKey, network, disconnect } =
+    useWallet({
+      activateOnMount: true,
+    })
+  // The wallet can be on another account than the saved one. Tips, tab
+  // payments and NFT actions are signed by the saved (verified) address and
+  // refuse another account before the wallet is asked, so say so here first.
+  const otherAccount =
+    isConnected && publicKey && walletAddress && publicKey !== walletAddress
   const [removing, setRemoving] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
   const mounted = useRef(true)
+  const lastUsedId = useId()
   const removeButton = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     mounted.current = true
@@ -93,12 +100,16 @@ export function OwnerWalletSettings({
           <div className="account-connection-heading">
             <h2 id="wallet-connection-title">Your wallet</h2>
             <span className="account-badge">
-              {isConnected ? 'Connected' : 'Not connected'}
+              {isRestoring
+                ? 'Checking…'
+                : isConnected
+                  ? 'Connected'
+                  : 'Not connected'}
             </span>
           </div>
           <p>
             {walletAddress
-              ? isConnected
+              ? isConnected || isRestoring
                 ? 'Your receiving address is saved.'
                 : 'Your receiving address is saved. You can receive tips while disconnected.'
               : 'Connect to send tips. Save a receiving address to receive them.'}
@@ -113,6 +124,22 @@ export function OwnerWalletSettings({
                 Connected wallet{network ? ` (${network.toLowerCase()})` : ''}
               </span>
               <span>{publicKey}</span>
+            </p>
+          )}
+          {lastUsed && !isConnected && (
+            <p id={lastUsedId} className="account-key">
+              <span>Last used: {lastUsed.walletName}</span>
+              <span>{lastUsed.address}</span>
+            </p>
+          )}
+          {otherAccount && (
+            <p className="account-key-mismatch">
+              This is not your saved address. Tips, tab payments and NFT actions
+              are signed by{' '}
+              <span className="account-key-short">
+                {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
+              </span>
+              , so switch your wallet to that account first.
             </p>
           )}
         </div>
@@ -136,6 +163,7 @@ export function OwnerWalletSettings({
               mode="send"
               className="account-connect"
               showHelp={false}
+              describedBy={lastUsed ? lastUsedId : undefined}
             />
           )}
         </div>

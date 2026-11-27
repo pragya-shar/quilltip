@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -42,6 +42,8 @@ export function WalletConnectButton({
   const {
     isConnected,
     isLoading,
+    isRestoring,
+    lastUsed,
     publicKey,
     network,
     error,
@@ -53,6 +55,7 @@ export function WalletConnectButton({
   const [isConnecting, setIsConnecting] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const connectButtonRef = useRef<HTMLButtonElement>(null)
+  const lastUsedId = useId()
 
   const handleConnect = async () => {
     if (isConnecting) return
@@ -105,7 +108,7 @@ export function WalletConnectButton({
   }
 
   // Show loading state
-  if (isLoading) {
+  if (isLoading || isRestoring) {
     return (
       <Button
         disabled
@@ -113,9 +116,9 @@ export function WalletConnectButton({
         variant={variant}
         className={className}
         aria-busy
-        aria-label="Wallet loading"
+        aria-label={isRestoring ? 'Checking your wallet' : 'Wallet loading'}
       >
-        <Loader2 className="w-4 h-4 animate-spin" />
+        <Loader2 className="w-4 h-4 motion-safe:animate-spin" />
       </Button>
     )
   }
@@ -202,13 +205,14 @@ export function WalletConnectButton({
         ref={connectButtonRef}
         onClick={handleConnect}
         aria-disabled={isConnecting || undefined}
+        aria-describedby={lastUsed ? lastUsedId : undefined}
         size={size}
         variant={variant}
         className={className}
       >
         {isConnecting ? (
           <>
-            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            <Loader2 className="w-4 h-4 motion-safe:animate-spin mr-2" />
             Connecting...
           </>
         ) : (
@@ -218,6 +222,14 @@ export function WalletConnectButton({
           </>
         )}
       </Button>
+      {lastUsed && (
+        <p id={lastUsedId} className="mt-1 text-xs text-muted-foreground">
+          Last used: {lastUsed.walletName},{' '}
+          <span className="tabular-nums">
+            {formatAddress(lastUsed.address)}
+          </span>
+        </p>
+      )}
 
       <InstallWalletDialog
         returnFocusRef={connectButtonRef}

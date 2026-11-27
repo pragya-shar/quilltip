@@ -16,7 +16,11 @@
  * - **Payments.** `paidOnChain` only grows (`max`), so a replayed or late
  *   `TabSettled` cannot lower it. The settler's own record of a settlement
  *   can arrive before or after the event; until the event's debit is
- *   applied, the paid amount stays reserved as `settledUnindexed`.
+ *   applied, the paid amount stays reserved as `settledUnindexed`. An
+ *   absolute balance from a later ledger than every unindexed payment of a
+ *   pair already includes those debits, so it releases that reserve
+ *   (`releaseIncludedReserves`); the late event then neither debits nor
+ *   releases again.
  */
 import { StrKey } from '@stellar/stellar-sdk'
 import type { Doc } from '../../_generated/dataModel'
@@ -31,6 +35,7 @@ import {
   applyPairSettlement,
   insertTabAccount,
   refreshSettleQueue,
+  releaseIncludedReserves,
   resolveUnpaidPairs,
   tabAccountForReader,
   tabKey,
@@ -117,16 +122,39 @@ async function accountFor(
 /** Patch for an absolute balance, or null when a newer one is applied. */
 function absoluteBalance(
   account: Doc<'tabAccounts'>,
-  eventId: string,
+  event: IndexedEvent,
   balance: bigint
 ): Partial<Doc<'tabAccounts'>> | null {
+  const eventId = event.doc.eventId
   if (account.balanceEventId && account.balanceEventId >= eventId) return null
   const later = account.settledSinceBalance.filter((s) => s.eventId > eventId)
   const debits = later.reduce((sum, s) => sum + BigInt(s.gross), ZERO)
   return {
     balanceEventId: eventId,
+    balanceLedger: event.doc.ledger,
     settledSinceBalance: later,
     confirmedBalance: (balance - debits).toString(),
+  }
+}
+
+/**
+ * Applies an absolute balance event's patches, then releases the reserve of
+ * settlements that balance already includes (`releaseIncludedReserves`).
+ */
+async function applyAbsolute(
+  ctx: MutationCtx,
+  account: Doc<'tabAccounts'>,
+  event: IndexedEvent,
+  balance: bigint,
+  status: Partial<Doc<'tabAccounts'>>
+): Promise<void> {
+  const absolute = absoluteBalance(account, event, balance)
+  await patchAccount(ctx, account, event.now, absolute, status)
+  if (absolute) {
+    await releaseIncludedReserves(ctx, account._id, {
+      now: event.now,
+      eventId: event.doc.eventId,
+    })
   }
 }
 
@@ -180,11 +208,11 @@ const deposited: ChainEventHandler = async (ctx, event) => {
   int(d.amount, 'amount')
   const account = await accountFor(ctx, event, reader, true)
   if (!account) return 'orphan'
-  await patchAccount(
+  await applyAbsolute(
     ctx,
     account,
-    event.now,
-    absoluteBalance(account, event.doc.eventId, balance),
+    event,
+    balance,
     statusChange(account, event.doc.eventId, 'OPEN', undefined)
   )
   await unblockAccountPairs(ctx, account._id, event.now)
@@ -198,11 +226,11 @@ const withdrawStarted: ChainEventHandler = async (ctx, event) => {
   const unlock = u32(d.unlock_ledger, 'unlock_ledger')
   const account = await accountFor(ctx, event, reader, false)
   if (!account) return 'orphan'
-  await patchAccount(
+  await applyAbsolute(
     ctx,
     account,
-    event.now,
-    absoluteBalance(account, event.doc.eventId, balance),
+    event,
+    balance,
     statusChange(account, event.doc.eventId, 'CLOSING', unlock)
   )
   return 'done'
@@ -213,11 +241,11 @@ const withdrawCancelled: ChainEventHandler = async (ctx, event) => {
   const balance = int(data(event).balance, 'balance')
   const account = await accountFor(ctx, event, reader, false)
   if (!account) return 'orphan'
-  await patchAccount(
+  await applyAbsolute(
     ctx,
     account,
-    event.now,
-    absoluteBalance(account, event.doc.eventId, balance),
+    event,
+    balance,
     statusChange(account, event.doc.eventId, 'OPEN', undefined)
   )
   return 'done'
@@ -228,11 +256,11 @@ const withdrawn: ChainEventHandler = async (ctx, event) => {
   int(data(event).amount, 'amount')
   const account = await accountFor(ctx, event, reader, false)
   if (!account) return 'orphan'
-  await patchAccount(
+  await applyAbsolute(
     ctx,
     account,
-    event.now,
-    absoluteBalance(account, event.doc.eventId, ZERO),
+    event,
+    ZERO,
     statusChange(account, event.doc.eventId, 'CLOSED', undefined)
   )
   await resolveUnpaidPairs(ctx, account._id, event.doc.ledger, event.now)
@@ -356,6 +384,7 @@ const tabSettled: ChainEventHandler = async (ctx, event) => {
     cumulative,
     eventId: event.doc.eventId,
     indexedGross: gross,
+    sourceLedger: event.doc.ledger,
     now: event.now,
   })
   return 'done'

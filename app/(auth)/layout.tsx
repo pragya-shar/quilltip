@@ -3,12 +3,14 @@ import Link from 'next/link'
 import { LandingWordmark } from '@/components/landing/LandingWordmark'
 import { ArrowRight } from '@/components/landing/LandingIcons'
 import { AccountIllustrations } from '@/components/auth/AccountIllustrations'
+import { ForgetWalletWhenSignedOut } from '@/components/auth/ForgetWalletWhenSignedOut'
 import '@/components/auth/account.css'
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="account-page">
       <AccountIllustrations />
+      <ForgetWalletWhenSignedOut />
       <header className="account-header">
         <LandingWordmark />
         <Link href="/articles">

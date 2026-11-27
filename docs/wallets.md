@@ -29,7 +29,7 @@ transaction instead. Auth-entry signing is not used.
 run with the real wallet has been made yet. The manual checks in issue #493
 cover these.
 
-Checked with a real wallet so far (issue #512): Varial (Freighter extension)
+Checked with a real wallet so far (issue #512): Varial's extension
 in Chrome on testnet. The picker detects it, it shows the wrong-network state
 when the wallet is on Mainnet, connect and the address proof pass, and no
 content security policy violation appears.
@@ -72,6 +72,80 @@ every error into `{ code, message }`):
   install needed" (xBull's web wallet, Albedo) and "Not installed" (install
   links). The picker opens without any extension, so a reader can always use
   a web wallet.
+
+### Restore after a page load
+
+While a reader is signed in, Quilltip remembers their last wallet choice
+(#562) in `localStorage` under `quilltip:wallet:v1:<user ID>`: the wallet ID
+and the public address, nothing else (`lib/wallet/remembered-wallet.ts`).
+`readRememberedWallet(storage, userId)` is a small synchronous read with no
+wallet code, so a page can show the reader's last wallet without loading the
+kit.
+
+The restore is silent, or it does not happen. Where the wallet runtime is
+loaded (the wallet page, the tab page, an open tip dialog, the NFT panel once
+opened), it reconnects the remembered wallet only through a read that cannot
+prompt, and only when the wallet still reports the remembered address.
+Otherwise the wallet stays disconnected and the wallet controls show the
+remembered wallet as "Last used". The first prompt the reader sees is then
+one they started. Reading an article loads no wallet code, so nothing is
+restored there.
+
+| Wallet        | Read used on load                         | Restored | Why                                                                                                                                                               |
+| ------------- | ----------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Varial        | Allowed-site check, then the address read | Yes      | `getAddress({ skipRequestAccess: true })` skips `requestAccess`; an unallowed site gets an error, not a prompt                                                    |
+| Mobile wallet | None                                      | No       | Restoring would load the sign client and open a relay connection on every wallet page. The reader's Connect reuses the remembered account's session, with no code |
+| xBull         | None                                      | No       | The extension's `connect` asks the reader, and the web wallet opens a window                                                                                      |
+| Albedo        | None                                      | No       | Every request opens Albedo's window                                                                                                                               |
+| Rabet         | None                                      | No       | `rabet.connect()` is the only address read and prompts when the site is not allowed                                                                               |
+| Hana          | None                                      | No       | `getPublicKey()` is the only address read and prompts when the site is not connected                                                                              |
+| Scopuly       | None                                      | No       | Without the access request the module falls back to `getPublicKey()`, which can prompt                                                                            |
+| D'CENT        | None                                      | No       | Not checked against the extension that its read without the access request never prompts                                                                          |
+
+Rules:
+
+- **No prompt on load.** Only wallets with `silentRestore` in the catalog are
+  asked, with a read that cannot open a window. A refused or unanswered read
+  (5 seconds), or another account than the remembered one, leaves the wallet
+  disconnected and shown as last used.
+- **Nothing waits on the restore.** It does not set the wallet's `isLoading`,
+  so the tab page's wallet gate and the tip flows do not wait for it. The
+  wallet controls show "Checking your wallet" while it runs.
+- **The record is a hint.** A record that is not exactly a wallet ID and an
+  account ID, or names a wallet Quilltip does not offer, is removed and
+  nothing is selected. The stored address is never used to sign.
+- **Checks before signing stay where they were.** A restored connection is an
+  ordinary connection: `signTransaction` checks the network and the account
+  before the wallet is asked. A wallet on another network is restored with
+  that network shown, and the payment UI blocks the review.
+- **Another account than the saved one.** The remembered address is never
+  used to sign. Every payment is signed by the reader's saved address, once it
+  is verified on this network, and never by whatever account the wallet is
+  on. After the reader connects a wallet on another account, the wallet page
+  shows "This is not your saved address. Tips, tab payments and NFT actions
+  are signed by G…, so switch your wallet to that account first." Per flow:
+
+  | Flow                                          | Signs with                                      | Wallet on another account                                                                                                               |
+  | --------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+  | Article tip, passage tip, tip basket          | `tipperAddress` from the server (`runTip`)      | Refused before the wallet is asked ("Switch your wallet to …"); recorded as `wrong_account`. The server also checks the tipper on chain |
+  | Tab open, add funds, close, withdraw, collect | The verified address (`useLiveWalletAccess`)    | Refused before the wallet is asked: the tab gate is `unverified` ("Confirm this wallet is yours")                                       |
+  | NFT mint and transfer                         | `signer` from the server (the verified address) | Refused before the wallet is asked ("Switch your wallet to …"); the server checks the owner                                             |
+
+  `signTransaction` checks the account once more. Varial's account is read
+  again without a prompt; for other wallets the connected account is
+  compared, and a signature by another account is refused after the wallet
+  answers, with nothing sent.
+
+- **Disconnect.** Disconnect forgets the reader's choice and the kit's copy
+  of it (`@StellarWalletsKit/*` keys) and ends a WalletConnect session. Other
+  open tabs let go of the wallet when the record is removed.
+- **Sign-out.** Signing out, or another reader signing in, forgets the
+  previous reader's choice and disconnects. Sign-out leads to the sign-in
+  pages, which forget every reader's choice while the browser is signed out,
+  so this holds even when the wallet was not loaded on the page the reader
+  signed out from. A signed-out reader is not reconnected.
+- **Announcements.** A restore is not announced; the wallet controls show the
+  connected wallet, or the last used one.
 
 ### Albedo over http
 
@@ -158,7 +232,8 @@ module, `lib/stellar/v2/walletconnect-module.ts`, on
 | The phone declines the pairing (5000)            | `rejected`                                             |
 | The pairing proposal expires (5 minutes)         | `timeout`                                              |
 | The reader goes back or closes the picker        | Not an error; the pairing stops                        |
-| A live session from earlier                      | Reused without a new code                              |
+| A live session for the remembered wallet         | Reused on Connect, without a new code                  |
+| A session nobody chose (left before a sign-out)  | Closed before a new pairing                            |
 | The phone ends the session, or it expires        | The app disconnects; a later request is `disconnected` |
 | Disconnect in Quilltip                           | The session is ended on the phone too                  |
 | A request refused on the phone (5000, 4001)      | `rejected`                                             |

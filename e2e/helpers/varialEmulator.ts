@@ -24,13 +24,20 @@ export type VarialMode =
    * the address read without a prompt is empty.
    */
   | 'locked-prompt'
+  /** Connected, but the address read without a prompt answers after 1.5 s (freighter-api gives up at 2 s). */
+  | 'slow-read'
 
 export type VarialEmulatorOptions = { mode: VarialMode; address: string }
 
 export function installVarialEmulator({
-  mode,
+  mode: initialMode,
   address,
 }: VarialEmulatorOptions) {
+  // `sessionStorage['qa-varial-mode']` changes the mode for the next load of
+  // the tab, as a reader would change the extension between visits.
+  const mode =
+    (sessionStorage.getItem('qa-varial-mode') as VarialMode | null) ??
+    initialMode
   const TESTNET = 'Test SDF Network ; September 2015'
   const PUBLIC = 'Public Global Stellar Network ; September 2015'
   type Request = {
@@ -80,6 +87,10 @@ export function installVarialEmulator({
         return reply({ publicKey: mode === 'locked' ? '' : accountAddress() })
       case 'REQUEST_PUBLIC_KEY':
         if (mode === 'locked-prompt') return reply({ publicKey: '' })
+        if (mode === 'slow-read') {
+          setTimeout(() => reply({ publicKey: accountAddress() }), 1_500)
+          return
+        }
         return reply({ publicKey: mode === 'locked' ? '' : accountAddress() })
       case 'REQUEST_NETWORK_DETAILS':
         return reply({

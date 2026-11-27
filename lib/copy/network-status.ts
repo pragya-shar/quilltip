@@ -64,3 +64,23 @@ export function formatXlmFromStroops(stroops: string, maxDecimals = 7): string {
 export function formatUsd(amount: number): string {
   return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 }
+
+/** Shown before an earnings figure that is a lower bound (#552). */
+export const AT_LEAST = 'At least'
+
+/** Shown with the earnings figures while their totals are being rebuilt. */
+export const EARNINGS_UPDATING_NOTE =
+  'Recounting your earnings. Check again in a few minutes.'
+
+/**
+ * The USD note under an earnings figure, for example "≈ $14.87, testnet, no
+ * real value". A lower bound reads "at least $14.87" (#552).
+ */
+export function usdEstimateNote(
+  amount: number,
+  isTestnet: boolean,
+  lowerBound = false
+): string {
+  const usd = `${lowerBound ? 'at least' : '≈'} ${formatUsd(amount)}`
+  return isTestnet ? `${usd}, ${TESTNET_NO_VALUE_NOTE}` : usd
+}
