@@ -613,7 +613,18 @@ function settle(id: string, action: 'mint' | 'transfer', to?: string) {
         return
       default:
         // The indexer applies the event: the row and the owner change.
-        if (action === 'mint') {
+        // `confirm=lagging`: the record confirms first and the minted
+        // progress and owner row arrive 3 seconds later (#547).
+        if (action === 'mint' && confirm === 'lagging') {
+          setTimeout(
+            () =>
+              update({
+                progress: mintedProgress(WALLET),
+                record: v2Row(WALLET),
+              }),
+            3_000
+          )
+        } else if (action === 'mint') {
           update({
             progress: mintedProgress(WALLET),
             record: v2Row(WALLET),

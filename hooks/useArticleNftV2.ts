@@ -175,8 +175,13 @@ export function useArticleNftV2({
     !!clientNftContract &&
     (!config?.nftContractId || config.nftContractId === clientNftContract)
 
+  // A mint from this page that the server confirmed. "Done" must not bring
+  // the mint action back while the owner record is still on its way (#547).
+  const [mintConfirmed, setMintConfirmed] = useState(false)
+
   const panel = deriveNftPanel({
     clientConfigured,
+    mintConfirmed: mintConfirmed && progress?.state !== 'MINTED',
     v2Enabled: config === undefined ? undefined : v2,
     progress: progress ?? undefined,
     record: record as NftRecordLike | undefined,
@@ -247,6 +252,13 @@ export function useArticleNftV2({
       dispatch({ type: 'dismiss' })
     }
   }, [status, flow, mintKey, transferKey])
+
+  const trackedMint =
+    (flow.kind === 'running' || flow.kind === 'tracking') &&
+    flow.action === 'mint'
+  useEffect(() => {
+    if (trackedMint && status?.status === 'CONFIRMED') setMintConfirmed(true)
+  }, [trackedMint, status?.status])
 
   // A finished mint asks the live read again (minted, or retry allowed).
   const settled = status ? isSettled(status) : false

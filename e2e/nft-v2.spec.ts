@@ -1207,6 +1207,32 @@ test.describe('testnet wallet run follow-ups (#547)', () => {
     expect(errors).toEqual([])
   })
 
+  test('after a confirmed mint and Done, the panel waits for the owner instead of offering Mint', async ({
+    page,
+  }) => {
+    await open(page, 'state=author-eligible&confirm=lagging')
+    await mint(page)
+    await expect(
+      page.getByRole('heading', { name: 'Article NFT minted' })
+    ).toBeVisible()
+    await page.getByRole('button', { name: 'Done' }).click()
+    await expect(
+      panel(page).getByText(
+        'Stellar testnet confirmed the mint. The token and its owner show here in a moment.'
+      )
+    ).toBeVisible()
+    await expect(
+      panel(page).getByRole('button', { name: 'Mint article NFT' })
+    ).toHaveCount(0)
+    // Once the owner record arrives, the minted token shows.
+    await expect(panel(page).getByText('Token', { exact: true })).toBeVisible({
+      timeout: 8_000,
+    })
+    await expect(
+      panel(page).getByRole('button', { name: 'Mint article NFT' })
+    ).toHaveCount(0)
+  })
+
   test('a resumed mint that sent nothing does not call it a payment', async ({
     page,
   }) => {

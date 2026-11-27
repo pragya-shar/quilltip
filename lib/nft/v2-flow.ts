@@ -247,6 +247,11 @@ export function deriveNftPanel(input: {
    * mint and transfer actions into "not available on this site". Default true.
    */
   clientConfigured?: boolean
+  /**
+   * A mint from this page was confirmed on chain. Until the indexed progress
+   * shows it minted, the author sees a waiting line, not the mint action.
+   */
+  mintConfirmed?: boolean
 }): NftPanel {
   const clientConfigured = input.clientConfigured ?? true
   if (input.v2Enabled === undefined) return { kind: 'loading' }
@@ -316,6 +321,14 @@ export function deriveNftPanel(input: {
       v1Record,
       progress: figures(progress, false),
       mint: { kind: 'none' },
+    }
+  }
+  if (input.mintConfirmed) {
+    return {
+      kind: 'progress',
+      v1Record,
+      progress: figures(progress, false),
+      mint: { kind: 'indexing' },
     }
   }
   if (e === undefined) {

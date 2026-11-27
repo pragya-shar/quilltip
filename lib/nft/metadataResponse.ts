@@ -86,14 +86,23 @@ export function buildNftMetadata(
       attributes,
     }
   }
-  const summary =
+  const summary = asSentence(
     meta.excerpt?.trim() || `An article by @${meta.authorUsername} on QuillTip.`
+  )
   return {
     name: meta.title,
     description: `${summary} Minted on the ${network}.`,
     external_url: `${origin.replace(/\/+$/, '')}${articlePath(meta.authorUsername, meta.slug)}`,
     attributes,
   }
+}
+
+/**
+ * The summary as a sentence, so the network line that follows reads as its
+ * own: a subtitle without end punctuation gets a full stop (#547).
+ */
+export function asSentence(text: string): string {
+  return /[.!?…][)\]"'”’»]*$/u.test(text) ? text : `${text}.`
 }
 
 function etagOf(body: NftMetadataJson): string {
