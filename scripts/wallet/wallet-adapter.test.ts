@@ -164,16 +164,33 @@ describe('init', () => {
     expect(store.has('selectedWalletId')).toBe(false)
   })
 
-  test('leaves Albedo out on plain-http localhost', async () => {
+  test('lists a wallet that needs https as unavailable on http, with the reason, and never prompts it', async () => {
     vi.stubGlobal('window', {
       location: { protocol: 'http:', hostname: 'localhost' },
     })
-    const fake = fakeKit()
-    await adapterFor(fake).init()
+    const fake = fakeKit({
+      modules: ['varial', 'albedo', 'LEDGER'],
+      available: ['varial', 'albedo', 'LEDGER'],
+    })
+    const wallet = adapterFor(fake)
+    await wallet.init()
     const ids = fake.kit.init.mock.calls[0]![0].modules.map(
       (m: ModuleInterface) => m.productId
     )
-    expect(ids).toEqual(['varial', 'xbull'])
+    expect(ids).toEqual(['varial', 'albedo', 'LEDGER'])
+    const list = await wallet.listWallets()
+    // Albedo answers http pages (checked against albedo.link from
+    // http://127.0.0.1), so it stays usable.
+    expect(list.find((w) => w.id === 'albedo')?.access).toBe('web')
+    expect(list.find((w) => w.id === 'LEDGER')).toMatchObject({
+      access: 'unavailable',
+      isAvailable: false,
+      unavailableReason:
+        'Ledger works only on a secure (https) page, and this page uses http.',
+    })
+    const error = await rejection(wallet.connect({ walletId: 'LEDGER' }))
+    expect(error.kind).toBe('unsupported')
+    expect(fake.kit.fetchAddress).not.toHaveBeenCalled()
   })
 })
 
@@ -502,5 +519,68 @@ describe('copy', () => {
     expect(classifyWalletError(error)).toBe(error)
     expect(isWalletError(error, 'locked')).toBe(true)
     expect(isWalletError(new Error('x'))).toBe(false)
+  })
+})
+
+describe('the account before signing (#547)', () => {
+  test('a Varial wallet that switched accounts is stopped before the signature, naming who signs', async () => {
+    const fake = fakeKit()
+    const varial = fake.bundle.modules[0] as unknown as {
+      getAddress: (p?: { skipRequestAccess?: boolean }) => Promise<{
+        address: string
+      }>
+    }
+    varial.getAddress = vi.fn(async () => ({ address: OTHER }))
+    const wallet = adapterFor(fake)
+    await wallet.connect({ walletId: 'varial' })
+    const events: unknown[] = []
+    wallet.subscribe((event) => events.push(event))
+    const error = await rejection(wallet.signTransaction('AAAA'))
+    expect(error.kind).toBe('wrong-account')
+    expect(error.expectedAddress).toBe(ADDRESS)
+    expect(error.walletAddress).toBe(OTHER)
+    // Read without a prompt, and no signature was requested.
+    expect(varial.getAddress).toHaveBeenCalledWith({ skipRequestAccess: true })
+    expect(fake.kit.signTransaction).not.toHaveBeenCalled()
+    // The page now knows the wallet's account.
+    expect(wallet.getConnection()?.address).toBe(OTHER)
+    expect(events).toContainEqual({ type: 'account', address: OTHER })
+  })
+
+  test('the same account signs as before', async () => {
+    const fake = fakeKit()
+    ;(fake.bundle.modules[0] as unknown as Record<string, unknown>).getAddress =
+      vi.fn(async () => ({ address: ADDRESS }))
+    const wallet = adapterFor(fake)
+    await wallet.connect({ walletId: 'varial' })
+    await expect(wallet.signTransaction('AAAA')).resolves.toMatchObject({
+      signedTxXdr: 'AAAA:signed',
+    })
+  })
+
+  test('a wallet whose account read could prompt is not asked again', async () => {
+    const fake = fakeKit({ available: ['varial', 'xbull'] })
+    const read = vi.fn(async () => ({ address: OTHER }))
+    ;(fake.bundle.modules[1] as unknown as Record<string, unknown>).getAddress =
+      read
+    const wallet = adapterFor(fake)
+    await wallet.connect({ walletId: 'xbull' })
+    await wallet.signTransaction('AAAA')
+    expect(read).not.toHaveBeenCalled()
+  })
+
+  test('a signer other than the connected address is refused before signing', async () => {
+    const fake = fakeKit()
+    const wallet = adapterFor(fake)
+    await wallet.connect({ walletId: 'varial' })
+    const error = await rejection(
+      wallet.signTransaction('AAAA', { address: OTHER })
+    )
+    expect(error).toMatchObject({
+      kind: 'wrong-account',
+      expectedAddress: OTHER,
+      walletAddress: ADDRESS,
+    })
+    expect(fake.kit.signTransaction).not.toHaveBeenCalled()
   })
 })

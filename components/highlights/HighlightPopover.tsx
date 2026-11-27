@@ -1,5 +1,6 @@
 'use client'
 
+import '@/components/highlights/highlights.css'
 import type { TipXlmPreset } from '@/lib/constants'
 
 import { useState } from 'react'
@@ -7,6 +8,7 @@ import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { HighlightTipButton } from './HighlightTipButton'
+import { HighlightTipGate } from './HighlightTipGate'
 import { Id } from '@/convex/_generated/dataModel'
 import { HighlightPaperSlip } from './HighlightPaperSlip'
 import { useAuth } from '@/components/providers/AuthContext'
@@ -52,6 +54,7 @@ export function HighlightPopover({
   selectedText,
   articleId,
   articleSlug,
+  articleTitle,
   authorName,
   authorStellarAddress,
   startOffset,
@@ -151,36 +154,41 @@ export function HighlightPopover({
               authorStellarAddress &&
               startOffset !== undefined &&
               endOffset !== undefined && (
-                <HighlightTipButton
-                  articleId={articleId}
-                  articleSlug={articleSlug}
-                  authorName={authorName || 'Author'}
-                  authorStellarAddress={authorStellarAddress}
-                  highlightText={selectedText}
-                  startOffset={startOffset}
-                  endOffset={endOffset}
-                  startContainerPath={startContainerPath}
-                  endContainerPath={endContainerPath}
-                  selectionStartPosition={selectionStartPosition}
-                  selectionEndPosition={selectionEndPosition}
-                  className="slip-action"
-                  label="Highlight & tip"
-                  disabled={isSaving}
-                  onBeforeOpen={
-                    isAuthenticated
-                      ? () => handleSaveHighlight(true)
-                      : undefined
-                  }
-                  resumeOpen={Boolean(resumeHighlightTip)}
-                  resumeAmountCents={resumeHighlightTip?.amountCents}
-                  resumeAmountXlm={resumeHighlightTip?.amountXlm}
-                  resumeCustomAmount={resumeHighlightTip?.customAmount}
-                  onResumeDialogVisible={() => {
-                    if (resumeHighlightTip) {
-                      onHighlightTipResumeOpened?.()
+                <HighlightTipGate articleId={articleId}>
+                  <HighlightTipButton
+                    articleId={articleId}
+                    articleSlug={articleSlug}
+                    articleTitle={articleTitle}
+                    authorName={authorName || 'Author'}
+                    authorStellarAddress={authorStellarAddress}
+                    highlightText={selectedText}
+                    startOffset={startOffset}
+                    endOffset={endOffset}
+                    startContainerPath={startContainerPath}
+                    endContainerPath={endContainerPath}
+                    selectionStartPosition={selectionStartPosition}
+                    selectionEndPosition={selectionEndPosition}
+                    className="slip-action"
+                    label="Highlight & tip"
+                    disabled={isSaving}
+                    // After a result, Done closes this passage slip too.
+                    onDone={onClose}
+                    onBeforeOpen={
+                      isAuthenticated
+                        ? () => handleSaveHighlight(true)
+                        : undefined
                     }
-                  }}
-                />
+                    resumeOpen={Boolean(resumeHighlightTip)}
+                    resumeAmountCents={resumeHighlightTip?.amountCents}
+                    resumeAmountXlm={resumeHighlightTip?.amountXlm}
+                    resumeCustomAmount={resumeHighlightTip?.customAmount}
+                    onResumeDialogVisible={() => {
+                      if (resumeHighlightTip) {
+                        onHighlightTipResumeOpened?.()
+                      }
+                    }}
+                  />
+                </HighlightTipGate>
               )}
           </div>
           {error && (

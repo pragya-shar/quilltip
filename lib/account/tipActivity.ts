@@ -24,6 +24,10 @@ type ActivityBase = {
   stellarNetwork?: string
   stellarAmountXlm?: string
   amountUsdSuspicious?: boolean
+  /** The contract generation the row was recorded with. */
+  contractVersion: 'v1' | 'v2'
+  /** v2 `MISMATCH` only: `author` when paid to the registered address. */
+  mismatchReason?: string
 }
 export type TipActivityItem = ActivityBase &
   (
@@ -71,6 +75,11 @@ export function normalizeTipActivity(
         stellarAmountXlm: tip.stellarAmountXlm,
         amountUsdSuspicious:
           'amountUsdSuspicious' in tip ? tip.amountUsdSuspicious : undefined,
+        contractVersion: tip.contractVersion === 'v2' ? 'v2' : 'v1',
+        mismatchReason:
+          'mismatchReason' in tip && typeof tip.mismatchReason === 'string'
+            ? tip.mismatchReason
+            : undefined,
       }
       rows.push(
         'highlightText' in tip

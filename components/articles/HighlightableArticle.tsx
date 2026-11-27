@@ -1,5 +1,6 @@
 'use client'
 
+import '@/components/highlights/highlights.css'
 import type { TipXlmPreset } from '@/lib/constants'
 
 import { focusLibraryHighlight } from '@/lib/library/focusHighlight'
@@ -795,6 +796,7 @@ export function HighlightableArticle({
               selectedText={selectedText.text}
               articleId={articleId}
               articleSlug={article.slug}
+              articleTitle={article.title}
               authorName={
                 article.author?.name || article.authorName || 'Author'
               }
@@ -848,6 +850,7 @@ export function HighlightableArticle({
               currentUserId={user?._id as Id<'users'> | undefined}
               articleId={articleId}
               articleSlug={article.slug}
+              articleTitle={article.title}
               authorName={
                 article.author?.name || article.authorName || 'Author'
               }

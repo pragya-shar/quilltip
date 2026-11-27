@@ -11,12 +11,14 @@
  */
 
 import { STELLAR_NETWORK_DEFAULTS } from '@/lib/stellar/network'
+import { WALLETCONNECT_PROJECT_ID_PATTERN } from '@/lib/stellar/v2/walletconnect-gate'
 
 export type ContentSecurityPolicyEnv = {
   NEXT_PUBLIC_CONVEX_URL?: string
   NEXT_PUBLIC_HORIZON_URL?: string
   NEXT_PUBLIC_SOROBAN_RPC_URL?: string
   NEXT_PUBLIC_STELLAR_RPC_URL?: string
+  NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?: string
   VERCEL_ENV?: string
 }
 
@@ -39,15 +41,33 @@ export const STELLAR_TESTNET_ORIGINS = [
 
 /**
  * Stellar Wallets Kit 2.x, with the modules in lib/stellar/v2/wallet-kit.ts.
- * Extension wallets (Varial, LOBSTR, Rabet, Hana) talk to the page through
- * `window` and `postMessage`, and xBull and Albedo sign in popups, so they
- * need no connect entry. Albedo keeps an implicit-flow session in an iframe,
- * and the wallet picker shows icons from the kit's CDN. WalletConnect is
- * refused at build time (lib/stellar/v2/walletconnect-gate.ts), so its relay
- * origins are not allowed.
+ * Extension wallets (Varial, xBull, Rabet, Hana, Scopuly, D'CENT) talk to
+ * the page through `window` and `postMessage`, and xBull's web wallet and
+ * Albedo sign in popups, so they need no connect entry. Albedo keeps an
+ * implicit-flow session in an iframe, and the wallet picker shows icons from
+ * the kit's CDN.
  */
 export const WALLET_FRAME_ORIGINS = ['https://albedo.link']
 export const WALLET_IMAGE_ORIGINS = ['https://stellar.creit.tech']
+
+/**
+ * WalletConnect, only when a project ID is configured. Quilltip's module
+ * uses `@walletconnect/sign-client` 2.23 with telemetry off, so the page
+ * talks to two services:
+ * - the relay, over a WebSocket (`relayUrl`, the client's default);
+ * - Verify, which registers the page's origin from a hidden iframe. The
+ *   client tries both Verify hosts.
+ * No Reown AppKit host (its API, fonts, images or analytics) is needed.
+ */
+export const WALLETCONNECT_CONNECT_ORIGINS = ['wss://relay.walletconnect.org']
+export const WALLETCONNECT_FRAME_ORIGINS = [
+  'https://verify.walletconnect.org',
+  'https://verify.walletconnect.com',
+]
+
+function walletConnectOn(projectId: string | undefined): boolean {
+  return WALLETCONNECT_PROJECT_ID_PATTERN.test(projectId?.trim() ?? '')
+}
 
 /** Hosts of images in articles, covers and avatars. */
 const CONTENT_IMAGE_SOURCES = [
@@ -110,6 +130,9 @@ export function buildContentSecurityPolicy(
   env: ContentSecurityPolicyEnv
 ): string {
   const isVercelPreview = env.VERCEL_ENV === 'preview'
+  const walletConnect = walletConnectOn(
+    env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
+  )
 
   const directives: [string, string[]][] = [
     ['default-src', ["'self'"]],
@@ -149,6 +172,7 @@ export function buildContentSecurityPolicy(
         ...configuredOrigin(env.NEXT_PUBLIC_HORIZON_URL),
         ...configuredOrigin(env.NEXT_PUBLIC_SOROBAN_RPC_URL),
         ...configuredOrigin(env.NEXT_PUBLIC_STELLAR_RPC_URL),
+        ...(walletConnect ? WALLETCONNECT_CONNECT_ORIGINS : []),
       ]),
     ],
     [
@@ -157,6 +181,7 @@ export function buildContentSecurityPolicy(
         "'self'",
         ...VIDEO_FRAME_ORIGINS,
         ...WALLET_FRAME_ORIGINS,
+        ...(walletConnect ? WALLETCONNECT_FRAME_ORIGINS : []),
         ...(isVercelPreview ? [VERCEL_PREVIEW_ORIGIN] : []),
       ],
     ],

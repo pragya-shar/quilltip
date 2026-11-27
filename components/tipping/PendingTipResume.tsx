@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { HighlightTipButton } from '@/components/highlights/HighlightTipButton'
+import { HighlightTipButtonV1 as HighlightTipButton } from '@/components/highlights/HighlightTipButtonV1'
 import { useHighlightTipResume } from '@/hooks/useHighlightTipResume'
 import type { HighlightPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import type { Id } from '@/convex/_generated/dataModel'

@@ -41,13 +41,23 @@ window.__walletFixture = { prepared: 0, signedXdr: null, proofs: [] }
 const params = new URLSearchParams(location.search)
 
 // A throwaway testnet key for the emulated wallet (e2e/helpers/varialEmulator.ts).
-const fixtureKey = Keypair.random()
+// `?secret=` sets it, so a wallet window on another origin (the xBull web
+// wallet stand-in) can sign as the same account.
+const fixtureKey = params.get('secret')
+  ? Keypair.fromSecret(params.get('secret')!)
+  : Keypair.random()
 ;(window as unknown as { __fixtureWallet: unknown }).__fixtureWallet = {
   address: fixtureKey.publicKey(),
   signMessage: (message: string) =>
     btoa(String.fromCharCode(...fixtureKey.signMessage(message))),
   signTransaction: (xdr: string) => {
     const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET) as Transaction
+    tx.sign(fixtureKey)
+    return tx.toXDR()
+  },
+  /** Signs for `passphrase`, as a wallet set to that network does. */
+  signTransactionFor: (xdr: string, passphrase: string) => {
+    const tx = TransactionBuilder.fromXDR(xdr, passphrase) as Transaction
     tx.sign(fixtureKey)
     return tx.toXDR()
   },
@@ -166,6 +176,13 @@ export function useMutation(name: string) {
     }
   }
   return async () => {
+    // `?server=remove-fails`: saving the profile fails, for the error state
+    // of the address removal dialog.
+    if (
+      name === 'users.updateProfile' &&
+      params.get('server') === 'remove-fails'
+    )
+      throw new Error('Couldn’t remove the address. Please try again.')
     if (name === 'tips.prepareArticleTip') {
       window.__walletFixture.prepared += 1
       return {
@@ -187,9 +204,78 @@ export function useMutation(name: string) {
   }
 }
 
+/**
+ * `?tips=1`: tip history for the signed-in reader, one record per receipt
+ * state (#539): a confirmed tip sent with a note, a failed tip received with
+ * an amount to review, and a pending passage tip. Testnet records only.
+ */
+const TIP_AT = Date.UTC(2026, 10, 20, 12)
+const source = (slug: string, title: string) => ({
+  title,
+  slug,
+  authorUsername: 'writer',
+})
+const TIPS: Record<string, unknown[]> = {
+  'tips.getUserSentTips': [
+    {
+      _id: 'tip-sent',
+      tipperId: 'qa-reader',
+      authorId: 'qa-writer',
+      authorName: 'Ada Lovelace',
+      status: 'CONFIRMED',
+      createdAt: TIP_AT,
+      amountCents: 100,
+      articleTitle: 'The quiet economics of attention',
+      sourceArticle: source(
+        'quiet-economics',
+        'The quiet economics of attention'
+      ),
+      message: 'Thank you for this one.',
+      stellarTxId: 'a'.repeat(64),
+      stellarNetwork: 'TESTNET',
+      stellarAmountXlm: '10.0000000',
+    },
+  ],
+  'tips.getUserReceivedTips': [
+    {
+      _id: 'tip-received',
+      tipperId: 'qa-other',
+      authorId: 'qa-reader',
+      tipperName: 'Grace Hopper',
+      status: 'FAILED',
+      createdAt: TIP_AT - 86_400_000,
+      amountCents: 250,
+      amountUsdSuspicious: true,
+      articleTitle: 'Notes on slow reading',
+      sourceArticle: source('slow-reading', 'Notes on slow reading'),
+      failureReason: 'The transaction was not found on Stellar testnet.',
+      stellarTxId: 'b'.repeat(64),
+      stellarNetwork: 'TESTNET',
+    },
+  ],
+  'highlightTips.getByTipper': [
+    {
+      _id: 'passage-sent',
+      tipperId: 'qa-reader',
+      authorId: 'qa-writer',
+      authorName: 'Ada Lovelace',
+      status: 'PENDING',
+      createdAt: TIP_AT - 2 * 86_400_000,
+      amountCents: 50,
+      articleTitle: 'Why marginalia matter',
+      sourceArticle: source('marginalia', 'Why marginalia matter'),
+      highlightText: 'A margin is where a reader answers back.',
+      highlightId: 'highlight-1',
+      stellarNetwork: 'TESTNET',
+    },
+  ],
+  'highlightTips.getByAuthor': [],
+}
+
 export function useQuery(name: string) {
   const current = useSyncExternalStore(subscribeLink, () => link)
-  return name === 'walletLink.getMyWalletLink' ? current : undefined
+  if (name === 'walletLink.getMyWalletLink') return current
+  return params.get('tips') === '1' ? TIPS[name] : undefined
 }
 
 export function useAuth() {
@@ -221,6 +307,16 @@ export const stellarClient = {
 }
 
 export { READER }
+
+/** The signed-in writer for `?view=dashboard`, with the linked address. */
+export function fixtureUser() {
+  return {
+    _id: 'qa-writer',
+    username: 'writer',
+    name: 'Writer',
+    stellarAddress: link.address ?? undefined,
+  }
+}
 
 /** next/dynamic without Next: React.lazy behind Suspense. */
 export default function dynamic<P extends object>(

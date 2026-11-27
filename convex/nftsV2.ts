@@ -444,6 +444,46 @@ export type MintProgress = {
   chainArticleUpdatedAt: number | null
 }
 
+/**
+ * The cached config row (`chainConfig`) when it describes the configured NFT
+ * contract in this chain epoch, otherwise null. `refreshChainConfig` fills it
+ * and the indexer updates the threshold and the pause flag from NFT events.
+ */
+async function cachedNftConfig(
+  ctx: QueryCtx,
+  chain: Pick<ReturnType<typeof readChainEnv>, 'network' | 'chainEpoch'> & {
+    nftContractId: string | null
+  }
+): Promise<Doc<'chainConfig'> | null> {
+  if (!chain.nftContractId) return null
+  const config = await ctx.db
+    .query('chainConfig')
+    .withIndex('by_network', (q) => q.eq('network', chain.network))
+    .first()
+  return config &&
+    config.chainEpoch === chain.chainEpoch &&
+    config.nftContractId === chain.nftContractId
+    ? config
+    : null
+}
+
+/** Refuses with `PAUSED` while the cached config says the NFT contract is paused. */
+async function requireNftOpen(
+  ctx: QueryCtx,
+  chain: Caller['chain'],
+  action: 'mint' | 'transfer'
+): Promise<void> {
+  const config = await cachedNftConfig(ctx, chain)
+  if (config?.paused.nft === true) {
+    fail(
+      'PAUSED',
+      action === 'mint'
+        ? 'Minting is paused. Try again later.'
+        : 'NFT transfers are paused. Try again later.'
+    )
+  }
+}
+
 export const getMintProgress = query({
   args: { articleId: v.id('articles') },
   handler: async (ctx, args): Promise<MintProgress> => {
@@ -476,6 +516,7 @@ export const getMintProgress = query({
     if (!chainArticle || chainArticle.status !== 'REGISTERED') {
       return { ...out, state: 'NOT_REGISTERED' }
     }
+    const current = await cachedNftConfig(ctx, chain)
     const nft = await findV2ArticleNft(ctx, {
       articleId: args.articleId,
       contractId: chain.nftContractId,
@@ -488,19 +529,11 @@ export const getMintProgress = query({
         tokenId: Number(nft.tokenId),
         nftId: nft._id,
         ownerAddress: nft.ownerAddress ?? null,
+        // The owner's transfer action follows this flag.
+        paused: current?.paused.nft ?? null,
+        configRefreshedAt: current?.refreshedAt ?? null,
       }
     }
-    const config = await ctx.db
-      .query('chainConfig')
-      .withIndex('by_network', (q) => q.eq('network', chain.network))
-      .first()
-    // Cached values count only when they describe the configured contract.
-    const current =
-      config &&
-      config.chainEpoch === chain.chainEpoch &&
-      config.nftContractId === chain.nftContractId
-        ? config
-        : null
     const token = current?.nftThresholdToken ?? null
     const threshold = token ? (current?.nftThreshold ?? null) : null
     const total = token ? (chainArticle.totals[token] ?? '0') : null
@@ -792,6 +825,7 @@ export const prepareMint = mutation({
         tokenId: Number(minted.tokenId),
       })
     }
+    await requireNftOpen(ctx, c.chain, 'mint')
     const now = Date.now()
     const nftKey = mintNftKey(c.chain.nftContractId, chainArticle.articleKey)
     const open = await openSubmission(ctx, nftKey, now)
@@ -935,6 +969,7 @@ export const prepareTransfer = mutation({
     if (to.address === c.verifiedAddress) {
       fail('SELF_TRANSFER', 'This NFT is already in that wallet.')
     }
+    await requireNftOpen(ctx, c.chain, 'transfer')
     const tokenId = Number(nft.tokenId)
     const now = Date.now()
     const nftKey = tokenNftKey(c.chain.nftContractId, tokenId)

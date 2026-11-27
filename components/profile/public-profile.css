@@ -6,7 +6,7 @@
   --profile-line: #cdb9b4;
   background: #d0a7a3;
   color: var(--profile-ink);
-  font-family: 'Reading Room Syne', sans-serif;
+  font-family: 'Reading Room Syne', 'Syne 600 Fallback', sans-serif;
   color-scheme: light;
 }
 .profile-folio {
@@ -36,6 +36,7 @@
   color: var(--profile-wine);
   font:
     42px/1 'Reading Room Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
 }
@@ -47,6 +48,7 @@
   margin: -8px 0 8px;
   font:
     400 clamp(40px, 5vw, 64px)/1.1 'Reading Room Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   letter-spacing: -0.025em;
@@ -69,6 +71,7 @@
   margin-top: 24px;
   font:
     22px/1.6 'Reading Room Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   white-space: pre-line;
@@ -155,6 +158,7 @@
 .profile-empty h2 {
   font:
     36px/1.2 'Reading Room Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   margin-bottom: 16px;
@@ -228,6 +232,7 @@
 .profile-photo-dialog h2 {
   font:
     32px/1.2 'Reading Room Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
 }
@@ -316,6 +321,7 @@
 .profile-collection-heading h2 {
   font:
     36px/1.2 'Reading Room Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   margin-bottom: 8px;
@@ -395,6 +401,7 @@
   color: #660033;
   font:
     28px/1 'Library Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
 }

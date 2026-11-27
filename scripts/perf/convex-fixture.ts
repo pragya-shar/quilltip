@@ -74,6 +74,8 @@ function fixtureArticle(index: number) {
     published: true,
     publishedAt: BASE_TIME - index * 86_400_000,
     readTime: index === 0 ? 4 : 1,
+    // Real rows carry the search text too; /articles must not send it.
+    searchContent: `${title} ${paragraphs.join(' ')}`,
     slug,
     tags: ['stories'],
     tipCount: 0,

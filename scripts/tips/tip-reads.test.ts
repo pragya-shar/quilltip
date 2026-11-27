@@ -801,6 +801,9 @@ describe('earnings access and mixed summary', () => {
       network: 'TESTNET',
       tipCount: 2,
       writerShareStroops: '3900000',
+      // The XLM the stats show: 3,900,000 (v1) + 975,000 (v2) stroops, the
+      // same tips `estimatedUsd` counts (#547).
+      earnedStroops: '4875000',
       // 97.5 (v1) + 24.375 (v2) cents
       estimatedUsd: 1.21875,
       earnedBaseUnits: { [TOKEN]: '975000' },

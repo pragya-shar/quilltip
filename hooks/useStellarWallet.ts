@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { wallet, type WalletConnection } from '@/lib/stellar/v2/wallet-kit'
 import {
-  WalletError,
   isWalletError,
   type WalletErrorKind,
 } from '@/lib/stellar/v2/wallet-errors'
@@ -33,7 +32,7 @@ export interface StellarWalletActions {
   /**
    * Opens Quilltip's wallet picker. Resolves true once connected, false when
    * the reader closes the picker; throws a `WalletError` for every other
-   * failure (`no-wallet` before the picker opens).
+   * failure. The picker opens without an extension too.
    */
   connect: () => Promise<boolean>
   disconnect: () => void
@@ -95,9 +94,8 @@ export function useStellarWallet(): StellarWalletState & StellarWalletActions {
     // focus returns to it when the picker closes.
     setState((prev) => ({ ...prev, error: null, errorKind: null }))
     try {
-      if (!(await wallet.hasWallet())) {
-        throw new WalletError('no-wallet', 'No Stellar wallet detected')
-      }
+      // The picker opens without an extension too: it offers web wallets
+      // (xBull, Albedo) and install links for the extensions.
       setWalletPickerOpen(true)
       let connection
       try {

@@ -131,6 +131,30 @@ const thresholdSet: ChainEventHandler = async (ctx, event) => {
   return 'done'
 }
 
+/**
+ * `paused` and `unpaused` from the configured NFT contract set the cached
+ * pause flag, so the transfer action and the prepare check follow a pause
+ * within one indexer run instead of the hourly refresh.
+ */
+function pauseSet(paused: boolean): ChainEventHandler {
+  return async (ctx, event) => {
+    const config = await ctx.db
+      .query('chainConfig')
+      .withIndex('by_network', (q) => q.eq('network', event.doc.network))
+      .first()
+    if (
+      config &&
+      config.nftContractId === event.doc.contractId &&
+      config.chainEpoch === event.doc.chainEpoch
+    ) {
+      await ctx.db.patch(config._id, {
+        paused: { ...config.paused, nft: paused },
+      })
+    }
+    return 'done'
+  }
+}
+
 /** Stored for the record; no table depends on them. */
 const recordOnly: ChainEventHandler = async () => 'done'
 
@@ -144,8 +168,8 @@ export const NFT_EVENT_HANDLERS: Readonly<Record<string, ChainEventHandler>> = {
   'nft:approve_for_all': recordOnly,
   'nft:threshold_set': thresholdSet,
   'nft:nft_migrated': recordOnly,
-  'nft:paused': recordOnly,
-  'nft:unpaused': recordOnly,
+  'nft:paused': pauseSet(true),
+  'nft:unpaused': pauseSet(false),
   'nft:role_granted': recordOnly,
   'nft:role_revoked': recordOnly,
   'nft:role_admin_changed': recordOnly,

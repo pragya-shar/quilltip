@@ -1,4 +1,7 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
+import AxeBuilder from '@axe-core/playwright'
+import { mkdirSync } from 'node:fs'
+import path from 'node:path'
 import {
   Networks,
   TransactionBuilder,
@@ -271,12 +274,27 @@ test('a prepare for another network is refused locally', async ({ page }) => {
   ])
 })
 
-test('no wallet extension says what to install', async ({ page }) => {
+test('no wallet extension: the picker offers web wallets and install links', async ({
+  page,
+}) => {
   const panel = await open(page, 'state=ready', 'missing')
   await panel.getByRole('button', { name: 'Enable tips' }).click()
-  await expect(panel.getByRole('alert')).toContainText(
-    'No Stellar wallet found'
-  )
+  const picker = page.getByRole('dialog', { name: 'Choose a wallet' })
+  await expect(
+    picker
+      .getByRole('region', { name: 'No install needed' })
+      .getByRole('button', { name: /^xBull/ })
+  ).toBeVisible()
+  await expect(
+    picker
+      .getByRole('region', { name: 'Not installed' })
+      .getByRole('link', { name: /^Varial/ })
+  ).toBeVisible()
+  // Closing the picker is not an error.
+  await page.keyboard.press('Escape')
+  await expect(picker).toBeHidden()
+  await expect(panel.getByRole('alert')).toHaveCount(0)
+  expect((await log(page)).signed).toEqual([])
 })
 
 test('an already registered article is reported from simulation', async ({
@@ -424,6 +442,7 @@ test('readers see why tips are off', async ({ page }) => {
       'payout_outdated',
       'Tips are paused while the writer updates their wallet.',
     ],
+    ['paused', 'Tips are paused for a short time while payments are updated.'],
   ]) {
     await page.goto(`/?reader=${reason}`)
     await expect(page.getByRole('status')).toHaveText(text!)
@@ -457,3 +476,158 @@ for (const width of [375, 768, 1440]) {
     }
   })
 }
+
+// --- Pending stages (#527) ------------------------------------------------
+// The pending view takes its stage from the submission status: PREPARED
+// before the signed transaction is recorded, SUBMITTED after.
+
+const SHOTS = process.env.ARTICLE_TIPS_SCREENSHOTS
+if (SHOTS) mkdirSync(SHOTS, { recursive: true })
+
+const stageStatus = (panel: Locator) =>
+  panel.locator('.tips-progress[data-stage]')
+
+async function checkLayout(page: Page, name: string, width: number) {
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth
+    )
+  ).toBeLessThanOrEqual(0)
+  // The fixture page is a bare shell; check the panel itself.
+  const results = await new AxeBuilder({ page })
+    .include('section.article-tips')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze()
+  expect(
+    results.violations.map(
+      (v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`
+    )
+  ).toEqual([])
+  if (SHOTS) {
+    await page.screenshot({
+      path: path.join(SHOTS, `${name}-${width}.png`),
+      fullPage: true,
+    })
+  }
+}
+
+for (const width of [375, 768, 1440] as const) {
+  test.describe(`pending stages at ${width}px`, () => {
+    test.use({ viewport: { width, height: 900 } })
+
+    test('before approval, nothing is sent until the wallet approves', async ({
+      page,
+    }) => {
+      const panel = await open(page, 'state=ready', 'timeout-sign')
+      await panel.getByRole('button', { name: 'Enable tips' }).click()
+      await chooseVarial(page)
+      const status = stageStatus(panel)
+      await expect(status).toHaveAttribute('data-stage', 'approval')
+      await expect(status).toHaveText(
+        'Enabling tips. Nothing is sent until you approve it in your wallet.'
+      )
+      await expect(
+        panel.getByText('Keep this page open until it is sent.')
+      ).toBeVisible()
+      // The stage line has no spinner while the wallet waits for the
+      // writer; the step line below it keeps its own.
+      await expect(status.locator('.tips-spinner')).toHaveCount(0)
+      await expect(panel.getByText(/Waiting for Stellar testnet/)).toHaveCount(
+        0
+      )
+      await expect(panel.getByText(/You can leave this page/)).toHaveCount(0)
+      await expect(
+        panel.getByRole('link', { name: /View the transaction/ })
+      ).toHaveCount(0)
+      await checkLayout(page, 'pending-approval', width)
+      const { signed, submitted } = await log(page)
+      expect(signed).toEqual([])
+      expect(submitted).toEqual([])
+    })
+
+    test('once sent, it waits for Stellar testnet and the page can be left', async ({
+      page,
+    }) => {
+      const panel = await open(
+        page,
+        'state=ready&simulateDelay=800&confirmDelay=4000'
+      )
+      await panel.getByRole('button', { name: 'Enable tips' }).click()
+      await chooseVarial(page)
+      const status = stageStatus(panel)
+      await expect(status).toHaveAttribute('data-stage', 'approval')
+      await status.evaluate((element) => {
+        ;(element as HTMLElement).dataset.seen = 'approval'
+      })
+      await expect(status).toHaveAttribute('data-stage', 'confirming')
+      await expect(status).toHaveText(
+        'Enabling tips. Waiting for Stellar testnet to confirm.'
+      )
+      // The same live element changed its text: the stage change is
+      // announced once, not as a new region.
+      await expect(status).toHaveAttribute('data-seen', 'approval')
+      await expect(status).toHaveAttribute('aria-atomic', 'true')
+      await expect(status.locator('.tips-spinner')).toHaveCount(1)
+      await expect(
+        panel.getByText(
+          'This usually takes a few seconds. You can leave this page; it finishes without you.'
+        )
+      ).toBeVisible()
+      await expect(
+        panel.getByRole('link', { name: /View the transaction/ })
+      ).toBeVisible()
+      await checkLayout(page, 'pending-confirming', width)
+    })
+
+    test('after a reload while prepared, it checks whether it went through', async ({
+      page,
+    }) => {
+      const panel = await open(page, 'state=pending-prepared')
+      const status = stageStatus(panel)
+      await expect(status).toHaveAttribute('data-stage', 'resuming')
+      await expect(status).toHaveText(
+        'Enabling tips. Checking whether the request went through.'
+      )
+      await expect(status.locator('.tips-spinner')).toHaveCount(1)
+      await expect(
+        panel.getByText(
+          'This can take several minutes. If it did not go through, you can try again when the check ends.'
+        )
+      ).toBeVisible()
+      await expect(panel.getByRole('button')).toHaveCount(0)
+      await checkLayout(page, 'pending-resuming', width)
+    })
+  })
+}
+
+test('an anchor update and a wallet move show the same stages', async ({
+  page,
+}) => {
+  const panel = await open(page, 'state=outdated', 'timeout-sign')
+  await panel.getByRole('button', { name: 'Update the anchor' }).click()
+  await chooseVarial(page)
+  await expect(stageStatus(panel)).toHaveText(
+    'Updating the anchor. Nothing is sent until you approve it in your wallet.'
+  )
+
+  const move = await open(page, 'state=move', 'timeout-sign')
+  await move.getByRole('button', { name: /^Approve with / }).click()
+  await chooseVarial(page)
+  await expect(stageStatus(move)).toHaveText(
+    'Recording the old wallet’s approval. Nothing is sent until you approve it in your wallet.'
+  )
+
+  const reloaded = await open(page, 'state=pending-update-prepared')
+  await expect(stageStatus(reloaded)).toHaveText(
+    'Updating the anchor. Checking whether the request went through.'
+  )
+})
+
+test('a refused approval leaves the prepared stage', async ({ page }) => {
+  const panel = await open(page, 'state=ready', 'reject-sign')
+  await panel.getByRole('button', { name: 'Enable tips' }).click()
+  await chooseVarial(page)
+  await expect(panel.getByRole('alert')).toBeVisible()
+  await expect(stageStatus(panel)).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Enable tips' })).toBeEnabled()
+})

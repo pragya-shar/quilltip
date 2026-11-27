@@ -43,6 +43,7 @@
   color: #660033;
   font:
     700 49px/1 'Account Syne',
+    'Syne Fallback',
     sans-serif;
   letter-spacing: -0.05em;
   white-space: nowrap;
@@ -109,6 +110,7 @@
   background: linear-gradient(115deg, #cfa29c, #be98ae);
   font:
     16px/1.55 'Account Syne',
+    'Syne Fallback',
     sans-serif;
   padding: 0 5vw;
 }
@@ -193,6 +195,7 @@
 .account-page h1 {
   font:
     600 35px/1.15 'Account Syne',
+    'Syne Fallback',
     sans-serif;
   letter-spacing: -1.1px;
   text-wrap: balance;
@@ -649,6 +652,7 @@
 .account-confirmation h2 {
   font:
     600 22px/1.3 'Account Syne',
+    'Syne Fallback',
     sans-serif;
   margin: 0 0 10px;
   outline: none;

@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page } from './helpers/consoleGuard'
 import {
   installVarialEmulator,
   type VarialMode,
@@ -84,15 +84,18 @@ test('connects through the kit picker and signs a testnet tip', async ({
     .toBeTruthy()
 })
 
-test('no wallet: the install guide opens instead of the picker', async ({
+test('no extension: the picker opens with web wallets and install links', async ({
   page,
 }) => {
   await open(page, 'missing')
   await page.getByRole('button', { name: 'Connect Wallet' }).click()
+  const web = picker(page).getByRole('region', { name: 'No install needed' })
+  await expect(web.getByRole('button', { name: /^xBull/ })).toBeVisible()
   await expect(
-    page.getByRole('dialog', { name: 'Make room for a little appreciation.' })
-  ).toBeVisible()
-  await expect(picker(page)).toHaveCount(0)
+    picker(page)
+      .getByRole('region', { name: 'Not installed' })
+      .getByRole('link', { name: /^Varial/ })
+  ).toHaveAttribute('href', 'https://varialwallet.com')
 })
 
 test('locked wallet', async ({ page }) => {
@@ -100,6 +103,31 @@ test('locked wallet', async ({ page }) => {
   await chooseVarial(page)
   await expect(page.getByText('Your wallet is locked')).toBeVisible()
   await expect(picker(page)).toBeHidden()
+})
+
+test('a locked wallet behind a password prompt is named while waiting and after (#547)', async ({
+  page,
+}) => {
+  // The real extension, when locked, waits behind its password prompt and
+  // tells the page nothing, so the app cannot show "locked" at once.
+  await page.clock.install()
+  await open(page, 'locked-prompt')
+  await chooseVarial(page)
+  await expect(
+    picker(page).getByText(
+      'Approve the request in Varial. If it asks for your password, unlock it first. If no window opened, check your browser toolbar.'
+    )
+  ).toBeVisible()
+  await expect
+    .poll(async () => (await requests(page)).map((r) => r.type))
+    .toContain('REQUEST_ACCESS')
+  await page.clock.fastForward(61_000)
+  await expect(page.getByText('Your wallet did not respond')).toBeVisible()
+  await expect(
+    page.getByText(
+      /Varial may be locked: unlock it, then try again\. If a wallet window is open, close it first\. Nothing was sent\./
+    )
+  ).toBeVisible()
 })
 
 test('wrong network is refused before any signature', async ({ page }) => {

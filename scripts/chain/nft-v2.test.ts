@@ -19,7 +19,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
-import type { Id } from '../../convex/_generated/dataModel'
+import type { Doc, Id } from '../../convex/_generated/dataModel'
 import type { RawRpcEvent } from '../../convex/lib/chain/rpc'
 import { bytesToHex, hexToBytes } from '../../convex/lib/chain/ids'
 import {
@@ -594,6 +594,15 @@ describe('prepareMint', () => {
     expect((await mint(t, s, 'mint-2')).existing).toBe(false)
   })
 
+  it('refuses while the cached config says the NFT contract is paused', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const config = await seedConfig(t, { paused: { nft: true } })
+    expect(await errorOf(mint(t, s))).toMatchObject({ code: 'PAUSED' })
+    await t.run(({ db }) => db.patch(config, { paused: { nft: false } }))
+    expect((await mint(t, s)).existing).toBe(false)
+  })
+
   it('validates the gate, the caller, the wallet, the registration and the article', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
@@ -757,6 +766,28 @@ describe('prepareTransfer', () => {
         transfer(t, s, row._id, { kind: 'address', address: COLLECTOR }, 'tx-2')
       )
     ).toMatchObject({ code: 'PENDING', submissionId: prepared.submissionId })
+  })
+
+  it('refuses while the cached config says the NFT contract is paused', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const row = await indexMint(t)
+    const config = await seedConfig(t, { paused: { nft: true } })
+    expect(
+      await errorOf(
+        transfer(t, s, row._id, { kind: 'address', address: STRANGER }, 'p-1')
+      )
+    ).toMatchObject({ code: 'PAUSED' })
+    // A paused contract of another deployment does not count.
+    await t.run(({ db }) => db.patch(config, { nftContractId: OTHER_NFT }))
+    const prepared = await transfer(
+      t,
+      s,
+      row._id,
+      { kind: 'address', address: STRANGER },
+      'p-2'
+    )
+    expect(prepared.args.to).toBe(STRANGER)
   })
 
   it('resolves a Quilltip user to their verified address', async () => {
@@ -1262,6 +1293,173 @@ describe('mint and transfer verification', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Earlier failed attempts and the event of a later attempt (#548)
+// ---------------------------------------------------------------------------
+
+describe('failed attempts before a confirmed mint', () => {
+  /** Mint attempts that the wallet refused before anything was sent. */
+  async function failedAttempts(t: T, s: Seeded, count = 3) {
+    const ids: Id<'chainSubmissions'>[] = []
+    for (let i = 0; i < count; i++) {
+      const prepared = await mint(t, s, `mint-failed-${i}`)
+      await as(t, s.authorId).mutation(api.chain.submissions.recordSendFailed, {
+        submissionId: prepared.submissionId,
+        reason: 'wallet_rejected',
+        detail: 'wrong-account',
+      })
+      ids.push(prepared.submissionId)
+    }
+    return ids
+  }
+
+  async function rows(t: T, ids: Id<'chainSubmissions'>[]) {
+    return t.run(async ({ db }) =>
+      Promise.all(ids.map(async (id) => (await db.get(id))!))
+    )
+  }
+
+  function expectUnflagged(rows: Doc<'chainSubmissions'>[]) {
+    for (const row of rows) {
+      expect(row.status).toBe('FAILED')
+      expect(row.needsReview).not.toBe(true)
+      expect(row.lastError).toBe('wallet_rejected: wrong-account')
+    }
+  }
+
+  function expectFlagged(rows: Doc<'chainSubmissions'>[]) {
+    for (const row of rows) {
+      expect(row).toMatchObject({
+        status: 'FAILED',
+        needsReview: true,
+        lastError: 'event_after_failure',
+      })
+    }
+  }
+
+  it('leaves the failed attempts unflagged when the confirmed retry has the event hash', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const failed = await failedAttempts(t, s)
+    const retry = await mint(t, s, 'mint-retry')
+    stubTransaction((hash) =>
+      successResponse(hash, [[eventXdr({ kind: 'minted' })]], LEDGER)
+    )
+    await submit(t, s.authorId, retry.submissionId)
+    expect((await status(t, s.authorId, retry.submissionId))!.status).toBe(
+      'CONFIRMED'
+    )
+
+    await indexMint(t)
+
+    expectUnflagged(await rows(t, failed))
+    expect(await status(t, s.authorId, retry.submissionId)).toMatchObject({
+      status: 'CONFIRMED',
+      txHash: HASH,
+      needsReview: false,
+      indexed: true,
+    })
+  })
+
+  it('leaves them unflagged when the event arrives before the retry is confirmed', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const failed = await failedAttempts(t, s)
+    const retry = await mint(t, s, 'mint-retry')
+    // RPC does not know the transaction yet: the retry stays SUBMITTED.
+    stubTransaction((hash) => ({
+      ...successResponse(hash, [[]], LEDGER),
+      status: 'NOT_FOUND',
+    }))
+    await as(t, s.authorId).mutation(api.chain.submissions.recordSubmitted, {
+      submissionId: retry.submissionId,
+      txHash: HASH,
+    })
+    expect((await status(t, s.authorId, retry.submissionId))!.status).toBe(
+      'SUBMITTED'
+    )
+
+    await indexMint(t)
+
+    expectUnflagged(await rows(t, failed))
+    expect(await status(t, s.authorId, retry.submissionId)).toMatchObject({
+      status: 'CONFIRMED',
+      txHash: HASH,
+      needsReview: false,
+    })
+  })
+
+  it('leaves a submission under another hash unflagged when a retry has the event hash', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const retry = await mint(t, s, 'mint-retry')
+    const other = await t.run(async ({ db }) => {
+      const row = (await db.get(retry.submissionId))!
+      const { _id, _creationTime, ...copy } = row
+      void _id
+      void _creationTime
+      return db.insert('chainSubmissions', {
+        ...copy,
+        requestId: 'mint-other',
+        status: 'SUBMITTED',
+        txHash: HASH2,
+      })
+    })
+    await t.run(({ db }) =>
+      db.patch(retry.submissionId, { status: 'SUBMITTED', txHash: HASH })
+    )
+
+    await indexMint(t)
+
+    const [otherRow, retryRow] = await rows(t, [other, retry.submissionId])
+    expect(otherRow!.needsReview).not.toBe(true)
+    expect(otherRow!.status).toBe('SUBMITTED')
+    expect(retryRow).toMatchObject({ status: 'CONFIRMED', txHash: HASH })
+  })
+
+  it('flags the failed attempts when no submission has the event hash', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const failed = await failedAttempts(t, s)
+
+    await indexMint(t)
+
+    expectFlagged(await rows(t, failed))
+    const [first] = failed
+    expect(await status(t, s.authorId, first!)).toMatchObject({
+      needsReview: true,
+      canRetry: false,
+    })
+  })
+
+  it('flags the failed attempts when the only open retry has no hash yet', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const failed = await failedAttempts(t, s)
+    const retry = await mint(t, s, 'mint-retry')
+
+    await indexMint(t)
+
+    // Nothing proves which attempt sent the transaction.
+    expectFlagged(await rows(t, failed))
+    expect(await status(t, s.authorId, retry.submissionId)).toMatchObject({
+      status: 'CONFIRMED',
+      txHash: HASH,
+    })
+  })
+
+  it('flags a failed attempt that recorded the event hash itself', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const [failed] = await failedAttempts(t, s, 1)
+    await t.run(({ db }) => db.patch(failed!, { txHash: HASH }))
+
+    await indexMint(t)
+
+    expectFlagged(await rows(t, [failed!]))
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Metadata and v1 rows
 // ---------------------------------------------------------------------------
 
@@ -1557,6 +1755,24 @@ function thresholdSetEvent(
   }
 }
 
+function pauseEvent(
+  name: 'paused' | 'unpaused',
+  opts: { ledger?: number; contractId?: string } = {}
+): RawRpcEvent {
+  const ledger = opts.ledger ?? LEDGER
+  return {
+    type: 'contract',
+    ledger,
+    ledgerClosedAt: new Date((T0S + 10) * 1000).toISOString(),
+    contractId: opts.contractId ?? NFT,
+    id: rpcEventId(ledger, 1, 0, 0),
+    txHash: HASH,
+    topic: [sym(name).toXDR('base64')],
+    value: map([['caller', addr(AUTHOR)]]).toXDR('base64'),
+    inSuccessfulContractCall: true,
+  }
+}
+
 const progress = (t: T, s: Seeded, userId: Id<'users'> | null = null) =>
   (userId ? as(t, userId) : t).query(api.nftsV2.getMintProgress, {
     articleId: s.articleId,
@@ -1656,6 +1872,33 @@ describe('getMintProgress', () => {
       nftId: row._id,
       ownerAddress: AUTHOR,
     })
+  })
+
+  it('reports the cached pause flag on a minted article', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await indexMint(t)
+    // No current cache: the pause state is unknown.
+    expect((await progress(t, s)).paused).toBeNull()
+    await seedConfig(t, { paused: { nft: true } })
+    expect(await progress(t, s)).toMatchObject({
+      state: 'MINTED',
+      paused: true,
+      configRefreshedAt: T0 - 60_000,
+    })
+  })
+
+  it('follows paused and unpaused events of the configured contract', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await seedConfig(t)
+    await ingest(t, [pauseEvent('paused', { contractId: OTHER_NFT })])
+    expect((await progress(t, s)).paused).toBe(false)
+    await ingest(t, [pauseEvent('paused', { ledger: LEDGER + 1 })])
+    expect((await progress(t, s)).paused).toBe(true)
+    expect(await eventHandled(t, rpcEventId(LEDGER + 1, 1, 0, 0))).toBe('done')
+    await ingest(t, [pauseEvent('unpaused', { ledger: LEDGER + 2 })])
+    expect((await progress(t, s)).paused).toBe(false)
   })
 
   it('reports DISABLED, NOT_FOUND and NOT_REGISTERED', async () => {

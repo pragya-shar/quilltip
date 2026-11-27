@@ -16,7 +16,7 @@ const ROUTE_CHECK_TIMEOUT_MS = 1500
 // hints out of the HTML head, so send them with the response instead.
 const WRITER_PAGE_FONT_PRELOADS = [
   '</prototype/fonts/library-syne.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin',
-  '</prototype/fonts/library-alegreya.woff>; rel=preload; as=font; type="font/woff"; crossorigin',
+  '</prototype/fonts/library-alegreya.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin',
 ].join(', ')
 
 // Profile settings and new-writer setup lay out in this typeface once the
@@ -121,6 +121,8 @@ export async function proxy(request: NextRequest) {
           NEXT_PUBLIC_HORIZON_URL: process.env.NEXT_PUBLIC_HORIZON_URL,
           NEXT_PUBLIC_SOROBAN_RPC_URL: process.env.NEXT_PUBLIC_SOROBAN_RPC_URL,
           NEXT_PUBLIC_STELLAR_RPC_URL: process.env.NEXT_PUBLIC_STELLAR_RPC_URL,
+          NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID:
+            process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
           VERCEL_ENV: process.env.VERCEL_ENV,
         })
       : null

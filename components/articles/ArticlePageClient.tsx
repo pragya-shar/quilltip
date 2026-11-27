@@ -3,7 +3,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArticleReadNext } from '@/components/articles/ArticleReadNext'
-import { useMemo } from 'react'
+import { lazy, Suspense, useMemo } from 'react'
 import type { FunctionReturnType } from 'convex/server'
 import type { api } from '@/convex/_generated/api'
 import {
@@ -15,7 +15,6 @@ import {
 import ArticleDisplay from '@/components/articles/ArticleDisplay'
 import { ArticlePageLoadingSkeleton } from '@/components/articles/ArticlePageLoadingSkeleton'
 import { ArticleReaderSupport } from '@/components/articles/ArticleReaderSupport'
-import { ArticleDetailsPanel } from '@/components/articles/ArticleDetailsPanel'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import { useAuth } from '@/components/providers/AuthContext'
@@ -32,6 +31,15 @@ import { extractH2HeadingsFromTiptapJson } from '@/lib/tiptap/headings'
 import { LoadingRegion } from '@/components/a11y/LoadingRegion'
 import { useStaleLoading } from '@/hooks/useStaleLoading'
 import { useRouter } from 'next/navigation'
+
+// The collapsed details panel sits below the article. The server renders it
+// into the HTML; its accordion, highlight notes and date code load while the
+// page hydrates instead of with the first scripts.
+const ArticleDetailsPanel = lazy(() =>
+  import('@/components/articles/ArticleDetailsPanel').then((mod) => ({
+    default: mod.ArticleDetailsPanel,
+  }))
+)
 
 type PublishedArticle = FunctionReturnType<typeof api.articles.getArticleBySlug>
 
@@ -174,22 +182,24 @@ export function ArticlePageClient({
               <ArticleSidebarSectionFallback onRetry={reset} />
             )}
           >
-            <ArticleDetailsPanel
-              articleId={article._id}
-              articleTitle={article.title}
-              articleExcerpt={article.excerpt}
-              articleSlug={article.slug}
-              authorId={article.author.id}
-              currentUserId={user?._id as Id<'users'> | undefined}
-              tocHeadings={tocHeadings}
-              highlights={highlights}
-              tipsByHighlight={tipsByHighlight}
-              tipStats={article.tipStats}
-              arweaveStatus={article.arweaveStatus}
-              arweaveTxId={article.arweaveTxId}
-              arweaveUrl={article.arweaveUrl}
-              arweaveTimestamp={article.arweaveTimestamp}
-            />
+            <Suspense fallback={null}>
+              <ArticleDetailsPanel
+                articleId={article._id}
+                articleTitle={article.title}
+                articleExcerpt={article.excerpt}
+                articleSlug={article.slug}
+                authorId={article.author.id}
+                currentUserId={user?._id as Id<'users'> | undefined}
+                tocHeadings={tocHeadings}
+                highlights={highlights}
+                tipsByHighlight={tipsByHighlight}
+                tipStats={article.tipStats}
+                arweaveStatus={article.arweaveStatus}
+                arweaveTxId={article.arweaveTxId}
+                arweaveUrl={article.arweaveUrl}
+                arweaveTimestamp={article.arweaveTimestamp}
+              />
+            </Suspense>
           </ErrorBoundary>
         </EditorialSurface>
       </main>

@@ -14,6 +14,7 @@ import type { ArticleForDisplay } from '@/types/index'
 import { estimateArticleReadingMinutes } from '@/lib/reading-time'
 import { articleCategoryLabel } from '@/lib/articles/browseDiscovery'
 import type { TocHeading } from '@/lib/tiptap/headings'
+import { afterLoadWhenIdle } from '@/lib/scheduling/afterLoadWhenIdle'
 import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
 
 const EMPTY_DOC: JSONContent = { type: 'doc', content: [] }
@@ -24,26 +25,6 @@ const ArticleReadOnlyBody = dynamic(() =>
     (mod) => mod.ArticleReadOnlyBody
   )
 )
-
-/** Runs `task` once the browser is idle after load, so it never delays first paint. */
-function afterLoadIdle(task: () => void) {
-  let idle: number | undefined
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const schedule = () => {
-    if ('requestIdleCallback' in window) {
-      idle = window.requestIdleCallback(task, { timeout: 1500 })
-    } else {
-      timer = setTimeout(task, 200)
-    }
-  }
-  if (document.readyState === 'complete') schedule()
-  else window.addEventListener('load', schedule, { once: true })
-  return () => {
-    window.removeEventListener('load', schedule)
-    if (idle !== undefined) window.cancelIdleCallback(idle)
-    if (timer !== undefined) clearTimeout(timer)
-  }
-}
 
 interface ArticleDisplayProps {
   article: ArticleForDisplay
@@ -79,7 +60,7 @@ export default function ArticleDisplay({
   useEffect(() => {
     if (!showHighlights) return
     let active = true
-    const cancel = afterLoadIdle(() => {
+    const cancel = afterLoadWhenIdle(() => {
       import('@/components/articles/HighlightableArticle')
         .then((mod) => {
           if (active) setHighlightableArticle(() => mod.HighlightableArticle)

@@ -15,10 +15,19 @@ export function analyticsServerKey(): string | null {
   return process.env.ANALYTICS_POSTHOG_KEY || null
 }
 
+import {
+  WEB_VITAL_BANDS,
+  WEB_VITAL_DEVICES,
+  WEB_VITAL_METRICS,
+  WEB_VITAL_RATINGS,
+  WEB_VITAL_ROUTES,
+} from './webVitals'
+
 export const ANALYTICS_EVENTS = [
   '$pageview',
   'waitlist_joined',
   'feedback_sent',
+  'web_vital',
 ] as const
 
 export type AnalyticsEvent = (typeof ANALYTICS_EVENTS)[number]
@@ -39,6 +48,15 @@ const EVENT_PROPERTIES: Record<
   $pageview: {},
   waitlist_joined: {},
   feedback_sent: { category: ['bug', 'idea', 'question', 'other'] },
+  // Page speed from real visits (lib/analytics/webVitals.ts): fixed values
+  // only, never the measured number itself.
+  web_vital: {
+    metric: WEB_VITAL_METRICS,
+    rating: WEB_VITAL_RATINGS,
+    band: WEB_VITAL_BANDS,
+    route: WEB_VITAL_ROUTES,
+    device: WEB_VITAL_DEVICES,
+  },
 }
 
 export function cleanEventProperties(

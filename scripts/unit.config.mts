@@ -11,14 +11,24 @@ export default defineConfig({
       'scripts/health/*.test.ts',
       'scripts/wallet/*.test.ts',
       'scripts/stellar/*.test.ts',
+      // v2 tip flow state, basket and amount rules (lib/tip/v2).
+      'scripts/tip-flow/*.test.ts',
       // The other scripts/chain suites run in the edge runtime (test:chain).
       'scripts/chain/canonical-article.test.ts',
       'scripts/pr-hygiene/*.test.ts',
       'scripts/brand/*.test.ts',
+      // The CI fixture shards against the fixture suite list.
+      'scripts/ci/*.test.ts',
       'scripts/contracts/*.test.ts',
+      'scripts/perf/*.test.ts',
+      'scripts/payments/*.test.ts',
       'scripts/nft/*.test.ts',
+      // The article storage status panel (components/articles/ArweaveStatus).
+      'scripts/storage/*.test.ts',
       // Browser tab modules over fake-indexeddb and Node WebCrypto.
       'scripts/tab/*.test.ts',
+      // Tab screens: flows and state models (lib/tab-ui).
+      'scripts/tab-ui/*.test.ts',
       // Convex default-runtime code bundled as Convex bundles it.
       'scripts/convex-runtime/*.test.ts',
     ],
