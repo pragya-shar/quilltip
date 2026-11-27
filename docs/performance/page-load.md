@@ -601,6 +601,92 @@ fall in bands under 2000 ms (`<1000`, `1000-1499`, `1500-1999`), and 75
 percent of its CLS events in `<0.05` or `0.05-0.099`. The privacy page says
 that page-speed ratings are recorded with consent.
 
+## Chunk scripts after the first paint (#405, #428)
+
+Measured 2026-11-27 with the method of the previous section (HTTP/2, five
+runs, median). `patches/next@16.4.6.ts` makes the four routes start their
+Next.js chunk scripts after the first contentful paint; how it works, its
+checks, and how to upgrade or remove it are in
+[next-patch.md](next-patch.md).
+
+### Result
+
+LCP in ms, without → with the patch (one build each; the "without" article
+numbers are from the build with the first-image limit).
+
+| Route       | Simulated mobile | Applied mobile |   Desktop | CLS (max) | Simulated < 2 s | Applied < 2 s | CLS < 0.1 |
+| ----------- | ---------------: | -------------: | --------: | --------: | --------------- | ------------- | --------- |
+| `/`         |      2857 → 1811 |    2680 → 1934 | 586 → 408 |     0.001 | yes             | yes           | yes       |
+| `/login`    |      2255 → 1212 |    2264 → 1563 | 486 → 324 |     0.016 | yes             | yes           | yes       |
+| `/articles` |      2705 → 1657 |    3030 → 1922 | 526 → 364 |     0.001 | yes             | yes           | yes       |
+| Article     |      2855 → 1805 |    2637 → 1808 | 545 → 384 |     0.001 | yes             | yes           | yes       |
+
+Spread with the patch:
+
+- `/` applied: two of five runs at 2254 and 2261 ms (the other three at 1893
+  to 1934 ms), so the margin there is small.
+- `/articles` simulated: one run at 2931 ms (four at 1653 to 1657 ms), an
+  occasional observed load in which the cover image finished after a script
+  ran.
+
+### Cost: later hydration and more blocking time
+
+The scripts start when the page has painted instead of alongside the
+stylesheet, so every control that needs JavaScript becomes ready later.
+
+Slow 4G and 4x CPU (Lighthouse's mobile values, applied through the
+DevTools protocol), HTTP/2, 375 px wide (the account menu at 1280 px,
+signed in), median of 5 runs. Both columns come from the same build, with
+`QUILLTIP_HYDRATE_AFTER_PAINT=false` for "off" (all four routes render on
+demand). "Ready" is the time after navigation start at which React handles
+the control. A tap at 1.5 s comes before hydration in both columns.
+
+| Measure (ms)                                         |        Off |         On |
+| ---------------------------------------------------- | ---------: | ---------: |
+| `/`: "Add a tip" ready                               |       3059 |       4137 |
+| `/`: "Add a tip" tapped at 1.5 s, dialog shown after |       8110 |       3371 |
+| `/articles`: mobile menu ready                       |       2990 |       3937 |
+| `/articles`: menu tapped at 1.5 s, menu shown after  |        851 |       2871 |
+| `/login`: sign-in form ready                         |       2666 |       3433 |
+| `/login`: submitted at 1.5 s, errors shown after     | lost (5/5) |       2844 |
+| Article: mobile menu ready                           |       3024 |       3903 |
+| Article: "Tip article" ready                         |       6001 |       6438 |
+| `/articles`, signed in: account menu ready           |       4472 |       5395 |
+| INP of the tap at 1.5 s (`/`, `/articles`, `/login`) |  64, 32, 0 | 32, 32, 32 |
+
+- Every control is ready 440 to 1080 ms later with the patch.
+- The `/articles` menu answers an early tap about 2 s later, because the
+  header hydrates later.
+- Two early presses do better with the patch. "Add a tip" on `/` opens
+  4.7 s sooner. A sign-in submitted before hydration is no longer lost:
+  without the patch it showed no result in any run, and the page stayed on
+  `/login`.
+- INP stays low in both columns, because a held press returns at once. It
+  does not show the wait until the visible response; the rows above do.
+
+Lighthouse, median of 5 (ms):
+
+| Route       | TBT simulated | TBT applied | TTI simulated |   TTI applied |
+| ----------- | ------------: | ----------: | ------------: | ------------: |
+| `/`         |        9 → 58 |   107 → 446 |   3180 → 3219 | 4213 → 11057¹ |
+| `/login`    |        5 → 17 |     11 → 48 |   2254 → 1985 |   2606 → 3514 |
+| `/articles` |        4 → 11 |    110 → 61 |   2704 → 2116 |   3236 → 4264 |
+| Article     |       32 → 56 |   330 → 372 |   6576 → 6581 |   6855 → 7318 |
+
+- Blocking time rises on three routes. On `/` under applied throttling,
+  hydration now runs as fewer, longer tasks (134 to 198 ms against about
+  110 ms without the patch).
+- ¹ The landing page's opening intro ends with a long task at about 10.5 s
+  in both builds. With the patch, prefetches after hydration end later, so
+  Lighthouse's 5-second quiet window closes only after that task, and it
+  counts toward TTI and TBT.
+- Field data (INP) after cutover shows whether readers notice the later
+  hydration.
+
+The loader change that releases a held press per element (see
+[next-patch.md](next-patch.md)) was made after the LCP runs above. It does
+not change when the scripts start; the interactivity numbers include it.
+
 ## Regression check
 
 `bun run perf:budget` (`scripts/perf/page-load-budget.ts`) runs without
@@ -622,6 +708,7 @@ secrets:
    | Stylesheets referenced by the server HTML    |  45 KB |          38 KB |
    | Fonts the page requests                      | 190 KB |         169 KB |
    | Render-blocking stylesheets                  |      4 |              3 |
+   | Chunk scripts loaded before the first paint  |      0 |              0 |
    | CLS (median of 3)                            |    0.1 |          0.016 |
    | LCP element in the server HTML (2 of 3 runs) |    yes |            yes |
    | LCP image URL in the server HTML (2 of 3)    |    yes |            yes |
