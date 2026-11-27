@@ -92,6 +92,8 @@ export type OperationView =
       amount: string | null
       /** A top-up that cancelled a pending withdrawal. */
       cancelledWithdrawal: boolean
+      /** False after a reload resumed it: the view must leave focus alone. */
+      startedByUser: boolean
     }
   /** Nothing was signed: a wallet gate state to resolve first. */
   | { kind: 'gate'; flow: TabFlow; gate: WalletGateState }
@@ -512,6 +514,7 @@ export function useTabOperation(ctx: TabOperationContext) {
           : null,
       cancelledWithdrawal:
         request.flow === 'tab-top-up' && running.wasClosing === true,
+      startedByUser: !running.resumed,
     }
   }, [running, stopped, tab, earnings])
 

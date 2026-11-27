@@ -96,6 +96,7 @@ export function TabOperationProgress({
           source={view.source}
           audience={audience}
           txHash={view.txHash}
+          startedByUser={view.startedByUser}
           failure={view.failure}
           onRetry={onRetry}
           resultPlace={resultPlace}

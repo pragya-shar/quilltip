@@ -200,6 +200,7 @@ export function TabTipAction({
           flow="tab-tip"
           source={progress}
           txHash={tip.settledTxHash}
+          startedByUser
           audience="reader"
           summary={
             outcome?.kind === 'accepted'

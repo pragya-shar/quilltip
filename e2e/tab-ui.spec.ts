@@ -334,6 +334,8 @@ test('reload in the middle of a top-up resumes it and then confirms', async ({
   await expect(
     page.getByRole('button', { name: 'Top up', exact: true })
   ).toHaveCount(0)
+  // A resumed payment renders with the page: it leaves focus alone.
+  await expect(page.locator('.tab-ui :focus')).toHaveCount(0)
   await expect(visibleText(page, 'Top-up confirmed')).toBeVisible({
     timeout: 10_000,
   })
