@@ -56,6 +56,10 @@ describe('the remembered wallet (#562)', () => {
       JSON.stringify({ walletId: 'varial', address: ADDRESS, secret: 'x' }),
     ],
     [
+      'an extra field after the wallet ID',
+      JSON.stringify({ walletId: 'varial', address: ADDRESS, zz: 'x' }),
+    ],
+    [
       'a secret key',
       JSON.stringify({ walletId: 'varial', address: 'S' + ADDRESS.slice(1) }),
     ],

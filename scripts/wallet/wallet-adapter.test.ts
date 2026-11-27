@@ -787,6 +787,19 @@ describe('restore after a page load (#562)', () => {
     expect(read).toHaveBeenCalledTimes(1)
   })
 
+  test('Disconnect with no wallet connected still forgets the choice', async () => {
+    const { fake } = restoreKit(
+      vi.fn(async () => {
+        throw { code: -3, message: 'not allowed' }
+      })
+    )
+    const mem = memory({ 'quilltip:wallet': record('varial') })
+    const wallet = restoring(fake, mem)
+    await wallet.restore()
+    await wallet.disconnect()
+    expect(mem.store.has('quilltip:wallet')).toBe(false)
+  })
+
   test('the wallet ending the session forgets the choice', async () => {
     const { fake } = restoreKit()
     const mem = memory({ 'quilltip:wallet': record('varial') })
