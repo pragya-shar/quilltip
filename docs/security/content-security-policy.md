@@ -72,11 +72,12 @@ Product analytics needs no entry: the browser sends events to the app's own
 ### Wallets
 
 Stellar Wallets Kit 2.x offers the modules in `lib/stellar/v2/wallet-kit.ts`.
-Extension wallets (Varial, LOBSTR, Rabet, Hana) talk to the page through
-`window` and `postMessage`, which the policy does not restrict. xBull and
-Albedo sign in popups. Albedo keeps an implicit-flow session in an iframe, so
-it is in `frame-src`. The wallet picker's icons load from
-`stellar.creit.tech`.
+Extension wallets (Varial, xBull, Rabet, Hana, Scopuly, D'CENT) talk to the
+page through `window` and `postMessage`, which the policy does not restrict.
+xBull's web wallet and Albedo sign in popups. Albedo keeps an implicit-flow
+session in an iframe, so it is in `frame-src`. The wallet picker's icons load
+from `stellar.creit.tech`; D'CENT's is a `data:` URL, and Scopuly, whose icon
+is on its own host, shows its initial instead. See [wallets](../wallets.md).
 
 ## Not tightened
 
