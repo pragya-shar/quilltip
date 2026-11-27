@@ -355,6 +355,11 @@ checks. Its build step uses a placeholder `NEXT_PUBLIC_CONVEX_URL` when none is 
 `bun run test:unit` covers the network module, guard, health report, and profile
 helpers. `bun run test:e2e:fixtures` starts the NFT, recovery, and avatar fixture
 servers and runs their Playwright suites; they need no backend or credentials.
+`bun run test:e2e:auth` runs the sign-in suite (`e2e/auth-return.spec.ts`) with
+real Convex Auth on the anonymous local backend `anonymous-agent`: it starts the
+backend, sets a new signing key, builds and serves the app, and creates its own
+account. It refuses a checkout whose `.env.local` selects another deployment,
+because `convex dev` rewrites that file. CI runs it as `Playwright (local auth)`.
 `bun run test:contracts` runs `cargo test` for each contract. Each crate pins its
 Rust toolchain (1.94.1) and the `wasm32v1-none` target in `rust-toolchain.toml`;
 build a contract with `cargo build --locked --target wasm32v1-none --release`
