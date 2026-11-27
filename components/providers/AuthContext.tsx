@@ -18,6 +18,8 @@ import {
   TOKEN_CONFIRMATION_TIMEOUT_MS,
   authGate,
   isTokenUnconfirmed,
+  nextAnsweredToken,
+  type ConvexAuthSnapshot,
 } from '@/lib/auth/sessionConfirmation'
 import type { CurrentUser } from '@/types/convex'
 
@@ -36,8 +38,8 @@ interface AuthContextType {
 
 type AuthSessionContextValue = {
   isSigningOut: boolean
-  /** A held token waited longer than the bound for the backend's answer. */
-  confirmationTimedOut: boolean
+  /** A held token waits for the backend's first answer, within the bound. */
+  awaitingConfirmation: boolean
   beginSignOut: () => void
   endSignOut: () => void
 }
@@ -45,21 +47,41 @@ type AuthSessionContextValue = {
 const AuthSessionContext = createContext<AuthSessionContextValue | null>(null)
 
 /**
- * True once a token that the backend has not confirmed has waited
- * TOKEN_CONFIRMATION_TIMEOUT_MS. One timer for the app, so every guard uses
- * the same deadline (lib/auth/sessionConfirmation.ts).
+ * True while Convex Auth holds a token that the backend has not answered in
+ * this page, for at most TOKEN_CONFIRMATION_TIMEOUT_MS. One state for the
+ * app, so every guard uses the same answer and deadline
+ * (lib/auth/sessionConfirmation.ts).
  */
-function useConfirmationTimedOut(): boolean {
+function useAwaitingConfirmation(): boolean {
   const token = useAuthToken()
   const { isLoading, isAuthenticated } = useConvexAuth()
+  const [seen, setSeen] = useState<{
+    previous: ConvexAuthSnapshot
+    answered: string | null
+  }>({ previous: { isLoading, isAuthenticated }, answered: null })
+  let answered = seen.answered
+  if (
+    seen.previous.isLoading !== isLoading ||
+    seen.previous.isAuthenticated !== isAuthenticated
+  ) {
+    // Recorded during render, so no guard reads a stale answer first.
+    answered = nextAnsweredToken({
+      previous: seen.previous,
+      current: { isLoading, isAuthenticated },
+      token,
+      answered,
+    })
+    setSeen({ previous: { isLoading, isAuthenticated }, answered })
+  }
   const unconfirmed = isTokenUnconfirmed({
-    hasToken: token !== null,
     convexLoading: isLoading,
     convexAuthenticated: isAuthenticated,
+    token,
+    answeredToken: answered,
   })
+
   const [timedOut, setTimedOut] = useState(false)
   if (!unconfirmed && timedOut) setTimedOut(false)
-
   useEffect(() => {
     if (!unconfirmed) return
     const timeout = setTimeout(
@@ -69,21 +91,21 @@ function useConfirmationTimedOut(): boolean {
     return () => clearTimeout(timeout)
   }, [unconfirmed])
 
-  return unconfirmed && timedOut
+  return unconfirmed && !timedOut
 }
 
 export function AuthSessionProvider({ children }: { children: ReactNode }) {
   const [isSigningOut, setIsSigningOut] = useState(false)
-  const confirmationTimedOut = useConfirmationTimedOut()
+  const awaitingConfirmation = useAwaitingConfirmation()
 
   const value = useMemo(
     () => ({
       isSigningOut,
-      confirmationTimedOut,
+      awaitingConfirmation,
       beginSignOut: () => setIsSigningOut(true),
       endSignOut: () => setIsSigningOut(false),
     }),
-    [isSigningOut, confirmationTimedOut]
+    [isSigningOut, awaitingConfirmation]
   )
 
   return (
@@ -111,18 +133,16 @@ function useAuthSession(): AuthSessionContextValue {
 
 export function useAuth(): AuthContextType {
   const router = useRouter()
-  const { beginSignOut, endSignOut, confirmationTimedOut } = useAuthSession()
+  const { beginSignOut, endSignOut, awaitingConfirmation } = useAuthSession()
   const { signIn, signOut: convexSignOut } = useAuthActions()
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth()
-  const hasToken = useAuthToken() !== null
   const userQuery = useCurrentUser()
 
   // Waits while the backend confirms a new sign-in (issue #575).
   const { isLoading } = authGate({
     convexLoading: authLoading,
     convexAuthenticated: isAuthenticated,
-    hasToken,
-    confirmationTimedOut,
+    awaitingConfirmation,
     userLoaded: userQuery !== undefined,
   })
 
