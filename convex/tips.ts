@@ -28,6 +28,12 @@ import { readChainEnv } from './lib/chain/env'
 import { requireV1PreparesEnabled } from './lib/v1Prepares'
 import { getMonthKey, roundCents, writerShareCents } from './lib/authorEarnings'
 import {
+  lifetimeFigures,
+  previousFigures,
+  readLifetimeTotals,
+  reverseV1TipTotals,
+} from './lib/lifetimeEarnings'
+import {
   AGGREGATE_LIMIT,
   LIST_LIMIT,
   chainArticleFor,
@@ -697,6 +703,8 @@ export const markArticleTipFraudulent = internalMutation({
       processedAt: now,
       updatedAt: now,
     })
+    // The lifetime totals (#552) lose the tip as they gained it.
+    await reverseV1TipTotals(ctx, tip.authorId, 'tips', tip)
 
     // Reverse article counters
     const article = await ctx.db.get(tip.articleId)
@@ -827,46 +835,39 @@ export const getAuthorEarnings = query({
   },
 })
 
-const STROOPS_PER_XLM = BigInt(10_000_000)
-const PLATFORM_FEE_BPS = BigInt(250)
-const BPS_DENOMINATOR = BigInt(10_000)
-
-function writerShareStroops(tip: {
-  expectedAmountStroops?: string
-  stellarAmountXlm?: string
-}): bigint | null {
-  let stroops: bigint | null = null
-  if (
-    tip.expectedAmountStroops &&
-    /^[1-9]\d*$/.test(tip.expectedAmountStroops)
-  ) {
-    stroops = BigInt(tip.expectedAmountStroops)
-  } else if (
-    tip.stellarAmountXlm &&
-    /^\d+(\.\d{1,7})?$/.test(tip.stellarAmountXlm)
-  ) {
-    const [whole, fraction = ''] = tip.stellarAmountXlm.split('.')
-    stroops =
-      BigInt(whole ?? '0') * STROOPS_PER_XLM + BigInt(fraction.padEnd(7, '0'))
-  }
-  if (!stroops || stroops <= BigInt(0)) return null
-  return stroops - (stroops * PLATFORM_FEE_BPS) / BPS_DENOMINATOR
-}
-
 // The caller's earnings as a writer. Owner only.
 //
-// - `writerShareStroops`: the XLM writer share of the caller's verified v1
-//   tips, from the on-chain stroop amount (at most AGGREGATE_LIMIT rows per
-//   table; `complete` is false beyond that).
-// - `earnedBaseUnits`: v2 earnings per token contract ID, from the recorded
-//   on-chain net amounts (`authorEarnings`, section 6.2).
-// - `earnedStroops`: what the stats show as earned XLM: the v1 writer share
-//   plus the v2 earnings in native XLM (`TOKEN_CONTRACT_ID`), so it agrees
-//   with `estimatedUsd`, which also counts both.
-// - `estimatedUsd` and `tipCount`: v1 rows plus the v2 figures in
-//   `authorEarnings`.
+// The fields of `overhaul/v2` keep their meaning for every row, rebuilt or
+// not, so a client built before #552 shows the same figures:
+// - `tipCount`, `earnedStroops`, `estimatedUsd`, `writerShareStroops`,
+//   `complete`: the verified v1 rows read (at most AGGREGATE_LIMIT per table;
+//   `complete` is false beyond) plus `v2TipCount`, `v2EarnedCents` and
+//   `earnedBaseUnits` in native XLM as stored (`previousFigures`).
+// - `earnedBaseUnits`, `v2TipCount`: as stored (section 6.2).
+// New fields (#552):
+// - `lifetime`: once the row is rebuilt from its history (`lifetimeTotalsAt`)
+//   and no rebuild is in progress, the lifetime totals, credited with each tip
+//   (convex/lib/lifetimeEarnings.ts). They cover the same tips in all three
+//   figures: verified v1 tips, confirmed v2 wallet tips (the caller's share)
+//   and the net paid on chain for tab tips. XLM = `v1ShareStroops` +
+//   `walletEarnedBaseUnits` + `tabSettledBaseUnits`; USD = `v1EarnedCents` +
+//   `v2EarnedCents` + `tabEarnedCents`; count = `v1TipCount` + `v2TipCount` +
+//   `tabTipCount`. Null until then.
+// - `updating`: the row's rebuild is in progress.
+// - `unpricedTipCount`: legacy v1 tips without a trusted USD amount among the
+//   previous figures' rows; they are in the XLM and the count, so the USD is a
+//   lower bound. `lifetime.unpricedTipCount` is the same for the lifetime
+//   totals.
 // The network is returned so the UI can label testnet amounts as having no
 // real value.
+const earningsFiguresValidator = v.object({
+  tipCount: v.number(),
+  writerShareStroops: v.string(),
+  earnedStroops: v.string(),
+  estimatedUsd: v.number(),
+  unpricedTipCount: v.number(),
+})
+
 export const getMyEarningsSummary = query({
   args: {},
   returns: v.union(
@@ -880,61 +881,56 @@ export const getMyEarningsSummary = query({
       earnedBaseUnits: v.record(v.string(), v.string()),
       v2TipCount: v.number(),
       complete: v.boolean(),
+      unpricedTipCount: v.number(),
+      lifetime: v.union(v.null(), earningsFiguresValidator),
+      updating: v.boolean(),
     })
   ),
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) return null
-    const [articleTips, passageTips, earnings] = await Promise.all([
-      ctx.db
-        .query('tips')
-        .withIndex('by_author', (q) => q.eq('authorId', userId))
-        .take(AGGREGATE_LIMIT + 1),
-      ctx.db
-        .query('highlightTips')
-        .withIndex('by_author', (q) => q.eq('authorId', userId))
-        .take(AGGREGATE_LIMIT + 1),
-      ctx.db
-        .query('authorEarnings')
-        .withIndex('by_user', (q) => q.eq('userId', userId))
-        .first(),
-    ])
-    const complete =
-      articleTips.length <= AGGREGATE_LIMIT &&
-      passageTips.length <= AGGREGATE_LIMIT
-    const v1Tips = [
-      ...articleTips.slice(0, AGGREGATE_LIMIT),
-      ...passageTips.slice(0, AGGREGATE_LIMIT),
-    ].filter((tip) => contractVersionOf(tip) === 'v1' && countsAsPaid(tip))
-
-    let stroops = BigInt(0)
-    let cents = 0
-    for (const tip of v1Tips) {
-      stroops += writerShareStroops(tip) ?? BigInt(0)
-      if (!('amountUsdSuspicious' in tip && tip.amountUsdSuspicious)) {
-        cents += writerShareCents(tip.amountCents, tip.expectedAmountStroops)
-      }
-    }
-    const v2TipCount = earnings?.v2TipCount ?? 0
-    const v2Cents = earnings?.v2EarnedCents ?? 0
+    const earnings = await ctx.db
+      .query('authorEarnings')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .first()
     let xlmToken: string | null = null
     try {
       xlmToken = readChainEnv().tokenContractId
     } catch {
       // Not a v2 deployment: v1 rows only.
     }
-    const v2Xlm = xlmToken
-      ? BigInt(earnings?.earnedBaseUnits?.[xlmToken] ?? '0')
-      : BigInt(0)
+    const previous = await previousFigures(ctx.db, userId, earnings, xlmToken)
+    const rebuilt =
+      earnings?.lifetimeTotalsAt !== undefined && !earnings.lifetimeRebuild
+    let lifetime = null
+    if (rebuilt) {
+      const totals = lifetimeFigures(
+        readLifetimeTotals(earnings),
+        earnings,
+        xlmToken
+      )
+      lifetime = {
+        tipCount: totals.tipCount,
+        writerShareStroops: totals.v1Stroops,
+        earnedStroops: totals.stroops.toString(),
+        // Cents carry four decimals; dollars six, without float noise.
+        estimatedUsd: Math.round(totals.cents * 10_000) / 1_000_000,
+        unpricedTipCount: totals.unpriced,
+      }
+    }
     return {
       network: getStellarNetwork(),
-      tipCount: v1Tips.length + v2TipCount,
-      writerShareStroops: stroops.toString(),
-      earnedStroops: (stroops + v2Xlm).toString(),
-      estimatedUsd: roundCents(cents + v2Cents) / 100,
+      tipCount: previous.tipCount,
+      writerShareStroops: previous.v1Stroops,
+      earnedStroops: previous.stroops.toString(),
+      // As `overhaul/v2` computes it.
+      estimatedUsd: previous.cents / 100,
       earnedBaseUnits: earnings?.earnedBaseUnits ?? {},
-      v2TipCount,
-      complete,
+      v2TipCount: earnings?.v2TipCount ?? 0,
+      complete: previous.complete,
+      unpricedTipCount: previous.unpriced,
+      lifetime,
+      updating: !!earnings?.lifetimeRebuild,
     }
   },
 })
