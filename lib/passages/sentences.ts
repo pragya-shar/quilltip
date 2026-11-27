@@ -18,9 +18,29 @@
  * text occurs more than once in the article, the passage is ambiguous: its id
  * also includes the sentence indexes, so it never merges with the other copy
  * and it does not survive a move.
+ *
+ * Scheme `quilltip-passage-v1` fixes, exactly:
+ *
+ * 1. The passage text: the text of its sentences (`Sentence.text`), joined by
+ *    one U+0020 SPACE.
+ * 2. Normalisation (`normalizePassageText`), in this order: Unicode NFC
+ *    (`String.prototype.normalize('NFC')`); every run of characters that
+ *    JavaScript's `\s` matches (Unicode White_Space, including U+00A0,
+ *    U+2028, U+2029 and U+FEFF) replaced by one U+0020; leading and trailing
+ *    spaces removed. Nothing else: letter case is kept, and quotation marks,
+ *    apostrophes, dashes and every other character are kept as written (a
+ *    curly quote and a straight quote give different ids).
+ * 3. The id: the first 28 lowercase hex characters of SHA-256 over the UTF-8
+ *    bytes of `quilltip-passage-v1` + LF + article id + LF + normalised text.
+ *    An ambiguous passage hashes `quilltip-passage-v1:at` + LF + article id +
+ *    LF + `<sentenceStart>:<sentenceEnd>` + LF + normalised text.
+ * 4. The sentence rule below (terminators, closers, exceptions).
+ *
+ * Any change to 1 to 4 that can change a stored id needs a new scheme string;
+ * ids stored under an old scheme keep meaning what that scheme said.
  */
 
-/** Bumped only with a new identity rule; old ids stay valid under their own. */
+/** Names the identity rule above; see the header for what it fixes. */
 export const PASSAGE_ID_SCHEME = 'quilltip-passage-v1'
 
 /** Hex characters kept from the SHA-256 digest (the highlight id's length). */
@@ -134,8 +154,23 @@ export function canonicalText(content: unknown): CanonicalText {
 // ---------------------------------------------------------------------------
 // Sentences
 
-/** Characters that end a sentence. */
-const TERMINATORS = new Set(['.', '!', '?', '…', '‽'])
+/**
+ * Characters that end a sentence when whitespace (or the block end) follows:
+ * full stop, exclamation and question marks, ellipsis, interrobang, the
+ * Devanagari danda and double danda, the Arabic question mark and the Arabic
+ * (Urdu) full stop.
+ */
+const TERMINATORS = new Set([
+  '.',
+  '!',
+  '?',
+  '\u2026',
+  '\u203D',
+  '\u0964',
+  '\u0965',
+  '\u061F',
+  '\u06D4',
+])
 /** Full-width terminators end a sentence even with no space after them. */
 const WIDE_TERMINATORS = new Set(['。', '！', '？'])
 /** Characters that may follow a terminator and still belong to its sentence. */

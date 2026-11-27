@@ -7,8 +7,14 @@ import { v } from 'convex/values'
  */
 export const passagesTables = {
   shares: defineTable({
-    /** 8 characters, random, from `SHARE_CODE_ALPHABET`. */
+    /** 8 characters from `SHARE_CODE_ALPHABET`. */
     code: v.string(),
+    /**
+     * `canonical`: made without an account; the code is derived from the
+     * article and the passage (`canonicalCode`), one row per line.
+     * `personal`: made by a signed-in person; a random code per sharer.
+     */
+    kind: v.union(v.literal('canonical'), v.literal('personal')),
     articleId: v.id('articles'),
     /**
      * The passage's id at share time (`lib/passages/sentences.ts`). Null once
@@ -26,11 +32,27 @@ export const passagesTables = {
     quote: v.union(v.string(), v.null()),
     /** The article's `contentVersion` at share time. */
     contentVersion: v.union(v.number(), v.null()),
+    /** The sharer of a personal code. Never returned by `resolve`. */
     createdBy: v.optional(v.id('users')),
     createdAt: v.number(),
+    /** When the quote was last confirmed against the article (`sweep`). */
+    checkedAt: v.number(),
     /** When the quote and passage fields were cleared. */
     clearedAt: v.optional(v.number()),
   })
     .index('by_code', ['code'])
-    .index('by_article_passage', ['articleId', 'passageId']),
+    .index('by_article_passage', ['articleId', 'passageId'])
+    .index('by_article_passage_sharer', [
+      'articleId',
+      'passageId',
+      'createdBy',
+    ]),
+
+  /** The sweep's position over `shares` (one row, key `shares`). */
+  shareSweeps: defineTable({
+    key: v.literal('shares'),
+    cursor: v.union(v.string(), v.null()),
+    lastRunAt: v.number(),
+    lastPassAt: v.optional(v.number()),
+  }).index('by_key', ['key']),
 }

@@ -184,6 +184,30 @@ describe('shared vectors', () => {
   })
 })
 
+describe('vector notes and normalisation', () => {
+  test('every case says what the rule does', () => {
+    for (const c of vectors.cases) expect(c.note.length).toBeGreaterThan(10)
+  })
+
+  test('quotes are kept as written: straight and curly apostrophes differ', () => {
+    const [straight, curly] = ['straight apostrophe', 'curly apostrophe'].map(
+      (name) => vectors.cases.find((c) => c.name === name)!
+    )
+    expect(straight!.passages[0]!.passageId).not.toBe(
+      curly!.passages[0]!.passageId
+    )
+  })
+
+  test('normalisation: NFC, whitespace runs to one space, trimmed, case kept', () => {
+    expect(normalizePassageText(' A\u00A0\u2028b\t\nC\uFEFF ')).toBe('A b C')
+    expect(normalizePassageText('Cafe\u0301')).toBe('Caf\u00E9')
+    expect(normalizePassageText('It\u2019s \u2014 "x"')).toBe(
+      'It\u2019s \u2014 "x"'
+    )
+    expect(normalizePassageText('MiXeD')).toBe('MiXeD')
+  })
+})
+
 describe('no Intl.Segmenter', () => {
   const intl = Intl as unknown as Record<string, unknown>
   const original = intl.Segmenter

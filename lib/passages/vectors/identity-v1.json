@@ -4,7 +4,78 @@
   "articleId": "k57passagevectors0article001",
   "cases": [
     {
+      "name": "abbreviation: Dr. Reyes",
+      "note": "A stop after a listed abbreviation (Dr) does not end the sentence.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Dr. Reyes signed the letter. She posted it at noon."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Dr. Reyes signed the letter. She posted it at noon.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 28,
+          "text": "Dr. Reyes signed the letter."
+        },
+        {
+          "start": 29,
+          "end": 51,
+          "text": "She posted it at noon."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Dr. Reyes signed the letter.",
+          "passageId": "42a208257b177b038785146e1248",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "She posted it at noon.",
+          "passageId": "c43b7609ebd2b5fc3e4736a81491",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Dr. Reyes signed the letter. She posted it at noon.",
+          "passageId": "54cb2d0b8717e9585272bc4bb026",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 30,
+          "end": 30,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "c43b7609ebd2b5fc3e4736a81491"
+        },
+        {
+          "start": 1,
+          "end": 27,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "42a208257b177b038785146e1248"
+        }
+      ]
+    },
+    {
       "name": "abbreviations and times",
+      "note": "Mr is listed; dotted single letters (p.m.) do not end a sentence.",
       "content": {
         "type": "doc",
         "content": [
@@ -73,7 +144,78 @@
       ]
     },
     {
+      "name": "quoted speech ending a sentence",
+      "note": "Closing quotes after the stop stay with their sentence; the next sentence starts after the space.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "She said, \"We leave at dawn.\" The others nodded."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "She said, \"We leave at dawn.\" The others nodded.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 29,
+          "text": "She said, \"We leave at dawn.\""
+        },
+        {
+          "start": 30,
+          "end": 48,
+          "text": "The others nodded."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "She said, \"We leave at dawn.\"",
+          "passageId": "1613e8f9ca2d4a0cc8cf599ff025",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "The others nodded.",
+          "passageId": "51d659d9b374324c37671ec13654",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "She said, \"We leave at dawn.\" The others nodded.",
+          "passageId": "d60fc42026bb905d365468a98c3b",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 31,
+          "end": 31,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "51d659d9b374324c37671ec13654"
+        },
+        {
+          "start": 1,
+          "end": 28,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "1613e8f9ca2d4a0cc8cf599ff025"
+        }
+      ]
+    },
+    {
       "name": "closing quotes after the stop",
+      "note": "Same rule with no comma before the quote.",
       "content": {
         "type": "doc",
         "content": [
@@ -142,7 +284,8 @@
       ]
     },
     {
-      "name": "lower case after a stop keeps the sentence",
+      "name": "quoted speech inside a sentence",
+      "note": "A lower-case word after the closing quote continues the sentence.",
       "content": {
         "type": "doc",
         "content": [
@@ -212,6 +355,7 @@
     },
     {
       "name": "ellipsis, question, emoji",
+      "note": "An ellipsis before a lower-case word continues; ? and ! end; an emoji may open the next sentence.",
       "content": {
         "type": "doc",
         "content": [
@@ -304,7 +448,78 @@
       ]
     },
     {
+      "name": "ellipsis before a capital",
+      "note": "An ellipsis before a capital ends the sentence. Knowingly crude: a name after an ellipsis also ends it.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "He waited... Then he left."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "He waited... Then he left.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 12,
+          "text": "He waited..."
+        },
+        {
+          "start": 13,
+          "end": 26,
+          "text": "Then he left."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "He waited...",
+          "passageId": "37e3196e0b8fd34b640f38d9f734",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Then he left.",
+          "passageId": "58a3933cb69d1d3939993805950e",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "He waited... Then he left.",
+          "passageId": "07dc285edb85793549281b9d9fec",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 14,
+          "end": 14,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "58a3933cb69d1d3939993805950e"
+        },
+        {
+          "start": 1,
+          "end": 11,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "37e3196e0b8fd34b640f38d9f734"
+        }
+      ]
+    },
+    {
       "name": "initials and dotted abbreviations",
+      "note": "A one-letter word before a stop is an initial; dotted single letters (U.S.) do not end a sentence.",
       "content": {
         "type": "doc",
         "content": [
@@ -373,7 +588,110 @@
       ]
     },
     {
+      "name": "crude: one capital letter before a stop",
+      "note": "Knowingly crude: \"B.\" is read as an initial, so this is one sentence.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "We chose plan B. Then we left."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "We chose plan B. Then we left.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 30,
+          "text": "We chose plan B. Then we left."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "We chose plan B. Then we left.",
+          "passageId": "2d7bfd255cbcab2b6c8a4f0f2ae0",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "2d7bfd255cbcab2b6c8a4f0f2ae0"
+        },
+        {
+          "start": 1,
+          "end": 29,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "2d7bfd255cbcab2b6c8a4f0f2ae0"
+        }
+      ]
+    },
+    {
+      "name": "crude: a sentence that starts in lower case",
+      "note": "Knowingly crude: a stop before a lower-case word never ends a sentence, so this is one sentence.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Sales rose in March. eBay fell later."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Sales rose in March. eBay fell later.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 37,
+          "text": "Sales rose in March. eBay fell later."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Sales rose in March. eBay fell later.",
+          "passageId": "042e08ee21c4360a17ae5d16e23d",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "042e08ee21c4360a17ae5d16e23d"
+        },
+        {
+          "start": 1,
+          "end": 36,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "042e08ee21c4360a17ae5d16e23d"
+        }
+      ]
+    },
+    {
       "name": "list number and e.g.",
+      "note": "A number that opens a sentence keeps its stop; e.g is listed.",
       "content": {
         "type": "doc",
         "content": [
@@ -442,76 +760,8 @@
       ]
     },
     {
-      "name": "full-width terminators",
-      "content": {
-        "type": "doc",
-        "content": [
-          {
-            "type": "paragraph",
-            "content": [
-              {
-                "type": "text",
-                "text": "这是第一句。这是第二句！"
-              }
-            ]
-          }
-        ]
-      },
-      "text": "这是第一句。这是第二句！",
-      "sentences": [
-        {
-          "start": 0,
-          "end": 6,
-          "text": "这是第一句。"
-        },
-        {
-          "start": 6,
-          "end": 12,
-          "text": "这是第二句！"
-        }
-      ],
-      "passages": [
-        {
-          "sentenceStart": 0,
-          "sentenceEnd": 0,
-          "text": "这是第一句。",
-          "passageId": "071d0dca6a07f49d04fa00ad2c0d",
-          "ambiguous": false
-        },
-        {
-          "sentenceStart": 1,
-          "sentenceEnd": 1,
-          "text": "这是第二句！",
-          "passageId": "8a1706d625a96b7899fe8354d190",
-          "ambiguous": false
-        },
-        {
-          "sentenceStart": 0,
-          "sentenceEnd": 1,
-          "text": "这是第一句。这是第二句！",
-          "passageId": "35b7d21a505f9d1542f9e03f9a9e",
-          "ambiguous": false
-        }
-      ],
-      "selections": [
-        {
-          "start": 7,
-          "end": 7,
-          "sentenceStart": 1,
-          "sentenceEnd": 1,
-          "passageId": "8a1706d625a96b7899fe8354d190"
-        },
-        {
-          "start": 1,
-          "end": 5,
-          "sentenceStart": 0,
-          "sentenceEnd": 0,
-          "passageId": "071d0dca6a07f49d04fa00ad2c0d"
-        }
-      ]
-    },
-    {
       "name": "decimals and versions",
+      "note": "A stop with no space after it (3.14) never ends a sentence.",
       "content": {
         "type": "doc",
         "content": [
@@ -581,6 +831,7 @@
     },
     {
       "name": "no terminator",
+      "note": "A block without a stop is one sentence that runs to the block end.",
       "content": {
         "type": "doc",
         "content": [
@@ -631,6 +882,7 @@
     },
     {
       "name": "curly quotes and apostrophes",
+      "note": "Curly quotes are closers like straight ones.",
       "content": {
         "type": "doc",
         "content": [
@@ -712,6 +964,7 @@
     },
     {
       "name": "whitespace runs and a newline",
+      "note": "Sentence text keeps the article's own spacing; the id normalises every whitespace run to one space.",
       "content": {
         "type": "doc",
         "content": [
@@ -780,7 +1033,358 @@
       ]
     },
     {
+      "name": "a sentence across inline marks and a link",
+      "note": "A sentence may span several text nodes; marks and links change neither offsets nor text.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Read "
+              },
+              {
+                "type": "text",
+                "text": "the timetable",
+                "marks": [
+                  {
+                    "type": "link",
+                    "attrs": {
+                      "href": "https://example.test/t"
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": " twice",
+                "marks": [
+                  {
+                    "type": "bold"
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": ". It is wrong by four minutes."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Read the timetable twice. It is wrong by four minutes.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 25,
+          "text": "Read the timetable twice."
+        },
+        {
+          "start": 26,
+          "end": 54,
+          "text": "It is wrong by four minutes."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Read the timetable twice.",
+          "passageId": "872650befb7a0993dacfd165ccd8",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "It is wrong by four minutes.",
+          "passageId": "1768a6cf8fd3d734ea6c96b05b05",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Read the timetable twice. It is wrong by four minutes.",
+          "passageId": "c329200145c508d3c8264e108fd0",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 27,
+          "end": 27,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "1768a6cf8fd3d734ea6c96b05b05"
+        },
+        {
+          "start": 1,
+          "end": 24,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "872650befb7a0993dacfd165ccd8"
+        }
+      ]
+    },
+    {
+      "name": "headings",
+      "note": "A heading is a block: its own sentence without a stop; a stop inside it splits as in a paragraph.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 2
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Morning crossing"
+              }
+            ]
+          },
+          {
+            "type": "heading",
+            "attrs": {
+              "level": 3
+            },
+            "content": [
+              {
+                "type": "text",
+                "text": "Part two. The return"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Text follows."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Morning crossingPart two. The returnText follows.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 16,
+          "text": "Morning crossing"
+        },
+        {
+          "start": 16,
+          "end": 25,
+          "text": "Part two."
+        },
+        {
+          "start": 26,
+          "end": 36,
+          "text": "The return"
+        },
+        {
+          "start": 36,
+          "end": 49,
+          "text": "Text follows."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Morning crossing",
+          "passageId": "bb229d09ca558632d5e04a76b50d",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Part two.",
+          "passageId": "96bec13122daacc4bcdd66f24afd",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "text": "The return",
+          "passageId": "ac6b46f596dcbc4e0af8f7094493",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 3,
+          "sentenceEnd": 3,
+          "text": "Text follows.",
+          "passageId": "9f910362ec82d635b6d5d6295688",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Morning crossing Part two.",
+          "passageId": "b998d5cec82dcbbd8dfa788a457c",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 37,
+          "end": 37,
+          "sentenceStart": 3,
+          "sentenceEnd": 3,
+          "passageId": "9f910362ec82d635b6d5d6295688"
+        },
+        {
+          "start": 1,
+          "end": 15,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "bb229d09ca558632d5e04a76b50d"
+        }
+      ]
+    },
+    {
+      "name": "list items",
+      "note": "Each list item is a block; sentences never join across items.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "bulletList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Tickets at the pier"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Coffee on board. Tea too."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "orderedList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "Arrive early."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Tickets at the pierCoffee on board. Tea too.Arrive early.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 19,
+          "text": "Tickets at the pier"
+        },
+        {
+          "start": 19,
+          "end": 35,
+          "text": "Coffee on board."
+        },
+        {
+          "start": 36,
+          "end": 44,
+          "text": "Tea too."
+        },
+        {
+          "start": 44,
+          "end": 57,
+          "text": "Arrive early."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Tickets at the pier",
+          "passageId": "d0aefd004bc3d4987cb4301fa5a0",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Coffee on board.",
+          "passageId": "ce17c23b60b49be20848cb6a760c",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "text": "Tea too.",
+          "passageId": "334090db2cd514070ffa86fdcf53",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 3,
+          "sentenceEnd": 3,
+          "text": "Arrive early.",
+          "passageId": "96c740ceee20dc64b51f00feafe5",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Tickets at the pier Coffee on board.",
+          "passageId": "45e70a47f8323b1f426d9a50c6e8",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 45,
+          "end": 45,
+          "sentenceStart": 3,
+          "sentenceEnd": 3,
+          "passageId": "96c740ceee20dc64b51f00feafe5"
+        },
+        {
+          "start": 1,
+          "end": 18,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "d0aefd004bc3d4987cb4301fa5a0"
+        }
+      ]
+    },
+    {
       "name": "blocks, marks, hard break and a list",
+      "note": "A hard break counts as whitespace after a stop; a blockquote holds ordinary paragraph blocks.",
       "content": {
         "type": "doc",
         "content": [
@@ -995,7 +1599,479 @@
       ]
     },
     {
+      "name": "full-width terminators",
+      "note": "Full-width 。！？ end a sentence with no space after them.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "这是第一句。这是第二句！"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "这是第一句。这是第二句！",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 6,
+          "text": "这是第一句。"
+        },
+        {
+          "start": 6,
+          "end": 12,
+          "text": "这是第二句！"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "这是第一句。",
+          "passageId": "071d0dca6a07f49d04fa00ad2c0d",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "这是第二句！",
+          "passageId": "8a1706d625a96b7899fe8354d190",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "这是第一句。这是第二句！",
+          "passageId": "35b7d21a505f9d1542f9e03f9a9e",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 7,
+          "end": 7,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "8a1706d625a96b7899fe8354d190"
+        },
+        {
+          "start": 1,
+          "end": 5,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "071d0dca6a07f49d04fa00ad2c0d"
+        }
+      ]
+    },
+    {
+      "name": "Japanese without a final stop",
+      "note": "The last sentence has no stop and runs to the block end.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "今日は晴れです。明日は雨"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "今日は晴れです。明日は雨",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 8,
+          "text": "今日は晴れです。"
+        },
+        {
+          "start": 8,
+          "end": 12,
+          "text": "明日は雨"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "今日は晴れです。",
+          "passageId": "6b8e5c58ee6f01ffbf85766fafb8",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "明日は雨",
+          "passageId": "e92d5518b1b3bc71c3a0cd0a4782",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "今日は晴れです。明日は雨",
+          "passageId": "1fa602cbcebd8776c70f9c9d2bc7",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 9,
+          "end": 9,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "e92d5518b1b3bc71c3a0cd0a4782"
+        },
+        {
+          "start": 1,
+          "end": 7,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "6b8e5c58ee6f01ffbf85766fafb8"
+        }
+      ]
+    },
+    {
+      "name": "Thai, no sentence punctuation",
+      "note": "Knowingly crude: Thai separates sentences with spaces, not punctuation, so the whole block is one sentence.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "วันนี้อากาศดี เราไปทะเลกัน"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "วันนี้อากาศดี เราไปทะเลกัน",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 26,
+          "text": "วันนี้อากาศดี เราไปทะเลกัน"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "วันนี้อากาศดี เราไปทะเลกัน",
+          "passageId": "0dbc72475229ac612dce73a94920",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "0dbc72475229ac612dce73a94920"
+        },
+        {
+          "start": 1,
+          "end": 25,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "0dbc72475229ac612dce73a94920"
+        }
+      ]
+    },
+    {
+      "name": "Hindi with the danda",
+      "note": "The danda (U+0964) ends a sentence like a full stop.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "मैं घर जा रहा हूँ। तुम कहाँ हो?"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "मैं घर जा रहा हूँ। तुम कहाँ हो?",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 18,
+          "text": "मैं घर जा रहा हूँ।"
+        },
+        {
+          "start": 19,
+          "end": 31,
+          "text": "तुम कहाँ हो?"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "मैं घर जा रहा हूँ।",
+          "passageId": "575ad3179a4ea741a50532338cf6",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "तुम कहाँ हो?",
+          "passageId": "054f682f6304494d8a625515f885",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "मैं घर जा रहा हूँ। तुम कहाँ हो?",
+          "passageId": "5ec8831c1078729366b3cdb758e6",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 20,
+          "end": 20,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "054f682f6304494d8a625515f885"
+        },
+        {
+          "start": 1,
+          "end": 17,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "575ad3179a4ea741a50532338cf6"
+        }
+      ]
+    },
+    {
+      "name": "Hebrew, right to left",
+      "note": "Right-to-left text is handled in logical (stored) order; a script without case never meets the lower-case rule.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "שלום לכולם. מה שלומכם היום?"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "שלום לכולם. מה שלומכם היום?",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 11,
+          "text": "שלום לכולם."
+        },
+        {
+          "start": 12,
+          "end": 27,
+          "text": "מה שלומכם היום?"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "שלום לכולם.",
+          "passageId": "4b8297f45f12f304fc1562ae6c7f",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "מה שלומכם היום?",
+          "passageId": "5b4118215a3f04ebc3167652c642",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "שלום לכולם. מה שלומכם היום?",
+          "passageId": "a411b4e5bc04fac0377d866c845c",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 13,
+          "end": 13,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "5b4118215a3f04ebc3167652c642"
+        },
+        {
+          "start": 1,
+          "end": 10,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "4b8297f45f12f304fc1562ae6c7f"
+        }
+      ]
+    },
+    {
+      "name": "Arabic, right to left",
+      "note": "The Arabic question mark (U+061F) ends a sentence.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "كيف حالك؟ أنا بخير."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "كيف حالك؟ أنا بخير.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 9,
+          "text": "كيف حالك؟"
+        },
+        {
+          "start": 10,
+          "end": 19,
+          "text": "أنا بخير."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "كيف حالك؟",
+          "passageId": "bff49ffbd26f9c8c73c8c46117cb",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "أنا بخير.",
+          "passageId": "133e0b04868af3c7bdf9d72b1f90",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "كيف حالك؟ أنا بخير.",
+          "passageId": "6e808fb9566238a6f52757edc2d5",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 11,
+          "end": 11,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "133e0b04868af3c7bdf9d72b1f90"
+        },
+        {
+          "start": 1,
+          "end": 8,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "bff49ffbd26f9c8c73c8c46117cb"
+        }
+      ]
+    },
+    {
+      "name": "emoji sequences",
+      "note": "Emoji, skin tones and joiners are ordinary characters; offsets count UTF-16 code units.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Well done 👍🏽. The team 👩‍👩‍👧 cheered!"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Well done 👍🏽. The team 👩‍👩‍👧 cheered!",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 15,
+          "text": "Well done 👍🏽."
+        },
+        {
+          "start": 16,
+          "end": 42,
+          "text": "The team 👩‍👩‍👧 cheered!"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Well done 👍🏽.",
+          "passageId": "71b02070d6c121db0a5af611eed4",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "The team 👩‍👩‍👧 cheered!",
+          "passageId": "19ad11d653aa1a299583351f8ad5",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Well done 👍🏽. The team 👩‍👩‍👧 cheered!",
+          "passageId": "df81a54e7c765bb2c43b1ccac30e",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 17,
+          "end": 17,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "19ad11d653aa1a299583351f8ad5"
+        },
+        {
+          "start": 1,
+          "end": 14,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "71b02070d6c121db0a5af611eed4"
+        }
+      ]
+    },
+    {
       "name": "decomposed accent (NFC in the id)",
+      "note": "Text kept as stored; the id uses NFC, so it equals the precomposed case.",
       "content": {
         "type": "doc",
         "content": [
@@ -1065,6 +2141,7 @@
     },
     {
       "name": "precomposed accent (NFC in the id)",
+      "note": "Same id as the decomposed case.",
       "content": {
         "type": "doc",
         "content": [
@@ -1129,6 +2206,146 @@
           "sentenceStart": 0,
           "sentenceEnd": 0,
           "passageId": "9d8540ee9e9ab99169d610526c34"
+        }
+      ]
+    },
+    {
+      "name": "straight apostrophe",
+      "note": "Quotes are kept as written: this id differs from the curly apostrophe case.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "It's late. Go."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "It's late. Go.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 10,
+          "text": "It's late."
+        },
+        {
+          "start": 11,
+          "end": 14,
+          "text": "Go."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "It's late.",
+          "passageId": "e32a3af5930211f0664d08628223",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Go.",
+          "passageId": "aa045a28d93b89e7f77e8f386314",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "It's late. Go.",
+          "passageId": "7e2c925f71723dd81e2705089ea4",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 12,
+          "end": 12,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "aa045a28d93b89e7f77e8f386314"
+        },
+        {
+          "start": 1,
+          "end": 9,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "e32a3af5930211f0664d08628223"
+        }
+      ]
+    },
+    {
+      "name": "curly apostrophe",
+      "note": "Differs from the straight apostrophe case.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "It’s late. Go."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "It’s late. Go.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 10,
+          "text": "It’s late."
+        },
+        {
+          "start": 11,
+          "end": 14,
+          "text": "Go."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "It’s late.",
+          "passageId": "661a3686173fd3487f925f15df7d",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Go.",
+          "passageId": "aa045a28d93b89e7f77e8f386314",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "It’s late. Go.",
+          "passageId": "14ace0df2716c7b5a585b3374655",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 12,
+          "end": 12,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "aa045a28d93b89e7f77e8f386314"
+        },
+        {
+          "start": 1,
+          "end": 9,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "661a3686173fd3487f925f15df7d"
         }
       ]
     }
