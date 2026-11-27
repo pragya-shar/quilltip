@@ -2210,7 +2210,7 @@ describe('writer earnings summary with tab tips (#552)', () => {
     })
   })
 
-  it('the dollars keep the tip quote when the price changes before the payment', async () => {
+  it('the dollars keep the tip quote when the price changes before the payment: live, replayed, dry run and rebuilt', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
     // Quoted at $1 per XLM: 10 and 25 cents are 0.1 and 0.25 XLM.
@@ -2222,26 +2222,43 @@ describe('writer earnings summary with tab tips (#552)', () => {
         await ctx.db.patch(row._id, { priceUsd: 2, fetchedAt: Date.now() })
       }
     })
-    await ingest(
-      t,
-      ev.tabSettled({
-        cumulative: BigInt(3_500_000),
-        paidAfter: BigInt(1_500_000),
-        gross: BigInt(1_500_000),
+    /** The dry run's view of this writer: nothing to change, same figures. */
+    async function dryRunAgrees() {
+      const live = (await rawSummary(t, s.authorId))!.lifetime!
+      const report = await t.action(internal.earningsTotalsBackfill.dryRun, {})
+      const mine = report.rows.find((r) => r.userId === s.authorId)!
+      expect(mine.changedFields).toEqual([])
+      expect(mine.rebuilt).toEqual({
+        tipCount: live.tipCount,
+        earnedStroops: live.earnedStroops,
+        estimatedUsd: live.estimatedUsd,
       })
-    )
+    }
+    const short = ev.tabSettled({
+      cumulative: BigInt(3_500_000),
+      paidAfter: BigInt(1_500_000),
+      gross: BigInt(1_500_000),
+    })
+    await ingest(t, short)
     // 9.75 + 25 × 0.195 cents, from the quotes, not from $2 per XLM.
-    await expectTabTotals(t, s, { tips: 2, units: '1462500', cents: 14.625 })
+    const partly = { tips: 2, units: '1462500', cents: 14.625 }
+    await expectTabTotals(t, s, partly)
+    // A replay of the same event.
+    await ingest(t, short)
+    await expectTabTotals(t, s, partly)
+    await dryRunAgrees()
     await rebuiltEqualsLive(t, s.authorId)
-    await ingest(
-      t,
-      ev.tabSettled({
-        cumulative: BigInt(3_500_000),
-        paidAfter: BigInt(3_500_000),
-        gross: BigInt(2_000_000),
-      })
-    )
-    await expectTabTotals(t, s, { tips: 2, units: '3412500', cents: 34.125 })
+    // The rest is paid later: a change only, at the same quotes.
+    const rest = ev.tabSettled({
+      cumulative: BigInt(3_500_000),
+      paidAfter: BigInt(3_500_000),
+      gross: BigInt(2_000_000),
+    })
+    await ingest(t, rest)
+    await ingest(t, rest)
+    const paid = { tips: 2, units: '3412500', cents: 34.125 }
+    await expectTabTotals(t, s, paid)
+    await dryRunAgrees()
     expect(await rebuiltEqualsLive(t, s.authorId)).toMatchObject({
       tipCount: 2,
       earnedStroops: '3412500',
