@@ -244,8 +244,10 @@
   outline-offset: 2px;
 }
 .qt-testnet {
+  margin: 0.375rem 0 0;
   font-size: 0.75rem;
-  color: var(--qt-ink-3);
+  /* Secondary ink: tertiary falls under 4.5:1 on the cream account surface. */
+  color: var(--qt-ink-2);
 }
 
 /* The targeted passage in the article (CSS Custom Highlight API). */
@@ -268,12 +270,13 @@
   background: transparent;
 }
 .qt-figure-label {
-  margin: 0;
+  margin: 0.375rem 0 0;
   font-size: 0.9375rem;
+  font-weight: 400;
   color: var(--qt-ink-2);
 }
 .qt-figure {
-  margin: 0.25rem 0 0;
+  margin: 0;
   font-family: var(--qt-font-read);
   font-size: clamp(3.5rem, 18vw, 5.75rem);
   font-weight: 600;
@@ -328,10 +331,15 @@
   gap: 0.75rem;
   margin: 1.25rem 0 0;
 }
+/* Raised above `.account-surface a:not(.pay-action)` (0,2,1), so the
+   account surface's link colour never reaches the action button. */
+.qt-pay.qt-screen a.qt-button,
+.qt-pay.qt-screen a.qt-button:visited,
 .qt-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.375rem;
   min-height: var(--qt-hit);
   padding: 0 1.25rem;
   border-radius: var(--qt-radius-pill);
@@ -342,11 +350,48 @@
 }
 .qt-section-title {
   margin: 2rem 0 0.5rem;
-  font-size: 0.8125rem;
+  font-family: var(--qt-font-ui);
+  font-size: 1.0625rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--qt-ink-3);
+  color: var(--qt-ink);
+}
+.qt-lines {
+  margin: 1.5rem 0 0;
+  border-top: 1px solid var(--qt-line);
+}
+.qt-lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--qt-line);
+}
+.qt-lines dt {
+  color: var(--qt-ink);
+}
+.qt-lines dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.qt-lines .qt-history dt,
+.qt-lines .qt-history dd {
+  color: var(--qt-ink-2);
+  font-weight: 400;
+}
+.qt-notice.qt-neutral {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  background: var(--qt-sunk);
+}
+.qt-notice.qt-neutral svg {
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--qt-ink-2);
+}
+.qt-button-icon {
+  color: var(--qt-action-icon);
 }
 .qt-list {
   margin: 0;
@@ -408,8 +453,8 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  font-weight: 600;
-  color: var(--qt-ink);
+  font-size: 0.8125rem;
+  color: var(--qt-ink-2);
 }
 .qt-status[data-tone='done'] {
   color: var(--qt-marker-ink);

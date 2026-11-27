@@ -2,9 +2,11 @@
 
 /**
  * The reader's balance (view only): what a tip can use now, then the tips,
- * newest first. A tip leaves the figure the moment it is sent and returns
- * only when it did not go through.
+ * newest first. A tip is final when the server accepts it; when one does
+ * not complete, its row says what came back, so the figure never rises
+ * without a reason on screen.
  */
+import { Plus } from 'lucide-react'
 import type { ActivityView, BalanceView } from '@/lib/payments/types'
 import { ActivityList } from './ActivityList'
 import './balance.css'
@@ -24,11 +26,10 @@ export function BalanceScreen({
   const unavailable = balance.status === 'unavailable'
   return (
     <div className="qt-pay qt-screen" data-testid="balance-screen">
-      <h1 className="qt-figure-label">Ready to tip</h1>
       {loading ? (
         <span
           className="qt-skeleton"
-          style={{ width: '60%', height: 80, marginTop: 8 }}
+          style={{ width: '60%', height: 80 }}
           aria-label="Loading your balance"
         />
       ) : unavailable ? null : (
@@ -36,7 +37,9 @@ export function BalanceScreen({
           {balance.available.display}
         </p>
       )}
-      {balance.status === 'unavailable' ? (
+      <h1 className="qt-figure-label">Ready to tip</h1>
+      <p className="qt-testnet">Testnet. Practice money only.</p>
+      {unavailable ? (
         <p
           className="qt-notice"
           role="status"
@@ -49,11 +52,6 @@ export function BalanceScreen({
       {!balance.online ? (
         <p className="qt-figure-note" role="status">
           You are offline. These figures may be out of date.
-        </p>
-      ) : null}
-      {balance.status === 'ready' && balance.pending.cents > 0 ? (
-        <p className="qt-figure-note" data-testid="balance-pending">
-          {balance.pending.display} in tips is on its way to writers.
         </p>
       ) : null}
       {balance.status === 'closing' ? (
@@ -73,15 +71,15 @@ export function BalanceScreen({
       {!loading && !unavailable ? (
         <div className="qt-actions">
           <a className="qt-button" href={ADD_MONEY_HREF}>
+            <Plus aria-hidden size={18} className="qt-button-icon" />
             Add money
           </a>
-          <span className="qt-testnet">Testnet. Practice money only.</span>
         </div>
       ) : null}
       <ActivityList
         activity={activity}
         now={now}
-        title="Your tips"
+        title="Activity"
         empty="Your tips show up here."
       />
     </div>

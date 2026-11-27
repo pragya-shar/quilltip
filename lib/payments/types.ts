@@ -102,6 +102,10 @@ export type ActivityItem = {
   amount: Money
   /** The writer's share. */
   net: Money
+  /** What has been paid on chain for this tip (all once paid, part of a
+   * tip paid short), and the writer's share of it. */
+  paid: Money
+  paidNet: Money
   status: 'sending' | 'sent' | 'on-chain' | 'not-paid'
   reason: NotPaidReason | null
   at: number

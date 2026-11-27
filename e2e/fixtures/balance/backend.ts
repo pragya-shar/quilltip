@@ -22,6 +22,8 @@ type Receipt = {
   passage: string | null
   signature: string
   txHash: string | null
+  /** For a tip paid short: the cents of it already paid. */
+  paidCents?: number
 }
 
 type Prepared = {
@@ -250,6 +252,10 @@ function entry(r: Receipt, role: 'reader' | 'writer') {
     passage: r.passage,
     amountCents: r.amountCents,
     netCents: Math.floor(share(r.amountCents)),
+    paidCents: r.status === 'SETTLED' ? r.amountCents : (r.paidCents ?? 0),
+    paidNetCents: Math.floor(
+      share(r.status === 'SETTLED' ? r.amountCents : (r.paidCents ?? 0))
+    ),
     state: state_,
     notPaidReason: reason,
     at: r.at,

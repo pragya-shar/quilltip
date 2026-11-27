@@ -6,7 +6,7 @@
  * once it is paid.
  */
 import { useId, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Clock } from 'lucide-react'
 import { TX_LINK, statusCopy, whenCopy } from '@/lib/payments/copy'
 import { formatTokenAmount } from '@/lib/payments/money'
 import type { ActivityItem } from '@/lib/payments/types'
@@ -23,7 +23,10 @@ export function ActivityRow({
   const copy = statusCopy(item)
   const reader = item.role === 'reader'
   const amount = reader ? item.amount : item.net
-  const muted = item.status === 'not-paid' || item.status === 'sending'
+  // Grey only for money that did not move: a tip paid in part keeps colour.
+  const muted =
+    item.status === 'sending' ||
+    (item.status === 'not-paid' && item.paid.cents === 0)
   return (
     <li className="qt-row" data-status={item.status} data-testid="activity-row">
       <button
@@ -39,6 +42,9 @@ export function ActivityRow({
         {item.passage ? <q className="qt-row-passage">{item.passage}</q> : null}
         <span className="qt-row-meta">
           <span className="qt-status" data-tone={copy.tone}>
+            {item.status === 'sent' || item.status === 'sending' ? (
+              <Clock aria-hidden size={13} />
+            ) : null}
             {copy.label}
           </span>
           <span aria-hidden="true">·</span>

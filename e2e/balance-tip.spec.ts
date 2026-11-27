@@ -16,7 +16,7 @@ type Backend = {
 let runSeq = 0
 async function open(
   page: Page,
-  screen: 'tip' | 'balance' | 'earnings',
+  screen: 'tip' | 'balance' | 'earnings' | 'app',
   seed: string,
   run = `${Date.now()}-${++runSeq}`,
   extra = ''
@@ -312,7 +312,9 @@ test.describe('balance screen', () => {
       ).toBeVisible()
       if (name === 'history') {
         await expect(page.getByTestId('activity-row')).toHaveCount(4)
-        await expect(page.getByText('Did not go through')).toBeVisible()
+        await expect(
+          page.getByText('Did not complete', { exact: true })
+        ).toBeVisible()
         await expect(page.getByText('On hold')).toBeVisible()
         await expect(page.getByText('Paid', { exact: true })).toBeVisible()
         await page
@@ -370,7 +372,7 @@ test.describe('earnings screen', () => {
     test(`renders the ${name} state`, async ({ page }, info) => {
       await open(page, 'earnings', seed)
       await expect(
-        page.getByRole('heading', { name: 'Available' })
+        page.getByRole('heading', { name: 'Ready to withdraw' })
       ).toBeVisible()
       const pending = page.getByTestId('earnings-pending')
       const available = page.getByTestId('earnings-available')
@@ -396,6 +398,7 @@ test.describe('earnings screen', () => {
         await expect(page.getByTestId('earnings-not-paid')).toContainText(
           '1 tip did not complete'
         )
+        await expect(page.getByText('No one was charged')).toHaveCount(0)
         // A failed payout never shows as available.
         await expect(available).toHaveText('$0.97')
       }
@@ -501,5 +504,97 @@ test.describe('payments never take reading with them', () => {
     const state = await backend(page)
     expect(state.receipts).toHaveLength(1)
     expect(state.calls.prepare).toBe(1)
+  })
+})
+
+/** WCAG contrast of each element's text against the background behind it. */
+async function contrasts(page: Page, selectors: string[]) {
+  return page.evaluate((sels) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 1
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+    const rgb = (color: string) => {
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = '#000'
+      ctx.fillStyle = color
+      ctx.fillRect(0, 0, 1, 1)
+      const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
+      return { r: r!, g: g!, b: b!, a: a! / 255 }
+    }
+    const lum = ({ r, g, b }: { r: number; g: number; b: number }) => {
+      const f = (v: number) => {
+        const c = v / 255
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+    }
+    const background = (el: Element | null): string => {
+      for (let n = el; n; n = n.parentElement) {
+        const bg = getComputedStyle(n).backgroundColor
+        if (rgb(bg).a > 0.5) return bg
+      }
+      return getComputedStyle(document.body).backgroundColor || '#fff'
+    }
+    const out: Record<string, number> = {}
+    for (const sel of sels) {
+      const el = document.querySelector(sel)
+      if (!el) continue
+      const fg = lum(rgb(getComputedStyle(el).color))
+      const bg = lum(rgb(background(el)))
+      out[sel] = (Math.max(fg, bg) + 0.05) / (Math.min(fg, bg) + 0.05)
+    }
+    return out
+  }, selectors)
+}
+
+test.describe('contrast and partly paid tips', () => {
+  test('text and controls on both screens meet 4.5:1', async ({ page }) => {
+    await open(page, 'balance', 'reader-history')
+    await expect(page.getByTestId('balance-available')).toBeVisible()
+    const balance = await contrasts(page, [
+      '.qt-figure',
+      '.qt-figure-label',
+      '.qt-testnet',
+      'a.qt-button',
+      '.qt-row-title',
+      '.qt-status',
+    ])
+    await open(page, 'earnings', 'writer-failed')
+    await expect(page.getByTestId('earnings-available')).toBeVisible()
+    const earnings = await contrasts(page, [
+      '.qt-figure',
+      '.qt-figure-label',
+      '.qt-lines dt',
+      '.qt-notice',
+      '.qt-status',
+    ])
+    for (const [sel, ratio] of Object.entries({ ...balance, ...earnings }))
+      expect(ratio, sel).toBeGreaterThanOrEqual(4.5)
+  })
+
+  test('a partly paid tip says what was paid, on both screens', async ({
+    page,
+  }) => {
+    await open(page, 'balance', 'reader-partial')
+    const rows = page.getByTestId('activity-row')
+    await expect(rows).toHaveCount(2)
+    await expect(rows.first()).toContainText('Paid in part')
+    await rows.nth(0).getByRole('button').click()
+    await expect(
+      page.getByText('$0.10 was paid. $0.15 is back in your balance.')
+    ).toBeVisible()
+    await rows.nth(1).getByRole('button').click()
+    await expect(
+      page.getByText(
+        '$0.10 was paid. $0.15 waits on your balance; add money and it goes through.'
+      )
+    ).toBeVisible()
+    await open(page, 'earnings', 'writer-partial')
+    const wrows = page.getByTestId('activity-row')
+    await wrows.nth(1).getByRole('button').click()
+    await expect(
+      page.getByText("$0.09 arrived. $0.15 is waiting on the reader's balance.")
+    ).toBeVisible()
+    await expect(page.getByText(/not charged/)).toHaveCount(0)
   })
 })

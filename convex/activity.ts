@@ -12,7 +12,11 @@ import { paginationOptsValidator } from 'convex/server'
 import { v } from 'convex/values'
 import type { Doc } from './_generated/dataModel'
 import { query, type QueryCtx } from './_generated/server'
-import { receiptNet, tabAccountForReader } from './lib/chain/tabLedger'
+import {
+  receiptNet,
+  tabAccountForReader,
+  tabVoucher,
+} from './lib/chain/tabLedger'
 import {
   caller,
   moneyStateOf,
@@ -36,12 +40,40 @@ export type ActivityEntry = {
   amountCents: number
   /** The writer's share in whole cents, floored. */
   netCents: number
+  /**
+   * The part of this tip already paid on chain, in the tip's own cents
+   * (floored): all of it when settled, none when accepted, and for a tip on
+   * hold or not paid, what a short payment of its pair covered.
+   */
+  paidCents: number
+  /** The writer's share of `paidCents`, floored. */
+  paidNetCents: number
   state: MoneyState
   notPaidReason: NotPaidReason | null
   at: number
   txHash: string | null
   /** The exact token amounts, for the detail view. */
   baseUnits: { token: 'XLM'; gross: string; net: string }
+}
+
+/** Base units of this receipt that its pair has paid on chain. */
+async function paidPartOf(
+  ctx: QueryCtx,
+  receipt: Doc<'tabReceipts'>
+): Promise<bigint> {
+  const amount = BigInt(receipt.amount)
+  if (receipt.status === 'SETTLED') return amount
+  if (receipt.status === 'ACCEPTED') return BigInt(0)
+  const pair = await tabVoucher(
+    ctx,
+    receipt.tabAccountId,
+    receipt.keyId,
+    receipt.writerAddress
+  )
+  if (!pair) return BigInt(0)
+  const before = BigInt(receipt.cumulativeAfter) - amount
+  const part = BigInt(pair.paidOnChain) - before
+  return part <= BigInt(0) ? BigInt(0) : part > amount ? amount : part
 }
 
 async function entryOf(
@@ -54,6 +86,10 @@ async function entryOf(
   const author = await ctx.db.get(receipt.authorId)
   const { state, reason } = moneyStateOf(receipt.status)
   const net = receiptNet(receipt)
+  const paidPart = await paidPartOf(ctx, receipt)
+  const gross = BigInt(receipt.amount)
+  const share = receiptShareCents(receipt, cents)
+  const paidRatio = gross > BigInt(0) ? Number(paidPart) / Number(gross) : 0
   return {
     id: receipt._id,
     requestId: receipt.requestId ?? row?.requestId ?? null,
@@ -72,7 +108,9 @@ async function entryOf(
     },
     passage: passagePreview(row),
     amountCents: cents,
-    netCents: Math.floor(receiptShareCents(receipt, cents)),
+    netCents: Math.floor(share),
+    paidCents: Math.floor(cents * paidRatio),
+    paidNetCents: Math.floor(share * paidRatio),
     state,
     notPaidReason: reason,
     at: receipt.acceptedAt,

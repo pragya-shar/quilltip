@@ -3,6 +3,7 @@
  * 9). Never "tab", "voucher", "settle", "session key", "contract" or base
  * units; a count of tips says "tips" (D13).
  */
+import { formatMoney } from './money'
 import type { ActivityItem } from './types'
 
 export function statusCopy(item: ActivityItem): {
@@ -11,6 +12,7 @@ export function statusCopy(item: ActivityItem): {
   tone: 'plain' | 'done' | 'danger'
 } {
   const reader = item.role === 'reader'
+  const short = (cents: number) => formatMoney(cents)
   switch (item.status) {
     case 'sending':
       return { label: 'Sending', detail: null, tone: 'plain' }
@@ -22,22 +24,41 @@ export function statusCopy(item: ActivityItem): {
             tone: 'plain',
           }
         : {
-            label: item.lagging ? 'On its way, taking longer' : 'On its way',
+            label: item.lagging ? 'Taking longer' : 'On its way',
             detail: item.lagging
-              ? 'Recorded and on its way. It is taking longer than usual. Nothing for you to do.'
+              ? 'Taking longer than usual. It stays On its way until it arrives.'
               : 'Recorded and on its way.',
             tone: 'plain',
           }
     case 'on-chain':
       return {
         label: 'Paid',
-        detail: reader
-          ? 'Paid to the writer.'
-          : 'Paid to you. Ready to collect, or already collected.',
+        detail: reader ? 'Paid to the writer.' : 'Paid to you.',
         tone: 'done',
       }
-    case 'not-paid':
-      if (item.reason === 'shortfall')
+    case 'not-paid': {
+      // Never say nothing moved unless nothing was paid for this tip.
+      const paid = reader ? item.paid.cents : item.paidNet.cents
+      const whole = reader ? item.amount.cents : item.net.cents
+      const rest = Math.max(0, whole - paid)
+      const final = item.reason !== 'shortfall'
+      if (paid > 0)
+        return reader
+          ? {
+              label: 'Paid in part',
+              detail: final
+                ? `${short(paid)} was paid. ${short(rest)} is back in your balance.`
+                : `${short(paid)} was paid. ${short(rest)} waits on your balance; add money and it goes through.`,
+              tone: 'danger',
+            }
+          : {
+              label: 'Paid in part',
+              detail: final
+                ? `${short(paid)} arrived. The rest did not complete.`
+                : `${short(paid)} arrived. ${short(rest)} is waiting on the reader's balance.`,
+              tone: 'danger',
+            }
+      if (!final)
         return reader
           ? {
               label: 'On hold',
@@ -47,21 +68,21 @@ export function statusCopy(item: ActivityItem): {
             }
           : {
               label: 'On hold',
-              detail:
-                "The reader's balance ran short. It is paid if they add money.",
+              detail: "Waiting on the reader's balance.",
               tone: 'danger',
             }
       return reader
         ? {
-            label: 'Did not go through',
-            detail: 'You were not charged. The money is back in your balance.',
+            label: 'Did not complete',
+            detail: `Did not complete. ${short(item.amount.cents)} is back in your balance.`,
             tone: 'danger',
           }
         : {
             label: 'Did not complete',
-            detail: 'The reader was not charged.',
+            detail: 'Did not complete. The reader was not charged.',
             tone: 'danger',
           }
+    }
   }
 }
 

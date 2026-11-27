@@ -14,6 +14,7 @@ function receipt(
     ago?: number
     passage?: string | null
     tx?: boolean
+    paidCents?: number
   }
 ) {
   const n = s.receipts.length + 1
@@ -33,6 +34,7 @@ function receipt(
         : o.passage,
     signature: `sig-seed-${n}`,
     txHash: o.tx ? 'ab'.repeat(32) : null,
+    ...(o.paidCents !== undefined ? { paidCents: o.paidCents } : {}),
   })
 }
 
@@ -118,6 +120,17 @@ export const SCENARIOS: Record<string, (s: FixtureState) => void> = {
     receipt(s, { cents: 100, status: 'SETTLED', ago: 40 * MIN, tx: true })
     receipt(s, { cents: 300, status: 'SHORTFALL', ago: 30 * MIN })
     receipt(s, { cents: 100, status: 'UNPAID', ago: 20 * MIN })
+  },
+  'reader-partial': (s) => {
+    s.user = 'a'
+    s.accounts.a = { confirmed: XLM(20) }
+    receipt(s, { cents: 25, status: 'SHORTFALL', ago: 20 * MIN, paidCents: 10 })
+    receipt(s, { cents: 25, status: 'UNPAID', ago: 10 * MIN, paidCents: 10 })
+  },
+  'writer-partial': (s) => {
+    s.user = 'w'
+    receipt(s, { cents: 25, status: 'SHORTFALL', ago: 20 * MIN, paidCents: 10 })
+    receipt(s, { cents: 25, status: 'UNPAID', ago: 10 * MIN, paidCents: 10 })
   },
   'writer-empty': (s) => {
     s.user = 'w'

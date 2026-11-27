@@ -275,6 +275,8 @@ describe('optimistic balance and reconciliation', () => {
       passage: 'A line worth a dollar.',
       amountCents: 100,
       netCents: 97,
+      paidCents: 0,
+      paidNetCents: 0,
       state: 'accepted',
       notPaidReason: null,
       at: NOW - 500,

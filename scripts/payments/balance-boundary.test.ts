@@ -22,7 +22,12 @@ import { PaymentsBoundary } from '../../components/payments/PaymentsBoundary'
 const Page = () => h('p', { 'data-testid': 'page' }, 'Story time.')
 
 function layout(engine: ReactNode, onError: (e: unknown) => void) {
-  return h(Fragment, null, h(Page), h(PaymentsBoundary, { onError }, engine))
+  return h(
+    Fragment,
+    null,
+    h(Page),
+    h(PaymentsBoundary, { onError, children: engine })
+  )
 }
 
 let setBroken: (broken: boolean) => void = () => {}

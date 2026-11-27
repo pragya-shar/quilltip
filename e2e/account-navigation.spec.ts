@@ -91,7 +91,7 @@ async function expectDestination(page: Page, label: string, path: string) {
       break
     case 'Earnings':
       await expect(
-        page.getByRole('heading', { name: 'Available', exact: true })
+        page.getByRole('heading', { name: 'Ready to withdraw', exact: true })
       ).toBeVisible()
       break
     case 'Stats':
