@@ -1,5 +1,11 @@
 /**
- * Dollars on screen, and the conversions the optimistic balance needs. The
+ * Dollars on screen, and the conversions the optimistic balance needs.
+ *
+ * Exact or approximate: a dollar figure stored at tip time (the amount on
+ * the tip button, the receipt, a row's tip amount, the writer's per-tip
+ * amounts and their sums) is exact and shown as "$1.00". A dollar figure
+ * converted from the token at today's price (the reader's spendable
+ * balance) is an estimate and shown with "≈" (`approxMoney`). The
  * conversions repeat the server's arithmetic exactly (`centsToStroops` in
  * `convex/lib/chain/tabLedger.ts`, `centsFromBaseUnits` in
  * `convex/lib/moneyViews.ts`), so the figure shown at the tap is the figure
@@ -26,6 +32,11 @@ export function formatShort(cents: Cents): string {
 
 export function money(cents: Cents): Money {
   return { cents, display: formatMoney(cents) }
+}
+
+/** A figure converted from the token at today's price: "≈ $17.28". */
+export function approxMoney(cents: Cents): Money {
+  return { cents, display: `≈ ${formatMoney(cents)}` }
 }
 
 /** Base units for a cent amount at `priceUsd` per XLM, as prepare converts. */

@@ -1398,18 +1398,6 @@ export async function applyPairPayment(
   await refreshSettleQueue(ctx, voucherId, args.now)
 }
 
-/**
- * What a new tip can use now: `max(0, confirmedBalance − outstanding)`.
- * The one place the reader's spendable amount is computed for the screens
- * (`balance.session`).
- */
-export function readerSpendable(
-  account: Pick<Doc<'tabAccounts'>, 'confirmedBalance' | 'outstanding'>
-): bigint {
-  const free = big(account.confirmedBalance) - big(account.outstanding)
-  return free > ZERO ? free : ZERO
-}
-
 /** Accepted amount of a pair that is still owed: `max(0, cumulative − paid)`. */
 export function pairOutstanding(
   v: Pick<Doc<'tabVouchers'>, 'cumulative' | 'paidOnChain'>

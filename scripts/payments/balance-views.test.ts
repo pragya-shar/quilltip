@@ -11,6 +11,7 @@ import {
   centsToBaseUnits,
   formatMoney,
   formatTokenAmount,
+  approxMoney,
   money,
 } from '../../lib/payments/money'
 import { createOutbox, type OutboxEntry } from '../../lib/payments/outbox'
@@ -112,6 +113,17 @@ describe('money arithmetic matches the server', () => {
         expect(baseUnitsToCents(base, price)).toBe(
           centsFromBaseUnits(base, price)
         )
+  })
+
+  it('marks converted figures as estimates and stored ones as exact', () => {
+    // Spendable is converted from the token at today's price.
+    expect(view(session()).available.display).toBe('≈ $6.95')
+    expect(approxMoney(1728).display).toBe('≈ $17.28')
+    // A tip's cents are stored at tip time: exact on the button and rows.
+    expect(money(25).display).toBe('$0.25')
+    expect(tipLabel({ phase: 'idle' }, money(25), true)).toBe(
+      'Tip this line $0.25'
+    )
   })
 
   it('shows dollars floored and the exact token amount', () => {

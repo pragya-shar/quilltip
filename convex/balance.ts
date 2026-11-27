@@ -15,6 +15,7 @@ import { readChainEnv } from './lib/chain/env'
 import {
   maxCentsWithin,
   readerSpendable,
+  reservedOf,
   tabAccountForReader,
   tabLimits,
 } from './lib/chain/tabLedger'
@@ -99,7 +100,9 @@ export const session = query({
         onChain: false,
       }
 
-    const available = readerSpendable(account)
+    // The one definition of spendable (it can be negative: shown as 0).
+    const spendable = readerSpendable(account)
+    const available = spendable > BigInt(0) ? spendable : BigInt(0)
     const availableCents = price ? centsFromBaseUnits(available, price.usd) : 0
     // A running figure kept with each receipt's state, never a scan.
     const pendingCents = account.reservedCents ?? 0
@@ -164,7 +167,8 @@ export const session = query({
           token: 'xlm',
           contractId: chain.tokenContractId ?? '',
           confirmed: account.confirmedBalance,
-          outstanding: account.outstanding,
+          // Accepted and unsettled, plus settled but not yet debited.
+          outstanding: reservedOf(account).toString(),
           available: available.toString(),
           availableCents,
         },
