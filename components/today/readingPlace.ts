@@ -1,76 +1,79 @@
 /**
- * The reader's place, as the article view keeps it in this browser. Today
- * only reads it: "Your place" is the newest article not yet finished, and
- * the finished ones go to the server as the skip list (`finished.ts`). A
- * server-side reading position (B3 `reading.mine`) replaces this later.
+ * A copy of the reading-place interface the article view owns
+ * (`hooks/read/readingPlace.ts`, pull request 601): the key, the cookie
+ * name, the entry shape and the parser, exactly as there. Today only reads.
  *
- * Shape, newest first, at most 20 entries:
- *   { articleId, href, title, sentence?, percent, updatedAt, finished? }
- * `href` already lands at the sentence. Anything else in storage is ignored.
+ * When pull request 601 is on this branch's base, delete this file and
+ * import `READING_PLACE_KEY`, `FINISHED_COOKIE`, `ReadingPlace`,
+ * `parsePlaces` and `readPlaces` from `@/hooks/read/readingPlace`; nothing
+ * else changes.
  */
-export const READING_POSITION_KEY = 'quilltip:reading-position:v2'
+export const READING_PLACE_KEY = 'quilltip:reading-position:v2'
+export const FINISHED_COOKIE = 'qt_finished'
+export const PLACE_LIMIT = 20
 
 export type ReadingPlace = {
   articleId: string
   href: string
   title: string
-  sentence: string | null
-  /** 0..1 */
+  /** The sentence at the reading line, at most 80 characters. */
+  sentence: string
+  /** How much has been read, 0 to 1. */
   percent: number
   updatedAt: number
   finished: boolean
 }
 
-function asPlace(entry: unknown): ReadingPlace | null {
-  if (!entry || typeof entry !== 'object') return null
-  const e = entry as Record<string, unknown>
-  if (typeof e.articleId !== 'string' || !e.articleId) return null
-  if (typeof e.title !== 'string' || !e.title.trim()) return null
-  // Same-origin paths only: a stored value never sends a reader elsewhere.
+/** One stored entry, or null. Missing `sentence` and `finished` read as
+ * empty and false; anything else bad drops the entry. */
+function toPlace(value: unknown): ReadingPlace | null {
+  const v = value as Partial<ReadingPlace> | null
   if (
-    typeof e.href !== 'string' ||
-    !e.href.startsWith('/') ||
-    e.href.startsWith('//')
+    !v ||
+    typeof v !== 'object' ||
+    typeof v.articleId !== 'string' ||
+    !v.articleId ||
+    typeof v.href !== 'string' ||
+    !v.href.startsWith('/') ||
+    v.href.startsWith('//') ||
+    typeof v.title !== 'string' ||
+    typeof v.percent !== 'number' ||
+    !Number.isFinite(v.percent) ||
+    typeof v.updatedAt !== 'number' ||
+    !Number.isFinite(v.updatedAt)
   )
     return null
-  const percent = typeof e.percent === 'number' ? e.percent : NaN
-  if (!Number.isFinite(percent)) return null
   return {
-    articleId: e.articleId,
-    href: e.href,
-    title: e.title.trim(),
-    sentence:
-      typeof e.sentence === 'string' && e.sentence.trim()
-        ? e.sentence.trim()
-        : null,
-    percent: Math.min(Math.max(percent, 0), 1),
-    updatedAt: typeof e.updatedAt === 'number' ? e.updatedAt : 0,
-    finished: e.finished === true,
+    articleId: v.articleId,
+    href: v.href,
+    title: v.title,
+    sentence: typeof v.sentence === 'string' ? v.sentence : '',
+    percent: Math.max(0, Math.min(1, v.percent)),
+    updatedAt: v.updatedAt,
+    finished: v.finished === true,
   }
 }
 
-/** Every valid stored place, newest first. Empty when storage is blocked. */
-export function readPlaces(storage: Pick<Storage, 'getItem'>): ReadingPlace[] {
+/** The stored places, or none when the value is corrupt. */
+export function parsePlaces(text: string | null): ReadingPlace[] {
   try {
-    const value: unknown = JSON.parse(
-      storage.getItem(READING_POSITION_KEY) ?? '[]'
-    )
+    const value: unknown = JSON.parse(text ?? '[]')
     if (!Array.isArray(value)) return []
     return value
-      .map(asPlace)
+      .map(toPlace)
       .filter((place): place is ReadingPlace => place !== null)
-      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, PLACE_LIMIT)
   } catch {
     return []
   }
 }
 
-/** The article to pick up: the newest one started and not finished. */
-export function currentPlace(places: ReadingPlace[]): ReadingPlace | null {
-  return places.find((place) => !place.finished && place.percent > 0) ?? null
-}
-
-/** The ids of finished articles, newest first. */
-export function finishedIds(places: ReadingPlace[]): string[] {
-  return places.filter((place) => place.finished).map((p) => p.articleId)
+/** The reader's places in this browser, newest first; none when storage
+ * is blocked or empty. */
+export function readPlaces(): ReadingPlace[] {
+  try {
+    return parsePlaces(localStorage.getItem(READING_PLACE_KEY))
+  } catch {
+    return []
+  }
 }

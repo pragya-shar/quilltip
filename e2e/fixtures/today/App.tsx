@@ -27,7 +27,7 @@ export function FixtureApp({ state }: { state: FixtureState }) {
     const [answered, setAnswered] = useState(false)
     const [places, setPlaces] = useState<ReadingPlace[] | undefined>()
     useEffect(() => {
-      setPlaces(readPlaces(localStorage))
+      setPlaces(readPlaces())
       if (state.auth === 'loading') return
       const timer = setTimeout(() => setAnswered(true), state.delay)
       return () => clearTimeout(timer)

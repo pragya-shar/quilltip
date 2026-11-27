@@ -1,11 +1,14 @@
+import { FINISHED_COOKIE } from './readingPlace'
+
 /**
- * The articles this browser finished, as a cookie the server render reads,
- * so Today never opens on an article the reader already finished. Only ids;
- * at most FINISHED_LIMIT of them (the query's own limit). The cookie is
- * written in the browser (`writeFinishedCookie`) and read on the server
- * (`parseFinishedCookie`); with no script it is simply absent.
+ * The server's skip list: the `qt_finished` cookie, which the article view
+ * writes (finished article ids, newest first, each URI-encoded,
+ * comma-separated). Today only reads it, on the server. With no script the
+ * cookie is never written, so a reader with no script is never skipped.
  */
-export const FINISHED_COOKIE = 'qt_finished'
+export { FINISHED_COOKIE }
+
+/** The most ids the query takes (`today.opening`'s EXCLUDE_LIMIT). */
 export const FINISHED_LIMIT = 20
 
 const ID = /^[a-z0-9]{1,64}$/i
@@ -14,27 +17,15 @@ const ID = /^[a-z0-9]{1,64}$/i
 export function parseFinishedCookie(value: string | undefined): string[] {
   if (!value) return []
   const ids: string[] = []
-  for (const part of value.split('.')) {
+  for (const part of value.split(',')) {
     if (ids.length === FINISHED_LIMIT) break
-    if (ID.test(part) && !ids.includes(part)) ids.push(part)
+    let id: string
+    try {
+      id = decodeURIComponent(part).trim()
+    } catch {
+      continue
+    }
+    if (ID.test(id) && !ids.includes(id)) ids.push(id)
   }
   return ids
-}
-
-/** The cookie value for these ids (newest first), or '' for none. */
-export function finishedCookieValue(ids: readonly string[]): string {
-  return parseFinishedCookie(ids.join('.')).join('.')
-}
-
-/** Writes the cookie in the browser; clears it when there is nothing to skip. */
-export function writeFinishedCookie(ids: readonly string[]) {
-  try {
-    const value = finishedCookieValue(ids)
-    const secure = location.protocol === 'https:' ? '; Secure' : ''
-    document.cookie = value
-      ? `${FINISHED_COOKIE}=${value}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`
-      : `${FINISHED_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
-  } catch {
-    // Cookies blocked: Today may open on a finished article; nothing breaks.
-  }
 }

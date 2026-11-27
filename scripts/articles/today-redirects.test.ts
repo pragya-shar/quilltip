@@ -2,7 +2,6 @@ import { expect, test } from 'vitest'
 import { redirectFor } from '../../lib/routing/redirects'
 import {
   FINISHED_LIMIT,
-  finishedCookieValue,
   parseFinishedCookie,
 } from '../../components/today/finished'
 
@@ -28,11 +27,13 @@ test.each(['/', '/articlesx', '/demo', '/demo/read', '/writer/articles'])(
   }
 )
 
-test('the skip-list cookie holds ids only, at most the limit', () => {
+test("the skip list reads the article view's cookie: ids only, at most the limit", () => {
   expect(parseFinishedCookie(undefined)).toEqual([])
-  expect(parseFinishedCookie('abc.def.abc.x y.<a>')).toEqual(['abc', 'def'])
+  // Each id URI-encoded, comma-separated, newest first (hooks/read/readingPlace).
+  expect(parseFinishedCookie('abc,def,abc,x%20y,%3Ca%3E,%E0%A4%A')).toEqual([
+    'abc',
+    'def',
+  ])
   const many = Array.from({ length: 30 }, (_, i) => `id${i}`)
-  expect(parseFinishedCookie(many.join('.'))).toHaveLength(FINISHED_LIMIT)
-  expect(finishedCookieValue(['a1', 'b2'])).toBe('a1.b2')
-  expect(finishedCookieValue([])).toBe('')
+  expect(parseFinishedCookie(many.join(','))).toHaveLength(FINISHED_LIMIT)
 })

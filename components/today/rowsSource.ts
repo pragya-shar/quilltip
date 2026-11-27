@@ -64,7 +64,7 @@ function useStoredPlaces(): ReadingPlace[] | undefined {
   useEffect(() => {
     const read = () => {
       try {
-        setPlaces(readPlaces(localStorage))
+        setPlaces(readPlaces())
       } catch {
         setPlaces([])
       }

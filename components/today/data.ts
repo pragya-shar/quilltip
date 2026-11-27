@@ -6,11 +6,12 @@ import { withinLimit } from './readLimit'
 import type { TodayData, TodayResult } from './types'
 
 /**
- * Seconds a server copy may be reused. The opening holds for a six-hour
- * window, so a minute only delays an unpublished article's removal by that
- * long, and spares the backend a round trip on most requests. Only answers
- * are stored: a failed read throws inside, and a late one is cut off
- * outside, so "unreachable" is never cached.
+ * Seconds a server copy may be reused. The opening holds for a UTC day
+ * (D22); this short reuse bounds how long an unpublished article can stay
+ * on Today (60 s) and spares the backend a round trip on most requests. A
+ * newly published article joins the candidates the next UTC day. Only
+ * answers are stored: a failed read throws inside, and a late one is cut
+ * off outside, so "unreachable" is never cached.
  */
 const REUSE_SECONDS = 60
 

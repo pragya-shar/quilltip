@@ -4,8 +4,8 @@ import Link from 'next/link'
 import { useContext, useEffect, useLayoutEffect, useState } from 'react'
 import { Icon } from '@/system/components/Icon'
 import { ShelfIcon, WriteIcon } from '@/system/icons'
-import { writeFinishedCookie } from './finished'
-import { currentPlace, finishedIds, readPlaces } from './readingPlace'
+import { readPlaces } from './readingPlace'
+import { currentPlace } from './resume'
 import {
   RESERVE_ATTR,
   reservation,
@@ -45,10 +45,7 @@ export function ResumeRows() {
   useBeforePaint(() => {
     let wanted: RowsMemory = { place: false, draft: false }
     try {
-      wanted = reservation(
-        localStorage,
-        currentPlace(readPlaces(localStorage)) !== null
-      )
+      wanted = reservation(localStorage, currentPlace(readPlaces()) !== null)
     } catch {
       // Storage blocked: only what the inline script reserved.
     }
@@ -75,11 +72,6 @@ export function ResumeRows() {
       : reading.auth === 'signed-out'
         ? null
         : undefined
-
-  // The skip list for the next server render, from this browser's places.
-  useEffect(() => {
-    if (reading.places) writeFinishedCookie(finishedIds(reading.places))
-  }, [reading.places])
 
   // Once both are known: remember them for the next visit, and give back the
   // space of a reserved row that has nothing to show.

@@ -11,8 +11,12 @@
  * opening equally often, with or without tips.
  */
 
-/** Six hours: the opening changes four times a day (00, 06, 12, 18 UTC). */
-export const WINDOW_MS = 6 * 60 * 60 * 1000
+/** One UTC day (D22): the place is called Today, and its opening is the
+ * same for everyone that day. */
+export const WINDOW_MS = 24 * 60 * 60 * 1000
+
+/** Reading speed for "N min left" (D22). */
+export const WORDS_PER_MINUTE = 230
 
 /** Newest published articles read per call: one indexed read, bounded. */
 export const CANDIDATE_READ_LIMIT = 60
@@ -99,30 +103,16 @@ export function bodyParagraphs(content: unknown): string[] {
   return paragraphs
 }
 
-/** Words in an article's body paragraphs (what `openingOf` counts). */
-export function bodyWords(content: unknown): number {
-  return bodyParagraphs(content).reduce((sum, text) => sum + wordCount(text), 0)
-}
-
 /**
- * Minutes left to read, as a pure function of the article's length and the
- * reader's position: the article's reading time, less the share of its words
- * already read, rounded up. Zero once nothing is left. Used for the opening
- * ("4 min left" after the shown paragraphs); a server-side reading position
- * can call it with the words read so far.
+ * Minutes left to read (D22): the words still ahead, at 230 a minute,
+ * rounded up; 0 when none are left. A pure function of the article's length
+ * and the reader's position: the opening passes the words after the shown
+ * paragraphs, and a server-side reading position can pass the words after
+ * the reader's place.
  */
-export function minutesLeft({
-  readMinutes,
-  totalWords,
-  wordsRead,
-}: {
-  readMinutes: number
-  totalWords: number
-  wordsRead: number
-}): number {
-  if (totalWords <= 0 || wordsRead >= totalWords) return 0
-  const share = 1 - Math.max(wordsRead, 0) / totalWords
-  return Math.max(1, Math.ceil(readMinutes * share))
+export function minutesLeft(remainingWords: number): number {
+  if (!(remainingWords > 0)) return 0
+  return Math.ceil(remainingWords / WORDS_PER_MINUTE)
 }
 
 /**

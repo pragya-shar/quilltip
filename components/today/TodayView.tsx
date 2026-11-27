@@ -6,11 +6,11 @@ import { OfflineNote } from './OfflineNote'
 import { ResumeRows } from './ResumeRows'
 import { TodayOpening } from './TodayOpening'
 import { TodayUnreachable } from './TodayUnreachable'
-import { READING_POSITION_KEY } from './readingPlace'
+import { READING_PLACE_KEY } from './readingPlace'
 import { reserveScript } from './rowsMemory'
 import type { TodayData } from './types'
 
-const RESERVE_SCRIPT = reserveScript(READING_POSITION_KEY)
+const RESERVE_SCRIPT = reserveScript(READING_PLACE_KEY)
 
 /**
  * Today: the opening, in the first response, with the rows for a returning

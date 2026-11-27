@@ -360,15 +360,13 @@ describe('the opening rule', () => {
     expect(openingOf(doc)!.paragraphs).toHaveLength(3)
   })
 
-  test('minutes left come from the length and the position only', () => {
-    const at = (wordsRead: number) =>
-      minutesLeft({ readMinutes: 6, totalWords: 1200, wordsRead })
-    expect(at(0)).toBe(6)
-    expect(at(170)).toBe(6)
-    expect(at(600)).toBe(3)
-    expect(at(1190)).toBe(1)
-    expect(at(1200)).toBe(0)
-    expect(minutesLeft({ readMinutes: 6, totalWords: 0, wordsRead: 0 })).toBe(0)
+  test('minutes left are the remaining words at 230 a minute, rounded up', () => {
+    expect(minutesLeft(0)).toBe(0)
+    expect(minutesLeft(-5)).toBe(0)
+    expect(minutesLeft(1)).toBe(1)
+    expect(minutesLeft(230)).toBe(1)
+    expect(minutesLeft(231)).toBe(2)
+    expect(minutesLeft(920)).toBe(4)
   })
 
   test('a first sentence is whole, or cut at a word', () => {

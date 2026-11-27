@@ -120,11 +120,7 @@ function todayOpening(at: number) {
       publishedAt: first.publishedAt,
       paragraphs: opening.paragraphs,
       continues: opening.continues,
-      minutesLeft: minutesLeft({
-        readMinutes: first.readTime,
-        totalWords: opening.totalWords,
-        wordsRead: opening.shownWords,
-      }),
+      minutesLeft: minutesLeft(opening.totalWords - opening.shownWords),
     },
     more: ARTICLES.slice(1, 4).map((article) => ({
       ...card(article),

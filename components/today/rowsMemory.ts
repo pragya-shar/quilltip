@@ -74,7 +74,7 @@ export function reservation(storage: Storage, hasPlace: boolean): RowsMemory {
 /**
  * The pre-paint script, as text, run inline before Today's content is
  * parsed. It does what `reservation` and `reserve` do (with `currentPlace`
- * from readingPlace.ts reduced to "an unfinished, started entry with a
+ * from resume.ts reduced to "an unfinished, started entry with a
  * title and a path"), in plain ES5, and never throws.
  */
 export function reserveScript(readingKey: string): string {
@@ -82,7 +82,7 @@ export function reserveScript(readingKey: string): string {
   return (
     `try{var s=localStorage,t=false,i;for(i=0;i<s.length;i++){if((s.key(i)||'').indexOf(${j(AUTH_TOKEN_PREFIX)})===0){t=true;break}}` +
     `if(t){var m=JSON.parse(s.getItem(${j(ROWS_MEMORY_KEY)})||'null')||{},p=JSON.parse(s.getItem(${j(readingKey)})||'[]'),h=false;` +
-    `if(p&&p.length)for(i=0;i<p.length;i++){var e=p[i];if(e&&typeof e.articleId==='string'&&e.articleId&&e.finished!==true&&e.percent>0&&typeof e.title==='string'&&e.title&&typeof e.href==='string'&&e.href.charAt(0)==='/'&&e.href.charAt(1)!=='/'){h=true;break}}` +
+    `if(p&&p.length)for(i=0;i<p.length;i++){var e=p[i];if(e&&typeof e.articleId==='string'&&e.articleId&&e.finished!==true&&e.percent>0&&typeof e.title==='string'&&e.title.replace(/\s/g,'')&&typeof e.href==='string'&&e.href.charAt(0)==='/'&&e.href.charAt(1)!=='/'){h=true;break}}` +
     `var r=document.documentElement;if(h||m.place===true)r.setAttribute(${j(RESERVE_ATTR.place)},'');if(m.draft===true)r.setAttribute(${j(RESERVE_ATTR.draft)},'')}}catch(e){}`
   )
 }

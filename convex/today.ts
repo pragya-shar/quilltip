@@ -148,11 +148,7 @@ export const opening = query({
           paragraphs: text.paragraphs,
           continues: text.continues,
           minutesLeft: text.continues
-            ? minutesLeft({
-                readMinutes,
-                totalWords: text.totalWords,
-                wordsRead: text.shownWords,
-              })
+            ? minutesLeft(text.totalWords - text.shownWords)
             : 0,
         }
       } else {

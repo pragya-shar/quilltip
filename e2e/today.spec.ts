@@ -260,20 +260,6 @@ test.describe('returning, signed in', () => {
     expect(await titleTop(page)).toBe(await firstTop(page))
     expect(await shift(page)).toBe(0)
   })
-
-  test('the skip list goes to the server as a cookie of finished articles', async ({
-    page,
-    context,
-  }) => {
-    await seed(page, { token: true, places: [PLACE, FINISHED] })
-    await page.goto('/?auth=signed-in')
-    await expect
-      .poll(
-        async () =>
-          (await context.cookies()).find((c) => c.name === 'qt_finished')?.value
-      )
-      .toBe(FINISHED.articleId)
-  })
 })
 
 test('a session that ended gives the reserved space back', async ({ page }) => {
