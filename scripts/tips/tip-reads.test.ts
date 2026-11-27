@@ -783,6 +783,22 @@ describe('earnings access and mixed summary', () => {
     expect(own?.userId).toBe(s.authorId)
   })
 
+  it('wallet tips only: XLM, USD and count cover the same tips (#552)', async () => {
+    const t = newTest()
+    const s = await seed(t)
+    const { clientRefs } = await prepare(t, s, [articleItem(s, '1000000', 25)])
+    await applyEvent(t, clientRefs[0]!, BigInt(1_000_000))
+    await sync(t)
+    expect(
+      await asUser(t, s.authorId).query(api.tips.getMyEarningsSummary, {})
+    ).toMatchObject({
+      tipCount: 1,
+      // 97.5 % of 0.1 XLM, and of 25 cents.
+      earnedStroops: '975000',
+      estimatedUsd: 0.24375,
+    })
+  })
+
   it('the summary adds v1 rows and v2 earnings, labelled testnet', async () => {
     const t = newTest()
     const s = await seed(t)
@@ -808,6 +824,109 @@ describe('earnings access and mixed summary', () => {
       estimatedUsd: 1.21875,
       earnedBaseUnits: { [TOKEN]: '975000' },
       v2TipCount: 1,
+      unpricedTipCount: 0,
+      complete: true,
+      lifetime: null,
+      updating: false,
+    })
+  })
+
+  // The figures equal the lifetime totals rebuilt from history (#552): forget
+  // the totals as a row from before this change (the previous figures),
+  // rebuild, and compare.
+  async function bothReads(t: T, userId: Id<'users'>) {
+    const read = () =>
+      asUser(t, userId).query(api.tips.getMyEarningsSummary, {})
+    // The figures the cards show; dollars to six places.
+    const shown = (r: NonNullable<Awaited<ReturnType<typeof read>>>) => {
+      const f = r.lifetime ?? r
+      return {
+        tipCount: f.tipCount,
+        writerShareStroops: f.writerShareStroops,
+        earnedStroops: f.earnedStroops,
+        estimatedUsd: Math.round(f.estimatedUsd * 1_000_000) / 1_000_000,
+        unpricedTipCount: f.unpricedTipCount,
+      }
+    }
+    const live = shown((await read())!)
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query('authorEarnings').collect()).find(
+        (r) => r.userId === userId
+      )!
+      await ctx.db.patch(row._id, {
+        v1TipCount: undefined,
+        v1EarnedCents: undefined,
+        v1ShareStroops: undefined,
+        v1UnpricedTipCount: undefined,
+        tabTipCount: undefined,
+        tabEarnedCents: undefined,
+        tabSettledBaseUnits: undefined,
+        walletEarnedBaseUnits: undefined,
+        lifetimeTotalsAt: undefined,
+      })
+    })
+    expect((await read())!.lifetime).toBeNull()
+    vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'true')
+    await t.action(internal.earningsTotalsBackfill.run, {})
+    const row = await earningsOf(t, userId)
+    expect(row?.lifetimeTotalsAt).toBeTypeOf('number')
+    const rebuilt = (await read())!
+    // The same figures, now from the lifetime totals.
+    expect(rebuilt.lifetime).not.toBeNull()
+    expect(shown(rebuilt)).toEqual(live)
+    return { ...shown(rebuilt), complete: true }
+  }
+
+  it('v1 rows and v2 rows: a legacy tip without a trusted USD amount keeps its XLM and its place in the count (#552)', async () => {
+    const t = newTest()
+    const s = await seed(t)
+    // v1: 4,000,000 stroops and 100 cents → 3,900,000 stroops, 97.5 cents.
+    await insertV1Tip(t, s, { cents: 100, stroops: '4000000' })
+    // v1, flagged: 2 XLM on chain → 19,500,000 stroops; its USD is unknown.
+    const flagged = await insertV1HighlightTip(t, s, 'h-flagged', 200)
+    await t.run(({ db }) =>
+      db.patch(flagged, { amountUsdSuspicious: true, stellarAmountXlm: '2' })
+    )
+    // v2 wallet: 1,000,000 base units and 25 cents → 975,000, 24.375 cents.
+    const { clientRefs } = await prepare(t, s, [articleItem(s, '1000000', 25)])
+    await applyEvent(t, clientRefs[0]!, BigInt(1_000_000))
+    await sync(t)
+
+    expect(await bothReads(t, s.authorId)).toMatchObject({
+      tipCount: 3,
+      writerShareStroops: '23400000',
+      earnedStroops: '24375000',
+      // The flagged tip adds no dollars: the USD is a lower bound.
+      estimatedUsd: 1.21875,
+      unpricedTipCount: 1,
+      complete: true,
+    })
+  })
+
+  it('co-author splits: each recipient reads their share, not the gross (#552)', async () => {
+    const t = newTest()
+    const s = await seed(t)
+    await registerArticle(t, s, {
+      splits: [
+        { recipient: AUTHOR, bps: 7_000 },
+        { recipient: OTHER_AUTHOR, bps: 3_000 },
+      ],
+    })
+    const { clientRefs } = await prepare(t, s, [articleItem(s, '1000001', 40)])
+    await applyEvent(t, clientRefs[0]!, BigInt(1_000_001))
+    await sync(t)
+    // net 975,001: the co-author 292,500 and the author 682,501, and the
+    // 40 cents in the same proportion of gross.
+    expect(await bothReads(t, s.coAuthorId)).toMatchObject({
+      tipCount: 1,
+      earnedStroops: '292500',
+      estimatedUsd: 0.117,
+      complete: true,
+    })
+    expect(await bothReads(t, s.authorId)).toMatchObject({
+      tipCount: 1,
+      earnedStroops: '682501',
+      estimatedUsd: 0.273,
       complete: true,
     })
   })
