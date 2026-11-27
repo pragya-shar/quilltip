@@ -130,7 +130,7 @@ test('the tip control works from the keyboard, and focus follows the tip', async
   await open(page)
   const group = liveTip(page)
   const amount = group.getByRole('button', { name: 'Change amount' })
-  const tip = group.getByRole('button', { name: /^Tip \$/ })
+  const tip = group.getByRole('button', { name: /^Tip Tomás \$/ })
   await amount.focus()
   await page.keyboard.press('Enter')
   const tray = group.getByRole('radiogroup', { name: 'Tip amount' })
@@ -142,7 +142,7 @@ test('the tip control works from the keyboard, and focus follows the tip', async
   await expect(
     tray.getByRole('radio', { name: '$2', exact: true })
   ).toBeChecked()
-  await expect(tip).toHaveText('Tip $2')
+  await expect(tip).toHaveText('Tip Tomás $2')
   await page.keyboard.press('Escape')
   await expect(tray).toBeHidden()
   await expect(amount).toBeFocused()
@@ -156,11 +156,11 @@ test('the tip control works from the keyboard, and focus follows the tip', async
   await expect
     .poll(async () => (await focused(page)).text)
     .toBe('Sent $2 to Tomás Reyes')
-  // Read once, by focus: the control has no live region of its own.
-  await expect(
-    group.locator('[role="status"], [role="alert"], [aria-live]')
-  ).toHaveCount(0)
-  await expect(tip).toHaveText('Tip $2')
+  // Read once, by focus: the control's one live region (for a cancelled
+  // hold) stays empty, and there is no alert.
+  await expect(group.getByRole('status')).toHaveText('')
+  await expect(group.locator('[role="alert"]')).toHaveCount(0)
+  await expect(tip).toHaveText('Tip Tomás $2')
   await expect(tip).toBeFocused()
 })
 
@@ -173,7 +173,7 @@ test('focus follows the tip by touch or pointer too, with no ring', async ({
   await press(page, group.getByRole('button', { name: 'Change amount' }))
   await press(page, group.getByRole('radio', { name: '$5', exact: true }))
   await expect(group.getByRole('radiogroup')).toBeHidden()
-  await expect(button).toHaveText('Tip $5')
+  await expect(button).toHaveText('Tip Tomás $5')
   await press(page, button)
   await expect.poll(async () => (await focused(page)).text).toBe('Sending $5')
   expect((await focused(page)).ring).toBe(false)
@@ -183,7 +183,7 @@ test('focus follows the tip by touch or pointer too, with no ring', async ({
   expect((await focused(page)).ring).toBe(false)
   // Pressing while sent sends nothing more.
   await press(page, button)
-  await expect(button).toHaveText('Tip $5')
+  await expect(button).toHaveText('Tip Tomás $5')
 })
 
 test('a refused tip moves focus to the reason, and Try again is there', async ({
@@ -194,13 +194,81 @@ test('a refused tip moves focus to the reason, and Try again is there', async ({
   const button = group.locator('.qt-tip__button')
   await press(page, page.getByText('Refuse the next tip'))
   await press(page, button)
-  await expect(button).toHaveText('Try again')
+  await expect(button).toHaveText('Try again: tip $1')
+  await expect(group.getByRole('button', { name: 'Not now' })).toBeVisible()
   await expect
     .poll(async () => (await focused(page)).text)
     .toBe('That tip did not go through. You were not charged.')
   await expect(
-    group.getByRole('button', { name: 'Try again' })
+    group.getByRole('button', { name: 'Try again: tip $1' })
   ).toHaveAttribute('aria-describedby', /.+/)
+})
+
+const heldTip = (page: Page) =>
+  page.getByRole('group', { name: 'Tip Ama Mensah' }).first()
+
+test('the hold: focus on its status, +$1 restarts it, then it sends', async ({
+  page,
+}) => {
+  await open(page)
+  const group = heldTip(page)
+  await press(page, group.getByRole('button', { name: 'Tip Ama $1' }))
+  const status = group.locator('.qt-tip__button')
+  await expect(status).toContainText('Sending $1')
+  await expect(status).toContainText('$18.40 → $17.40')
+  await expect
+    .poll(async () => (await focused(page)).text)
+    .toContain('Sending $1 to Ama Mensah. Cancel stops it.')
+  await press(page, group.getByRole('button', { name: 'Add $1' }))
+  await expect(status).toContainText('Sending $2')
+  await expect(status).toContainText('$18.40 → $16.40')
+  await expect(group.getByRole('button', { name: 'Cancel' })).toBeVisible()
+  // About 3 s after the last +$1 it sends; nothing about it before.
+  await expect(status).toContainText('Sent $2', { timeout: 6000 })
+})
+
+test('the hold ends with Escape or Cancel, nothing sent, said once', async ({
+  page,
+}) => {
+  await open(page)
+  const group = heldTip(page)
+  const tip = group.getByRole('button', { name: 'Tip Ama $1' })
+  await press(page, tip)
+  await expect(group.locator('.qt-tip__button')).toContainText('Sending $1')
+  await page.keyboard.press('Escape')
+  await expect(tip).toBeVisible()
+  await expect(group.getByRole('status')).toHaveText(
+    'Cancelled. Nothing was sent.'
+  )
+  await expect(tip).toBeFocused()
+  await press(page, tip)
+  await press(page, group.getByRole('button', { name: 'Cancel' }))
+  await expect(tip).toBeVisible()
+  await page.waitForTimeout(3500)
+  await expect(group.locator('.qt-tip__button')).toHaveText('Tip Ama $1')
+})
+
+test('+$1 is disabled with its reason when a limit is reached', async ({
+  page,
+}) => {
+  await open(page)
+  const holding = page.locator('[data-specimen="Holding"]')
+  const addOne = holding.getByRole('button', { name: /^Add \$1\. Not now:/ })
+  await expect(addOne).toHaveAttribute('aria-disabled', 'true')
+  await expect(addOne).toHaveAccessibleName(
+    'Add $1. Not now: your daily limit is $5'
+  )
+})
+
+test('reduced motion keeps the hold at its full length', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await open(page)
+  const group = heldTip(page)
+  await press(page, group.getByRole('button', { name: 'Tip Ama $1' }))
+  const duration = await group
+    .locator('.qt-tip__countdown')
+    .evaluate((el) => getComputedStyle(el).animationDuration)
+  expect(duration).toBe('3s')
 })
 
 test('another amount: typed, checked, chosen without sending', async ({
@@ -220,7 +288,7 @@ test('another amount: typed, checked, chosen without sending', async ({
   await other.fill('')
   await page.keyboard.type('2.50')
   await page.keyboard.press('Enter')
-  await expect(group.locator('.qt-tip__button')).toHaveText('Tip $2.50')
+  await expect(group.locator('.qt-tip__button')).toHaveText('Tip Tomás $2.50')
 })
 
 for (const kind of [
@@ -475,6 +543,13 @@ test('reduced motion: overlays and the tip control change without travel', async
       0,
       ...document
         .getAnimations()
+        // The hold's countdown and band keep their length (N6).
+        .filter(
+          (a) =>
+            !['qt-hold-fill', 'qt-band'].includes(
+              (a as CSSAnimation).animationName
+            )
+        )
         .map((a) => Number(a.effect?.getComputedTiming().duration) || 0)
     )
   )

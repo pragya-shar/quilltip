@@ -8,19 +8,25 @@ type ProseProps = {
   lang?: string
   /** Direction of the text; `auto` lets the browser pick per paragraph. */
   dir?: 'ltr' | 'rtl' | 'auto'
+  /** The first line of the first paragraph in small caps (an article's
+   * opening; not in the editor). */
+  leadIn?: boolean
   className?: string
   children: ReactNode
 }
 
 /**
  * Reading typography: the serif, the measure, paragraph rhythm, quotes,
- * lists, links and emphasis inside an article body. Children are plain
- * elements (p, h2, blockquote, ul, a, em); Prose styles them.
+ * lists, links, emphasis, figures and footnotes inside an article body
+ * (design N5). Children are plain elements (p, h2, blockquote, ul, a, em,
+ * figure with figcaption, `a.qt-fn-ref` for a footnote reference,
+ * `.qt-footnotes` for the notes); Prose styles them.
  */
 export function Prose({
   variant = 'read',
   lang,
   dir,
+  leadIn,
   className,
   children,
 }: ProseProps) {
@@ -28,6 +34,7 @@ export function Prose({
     <div
       className={cx('qt-prose', className)}
       data-variant={variant}
+      data-lead-in={leadIn || undefined}
       lang={lang}
       dir={dir}
     >

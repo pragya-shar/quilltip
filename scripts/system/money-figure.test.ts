@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { figureParts, figureState } from '@/system/money/figure'
 
+// The money figure lays out the money layer's display text (design N2):
+// exact, two decimals, up to six with fractions of a cent, "≈" only for a
+// converted figure, "$0.00" below the sixth decimal, never "<$0.01".
+
 describe('figureParts', () => {
   it('splits an exact amount into dollars and cents', () => {
     expect(figureParts('$18.40')).toEqual({
       approx: false,
-      below: false,
       symbol: '$',
       whole: '18',
       fraction: '.40',
@@ -24,35 +27,33 @@ describe('figureParts', () => {
     expect(figureParts('$5')).toMatchObject({ whole: '5', fraction: '' })
   })
 
-  it('marks a converted amount as approximate, with or without the space', () => {
-    for (const display of ['≈ $17.28', '≈$17.28']) {
-      expect(figureParts(display)).toMatchObject({
-        approx: true,
-        whole: '17',
-        fraction: '.28',
-        spoken: 'about $17.28',
+  it('keeps fractions of a cent, up to six decimals', () => {
+    for (const [display, fraction] of [
+      ['$0.0975', '.0975'],
+      ['$2.925', '.925'],
+      ['$0.04875', '.04875'],
+      ['$280.4075', '.4075'],
+      ['$0.000001', '.000001'],
+    ] as const) {
+      expect(figureParts(display), display).toMatchObject({
+        fraction,
+        spoken: display,
       })
     }
   })
 
-  it('reads a real amount under a cent as less than one cent', () => {
-    expect(figureParts('<$0.01')).toMatchObject({
-      below: true,
-      whole: '0',
-      fraction: '.01',
-      spoken: 'less than 1 cent',
-    })
-  })
-
-  it('shows a real zero the money layer sent', () => {
+  it('shows an amount below the sixth decimal, and a real zero, as $0.00', () => {
     expect(figureParts('$0.00')).toMatchObject({ whole: '0', fraction: '.00' })
   })
 
-  it('keeps exact sub-cent detail the money layer wrote', () => {
-    expect(figureParts('$4.875')).toMatchObject({ fraction: '.875' })
+  it('marks a converted amount as approximate, with or without the space', () => {
+    for (const display of ['≈ $17.28', '≈$17.28', '≈ $0.00']) {
+      expect(figureParts(display)).toMatchObject({ approx: true })
+    }
+    expect(figureParts('≈ $17.28')?.spoken).toBe('about $17.28')
   })
 
-  it('refuses text it does not recognise', () => {
+  it('refuses text it does not recognise, "<$0.01" included', () => {
     for (const display of [
       '',
       '0',
@@ -65,8 +66,10 @@ describe('figureParts', () => {
       'USD 1.00',
       '$1,23.00',
       '$01.00',
-      '<$0.02',
+      '<$0.01',
       '≈ <$0.01',
+      '$0.0000001',
+      '$1.9500',
       '$NaN',
       '$Infinity',
     ]) {
@@ -97,7 +100,7 @@ describe('figureState', () => {
   })
 
   it('shows unavailable for display text it cannot read', () => {
-    expect(figureState({ cents: 0, display: '0' })).toEqual({
+    expect(figureState({ cents: 0, display: '<$0.01' })).toEqual({
       kind: 'unavailable',
     })
   })

@@ -15,6 +15,7 @@ const noop = () => {}
 export function MoneySection() {
   const [refuse, setRefuse] = useState(false)
   const demo = useDemoTip(refuse)
+  const held = useDemoTip(false, true)
   return (
     <GallerySection
       id="money"
@@ -28,12 +29,9 @@ export function MoneySection() {
       <Specimen name="Converted, approximate">
         <MoneyFigure value={money.approx} size="l" label="Ready to tip" />
       </Specimen>
-      <Specimen name="Under a cent">
-        <MoneyFigure
-          value={money.belowCent}
-          size="l"
-          label="Ready to withdraw"
-        />
+      <Specimen name="Fractions of a cent, exact">
+        <MoneyFigure value={money.fractional} size="l" label="Arrived" />
+        <MoneyFigure value={money.share} size="s" tone="in" sign="+" />
       </Specimen>
       <Specimen name="A real zero">
         <MoneyFigure value={money.zero} size="l" label="Ready to tip" />
@@ -96,7 +94,24 @@ export function MoneySection() {
             amounts={amounts}
             onAmountChange={demo.setCents}
             onTip={demo.tip}
+            onNotNow={() => demo.setCents(demo.amount.cents)}
             recipient="Tomás Reyes"
+          />
+        </div>
+      </Specimen>
+      <Specimen name="Tip control with the hold, live (3 s, +$1, Cancel)" wide>
+        <div className="qt-gallery__tipbar">
+          <span className="qt-gallery__text">
+            The money layer adds the hold; until then the tip sends at once.
+          </span>
+          <TipControl
+            state={held.state}
+            amount={held.amount}
+            amounts={amounts}
+            onAmountChange={held.setCents}
+            onTip={held.tip}
+            hold={held.hold}
+            recipient="Ama Mensah"
           />
         </div>
       </Specimen>
@@ -120,6 +135,27 @@ export function MoneySection() {
           recipient="Tomás"
           target="passage"
           onClearTarget={noop}
+        />
+      </Specimen>
+      <Specimen name="Holding">
+        <TipControl
+          state={{
+            phase: 'other',
+            words: 'Sending',
+            amount: money.three,
+            busy: true,
+          }}
+          amount={money.three}
+          amounts={amounts}
+          onAmountChange={noop}
+          onTip={noop}
+          recipient="Tomás Reyes"
+          hold={{
+            projected: '$18.40 → $15.40',
+            onCancel: noop,
+            onAddOne: noop,
+            addOneBlocked: 'your daily limit is $5',
+          }}
         />
       </Specimen>
       <Specimen name="Sending">
