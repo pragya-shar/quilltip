@@ -1,8 +1,27 @@
 [
   {
     "class": "C",
-    "match": "QuillTip Article",
-    "reason": "The NFT collection name stored on chain by the deployed NFT contract. Token metadata names and the deploy constant must equal it."
+    "path": "scripts/contracts/deploy-v2/config.ts",
+    "match": "NFT_NAME = 'QuillTip Article'",
+    "reason": "The NFT collection name stored on chain by the deployed NFT contract is \"QuillTip Article\". This constant is the constructor argument, and deploy-v2/steps.ts checks nft.name against it."
+  },
+  {
+    "class": "C",
+    "path": "lib/nft/metadataResponse.ts",
+    "match": "name: `QuillTip Article #",
+    "reason": "The NFT collection name stored on chain by the deployed NFT contract is \"QuillTip Article\". Token metadata names mirror it."
+  },
+  {
+    "class": "C",
+    "path": "scripts/nft/metadata-route.test.ts",
+    "match": "name: 'QuillTip Article #",
+    "reason": "The NFT collection name stored on chain by the deployed NFT contract is \"QuillTip Article\". The metadata route test asserts the token names that mirror it."
+  },
+  {
+    "class": "C",
+    "path": "docs/contracts/v2-testnet-deployment.md",
+    "match": "`\"QuillTip Article\"`",
+    "reason": "The NFT collection name stored on chain by the deployed NFT contract is \"QuillTip Article\". This record lists the deployed value."
   },
   {
     "class": "C",

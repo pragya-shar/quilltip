@@ -10,7 +10,12 @@ import {
 import { tmpdir } from 'os'
 import { dirname, join, resolve } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { CHECK_FAILURE_HINT, loadAllowlist, run } from './apply-spelling'
+import {
+  CHECK_FAILURE_HINT,
+  LOST_DATA_HINT,
+  loadAllowlist,
+  run,
+} from './apply-spelling'
 import {
   applySpelling,
   findOccurrences,
@@ -50,8 +55,15 @@ describe('applySpelling', () => {
     )
     expect(changed).toHaveLength(1)
     // Inside the full name, only the full-name rule applies.
-    expect(applySpelling('a.html', '<b>QuillTip</b>', []).text).toBe(
-      '<b>Quilltip</b>'
+    const full = applySpelling('a.html', '<b>QuillTip</b>', [])
+    expect(full.text).toBe('<b>Quilltip</b>')
+    expect(full.changed).toHaveLength(1)
+  })
+
+  it('rewrites wordmark text formatted onto its own line', () => {
+    const input = '<span aria-hidden="true">\n  uillTip\n</span>\n'
+    expect(applySpelling('a.tsx', input, []).text).toBe(
+      '<span aria-hidden="true">\n  uilltip\n</span>\n'
     )
   })
 
@@ -148,6 +160,20 @@ describe('validateAllowlist', () => {
       { class: 'C', path: 'a', reason: 'a long enough reason', extra: 1 },
       /unknown key/,
     ],
+    // A match must name the kept text, not only the old spelling.
+    [{ class: 'C', match: 'QuillTip', reason: 'keeps every one' }, /more than/],
+    [
+      { class: 'C', match: "QuillTip's", reason: 'keeps nearly all' },
+      /more than/,
+    ],
+    [
+      { class: 'C', path: 'a', match: 'uillTip<', reason: 'the wordmark only' },
+      /more than/,
+    ],
+    [
+      { class: 'C', match: 'no old name', reason: 'keeps nothing at all' },
+      /no old spelling/,
+    ],
   ])('rejects %j', (entry, message) => {
     expect(() => validateAllowlist([entry])).toThrow(message)
   })
@@ -188,7 +214,11 @@ describe('run', () => {
       match: 'QuillTip asks you',
       reason: 'signed challenge text',
     },
-    { class: 'C', match: 'never present', reason: 'an unused entry here' },
+    {
+      class: 'D',
+      match: 'QuillTip never present',
+      reason: 'an unused entry here',
+    },
   ])
 
   function fixture() {
@@ -228,11 +258,47 @@ describe('run', () => {
     )
     expect(readFileSync(join(root, 'owned/a.rs'), 'utf8')).toBe('QuillTip\n')
     expect(readFileSync(join(root, 'ignored/a.md'), 'utf8')).toBe('QuillTip\n')
-    expect(first.unused.map((e) => e.match)).toEqual(['never present'])
+    expect(first.unused.map((e) => e.match)).toEqual(['QuillTip never present'])
+    expect(first.lostData).toEqual([])
 
     const second = run({ root, check: false, log: () => {} })
     expect(second.changed).toEqual([])
     expect(run({ root, check: true, log: () => {} }).ok).toBe(true)
+  })
+})
+
+describe('class C entries', () => {
+  const dirs: string[] = []
+  afterEach(() => {
+    for (const dir of dirs.splice(0))
+      rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('fail the check when the stored text they keep is edited', () => {
+    const root = mkdtempSync(join(tmpdir(), 'brand-spelling-'))
+    dirs.push(root)
+    execFileSync('git', ['init', '-q'], { cwd: root })
+    mkdirSync(join(root, 'scripts/brand'), { recursive: true })
+    writeFileSync(
+      join(root, 'scripts/brand/allowlist.json'),
+      JSON.stringify([
+        {
+          class: 'C',
+          path: 'lib/challenge.ts',
+          match: 'QuillTip asks you',
+          reason: 'signed challenge text',
+        },
+      ])
+    )
+    mkdirSync(join(root, 'lib'))
+    // Someone rewrote the signed text by hand.
+    writeFileSync(join(root, 'lib/challenge.ts'), "'Quilltip asks you'\n")
+    const lines: string[] = []
+    const result = run({ root, check: true, log: (l) => lines.push(l) })
+    expect(result.changed).toEqual([])
+    expect(result.lostData.map((e) => e.match)).toEqual(['QuillTip asks you'])
+    expect(result.ok).toBe(false)
+    expect(lines.join('\n')).toContain(LOST_DATA_HINT)
   })
 })
 
@@ -243,5 +309,30 @@ describe('the repository', () => {
       result.changed.map((o) => `${o.path}:${o.line}`),
       CHECK_FAILURE_HINT
     ).toEqual([])
+  })
+
+  it('still has every stored or signed text that class C entries keep', () => {
+    const result = run({ root: repoRoot, check: true, log: () => {} })
+    expect(
+      result.lostData.map((e) => e.match),
+      LOST_DATA_HINT
+    ).toEqual([])
+    expect(result.ok).toBe(true)
+  })
+
+  // A new exclusion of a whole path is a visible change to this list.
+  it('excludes only these whole paths', () => {
+    const wholePaths = loadAllowlist(repoRoot)
+      .filter((e) => e.match === undefined)
+      .map((e) => e.path)
+      .sort()
+    expect(wholePaths).toEqual([
+      'contracts/',
+      'docs/architecture/v2/',
+      'lib/stellar/v2/bindings/',
+      'public/images/banner.png',
+      'public/images/quilltip-cover.jpg',
+      'scripts/brand/',
+    ])
   })
 })

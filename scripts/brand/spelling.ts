@@ -13,13 +13,28 @@
  * Old spelling to new spelling. Case-sensitive; no two rules can match the
  * same text, so the order does not matter.
  */
-export const RULES: ReadonlyArray<{ from: string; to: string }> = [
-  { from: 'QuillTip', to: 'Quilltip' },
-  { from: 'Quill Tip', to: 'Quilltip' },
-  // The wordmark draws the Q as the logo and writes the rest as element text:
-  // `<svg>…</svg><span>uillTip</span>`.
-  { from: '>uillTip<', to: '>uilltip<' },
+export const RULES: ReadonlyArray<{ pattern: RegExp; to: string }> = [
+  { pattern: /QuillTip/g, to: 'Quilltip' },
+  { pattern: /Quill Tip/g, to: 'Quilltip' },
+  // The wordmark draws the Q as the logo and writes the rest as text, which
+  // may sit on its own line: `<svg>…</svg><span>uillTip</span>`.
+  { pattern: /(?<!Q)uillTip/g, to: 'uilltip' },
 ]
+
+/**
+ * Characters a `match` needs beyond the old spelling it keeps, so an entry
+ * names one piece of text instead of every occurrence on a path.
+ */
+export const MIN_MATCH_CONTEXT = 4
+
+/** Every rule match in `line`: start index and matched text. */
+function ruleMatches(line: string) {
+  const found: { at: number; from: string; to: string }[] = []
+  for (const rule of RULES)
+    for (const m of line.matchAll(rule.pattern))
+      found.push({ at: m.index, from: m[0], to: rule.to })
+  return found.sort((a, b) => a.at - b.at)
+}
 
 /**
  * Why an occurrence is kept.
@@ -87,6 +102,19 @@ export function validateAllowlist(value: unknown): AllowEntry[] {
       throw new Error(`${where} has an empty match.`)
     if (entry.path === undefined && entry.match === undefined)
       throw new Error(`${where} needs a path, a match or both.`)
+    if (typeof entry.match === 'string') {
+      // A match must name the kept text, not only the old spelling, so an
+      // entry cannot keep every occurrence on a path.
+      const inside = ruleMatches(entry.match)
+      if (inside.length === 0)
+        throw new Error(`${where}: the match contains no old spelling.`)
+      const text = entry.match
+      if (inside.some((m) => text.length < m.from.length + MIN_MATCH_CONTEXT))
+        throw new Error(
+          `${where}: the match must contain more than the old spelling ` +
+            `(at least ${MIN_MATCH_CONTEXT} more characters of the kept text).`
+        )
+    }
     const known = new Set(['class', 'path', 'match', 'reason'])
     for (const key of Object.keys(entry))
       if (!known.has(key))
@@ -135,24 +163,16 @@ export function findOccurrences(
   const found: Occurrence[] = []
   const lines = text.split('\n')
   lines.forEach((line, index) => {
-    const onLine: Occurrence[] = []
-    for (const rule of RULES) {
-      let at = line.indexOf(rule.from)
-      while (at !== -1) {
-        onLine.push({
-          path,
-          line: index + 1,
-          column: at + 1,
-          from: rule.from,
-          to: rule.to,
-          keptBy: keeper(path, line, at, rule.from.length, allowlist),
-          text: line,
-        })
-        at = line.indexOf(rule.from, at + rule.from.length)
-      }
-    }
-    onLine.sort((a, b) => a.column - b.column)
-    found.push(...onLine)
+    for (const m of ruleMatches(line))
+      found.push({
+        path,
+        line: index + 1,
+        column: m.at + 1,
+        from: m.from,
+        to: m.to,
+        keptBy: keeper(path, line, m.at, m.from.length, allowlist),
+        text: line,
+      })
   })
   return found
 }

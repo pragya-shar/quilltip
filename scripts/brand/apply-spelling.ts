@@ -31,6 +31,12 @@ export const CHECK_FAILURE_HINT =
   'these. If the text is stored or signed data, or belongs to code owned ' +
   `elsewhere, add an entry with a reason to ${DEFAULT_ALLOWLIST} instead.`
 
+export const LOST_DATA_HINT =
+  'A class C allowlist entry keeps stored or signed text (on-chain values, ' +
+  'signed challenge text, transaction memos). That text changed or moved. ' +
+  'Restore it, or update the entry in the same change after confirming the ' +
+  'stored or signed data allows it.'
+
 export type RunOptions = {
   root: string
   allowlistPath?: string
@@ -43,8 +49,10 @@ export type RunResult = {
   changed: Occurrence[]
   kept: Occurrence[]
   files: string[]
-  /** Entries with a match that kept nothing (not an error: branches differ). */
+  /** Entries with a match that kept nothing. */
   unused: AllowEntry[]
+  /** Class C entries among `unused`; they fail the check. */
+  lostData: AllowEntry[]
   ok: boolean
 }
 
@@ -134,15 +142,27 @@ export function run(options: RunOptions): RunResult {
       )
     }
   }
-  for (const entry of unused)
+  // A class C entry guards stored or signed text. When it keeps nothing, that
+  // text was edited or removed, which needs a deliberate allowlist change.
+  const lostData = unused.filter((e) => e.class === 'C')
+  for (const entry of unused.filter((e) => e.class !== 'C'))
     log(`Note: allowlist entry "${entry.match}" kept nothing on this branch.`)
+  if (lostData.length > 0) {
+    log('')
+    log(`Stored or signed text no longer found (${lostData.length}):`)
+    for (const entry of lostData)
+      log(`  ${entry.path ?? '(any file)'}: "${entry.match}"`)
+    log('')
+    log(LOST_DATA_HINT)
+  }
 
   return {
     changed,
     kept,
     files,
     unused,
-    ok: !options.check || changed.length === 0,
+    lostData,
+    ok: !options.check || (changed.length === 0 && lostData.length === 0),
   }
 }
 
