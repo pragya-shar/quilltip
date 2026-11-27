@@ -187,6 +187,10 @@ Until then: the client step, `checking` once sent, `failed` when RPC reports
 retry. The state check runs first, so a late indexer update still turns the
 view confirmed.
 
+A failed tab operation shows the tab operation copy below only when the flow
+passes no `failure`. When the flow knows why it failed (send refused, Stellar
+testnet busy), pass that `failure`; its copy replaces the polling copy.
+
 ### Wallet errors (`gateFromWalletError`, `failureFromWalletError`)
 
 | Wallet error kind                                   | Goes to                                                                                      |
