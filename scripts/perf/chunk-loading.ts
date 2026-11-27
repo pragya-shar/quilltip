@@ -5,8 +5,16 @@ export const LOADER_PATH = '/hydrate-after-paint.js'
 const CHUNK_PREFIX = '/_next/static/chunks/'
 
 export type ChunkLoading = {
-  /** Root chunks listed in the loader's URL, one list per loader tag. */
+  /**
+   * Root chunks listed in the URL of each loader tag that runs before the
+   * first paint: in <head>, without `async`.
+   */
   loaders: string[][]
+  /**
+   * The same for every other loader tag: the async bootstrap copy (`&b=1`),
+   * or a loader that would run after the first paint.
+   */
+  lateLoaders: string[][]
   /** Chunk scripts written inert, started by the loader. */
   inert: string[]
   /** Chunk scripts the browser runs as soon as they arrive. */
@@ -24,11 +32,14 @@ function attribute(tag: string, name: string): string | undefined {
 export function chunkLoading(html: string, base = 'http://localhost') {
   const result: ChunkLoading = {
     loaders: [],
+    lateLoaders: [],
     inert: [],
     eager: [],
     inertWithSrc: [],
   }
-  for (const tag of html.match(/<script\b[^>]*>/g) ?? []) {
+  const bodyAt = html.indexOf('<body')
+  for (const match of html.matchAll(/<script\b[^>]*>/g)) {
+    const tag = match[0]
     const src = attribute(tag, 'src')
     const deferred = attribute(tag, 'data-hydrate-after-paint')
     if (deferred !== undefined) {
@@ -39,12 +50,14 @@ export function chunkLoading(html: string, base = 'http://localhost') {
     if (!src) continue
     const url = new URL(src, base)
     if (url.pathname === LOADER_PATH) {
-      result.loaders.push(
-        (url.searchParams.get('c') ?? '')
-          .split(' ')
-          .filter(Boolean)
-          .map((chunk) => new URL(chunk, base).pathname)
-      )
+      const chunks = (url.searchParams.get('c') ?? '')
+        .split(' ')
+        .filter(Boolean)
+        .map((chunk) => new URL(chunk, base).pathname)
+      const inHead = bodyAt === -1 || match.index! < bodyAt
+      const blocking = !/\s(async|defer)(=|\s|>|\/)/i.test(tag)
+      if (inHead && blocking) result.loaders.push(chunks)
+      else result.lateLoaders.push(chunks)
     } else if (
       url.pathname.startsWith(CHUNK_PREFIX) &&
       !/\snoModule(=|\s|>)/i.test(tag)
@@ -57,13 +70,24 @@ export function chunkLoading(html: string, base = 'http://localhost') {
 
 /**
  * Problems with a page that should start its chunk scripts after the first
- * paint: exactly one loader with root chunks, and no chunk script that the
- * browser would fetch or run before it.
+ * paint: exactly one loader that runs before the first paint (in <head>,
+ * without async, so a press right after the paint is held), at most one late
+ * bootstrap copy with the same chunks, and no chunk script that the browser
+ * would fetch or run before the loader.
  */
 export function deferredLoadingProblems(loading: ChunkLoading): string[] {
   const problems: string[] = []
   if (loading.loaders.length !== 1)
-    problems.push(`${loading.loaders.length} chunk loaders, expected 1`)
+    problems.push(
+      `${loading.loaders.length} chunk loaders in <head> without async, expected 1`
+    )
+  if (loading.lateLoaders.length > 1)
+    problems.push(
+      `${loading.lateLoaders.length} late copies of the chunk loader, expected at most 1`
+    )
+  for (const late of loading.lateLoaders)
+    if (late.join(' ') !== (loading.loaders[0] ?? []).join(' '))
+      problems.push('a late copy of the chunk loader lists other chunks')
   const roots = loading.loaders.flat()
   if (loading.loaders.length === 1 && roots.length === 0)
     problems.push('the chunk loader lists no root chunks')
@@ -82,7 +106,8 @@ export function deferredLoadingProblems(loading: ChunkLoading): string[] {
 /** Problems with a page that should load its chunk scripts as Next.js does. */
 export function defaultLoadingProblems(loading: ChunkLoading): string[] {
   const problems: string[] = []
-  if (loading.loaders.length > 0) problems.push('a chunk loader is present')
+  if (loading.loaders.length + loading.lateLoaders.length > 0)
+    problems.push('a chunk loader is present')
   if (loading.inert.length > 0)
     problems.push(`${loading.inert.length} chunk scripts are inert`)
   if (loading.eager.length === 0) problems.push('no chunk scripts')

@@ -25,7 +25,11 @@ import {
   type RouteBundleStats,
 } from './first-load'
 import { LOADER_PATH } from './chunk-loading'
-import { MARKER, RUNTIMES, installedNext } from '../../patches/next@16.4.6'
+import {
+  REGISTRATION,
+  RUNTIMES,
+  installedNext,
+} from '../../patches/next@16.4.6'
 
 const STATS = '.next/diagnostics/route-bundle-stats.json'
 
@@ -39,7 +43,7 @@ function main(): number {
 
   const { root } = installedNext()
   for (const runtime of RUNTIMES)
-    if (!readFileSync(path.join(root, runtime), 'utf8').includes(MARKER))
+    if (!readFileSync(path.join(root, runtime), 'utf8').includes(REGISTRATION))
       failures.push(
         `${runtime} is not patched. Build with \`bun run build\`, which applies patches/next@16.4.6.ts.`
       )
@@ -59,10 +63,11 @@ function main(): number {
       contents: readFileSync(path.resolve(file)),
     }))
     // The pages start their chunks through the loader, so it is part of
-    // every first load.
+    // every first load, twice: the blocking copy in <head> and the async
+    // bootstrap copy (`&b=1`), which the browser fetches as another URL.
     const kb =
       chunks.reduce((sum, chunk) => sum + gzipBytes(chunk.contents), 0) / 1024 +
-      loaderKb
+      2 * loaderKb
     const budget = FIRST_LOAD_BUDGET_KB[route]
 
     const dataFile = analyzeDataPath(route)

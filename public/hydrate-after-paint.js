@@ -6,6 +6,11 @@
 // them as real async scripts, in the order Next.js wrote them.
 // See docs/performance/next-patch.md.
 ;(function () {
+  // Next.js writes this script twice: in <head> without async, so it runs
+  // before the first paint and holds early presses, and as the bootstrap
+  // script at the end of the HTML. The second run does nothing.
+  if (window.__quilltipHydrateAfterPaint) return
+  window.__quilltipHydrateAfterPaint = true
   var self = document.currentScript
   if (!self) return
   var nonce = self.nonce

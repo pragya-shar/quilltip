@@ -1,13 +1,27 @@
-import { readFileSync } from 'fs'
+import {
+  linkSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'fs'
+import { tmpdir } from 'os'
 import path from 'path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  HYDRATE_AFTER_PAINT_REGISTRATION,
+  register,
+} from '../../instrumentation'
 import {
   MARKER,
   NEXT_VERSION,
+  REGISTRATION,
   ROUTES,
   RUNTIMES,
   installedNext,
   patchRuntime,
+  replaceFile,
 } from '../../patches/next@16.4.6'
 
 // Real excerpts of the Next.js 16.4.6 Turbopack App Router runtime:
@@ -83,7 +97,17 @@ function render(
   return { bootstrap, preinit, chunk: chunk.join(''), to }
 }
 
+const registration = Symbol.for(REGISTRATION)
+const globals = globalThis as Record<symbol, unknown>
+
+// A server of this checkout: instrumentation.ts has registered the patch.
+beforeEach(() => {
+  vi.stubEnv('NEXT_RUNTIME', 'nodejs')
+  register()
+})
+
 afterEach(() => {
+  delete globals[registration]
   vi.unstubAllEnvs()
 })
 
@@ -96,8 +120,27 @@ describe('patchRuntime on a budgeted public route', () => {
 
   it('lists the root chunks in the loader URL instead of preinit scripts', () => {
     const { bootstrap, preinit } = render({ route: '/[username]/[slug]' })
-    expect(preinit).not.toHaveBeenCalled()
-    expect(bootstrap.src).toBe(LOADER)
+    // Only the loader is preinit'd, so React writes it in <head>.
+    expect(preinit).toHaveBeenCalledTimes(1)
+    expect(preinit).toHaveBeenCalledWith(LOADER, {
+      as: 'script',
+      nonce: 'n0nce',
+      crossOrigin: undefined,
+    })
+    // The required bootstrap script is a second copy under another URL, so
+    // React does not merge it with the preinit'd one.
+    expect(bootstrap.src).toBe(`${LOADER}&b=1`)
+  })
+
+  it('writes the loader without async, so it runs before the first paint', () => {
+    const { to } = render({ route: '/articles' })
+    const loader: string[] = []
+    to(loader, { src: LOADER, async: true, nonce: 'n0nce' })
+    const tag = loader.join('')
+    expect(tag).toContain(`src="${LOADER}"`)
+    expect(tag).toContain('nonce="n0nce"')
+    expect(tag).not.toContain('async')
+    expect(tag).not.toContain('text/plain')
   })
 
   it('writes chunk scripts inert and leaves other scripts alone', () => {
@@ -140,8 +183,28 @@ describe("patchRuntime keeps Next.js's output", () => {
     expectDefault(render(undefined))
   })
 
-  it('with QUILLTIP_HYDRATE_AFTER_PAINT=false', () => {
+  it('in a checkout without the patch (no registration)', () => {
+    // A runtime left patched in node_modules after a branch switch: the other
+    // branch's server never registers, so its pages keep Next.js's scripts.
+    delete globals[registration]
+    expectDefault(render({ route: '/articles' }))
+    const loader: string[] = []
+    render({ route: '/articles' }).to(loader, { src: LOADER, async: true })
+    expect(loader.join('')).toContain('async')
+  })
+
+  it('on the edge runtime, where instrumentation does not register', () => {
+    delete globals[registration]
+    vi.stubEnv('NEXT_RUNTIME', 'edge')
+    register()
+    expectDefault(render({ route: '/' }))
+  })
+
+  it('with QUILLTIP_HYDRATE_AFTER_PAINT=false at server start', () => {
+    delete globals[registration]
     vi.stubEnv(MARKER, 'false')
+    register()
+    expect(globals[registration]).toBeUndefined()
     expectDefault(render({ route: '/' }))
   })
 
@@ -165,6 +228,37 @@ describe('patchRuntime safety', () => {
     expect(() => patchRuntime('function x(){}', 'other.js')).toThrow(
       /getRequiredScripts found 0 times/
     )
+  })
+
+  it('refuses a runtime patched by the earlier, in-place version', () => {
+    const earlier = `/* ${MARKER} */${fixture}`
+    expect(() => patchRuntime(earlier, 'old.js')).toThrow(
+      /earlier version of this patch/
+    )
+  })
+
+  it('uses the registration name that instrumentation.ts sets', () => {
+    expect(HYDRATE_AFTER_PAINT_REGISTRATION).toBe(REGISTRATION)
+  })
+})
+
+describe('replaceFile', () => {
+  it('leaves a hardlinked copy (the shared download cache) unchanged', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'next-patch-'))
+    try {
+      const cached = path.join(dir, 'cache-runtime.js')
+      const installed = path.join(dir, 'installed-runtime.js')
+      writeFileSync(cached, 'original')
+      // bun's hardlink backend: node_modules and the cache share one inode.
+      linkSync(cached, installed)
+      replaceFile(installed, 'patched')
+      expect(readFileSync(installed, 'utf8')).toBe('patched')
+      expect(readFileSync(cached, 'utf8')).toBe('original')
+      expect(statSync(installed).ino).not.toBe(statSync(cached).ino)
+      expect(statSync(installed).mode).toBe(statSync(cached).mode)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

@@ -5,17 +5,32 @@
 // `next start` use (Turbopack builds):
 // 1. getRequiredScripts: the root chunks are listed in the URL of one small
 //    loader, public/hydrate-after-paint.js, instead of being written as
-//    `<script async>` and `preinit` scripts;
-// 2. React DOM's pushScriptImpl: every other chunk script is written inert,
+//    `<script async>` and `preinit` scripts. The loader is preinit'd, so
+//    React writes it in <head>. The bootstrap script Next.js requires is the
+//    same loader with `&b=1` (a different URL, or React would merge the two
+//    and write only the late bootstrap tag); when it runs, the loader has
+//    already run and it does nothing;
+// 2. React DOM's pushScriptImpl: that loader tag is written without `async`,
+//    so it runs before the body is parsed and painted, and holds a press made
+//    right after the first paint. Every other chunk script is written inert,
 //    as `<script type="text/plain" data-hydrate-after-paint="...">`.
 // The loader adds them all as real async scripts after the first contentful
 // paint, in the same order (or sooner: see the loader).
 //
 // Where: only for the routes in FIRST_LOAD_ROUTES (`/`, `/login`, `/articles`
-// and the article page), read from Next.js's request store. Every other page,
-// `next dev`, and a build with subresource integrity keep Next.js's output.
-// QUILLTIP_HYDRATE_AFTER_PAINT=false restores it everywhere (read when a page
-// renders, so set it at build time for prerendered pages too).
+// and the article page), read from Next.js's request store, and only in a
+// server whose own code turned it on: instrumentation.ts sets
+// REGISTRATION on globalThis at startup. A checkout without this patch has no
+// such registration, so a runtime left patched in node_modules (after a branch
+// switch) keeps Next.js's output there. Every other page, `next dev`, and a
+// build with subresource integrity keep Next.js's output too.
+// QUILLTIP_HYDRATE_AFTER_PAINT=false at server start restores it everywhere:
+// instrumentation.ts then does not register, which is exactly the state of a
+// checkout without the patch.
+//
+// The script writes each patched runtime to a new file and renames it over
+// the installed one, so the file in bun's shared download cache, which a
+// hardlinked install shares with node_modules, is never changed.
 //
 // Why: Next.js 16.4 has no option for when its chunk scripts load. On the
 // load Lighthouse observes, Chrome runs them before the first frame, so
@@ -31,7 +46,13 @@
 // an upgrade fails the build instead of skipping the patch silently. It runs
 // before `next build` (package.json, vercel.json) and changes nothing when
 // the runtimes are already patched.
-import { readFileSync, writeFileSync } from 'fs'
+import {
+  chmodSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from 'fs'
 import { createRequire } from 'module'
 import path from 'path'
 import { FIRST_LOAD_ROUTES } from '../scripts/perf/first-load'
@@ -45,7 +66,11 @@ export const RUNTIMES = [
   'dist/compiled/next-server/app-page-turbo-experimental.runtime.prod.js',
 ]
 
-const ENABLED = `"false"!==process.env.${MARKER}`
+/** Set on globalThis by instrumentation.ts; the patched runtime needs it. */
+export const REGISTRATION = 'quilltip.hydrateAfterPaint'
+const ENABLED = `!0===globalThis[Symbol.for("${REGISTRATION}")]`
+/** The loader's path; its tag is written without `async`. */
+const LOADER_PATH = '/hydrate-after-paint.js?'
 // The request's work store (route, and a flag this patch sets on it). The
 // runtime loads the same external module for its own use.
 const STORE = `(()=>{try{return require("next/dist/server/app-render/work-async-storage.external.js").workAsyncStorage.getStore()}catch(e){}})()`
@@ -53,7 +78,13 @@ const FLAG = '__quilltipHydrateAfterPaint'
 
 /** Applies both edits to one runtime's source. Throws when a pattern does not match exactly once. */
 export function patchRuntime(source: string, file = 'runtime'): string {
-  if (source.includes(MARKER)) return source
+  if (source.includes(REGISTRATION)) return source
+  // An earlier version of this patch (before the registration and the blocking
+  // loader) edited the file in place. Its edits cannot be stacked.
+  if (source.includes(MARKER))
+    throw new Error(
+      `${file}: patched by an earlier version of this patch. Reinstall Next.js (rm -rf node_modules/next, \`bun pm cache rm\`, bun install) and run the patch again.`
+    )
 
   // 1. getRequiredScripts: `function rt(e,t,r,n,a,i,s){...return[l,c]}` with
   //    the root chunks (d), asset prefix (t), cross-origin (r), SRI manifest
@@ -65,12 +96,15 @@ export function patchRuntime(source: string, file = 'runtime'): string {
     throw new Error(
       `${file}: getRequiredScripts found ${requiredMatches.length} times, expected 1`
     )
-  const [whole, , , prefix, crossOrigin, sri, query, , , l, , c, files] =
+  const [whole, , , prefix, crossOrigin, sri, query, nonce, , l, , c, files] =
     requiredMatches[0]!
+  // React DOM's module, as the original preinit calls name it.
+  const reactDom = whole.match(/(\w+)\.preinit\(/)?.[1]
+  if (!reactDom) throw new Error(`${file}: preinit call not found`)
   const routes = JSON.stringify(ROUTES)
   const withLoader = whole.replace(
     new RegExp(`return\\[${l},${c}\\]\\}$`),
-    `var qs=${STORE};if(!${sri}&&${ENABLED}&&qs&&${routes}.indexOf(qs.route)!==-1){qs.${FLAG}=!0;return[()=>{},{src:\`\${${prefix}}/hydrate-after-paint.js?c=\${encodeURIComponent(${files}.map(e=>\`\${${prefix}}/_next/\`+e+${query}).join(" "))}\`,crossOrigin:${crossOrigin}}]}return[${l},${c}]}`
+    `var qs=${STORE};if(!${sri}&&${ENABLED}&&qs&&${routes}.indexOf(qs.route)!==-1){qs.${FLAG}=!0;var qsrc=\`\${${prefix}}/hydrate-after-paint.js?c=\${encodeURIComponent(${files}.map(e=>\`\${${prefix}}/_next/\`+e+${query}).join(" "))}\`;return[()=>{${reactDom}.preinit(qsrc,{as:"script",nonce:${nonce},crossOrigin:${crossOrigin}})},{src:qsrc+"&b=1",crossOrigin:${crossOrigin}}]}return[${l},${c}]}`
   )
   source = source.replace(whole, withLoader)
 
@@ -88,7 +122,7 @@ export function patchRuntime(source: string, file = 'runtime'): string {
   const [pushWhole, fn, tag, has] = pushMatches[0]!
   source = source.replace(
     `function ${fn}(e,t){e.push(${tag}("script"));`,
-    `function ${fn}(e,t){if(${ENABLED}&&!0===t.async&&"string"==typeof t.src&&-1!==t.src.indexOf("/_next/static/chunks/")){var qs=${STORE};if(qs&&qs.${FLAG}){var qt={};for(var qk in t)${has}.call(t,qk)&&"src"!==qk&&"async"!==qk&&(qt[qk]=t[qk]);qt.type="text/plain",qt["data-hydrate-after-paint"]=t.src,t=qt}}e.push(${tag}("script"));`
+    `function ${fn}(e,t){if(${ENABLED}&&!0===t.async&&"string"==typeof t.src){var qs=${STORE};if(qs&&qs.${FLAG}){var qt={},qk;if(-1!==t.src.indexOf("${LOADER_PATH}")){for(qk in t)${has}.call(t,qk)&&"async"!==qk&&(qt[qk]=t[qk]);t=qt}else if(-1!==t.src.indexOf("/_next/static/chunks/")){for(qk in t)${has}.call(t,qk)&&"src"!==qk&&"async"!==qk&&(qt[qk]=t[qk]);qt.type="text/plain",qt["data-hydrate-after-paint"]=t.src,t=qt}}}e.push(${tag}("script"));`
   )
   if (!source.includes(pushWhole.replace(`function ${fn}(e,t){`, '')))
     throw new Error(`${file}: pushScriptImpl edit failed`)
@@ -103,6 +137,18 @@ export function installedNext(cwd = process.cwd()) {
     JSON.parse(readFileSync(pkgPath, 'utf8')) as { version: string }
   ).version
   return { root: path.dirname(pkgPath), version }
+}
+
+/**
+ * Writes `content` to a new file beside `file` and renames it over `file`.
+ * The installed file gets a new inode, so a hardlinked copy (bun's shared
+ * download cache on Linux) keeps its content.
+ */
+export function replaceFile(file: string, content: string) {
+  const temporary = `${file}.quilltip-${process.pid}`
+  writeFileSync(temporary, content)
+  chmodSync(temporary, statSync(file).mode)
+  renameSync(temporary, file)
 }
 
 function main() {
@@ -121,7 +167,7 @@ function main() {
       console.log(`next patch: ${relative} already patched`)
       continue
     }
-    writeFileSync(file, after)
+    replaceFile(file, after)
     console.log(`next patch: patched ${relative}`)
   }
 }
