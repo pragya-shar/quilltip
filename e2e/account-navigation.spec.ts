@@ -13,6 +13,8 @@ const ACCOUNT_LINKS = [
   'View profile',
   'Settings',
   'Drafts',
+  'Balance',
+  'Earnings',
   'Stats',
   'Wallet',
   'Help & support',
@@ -21,6 +23,8 @@ const destinations = [
   ['View profile', null, null],
   ['Settings', '/settings', '/settings'],
   ['Drafts', '/drafts', '/write?desk=writing'],
+  ['Balance', '/dashboard/balance', '/dashboard/balance'],
+  ['Earnings', '/dashboard/earnings', '/dashboard/earnings'],
   ['Stats', '/dashboard/stats', '/dashboard/stats'],
   ['Wallet', '/dashboard/wallet', '/dashboard/wallet'],
   ['Help & support', '/support', '/support'],
@@ -78,6 +82,16 @@ async function expectDestination(page: Page, label: string, path: string) {
       ).toBeVisible()
       await expect(
         page.getByText('Your wallet and tip activity.', { exact: true })
+      ).toBeVisible()
+      break
+    case 'Balance':
+      await expect(
+        page.getByRole('heading', { name: 'Ready to tip', exact: true })
+      ).toBeVisible()
+      break
+    case 'Earnings':
+      await expect(
+        page.getByRole('heading', { name: 'Available', exact: true })
       ).toBeVisible()
       break
     case 'Stats':

@@ -1,612 +1,469 @@
-/* Shared payment kit (docs/design-system/payment-states.md).
-   Every colour comes from the --ui-* tokens, so the kit follows the surface
-   it sits on: the cream tip dialog, the dashboard, and dark mode. */
-
-@font-face {
-  font-family: 'Tip Alegreya';
-  src: url('/landing/fonts/alegreya-latin-400-normal.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
+/*
+ * Balance, tip and earnings screens (payments v3, slice 1). The "Marker"
+ * tokens are scoped to `.qt-pay`, so nothing outside these screens changes;
+ * the design pass replaces this file, not the logic. Lime (marker) is the
+ * only money colour, always a fill under ink, never text on a light surface.
+ */
+.qt-pay {
+  --qt-paper: oklch(0.985 0.003 230);
+  --qt-surface: oklch(1 0 0);
+  --qt-sunk: oklch(0.955 0.005 230);
+  --qt-line: oklch(0.9 0.006 230);
+  --qt-ink: oklch(0.2 0.012 250);
+  --qt-ink-2: oklch(0.45 0.012 250);
+  --qt-ink-3: oklch(0.55 0.01 250);
+  --qt-on-ink: oklch(0.985 0.003 230);
+  --qt-marker: oklch(0.93 0.2 124);
+  --qt-marker-soft: oklch(0.955 0.12 124);
+  --qt-marker-faint: oklch(0.975 0.055 124);
+  --qt-marker-ink: oklch(0.46 0.13 135);
+  --qt-on-marker: oklch(0.2 0.012 250);
+  --qt-action-bg: var(--qt-ink);
+  --qt-action-ink: var(--qt-on-ink);
+  --qt-action-icon: var(--qt-marker);
+  --qt-danger: oklch(0.55 0.19 27);
+  --qt-danger-soft: oklch(0.96 0.03 27);
+  --qt-focus: oklch(0.55 0.15 250);
+  --qt-font-ui:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto,
+    system-ui, sans-serif;
+  --qt-font-read: 'Source Serif 4', Charter, 'Iowan Old Style', Georgia, serif;
+  --qt-radius-control: 0.875rem;
+  --qt-radius-card: 1.375rem;
+  --qt-radius-pill: 999px;
+  --qt-hit: 2.75rem;
+  --qt-tip-h: 3.5rem;
+  --qt-shadow-float:
+    0 2px 6px oklch(0.2 0.012 250 / 0.08),
+    0 12px 32px oklch(0.2 0.012 250 / 0.12);
+  --qt-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  font-family: var(--qt-font-ui);
+  color: var(--qt-ink);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .qt-pay {
+    --qt-paper: oklch(0.16 0.01 250);
+    --qt-surface: oklch(0.2 0.012 250);
+    --qt-sunk: oklch(0.24 0.012 250);
+    --qt-line: oklch(0.3 0.012 250);
+    --qt-ink: oklch(0.96 0.005 250);
+    --qt-ink-2: oklch(0.76 0.01 250);
+    --qt-ink-3: oklch(0.64 0.01 250);
+    --qt-on-ink: oklch(0.16 0.01 250);
+    --qt-marker: oklch(0.9 0.19 124);
+    --qt-marker-soft: oklch(0.42 0.1 124);
+    --qt-marker-faint: oklch(0.28 0.05 124);
+    --qt-marker-ink: oklch(0.82 0.17 128);
+    --qt-action-bg: var(--qt-marker);
+    --qt-action-ink: var(--qt-on-marker);
+    --qt-action-icon: var(--qt-on-marker);
+    --qt-danger: oklch(0.72 0.15 27);
+    --qt-danger-soft: oklch(0.28 0.06 27);
+    --qt-focus: oklch(0.75 0.12 250);
+  }
+}
+:root[data-theme='dark'] .qt-pay {
+  --qt-paper: oklch(0.16 0.01 250);
+  --qt-surface: oklch(0.2 0.012 250);
+  --qt-sunk: oklch(0.24 0.012 250);
+  --qt-line: oklch(0.3 0.012 250);
+  --qt-ink: oklch(0.96 0.005 250);
+  --qt-ink-2: oklch(0.76 0.01 250);
+  --qt-ink-3: oklch(0.64 0.01 250);
+  --qt-on-ink: oklch(0.16 0.01 250);
+  --qt-marker: oklch(0.9 0.19 124);
+  --qt-marker-soft: oklch(0.42 0.1 124);
+  --qt-marker-faint: oklch(0.28 0.05 124);
+  --qt-marker-ink: oklch(0.82 0.17 128);
+  --qt-action-bg: var(--qt-marker);
+  --qt-action-ink: var(--qt-on-marker);
+  --qt-action-icon: var(--qt-on-marker);
+  --qt-danger: oklch(0.72 0.15 27);
+  --qt-danger-soft: oklch(0.28 0.06 27);
+  --qt-focus: oklch(0.75 0.12 250);
 }
 
-:where(
-  .pay-panel,
-  .pay-progress,
-  .pay-amount,
-  .pay-gate,
-  .pay-note,
-  .pay-notice,
-  .pay-key
-) {
-  --pay-amount-font: 'Tip Alegreya', Georgia, serif;
-  --pay-ease-out: cubic-bezier(0.32, 0.72, 0, 1);
-  font-family: var(--ui-font);
-  color: var(--ui-foreground);
-  overflow-wrap: anywhere;
+.qt-pay :is(button, a, input, summary):focus-visible {
+  outline: 2px solid var(--qt-focus);
+  outline-offset: 2px;
+}
+.qt-pay button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-/* The tip dialog is always light (its own cream palette in tipping.css), but
-   it does not set the status tokens, so in dark mode it would inherit dark
-   tints under light text. Pin the light values there. */
-.tip-dialog {
-  --ui-success: #e5ebdf;
-  --ui-success-foreground: #35513c;
-  --ui-warning: #f3e6c8;
-  --ui-warning-foreground: #705019;
-  --ui-info: #eee2e8;
-  --ui-info-foreground: #66334c;
-  --ui-danger-foreground: #fff8f1;
-}
+/* ---------------------------------------------------------------------- */
+/* The passage tip bar: docked at the bottom, never over the passage.     */
 
-/* Panel: gate prompts, notices and results ------------------------------- */
-
-.pay-panel {
-  --pay-bg: color-mix(in oklab, var(--ui-muted) 55%, transparent);
-  --pay-line: var(--ui-border);
-  --pay-ink: var(--ui-muted-foreground);
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--pay-line);
-  border-radius: var(--ui-radius);
-  background: var(--pay-bg);
+.qt-tipbar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 85;
+  padding: 0.625rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+  background: color-mix(in oklch, var(--qt-paper) 94%, transparent);
+  border-top: 1px solid var(--qt-line);
+  box-shadow: 0 -8px 32px oklch(0.2 0.012 250 / 0.1);
+  backdrop-filter: saturate(1.2);
 }
-.pay-panel[data-tone='info'] {
-  --pay-bg: var(--ui-info);
-  --pay-line: color-mix(in oklab, var(--ui-info-foreground) 24%, transparent);
-  --pay-ink: var(--ui-info-foreground);
+.qt-tipbar-inner {
+  max-width: 34rem;
+  margin-inline: auto;
 }
-.pay-panel[data-tone='success'] {
-  --pay-bg: var(--ui-success);
-  --pay-line: color-mix(
-    in oklab,
-    var(--ui-success-foreground) 24%,
-    transparent
-  );
-  --pay-ink: var(--ui-success-foreground);
+.qt-tipbar-status {
+  min-height: 1.25rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: var(--qt-ink-2);
 }
-.pay-panel[data-tone='warning'] {
-  --pay-bg: var(--ui-warning);
-  --pay-line: color-mix(
-    in oklab,
-    var(--ui-warning-foreground) 26%,
-    transparent
-  );
-  --pay-ink: var(--ui-warning-foreground);
+.qt-tipbar-status[data-tone='danger'] {
+  color: var(--qt-danger);
 }
-.pay-panel[data-tone='danger'] {
-  --pay-bg: color-mix(in oklab, var(--ui-danger) 7%, var(--ui-surface));
-  --pay-line: color-mix(in oklab, var(--ui-danger) 32%, transparent);
-  --pay-ink: var(--ui-danger);
+.qt-tipbar-status a {
+  color: var(--qt-ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
-.pay-panel-icon {
+.qt-tipbar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.qt-round {
+  flex: none;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 22px;
-  color: var(--pay-ink);
+  width: var(--qt-hit);
+  height: var(--qt-hit);
+  border-radius: var(--qt-radius-pill);
+  border: 1px solid var(--qt-line);
+  background: var(--qt-surface);
+  color: var(--qt-ink);
 }
-.pay-panel-icon svg {
-  width: 20px;
-  height: 20px;
-  stroke-width: 1.75;
+.qt-round[aria-expanded='true'] {
+  background: var(--qt-sunk);
 }
-.pay-panel-body {
-  display: flex;
-  flex-direction: column;
+.qt-round:disabled {
+  opacity: 0.45;
+}
+.qt-tip {
+  flex: 1;
   min-width: 0;
+  height: var(--qt-tip-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--qt-radius-pill);
+  border: 0;
+  background: var(--qt-action-bg);
+  color: var(--qt-action-ink);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition:
+    background-color 160ms var(--qt-ease-out),
+    transform 120ms var(--qt-ease-out);
 }
-.pay-panel-title {
+.qt-tip:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.qt-tip .qt-nib {
+  color: var(--qt-action-icon);
+}
+.qt-tip[data-phase='sending'] {
+  cursor: progress;
+}
+.qt-tip[data-phase='sent'] {
+  background: var(--qt-marker);
+  color: var(--qt-on-marker);
+}
+.qt-tip[data-phase='sent'] .qt-nib {
+  color: var(--qt-on-marker);
+}
+.qt-tip[data-phase='failed'] {
+  background: var(--qt-surface);
+  color: var(--qt-danger);
+  box-shadow: inset 0 0 0 1.5px var(--qt-danger);
+}
+.qt-tip[data-phase='offline'] {
+  background: var(--qt-sunk);
+  color: var(--qt-ink-2);
+}
+.qt-tip:disabled {
+  opacity: 0.55;
+}
+.qt-amounts {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.625rem 0 0;
+  padding: 0;
+  border: 0;
+}
+.qt-amounts legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.qt-amount {
+  position: relative;
+  flex: 1;
+}
+.qt-amount input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
   margin: 0;
-  font: 600 15px/1.45 var(--ui-font);
-  text-wrap: pretty;
+  cursor: pointer;
 }
-.pay-panel[data-tone='danger'] .pay-panel-title {
-  color: var(--ui-danger);
+.qt-amount span {
+  display: grid;
+  place-items: center;
+  height: var(--qt-hit);
+  border-radius: var(--qt-radius-control);
+  border: 1px solid var(--qt-line);
+  background: var(--qt-surface);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
-.pay-panel-title:focus {
-  outline: none;
+.qt-amount input:checked + span {
+  background: var(--qt-marker);
+  border-color: var(--qt-marker);
+  color: var(--qt-on-marker);
 }
-.pay-panel-title:focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: 3px;
+.qt-amount input:focus-visible + span {
+  outline: 2px solid var(--qt-focus);
+  outline-offset: 2px;
 }
-.pay-panel-detail {
-  margin-top: 4px;
-  max-width: 62ch;
-  color: color-mix(in oklab, var(--ui-foreground) 80%, var(--pay-bg));
-  font-size: 14px;
-  line-height: 1.55;
-  text-wrap: pretty;
+.qt-testnet {
+  font-size: 0.75rem;
+  color: var(--qt-ink-3);
 }
-.pay-panel-detail > * + * {
-  margin-top: 8px;
+
+/* The targeted passage in the article (CSS Custom Highlight API). */
+::highlight(qt-passage) {
+  background-color: oklch(0.955 0.12 124);
+  color: oklch(0.2 0.012 250);
 }
-.pay-panel-actions {
+::highlight(qt-tipped) {
+  background-color: oklch(0.93 0.2 124);
+  color: oklch(0.2 0.012 250);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Balance and earnings screens.                                          */
+
+.qt-screen {
+  max-width: 34rem;
+  margin-inline: auto;
+  padding: 0.5rem 0 2.5rem;
+  background: transparent;
+}
+.qt-figure-label {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--qt-ink-2);
+}
+.qt-figure {
+  margin: 0.25rem 0 0;
+  font-family: var(--qt-font-read);
+  font-size: clamp(3.5rem, 18vw, 5.75rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.qt-figure-note {
+  margin: 0.75rem 0 0;
+  font-size: 0.9375rem;
+  color: var(--qt-ink-2);
+}
+.qt-figure-note[data-tone='danger'] {
+  color: var(--qt-danger);
+}
+.qt-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 1.5rem 0 0;
+}
+.qt-pair > div {
+  padding: 0.875rem 1rem;
+  border-radius: var(--qt-radius-control);
+  background: var(--qt-sunk);
+}
+.qt-pair dt {
+  font-size: 0.8125rem;
+  color: var(--qt-ink-2);
+}
+.qt-pair dd {
+  margin: 0.25rem 0 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.qt-notice {
+  margin: 1.25rem 0 0;
+  padding: 0.875rem 1rem;
+  border-radius: var(--qt-radius-control);
+  background: var(--qt-marker-faint);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+.qt-notice[data-tone='danger'] {
+  background: var(--qt-danger-soft);
+}
+.qt-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 16px;
-  margin-top: 12px;
+  gap: 0.75rem;
+  margin: 1.25rem 0 0;
 }
-
-/* Actions and links -------------------------------------------------------- */
-
-.pay-action {
-  min-height: 44px;
-  height: auto;
-  padding: 10px 18px;
-  white-space: normal;
-  text-align: center;
-  touch-action: manipulation;
-  transition:
-    scale 150ms ease-out,
-    background-color 150ms ease-out;
-}
-.pay-action:active:not([aria-disabled='true']) {
-  scale: 0.97;
-}
-.pay-action[aria-disabled='true'] {
-  cursor: progress;
-  opacity: 0.75;
-}
-.pay-action:focus-visible,
-.pay-link:focus-visible {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: 3px;
-}
-/* Inside the tip dialog, actions take its pill shape. */
-.tip-dialog .pay-action {
-  border-radius: 999px;
-}
-.pay-link {
+.qt-button {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  min-height: 44px;
-  color: var(--ui-primary);
-  font-size: 14px;
+  justify-content: center;
+  min-height: var(--qt-hit);
+  padding: 0 1.25rem;
+  border-radius: var(--qt-radius-pill);
+  background: var(--qt-action-bg);
+  color: var(--qt-action-ink);
   font-weight: 600;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  touch-action: manipulation;
+  text-decoration: none;
 }
-.pay-link svg {
-  width: 16px;
-  height: 16px;
-  flex: none;
+.qt-section-title {
+  margin: 2rem 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--qt-ink-3);
 }
-@media (hover: hover) and (pointer: fine) {
-  .pay-link:hover {
-    text-decoration-thickness: 2px;
-  }
-}
-
-/* Spinner and inline status ----------------------------------------------- */
-
-.pay-spinner {
-  flex: none;
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid color-mix(in oklab, var(--ui-primary) 22%, transparent);
-  border-top-color: var(--ui-primary);
-  border-radius: 50%;
-  animation: pay-spin 0.9s linear infinite;
-}
-/* Inside a button the ring takes the button's text colour (S7). */
-.pay-action .pay-spinner {
-  border-color: color-mix(in oklab, currentColor 30%, transparent);
-  border-top-color: currentColor;
-}
-@keyframes pay-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.pay-inline-status {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-/* Transaction progress ----------------------------------------------------- */
-
-.pay-progress {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-}
-/* The progress heading is visually hidden; show where focus is. */
-.pay-progress:has(.pay-progress-heading:focus-visible) {
-  outline: 2px solid var(--ui-ring);
-  outline-offset: 6px;
-  border-radius: var(--ui-radius);
-}
-.pay-progress > .pay-link {
-  align-self: flex-start;
-}
-.pay-steps {
-  display: grid;
+.qt-list {
   margin: 0;
   padding: 0;
   list-style: none;
+  border-top: 1px solid var(--qt-line);
 }
-.pay-steps li {
-  position: relative;
+.qt-row {
+  border-bottom: 1px solid var(--qt-line);
+}
+.qt-row > button {
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  min-height: 32px;
-  color: var(--ui-muted-foreground);
-  font-size: 14px;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 0.75rem;
+  width: 100%;
+  padding: 0.875rem 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: start;
+  font: inherit;
 }
-/* The thread between markers. */
-.pay-steps li:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  left: 9.5px;
-  top: 26px;
-  width: 1px;
-  height: 12px;
-  background: var(--ui-border);
-}
-.pay-steps li[data-step='done']::after {
-  background: color-mix(in oklab, var(--ui-primary) 55%, transparent);
-}
-.pay-step-marker {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-}
-.pay-steps li[data-step='upcoming'] .pay-step-marker::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid var(--ui-input);
-  border-radius: 50%;
-}
-.pay-steps li[data-step='done'] .pay-step-marker {
-  background: var(--ui-primary);
-  color: var(--ui-primary-foreground);
-}
-.pay-steps li[data-step='done'] .pay-step-marker svg {
-  width: 12px;
-  height: 12px;
-  stroke-width: 3;
-}
-.pay-steps li[data-step='current'] {
-  color: var(--ui-foreground);
-  font-weight: 600;
-}
-.pay-progress-sentence {
-  margin: 4px 0 0;
-  max-width: 60ch;
-  color: var(--ui-muted-foreground);
-  font-size: 14px;
-  line-height: 1.55;
-  text-wrap: pretty;
-}
-.pay-progress-sentence strong {
-  color: var(--ui-foreground);
-  font-weight: 600;
-}
-
-/* Amount and split --------------------------------------------------------- */
-
-.pay-amount {
-  display: grid;
-  gap: 10px;
-  padding-block: 18px;
-  border-block: 1px solid var(--ui-border);
-}
-.pay-amount p {
-  margin: 0;
-}
-.pay-amount-figure {
-  font-variant-numeric: tabular-nums;
+.qt-row-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
-.pay-amount-items {
-  display: grid;
-  gap: 6px;
-  margin: 0 0 4px;
-  padding: 0 0 12px;
-  list-style: none;
-  border-bottom: 1px dashed var(--ui-border);
-  font-size: 14px;
+.qt-row-amount {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
 }
-/* Label and amount share a row; a long label wraps in its own column and
-   the amount stays on the right of the first line. */
-.pay-amount-items li,
-.pay-amount-breakdown > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: 16px;
+.qt-row-amount[data-muted='true'] {
+  color: var(--qt-ink-3);
 }
-.pay-amount-total {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 2px 16px;
-  font-size: 14px;
-}
-.pay-amount-total strong {
-  font: 400 32px/1.15 var(--pay-amount-font);
-  letter-spacing: -0.01em;
-  white-space: normal;
-  min-width: 0;
-}
-.pay-amount-caption {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 2px 10px;
-  margin-top: -6px;
-  text-align: right;
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  line-height: 1.5;
-}
-.pay-amount-breakdown {
-  display: grid;
-  gap: 6px;
-  margin: 4px 0 0;
-  color: var(--ui-muted-foreground);
-  font-size: 13px;
-}
-.pay-amount-breakdown dt {
-  min-width: 0;
-}
-.pay-amount-breakdown dd {
+.qt-row-passage {
+  grid-column: 1 / -1;
   margin: 0;
-  text-align: right;
-  color: var(--ui-foreground);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  font-family: var(--qt-font-read);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--qt-ink-2);
 }
-
-/* Basket rows with their own state. */
-.pay-amount-item-state {
+.qt-row-meta {
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 10px;
-  margin-top: -2px;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--qt-ink-2);
 }
-.pay-amount-item-note {
-  color: var(--ui-muted-foreground);
-  font-size: 13px;
-  line-height: 1.45;
+.qt-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 600;
+  color: var(--qt-ink);
 }
-
-/* Inline amounts and addresses ------------------------------------------- */
-
-.pay-xlm {
+.qt-status[data-tone='done'] {
+  color: var(--qt-marker-ink);
+}
+.qt-status[data-tone='danger'] {
+  color: var(--qt-danger);
+}
+.qt-row-detail {
+  margin: 0 0 0.875rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--qt-radius-control);
+  background: var(--qt-sunk);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.qt-row-detail dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+}
+.qt-row-detail dt {
+  color: var(--qt-ink-2);
+}
+.qt-row-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
-.pay-address {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+.qt-row-detail a {
+  color: var(--qt-ink);
+  text-decoration: underline;
 }
-
-/* Result meta: amount, recipient and the testnet label ------------------- */
-
-.pay-result-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 12px;
+.qt-empty {
+  margin: 1rem 0 0;
+  color: var(--qt-ink-2);
 }
-.pay-result-summary {
-  color: var(--ui-foreground);
+.qt-more {
+  margin: 1rem 0 0;
+  min-height: var(--qt-hit);
+  padding: 0 1rem;
+  border-radius: var(--qt-radius-pill);
+  border: 1px solid var(--qt-line);
+  background: var(--qt-surface);
+  color: var(--qt-ink);
   font-weight: 600;
 }
-.pay-result-reference {
-  color: var(--ui-muted-foreground);
-  font-size: 13px;
+.qt-skeleton {
+  display: block;
+  border-radius: var(--qt-radius-control);
+  background: var(--qt-sunk);
 }
-.pay-result-reference code {
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
-
-/* Wallet prompt help --------------------------------------------------------- */
-
-.pay-signing {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-}
-.pay-signing-help {
-  margin: 0;
-  color: var(--ui-muted-foreground);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-/* Testnet label ------------------------------------------------------------ */
-
-.pay-network {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-  color: var(--ui-muted-foreground);
-}
-.pay-network-name {
-  font: 600 11px/1.4 var(--ui-font);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.pay-network-detail {
-  font: 400 12px/1.4 var(--ui-font);
-}
-
-/* One-line note (tips unavailable) ---------------------------------------- */
-
-.pay-note {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 16px;
-}
-.pay-note p {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 0;
-  color: var(--ui-muted-foreground);
-  font-size: 14px;
-  line-height: 1.5;
-}
-.pay-note p svg {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
-}
-
-.pay-note .reader-tips-unavailable {
-  margin: 0;
-  max-width: 40ch;
-  color: var(--ui-muted-foreground);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-/* Quick-tip key row --------------------------------------------------------- */
-
-.pay-key {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 4px 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--ui-border);
-}
-.pay-key-icon {
-  width: 20px;
-  height: 20px;
-  margin-top: 1px;
-  color: var(--ui-muted-foreground);
-  stroke-width: 1.75;
-}
-.pay-key-body {
-  min-width: 0;
-}
-.pay-key-body p {
-  margin: 0;
-}
-.pay-key-label {
-  font: 600 14px/1.45 var(--ui-font);
-}
-.pay-key-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 12px;
-  color: var(--ui-muted-foreground);
-  font-size: 13px;
-  line-height: 1.5;
-}
-.pay-key-spend {
-  font-variant-numeric: tabular-nums;
-}
-.pay-key-actions {
-  grid-column: 2;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.pay-key-actions:empty {
-  display: none;
-}
-.pay-key[data-state='revoked'] .pay-key-label {
-  color: var(--ui-muted-foreground);
-}
-
-/* History status ----------------------------------------------------------- */
-
-.pay-status {
-  --pay-dot: var(--ui-muted-foreground);
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  white-space: nowrap;
-  font: 500 13px/1.4 var(--ui-font);
-  color: var(--ui-foreground);
-}
-.pay-status[data-tone='info'] {
-  --pay-dot: var(--ui-info-foreground);
-}
-.pay-status[data-tone='success'] {
-  --pay-dot: var(--ui-success-foreground);
-}
-.pay-status[data-tone='warning'] {
-  --pay-dot: var(--ui-warning-foreground);
-}
-.pay-status[data-tone='danger'] {
-  --pay-dot: var(--ui-danger);
-}
-.pay-status-dot {
-  flex: none;
-  align-self: center;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--pay-dot);
-}
-
-/* Motion: a result reached after mount rises in once, and a confirmation
-   draws its tick. Nothing else moves except the spinner. */
-
-.pay-panel[data-enter] {
-  animation: pay-rise 220ms var(--pay-ease-out) both;
-}
-@keyframes pay-rise {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
-.pay-panel[data-enter] .pay-check path {
-  stroke-dasharray: 12;
-  animation: pay-draw 200ms 80ms ease-out both;
-}
-@keyframes pay-draw {
-  from {
-    stroke-dashoffset: 12;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .pay-panel[data-enter],
-  .pay-panel[data-enter] .pay-check path {
-    animation: none;
-  }
-  .pay-spinner {
-    animation: none;
-    border-right-color: transparent;
-  }
-  .pay-action {
+  .qt-tip {
     transition: none;
-  }
-  .pay-action:active:not([aria-disabled='true']) {
-    scale: none;
   }
 }
