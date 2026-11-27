@@ -8,6 +8,7 @@ import {
   isValidArweaveNftMetadataUrl,
 } from './lib/nftMetadata'
 import { verifiedStellarAddress } from './lib/walletVerification'
+import { requireV1PreparesEnabled, v1PreparesEnabled } from './lib/v1Prepares'
 import type { Doc, Id } from './_generated/dataModel'
 import type { QueryCtx } from './_generated/server'
 import { userForAddress } from './lib/chain/nftStore'
@@ -187,6 +188,9 @@ export const getNFTByArticle = query({
     const totalTipsUsd = tips.reduce((sum, tip) => sum + tip.amountUsd, 0)
     const totalTipsCents = Math.round(totalTipsUsd * 100)
     const thresholdCents = 1000 // $10 threshold in cents
+    // v1 mint and transfer are refused while CHAIN_V1_PREPARES_ENABLED=false;
+    // the client shows a note instead of their buttons.
+    const v1ActionsPaused = !v1PreparesEnabled()
 
     if (nft) {
       // NFT exists - return full NFT data with status
@@ -231,6 +235,7 @@ export const getNFTByArticle = query({
         mintedAt: new Date(nft.mintedAt).toISOString(),
         transferCount: transfers.length,
         rarity,
+        v1ActionsPaused,
         ownerInfo: owner
           ? {
               id: owner._id,
@@ -260,6 +265,7 @@ export const getNFTByArticle = query({
         tipThreshold: thresholdCents,
         transferCount: 0,
         rarity: 'common' as const,
+        v1ActionsPaused,
       }
     }
   },
@@ -360,6 +366,8 @@ export const mintNFT = mutation({
     metadataUrl: v.string(),
   },
   handler: async (ctx, args) => {
+    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
+    requireV1PreparesEnabled()
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
@@ -441,6 +449,8 @@ export const transferNFT = mutation({
     toUsername: v.string(),
   },
   handler: async (ctx, args) => {
+    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
+    requireV1PreparesEnabled()
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 

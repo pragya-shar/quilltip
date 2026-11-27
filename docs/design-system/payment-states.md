@@ -27,7 +27,12 @@ shared components in `components/payments/` that render them.
    `expired` or `declined` phase and a record that is `FAILED` or `EXPIRED`
    and not flagged `needsReview`. Never after `MISMATCH`: money may have
    moved. A retry always starts a new prepare with a new `requestId`.
-3. **Every failure says whether anything was paid.**
+3. **Claims follow knowledge.** "Nothing was sent" appears only where the
+   client knows no transaction left the wallet (a refused simulation, a wallet
+   refusal, a refused send). Copy speaks about money only from
+   server-verified chain data: a settled, unpaid or expired record, or a
+   confirmed event. A failed or expired record that the server flags
+   `needsReview` reads as under review, because the payment may have landed.
 4. **Amounts are chain values.** The kit formats base units it is given. A
    figure computed in the client before prepare returns is an estimate and
    reads "About".
@@ -48,18 +53,18 @@ shared components in `components/payments/` that render them.
 
 ## Components
 
-| Component             | Renders                                                                      | Key props                                                                                                                                                                                                          |
-| --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `WalletGate`          | Signed out, no wallet, not connected, locked, wrong network, unverified      | `state`, `onSignIn`, `onInstall`, `onConnect`, `onRecheck`, `onVerify` or `verifyHref`, `busy`, `help`                                                                                                             |
-| `TransactionProgress` | Steps (prepare, approve, send, confirm), then the result panel               | `flow`, `source`, `audience`, `txHash`, `summary`, `onRetry`, `retryAllowed`, `onCancel`, `failure`, `slow`, `resultPlace`, `reference`, `helpHref`, `unlocksAround`, `doneAction`, `resultDetail`, `headingLevel` |
-| `AmountSummary`       | Total in XLM, testnet label, cents quote, breakdown and basket rows          | `total`, `breakdown`, `items` (each with optional `status` and `note`), `quoteCents`, `label`, `estimate`                                                                                                          |
-| `PaymentNotice`       | Standing conditions and refusals (below)                                     | `kind` plus kind-specific fields; `action` (`onClick` or `href`, optional `label`, `emphasis`); `announce`                                                                                                         |
-| `PaymentStatusLabel`  | One status in a history or basket row, for example "Settling"                | `phase`                                                                                                                                                                                                            |
-| `SessionKeyRow`       | One quick-tip key on the tab page: device, expiry, spend used, revoke, renew | `label`, `expiresAround`, `expired`, `revoked`, `used`, `limit`, `onRevoke`, `onRenew`                                                                                                                             |
-| `XlmAmount`           | An inline XLM amount with tabular figures, kept on one line                  | `amount`, `estimate`                                                                                                                                                                                               |
-| `ShortAddress`        | "GBZX…MADI", the full address in the tooltip                                 | `address`                                                                                                                                                                                                          |
-| `TestnetLabel`        | "Stellar testnet", optionally with "Practice funds only"                     | `detail`                                                                                                                                                                                                           |
-| `ExplorerLink`        | "View the transaction" on stellar.expert (testnet), new tab                  | `hash`                                                                                                                                                                                                             |
+| Component             | Renders                                                                      | Key props                                                                                                                                                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `WalletGate`          | Signed out, no wallet, not connected, locked, wrong network, unverified      | `state`, `onSignIn`, `onInstall`, `onConnect`, `onRecheck`, `onVerify` or `verifyHref`, `busy`, `help`                                                                                                                              |
+| `TransactionProgress` | Steps (prepare, approve, send, confirm), then the result panel               | `flow`, `source`, `audience`, `txHash`, `summary`, `onRetry`, `retryAllowed`, `startedByUser`, `onCancel`, `failure`, `slow`, `resultPlace`, `reference`, `helpHref`, `unlocksAround`, `doneAction`, `resultDetail`, `headingLevel` |
+| `AmountSummary`       | Total in XLM, testnet label, cents quote, breakdown and basket rows          | `total`, `breakdown`, `items` (each with optional `status` and `note`), `quoteCents`, `label`, `estimate`                                                                                                                           |
+| `PaymentNotice`       | Standing conditions and refusals (below)                                     | `kind` plus kind-specific fields; `action` (`onClick` or `href`, optional `label`, `emphasis`); `announce`                                                                                                                          |
+| `PaymentStatusLabel`  | One status in a history or basket row, for example "Settling"                | `phase`                                                                                                                                                                                                                             |
+| `SessionKeyRow`       | One quick-tip key on the tab page: device, expiry, spend used, revoke, renew | `label`, `expiresAround`, `expired`, `revoked`, `used`, `limit`, `onRevoke`, `onRenew`                                                                                                                                              |
+| `XlmAmount`           | An inline XLM amount with tabular figures, kept on one line                  | `amount`, `estimate`                                                                                                                                                                                                                |
+| `ShortAddress`        | "GBZX…MADI", the full address in the tooltip                                 | `address`                                                                                                                                                                                                                           |
+| `TestnetLabel`        | "Stellar testnet", optionally with "Practice funds only"                     | `detail`                                                                                                                                                                                                                            |
+| `ExplorerLink`        | "View the transaction" on stellar.expert (testnet), new tab                  | `hash`                                                                                                                                                                                                                              |
 
 `PaymentPanel`, `TransactionSteps`, `PaymentSpinner`, `NoticeActionButton`
 and `useAnnouncement` are internal building blocks. Every message uses
@@ -111,18 +116,19 @@ notices (short balance, settlement delayed, refusals) sit beside it.
 
 ### Record status to phase (`phaseFromRecord`)
 
-| Server status                        | Phase                | Notes                                                                            |
-| ------------------------------------ | -------------------- | -------------------------------------------------------------------------------- |
-| `PREPARED`, client in a step         | that step            | `simulating`, `signing` or `sending` while the user is in the flow               |
-| `PREPARED`, no client step           | `resuming`           | A reload. The client does not know what happened, so no step is shown as done.   |
-| `SUBMITTED`                          | `checking`           | The transaction was sent; the step list shows prepare, approve and send as done. |
-| `CONFIRMED`                          | `confirmed`          |                                                                                  |
-| `MISMATCH`, `mismatchReason: author` | `sent-to-registered` | Complete. No retry.                                                              |
-| `MISMATCH`, `field:*` or `no_event`  | `under-review`       | No retry. The record is flagged for review.                                      |
-| `FAILED`                             | `failed`             | Retry offered unless `needsReview`.                                              |
-| `EXPIRED`                            | `expired`            | Retry offered, with a new `requestId`.                                           |
-| Wallet refusal seen by the client    | `declined`           | While `PREPARED` and after `FAILED` (below).                                     |
-| Any other value                      | `resuming`           | `tips.status` also holds v1 values. Safe: no retry, never confirmed.             |
+| Server status                            | Phase                | Notes                                                                            |
+| ---------------------------------------- | -------------------- | -------------------------------------------------------------------------------- |
+| `PREPARED`, client in a step             | that step            | `simulating`, `signing` or `sending` while the user is in the flow               |
+| `PREPARED`, no client step               | `resuming`           | A reload. The client does not know what happened, so no step is shown as done.   |
+| `SUBMITTED`                              | `checking`           | The transaction was sent; the step list shows prepare, approve and send as done. |
+| `CONFIRMED`                              | `confirmed`          |                                                                                  |
+| `MISMATCH`, `mismatchReason: author`     | `sent-to-registered` | Complete. No retry.                                                              |
+| `MISMATCH`, `field:*` or `no_event`      | `under-review`       | No retry. The record is flagged for review.                                      |
+| `FAILED`                                 | `failed`             | Retry offered.                                                                   |
+| `FAILED` or `EXPIRED` with `needsReview` | `under-review`       | An event arrived after the failure: the payment may have landed. No retry.       |
+| `EXPIRED`                                | `expired`            | Retry offered, with a new `requestId`.                                           |
+| Wallet refusal seen by the client        | `declined`           | While `PREPARED` and after `FAILED` (below).                                     |
+| Any other value                          | `resuming`           | `tips.status` also holds v1 values. Safe: no retry, never confirmed.             |
 
 A final server status always wins over a client step.
 
@@ -143,7 +149,7 @@ The kit follows the merged server; the spec text is unchanged here.
 
 | Rows                                                     | Phase                                          |
 | -------------------------------------------------------- | ---------------------------------------------- |
-| Any row under review                                     | `under-review`                                 |
+| Any row under review or `needsReview`                    | `under-review`                                 |
 | Every row `CONFIRMED` or `MISMATCH` with reason `author` | `confirmed`, with the count of redirected rows |
 | Otherwise                                                | The batch record decides                       |
 
@@ -198,14 +204,14 @@ Contract that moves XLM uses codes 1 to 15, which overlap Core's, so a token
 `BalanceError` (#10) is never read as Core `DuplicateClientRef` (#10). When
 the raising contract is not one of this deployment's, the failure is generic.
 
-| Decoded failure                                                                    | Shows                                                                      |
-| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `EnforcedPause` (1000) from any contract                                           | Notice: paused                                                             |
-| Token `BalanceError` or `InsufficientAccountReserve`; send `txInsufficientBalance` | Notice: insufficient balance (wallet)                                      |
-| Core `NotRegistered` (1)                                                           | Notice: tips unavailable; in a basket, the basket notice                   |
-| Tab `KeyNotFound` (35)                                                             | Notice: session key missing                                                |
-| Tab `WithdrawLocked` (41)                                                          | Notice: withdrawal pending                                                 |
-| Anything else, or an unknown raising contract                                      | `failed`, titled "Not sent", the decoded message, then "Nothing was paid." |
+| Decoded failure                                                                    | Shows                                                                             |
+| ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `EnforcedPause` (1000) from any contract                                           | Notice: paused                                                                    |
+| Token `BalanceError` or `InsufficientAccountReserve`; send `txInsufficientBalance` | Notice: insufficient balance (wallet)                                             |
+| Core `NotRegistered` (1)                                                           | Notice: tips unavailable; in a basket, the basket notice                          |
+| Tab `KeyNotFound` (35)                                                             | Notice: session key missing                                                       |
+| Tab `WithdrawLocked` (41)                                                          | Notice: withdrawal pending                                                        |
+| Anything else, or an unknown raising contract                                      | `failed`, titled "Not sent", the decoded message, ending "Nothing was sent." once |
 
 ### Transaction outcomes (`viewFromTxOutcome`)
 
@@ -278,7 +284,7 @@ colour.
 | No wallet          | No Stellar wallet found       | Install a Stellar wallet such as Varial (formerly Freighter) or xBull in this browser, then try again.                                           | Set up wallet  | neutral |
 | Not connected      | Connect your wallet           | Connecting shares your address. It does not send a payment.                                                                                      | Connect wallet | neutral |
 | Locked wallet      | Your wallet is locked         | Unlock your wallet, then connect again.                                                                                                          | Connect again  | warning |
-| Wrong network      | Switch your wallet to Testnet | Your wallet is on {network}, for example: Your wallet is on Mainnet. Switch it to Testnet, then check again. Nothing was signed.                 | Check again    | warning |
+| Wrong network      | Switch your wallet to Testnet | Your wallet is on {network}, for example: Your wallet is on Mainnet. Switch it to Testnet, then check again. Nothing was sent.                   | Check again    | warning |
 | Unverified address | Confirm this wallet is yours  | Sign a short message in your wallet to link it to your account. It sends nothing and costs nothing. ("it" becomes the short address when known.) | Confirm wallet | neutral |
 
 Announced: "{title}. {detail}" through a polite live region that stays
@@ -323,7 +329,7 @@ Set `resultPlace` to where the result shows later, for example "your tab".
 | Confirmed                             | per flow (below)                                    | per flow (below)                                                                                                                                                         | Done (`doneAction`) | success | polite    |
 | Sent to the registered payout address | Tip sent to the article’s registered payout address | Stellar testnet paid the address registered for this article, which differs from the one shown when you started. The tip is complete, so there is nothing to retry.      | none                | info    | polite    |
 | Under review                          | Sent, but under review                              | The payment went through on Stellar testnet, but the details did not match what QuillTip expected. Your XLM may have moved, so do not send it again. We are checking it. | Get help            | warning | polite    |
-| Failed                                | Not sent (or the wallet's fixed title)              | Nothing was paid. (or the decoded message followed by "Nothing was paid.")                                                                                               | Try again           | danger  | assertive |
+| Failed                                | Not completed (or the client's failure title)       | QuillTip recorded no payment for this request. (or the client's failure detail)                                                                                          | Try again           | danger  | assertive |
 | Declined                              | Request declined in your wallet                     | Nothing was signed or sent.                                                                                                                                              | Try again           | warning | assertive |
 | Expired                               | This request timed out                              | Stellar testnet did not include it in time, so nothing was paid. Try again to start a new request.                                                                       | Try again           | warning | assertive |
 | Tab tip accepted                      | Tip sent from your tab                              | It settles on Stellar testnet within about 6 hours. Your tab balance already counts it.                                                                                  | none                | info    | polite    |
@@ -390,28 +396,36 @@ Wallet failures while signing, with fixed titles:
 | `wrong-account` | Your wallet signed with another account | Switch back to the connected account in your wallet, or reconnect. Nothing was sent. |
 | `no-wallet`     | No Stellar wallet found                 | Install a Stellar wallet, then try again. Nothing was sent.                          |
 | `locked`        | Your wallet is locked                   | Unlock your wallet, then connect again. Nothing was sent.                            |
-| `wrong-network` | Switch your wallet to Testnet           | Switch it to Testnet, then try again. Nothing was signed.                            |
+| `wrong-network` | Switch your wallet to Testnet           | Switch it to Testnet, then try again. Nothing was sent.                              |
 | `failed`        | Your wallet reported a problem          | Try again, or reconnect your wallet. Nothing was sent.                               |
 
-Send and contract failures: "Not sent" with "Nothing was paid.", or for
-`not_sent`, "Stellar testnet is busy" with "It was not sent, so nothing was
-paid. Try again in a minute."
+Send and contract failures: "Not sent" with "Nothing was sent.", or for
+`not_sent`, "Stellar testnet is busy" with "Stellar testnet did not accept it.
+Try again in a minute."
+
+A tab operation that failed or timed out is known only from the client's own
+RPC polling, so its copy names no money:
+
+| Phase   | Title                  | Detail                                                                                   |
+| ------- | ---------------------- | ---------------------------------------------------------------------------------------- |
+| Failed  | Not completed          | Stellar testnet reported this transaction as failed. Your tab shows its current balance. |
+| Expired | This request timed out | Stellar testnet did not confirm it in time. Check your tab before you try again.         |
 
 Convex tab refusals with no notice of their own (`kind="refused"`):
 
-| Refusal                | Title                                        | Detail                                                                           |
-| ---------------------- | -------------------------------------------- | -------------------------------------------------------------------------------- |
-| Above the maximum      | This tip is above the quick-tip maximum      | Choose a smaller amount, or tip from your wallet. Nothing was paid.              |
-| Below the minimum      | This tip is below the minimum                | Choose a larger amount. Nothing was paid.                                        |
-| Own article            | You can’t tip your own article               | Nothing was paid.                                                                |
-| No price               | No XLM price right now                       | QuillTip can’t convert this amount yet. Try again in a minute. Nothing was paid. |
-| Took too long          | This tip took too long                       | Nothing was paid. Send it again.                                                 |
-| Already sent           | This tip was already sent                    | Your tab already counts it, so nothing more was paid.                            |
-| No withdrawal          | No withdrawal is waiting                     | Close your tab first to start one.                                               |
-| Quick tips unavailable | Quick tips are unavailable right now         | Tip from your wallet, or try again later. Nothing was paid.                      |
-| Another account        | This wallet’s tab belongs to another account | Sign in to the account that opened it, or use another wallet. Nothing was paid.  |
-| Voucher not accepted   | QuillTip could not accept this tip           | Set up quick tips again on this device. Nothing was paid.                        |
-| Any other code         | QuillTip could not accept this               | Nothing was paid. Try again in a minute.                                         |
+| Refusal                | Title                                        | Detail                                                         |
+| ---------------------- | -------------------------------------------- | -------------------------------------------------------------- |
+| Above the maximum      | This tip is above the quick-tip maximum      | Choose a smaller amount, or tip from your wallet.              |
+| Below the minimum      | This tip is below the minimum                | Choose a larger amount.                                        |
+| Own article            | You can’t tip your own article               | This tip was not accepted.                                     |
+| No price               | No XLM price right now                       | QuillTip can’t convert this amount yet. Try again in a minute. |
+| Took too long          | This tip took too long                       | This tip was not accepted. Send it again.                      |
+| Already sent           | This tip was already sent                    | Your tab already counts it.                                    |
+| No withdrawal          | No withdrawal is waiting                     | Close your tab first to start one.                             |
+| Quick tips unavailable | Quick tips are unavailable right now         | Tip from your wallet, or try again later.                      |
+| Another account        | This wallet’s tab belongs to another account | Sign in to the account that opened it, or use another wallet.  |
+| Voucher not accepted   | QuillTip could not accept this tip           | Set up quick tips again on this device.                        |
+| Any other code         | QuillTip could not accept this               | Try again in a minute.                                         |
 
 ### Notices
 
@@ -435,12 +449,12 @@ condition there when the page loads) it is not announced.
 | Tab closing                  | Your tab is closing                                                                       | Quick tips are off until you add funds or the withdrawal finishes. Tip from your wallet instead.                                                                                                 | Tip from wallet         | secondary | info    |
 | Settlement delayed, reader   | Settlement is taking longer than usual                                                    | Your tips are recorded and will settle. Nothing is lost.                                                                                                                                         | none                    |           | info    |
 | Settlement delayed, writer   | Settlement is taking longer than usual                                                    | These tips are recorded and will settle. You can also settle them yourself with your saved voucher.                                                                                              | Settle it yourself      | secondary | info    |
-| Basket item unavailable      | An article in your basket can’t take tips right now                                       | Remove it to send the rest. Nothing was paid.                                                                                                                                                    | Remove it               | secondary | warning |
+| Basket item unavailable      | An article in your basket can’t take tips right now                                       | Remove it to send the rest. Nothing was sent.                                                                                                                                                    | Remove it               | secondary | warning |
 | Withdrawal pending           | Your balance unlocks around {date} (without a date: Your withdrawal is waiting to unlock) | Your tab is closing. Tips you already sent settle first, and quick tips are off. Adding funds before then cancels the withdrawal.                                                                | none                    |           | info    |
 | Withdrawal ready             | Your balance is ready to withdraw                                                         | The waiting period is over. Withdraw to move it to your wallet.                                                                                                                                  | Withdraw {amount}       | primary   | success |
 | Before closing the tab       | Before you close your tab                                                                 | Closing locks your tab balance for about 3 days. Tips you already sent settle first. Adding funds before then cancels it.                                                                        | the flow's "Close tab"  | secondary | info    |
 | NFT threshold                | {tipped} of {threshold} tipped                                                            | Minting unlocks at {threshold}.                                                                                                                                                                  | none                    |           | neutral |
-| Network busy                 | Stellar testnet is busy                                                                   | It was not sent, so nothing was paid. Try again in a minute.                                                                                                                                     | none                    |           | warning |
+| Network busy                 | Stellar testnet is busy                                                                   | Stellar testnet did not accept it. Try again in a minute.                                                                                                                                        | none                    |           | warning |
 | Refused                      | per refusal (above)                                                                       | per refusal (above)                                                                                                                                                                              | none                    |           | warning |
 
 A notice that shows an amount (insufficient balance with amounts, withdrawal
@@ -454,6 +468,7 @@ Tips unavailable is a one-line note in place of the tip button, rendered by
 | `unregistered`    | Tips aren’t on for this article yet.                                                                         | none            |
 | `pending`         | Tips for this article turn on in a moment.                                                                   | none            |
 | `payout_outdated` | Tips are paused while the writer updates their wallet.                                                       | none            |
+| `paused`          | Tips are paused for a short time while payments are updated.                                                 | none            |
 | `splits`          | Quick tips don’t work for this article because it shares tips with co-authors. Tip from your wallet instead. | Tip from wallet |
 
 When to show:
@@ -504,7 +519,7 @@ the meaning; the text alone carries it. It never wraps.
 | confirmed                    | Confirmed               |
 | sent-to-registered           | Sent to updated address |
 | under-review                 | Under review            |
-| failed                       | Not sent                |
+| failed                       | Not completed           |
 | expired                      | Timed out               |
 | accepted                     | Settling                |
 | settled                      | Settled                 |
@@ -642,7 +657,9 @@ apply on every surface, not only inside the tip dialog.
   Progress uses a polite region for steps and good news, and an assertive one
   for failed, declined and expired. A client step present at mount (the user
   just pressed the start button) is announced after a short delay.
-- Focus: when a payment starts or restarts and focus would fall to the page,
+- Focus never moves when a page or panel first renders. The one exception is
+  a progress view the flow mounts in response to the start button, marked
+  `startedByUser`. Focus: when a payment starts or restarts and focus would fall to the page,
   it moves to the hidden "Payment progress" heading, which reads the current
   sentence as its description. When a result arrives, focus moves to its
   title the same way. A focused heading is not also announced.
@@ -675,16 +692,18 @@ apply on every surface, not only inside the tip dialog.
    form when `showStart` is true. Pass `canRetry` as `retryAllowed`.
 4. Show `AmountSummary` with `estimate` until prepare returns, then with the
    values from the prepare response.
-5. Pass the record as the `source`, with the live `step` from
+5. Pass `startedByUser` when the progress view mounts because the reader
+   pressed the start button, never when it renders with the page.
+6. Pass the record as the `source`, with the live `step` from
    `sendContractCall`'s `onStep` while the record is `PREPARED`. For tab
    operations, pass the operation, `getMyTab()` and the client's send and
    poll results.
-6. Map each `sendContractCall` outcome with `viewFromTxOutcome`: show what it
+7. Map each `sendContractCall` outcome with `viewFromTxOutcome`: show what it
    says and send its `record` to `recordSendFailed`. Map `ConvexError` codes
    from the tab functions with `refusalFromTabError`.
-7. On "Try again", start a new prepare with a new `requestId`; never resend
+8. On "Try again", start a new prepare with a new `requestId`; never resend
    the old envelope.
-8. Use `PaymentStatusLabel` with `phaseFromRecord` or `phaseFromTabTip` in
+9. Use `PaymentStatusLabel` with `phaseFromRecord` or `phaseFromTabTip` in
    history rows.
 
 The fixture page shows each state by id:
