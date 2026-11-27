@@ -7,13 +7,6 @@
 
 export const FIXTURES = [
   {
-    name: 'nft',
-    server: 'e2e/fixtures/nft/server.mjs',
-    port: 4174,
-    spec: 'e2e/nft-presentation.spec.ts',
-    env: { NFT_FIXTURES: '1' },
-  },
-  {
     name: 'recovery',
     server: 'e2e/fixtures/recovery/server.mjs',
     port: 4175,
@@ -51,38 +44,6 @@ export const FIXTURES = [
     },
   },
   {
-    name: 'article-tips',
-    server: 'e2e/fixtures/article-tips/server.mjs',
-    port: 4178,
-    spec: 'e2e/article-tips.spec.ts',
-    env: {
-      ARTICLE_TIPS_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4178',
-    },
-  },
-  {
-    // v2 article, highlight and basket tips in every state.
-    name: 'tips-v2',
-    server: 'e2e/fixtures/tips-v2/server.mjs',
-    port: 4179,
-    spec: 'e2e/tips-v2.spec.ts',
-    env: {
-      TIPS_V2_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4179',
-    },
-  },
-  {
-    // The v2 article NFT: mint at the threshold and transfer, every state.
-    name: 'nft-v2',
-    server: 'e2e/fixtures/nft-v2/server.mjs',
-    port: 4182,
-    spec: 'e2e/nft-v2.spec.ts',
-    env: {
-      NFT_V2_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4182',
-    },
-  },
-  {
     // Chromium, Firefox and WebKit (its own config); key storage and
     // WebCrypto Ed25519 differ between engines.
     name: 'tab',
@@ -112,6 +73,18 @@ export const FIXTURES = [
     spec: 'e2e/system-(gallery|shell).spec.ts',
     config: 'e2e/fixtures/system/playwright.config.ts',
     env: { SYSTEM_FIXTURES: '1' },
+  },
+  {
+    // The article view on the application shell, on a fake payments
+    // runtime: choosing a line, the tip bar by touch and keyboard, the tip
+    // exactly once across a reload, the receipt sheet, the reader's place.
+    // 390 with touch and 1440, in Chromium and WebKit (its own config).
+    name: 'read',
+    server: 'e2e/fixtures/read/server.mjs',
+    port: 4189,
+    spec: 'e2e/read.spec.ts',
+    config: 'e2e/fixtures/read/playwright.config.ts',
+    env: { READ_FIXTURES: '1' },
   },
 ] as const satisfies readonly {
   name: string

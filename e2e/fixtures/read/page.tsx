@@ -1,0 +1,61 @@
+import { createRoot } from 'react-dom/client'
+import '../../../system/system.css'
+import '../../../shell/shell.css'
+import '../system/fixture.css'
+import { ToastRegion } from '../../../system/components/ToastRegion'
+import { AppShell } from '../../../shell/AppShell'
+import { SheetHost } from '../../../shell/SheetHost'
+import { BalanceSourceContext } from '../../../shell/balance'
+import { registerSheet } from '../../../shell/sheetRegistry'
+import { SIGN_IN_SHEET } from '../../../shell/signIn'
+import { ArticleView } from '../../../components/read/ArticleView'
+import { toReadArticle } from '../../../components/read/readModel'
+import { ReadPaymentsContext } from '../../../hooks/read/payments'
+import { DemoSignInSheet } from '../system/DemoSignInSheet'
+import { ARTICLE } from './article'
+import { fakeRuntime, useFakeBalanceReading } from './payments'
+
+// The article view inside the real application shell, with no backend: the
+// body HTML is rendered by the fixture server with the server renderer and
+// handed over in the page; money comes from the fake runtime. What
+// e2e/read.spec.ts drives. `?pay=` picks the payments scenario,
+// `?signin=sheet` registers a stand-in sign-in sheet.
+declare global {
+  interface Window {
+    __READ_BODY__: string
+  }
+}
+
+if (new URLSearchParams(location.search).get('signin') === 'sheet')
+  registerSheet(SIGN_IN_SHEET, DemoSignInSheet)
+
+const readNext = [
+  {
+    id: 'next-1',
+    title: 'The last keeper of the Ras al-Hadd light',
+    href: '/noor/the-last-keeper',
+    opening:
+      'Salim climbs the stairs every evening, though the lamp is automatic now.',
+  },
+]
+
+createRoot(document.getElementById('root')!).render(
+  <BalanceSourceContext.Provider value={useFakeBalanceReading}>
+    <ReadPaymentsContext.Provider value={fakeRuntime}>
+      <AppShell
+        beside={
+          <>
+            <SheetHost />
+            <ToastRegion />
+          </>
+        }
+      >
+        <ArticleView
+          article={toReadArticle(ARTICLE, Date.UTC(2026, 10, 28))}
+          bodyHtml={window.__READ_BODY__}
+          readNext={readNext}
+        />
+      </AppShell>
+    </ReadPaymentsContext.Provider>
+  </BalanceSourceContext.Provider>
+)

@@ -429,22 +429,13 @@ jobs:
       matrix:
         include:
           - shard: presentation
-            suites: nft,recovery,avatar
+            suites: recovery,avatar
             browsers: chromium
           - shard: payments
             suites: payments
             browsers: chromium
           - shard: wallet
             suites: wallet
-            browsers: chromium
-          - shard: article-tips
-            suites: article-tips
-            browsers: chromium
-          - shard: tips-v2
-            suites: tips-v2
-            browsers: chromium
-          - shard: nft-v2
-            suites: nft-v2
             browsers: chromium
           # The tab session-key suite runs in all three engines.
           - shard: tab
@@ -458,6 +449,11 @@ jobs:
           # widths with real touch and keys, in Chromium and WebKit.
           - shard: system
             suites: system
+            browsers: chromium webkit
+          # The article view: touch and keys at 390 and 1440, in Chromium
+          # and WebKit, on a fake payments runtime.
+          - shard: read
+            suites: read
             browsers: chromium webkit
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

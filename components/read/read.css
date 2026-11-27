@@ -1,0 +1,394 @@
+/* The reading view (components/read). Tokens only; state in data-*. */
+@layer surfaces {
+  /* The shell's main pads the gutter and the safe areas; the reading
+   * column widens it to the reading gutter. */
+  .qt-read {
+    padding-inline: calc(var(--qt-gutter-read) - var(--qt-gutter));
+  }
+
+  /* Reading progress: a hairline at the very top that fills as you read. */
+  .qt-read__progress {
+    position: fixed;
+    inset-block-start: 0;
+    inset-inline: 0;
+    z-index: var(--qt-z-sticky);
+    height: 2px;
+    background: var(--qt-marker-ink);
+    transform-origin: left center;
+    transform: scaleX(var(--qt-read-progress, 0));
+    pointer-events: none;
+  }
+  [dir='rtl'] .qt-read__progress {
+    transform-origin: right center;
+  }
+
+  .qt-read__head {
+    margin-block: var(--qt-space-6) var(--qt-space-8);
+  }
+  .qt-read__head h1 {
+    text-wrap: balance;
+    overflow-wrap: break-word;
+  }
+  .qt-read__byline {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-3);
+    margin-block-start: var(--qt-space-5);
+    font-family: var(--qt-font-ui);
+  }
+  .qt-read__byline-text {
+    display: grid;
+    min-width: 0;
+  }
+  .qt-read__writer {
+    color: var(--qt-ink);
+    font-size: var(--qt-text-ui);
+    font-weight: var(--qt-weight-ui-strong);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+  .qt-read__writer:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+  .qt-read__meta {
+    color: var(--qt-ink-3);
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+  }
+
+  .qt-read__cover {
+    margin: 0 calc(-1 * var(--qt-gutter-read)) var(--qt-space-8);
+  }
+  .qt-read__cover img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    object-fit: cover;
+    background: var(--qt-sunk);
+  }
+
+  /* The body: the margin layer beside the prose holds the ticks. */
+  .qt-read__body {
+    position: relative;
+  }
+  .qt-read__margin {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: calc(-1 * var(--qt-gutter-read) + var(--qt-space-2));
+    width: 3px;
+    pointer-events: none;
+  }
+  .qt-read__tick {
+    position: absolute;
+    inset-inline-start: 0;
+    width: 3px;
+    border-radius: 3px;
+    background: var(--qt-ink);
+  }
+  /* Your place: marker-ink, then it fades once you are reading. */
+  .qt-read__tick[data-kind='place'] {
+    background: var(--qt-marker-ink);
+    animation: qt-read-fade 1.6s var(--qt-ease-out) 2.4s both;
+  }
+  @keyframes qt-read-fade {
+    to {
+      opacity: 0;
+    }
+  }
+
+  /* The column is the measure; the prose lines up with the title. */
+  .qt-read__prose {
+    max-width: none;
+    overflow-wrap: break-word;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .qt-read__prose p,
+  .qt-read__prose li {
+    text-wrap: pretty;
+  }
+  /* The first line opens in small capitals, as a printed page does. */
+  .qt-read__prose > p:first-child::first-line {
+    font-variant-caps: all-small-caps;
+    letter-spacing: 0.03em;
+  }
+  .qt-read__prose img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+  .qt-read__prose > img,
+  .qt-read__prose > figure {
+    margin-inline: calc(-1 * var(--qt-gutter-read));
+    max-width: calc(100% + 2 * var(--qt-gutter-read));
+    border-radius: 0;
+  }
+  .qt-read__prose > figure img {
+    width: 100%;
+  }
+  .qt-read__prose > figure figcaption {
+    padding-inline: var(--qt-gutter-read);
+  }
+  .qt-read__prose pre {
+    overflow-x: auto;
+    padding: var(--qt-space-4);
+    border-radius: var(--qt-radius-tag);
+    background: var(--qt-sunk);
+    font-size: 0.8em;
+    line-height: 1.55;
+    -webkit-overflow-scrolling: touch;
+  }
+  .qt-read__prose pre code {
+    font-size: inherit;
+  }
+  .qt-read__prose :not(pre) > code {
+    padding: 0.1em 0.3em;
+    border-radius: 0.25em;
+    background: var(--qt-sunk);
+  }
+  .qt-read__prose iframe {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    height: auto;
+    border: 0;
+  }
+  .qt-read__prose h2,
+  .qt-read__prose h3 {
+    scroll-margin-block-start: var(--qt-space-10);
+  }
+  .qt-read__prose ::selection {
+    background: var(--qt-marker-soft);
+    color: var(--qt-ink);
+  }
+
+  /* The chosen line: faint fill and an underline (not colour alone); the
+   * margin tick is the third cue. Tipped lines get the full marker. */
+  ::highlight(qt-read-chosen) {
+    background-color: var(--qt-marker-faint);
+    text-decoration: underline;
+    text-decoration-color: var(--qt-ink);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.22em;
+  }
+  ::highlight(qt-read-tipped) {
+    background-color: var(--qt-marker);
+    color: var(--qt-on-marker);
+  }
+  .qt-read__prose mark[data-read-paint][data-targeted] {
+    text-decoration-color: var(--qt-ink);
+  }
+
+  /* The end of the article. */
+  .qt-read__end {
+    display: grid;
+    justify-items: center;
+    gap: var(--qt-space-2);
+    margin-block-start: var(--qt-space-10);
+    padding-block: var(--qt-space-8) var(--qt-space-6);
+    border-block-start: 1px solid var(--qt-line);
+    text-align: center;
+  }
+  .qt-read__end-name {
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-text-title);
+    line-height: var(--qt-lh-title);
+    font-weight: var(--qt-weight-title);
+    overflow-wrap: anywhere;
+  }
+
+  .qt-read__next {
+    margin-block: var(--qt-space-8) var(--qt-space-6);
+  }
+  .qt-read__next-list {
+    margin-block-start: var(--qt-space-4);
+  }
+  .qt-read__next-item {
+    display: grid;
+    gap: var(--qt-space-2);
+    padding-block: var(--qt-space-5);
+    border-block-start: 1px solid var(--qt-line);
+  }
+  .qt-read__next-title {
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-text-line);
+    line-height: var(--qt-lh-line);
+    font-weight: var(--qt-weight-title);
+    overflow-wrap: anywhere;
+  }
+  .qt-read__next-opening {
+    color: var(--qt-ink-2);
+    font-family: var(--qt-font-read);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .qt-read__next-link {
+    justify-self: end;
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--qt-hit);
+    color: var(--qt-ink);
+    font-family: var(--qt-font-ui);
+    font-weight: var(--qt-weight-ui-strong);
+    text-decoration: underline;
+    text-decoration-color: var(--qt-line-strong);
+    text-underline-offset: 0.2em;
+  }
+
+  /* The tip bar: sticky at the bottom of the reading column, on solid
+   * paper with a hairline, so no text ghosts behind its words. */
+  .qt-read__dock {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: var(--qt-z-sticky);
+    display: grid;
+    gap: var(--qt-space-2);
+    margin-inline: calc(-1 * var(--qt-gutter-read));
+    padding: var(--qt-space-3) var(--qt-gutter-read)
+      calc(var(--qt-space-3) + var(--qt-safe-bottom));
+    background: var(--qt-paper);
+    box-shadow: 0 -1px 0 var(--qt-line);
+  }
+  .qt-read__line-actions {
+    display: flex;
+    gap: var(--qt-space-2);
+  }
+  .qt-read__chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--qt-hit);
+    padding-inline: var(--qt-space-4);
+    border: 0;
+    border-radius: var(--qt-radius-pill);
+    background: var(--qt-sunk);
+    color: var(--qt-ink);
+    font: inherit;
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-text-ui);
+    font-weight: var(--qt-weight-ui-strong);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color var(--qt-dur-quick) var(--qt-ease-out);
+  }
+  .qt-read__chip:active {
+    background: var(--qt-press);
+  }
+  .qt-read__dock-row {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--qt-space-3);
+    min-width: 0;
+  }
+  .qt-read__wallet {
+    display: grid;
+    flex: none;
+    gap: var(--qt-space-1);
+    padding-block-end: var(--qt-space-1);
+  }
+  .qt-read__wallet .qt-testnet {
+    margin: 0;
+  }
+  .qt-read__control {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .qt-read__control > .qt-tip {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Signed out: the same button, as a link to sign in. */
+  .qt-read__signin {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--qt-space-2);
+    min-height: var(--qt-control-h-l);
+    padding-inline: var(--qt-space-5);
+    border-radius: var(--qt-radius-pill);
+    background: var(--qt-action-bg);
+    color: var(--qt-action-ink);
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-text-ui-l);
+    font-weight: var(--qt-weight-ui-strong);
+    text-decoration: none;
+    transition: transform var(--qt-dur-press) var(--qt-ease-out);
+  }
+  .qt-read__signin:active {
+    transform: scale(0.98);
+  }
+  .qt-read__signin-nib {
+    display: inline-flex;
+    color: var(--qt-action-icon);
+  }
+
+  /* The receipt sheet. */
+  .qt-receipt {
+    display: grid;
+    gap: var(--qt-space-3);
+  }
+  .qt-receipt__to {
+    color: var(--qt-ink-2);
+    overflow-wrap: anywhere;
+  }
+  .qt-receipt__line {
+    margin-block: var(--qt-space-2);
+  }
+  .qt-receipt__rows {
+    display: grid;
+  }
+  .qt-receipt__row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--qt-space-4);
+    padding-block: var(--qt-space-3);
+    border-block-start: 1px dashed var(--qt-line);
+  }
+  .qt-receipt__row dt {
+    color: var(--qt-ink-2);
+  }
+  .qt-receipt__row dd {
+    margin: 0;
+    font-weight: var(--qt-weight-ui-strong);
+  }
+
+  @media (min-width: 1024px) {
+    .qt-read__cover,
+    .qt-read__prose > img,
+    .qt-read__prose > figure {
+      margin-inline: 0;
+      max-width: 100%;
+      border-radius: var(--qt-radius-tag);
+      overflow: hidden;
+    }
+    .qt-read__dock {
+      margin-inline: 0;
+      padding-inline: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .qt-read__tick[data-kind='place'] {
+      animation-duration: 0s;
+      animation-delay: 6s;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .qt-read__progress,
+    .qt-read__tick {
+      background: CanvasText;
+    }
+    ::highlight(qt-read-chosen),
+    ::highlight(qt-read-tipped) {
+      background-color: Highlight;
+      color: HighlightText;
+    }
+  }
+}

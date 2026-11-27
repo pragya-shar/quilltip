@@ -8,7 +8,7 @@ const phone = { width: 390, height: 844 }
 
 export default defineConfig({
   testDir: '../..',
-  testMatch: /(reading-no-script|shell-crossing)\.spec\.ts/,
+  testMatch: /(reading-no-script|read-no-script|shell-crossing)\.spec\.ts/,
   globalSetup: '../../global-setup.ts',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -20,7 +20,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium-no-script',
-      testMatch: /reading-no-script\.spec\.ts/,
+      testMatch: /(reading|read)-no-script\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         viewport: phone,
@@ -29,7 +29,7 @@ export default defineConfig({
     },
     {
       name: 'webkit-no-script',
-      testMatch: /reading-no-script\.spec\.ts/,
+      testMatch: /(reading|read)-no-script\.spec\.ts/,
       use: {
         ...devices['Desktop Safari'],
         viewport: phone,

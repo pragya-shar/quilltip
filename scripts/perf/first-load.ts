@@ -31,7 +31,9 @@ export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
   '/': 211, // measured 208.9
   '/login': 202, // measured 199.4
   '/articles': 216, // measured 214.0
-  '/[username]/[slug]': 219, // measured 216.9
+  // The article view on the application shell: the rebuild plan's target
+  // for public reading routes (4.1).
+  '/[username]/[slug]': 150,
   // Target for public routes of the application shell (rebuild plan 4.1).
   '/system/reading': 150,
 }

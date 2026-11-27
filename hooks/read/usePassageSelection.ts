@@ -109,8 +109,8 @@ export function usePassageSelection(
       settle = setTimeout(fromSelection, SELECTION_SETTLE_MS)
     }
     const onClick = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.detail > 1)
-        return
+      // A double click selects a word: the selection path handles it.
+      if (event.defaultPrevented || event.button !== 0) return
       const target = event.target as Element | null
       if (target?.closest('a, button, input, textarea, select, label')) return
       const selection = window.getSelection()
