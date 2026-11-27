@@ -66,6 +66,11 @@ amounts }`: the default and the ladder from public data only (the minimum
   `null` once signed in. A choice made while signed out carries into the
   signed-in amounts and is never raised. Do not hard-code "$1": at today's
   cap the offer is 10¢, 25¢ and 50¢.
+- A tip intent carried through sign-in: pass its `amount` (a ceiling) to
+  `setAmount` on return. It is checked against the reader's own ladder and
+  never raised: the amount if offered, else the largest offered amount
+  below it, else none (`clampIntent` in `views.ts`; $1 at a cap near 64¢
+  gives 50¢).
 - `tip()`: sends at once, no wallet prompt. `state.phase` goes `sending`, then
   `sent` only after the server accepted (final: there is no Undo), or
   `failed` (nothing charged), `offline` (checked first, nothing sent),
@@ -104,7 +109,10 @@ Each `ActivityItem`:
 The signed-in writer's money. Figures exist only when `status` is `ready`.
 `status: 'none'`: signed in, never published and never received a tip:
 there are no earnings to show (not earnings of zero). `asOf` as on the
-balance.
+balance. `oldestPendingAt`: when the oldest tip still on its way was
+accepted (server time; null when none), so a screen applies the lag rule
+("taking longer than usual" after 5 minutes) without scanning rows;
+`lagging` is that rule applied.
 
 - `available`: paid on chain and collectable now ("Ready to withdraw").
 - `pending`: accepted, not yet paid ("On its way").
@@ -146,12 +154,31 @@ amount; a `Money`'s `display` is its output with the defaults.
 - **Options:** `sign: 'minus' | 'plus'` for a row's direction ("−$1.00",
   "+$1.95"); `converted` and `convertedStyle: 'plain' | 'approx'` for a
   figure converted at today's price.
+- **Which figures are conversions** (`converted` is the only source for
+  "≈", per figure):
+
+  | Figure                                           | Kind                                                                                    | `converted` |
+  | ------------------------------------------------ | --------------------------------------------------------------------------------------- | ----------- |
+  | Reader `available` (Ready to tip)                | today's price applied to the XLM held                                                   | `true`      |
+  | Reader `pending`                                 | sum of tips' cents fixed at tip time                                                    | `false`     |
+  | Writer `available` (Ready to withdraw, arrived)  | sum of shares' cents fixed at tip time                                                  | `false`     |
+  | Writer `pending` (On its way)                    | sum of shares' cents fixed at tip time                                                  | `false`     |
+  | Writer `collected` (Paid to your wallet)         | collected shares' cents (tip time, average cost) plus wallet tips' cents at their quote | `false`     |
+  | Writer `onHold`, `notPaid`, `total`              | sums of tip-time cents                                                                  | `false`     |
+  | A row's `amount`, `net`, `paid`, `fee`, `unpaid` | tip-time cents                                                                          | `false`     |
+  | A tip button's amount and the ladder             | cents chosen at tip time                                                                | `false`     |
+
+  A `Money`'s `display` is the sheet form. The bar's balance item is
+  written bare by the foundation (`formatMoney(cents, { converted: true,
+convertedStyle: 'plain' })`), not by this default.
+
 - **Converted figures:** a `Money` converted from a token amount at today's
   price (the reader's spendable `available`) has `converted: true`; its
   price time is the view's `asOf` and its token amount the view's `exact`.
-  Figures stored at tip time have `converted: false`. How a converted figure
-  is written is one constant, `CONVERTED_STYLE` (`'plain'`, "$2.54", per N2
-  today; `'approx'` writes "≈ $2.54"): change it there, not in a surface.
+  Figures stored at tip time have `converted: false`. A converted figure is
+  written to the cent, floored (never more than it buys), with "≈" (decision
+  D24): `CONVERTED_STYLE` is `'approx'` ("≈ $2.54"); `'plain'` writes
+  "$2.54". Change it there, not in a surface.
 - `null` means "not read yet": show a skeleton, never "$0.00".
 - `formatShort(cents)`: "$1" for whole dollars on a button label.
 

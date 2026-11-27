@@ -306,6 +306,11 @@ function earnings() {
     onHoldCents: sum(['SHORTFALL']),
     notPaidCents: sum(['UNPAID', 'REJECTED']),
     pendingCount: count(['ACCEPTED']),
+    oldestPendingAt: state.receipts
+      .filter((r) => r.status === 'ACCEPTED')
+      .reduce<
+        number | null
+      >((oldest, r) => (oldest === null || r.at < oldest ? r.at : oldest), null),
     settledCount: count(['SETTLED']),
     onHoldCount: count(['SHORTFALL']),
     notPaidCount: count(['UNPAID', 'REJECTED']),

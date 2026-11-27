@@ -138,6 +138,7 @@ function earnings(over: Partial<EarningsView> = {}): EarningsView {
     notPaid: money(0),
     counts: { pending: 0, onHold: 0, notPaid: 0, settled: 0 },
     lagging: false,
+    oldestPendingAt: null,
     exact: { token: 'XLM', available: '0', collected: '0' },
     asOf: null,
     ...over,
@@ -307,6 +308,11 @@ function readyEarnings(writer: ActivityItem[], asOf: number): EarningsView {
       settled: writer.filter((i) => i.status === 'on-chain').length,
     },
     lagging: writer.some((i) => i.lagging),
+    oldestPendingAt: writer
+      .filter((i) => i.status === 'sent')
+      .reduce<
+        number | null
+      >((o, i) => (o === null || i.at < o ? i.at : o), null),
     exact: { token: 'XLM', available: units(ready), collected: '0' },
     asOf,
   })

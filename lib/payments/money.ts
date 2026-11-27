@@ -13,8 +13,9 @@
  * Converted figures. A figure converted from a token amount at today's
  * price (the reader's spendable balance) carries `converted: true`; one
  * stored at tip time (a tip, a share, the earnings figures) carries
- * `converted: false`. How a converted figure is written is one decision,
- * `CONVERTED_STYLE`, which every surface reads through `formatMoney`; views
+ * `converted: false`. A converted figure is written to the cent, floored,
+ * with "≈" (decision D24); how is one decision, `CONVERTED_STYLE`, which
+ * every surface reads through `formatMoney`; views
  * never bake it into a string of their own.
  *
  * The conversions repeat the server's arithmetic exactly (`centsToStroops`
@@ -27,10 +28,12 @@ import type { Cents, Money } from './types'
 const STROOPS_PER_XLM = 10_000_000
 
 /**
- * How a converted figure is written: `plain` ("$2.54", the design's rule N2
- * today) or `approx` ("≈ $2.54"). The one place this is decided.
+ * How a converted figure is written: `approx` ("≈ $2.54", decision D24:
+ * while the balance is held in XLM its dollar figure is a conversion) or
+ * `plain` ("$2.54"). Either way a converted figure has two decimals, never
+ * six. The one place this is decided.
  */
-export const CONVERTED_STYLE: 'plain' | 'approx' = 'plain'
+export const CONVERTED_STYLE: 'plain' | 'approx' = 'approx'
 
 export type MoneyFormat = {
   /** A row's direction: `minus` for a tip sent ("−$1.00"), `plus` for one
@@ -46,7 +49,11 @@ const MINUS = '−'
 
 /** "$4.20", "$0.0975": exact, two to six decimals (N2). */
 export function formatMoney(cents: Cents, format: MoneyFormat = {}): string {
-  const millionths = Math.round(Math.max(0, cents) * 10_000)
+  // A conversion is written to the cent, floored: never more than it buys.
+  const value = format.converted
+    ? Math.floor(Math.max(0, cents) + 1e-9)
+    : Math.max(0, cents)
+  const millionths = Math.round(value * 10_000)
   const dollars = Math.floor(millionths / 1_000_000)
   const fraction = String(millionths % 1_000_000)
     .padStart(6, '0')

@@ -317,7 +317,8 @@ export const tabTables = {
     .index('by_author_accepted', ['authorId', 'acceptedAt'])
     .index('by_status_created', ['status', 'createdAt'])
     .index('by_client_ref', ['clientRef'])
-    .index('by_request', ['requestId']),
+    .index('by_request', ['requestId'])
+    .index('by_author_status_accepted', ['authorId', 'status', 'acceptedAt']),
 
   tabVouchers: defineTable({
     network: chainNetworkValidator,

@@ -151,9 +151,9 @@ async function render(name: FakeScenario) {
 
 describe('the real hooks read the fake runtime', () => {
   it('renders a ready, a loading and an unavailable screen', async () => {
-    expect(await render('available')).toBe('ready|$2.54|$0.6825|3|idle')
+    expect(await render('available')).toBe('ready|≈ $2.54|$0.6825|3|idle')
     expect(await render('loading')).toBe('loading|-|-|0|idle')
     expect(await render('unavailable')).toBe('unavailable|-|-|0|idle')
-    expect(await render('sending')).toBe('ready|$2.44|$0.00|1|sending')
+    expect(await render('sending')).toBe('ready|≈ $2.44|$0.00|1|sending')
   })
 })

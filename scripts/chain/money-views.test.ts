@@ -403,6 +403,34 @@ describe('what each side is told', () => {
     expect(Object.keys(terms!)).not.toContain('availableCents')
   })
 
+  it('gives the oldest pending tip’s acceptance time, and none once paid', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const writer = as(t, s.authorId)
+    expect((await writer.query(api.earnings.mine, {}))!.oldestPendingAt).toBe(
+      null
+    )
+    await tip(t, s, { cents: 100 })
+    await tip(t, s, { cents: 100 })
+    const first = (await receipts(t)).reduce((a, r) =>
+      r.acceptedAt < a.acceptedAt ? r : a
+    )
+    expect((await writer.query(api.earnings.mine, {}))!.oldestPendingAt).toBe(
+      first.acceptedAt
+    )
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(20_000_000),
+        paidAfter: BigInt(20_000_000),
+        gross: BigInt(20_000_000),
+      })
+    )
+    expect((await writer.query(api.earnings.mine, {}))!.oldestPendingAt).toBe(
+      null
+    )
+  })
+
   it('tells someone who never published or received a tip that they are not a writer', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)

@@ -96,18 +96,18 @@ test.describe('passage tip from the balance', () => {
     await open(page, 'tip', 'reader-slow')
     const bar = await choosePassage(page)
     const status = bar.getByRole('status')
-    await expect(status).toHaveText('$7.00 ready to tip.')
+    await expect(status).toHaveText('≈ $7.00 ready to tip.')
     await expect(tipButton(page)).toHaveText('Tip this line $1')
     await tipButton(page).click()
     // Sending: nothing is final yet, and the figure dropped at once.
     await expect(tipButton(page)).toHaveText('Sending $1')
     await expect(status).toContainText(
-      'Sending $1 to Ada Lovelace. $6.00 ready to tip.'
+      'Sending $1 to Ada Lovelace. ≈ $6.00 ready to tip.'
     )
     await page.screenshot({ path: info.outputPath('tip-sending.png') })
     await expect(tipButton(page)).toHaveText('Sent $1', { timeout: 10_000 })
     await expect(status).toContainText(
-      'You tipped Ada Lovelace $1. Tips are final. $6.00 ready to tip.'
+      'You tipped Ada Lovelace $1. Tips are final. ≈ $6.00 ready to tip.'
     )
     await page.screenshot({ path: info.outputPath('tip-sent.png') })
     const state = await backend(page)
@@ -164,7 +164,7 @@ test.describe('passage tip from the balance', () => {
     )
     await expect(bar.getByRole('link', { name: 'Add money' })).toBeVisible()
     await tipButton(page).click()
-    await expect(bar.getByRole('status')).toContainText('You have $0.07.')
+    await expect(bar.getByRole('status')).toContainText('You have ≈ $0.07.')
     await page.screenshot({ path: info.outputPath('tip-needs-funds.png') })
     expect((await backend(page)).calls.prepare).toBe(0)
     await open(page, 'tip', 'reader-ready')
@@ -276,7 +276,7 @@ test.describe('passage tip from the balance', () => {
     const again = await page.context().newPage()
     await open(again, 'balance', 'reader-slow', run)
     await expect(again.getByTestId('activity-row')).toHaveCount(1)
-    await expect(again.getByTestId('balance-available')).toHaveText('$6.00')
+    await expect(again.getByTestId('balance-available')).toHaveText('≈ $6.00')
   })
 
   test('sign-out mid-send keeps reader A apart from reader B, and A gets the tip once', async ({
@@ -298,7 +298,7 @@ test.describe('passage tip from the balance', () => {
     await control(page, 'signIn', 'b')
     await open(page, 'balance', 'two-readers', run)
     // B sees nothing of A: no row, A's tip not off B's balance.
-    await expect(page.getByTestId('balance-available')).toHaveText('$3.50')
+    await expect(page.getByTestId('balance-available')).toHaveText('≈ $3.50')
     await expect(page.getByText('Your tips show up here.')).toBeVisible()
     await control(page, 'latency', 100)
     await control(page, 'signIn', 'a')
@@ -473,7 +473,7 @@ test.describe('states the ledger can reach', () => {
     page,
   }) => {
     await open(page, 'balance', 'reader-overdrawn')
-    await expect(page.getByTestId('balance-available')).toHaveText('$0.00')
+    await expect(page.getByTestId('balance-available')).toHaveText('≈ $0.00')
     await open(page, 'tip', 'reader-overdrawn')
     const bar = await choosePassage(page)
     await expect(bar.getByRole('status')).toContainText(
@@ -577,9 +577,12 @@ test.describe('payments never take reading with them', () => {
       // The backend catches up: payments recover without a reload.
       await control(page, 'sessionFault', null)
       await page.getByRole('link', { name: 'Balance' }).click()
-      await expect(page.getByTestId('balance-available')).toHaveText('$7.00', {
-        timeout: 15_000,
-      })
+      await expect(page.getByTestId('balance-available')).toHaveText(
+        '≈ $7.00',
+        {
+          timeout: 15_000,
+        }
+      )
       await expect(page.getByTestId('app-fallback')).toHaveCount(0)
     })
   }
@@ -761,6 +764,6 @@ test.describe('figures appear only when read', () => {
     await expect(page.getByTestId('earnings-pending')).toHaveText('$0.00')
     await expect(page.getByTestId('earnings-collected')).toHaveText('$0.00')
     await open(page, 'balance', 'reader-none')
-    await expect(page.getByTestId('balance-available')).toHaveText('$0.00')
+    await expect(page.getByTestId('balance-available')).toHaveText('≈ $0.00')
   })
 })

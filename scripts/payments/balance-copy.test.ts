@@ -54,9 +54,28 @@ describe('money text (N2)', () => {
     expect(formatMoney(0.0001)).toBe('$0.000001')
     expect(formatMoney(123456.78)).toBe('$1,234.5678')
     expect(formatMoney(28040.75)).toBe('$280.4075')
+    // A whole cent, and 9.75 cents: exact, never floored.
+    expect(formatMoney(1)).toBe('$0.01')
+    expect(money(9.75).display).toBe('$0.0975')
     // Below the sixth decimal: zero, with the token amount one tap away.
     expect(formatMoney(0.00001)).toBe('$0.00')
     expect(formatMoney(0)).toBe('$0.00')
+  })
+
+  it('keeps the exact token amount on an item whose dollars read zero', () => {
+    const item = activityItemOf(
+      entry({
+        amountCents: 0,
+        netCents: 0.00001,
+        feeCents: 0,
+        unpaidCents: 0,
+        unpaidNetCents: 0.00001,
+        baseUnits: { token: 'XLM', gross: '1', net: '1' },
+      }),
+      NOW
+    )
+    expect(item.net.display).toBe('$0.00')
+    expect(item.exact).toEqual({ token: 'XLM', gross: '1', net: '1' })
   })
 
   it("writes a row's direction", () => {
@@ -65,6 +84,10 @@ describe('money text (N2)', () => {
   })
 
   it('writes a converted figure by one style constant, either way', () => {
+    // D24: "≈" and two decimals by default; a conversion is floored to the
+    // cent, never written to six decimals.
+    expect(CONVERTED_STYLE).toBe('approx')
+    expect(formatMoney(254.656, { converted: true })).toBe('≈ $2.54')
     expect(formatMoney(254, { converted: true, convertedStyle: 'plain' })).toBe(
       '$2.54'
     )

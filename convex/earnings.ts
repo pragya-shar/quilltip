@@ -78,6 +78,14 @@ export const mine = query({
         .first())
     const token = me.chain.tokenContractId ?? ''
     const tab = tabSettledOf(row, token)
+    // The oldest tip still on its way, for the lag notice (no row scan).
+    const oldestPending = await ctx.db
+      .query('tabReceipts')
+      .withIndex('by_author_status_accepted', (q) =>
+        q.eq('authorId', me.userId).eq('status', 'ACCEPTED')
+      )
+      .order('asc')
+      .first()
     const settled = tab.cents
     const tabCollected = row?.tabCollectedCents ?? 0
     const pendingCents = row?.tabPendingCents ?? 0
@@ -94,6 +102,8 @@ export const mine = query({
       onHoldCents: row?.tabOnHoldCents ?? 0,
       notPaidCents: row?.tabNotPaidCents ?? 0,
       pendingCount: row?.tabPendingCount ?? 0,
+      /** When the oldest tip still on its way was accepted; null if none. */
+      oldestPendingAt: oldestPending?.acceptedAt ?? null,
       settledCount: tab.tipCount,
       onHoldCount: row?.tabOnHoldCount ?? 0,
       notPaidCount: row?.tabNotPaidCount ?? 0,

@@ -176,6 +176,12 @@ export type EarningsView = {
   } | null
   /** Some pending tips are older than settlement normally takes. */
   lagging: boolean
+  /**
+   * When the oldest tip still on its way was accepted (server time), so a
+   * screen can apply the lag rule itself; null when nothing is pending or
+   * not read yet.
+   */
+  oldestPendingAt?: number | null
   exact: { token: 'XLM'; available: string; collected: string } | null
   /** As `BalanceView.asOf`. */
   asOf?: number | null

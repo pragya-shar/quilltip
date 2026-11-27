@@ -15,9 +15,11 @@ import type { OutboxEntry } from '../../lib/payments/outbox'
 import {
   activityItemOf,
   balanceViewOf,
+  clampIntent,
   earningsViewOf,
   pageState,
   publicChoices,
+  tipChoices,
   type ActivityEntry,
   type EarningsRead,
   type SessionRead,
@@ -149,6 +151,7 @@ describe('EarningsView for someone who is not a writer', () => {
       settledCount: 0,
       onHoldCount: 0,
       notPaidCount: 0,
+      oldestPendingAt: null,
       baseUnits: {
         token: 'XLM',
         pendingAndOnHold: '0',
@@ -308,5 +311,72 @@ describe('a signed-out visitor’s offer', () => {
     expect(publicChoices(terms(8, 4))).toEqual([])
     expect(publicChoices(null)).toEqual([])
     expect(publicChoices(undefined)).toEqual([])
+  })
+})
+
+describe('EarningsView.oldestPendingAt', () => {
+  const read = (oldestPendingAt: number | null) =>
+    ({
+      isWriter: true,
+      pendingCents: oldestPendingAt === null ? 0 : 97.5,
+      availableCents: 0,
+      collectedCents: 0,
+      totalCents: 0,
+      onHoldCents: 0,
+      notPaidCents: 0,
+      pendingCount: oldestPendingAt === null ? 0 : 1,
+      settledCount: 0,
+      onHoldCount: 0,
+      notPaidCount: 0,
+      oldestPendingAt,
+      baseUnits: {
+        token: 'XLM',
+        pendingAndOnHold: '0',
+        available: '0',
+        collected: '0',
+      },
+    }) as unknown as EarningsRead
+  const view = (oldest: number | null) =>
+    earningsViewOf({
+      signedIn: true,
+      earnings: read(oldest),
+      entries: [],
+      now: NOW,
+    })
+
+  it('carries the oldest pending time and applies the lag rule from it', () => {
+    expect(view(null)).toMatchObject({ oldestPendingAt: null, lagging: false })
+    expect(view(NOW - 60_000)).toMatchObject({
+      oldestPendingAt: NOW - 60_000,
+      lagging: false,
+    })
+    expect(view(NOW - 6 * 60_000)).toMatchObject({ lagging: true })
+  })
+
+  it('is set in the fake’s pending and lagging scenarios, null elsewhere', () => {
+    const lagging = fakePayments('lagging', NOW).earnings
+    expect(lagging.lagging).toBe(true)
+    expect(NOW - lagging.oldestPendingAt!).toBeGreaterThan(5 * 60_000)
+    expect(fakePayments('pending', NOW).earnings.oldestPendingAt).toBeTypeOf(
+      'number'
+    )
+    expect(fakePayments('available', NOW).earnings.oldestPendingAt).toBeNull()
+  })
+})
+
+describe('a tip intent returning from sign-in', () => {
+  it('is a ceiling: clamped to the reader’s own ladder, never raised', () => {
+    // A cap near 64 cents offers 10, 25 and 50 cents.
+    const ladder = tipChoices({
+      minCents: 4,
+      perTipCents: 63,
+      dailyLeftCents: 2000,
+      spendableCents: 10_000,
+    }).amounts
+    expect(ladder).toEqual([10, 25, 50])
+    expect(clampIntent(100, ladder)).toBe(50)
+    expect(clampIntent(25, ladder)).toBe(25)
+    expect(clampIntent(5, ladder)).toBeNull()
+    expect(clampIntent(100, [100, 200, 300, 500])).toBe(100)
   })
 })

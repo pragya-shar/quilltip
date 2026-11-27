@@ -95,6 +95,19 @@ export function effectiveChoice(
   return below.length ? below[below.length - 1]! : null
 }
 
+/**
+ * A tip intent carried through sign-in: its `amount` is a ceiling. Against
+ * the reader's own ladder it is never raised: the amount if offered, else
+ * the largest offered amount below it, else none. (`setAmount` applies the
+ * same rule, so a surface can pass the intent's amount to it.)
+ */
+export function clampIntent(
+  ceilingCents: number,
+  amounts: readonly number[]
+): number | null {
+  return effectiveChoice(ceilingCents, amounts)
+}
+
 export type DeviceState = BalanceView['device']
 
 /** Entries of the outbox that the session does not list as accepted yet. */
@@ -314,6 +327,7 @@ export function earningsViewOf(input: {
     notPaid: null,
     counts: null,
     lagging: false,
+    oldestPendingAt: null,
     exact: null,
     asOf: null,
   }
@@ -335,10 +349,11 @@ export function earningsViewOf(input: {
       notPaid: e.notPaidCount,
       settled: e.settledCount,
     },
-    lagging: input.entries.some(
-      (entry) =>
-        entry.state === 'accepted' && input.now - entry.at > LAG_NOTICE_MS
-    ),
+    // The oldest pending tip, from the server: no page of rows needed.
+    lagging:
+      e.oldestPendingAt !== null &&
+      input.now - e.oldestPendingAt > LAG_NOTICE_MS,
+    oldestPendingAt: e.oldestPendingAt,
     exact: {
       token: 'XLM',
       available: e.baseUnits.available,
