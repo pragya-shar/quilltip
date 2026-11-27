@@ -1,5 +1,5 @@
 // Today (`/`) on a local production build with the fixture backend: no
-// script, first response, redirects, CSP, widths. No secrets: the fixture
+// script, first response, redirects, CSP, widths, a slow backend. No secrets: the fixture
 // stand-in answers the public queries.
 //
 //   NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3299 bun run build
@@ -7,7 +7,7 @@
 //
 // The spec is e2e/today-app.spec.ts.
 import { spawn } from 'child_process'
-import { startFixtureBackend } from '../perf/fixture-backend'
+import { startSlowBackend } from './slow-backend'
 import { startProductionApp } from '../perf/production-app'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -22,7 +22,8 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv) {
 }
 
 async function main(): Promise<number> {
-  const backend = startFixtureBackend(CONVEX_PORT)
+  // The fixture answers, with a delay the slow-backend test can set.
+  const backend = startSlowBackend(CONVEX_PORT)
   const app = await startProductionApp(APP_PORT, BASE_URL)
   try {
     await fetch(`${BASE_URL}/`).catch(() => {})
@@ -33,6 +34,7 @@ async function main(): Promise<number> {
         ...process.env,
         PLAYWRIGHT_BASE_URL: BASE_URL,
         TODAY_APP_CHECK: '1',
+        TODAY_BACKEND_URL: `http://127.0.0.1:${CONVEX_PORT}`,
         QUILLTIP_E2E_FIXTURES: '1',
       }
     )

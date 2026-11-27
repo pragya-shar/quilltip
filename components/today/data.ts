@@ -1,18 +1,16 @@
+import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
 import { fetchQuery } from 'convex/nextjs'
 import { api } from '@/convex/_generated/api'
+import { withinLimit } from './readLimit'
 import type { TodayData, TodayResult } from './types'
-
-/**
- * The longest the page waits for the backend before it renders without the
- * opening. The first response must come even when the backend is slow.
- */
-const ANSWER_WITHIN_MS = 3000
 
 /**
  * Seconds a server copy may be reused. The opening holds for a six-hour
  * window, so a minute only delays an unpublished article's removal by that
- * long, and spares the backend a round trip on most requests.
+ * long, and spares the backend a round trip on most requests. Only answers
+ * are stored: a failed read throws inside, and a late one is cut off
+ * outside, so "unreachable" is never cached.
  */
 const REUSE_SECONDS = 60
 
@@ -25,27 +23,28 @@ const cachedOpening = unstable_cache(
 
 const MINUTE_MS = 60_000
 
-/** Today's opening for this moment, skipping what the reader finished. */
-export async function readToday(
-  now: number,
-  exclude: string[]
-): Promise<TodayData> {
-  // The minute, not the millisecond: requests in the same minute share one
-  // answer. Inside a window the answer does not change with the minute.
-  const at = Math.floor(now / MINUTE_MS) * MINUTE_MS
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    const result = await Promise.race([
-      cachedOpening(at, exclude),
-      new Promise<null>((resolve) => {
-        timer = setTimeout(() => resolve(null), ANSWER_WITHIN_MS)
-      }),
-    ])
-    return result ? { status: 'ready', result } : { status: 'unreachable' }
-  } catch (error) {
-    console.error('Today opening fetch failed', error)
-    return { status: 'unreachable' }
-  } finally {
-    clearTimeout(timer)
+/**
+ * Today's opening for this moment, skipping what the reader finished, within
+ * the public read limit (D21). Worst case for the first byte of `/`: the
+ * limit (1.5 s) plus the render; the proxy's route check does not run for
+ * `/`. One read per request: the page and its metadata share it.
+ */
+export const readToday = cache(
+  async (minute: number, excludeKey: string): Promise<TodayData> => {
+    const exclude = excludeKey ? excludeKey.split('.') : []
+    try {
+      const result = await withinLimit(
+        cachedOpening(minute * MINUTE_MS, exclude)
+      )
+      return { status: 'ready', result }
+    } catch (error) {
+      console.error('Today opening read failed', error)
+      return { status: 'unreachable' }
+    }
   }
+)
+
+/** The arguments `readToday` caches on: the minute and the skip list. */
+export function todayReadKey(now: number, exclude: readonly string[]) {
+  return [Math.floor(now / MINUTE_MS), exclude.join('.')] as const
 }

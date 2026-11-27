@@ -168,3 +168,63 @@ test.describe('with script', () => {
     expect(result).toEqual({ animating: 0, opacity: '1', dialogs: 0 })
   })
 })
+
+/** Sets the stand-in backend's delay (scripts/today/slow-backend.ts). */
+async function backendDelay(ms: number) {
+  await fetch(`${process.env.TODAY_BACKEND_URL}/__delay?ms=${ms}`, {
+    method: 'POST',
+  })
+}
+
+// D21: a public page never waits without a limit. A skip-list cookie that
+// no other test sends gives each request its own cache entry, so the read
+// really goes to the backend.
+test.describe('a slow backend', () => {
+  test.describe.configure({ mode: 'serial' })
+  test.afterEach(() => backendDelay(0))
+
+  test('with a fast read, the opening renders', async ({ request }, info) => {
+    const response = await request.get(TODAY.path, {
+      headers: {
+        cookie: `qt_finished=fast${info.project.name.length}${Date.now()}`,
+      },
+    })
+    expect(response.status()).toBe(200)
+    expect(await response.text()).toContain(TODAY.text)
+  })
+
+  test('past the limit, / answers within the bound with the unreachable state', async ({
+    page,
+    request,
+  }, info) => {
+    await backendDelay(5000)
+    const cookie = `qt_finished=slow${info.project.name.length}${Date.now()}`
+    const started = Date.now()
+    const response = await request.get(TODAY.path, { headers: { cookie } })
+    const elapsed = Date.now() - started
+    // The 1.5 s limit plus the render, with room for a busy CI runner.
+    expect(elapsed).toBeLessThan(3500)
+    expect(response.status()).toBe(200)
+    const html = await response.text()
+    expect(html).toContain('Today’s article did not load.')
+    expect(html).not.toContain(TODAY.text)
+    expect(html).toMatch(/<meta name="robots" content="noindex"/)
+    expect(response.headers()['cache-control']).toContain('no-store')
+
+    if (!noScript(info.project.name)) return
+    // With no script: a plain message and a plain Try again link.
+    await page.context().addCookies([
+      {
+        name: 'qt_finished',
+        value: `slowpage${Date.now()}`,
+        url: info.project.use.baseURL!,
+      },
+    ])
+    await page.goto(TODAY.path)
+    await expect(page.getByText('Today’s article did not load.')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Try again' })).toHaveAttribute(
+      'href',
+      '/'
+    )
+  })
+})

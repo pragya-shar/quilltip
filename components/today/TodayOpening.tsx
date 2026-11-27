@@ -11,13 +11,33 @@ const PUBLISHED = new Intl.DateTimeFormat('en', {
   timeZone: 'UTC',
 })
 
+/** The first words set in small capitals: about four words, whole. */
+const LEAD_IN_CHARS = 28
+
+function splitLeadIn(paragraph: string): [string, string] {
+  const words = paragraph.split(' ')
+  let lead = ''
+  let count = 0
+  for (const word of words) {
+    if (count > 0 && (lead + ' ' + word).length > LEAD_IN_CHARS) break
+    lead = count === 0 ? word : `${lead} ${word}`
+    count++
+  }
+  return [lead, paragraph.slice(lead.length)]
+}
+
 /**
  * The opening: an article already underway. Title, byline, its first
- * paragraphs in the reading face, and Read more as a plain link. Server
- * HTML; nothing here needs a script, and nothing moves or covers it.
+ * paragraphs in the reading face (the first words in small capitals, the
+ * last paragraph fading when the article goes on), Read more as a plain
+ * link and the time left. Server HTML; nothing here needs a script, and
+ * nothing moves or covers it.
  */
 export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
   const writerHref = `/${encodeURIComponent(article.author.username)}`
+  const [first = '', ...rest] = article.paragraphs
+  const [lead, after] = splitLeadIn(first)
+  const last = article.paragraphs.length - 1
   return (
     <article className="qt-today__opening" aria-labelledby="today-title">
       <Heading level={1} variant="display" id="today-title">
@@ -40,16 +60,21 @@ export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
         </span>
       </p>
       <Prose className="qt-today__prose">
-        {article.paragraphs.map((text, index) => (
+        {[first, ...rest].map((text, index) => (
           <p
             key={index}
             data-continues={
-              article.continues && index === article.paragraphs.length - 1
-                ? ''
-                : undefined
+              article.continues && index === last ? '' : undefined
             }
           >
-            {text}
+            {index === 0 ? (
+              <>
+                <span className="qt-today__lead">{lead}</span>
+                {after}
+              </>
+            ) : (
+              text
+            )}
           </p>
         ))}
       </Prose>
@@ -57,6 +82,9 @@ export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
         <Button href={article.href} variant="primary" size="l">
           Read more
         </Button>
+        {article.minutesLeft > 0 ? (
+          <span className="qt-today__left">{article.minutesLeft} min left</span>
+        ) : null}
       </p>
     </article>
   )

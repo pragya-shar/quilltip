@@ -10,7 +10,8 @@ export default defineConfig({
   globalSetup: '../../global-setup.ts',
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: 2,
+  // One worker: the slow-backend test sets a delay every request shares.
+  workers: 1,
   reporter: 'list',
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3198',

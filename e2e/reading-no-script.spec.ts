@@ -21,6 +21,13 @@ const READING = [
       { name: 'Read more articles', href: '/articles' },
     ],
   },
+  {
+    // Today, on the fixture backend's articles (scripts/perf/convex-fixture.ts).
+    path: '/',
+    heading: 'The Lamp on Orchard Street',
+    text: 'The lamp on Orchard Street came on every evening at a quarter past six',
+    links: [{ name: 'Fixture Writer', href: '/fixture-writer' }],
+  },
 ]
 
 for (const page of READING) {

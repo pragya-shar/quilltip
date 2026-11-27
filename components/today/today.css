@@ -37,6 +37,14 @@
   .qt-today__slot {
     min-height: 0;
   }
+  /* While the session is checked, a reserved slot shows a quiet fill at its
+   * final size. It does not shimmer: nothing on Today moves. */
+  :root[data-today-place] .qt-today__slot[data-slot='place']:empty,
+  :root[data-today-draft] .qt-today__slot[data-slot='draft']:empty {
+    background: var(--qt-sunk);
+    border-radius: var(--qt-radius-tag);
+    border-block-end-color: transparent;
+  }
   :root[data-today-place] .qt-today__slot[data-slot='place'],
   :root[data-today-draft] .qt-today__slot[data-slot='draft'] {
     min-height: var(--qt-today-row-h);
@@ -145,7 +153,21 @@
     mask-image: linear-gradient(to bottom, black 35%, transparent);
   }
   .qt-today__onward {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--qt-space-3) var(--qt-space-5);
     margin: var(--qt-space-4) 0 0;
+  }
+  .qt-today__left {
+    font-size: var(--qt-text-ui);
+    color: var(--qt-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+  /* The first words of the opening, in small capitals. */
+  .qt-today__lead {
+    font-variant-caps: all-small-caps;
+    letter-spacing: 0.06em;
   }
 
   /* More today: a short list that ends. */
@@ -239,5 +261,24 @@
     text-align: center;
     font-size: var(--qt-text-ui-s);
     color: var(--qt-ink-3);
+  }
+
+  /* Offline: a note over the top edge. It never pushes the text down. */
+  .qt-today__offline {
+    position: fixed;
+    inset-block-start: 0;
+    inset-inline: 0;
+    z-index: var(--qt-z-sticky);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--qt-space-2);
+    margin: 0;
+    padding: calc(var(--qt-safe-top) + var(--qt-space-1)) var(--qt-gutter)
+      var(--qt-space-1);
+    background: var(--qt-toast-bg);
+    color: var(--qt-toast-ink);
+    font-size: var(--qt-text-ui-s);
+    font-weight: var(--qt-weight-ui-strong);
   }
 }

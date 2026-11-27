@@ -9,6 +9,7 @@ import {
   cleanExclude,
   compareForWindow,
   firstSentence,
+  minutesLeft,
   openingOf,
   windowOf,
 } from './lib/todayOpening'
@@ -34,6 +35,8 @@ const openingValidator = v.object({
   readMinutes: v.number(),
   paragraphs: v.array(v.string()),
   continues: v.boolean(),
+  /** Minutes left after the shown paragraphs; 0 when they are the whole article. */
+  minutesLeft: v.number(),
 })
 
 export const openingResultValidator = v.object({
@@ -144,6 +147,13 @@ export const opening = query({
           readMinutes,
           paragraphs: text.paragraphs,
           continues: text.continues,
+          minutesLeft: text.continues
+            ? minutesLeft({
+                readMinutes,
+                totalWords: text.totalWords,
+                wordsRead: text.shownWords,
+              })
+            : 0,
         }
       } else {
         more.push({

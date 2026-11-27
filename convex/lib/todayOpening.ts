@@ -99,14 +99,43 @@ export function bodyParagraphs(content: unknown): string[] {
   return paragraphs
 }
 
+/** Words in an article's body paragraphs (what `openingOf` counts). */
+export function bodyWords(content: unknown): number {
+  return bodyParagraphs(content).reduce((sum, text) => sum + wordCount(text), 0)
+}
+
+/**
+ * Minutes left to read, as a pure function of the article's length and the
+ * reader's position: the article's reading time, less the share of its words
+ * already read, rounded up. Zero once nothing is left. Used for the opening
+ * ("4 min left" after the shown paragraphs); a server-side reading position
+ * can call it with the words read so far.
+ */
+export function minutesLeft({
+  readMinutes,
+  totalWords,
+  wordsRead,
+}: {
+  readMinutes: number
+  totalWords: number
+  wordsRead: number
+}): number {
+  if (totalWords <= 0 || wordsRead >= totalWords) return 0
+  const share = 1 - Math.max(wordsRead, 0) / totalWords
+  return Math.max(1, Math.ceil(readMinutes * share))
+}
+
 /**
  * The first paragraphs of an article, whole: at most OPENING_PARAGRAPHS,
  * stopping once OPENING_WORDS are reached. `continues` says the article has
  * more after them. Null when the body is too short to open Today.
  */
-export function openingOf(
-  content: unknown
-): { paragraphs: string[]; continues: boolean } | null {
+export function openingOf(content: unknown): {
+  paragraphs: string[]
+  continues: boolean
+  totalWords: number
+  shownWords: number
+} | null {
   const all = bodyParagraphs(content)
   const total = all.reduce((sum, text) => sum + wordCount(text), 0)
   if (total < MIN_BODY_WORDS) return null
@@ -118,7 +147,12 @@ export function openingOf(
     paragraphs.push(text)
     words += wordCount(text)
   }
-  return { paragraphs, continues: paragraphs.length < all.length }
+  return {
+    paragraphs,
+    continues: paragraphs.length < all.length,
+    totalWords: total,
+    shownWords: words,
+  }
 }
 
 /** The first sentence of a paragraph, cut at a word near `max` characters. */

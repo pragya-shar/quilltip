@@ -110,6 +110,12 @@ test.describe('first visit, signed out', () => {
     await expect(
       page.getByText('Writing you can tip, down to the sentence.')
     ).toBeVisible()
+    // The first words in small capitals, and the time left beside Read more.
+    await expect(opening.locator('.qt-today__lead')).toHaveCSS(
+      'font-variant-caps',
+      'all-small-caps'
+    )
+    await expect(opening.getByText(/^\d+ min left$/)).toBeVisible()
     // The balance item says Sign in; no rows, nothing reserved.
     await expect(
       page.getByRole('link', { name: 'Sign in' }).first()
@@ -165,7 +171,9 @@ test.describe('first visit, signed out', () => {
     const more = page.getByRole('region', { name: 'More today' })
     const items = more.getByRole('listitem')
     await expect(items).toHaveCount(3)
-    await expect(page.getByText('That is today’s reading.')).toBeVisible()
+    await expect(
+      page.getByText('You are up to date. New writing arrives through the day.')
+    ).toBeVisible()
     const link = items.first().getByRole('link', { name: /^Read more: / })
     const href = await link.getAttribute('href')
     expect(href).toMatch(/^\/fixture-writer\/fixture-article-\d$/)
@@ -240,6 +248,15 @@ test.describe('returning, signed in', () => {
     await page.goto('/?auth=loading')
     await page.waitForTimeout(800)
     await expect(place(page)).toHaveCount(0)
+    // The reserved slots show a quiet fill at their final size.
+    const fill = await page
+      .locator('.qt-today__slot[data-slot="place"]')
+      .evaluate((slot) => ({
+        height: slot.getBoundingClientRect().height,
+        background: getComputedStyle(slot).backgroundColor,
+      }))
+    expect(fill.height).toBe(48)
+    expect(fill.background).not.toBe('rgba(0, 0, 0, 0)')
     expect(await titleTop(page)).toBe(await firstTop(page))
     expect(await shift(page)).toBe(0)
   })
@@ -319,3 +336,21 @@ for (const width of [360, 375, 390]) {
     })
   }
 }
+
+test('offline: a note over the top edge, and the text stays where it is', async ({
+  page,
+  context,
+}) => {
+  await watchShifts(page)
+  await page.goto('/')
+  const before = await titleTop(page)
+  await context.setOffline(true)
+  await expect(
+    page
+      .getByRole('status')
+      .filter({ hasText: 'Offline. Reading still works.' })
+  ).toBeVisible()
+  expect(await titleTop(page)).toBe(before)
+  await context.setOffline(false)
+  await expect(page.getByText('Offline. Reading still works.')).toHaveCount(0)
+})

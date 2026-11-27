@@ -11,6 +11,7 @@ import {
   WINDOW_MS,
   cleanExclude,
   firstSentence,
+  minutesLeft,
   openingOf,
   windowOf,
 } from '../../convex/lib/todayOpening'
@@ -153,7 +154,9 @@ describe('today.opening', () => {
         expect.stringMatching(/^a0 Part 3: /),
       ],
       continues: true,
+      minutesLeft: expect.any(Number),
     })
+    expect(result.opening!.minutesLeft).toBeGreaterThan(0)
     expect(JSON.stringify(result)).not.toContain('private planning notes')
   })
 
@@ -316,7 +319,7 @@ describe('today.opening', () => {
 
 describe('the opening rule', () => {
   test('takes whole paragraphs, at most three, and stops near the word limit', () => {
-    expect(openingOf(body(5, 3))).toEqual({
+    expect(openingOf(body(5, 3))).toMatchObject({
       paragraphs: [expect.any(String), expect.any(String), expect.any(String)],
       continues: true,
     })
@@ -355,6 +358,17 @@ describe('the opening rule', () => {
     }
     expect(openingOf(doc)!.paragraphs[0]).toBe('Line one line two.')
     expect(openingOf(doc)!.paragraphs).toHaveLength(3)
+  })
+
+  test('minutes left come from the length and the position only', () => {
+    const at = (wordsRead: number) =>
+      minutesLeft({ readMinutes: 6, totalWords: 1200, wordsRead })
+    expect(at(0)).toBe(6)
+    expect(at(170)).toBe(6)
+    expect(at(600)).toBe(3)
+    expect(at(1190)).toBe(1)
+    expect(at(1200)).toBe(0)
+    expect(minutesLeft({ readMinutes: 6, totalWords: 0, wordsRead: 0 })).toBe(0)
   })
 
   test('a first sentence is whole, or cut at a word', () => {
