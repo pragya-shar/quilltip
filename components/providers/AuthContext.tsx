@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAuthActions, useAuthToken } from '@convex-dev/auth/react'
 import { useConvexAuth } from 'convex/react'
 import { Value } from 'convex/values'
@@ -37,11 +37,14 @@ interface AuthContextType {
 }
 
 type AuthSessionContextValue = {
-  isSigningOut: boolean
+  /**
+   * The path a sign-out started on, until the URL leaves it (#608). Its
+   * guard must not send the reader to /login with that path to return to.
+   */
+  signOutFrom: string | null
   /** A held token waits for the backend's first answer, within the bound. */
   awaitingConfirmation: boolean
-  beginSignOut: () => void
-  endSignOut: () => void
+  beginSignOut: (from: string) => void
 }
 
 const AuthSessionContext = createContext<AuthSessionContextValue | null>(null)
@@ -96,23 +99,25 @@ function useAwaitingConfirmation(): boolean {
 }
 
 export function AuthSessionProvider({ children }: { children: ReactNode }) {
-  const [isSigningOut, setIsSigningOut] = useState(false)
+  const pathname = usePathname()
+  const [signOutFrom, setSignOutFrom] = useState<string | null>(null)
+  // The sign-out's navigation has left the page: the guard may act again.
+  if (signOutFrom !== null && pathname !== signOutFrom) setSignOutFrom(null)
   const awaitingConfirmation = useAwaitingConfirmation()
 
   const value = useMemo(
     () => ({
-      isSigningOut,
+      signOutFrom,
       awaitingConfirmation,
-      beginSignOut: () => setIsSigningOut(true),
-      endSignOut: () => setIsSigningOut(false),
+      beginSignOut: (from: string) => setSignOutFrom(from),
     }),
-    [isSigningOut, awaitingConfirmation]
+    [signOutFrom, awaitingConfirmation]
   )
 
   return (
     <AuthSessionContext.Provider value={value}>
       {children}
-      {isSigningOut ? (
+      {signOutFrom !== null ? (
         <div
           className="fixed inset-0 z-[100] bg-background"
           role="status"
@@ -132,9 +137,14 @@ function useAuthSession(): AuthSessionContextValue {
   return context
 }
 
+/** The path a sign-out started on, while the URL is still there (#608). */
+export function useSignOutFrom(): string | null {
+  return useAuthSession().signOutFrom
+}
+
 export function useAuth(): AuthContextType {
   const router = useRouter()
-  const { beginSignOut, endSignOut, awaitingConfirmation } = useAuthSession()
+  const { beginSignOut, awaitingConfirmation } = useAuthSession()
   const { signIn, signOut: convexSignOut } = useAuthActions()
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth()
   const userQuery = useCurrentUser()
@@ -148,14 +158,13 @@ export function useAuth(): AuthContextType {
   })
 
   const signOut = useCallback(async () => {
-    beginSignOut()
-    try {
-      router.replace('/login')
-      await convexSignOut()
-    } finally {
-      endSignOut()
-    }
-  }, [beginSignOut, convexSignOut, endSignOut, router])
+    // Held until the URL leaves this page, not until the sign-out call
+    // returns: the navigation can finish after the session ends (#608).
+    const from = window.location.pathname
+    if (from !== '/login') beginSignOut(from)
+    router.replace('/login')
+    await convexSignOut()
+  }, [beginSignOut, convexSignOut, router])
 
   return {
     user: userQuery === undefined ? null : userQuery,
