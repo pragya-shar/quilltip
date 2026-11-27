@@ -402,9 +402,8 @@ connections the local server allows. The global stylesheet finished at about
 
 ### What simulated mobile under 2 s would need
 
-Superseded: measured over HTTP/2 and with chunk scripts loaded after the
-first paint, all four routes meet it; see
-[First paint before scripts](#first-paint-before-scripts-405-428).
+Superseded by the HTTP/2 measurements in
+[Fonts, list data and field data over HTTP/2](#fonts-list-data-and-field-data-over-http2-405-428).
 
 Lighthouse's simulation charges the bytes that finish, and the scripts that
 run, before the observed first paint (see
@@ -427,7 +426,7 @@ load far below the framework's own size. The options that remain are owner
 decisions: fewer typefaces on the first screen (the landing page uses ten),
 or accepting applied throttling (or field data) as the measure for #405.
 
-## First paint before scripts (#405, #428)
+## Fonts, list data and field data over HTTP/2 (#405, #428)
 
 Measured 2026-11-27. Targets, all four routes: Lighthouse simulated mobile
 LCP < 2 s, applied-throttling mobile LCP < 2 s, CLS < 0.1 (mobile and
@@ -474,6 +473,10 @@ writes the root chunks through `ReactDOM.preinit` and React writes every other
 chunk as a hoisted `<script async>` (checked in the installed
 `next/dist/server/app-render/required-scripts.js` and the App Router runtime).
 
+The change that takes the chunk scripts off the paint path edits the Next.js
+runtime. It is proposed in a separate pull request, stacked on this one, so
+the changes below can merge without it.
+
 ### What changed
 
 Medians of five runs, LCP in ms, HTTP/2. Each row adds one change to the
@@ -481,12 +484,15 @@ previous row.
 
 | Step                                    | `/` sim. | `/login` sim. | `/articles` sim. | Article sim. | `/` applied | `/login` applied | `/articles` applied | Article applied |
 | --------------------------------------- | -------: | ------------: | ---------------: | -----------: | ----------: | ---------------: | ------------------: | --------------: |
-| Before (#506 merged with `overhaul/v2`) | **2779** |      **2105** |         **2854** |     **2859** |    **2593** |         **2214** |            **2814** |        **2565** |
-| 1. Fonts                                | **2857** |      **2105** |         **2860** |     **2704** |    **2596** |         **2209** |            **2792** |        **2563** |
-| 2. Chunk scripts after the first paint  |     1804 |          1203 |             1954 |         1802 |        1829 |             1514 |                1860 |            1735 |
-| 3. `/articles` card data                |        – |             – |             1654 |            – |           – |                – |                1842 |               – |
+| Before (#506 merged with `overhaul/v2`) |     2779 |          2105 |             2854 |         2859 |        2593 |             2214 |                2814 |            2565 |
+| 1. Fonts                                |     2857 |          2105 |             2860 |         2704 |        2596 |             2209 |                2792 |            2563 |
+| 2. `/articles` card data                |     2857 |          2255 |             2705 |         2855 |        2680 |             2264 |                3030 |            2637 |
 
-Row 3 re-measured `/articles` only; the change touches no other route.
+Row 2 is the whole branch, measured again on one build after a merge of
+`overhaul/v2` (#498, #530) and the review fixes of #503 and #506, which put
+the toaster back in every first load (about 10 KB). Changes on routes the
+card data does not touch (`/login` simulated 2105 to 2255 ms) are likely
+from those; they were not measured separately.
 
 1. **Fonts.** Every face was rewritten losslessly to WOFF2 without glyph
    names (19 KB less in total; the two `.woff` files became WOFF2), and
@@ -495,31 +501,7 @@ Row 3 re-measured `/articles` only; the change touches no other route.
    them, one face per weight). Text that paints before its web font now keeps
    its line breaks when the font swaps in; CLS fell on `/` (0.002 to 0.001)
    and `/articles` (0.005 to 0.000). LCP changed within noise.
-2. **Chunk scripts after the first paint.** `scripts/next/hydrate-after-paint.ts`
-   edits the two production App Router runtimes before `next build`
-   (package.json and vercel.json run it): Next.js lists the root chunks in the
-   URL of one small loader (`public/hydrate-after-paint.js`) and writes every
-   other chunk script inert (`type="text/plain"` with
-   `data-hydrate-after-paint`). The loader starts them all, in the same order,
-   once the browser reports the first contentful paint, or on the first
-   pointer or key press, after 3 s, or at once in a hidden tab.
-   - The page is the same; hydration starts after the first paint. On a
-     fast connection the chunk requests start 15 to 20 ms after it (measured
-     on all four routes); on Slow 4G the scripts no longer slow the
-     stylesheet and fonts, and hydration finishes later (see the trade-off
-     below).
-   - Links work before hydration, as before. Buttons that need JavaScript
-     respond once the scripts have run; a press before that starts them at
-     once.
-   - It applies only to the first HTML document. Navigation inside the app
-     is unchanged, and `next dev` is unchanged.
-   - Safety: the script refuses any Next.js version other than 16.4.6 and any
-     runtime in which its two patterns do not match exactly once, so an
-     upgrade fails the build instead of skipping it;
-     `QUILLTIP_HYDRATE_AFTER_PAINT=false` at run time restores the default;
-     with subresource integrity on, the default is kept. `perf:budget` fails
-     when a chunk script would load before the first paint.
-3. **`/articles` sends card data, not article bodies.** The first list in
+2. **`/articles` sends card data, not article bodies.** The first list in
    the HTML carried every listed article's full document and search text
    (the long article's text 40 times). The server now sends each card its
    opening (`lib/articles/listArticleForClient.ts`); the card text is the
@@ -528,51 +510,36 @@ Row 3 re-measured `/articles` only; the change touches no other route.
 
 ### Result
 
-All changes, re-measured on one build (median of 5; CLS is the largest
-median across the simulated, applied and desktop runs):
+Median of 5; CLS is the largest median across the simulated, applied and
+desktop runs.
 
-| Route       | Simulated mobile LCP | Applied mobile LCP | Desktop LCP |   CLS | Met |
-| ----------- | -------------------: | -----------------: | ----------: | ----: | --- |
-| `/`         |                 1804 |               1807 |         403 | 0.001 | yes |
-| `/login`    |                 1202 |               1501 |         323 | 0.016 | yes |
-| `/articles` |                 1653 |               1829 |         363 | 0.001 | yes |
-| Article     |                 1802 |               1734 |         383 | 0.001 | yes |
+| Route       | Simulated mobile LCP | Applied mobile LCP | Desktop LCP |   CLS | Simulated < 2 s | Applied < 2 s | CLS < 0.1 |
+| ----------- | -------------------: | -----------------: | ----------: | ----: | --------------- | ------------- | --------- |
+| `/`         |                 2857 |               2680 |         586 | 0.001 | no              | no            | yes       |
+| `/login`    |                 2255 |               2264 |         486 | 0.016 | no              | no            | yes       |
+| `/articles` |                 2705 |               3030 |         526 | 0.001 | no              | no            | yes       |
+| Article     |                 2855 |               2637 |         545 | 0.001 | no              | no            | yes       |
 
-`/articles` simulated mobile had one run at 2931 ms (four at 1653 to
-1654 ms): an occasional observed load in which the cover image finished
-after a script ran.
+CLS is met everywhere; neither LCP target is met on any route. The chunk
+scripts are the cause on all four routes (see [Cause](#cause-1)), and the
+first load cannot shrink enough to change that (see
+[Checked and not changed](#checked-and-not-changed-1)).
 
-**Trade-off: hydration starts later under throttling.** The scripts now
-start downloading when the page has painted instead of alongside the
-stylesheet. Under applied throttling the landing page finished hydrating at
-about 4.1 s instead of about 2.5 to 3.0 s (from its long tasks), and
-Lighthouse's time to interactive rose (median, ms):
-
-| Route       | Applied TTI before | Applied TTI after | Simulated TTI before | Simulated TTI after | TBT applied before → after |
-| ----------- | -----------------: | ----------------: | -------------------: | ------------------: | -------------------------: |
-| `/`         |               4145 |            10591¹ |                 3096 |                3100 |                  105 → 139 |
-| `/login`    |               2553 |              3340 |                 2105 |                1646 |                    12 → 11 |
-| `/articles` |               3119 |              4087 |                 2854 |                2099 |                    42 → 21 |
-| Article     |               6732 |              7098 |                 6562 |                5675 |                   151 → 79 |
-
-¹ Both landing builds have a long task at about 10.4 s, where the opening
-intro ends; in the new build, link prefetches after hydration end at
-6.1 s, so Lighthouse's 5-second quiet window only closes after that task.
-Hydration itself moved by about 1.1 s.
-
-Links work before hydration; buttons that need JavaScript respond once the
-scripts have run, and a press starts them at once. Field data (below) will
-show INP after cutover.
+`/articles` applied LCP (3030 ms) is higher than in the earlier runs on this
+page (2792 to 2814 ms). This build also has the toaster back in the first
+load (#503 review) and the `overhaul/v2` merges; the difference is not
+attributed.
 
 ### Checked and not changed
 
 - **JavaScript content.** The first load is React DOM (about 62 KB gzip),
   the Next.js router and runtime (about 85 KB), the Convex client (about
   23 KB) and 15 to 40 KB of app code per route. Public pages need the Convex
-  client for live data, and the app code is the page's own. Moving the
-  scripts after the first paint removes all of it from the paint path, so no
-  further split was needed. `convex/_generated/api.js` pulls Convex's schema
-  helpers into the browser (about 1.7 KB); generated code is left as it is.
+  client for live data, and the app code is the page's own, so no route
+  can drop enough of it to bring simulated LCP under 2 s. What can change is
+  when it runs (the separate pull request). `convex/_generated/api.js` pulls
+  Convex's schema helpers into the browser (about 1.7 KB); generated code is
+  left as it is.
 - **Splitting the global stylesheet.** `experimental.cssChunking: 'graph'`
   produced the same stylesheets for these routes (one global sheet from
   `app/globals.css`). Rule coverage shows 74 to 83 percent of it used at
@@ -603,8 +570,8 @@ replaced by faces the page already loads:
 | Literata 600 italic | 22 KB | The handwritten "writing" in the headline | Alegreya italic |
 
 With all three replaced the page loads seven files (120 KB). Measured with
-the chunk-script change in place: simulated mobile LCP 1803 ms against
-1804 ms, applied 1815 ms against 1829 ms. **The change is visible (the
+the chunk-script change from the separate pull request in place: simulated
+mobile LCP 1803 ms against 1804 ms, applied 1815 ms against 1829 ms. **The change is visible (the
 headline's handwritten word becomes lighter, and the buttons change face)
 and brings no measurable LCP gain, so the recommendation is to keep the
 ten faces.** Screenshots at 375 and 1440 px are in the report for #405.
