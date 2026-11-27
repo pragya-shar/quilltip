@@ -18,9 +18,16 @@ for (const width of [375, 390]) {
     await page.setViewportSize({ width, height: 844 })
     await page.goto('/privacy')
     const trigger = page.getByRole('button', { name: 'Open navigation menu' })
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
     await trigger.click()
     const dialog = page.getByRole('dialog', { name: 'Find your way' })
     await expect(dialog).toBeVisible()
+    // The modal hides the rest of the page from the accessibility tree, so
+    // read the button's state through its class.
+    await expect(page.locator('.app-menu-trigger')).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
     for (const label of [
       'Articles',
       'Your library',
@@ -36,6 +43,7 @@ for (const width of [375, 390]) {
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
     await expect(trigger).toBeFocused()
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
     await trigger.press('Enter')
     await expect(dialog).toBeVisible()
     await dialog

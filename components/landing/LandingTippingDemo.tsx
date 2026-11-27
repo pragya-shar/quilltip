@@ -1,24 +1,36 @@
 'use client'
 
 import Link from 'next/link'
-import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog'
 import {
   ArrowRight,
   ArrowUpRight,
   Check,
   Heart,
   UserCircle,
-  X,
 } from './LandingIcons'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { visibleTimer } from './visibleTimer'
+import { afterLoadWhenIdle } from '@/lib/scheduling/afterLoadWhenIdle'
+
+// The tip preview dialog (Radix dialog and the wallet help) is not part of the
+// landing page's first load. It is fetched after load when the browser is
+// idle, or on hover, focus or the first press of "Add a tip".
+const loadTipPreviewDialog = () => import('./LandingTipPreviewDialog')
+const preloadTipPreviewDialog = () => {
+  void loadTipPreviewDialog()
+}
+const LandingTipPreviewDialog = lazy(() =>
+  loadTipPreviewDialog().then((mod) => ({
+    default: mod.LandingTipPreviewDialog,
+  }))
+)
 
 export const sampleSentences = [
   'There are words we read, and words we carry.',
@@ -41,12 +53,17 @@ export function LandingTippingDemo({
   const [pageVisible, setPageVisible] = useState(true)
   const [reduced, setReduced] = useState(true)
   const [tipOpen, setTipOpen] = useState(false)
+  const [tipRequested, setTipRequested] = useState(false)
   const [amount, setAmount] = useState('2')
   const paper = useRef<HTMLElement>(null)
   const sentenceRefs = useRef<(HTMLSpanElement | null)[]>([])
   const receiptRef = useRef<HTMLElement>(null)
   const tipTrigger = useRef<HTMLElement | null>(null)
   const receiptPending = useRef(false)
+
+  // Fetch the tip dialog once the page has loaded, so the first press opens
+  // it at once.
+  useEffect(() => afterLoadWhenIdle(preloadTipPreviewDialog), [])
 
   useEffect(() => {
     const update = () => setPageVisible(!document.hidden)
@@ -106,6 +123,7 @@ export function LandingTippingDemo({
   }
   function openTip(event: React.MouseEvent<HTMLButtonElement>) {
     tipTrigger.current = event.currentTarget
+    setTipRequested(true)
     setTipOpen(true)
     receiptPending.current = false
   }
@@ -295,7 +313,13 @@ export function LandingTippingDemo({
                   <Heart size={19} aria-hidden />
                   Appreciate for free
                 </button>
-                <button className="text-action" type="button" onClick={openTip}>
+                <button
+                  className="text-action"
+                  type="button"
+                  onClick={openTip}
+                  onPointerEnter={preloadTipPreviewDialog}
+                  onFocus={preloadTipPreviewDialog}
+                >
                   Add a tip
                 </button>
               </div>
@@ -342,73 +366,28 @@ export function LandingTippingDemo({
           1 test XLM · no monetary value · separate from article tipping
         </small>
       </aside>
-      <Dialog open={tipOpen} onOpenChange={setTipOpen}>
-        <DialogContent
-          className="landing-blend blend-study type-study landing-tip-dialog"
-          overlayClassName="landing-tip-overlay"
-          hideCloseButton
-          onCloseAutoFocus={(event) => {
-            event.preventDefault()
-            if (receiptPending.current)
-              receiptRef.current?.focus({ preventScroll: true })
-            else tipTrigger.current?.focus({ preventScroll: true })
-          }}
-        >
-          <DialogClose asChild>
-            <button
-              type="button"
-              className="icon-button modal-close"
-              aria-label="Close tip dialog"
-            >
-              <X size={22} />
-            </button>
-          </DialogClose>
-          <DialogTitle>Preview a little appreciation.</DialogTitle>
-          <DialogDescription>
-            A little support for the words that stayed with you.
-          </DialogDescription>
-          <blockquote>“{sampleSentences[selected]}”</blockquote>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
+      {tipRequested && (
+        <Suspense fallback={null}>
+          <LandingTipPreviewDialog
+            open={tipOpen}
+            onOpenChange={setTipOpen}
+            sentence={sampleSentences[selected] ?? sampleSentences[0]}
+            amount={amount}
+            onAmountChange={setAmount}
+            onPreview={() => {
               receiptPending.current = true
               setTipOpen(false)
               appreciate(amount)
             }}
-          >
-            <fieldset>
-              <legend>
-                Choose a demo amount · test XLM has no monetary value
-              </legend>
-              <div className="amounts">
-                {['1', '2', '5'].map((value) => (
-                  <label
-                    key={value}
-                    className={amount === value ? 'chosen' : ''}
-                  >
-                    <input
-                      type="radio"
-                      name="amount"
-                      value={value}
-                      checked={amount === value}
-                      onChange={() => setAmount(value)}
-                    />
-                    {value} test XLM
-                  </label>
-                ))}
-              </div>
-              <button className="button primary send-tip" type="submit">
-                Preview {amount} test XLM receipt{' '}
-                <Heart size={18} aria-hidden />
-              </button>
-            </fieldset>
-          </form>
-          <p className="modal-disclaimer">
-            Quick receipt preview · no wallet connects or payment is made.
-          </p>
-          <WalletSetupHelp />
-        </DialogContent>
-      </Dialog>
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+              if (receiptPending.current)
+                receiptRef.current?.focus({ preventScroll: true })
+              else tipTrigger.current?.focus({ preventScroll: true })
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }

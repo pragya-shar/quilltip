@@ -17,6 +17,7 @@ export default defineConfig({
       'scripts/chain/canonical-article.test.ts',
       'scripts/pr-hygiene/*.test.ts',
       'scripts/contracts/*.test.ts',
+      'scripts/perf/*.test.ts',
       'scripts/payments/*.test.ts',
       'scripts/nft/*.test.ts',
       // Browser tab modules over fake-indexeddb and Node WebCrypto.
