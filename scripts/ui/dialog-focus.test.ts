@@ -68,7 +68,9 @@ describe('dialog close focus', () => {
   })
 
   it('returns to the menu button when the opener was a menu item', () => {
+    // A control earlier on the page: the menu button wins over it.
     document.body.innerHTML = `
+      <a href="#top">Skip</a>
       <button id="menu-button">Photo options</button>
       <div role="menu" aria-labelledby="menu-button">
         <div role="menuitem" tabindex="-1" id="item">Upload a photo</div>
@@ -90,6 +92,16 @@ describe('dialog close focus', () => {
       '<main><section><button id="only">Send</button></section></main>'
     const only = document.getElementById('only')!
     openThenClose(only, () => only.closest('section')!.remove())
+    expect(document.activeElement?.tagName).toBe('MAIN')
+  })
+
+  it("goes to main, not the first control on the page, when the opener's container is gone", () => {
+    document.body.innerHTML = `
+      <a href="#top">Skip</a>
+      <div id="wrapper"><button id="opener">Send</button></div>
+      <main><button id="main-control">Read more</button></main>`
+    const opener = document.getElementById('opener')!
+    openThenClose(opener, () => document.getElementById('wrapper')!.remove())
     expect(document.activeElement?.tagName).toBe('MAIN')
   })
 

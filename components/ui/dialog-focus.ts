@@ -147,7 +147,9 @@ function returnTarget(opener: Opener): HTMLElement | null {
     return opener.menuTrigger
   }
   for (const ancestor of opener.ancestors) {
-    if (!ancestor.isConnected || ancestor === document.body) continue
+    // The page itself is not "near": past the body, use main below.
+    if (ancestor === document.body) break
+    if (!ancestor.isConnected) continue
     if (ancestor.matches(PRESSABLE) && visible(ancestor)) return ancestor
     const control = tabbables(ancestor)[0]
     if (control) return control
