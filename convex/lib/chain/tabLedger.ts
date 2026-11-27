@@ -514,21 +514,27 @@ export function maxCentsWithin(maxBaseUnits: bigint, priceUsd: number): number {
 }
 
 /**
- * The tab tip limits a reader's next quick tip is checked against, priced
- * at the cached XLM price prepare would use (null when it is too old). The
- * client explains an amount above them before it prepares anything.
+ * The tab tip limits a reader's next quick tip is checked against, as raw
+ * values: nothing here depends on the time, because a subscribed query does
+ * not re-run as time passes. The client applies the UTC day and the price's
+ * age with its own clock (`lib/tab-ui/tip-limits.ts`) and explains an amount
+ * above a limit before it prepares anything.
  */
 export type TabTipLimitsView = {
   /** Base units; `TAB_TIP_MAX`. */
   tipMax: string
   /** Base units; `TAB_DAILY_LIMIT`. */
   dailyLimit: string
-  /** Base units still allowed today (UTC), after tips accepted today. */
-  dailyLeft: string
+  /** Base units accepted on `acceptedDay` (UTC `YYYY-MM-DD`). */
+  acceptedToday: string
+  acceptedDay: string
   /** Base units; the chain minimum, or null before the config is loaded. */
   minTip: string | null
-  /** The price prepare converts cents with; null when none is fresh. */
+  /** The cached price prepare converts with, or null when there is none. */
   priceUsd: number | null
+  /** When that price was fetched; prepare refuses it after `priceMaxAgeMs`. */
+  priceFetchedAt: number | null
+  priceMaxAgeMs: number
   /** The largest whole-cent tip within `tipMax` at `priceUsd`. */
   tipMaxCents: number | null
 }
@@ -539,7 +545,6 @@ export async function tabTipLimitsView(
     network: ChainEnv['network']
     chainEpoch: string
     account: Pick<Doc<'tabAccounts'>, 'acceptedDay' | 'acceptedToday'>
-    now: number
     env?: EnvLike
   }
 ): Promise<TabTipLimitsView | null> {
@@ -558,26 +563,18 @@ export async function tabTipLimitsView(
       ? config.minTip
       : null
   const price = await ctx.db.query('xlmPriceCache').first()
-  const priceUsd =
-    price &&
-    args.now - price.fetchedAt <= TAB_PRICE_MAX_AGE_MS &&
-    price.priceUsd > 0 &&
-    Number.isFinite(price.priceUsd)
-      ? price.priceUsd
-      : null
-  const acceptedToday =
-    args.account.acceptedDay === utcDay(args.now)
-      ? big(args.account.acceptedToday)
-      : ZERO
-  const left = limits.dailyLimit - acceptedToday
+  const usable =
+    !!price && price.priceUsd > 0 && Number.isFinite(price.priceUsd)
   return {
     tipMax: limits.tipMax.toString(),
     dailyLimit: limits.dailyLimit.toString(),
-    dailyLeft: (left > ZERO ? left : ZERO).toString(),
+    acceptedToday: args.account.acceptedToday,
+    acceptedDay: args.account.acceptedDay,
     minTip,
-    priceUsd,
-    tipMaxCents:
-      priceUsd === null ? null : maxCentsWithin(limits.tipMax, priceUsd),
+    priceUsd: usable ? price.priceUsd : null,
+    priceFetchedAt: usable ? price.fetchedAt : null,
+    priceMaxAgeMs: TAB_PRICE_MAX_AGE_MS,
+    tipMaxCents: usable ? maxCentsWithin(limits.tipMax, price.priceUsd) : null,
   }
 }
 

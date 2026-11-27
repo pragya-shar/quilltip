@@ -342,12 +342,12 @@ export const getMyTab = query({
       acceptedToday: account.acceptedToday,
       acceptedDay: account.acceptedDay,
       withdrawUnlockLedger: account.withdrawUnlockLedger ?? null,
-      // What the next quick tip is checked against, at prepare's price.
+      // What the next quick tip is checked against, as raw values: the
+      // client applies the day and the price's age with its own clock.
       tipLimits: await tabTipLimitsView(ctx, {
         network: me.chain.network,
         chainEpoch: me.chain.chainEpoch,
         account,
-        now: Date.now(),
       }),
       keys: keys.map((k) => ({
         keyId: k.keyId,

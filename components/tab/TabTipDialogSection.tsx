@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   PaymentNotice,
@@ -8,6 +8,7 @@ import {
   XlmAmount,
 } from '@/components/payments'
 import { Button } from '@/components/ui/button'
+import { useTabServices } from '@/hooks/tab/TabServicesContext'
 import { useTabTip, type TabTipTarget } from '@/hooks/tab/useTabTip'
 import { TAB_ACTIONS, TAB_TIP, TAB_TIP_DIALOG } from '@/lib/copy/tab'
 import { NOTICE_COPY, TAB_REFUSAL_COPY } from '@/lib/copy/payment-states'
@@ -15,6 +16,8 @@ import { formatUsd } from '@/lib/copy/network-status'
 import { formatXlm } from '@/lib/payments/format'
 import {
   checkTabTipAmount,
+  nextLimitsChange,
+  tabTipLimitsAt,
   type TabTipAmountCheck,
 } from '@/lib/tab-ui/tip-limits'
 import { TabTipAvailabilityNotice } from './TabTipAvailabilityNotice'
@@ -101,15 +104,31 @@ export function TabTipDialogSection({
     ready && reader.tab
       ? (reader.tab.keys.find((k) => k.keyId === availability.keyId) ?? null)
       : null
-  const check =
+
+  // The limits hold until the price turns stale or the UTC day ends; the
+  // query does not re-run as time passes, so the page checks again then.
+  const services = useTabServices()
+  const [now, setNow] = useState(() => services.now())
+  useEffect(() => {
+    if (!limits) return
+    const wait = nextLimitsChange(limits, now) - services.now()
+    const timer = setTimeout(
+      () => setNow(services.now()),
+      Math.min(Math.max(wait, 0), 2 ** 31 - 1)
+    )
+    return () => clearTimeout(timer)
+  }, [limits, now, services])
+  const checkAt = (at: number) =>
     ready && limits && amountCents !== null
       ? checkTabTipAmount({
           cents: amountCents,
           limits,
           free: availability.free,
           key,
+          now: at,
         })
       : null
+  const check = checkAt(now)
 
   const running = state.phase === 'running'
   const result = outcome?.kind === 'accepted' || outcome?.kind === 'unconfirmed'
@@ -123,7 +142,10 @@ export function TabTipDialogSection({
           : 'ready'
         : 'unavailable'
 
-  const maxCents = ready ? (limits?.tipMaxCents ?? null) : null
+  // While the tab can send, the dialog's presets follow its maximum at the
+  // current price; a stale price offers no tab maximum.
+  const maxCents =
+    ready && limits ? tabTipLimitsAt(limits, now).tipMaxCents : null
   useEffect(() => onMaxChange?.(maxCents), [maxCents, onMaxChange])
   useEffect(() => onPhaseChange?.(phase), [phase, onPhaseChange])
   useEffect(() => () => onMaxChange?.(null), [onMaxChange])
@@ -149,6 +171,13 @@ export function TabTipDialogSection({
       return
     }
     if (check && !check.ok) return
+    // Check again at the press: the price or the day may have moved since.
+    const current = services.now()
+    const late = checkAt(current)
+    if (late && !late.ok) {
+      setNow(current)
+      return
+    }
     sentAmount.current = amountCents
     // Tell the dialog in this press, so it cannot close before the effect
     // below reports the running tip.

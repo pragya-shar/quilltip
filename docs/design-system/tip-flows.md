@@ -69,12 +69,20 @@ summary and the wallet tip, so a reader with an open tab sends the dialog's
 amount with this browser's session key and no wallet prompt. The tab code
 loads with `import()` when the dialog opens (`components/tab/README.md`).
 
-- **One amount.** The tab section has no amount choices of its own. It reports
-  the largest tab tip at today's price (`tabs.getMyTab().tipLimits
-.tipMaxCents`, at the price prepare uses); the dialog then offers presets up
-  to it (`tabTipPresets`: the maximum, rounded down to 5 cents from 20 cents
-  up, and the largest smaller steps), and the amount hint adds "Tab tips go up
-  to {max} at today’s XLM price."
+- **Raw limits, the client's clock.** `tabs.getMyTab().tipLimits` holds raw
+  values only: `TAB_TIP_MAX`, the daily limit with the total accepted on
+  `acceptedDay` (UTC), the chain minimum, the cached price with its fetch
+  time and `priceMaxAgeMs`, and `tipMaxCents` at that price. A subscribed
+  query does not re-run as time passes, so the section applies the UTC day
+  and the price's age with its own clock (`tabTipLimitsAt`), wakes at the
+  next change (`nextLimitsChange`: the price turning stale, or 00:00 UTC),
+  and checks again at the press.
+- **One amount.** The tab section has no amount choices of its own. While the
+  tab can send and the price is fresh, it reports the largest tab tip; the
+  dialog then offers presets up to it (`tabTipPresets`: the maximum, rounded
+  down to 5 cents from 20 cents up unless that is below the minimum, and the
+  largest smaller steps; never above the maximum), and the amount hint adds
+  "Tab tips go up to {max} at today’s XLM price."
 - **Explained before sending.** `checkTabTipAmount` applies prepare's checks
   in prepare's order to the chosen amount: no fresh price, below the minimum,
   above the maximum, today's limit, the free balance, this device's spend

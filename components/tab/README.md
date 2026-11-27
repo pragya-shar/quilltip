@@ -41,6 +41,10 @@ import { LazyTabTipAction } from '@/components/tab/LazyTabTipAction'
   `tabs.getMyTab().tipLimits` before anything is prepared
   (`lib/tab-ui/tip-limits.ts`) and explains a limit in place, so expected
   refusals never reach Convex. Convex still decides on prepare.
+- `tipLimits` holds raw values (the day's accepted total, the price's fetch
+  time and maximum age). The section applies the UTC day and the price's age
+  with `services.now()`, wakes at the next change, and checks again when the
+  reader presses send.
 - It renders nothing for a signed-out or unverified reader (the dialog's
   wallet gate covers it) and one line with "Open a tab" for a reader with no
   tab. `docs/design-system/tip-flows.md`, "From your tab", lists every state.

@@ -923,7 +923,8 @@ const S: Scenario[] = [
     device: 'ready',
     seed: (s) => {
       open(s)
-      s.tab!.tipLimits = tipLimitsFor({ dailyLeft: '5000000' })
+      // 19.5 of 20 XLM accepted today (UTC): 0.5 XLM left.
+      s.tab!.tipLimits = tipLimitsFor({ acceptedToday: '195000000' })
     },
   },
   {

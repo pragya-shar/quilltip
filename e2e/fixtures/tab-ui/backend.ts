@@ -130,19 +130,35 @@ export const PRICE_USD = 0.1
 export const TIP_MAX = BigInt(5) * BigInt(10_000_000)
 export const DAILY_LIMIT = BigInt(20) * BigInt(10_000_000)
 
-/** What `tabs.getMyTab` returns as `tipLimits`, at the fixture's price. */
+/** `TAB_PRICE_MAX_AGE_MS`: prepare refuses a price older than 30 minutes. */
+export const PRICE_MAX_AGE_MS = 30 * 60 * 1000
+
+/** The UTC day of a time, as Convex counts the daily limit. */
+export const utcDayOf = (at: number) => new Date(at).toISOString().slice(0, 10)
+
+/**
+ * What `tabs.getMyTab` returns as `tipLimits`, at the fixture's price: raw
+ * values, fetched now, nothing accepted today unless the scenario says.
+ */
 export function tipLimitsFor(
-  o: Partial<NonNullable<MyTab['tipLimits']>> & { acceptedToday?: bigint } = {}
+  o: Partial<NonNullable<MyTab['tipLimits']>> = {}
 ): NonNullable<MyTab['tipLimits']> {
   const tipMax = BigInt(o.tipMax ?? TIP_MAX.toString())
   const priceUsd = o.priceUsd === undefined ? PRICE_USD : o.priceUsd
-  const left = DAILY_LIMIT - (o.acceptedToday ?? BigInt(0))
   return {
     tipMax: tipMax.toString(),
     dailyLimit: DAILY_LIMIT.toString(),
-    dailyLeft: o.dailyLeft ?? (left > BigInt(0) ? left : BigInt(0)).toString(),
+    acceptedToday: o.acceptedToday ?? '0',
+    acceptedDay: o.acceptedDay ?? utcDayOf(Date.now()),
     minTip: o.minTip === undefined ? '100000' : o.minTip,
     priceUsd,
+    priceFetchedAt:
+      o.priceFetchedAt !== undefined
+        ? o.priceFetchedAt
+        : priceUsd === null
+          ? null
+          : Date.now(),
+    priceMaxAgeMs: PRICE_MAX_AGE_MS,
     tipMaxCents:
       o.tipMaxCents !== undefined
         ? o.tipMaxCents
@@ -564,8 +580,13 @@ export function prepareTip(
   const limits = state.tab.tipLimits
   if (limits && amount > BigInt(limits.tipMax))
     throw new FixtureError('TAB_ABOVE_TIP_MAX')
-  if (limits && amount > BigInt(limits.dailyLeft))
-    throw new FixtureError('TAB_DAILY_LIMIT')
+  if (limits) {
+    const today = utcDayOf(Date.now())
+    const accepted =
+      limits.acceptedDay === today ? BigInt(limits.acceptedToday) : ZERO
+    if (accepted + amount > BigInt(limits.dailyLimit))
+      throw new FixtureError('TAB_DAILY_LIMIT')
+  }
   if (BigInt(state.tab.available) < amount)
     throw new FixtureError('TAB_OVER_BALANCE')
   const pairId = `${args.keyId}|${FIXTURE_WRITER}`
@@ -670,9 +691,12 @@ export function submitTip(
   }
   state.accepted[args.prepareId] = result
   if (state.tab?.tipLimits) {
-    const left =
-      BigInt(state.tab.tipLimits.dailyLeft) - BigInt(args.receipt.amount)
-    state.tab.tipLimits.dailyLeft = (left > ZERO ? left : ZERO).toString()
+    const limits = state.tab.tipLimits
+    const today = utcDayOf(Date.now())
+    const before =
+      limits.acceptedDay === today ? BigInt(limits.acceptedToday) : ZERO
+    limits.acceptedDay = today
+    limits.acceptedToday = (before + BigInt(args.receipt.amount)).toString()
   }
   key.acceptedTotal = (
     BigInt(key.acceptedTotal) + BigInt(args.receipt.amount)
