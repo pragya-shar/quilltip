@@ -55,7 +55,58 @@ describe('reading places for Today', () => {
   it('reads nothing from a bad stored value', () => {
     expect(parsePlaces(null)).toEqual([])
     expect(parsePlaces('{')).toEqual([])
+    expect(parsePlaces('{"a":1}')).toEqual([])
     expect(parsePlaces('[{"articleId":1}]')).toEqual([])
+  })
+
+  it('tolerates older entries and drops only the bad ones', () => {
+    const stored = JSON.stringify([
+      { articleId: 'a', href: '/t/a', title: 'A', percent: 0.5, updatedAt: 2 },
+      {
+        articleId: 'b',
+        href: 'https://elsewhere.example/b',
+        title: 'B',
+        percent: 0.5,
+        updatedAt: 1,
+      },
+      {
+        articleId: 'c',
+        href: '//elsewhere.example/c',
+        title: 'C',
+        percent: 0.5,
+        updatedAt: 1,
+      },
+      null,
+      {
+        articleId: 'd',
+        href: '/t/d',
+        title: 'D',
+        percent: 3,
+        updatedAt: 1,
+        finished: true,
+        sentence: 'S.',
+      },
+    ])
+    expect(parsePlaces(stored)).toEqual([
+      {
+        articleId: 'a',
+        href: '/t/a',
+        title: 'A',
+        sentence: '',
+        percent: 0.5,
+        updatedAt: 2,
+        finished: false,
+      },
+      {
+        articleId: 'd',
+        href: '/t/d',
+        title: 'D',
+        sentence: 'S.',
+        percent: 1,
+        updatedAt: 1,
+        finished: true,
+      },
+    ])
   })
 
   it('mirrors finished ids into the cookie value', () => {

@@ -1,13 +1,18 @@
 /**
- * The reader's places, kept in this browser for Today's "Your place" row
- * (agreed with the Today surface): newest first, at most 20, finished
- * articles kept with `finished: true` so Today never opens on one. The
- * article view writes it; Today only reads it. The ids of finished
- * articles are mirrored into a cookie so the server render can skip them.
+ * The reader's places: the one definition the article view (writer) and
+ * Today's "Your place" row (reader) import. Kept in this browser, so a
+ * signed-out reader's place survives a reload: newest first, at most 20
+ * (the oldest dropped), finished articles kept with `finished: true` so
+ * Today never opens on one. The article view also mirrors the finished ids
+ * into the `qt_finished` cookie for the server render; Today only reads.
+ * Callers use `readPlaces` and `savePlace`, never the storage, so the
+ * source can move to the server (a later backend package) without them
+ * changing. Nothing here is private beyond what this browser already holds.
  *
- * `href` is the article's URL with no `#anchor`: opening it returns the
- * reader to their place (`useReadingPosition`), and an anchor would turn
- * that off.
+ * `href` is the article's own URL (a site path, no `#anchor`): opening it
+ * returns the reader to their place (`useReadingPosition`) with nothing
+ * chosen, so resume never selects a line or arms the tip bar; an anchor
+ * would turn the return off.
  */
 export const READING_PLACE_KEY = 'quilltip:reading-position:v2'
 export const FINISHED_COOKIE = 'qt_finished'
@@ -28,27 +33,56 @@ export type ReadingPlace = {
   finished: boolean
 }
 
-function isPlace(value: unknown): value is ReadingPlace {
-  const v = value as ReadingPlace
-  return (
-    !!v &&
-    typeof v.articleId === 'string' &&
-    typeof v.href === 'string' &&
-    typeof v.title === 'string' &&
-    typeof v.sentence === 'string' &&
-    Number.isFinite(v.percent) &&
-    Number.isFinite(v.updatedAt) &&
-    typeof v.finished === 'boolean'
+/** One stored entry, or null. Missing `sentence` and `finished` (older or
+ * hand-written entries) read as empty and false; anything else bad drops
+ * the entry. */
+function toPlace(value: unknown): ReadingPlace | null {
+  const v = value as Partial<ReadingPlace> | null
+  if (
+    !v ||
+    typeof v !== 'object' ||
+    typeof v.articleId !== 'string' ||
+    !v.articleId ||
+    typeof v.href !== 'string' ||
+    !v.href.startsWith('/') ||
+    v.href.startsWith('//') ||
+    typeof v.title !== 'string' ||
+    typeof v.percent !== 'number' ||
+    !Number.isFinite(v.percent) ||
+    typeof v.updatedAt !== 'number' ||
+    !Number.isFinite(v.updatedAt)
   )
+    return null
+  return {
+    articleId: v.articleId,
+    href: v.href,
+    title: v.title,
+    sentence: typeof v.sentence === 'string' ? v.sentence : '',
+    percent: Math.max(0, Math.min(1, v.percent)),
+    updatedAt: v.updatedAt,
+    finished: v.finished === true,
+  }
 }
 
-/** The stored places, or none when storage is blocked or the value is bad. */
+/** The stored places, or none when the value is corrupt. */
 export function parsePlaces(text: string | null): ReadingPlace[] {
   try {
     const value: unknown = JSON.parse(text ?? '[]')
-    return Array.isArray(value)
-      ? value.filter(isPlace).slice(0, PLACE_LIMIT)
-      : []
+    if (!Array.isArray(value)) return []
+    return value
+      .map(toPlace)
+      .filter((place): place is ReadingPlace => place !== null)
+      .slice(0, PLACE_LIMIT)
+  } catch {
+    return []
+  }
+}
+
+/** The reader's places in this browser, newest first; none when storage
+ * is blocked or empty. The one read callers use. */
+export function readPlaces(): ReadingPlace[] {
+  try {
+    return parsePlaces(localStorage.getItem(READING_PLACE_KEY))
   } catch {
     return []
   }
@@ -98,10 +132,7 @@ export function savePlace(
   next: Omit<ReadingPlace, 'finished'> & { finished?: boolean }
 ) {
   try {
-    const places = upsertPlace(
-      parsePlaces(localStorage.getItem(READING_PLACE_KEY)),
-      next
-    )
+    const places = upsertPlace(readPlaces(), next)
     localStorage.setItem(READING_PLACE_KEY, JSON.stringify(places))
     const finished = finishedCookieValue(places)
     document.cookie = finished
