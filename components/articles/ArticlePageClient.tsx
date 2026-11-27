@@ -27,7 +27,7 @@ import {
 } from '@/components/error/SectionErrorFallback'
 import { ReadingProgressBar } from '@/components/articles/ReadingProgressBar'
 import { EditorialSurface } from '@/components/layout/EditorialSurface'
-import { extractH2HeadingsFromTiptapJson } from '@/lib/tiptap/headings'
+import { extractH2HeadingsFromTiptapJson } from '@/lib/articles/toc'
 import { LoadingRegion } from '@/components/a11y/LoadingRegion'
 import { useStaleLoading } from '@/hooks/useStaleLoading'
 import { useRouter } from 'next/navigation'

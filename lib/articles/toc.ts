@@ -59,3 +59,18 @@ export function extractH2HeadingsFromTiptapJson(
     return { ...h, id }
   })
 }
+
+/**
+ * Gives each level-2 heading in rendered article HTML the id of its table of
+ * contents entry, in document order, so `#section` links work in the server
+ * HTML with no script. `headings` is `extractH2HeadingsFromTiptapJson` of the
+ * same document; extra headings in the HTML keep no id.
+ */
+export function withHeadingIds(html: string, headings: TocHeading[]): string {
+  let index = 0
+  return html.replace(/<h2(\s[^>]*)?>/g, (tag, attrs: string | undefined) => {
+    const heading = headings[index++]
+    if (!heading || /\sid=/.test(attrs ?? '')) return tag
+    return `<h2 id="${heading.id}"${attrs ?? ''}>`
+  })
+}

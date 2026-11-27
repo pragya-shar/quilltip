@@ -17,7 +17,7 @@ import { ArticleStorageSection } from '@/components/articles/ArticleStorageSecti
 import { NftSidebarSkeleton } from '@/components/articles/ArticleEngagementSkeleton'
 import { DollarSign, MessageSquare, Trophy } from 'lucide-react'
 import type { Id } from '@/types/convex'
-import type { TocHeading } from '@/lib/tiptap/headings'
+import type { TocHeading } from '@/lib/articles/toc'
 import type { Doc } from '@/convex/_generated/dataModel'
 import { DetailsSection } from '@/components/articles/DetailsSection'
 

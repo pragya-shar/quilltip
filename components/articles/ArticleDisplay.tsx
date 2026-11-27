@@ -13,7 +13,7 @@ import type { Id } from '@/types/convex'
 import type { ArticleForDisplay } from '@/types/index'
 import { estimateArticleReadingMinutes } from '@/lib/reading-time'
 import { articleCategoryLabel } from '@/lib/articles/browseDiscovery'
-import type { TocHeading } from '@/lib/tiptap/headings'
+import type { TocHeading } from '@/lib/articles/toc'
 import { afterLoadWhenIdle } from '@/lib/scheduling/afterLoadWhenIdle'
 import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
 

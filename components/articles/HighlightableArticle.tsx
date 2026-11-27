@@ -44,7 +44,7 @@ import {
   readPendingHighlightPopoverAnchor,
   shouldKeepTryingHighlightSelectionResume,
 } from '@/lib/highlight/resumePendingHighlightSelection'
-import type { TocHeading } from '@/lib/tiptap/headings'
+import type { TocHeading } from '@/lib/articles/toc'
 import { ArticlePassageRail } from '@/components/articles/ArticlePassageRail'
 import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
 import { getCurrentReturnPath } from '@/lib/auth/safeReturnPath'

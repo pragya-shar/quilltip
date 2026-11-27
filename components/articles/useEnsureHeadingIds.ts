@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import type { TocHeading } from '@/lib/tiptap/headings'
+import type { TocHeading } from '@/lib/articles/toc'
 
 interface EnsureHeadingIdsOptions {
   /** CSS selector for the root element that contains the rendered article. */

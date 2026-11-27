@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { pickActiveId } from '@/lib/articles/tocActiveSection'
-import type { TocHeading } from '@/lib/tiptap/headings'
+import type { TocHeading } from '@/lib/articles/toc'
 
 const ARTICLE_ROOT_SELECTOR = '.article-content'
 const TOC_HEADING_ID = 'article-toc-heading'
