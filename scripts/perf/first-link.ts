@@ -19,7 +19,7 @@
 // - blocked: requests for /_next/static scripts fail; inline scripts still run;
 // - nojs: JavaScript is disabled in the browser.
 //
-// Per run: TTFB of the document, FCP (not available with nojs), the time the
+// Per run: TTFB of the document (WebKit: when the emulated link delivered it), FCP (not available with nojs), the time the
 // target is first inside the viewport, and for a link target whether a tap on
 // it as soon as it is visible starts a navigation to the article. With
 // scripts, an animation-frame probe in the page records the frame; with nojs,
@@ -184,10 +184,12 @@ async function inViewport(page: Page, locator: ReturnType<Page['locator']>) {
 
 /**
  * WebKit has no network emulation: delay each response by the latency and
- * its compressed size over a single shared link.
+ * its compressed size over a single shared link. Returns when the document
+ * was handed to the page (its emulated first byte, as epoch ms).
  */
 async function emulateNetwork(context: BrowserContext) {
   let linkFreeAt = 0
+  const document = { deliveredAt: null as number | null }
   await context.route('**/*', async (route) => {
     const started = Date.now()
     try {
@@ -201,11 +203,17 @@ async function emulateNetwork(context: BrowserContext) {
       const done = start + (wire / PROFILE.downloadBytesPerS) * 1000
       linkFreeAt = done
       await new Promise((r) => setTimeout(r, Math.max(0, done - Date.now())))
+      if (
+        route.request().isNavigationRequest() &&
+        document.deliveredAt === null
+      )
+        document.deliveredAt = Date.now()
       await route.fulfill({ response, body })
     } catch {
       await route.abort().catch(() => {})
     }
   })
+  return document
 }
 
 type Row = {
@@ -257,6 +265,7 @@ async function runOnce(
   })
   try {
     const page = await context.newPage()
+    let emulated: { deliveredAt: number | null } | null = null
     if (engine === 'chromium') {
       const cdp = await context.newCDPSession(page)
       await cdp.send('Network.enable')
@@ -271,7 +280,7 @@ async function runOnce(
         rate: PROFILE.cpuSlowdown,
       })
     } else {
-      await emulateNetwork(context)
+      emulated = await emulateNetwork(context)
     }
     // Registered after the emulation route, so it runs first.
     if (mode === 'blocked')
@@ -285,8 +294,11 @@ async function runOnce(
       waitUntil: 'commit',
       timeout: 60_000,
     })
+    // Chromium: the browser's own timing. WebKit: when the emulated link
+    // delivered the document (it is fetched whole, then delivered).
     const timing = response?.request().timing()
-    if (timing && timing.responseStart >= 0)
+    if (emulated?.deliveredAt != null) row.ttfb = emulated.deliveredAt - t0
+    else if (timing && timing.responseStart >= 0)
       row.ttfb = Math.round(timing.responseStart)
     page.on('request', (request) => {
       if (
@@ -319,7 +331,17 @@ async function runOnce(
           .catch(() => null)
         if (state?.shownAt != null) {
           row.shownAt = Math.round(state.shownAt)
-          row.fcp = state.fcp === null ? null : Math.round(state.fcp)
+          // The paint entry can arrive a little after the frame that showed
+          // the target; read it again shortly.
+          await page.waitForTimeout(300)
+          const fcp = await page
+            .evaluate(
+              () =>
+                (window as unknown as { __reading?: { fcp: number | null } })
+                  .__reading?.fcp ?? null
+            )
+            .catch(() => state.fcp)
+          row.fcp = fcp === null ? null : Math.round(fcp)
           break
         }
       }
