@@ -9,8 +9,6 @@ export type TipsUnavailableReason =
   | 'payout_outdated'
   | 'paused'
   | 'splits'
-  /** v1 tips are paused before payments v2 is on (cutover step 4). */
-  | 'paused'
 
 export const TIPS_UNAVAILABLE_COPY: Record<TipsUnavailableReason, string> = {
   unregistered: 'Tips aren’t on for this article yet.',
@@ -19,5 +17,4 @@ export const TIPS_UNAVAILABLE_COPY: Record<TipsUnavailableReason, string> = {
   paused: 'Tips are paused for a short time while payments are updated.',
   splits:
     'Quick tips don’t work for this article because it shares tips with co-authors. Tip from your wallet instead.',
-  paused: 'Tips are paused for a short time while payments are updated.',
 }

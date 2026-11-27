@@ -474,7 +474,6 @@ Tips unavailable is a one-line note in place of the tip button, rendered by
 | `payout_outdated` | Tips are paused while the writer updates their wallet.                                                       | none            |
 | `paused`          | Tips are paused for a short time while payments are updated.                                                 | none            |
 | `splits`          | Quick tips don’t work for this article because it shares tips with co-authors. Tip from your wallet instead. | Tip from wallet |
-| `paused`          | Tips are paused for a short time while payments are updated.                                                 | none            |
 
 When to show:
 
