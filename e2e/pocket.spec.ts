@@ -239,6 +239,12 @@ const SCENARIOS: Record<string, Expect> = {
     texts: ['Your tips show up here.', NO_EARNINGS_YET],
   },
   none: { spend: '$0.00', rows: 0, absent: [/≈/, /Held in Lumens/] },
+  'no-price': {
+    earnings: { withdraw: '$0.6825', onWay: '$0.00' },
+    rows: 6,
+    texts: ['Dollar value not available right now.'],
+    absent: [/≈/, /Held in Lumens/, /New accounts get/],
+  },
   offline: {
     spend: '≈$2.54',
     rows: 6,
@@ -438,12 +444,22 @@ test.describe('every money scenario', () => {
       .toBe(true)
   })
 
-  test('without a price, the exact amount names none', async ({ page }) => {
-    await page.goto('/pocket?scenario=ready&no-price')
-    await press(page.getByRole('button', { name: /Show the exact amount/ }))
-    const sheet = page.getByRole('dialog', { name: 'Exact amount' })
-    await expect(sheet).toContainText('Its dollar figure moves with the price.')
-    await expect(sheet).not.toContainText('At today’s price')
+  test('with no price, the balance is the token amount and no dollar value', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=no-price')
+    const spend = page.locator('.qt-pocket__spend')
+    await expect(spend.locator('.qt-pocket__token-figure')).toHaveText(
+      /^[\d,]+(\.\d+)? XLM$/
+    )
+    await expect(spend.locator('.qt-money__label')).toHaveText('Ready to tip')
+    await expect(spend).toContainText('Dollar value not available right now.')
+    // Never a dollar figure for it, zero or converted, and nothing to open.
+    expect(await spend.textContent()).not.toMatch(/\$|≈/)
+    await expect(
+      page.getByRole('button', { name: /Show the exact amount/ })
+    ).toHaveCount(0)
+    await expect(spend.locator('[data-skeleton]')).toHaveCount(0)
   })
 
   test('an exact balance is not a button and says nothing about prices', async ({

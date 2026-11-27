@@ -21,16 +21,10 @@ import { EarningsSection } from './EarningsSection'
 import { SpendableSection } from './SpendableSection'
 import { useNow } from './useNow'
 
-/**
- * Whether this person writes, as far as the money layer has said: its
- * explicit signal when present, otherwise an answered earnings view; null
- * while nothing has answered.
- */
+/** Whether this person writes, as the money layer says: true, false, or
+ * null while it does not know (loading, signed out, unavailable). */
 function writerSignal(earnings: EarningsView): boolean | null {
-  if (earnings.isWriter !== undefined) return earnings.isWriter
-  if (earnings.status === 'none') return false
-  if (earnings.status === 'ready') return true
-  return null
+  return earnings.isWriter ?? null
 }
 
 /** The last answer, kept through a reload of the figures or an outage, so a

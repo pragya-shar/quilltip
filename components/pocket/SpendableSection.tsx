@@ -15,8 +15,9 @@ import type { BalanceView } from '@/lib/pocket/types'
  * What the person can tip with now: one figure, exactly as the money layer
  * writes it, with the exact token amount one tap away. Tips on their way
  * out are said in words beside it (they are already out of it), never as a
- * second balance. Add money appears only once the money layer can add money
- * ; until then a line says how money arrives.
+ * second balance. Add money appears only once the money layer can add money;
+ * until then a line says how money arrives. When the money layer knows no
+ * price, the balance is the exact token amount and no dollar value is shown.
  */
 export function SpendableSection({
   balance,
@@ -39,17 +40,31 @@ export function SpendableSection({
   // never decides it.
   const converted = available?.converted === true
   const exact = status === 'ready' ? balance.exact : null
+  // Read, but with no price to say it in dollars: the token amount stands in
+  // for the figure. Never a dollar zero.
+  const noPrice =
+    status === 'ready' && balance.noAmountReason === 'price' && !available
+  const tokenFigure = noPrice && exact ? exact.available : null
   const outgoing =
     status === 'ready' && balance.pending && balance.pending.cents > 0
       ? balance.pending
       : null
-  const figure = (
+  const figure = tokenFigure ? (
+    <span className="qt-money qt-pocket__token-balance" data-size="m">
+      <span className="qt-pocket__token-figure">
+        {source.format.token(tokenFigure)}
+      </span>
+      <span className="qt-money__label">Ready to tip</span>
+    </span>
+  ) : (
     <MoneyFigure
       value={available}
       status={status}
       size={compact ? 'm' : 'xl'}
       label="Ready to tip"
-      unavailableText="Not available right now"
+      unavailableText={
+        noPrice ? 'Dollar value not known' : 'Not available right now'
+      }
     />
   )
   return (
@@ -74,6 +89,8 @@ export function SpendableSection({
         <p className="qt-pocket__fine">
           Held in Lumens. The dollar figure moves with the price.
         </p>
+      ) : noPrice ? (
+        <p className="qt-pocket__fine">Dollar value not available right now.</p>
       ) : null}
       {outgoing ? (
         <p className="qt-pocket__line">
@@ -98,7 +115,7 @@ export function SpendableSection({
         >
           Add money
         </Button>
-      ) : status === 'ready' ? (
+      ) : status === 'ready' && !noPrice ? (
         <p className="qt-pocket__fine">
           New accounts get $5 of testnet practice money. More ways to add money
           come later.

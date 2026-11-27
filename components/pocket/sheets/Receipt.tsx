@@ -75,7 +75,7 @@ export default function ReceiptBody({
           </Fact>
           {accepted && words.status !== 'failed' ? (
             <Fact label={reader ? 'Writer’s share' : 'Your share'}>
-              {item.fee
+              {item.fee && item.net
                 ? `${format.money(item.net.cents)}, after Quilltip’s ${format.money(item.fee.cents)}`
                 : '97.5%, after Quilltip’s 2.5%'}
             </Fact>

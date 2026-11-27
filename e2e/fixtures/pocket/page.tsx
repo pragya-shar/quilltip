@@ -46,7 +46,7 @@ import { TodayStandIn } from './TodayStandIn'
 //   ?paged      lists come in pages of two ("Show more")
 //   ?earnings=, ?earnings-later=  loading or unavailable, from the start
 //               or after a first answer
-//   ?writer-converted, ?no-price, ?unwired  see below
+//   ?writer-converted, ?unwired  see below
 // Tips "sent elsewhere" (/elsewhere) are kept in localStorage as the
 // fixture's server, so they survive a reload the way the server's do.
 
@@ -89,8 +89,6 @@ const approx = (figure: Money | null): Money | null =>
     display: `$${(Math.floor(figure.cents + 1e-9) / 100).toFixed(2)}`,
     converted: true,
   }
-// `?no-price`: the money layer has no price for the figure.
-if (params.has('no-price')) base.balance = { ...base.balance, price: null }
 const views =
   params.has('writer-converted') && base.earnings.status === 'ready'
     ? {
@@ -187,7 +185,7 @@ function useEarningsState(view: EarningsView): EarningsView {
       notPaid: null,
       counts: null,
       exact: null,
-      isWriter: undefined,
+      isWriter: null,
     }
   return view
 }

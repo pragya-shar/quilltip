@@ -34,9 +34,11 @@ export const SCENARIOS = [
   'unavailable',
   'offline',
   'none',
-  // Fixture extras: awkward values the screen must lay out.
+  // Fixture extras: awkward values the screen must lay out, and a balance
+  // the money layer has no price for.
   'awkward',
   'dust',
+  'no-price',
 ] as const
 export type Scenario = (typeof SCENARIOS)[number]
 export type Role = 'both' | 'reader' | 'writer'
@@ -119,6 +121,7 @@ function item(
   const paidCents = over.paid?.cents ?? (status === 'on-chain' ? cents : 0)
   const reader = role === 'reader'
   const notPaid = status === 'not-paid'
+  const sending = status === 'sending'
   return {
     id: `${role}-${n}`,
     requestId: `request-${n}`,
@@ -130,7 +133,7 @@ function item(
     passage: 'Leave it overnight.',
     amount: money(cents),
     // The layer has no share or fee for a tip it has not accepted.
-    net: money(status === 'sending' ? 0 : share(cents)),
+    net: sending ? null : money(share(cents)),
     paid: money(paidCents),
     paidNet: money(share(paidCents)),
     status,
@@ -138,17 +141,18 @@ function item(
     at: now - n * MIN,
     lagging: false,
     txHash: status === 'on-chain' ? 'ab'.repeat(32) : null,
-    exact:
-      status === 'sending'
-        ? null
-        : {
-            token: 'XLM',
-            gross: baseUnits(cents),
-            net: baseUnits(share(cents)),
-          },
-    fee: money(status === 'sending' ? 0 : cents - share(cents)),
-    unpaid: money(notPaid ? cents - paidCents : 0),
-    unpaidNet: money(notPaid ? share(cents) - share(paidCents) : 0),
+    exact: sending
+      ? null
+      : {
+          token: 'XLM',
+          gross: baseUnits(cents),
+          net: baseUnits(share(cents)),
+        },
+    fee: sending ? null : money(cents - share(cents)),
+    unpaid: money(sending ? cents : notPaid ? cents - paidCents : 0),
+    unpaidNet: sending
+      ? null
+      : money(notPaid ? share(cents) - share(paidCents) : 0),
     ...over,
   }
 }
@@ -168,7 +172,10 @@ const readyBalance = (over: Partial<BalanceView> = {}): BalanceView => ({
   status: 'ready',
   available: converted(254.66),
   pending: money(0),
+  deviceReady: true,
   device: 'ready',
+  amounts: [money(10), money(25), money(50)],
+  noAmountReason: null,
   settlement: { enabled: true, expectedWithinMs: 80_000 },
   online: true,
   network: 'testnet',
@@ -182,12 +189,16 @@ const LOADING_BALANCE: BalanceView = {
   status: 'loading',
   available: null,
   pending: null,
+  deviceReady: false,
   device: 'loading',
+  amounts: [],
   exact: null,
+  price: null,
 }
 
 const NO_EARNINGS: EarningsView = {
   status: 'loading',
+  isWriter: null,
   pending: null,
   available: null,
   collected: null,
@@ -199,21 +210,25 @@ const NO_EARNINGS: EarningsView = {
   exact: null,
 }
 
+/** A writer's share; listed tips to a writer are always accepted. */
+const netOf = (i: ActivityItem) => i.net?.cents ?? 0
+
 function earningsOf(writer: ActivityItem[]): EarningsView {
   const sent = writer.filter((i) => i.status === 'sent')
   const notPaidRows = writer.filter((i) => i.status === 'not-paid')
   const held = notPaidRows.filter((i) => i.reason === 'shortfall')
   const lost = notPaidRows.filter((i) => i.reason !== 'shortfall')
-  const pending = sum(sent, (i) => i.net.cents)
+  const pending = sum(sent, netOf)
   const settled = sum(
     writer.filter((i) => i.status === 'on-chain'),
-    (i) => i.net.cents
+    netOf
   )
-  const onHold = sum(held, (i) => i.net.cents - i.paidNet.cents)
-  const notPaid = sum(lost, (i) => i.net.cents - i.paidNet.cents)
+  const onHold = sum(held, (i) => netOf(i) - i.paidNet.cents)
+  const notPaid = sum(lost, (i) => netOf(i) - i.paidNet.cents)
   const ready = settled + sum(notPaidRows, (i) => i.paidNet.cents)
   return {
     status: 'ready',
+    isWriter: true,
     pending: money(pending),
     available: money(ready),
     collected: money(0),
@@ -340,6 +355,17 @@ export function scenario(name: Scenario, now: number): FixtureViews {
       return views(both([], now), {
         available: converted(0.0004),
         exact: { token: 'XLM', available: '3' },
+        amounts: [],
+        noAmountReason: 'balance',
+      })
+    case 'no-price':
+      // The balance is read but no price is known: no dollar value, the
+      // exact token amount, and no amount to tip with.
+      return views(settled, {
+        available: null,
+        price: null,
+        amounts: [],
+        noAmountReason: 'price',
       })
     case 'none':
       return views(
@@ -349,6 +375,10 @@ export function scenario(name: Scenario, now: number): FixtureViews {
           pending: money(0),
           exact: null,
           price: null,
+          deviceReady: false,
+          device: 'needs-setup',
+          amounts: [],
+          noAmountReason: 'balance',
           // The layer writes no balance as an exact zero, not a conversion.
           available: { ...money(0), converted: false },
         }
