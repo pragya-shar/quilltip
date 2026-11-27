@@ -46,6 +46,15 @@ search, the editor (`/write/<id>`), You (`/you`) and the line pager
 | A toast                                                                  | `showToast({ title, description, tone, action })` from `@/system/toast`.                                                                                                                                                                                                                                                                 |
 | Focus to a title, status or result                                       | `focusDestination(el)` from `@/system/inputModality`.                                                                                                                                                                                                                                                                                    |
 
+### A saved setting
+
+`Switch` (`@/system/components/Switch`) with `useSwitchSetting(stored, save)`:
+the switch moves at once, shows pending while `save` runs, ignores a second
+press meanwhile, and on failure goes back to the value it had and says
+"That did not save. Try again." Its row is the control (role `switch`,
+Space or Enter), at least 44 px; "On" and "Off" are written beside the
+track, so the state never rests on colour.
+
 ### The tip control's props
 
 Wire `TipControl` to `useTip(target, meta)` from `hooks/payments`:

@@ -361,6 +361,36 @@ test('a menu opens from the keyboard and returns focus', async ({ page }) => {
   ).toBeVisible()
 })
 
+test('a switch toggles by key and by touch, and a failed save goes back', async ({
+  page,
+}) => {
+  await open(page)
+  const name = page
+    .getByRole('switch', { name: 'Show my name on tips' })
+    .first()
+  await expect(name).toHaveAttribute('aria-checked', 'false')
+  await expect(name).toContainText('Off')
+  await name.focus()
+  await page.keyboard.press('Space')
+  await expect(name).toHaveAttribute('aria-checked', 'true')
+  await expect(name).toHaveAttribute('aria-busy', 'true')
+  await expect(name).not.toHaveAttribute('aria-busy', 'true')
+  await expect(name).toHaveAttribute('aria-checked', 'true')
+  await expect(name).toContainText('On')
+
+  await press(page, page.getByRole('switch', { name: 'Fail the next save' }))
+  await press(page, name)
+  await expect(name).toHaveAttribute('aria-checked', 'false')
+  await expect(name).toHaveAttribute('aria-checked', 'true')
+  await expect(
+    page
+      .getByRole('alert')
+      .filter({ hasText: 'That did not save. Try again.' })
+      .first()
+  ).toBeVisible()
+  await expect(name).toHaveAccessibleDescription(/That did not save/)
+})
+
 test('tabs move with arrow keys', async ({ page }) => {
   await open(page)
   const feed = page.getByRole('tablist', { name: 'Feed' })

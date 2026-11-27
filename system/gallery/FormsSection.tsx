@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Switch } from '../components/Switch'
 import { Tabs, tabId } from '../components/Tabs'
 import { TextField } from '../components/TextField'
 import { GallerySection } from './GallerySection'
 import { Specimen } from './Specimen'
+import { SwitchDemo } from './SwitchDemo'
 
 const FEED = [
   { id: 'lines', label: 'Top lines', panelId: 'gallery-feed-panel' },
@@ -17,13 +19,41 @@ const RANGE = [
   { id: 'all', label: 'All time' },
 ]
 
-/** Text fields and tabs. */
+const noop = () => {}
+
+/** Text fields, switches and tabs. */
 export function FormsSection() {
   const [tab, setTab] = useState('lines')
   const [range, setRange] = useState('month')
   const [name, setName] = useState('')
   return (
-    <GallerySection id="forms" title="Fields and tabs">
+    <GallerySection id="forms" title="Fields, switches and tabs">
+      <Specimen name="Switch, saving for real" wide>
+        <SwitchDemo />
+      </Specimen>
+      <Specimen name="Switch states">
+        <div className="qt-gallery__stack" style={{ alignSelf: 'stretch' }}>
+          <Switch label="One tap sends" checked onChange={noop} />
+          <Switch
+            label="Ask first above $5 a day"
+            checked={false}
+            onChange={noop}
+          />
+          <Switch label="Saving" checked pending onChange={noop} />
+          <Switch
+            label="Not available here"
+            checked={false}
+            disabled
+            onChange={noop}
+          />
+          <Switch
+            label="Show my name on tips"
+            checked={false}
+            error="That did not save. Try again."
+            onChange={noop}
+          />
+        </div>
+      </Specimen>
       <Specimen name="Text field">
         <TextField
           label="Name on your tips"

@@ -154,6 +154,21 @@ export function MoneySection() {
           recipient="Tomás"
         />
       </Specimen>
+      <Specimen name="Another phase (slot for the design)">
+        <TipControl
+          state={{
+            phase: 'other',
+            words: 'Adding',
+            amount: money.three,
+            busy: true,
+          }}
+          amount={money.three}
+          amounts={amounts}
+          onAmountChange={noop}
+          onTip={noop}
+          recipient="Tomás"
+        />
+      </Specimen>
       <Specimen name="Offline">
         <TipControl
           state={{ phase: 'offline', amount: money.one }}

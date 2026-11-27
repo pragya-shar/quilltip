@@ -3,7 +3,13 @@ import type { MoneyValue } from './figure'
 /**
  * The tip control's phases. Structurally the same as `TipPhase` in
  * lib/payments/types.ts, so a surface passes `useTip(...).state` straight
- * in. Sent only after the server accepted; there is no Undo.
+ * in. Sent only after the server accepted; there is no Undo. "Refused" is
+ * `failed` (the server said no) or `needs-funds` (checked before sending);
+ * "unavailable" is the control's `unavailable` prop.
+ *
+ * `other` is the slot for one more phase the design may add (the tip
+ * moment in the full prototype): its words and amount come from the caller,
+ * and `busy` makes it a status that takes focus, like Sending.
  */
 export type TipControlPhase =
   | { phase: 'idle' }
@@ -12,6 +18,7 @@ export type TipControlPhase =
   | { phase: 'failed'; amount: MoneyValue }
   | { phase: 'offline'; amount: MoneyValue }
   | { phase: 'needs-funds'; amount: MoneyValue; available: MoneyValue | null }
+  | { phase: 'other'; words: string; amount?: MoneyValue; busy: boolean }
 
 /**
  * The words on the tip button for a phase, and the amount apart from them:
@@ -33,6 +40,8 @@ export function tipButtonParts(
       return { words: 'Offline', amount: null }
     case 'needs-funds':
       return { words: 'Add money to tip', amount: state.amount.display }
+    case 'other':
+      return { words: state.words, amount: state.amount?.display ?? null }
     case 'idle':
       if (!amount) return { words: 'Choose an amount', amount: null }
       return {

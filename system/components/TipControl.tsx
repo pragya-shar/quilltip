@@ -80,7 +80,10 @@ export function TipControl({
   const status = useRef<HTMLDivElement>(null)
   const note = useRef<HTMLParagraphElement>(null)
   const previous = useRef(state.phase)
-  const busy = state.phase === 'sending' || state.phase === 'sent'
+  const busy =
+    state.phase === 'sending' ||
+    state.phase === 'sent' ||
+    (state.phase === 'other' && state.busy)
   const stuck = state.phase === 'needs-funds' && !onAddMoney
   const parts = unavailable
     ? { words: unavailable, amount: null }
@@ -98,7 +101,7 @@ export function TipControl({
     const before = previous.current
     previous.current = state.phase
     if (before === state.phase) return
-    if (state.phase === 'sending' || state.phase === 'sent') {
+    if (busy) {
       focusDestination(status.current)
     } else if (state.phase === 'failed') {
       focusDestination(note.current)
@@ -106,6 +109,8 @@ export function TipControl({
       tipButton.current?.focus({ preventScroll: true })
     }
     if (state.phase !== 'offline') setOfflineNote(false)
+    // `busy` follows the phase; listing the phase is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase])
   useEffect(() => {
     if (offlineNote) focusDestination(note.current)
