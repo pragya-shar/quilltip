@@ -14,8 +14,9 @@
  *   explicit bold source gives every engine the same glyphs.
  * Liberation Sans and Liberation Serif have the same advance widths as Arial
  * and Times New Roman, so the same values hold where only they are installed
- * (most Linux systems, and the CI runner for perf:font-fallbacks). Where a
- * system has none of these, the stack falls through to the generic family.
+ * (most Linux systems). WebKit on Linux does not resolve the bold faces'
+ * full names, so there bold text falls through to the generic family, as
+ * before; perf:font-fallbacks runs on macOS for that reason.
  */
 
 @font-face {

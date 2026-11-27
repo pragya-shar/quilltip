@@ -509,7 +509,8 @@ from those; they were not measured separately.
      text below it moved up by about 38 px per heading at the swap.
    - Liberation Sans and Liberation Serif are listed after Arial and Times New
      Roman. They have the same advance widths, so the same values hold on
-     systems that have only them, such as Linux and the CI runner.
+     systems that have only them, such as most Linux systems. WebKit on Linux
+     resolves only the regular ones (see below).
    - `bun run perf:font-fallbacks` checks this. See
      [Font fallback check](#font-fallback-check).
 2. **`/articles` sends card data, not article bodies.** The first list in
@@ -726,8 +727,20 @@ view is 0 px on every route, width and engine (Firefox, run locally: at most
   engines on the missing faces, and every route but `/login` also on 6 to
   52 px of movement in view.
 
-The CI job installs WebKit for it. Arial is not on the runner, so there the
-check measures the Liberation faces, which have Arial's widths.
+CI runs it as the **Font Fallbacks** job on a macOS runner, which has Arial
+and Times New Roman, as Safari readers do. On the Linux runner it failed for
+reasons that say little about those browsers:
+
+- WebKit on Linux leaves the bold faces in `error`: it does not resolve the
+  full face names (`Arial Bold`, `Liberation Sans Bold`), so bold text falls
+  through to the generic sans-serif. The regular faces, named by family,
+  resolve.
+- Chromium on Linux resolves every face, but one `/articles` heading and one
+  `/login` block still changed at the swap. The cause was not investigated;
+  Linux text rendering differs from macOS.
+
+When the check fails, it lists each fallback face's status (`loaded`,
+`unloaded` or `error`), so a runner without the expected fonts shows.
 
 ## First-load JavaScript
 
