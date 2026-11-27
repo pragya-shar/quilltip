@@ -29,6 +29,7 @@
  * Read-only: one page load, one Convex query, one simulation, one function
  * list. No key is read.
  */
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { loadEnvConfig } from '@next/env'
@@ -134,13 +135,12 @@ export const REQUIRED_FUNCTIONS = [
 
 /** The deployed function list, from the Convex CLI for `.env.local`'s target. */
 export function deployedFunctions(): string[] {
-  const out = Bun.spawnSync(['npx', 'convex', 'function-spec'], {
+  const out = spawnSync('npx', ['convex', 'function-spec'], {
     cwd: ROOT,
-    stdout: 'pipe',
-    stderr: 'pipe',
+    encoding: 'utf8',
   })
-  if (out.exitCode !== 0) return []
-  const spec = JSON.parse(out.stdout.toString()) as {
+  if (out.status !== 0) return []
+  const spec = JSON.parse(out.stdout) as {
     functions: Array<{ identifier?: string }>
   }
   return spec.functions.flatMap((f) => (f.identifier ? [f.identifier] : []))
