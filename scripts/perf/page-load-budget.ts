@@ -22,6 +22,7 @@ import path from 'path'
 import { gzipSync } from 'zlib'
 import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
+import { SURFACE_PAGE_LOAD } from './routes'
 import { startProductionApp } from './production-app'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -68,13 +69,8 @@ const ROUTES = [
     // Measured: HTML 40 KB, stylesheets 26 KB, fonts 98 KB.
     budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
   },
-  {
-    // The application shell's reading page (app/(app)), held to the legacy
-    // article page's budget until the real article page replaces both.
-    name: 'shell reading',
-    path: '/system/reading',
-    budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
-  },
+  // The rebuilt routes, one file per package (scripts/perf/routes).
+  ...SURFACE_PAGE_LOAD,
 ] as const
 
 type DeviceName = 'mobile' | 'desktop'

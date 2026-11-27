@@ -1,18 +1,19 @@
 'use client'
 
-import { useSearchParams } from 'next/navigation'
 import { Pocket } from './Pocket'
+import { registerPocketSheets } from './registerSheets'
+
+registerPocketSheets()
 
 /**
- * The Pocket as a page's content: where a link to it lands, and where the
- * balance item goes on a desktop link or with no script. `?receipt=` (a
- * row's own link) opens that row's receipt once the activity has loaded.
+ * The balance as a page's content: where a link to /pocket lands, and where
+ * the balance item goes with no script (where this region stays hidden and
+ * the page explains itself instead).
  */
 export function PocketPage() {
-  const receipt = useSearchParams()?.get('receipt') ?? undefined
   return (
     <div className="qt-pocket-page__live">
-      <Pocket headingLevel={2} initialReceipt={receipt} />
+      <Pocket headingLevel={2} />
     </div>
   )
 }

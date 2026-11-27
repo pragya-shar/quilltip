@@ -351,7 +351,9 @@ test.describe('receipts and money sheets', () => {
   }) => {
     await page.goto('/?scenario=ready')
     await openFromBar(page)
-    const link = pocket(page).getByRole('link', { name: 'Theo Marsh' }).first()
+    const link = pocket(page)
+      .getByRole('button', { name: 'Theo Marsh' })
+      .first()
     await link.focus()
     await press(link)
     const receipt = page.getByRole('dialog', { name: 'Receipt' })
@@ -377,7 +379,7 @@ test.describe('receipts and money sheets', () => {
     page,
   }) => {
     await page.goto('/pocket?scenario=partly-paid&role=reader')
-    await press(page.getByRole('link', { name: 'Theo Marsh' }).first())
+    await press(page.getByRole('button', { name: 'Theo Marsh' }).first())
     const receipt = page.getByRole('dialog', { name: 'Receipt' })
     await expect(receipt).toContainText(
       '10¢ reached the writer; 15¢ is waiting.'
@@ -506,7 +508,7 @@ test.describe('focus, contrast and fit', () => {
         expect(await auditControlContrast(page), name).toEqual([])
       }
       await page.goto('/pocket?scenario=ready')
-      await press(page.getByRole('link', { name: 'Theo Marsh' }).first())
+      await press(page.getByRole('button', { name: 'Theo Marsh' }).first())
       await expect(page.getByRole('dialog', { name: 'Receipt' })).toBeVisible()
       await settled(page)
       expect(await auditTextContrast(page), 'receipt').toEqual([])

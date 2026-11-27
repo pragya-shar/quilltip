@@ -1,16 +1,13 @@
 'use client'
 
-import { useEffect, useRef, type MouseEvent } from 'react'
 import { Button } from '@/system/components/Button'
 import { EmptyState } from '@/system/components/EmptyState'
 import { Heading } from '@/system/components/Heading'
 import { Notice } from '@/system/components/Notice'
 import { Skeleton } from '@/system/components/Skeleton'
 import { TextLink } from '@/system/components/TextLink'
-import { sheetStack } from '@/shell/sheetStack'
 import type { PocketActivity } from './activityModel'
 import { PocketActivityRow } from './PocketActivityRow'
-import { RECEIPT_SHEET } from './sheetIds'
 import { useNow } from './useNow'
 
 /**
@@ -21,36 +18,11 @@ import { useNow } from './useNow'
 export function ActivitySection({
   activity,
   headingLevel,
-  initialReceipt,
 }: {
   activity: PocketActivity
   headingLevel: 2 | 3
-  initialReceipt?: string
 }) {
   const now = useNow()
-  const opened = useRef(false)
-  const linked = initialReceipt
-    ? activity.entries.find((entry) => entry.key === initialReceipt)
-    : undefined
-  useEffect(() => {
-    if (!linked || opened.current) return
-    opened.current = true
-    sheetStack.open(RECEIPT_SHEET, { item: linked.item })
-  }, [linked])
-  // A row's name is a real link to its receipt; with a script the receipt
-  // opens as a sheet instead, over whatever the person is doing.
-  const onClick = (event: MouseEvent<HTMLUListElement>) => {
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-    const link = (event.target as HTMLElement).closest<HTMLAnchorElement>(
-      'a.qt-activity__link'
-    )
-    if (!link) return
-    const key = new URL(link.href, location.href).searchParams.get('receipt')
-    const entry = activity.entries.find((candidate) => candidate.key === key)
-    if (!entry) return
-    event.preventDefault()
-    sheetStack.open(RECEIPT_SHEET, { item: entry.item })
-  }
   return (
     <section className="qt-pocket__activity" aria-labelledby="pocket-activity">
       <Heading level={headingLevel} variant="section" id="pocket-activity">
@@ -96,19 +68,13 @@ export function ActivitySection({
               }
             />
           ) : (
-            // The list only routes a click on a row's link to its sheet.
-            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
-            <ul className="qt-pocket__rows" onClick={onClick}>
+            <ul className="qt-pocket__rows">
               {activity.entries.map((entry) => (
                 <li
                   key={entry.key}
                   data-request={entry.item.requestId ?? undefined}
                 >
-                  <PocketActivityRow
-                    entryKey={entry.key}
-                    item={entry.item}
-                    now={now}
-                  />
+                  <PocketActivityRow item={entry.item} now={now} />
                 </li>
               ))}
             </ul>

@@ -1,5 +1,5 @@
 /* global Bun */
-// Run explicitly with Bun. The Pocket fixture server (port 4186); it never
+// Run explicitly with Bun. The Pocket fixture server (port 4210); it never
 // ships as an app route. It bundles the Pocket inside the real application
 // shell, with next/link and next/navigation replaced by the system
 // fixture's plain stand-ins, and the money from ./scenarios.ts. No backend,
@@ -8,7 +8,7 @@ import path from 'node:path'
 import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 
-const PORT = Number(process.env.POCKET_FIXTURE_PORT ?? 4186)
+const PORT = Number(process.env.POCKET_FIXTURE_PORT ?? 4210)
 const here = import.meta.dirname
 const root = path.resolve(here, '../../..')
 const system = path.join(root, 'e2e/fixtures/system')
@@ -29,10 +29,6 @@ const result = await Bun.build({
         }))
         build.onResolve({ filter: /^next\/link$/ }, () => ({
           path: path.join(system, 'link.tsx'),
-        }))
-        // The shell's Pocket content, until the shell takes the surface's.
-        build.onResolve({ filter: /(^|\/)PocketContent$/ }, () => ({
-          path: path.join(here, 'PocketContentShim.tsx'),
         }))
       },
     },

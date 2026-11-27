@@ -32,14 +32,7 @@ function writes(earnings: EarningsView): boolean {
  * phone sheet, the desktop panel and the /pocket page. A failure of payments
  * stays here: the figures say they are unavailable and nothing else breaks.
  */
-export function Pocket({
-  headingLevel = 3,
-  initialReceipt,
-}: {
-  headingLevel?: 2 | 3
-  /** A row's key from the address: its receipt opens once it is loaded. */
-  initialReceipt?: string
-}) {
+export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
   const reading = useBalanceReading()
   const source = usePocketSource()
   const balance = source.useBalance()
@@ -104,11 +97,7 @@ export function Pocket({
       {isWriter ? (
         <EarningsSection earnings={earnings} headingLevel={headingLevel} />
       ) : null}
-      <ActivitySection
-        activity={activity}
-        headingLevel={headingLevel}
-        initialReceipt={initialReceipt}
-      />
+      <ActivitySection activity={activity} headingLevel={headingLevel} />
     </div>
   )
 }

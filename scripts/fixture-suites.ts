@@ -2,10 +2,16 @@
  * The fixture suites that `scripts/run-fixture-e2e.ts` runs, and the
  * `--suite` selection. CI runs them as parallel shards; the shard list in
  * `.github/workflows/ci.yml` must name every suite here
- * (`scripts/ci/fixture-shards.test.ts`).
+ * (`scripts/ci/fixture-shards.test.ts`). The rebuilt surfaces' suites come
+ * from `e2e/suites/` (one file per package) and run together in one shard,
+ * selected as `--suite @surfaces`.
  */
+import { SURFACE_SUITES, type FixtureSuite } from '../e2e/suites'
 
-export const FIXTURES = [
+/** Selects every suite from e2e/suites/. */
+export const SURFACES_GROUP = '@surfaces'
+
+const LEGACY_FIXTURES = [
   {
     name: 'nft',
     server: 'e2e/fixtures/nft/server.mjs',
@@ -44,7 +50,7 @@ export const FIXTURES = [
     name: 'wallet',
     server: 'e2e/fixtures/wallet/server.mjs',
     port: 4177,
-    spec: 'e2e/wallet-(states|verification|coverage|connect).spec.ts',
+    spec: 'e2e/wallet-(states|verification|coverage|connect|restore).spec.ts',
     env: {
       WALLET_FIXTURES: '1',
       PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4177',
@@ -113,47 +119,46 @@ export const FIXTURES = [
     config: 'e2e/fixtures/system/playwright.config.ts',
     env: { SYSTEM_FIXTURES: '1' },
   },
-  {
-    // The balance (Pocket) on the application shell, on fixture money:
-    // phone and desktop in Chromium and WebKit, and /pocket with no script.
-    name: 'pocket',
-    server: 'e2e/fixtures/pocket/server.mjs',
-    port: 4186,
-    spec: 'e2e/pocket(-no-script)?.spec.ts',
-    config: 'e2e/fixtures/pocket/playwright.config.ts',
-    env: { POCKET_FIXTURES: '1' },
-  },
-] as const satisfies readonly {
-  name: string
-  server: string
-  port: number
-  spec: string
-  config?: string
-  env: Record<string, string>
-}[]
+] as const satisfies readonly FixtureSuite[]
 
-export type Fixture = (typeof FIXTURES)[number]
+export type Fixture = FixtureSuite
 
-/** The suites named by `--suite a,b` (or `--suite=a,b`); every suite without it. */
-export function selectFixtures(argv: readonly string[]): Fixture[] {
+/** Every suite: the existing ones, then the rebuilt surfaces' suites. */
+export const FIXTURES: readonly Fixture[] = [
+  ...LEGACY_FIXTURES,
+  ...SURFACE_SUITES,
+]
+
+/**
+ * The suites named by `--suite a,b` (or `--suite=a,b`); every suite without
+ * it. `@surfaces` names every suite from e2e/suites/ (possibly none).
+ */
+export function selectFixtures(
+  argv: readonly string[],
+  surfaces: readonly Fixture[] = SURFACE_SUITES
+): Fixture[] {
+  const all: readonly Fixture[] = [...LEGACY_FIXTURES, ...surfaces]
   const at = argv.findIndex((a) => a === '--suite' || a.startsWith('--suite='))
-  if (at === -1) return [...FIXTURES]
+  if (at === -1) return [...all]
   const value = argv[at]!.includes('=')
     ? argv[at]!.slice('--suite='.length)
     : argv[at + 1]
-  const names = (value ?? '')
+  const asked = (value ?? '')
     .split(',')
     .map((name) => name.trim())
     .filter(Boolean)
-  if (names.length === 0) {
+  if (asked.length === 0) {
     throw new Error('--suite needs one or more suite names')
   }
-  const known = new Set<string>(FIXTURES.map((fixture) => fixture.name))
+  const names = asked.flatMap((name) =>
+    name === SURFACES_GROUP ? surfaces.map((suite) => suite.name) : [name]
+  )
+  const known = new Set<string>(all.map((fixture) => fixture.name))
   const unknown = names.filter((name) => !known.has(name))
   if (unknown.length > 0) {
     throw new Error(
       `Unknown fixture suite: ${unknown.join(', ')}. Known: ${[...known].join(', ')}`
     )
   }
-  return FIXTURES.filter((fixture) => names.includes(fixture.name))
+  return all.filter((fixture) => names.includes(fixture.name))
 }

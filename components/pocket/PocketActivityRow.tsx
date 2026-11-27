@@ -4,26 +4,21 @@ import { ActivityRow } from '@/system/components/ActivityRow'
 import { Avatar } from '@/system/components/Avatar'
 import { Icon } from '@/system/components/Icon'
 import { TipIcon } from '@/system/icons'
+import { sheetStack } from '@/shell/sheetStack'
 import { rowWords, whenShort } from './copy'
+import { RECEIPT_SHEET } from './sheetIds'
 import type { ActivityItem } from './types'
 
-/** The link a row carries: the receipt, as a sheet with a script, and the
- * Pocket page without one. */
-export function receiptHref(key: string): string {
-  return `/pocket?receipt=${encodeURIComponent(key)}`
-}
-
 /**
- * One money movement. The amount is the tip as the reader sent it, on both
- * sides; the writer's share and the fee are on the receipt. A tip received
- * names no one (D4): it is from "A reader".
+ * One money movement; the whole row opens its receipt as a sheet. The
+ * amount is the tip as the reader sent it, on both sides; the writer's
+ * share and the fee are on the receipt. A tip received names no one (D4):
+ * it is from "A reader".
  */
 export function PocketActivityRow({
-  entryKey,
   item,
   now,
 }: {
-  entryKey: string
   item: ActivityItem
   now: number
 }) {
@@ -47,7 +42,7 @@ export function PocketActivityRow({
       status={words.status}
       statusText={words.short}
       time={whenShort(item.at, now)}
-      href={receiptHref(entryKey)}
+      onPress={() => sheetStack.open(RECEIPT_SHEET, { item })}
     />
   )
 }
