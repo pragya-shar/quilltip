@@ -152,7 +152,11 @@ export function TipBar({
 
   // While a tip is held, queued or sending, the line cannot change: the
   // press captured it, and the mark and the receipt use that capture.
-  const busy = state.phase === 'sending' || state.phase === 'sent' || tip.queued
+  const busy =
+    state.phase === 'holding' ||
+    state.phase === 'sending' ||
+    state.phase === 'sent' ||
+    tip.queued
   useEffect(() => onLockChange(busy), [busy, onLockChange])
 
   const pressed = useRef<{ passage: ChosenPassage | null; at: number } | null>(
@@ -260,10 +264,11 @@ export function TipBar({
         : null
     control = (
       <TipControl
-        // No `hold` until the money layer's controller holds a tip: the
-        // tip sends at once, as the balance tip does today.
+        // The hold is the controller's: its phase and controls pass
+        // through. Until the money layer holds a tip, it sends at once.
         onNotNow={tip.reset}
         state={state}
+        hold={state.phase === 'holding' ? (tip.hold ?? null) : null}
         amount={tip.amount}
         amounts={tip.amounts}
         onAmountChange={tip.setAmount}
@@ -284,66 +289,55 @@ export function TipBar({
     // The shell's dock: it reports its height, so toasts sit above the
     // bar and never cover a control the reader needs next.
     <Dock className="qt-read__dock">
-      {/* A held Enter repeats keydown, and each repeat clicks the focused
-          button: after "Sent", focus is back on Tip, so a held key would
-          tip again. A repeat never activates anything in the bar. */}
-      <div
-        className="qt-read__dock-keys"
-        onKeyDownCapture={(event) => {
-          if (event.repeat && (event.key === 'Enter' || event.key === ' '))
-            event.preventDefault()
-        }}
-      >
-        {peek ? (
-          // The receipt peek: a quiet row, not an announcement. The tip
-          // control's own "Sent $1" (with focus) is the one announcement.
-          <div className="qt-read__peek">
-            <span className="qt-read__peek-tick" aria-hidden="true">
-              <Icon icon={DoneIcon} size={16} />
-            </span>
-            <span className="qt-read__peek-words">
-              {`You tipped ${article.writer.firstName}`}
-            </span>
-            <button
-              type="button"
-              className="qt-read__chip"
-              onClick={() => sheetStack.open(RECEIPT_SHEET, peek)}
-            >
-              Receipt
-            </button>
-          </div>
-        ) : null}
-        {passage && !busy ? (
-          <div className="qt-read__line-actions">
-            <KeepButton
-              kept={kept}
-              pending={keepPending}
-              showLabel
-              onChange={(next) => {
-                if (!signedOut) return onKeepChange(next)
-                // Signed out: sign in first, carrying the line; nothing is
-                // kept by signing in alone.
-                if (!openSignIn({ ...intent, kind: 'keep' }))
-                  window.location.assign(signInHref(article.href))
-              }}
-            />
-          </div>
-        ) : null}
-        <div className="qt-read__dock-row">
-          {showsMoney && !passage ? (
-            <div className="qt-read__wallet">
-              <MoneyFigure
-                size="s"
-                value={balance.available}
-                status={balance.status}
-                label="to tip"
-                unavailableText="Balance"
-              />
-              <TestnetNote>Testnet</TestnetNote>
-            </div>
-          ) : null}
-          <div className="qt-read__control">{control}</div>
+      {peek ? (
+        // The receipt peek: a quiet row, not an announcement. The tip
+        // control's own "Sent $1" (with focus) is the one announcement.
+        <div className="qt-read__peek">
+          <span className="qt-read__peek-tick" aria-hidden="true">
+            <Icon icon={DoneIcon} size={16} />
+          </span>
+          <span className="qt-read__peek-words">
+            {`You tipped ${article.writer.firstName}`}
+          </span>
+          <button
+            type="button"
+            className="qt-read__chip"
+            onClick={() => sheetStack.open(RECEIPT_SHEET, peek)}
+          >
+            Receipt
+          </button>
         </div>
+      ) : null}
+      {passage && !busy ? (
+        <div className="qt-read__line-actions">
+          <KeepButton
+            kept={kept}
+            pending={keepPending}
+            showLabel
+            onChange={(next) => {
+              if (!signedOut) return onKeepChange(next)
+              // Signed out: sign in first, carrying the line; nothing is
+              // kept by signing in alone.
+              if (!openSignIn({ ...intent, kind: 'keep' }))
+                window.location.assign(signInHref(article.href))
+            }}
+          />
+        </div>
+      ) : null}
+      <div className="qt-read__dock-row">
+        {showsMoney && !passage ? (
+          <div className="qt-read__wallet">
+            <MoneyFigure
+              size="s"
+              value={balance.available}
+              status={balance.status}
+              label="to tip"
+              unavailableText="Balance"
+            />
+            <TestnetNote>Testnet</TestnetNote>
+          </div>
+        ) : null}
+        <div className="qt-read__control">{control}</div>
       </div>
     </Dock>
   )

@@ -5,7 +5,7 @@ import type { PerfRoutes } from './types'
 export const routes: PerfRoutes = {
   // The article view: the target for every public reading route. It
   // replaces the legacy article page's 219 KB entry.
-  firstLoad: [{ route: '/[username]/[slug]', budgetKb: 150 }],
+  firstLoad: [{ route: '/[username]/[slug]', budgetKb: 150, access: 'public' }],
   // The plan's targets for public reading: CLS at most 0.05 (both
   // profiles) and a median phone LCP of at most 2.0 s, both gated. Byte
   // budgets kept from the legacy article page until CI measures this one.

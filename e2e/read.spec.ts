@@ -121,9 +121,16 @@ test('a tap on a line chooses that sentence, for free, and a second tap lets it 
   page,
 }) => {
   await open(page)
+  const height = () =>
+    page
+      .locator('#read-body')
+      .evaluate((el) => el.getBoundingClientRect().height)
+  const before = await height()
   await tapLine(page, 'person next to')
   await expect(tipButton(page)).toHaveAccessibleName('Tip this line $1')
   await expect(chosenTick(page)).toBeVisible()
+  // The mark adds no padding or margin: no line moves when a line is chosen.
+  expect(await height()).toBe(before)
   // Not colour alone: the chosen line is the system's underlined mark.
   await expect(page.locator('mark.qt-mark[data-state="chosen"]')).toHaveText(
     LINES.gate

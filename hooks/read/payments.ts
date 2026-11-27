@@ -15,6 +15,7 @@
  */
 import { createContext, useContext } from 'react'
 import type { Id } from '@/convex/_generated/dataModel'
+import type { TipHold } from '@/system/components/TipControl'
 
 export type Cents = number
 export type Money = {
@@ -57,6 +58,9 @@ export type UnavailableReason =
 
 export type TipPhase =
   | { phase: 'idle' }
+  /** The short hold before sending, when the controller has one: nothing
+   * is sent yet, and Cancel or Escape ends it with nothing sent. */
+  | { phase: 'holding'; amount: Money }
   | { phase: 'sending'; requestId: string; amount: Money }
   | { phase: 'sent'; requestId: string; amount: Money }
   | { phase: 'failed'; code: string; amount: Money }
@@ -75,6 +79,9 @@ export type TipController = {
   warming: boolean
   queued: boolean
   unavailable: UnavailableReason | null
+  /** The hold's controls while `state` is holding (the controller owns its
+   * timing and sending; the view passes them to the tip control). */
+  hold?: TipHold | null
   /**
    * For a signed-out visitor: the default and the offered amounts, from
    * public data only (minimum, cap, price), so the button says "Tip Tomás

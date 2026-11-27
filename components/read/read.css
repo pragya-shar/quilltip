@@ -293,9 +293,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .qt-read__dock-keys {
-    display: contents;
-  }
   .qt-read__line-actions {
     display: flex;
     gap: var(--qt-space-2);
