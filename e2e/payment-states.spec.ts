@@ -701,6 +701,25 @@ test.describe('details', () => {
     )
   })
 
+  test('only the other-account gate links to wallet settings for changing the linked address (#582)', async ({
+    page,
+  }) => {
+    const settings = 'Change the linked address in wallet settings'
+    // The unverified gate on the tab pages has a wallet settings link too
+    // (`verifyHref`), for the link step, not for changing the address.
+    for (const id of [
+      'gate-unverified-link',
+      'gate-unverified',
+      'gate-disconnected',
+      'gate-wrong-network',
+    ]) {
+      await open(page, id)
+      await expect(page.getByRole('link', { name: settings })).toHaveCount(0)
+    }
+    await open(page, 'gate-other-account')
+    await expect(page.getByRole('link', { name: settings })).toHaveCount(1)
+  })
+
   test('the unverified gate shows a short address with the full one in the tooltip', async ({
     page,
   }) => {

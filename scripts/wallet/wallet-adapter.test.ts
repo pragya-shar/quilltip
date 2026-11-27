@@ -458,6 +458,17 @@ describe('signTransaction', () => {
     )
   })
 
+  test('a wrong account found before signing keeps its sentence in walletErrorMessage, though it names the linked signer (#582)', () => {
+    const before = new WalletError(
+      'wrong-account',
+      'The wallet is on another account than the one that signs',
+      { walletId: 'varial', expectedAddress: ADDRESS, walletAddress: OTHER }
+    )
+    expect(walletErrorMessage(before)?.detail).toBe(
+      'Switch back to the connected account in your wallet, or reconnect. Nothing was sent.'
+    )
+  })
+
   test('a signature by another account, found by the signature check, names the linked signer (#582)', async () => {
     const fake = fakeKit({ walletNetwork: 'unsupported' })
     const wallet = adapterFor(fake, {
