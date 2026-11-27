@@ -47,15 +47,13 @@ export function WalletPickerRow({
   pending: WalletOption | null
   onChoose: () => void
 }) {
-  const noteId = `wallet-note-${option.id}`
+  // The note is part of the button's name, so it is not also a description.
   const body = (
     <span className="wallet-row-body">
       <WalletIcon name={option.name} src={option.icon} />
       <span className="wallet-row-text">
         <span className="wallet-install-name">{option.name}</span>
-        <span id={noteId} className="wallet-install-note">
-          {walletNote(option)}
-        </span>
+        <span className="wallet-install-note">{walletNote(option)}</span>
       </span>
     </span>
   )
@@ -71,7 +69,6 @@ export function WalletPickerRow({
         type="button"
         className="wallet-install-option wallet-picker-option"
         aria-disabled={pending !== null && !isPending}
-        aria-describedby={noteId}
         onClick={onChoose}
       >
         {body}

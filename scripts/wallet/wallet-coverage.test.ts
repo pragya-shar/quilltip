@@ -197,7 +197,10 @@ const WALLET_ERRORS: [string, unknown, WalletErrorKind][] = [
     },
     'locked',
   ],
-  // Any wallet
+  // Any wallet. SEP-43 -4 is a refusal even without refusal words; Hana and
+  // Scopuly have no -4 rule of their own.
+  ['hana', { code: -4, message: '' }, 'rejected'],
+  ['scopuly', { code: -4, message: 'Transaction not signed' }, 'rejected'],
   ['varial', { code: -2, message: 'Request timed out' }, 'timeout'],
   ['xbull', 'Something broke', 'failed'],
 ]
