@@ -103,6 +103,17 @@ export const FIXTURES = [
     config: 'e2e/fixtures/tab-ui/playwright.config.ts',
     env: {},
   },
+  {
+    // The passage tip from the balance, the balance and earnings screens, on
+    // the real payments runtime over a stand-in backend: phone in Chromium
+    // and WebKit, then tablet and desktop (its own config). No network.
+    name: 'balance',
+    server: 'e2e/fixtures/balance/server.mjs',
+    port: 4184,
+    spec: 'e2e/balance-tip.spec.ts',
+    config: 'e2e/fixtures/balance/playwright.config.ts',
+    env: {},
+  },
 ] as const satisfies readonly {
   name: string
   server: string

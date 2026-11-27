@@ -243,8 +243,10 @@ test.describe('passage tip from the balance', () => {
     await choosePassage(page)
     await tipButton(page).click()
     await expect(tipButton(page)).toHaveText('Sending $1')
-    // Reload before the server answers; the same backend survives.
-    await page.waitForTimeout(400)
+    // Reload while the submit is in flight; the same backend survives.
+    await expect
+      .poll(async () => (await backend(page)).calls.submit)
+      .toBeGreaterThan(0)
     await open(page, 'balance', 'reader-slow', run)
     const rows = page.getByTestId('activity-row')
     await expect(rows).toHaveCount(1)
@@ -267,7 +269,10 @@ test.describe('passage tip from the balance', () => {
     await choosePassage(page)
     await tipButton(page).click()
     await expect(tipButton(page)).toHaveText('Sending $1')
-    await page.waitForTimeout(300)
+    // Signed and sent: the submit is in flight when the reader signs out.
+    await expect
+      .poll(async () => (await backend(page)).calls.submit)
+      .toBeGreaterThan(0)
     await control(page, 'signOut')
     await expect(
       page.getByRole('region', { name: 'Tip this passage' })
