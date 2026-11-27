@@ -1370,12 +1370,15 @@ test.describe('testnet wallet run follow-ups (#547)', () => {
       })
     const selected = await look(chosen)
     await other.hover()
-    await expect.poll(() => look(other)).not.toBe(selected)
+    // Read the settled colours, after the 150 ms background transition.
+    await page.waitForTimeout(400)
+    expect(await look(other)).not.toBe(selected)
     // Pressing it still selects it.
     await other.click()
     await expect(other).toHaveAttribute('aria-pressed', 'true')
     await page.mouse.move(0, 0)
-    await expect.poll(() => look(other)).toBe(selected)
+    await page.waitForTimeout(400)
+    expect(await look(other)).toBe(selected)
   })
 
   test('a confirmed basket stops counting its tips before Done', async ({
