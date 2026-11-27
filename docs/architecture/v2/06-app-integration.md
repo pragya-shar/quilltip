@@ -241,7 +241,7 @@ New modules:
 - From `convex/nfts.ts`: `mintNFT` and `transferNFT`.
 - Also reachable only from the v1 dialogs, the v1 NFT panel or tests:
   - From `convex/tips.ts`: `canTip` and `getArticleTipStatus`, which only the
-    v1 tip dialog calls.
+    v1 tip dialogs call.
   - From `convex/highlightTips.ts`: `getHighlightTipStatus`, which no client
     calls.
   - From `convex/nfts.ts`: `checkMintingThreshold`, `generateNFTMetadata` and
