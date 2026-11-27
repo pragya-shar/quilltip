@@ -15,6 +15,7 @@ import {
   analyzeDataPath,
   firstLoadModules,
   forbiddenModules,
+  largestModules,
   forbiddenText,
   gzipBytes,
   type RouteBundleStats,
@@ -42,10 +43,6 @@ function main(): number {
     const kb =
       chunks.reduce((sum, chunk) => sum + gzipBytes(chunk.contents), 0) / 1024
     const budget = FIRST_LOAD_BUDGET_KB[route]
-    if (kb > budget)
-      failures.push(
-        `${route}: first-load JavaScript ${kb.toFixed(1)} KB gzip > ${budget} KB budget`
-      )
 
     const dataFile = analyzeDataPath(route)
     if (!existsSync(dataFile)) {
@@ -54,7 +51,11 @@ function main(): number {
       )
       continue
     }
-    const { modules, jsFiles } = firstLoadModules(readFileSync(dataFile))
+    const { modules, sizes, jsFiles } = firstLoadModules(readFileSync(dataFile))
+    if (kb > budget)
+      failures.push(
+        `${route}: first-load JavaScript ${kb.toFixed(1)} KB gzip > ${budget} KB budget. Largest modules (analyzer sizes):\n    ${largestModules(sizes).join('\n    ')}`
+      )
     // The analyzer compiles the app again; its first load must have the same
     // number of files as the build's, or the module list is not trustworthy.
     if (jsFiles !== chunks.length)

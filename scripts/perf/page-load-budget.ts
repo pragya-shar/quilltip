@@ -76,7 +76,7 @@ const DEVICES: Record<
  * settle window, which depends on layout, not on timing.
  */
 const BUDGETS = {
-  // Heaviest route: 206 KB (article). Per-route first-load budgets and the
+  // Heaviest route: 216 KB (article). Per-route first-load budgets and the
   // module rules are in scripts/perf/first-load.ts.
   scriptKb: 230,
   // Heaviest route: 43 KB (landing).

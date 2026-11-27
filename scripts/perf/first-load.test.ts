@@ -6,6 +6,7 @@ import {
   firstLoadModules,
   forbiddenModules,
   forbiddenText,
+  largestModules,
 } from './first-load'
 
 /** Builds an analyzer data file: a 4-byte header length, then JSON. */
@@ -41,8 +42,8 @@ const header = {
     { kind: 'async', output_file_indices: [3] },
   ],
   chunk_parts: [
-    { source_index: 1, output_file_index: 0 },
-    { source_index: 2, output_file_index: 1 },
+    { source_index: 1, output_file_index: 0, compressed_size: 2048 },
+    { source_index: 2, output_file_index: 1, compressed_size: 51200 },
     { source_index: 3, output_file_index: 3 },
     { source_index: 4, output_file_index: 3 },
   ],
@@ -56,6 +57,14 @@ describe('firstLoadModules', () => {
       '[project]/components/layout/AppNavigation.tsx',
       '[project]/node_modules/.bun/@stellar+stellar-sdk@14.0.0/node_modules/@stellar/stellar-sdk/lib/index.js',
     ])
+  })
+
+  it('sums module sizes and names the largest for a size failure', () => {
+    const { sizes } = firstLoadModules(analyzeData(header))
+    expect(largestModules(sizes, 1)).toEqual([
+      '  50.0 KB  node_modules/.bun/@stellar+stellar-sdk@14.0.0/node_modules/@stellar/stellar-sdk/lib/index.js',
+    ])
+    expect(largestModules(sizes)).toHaveLength(2)
   })
 
   it('refuses an analyzer format it does not know', () => {
