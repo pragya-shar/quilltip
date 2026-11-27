@@ -23,8 +23,14 @@
  * cannot report their network get their signature checked against
  * Quilltip's passphrase instead (`verifySignature`).
  *
- * WalletConnect (mobile wallets) is Quilltip's own kit module: see
- * `wallet-kit.ts` and `walletconnect-module.ts`.
+ * WalletConnect (mobile wallets) is Quilltip's own kit module
+ * (`walletconnect-module.ts`), on `@walletconnect/sign-client` without Reown
+ * AppKit. `loadWalletKitBundle` in `wallet-kit.ts` adds it to the kit's
+ * modules only when `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` holds a Reown
+ * project ID (`walletconnect-gate.ts`); without one the picker does not list
+ * it. The sign client itself loads only when a reader chooses the mobile
+ * wallet, and this adapter treats the module like any other: the wallet
+ * cannot report its network, so its signature is checked.
  *
  * Restore after a page load (#562): while a reader is signed in, the
  * adapter keeps their last wallet choice under their own key
