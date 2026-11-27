@@ -26,10 +26,12 @@ import { createWalletAdapter, type KitBundle } from './wallet'
 import { configuredWalletConnectProjectId } from './walletconnect-gate'
 import { walletConnectPairing } from './walletconnect-pairing'
 import {
+  WALLETCONNECT_ID,
   WalletConnectModule,
   type WcMetadata,
   type WcSignClient,
 } from './walletconnect-module'
+import { browserStorage } from '../../wallet/remembered-wallet'
 
 export type { WalletConnection, WalletEvent, WalletSignResult } from './wallet'
 
@@ -128,6 +130,12 @@ export async function loadWalletKitBundle(): Promise<KitBundle> {
         pairing: walletConnectPairing,
         // The phone ended the session: forget the connection here too.
         onSessionEnded: () => void wallet.disconnect(),
+        rememberedAccount: () => {
+          const remembered = wallet.rememberedWallet()
+          return remembered?.walletId === WALLETCONNECT_ID
+            ? remembered.address
+            : null
+        },
       })
     )
   }
@@ -148,7 +156,7 @@ export const wallet = createWalletAdapter({
   loadKit: loadWalletKitBundle,
   networkPassphrase: STELLAR_CONFIG.NETWORK_PASSPHRASE,
   theme: QUILLTIP_WALLET_THEME,
-  storage: typeof window === 'undefined' ? null : window.localStorage,
+  storage: browserStorage(),
   verifySignature: async (signedTxXdr, address, passphrase) =>
     (await loadSignatureChecks()).checkSourceSignature(
       signedTxXdr,
