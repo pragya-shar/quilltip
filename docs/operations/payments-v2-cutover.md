@@ -18,6 +18,22 @@ and
 Day-to-day contract operations are in the [chain runbook](chain-runbook.md).
 Tracking issue: #451.
 
+## Go or no-go
+
+Start the window only when each line is true. Section 1 has the detail.
+
+1. The open payment fixes are merged into the release commit, and the checks
+   in section 1.3 pass on it.
+2. The owner has decided the backend push method, and the push uses a deploy
+   key whose `--dry-run` output names the live deployment (section 5.0.2).
+3. A stage 0 snapshot of the live deployment can be taken, and the restore
+   procedure in section 6.2 has been read.
+4. The TTL extension of the new contract set (stage 3, step 2) is planned in
+   the window. A newly deployed set reports its role entries as `due`.
+5. The v1 admin key is available for stage 7, or the window runs without
+   stage 7 and section 4.2 applies to v1 tips sent outside the app.
+6. The author notice is ready (section 1.5).
+
 ## Terms
 
 | Term                       | Meaning                                                                                                                                                                         |
@@ -124,6 +140,8 @@ once, including the rollback in section 6:
 3. `bun run contracts:extend-v2 --set integration --keys-dir <dir>` reports
    no `archived` entry.
 4. `bun run contracts:roles-v2 --set integration --keys-dir <dir>` exits 0.
+5. The snapshot restore in section 6.2 runs once on a development deployment
+   that holds data from the release code, and its check passes.
 
 ### 1.5 People and material
 
@@ -134,8 +152,9 @@ once, including the rollback in section 6:
   so `/ops/chain` shows the indexer status.
 - A snapshot of the live deployment exists from the day of the cutover
   (Convex dashboard, **Settings → Snapshot export**, or
-  `bunx convex export --path <file>` with the owner's credentials). Keep it
-  outside the repository.
+  `bunx convex export --include-file-storage --path <file>.zip` with the
+  credential from section 5.0.2). Keep it outside the repository. Stage 0
+  takes the snapshot used for a restore (section 6.2).
 - Authors were told in advance that they must verify their wallet and press
   **Enable tips** on each article after the switch (section 4.3). The owner
   decides who sends this notice and when, relative to stage 6.
@@ -144,17 +163,19 @@ once, including the rollback in section 6:
 
 Record each answer in the cutover tracking issue.
 
-1. **Backend push method.** How the release functions reach the live
-   deployment (deploy key, CLI login or another method). Stage 1 uses it.
-2. **Earlier v1 maintenance.** Whether the internal functions
-   `legacyTipCleanup:run` and `authorEarningsBackfill:run` were applied on the
-   live deployment. If not, v1 tip counts and earnings may include tips that
-   were never verified; run them (dry run first) before stage 4.
+1. **Backend push method.** The deployment type of the live deployment
+   (development or production) and the deploy key the owner uses for it.
+   Section 5.0.2 gives the procedure for each case. The repository does not
+   record either, so the owner confirms them before stage 0.
+2. **v1 maintenance jobs.** Whether `legacyTipCleanup:run` and
+   `authorEarningsBackfill:run` were applied on the live deployment before is
+   not recorded. Do not assume either way. After stage 1, run both as dry runs
+   (stage 1, step 5). Their output shows what needs correcting on that day.
+   Apply them only if the operator decides to, and record the decision.
 3. **v1 admin key.** Whether the v1 tipping contract's admin key is available.
    Without it, stage 7 is skipped and section 4.2 applies.
-4. **Release scope.** Whether the non-payment work on `overhaul/v2` reaches
-   `main` in an earlier release, so that the cutover release holds only the
-   payment change.
+4. **Release scope.** One combined release of `overhaul/v2` in one announced
+   window: backend first, site within minutes (section 5.0).
 5. **Author notice.** Who tells authors to verify their wallet and enable
    tips, and when.
 
@@ -202,8 +223,17 @@ data step.
 
 Pushing `main`'s schema after v2 code has run is **not supported** and is not
 a rollback path. Convex checks every existing document against a new schema
-and refuses the push if one does not match. These rows would fail `main`'s
-schema:
+and refuses the push if one does not match (`✖ Schema validation failed.`).
+
+The push fails as soon as the release code has written a field that `main`'s
+schema does not have. That happens early, before any v2 payment:
+
+- the first wallet verification after stage 1 writes
+  `users.stellarAddressVerifiedAt` and `stellarAddressVerifiedNetwork`;
+- the stage 4 backfill writes `contractVersion` on existing `tips`,
+  `highlightTips` and `articleNFTs` rows.
+
+From stage 6, v2 rows add more reasons:
 
 - a `highlightTips` row without `stellarTxId`, `stellarNetwork`, `stellarMemo`
   or `processedAt` (v2 batch and tab rows);
@@ -215,7 +245,9 @@ schema:
   between addresses that are not Quilltip users).
 
 Rows in the new tables are also outside `main`'s schema. Roll back with the
-switches (section 6), and keep the release code deployed.
+switches (section 6), and keep the release code deployed. The only way back
+to `main`'s code is the stage 0 snapshot restore in section 6.2, which also
+discards everything written since stage 0.
 
 ### 2.3 `main`'s frontend against the release backend
 
@@ -350,7 +382,11 @@ signature, submit, then server verification against Horizon.
   verification stay open, so a reader who signed before the freeze still gets
   the tip recorded.
 - Stuck verifications are retried by crons: article tips every 10 minutes,
-  highlight tips every 6 hours. Stage 5 waits for both.
+  highlight tips every 6 hours. Stage 5 waits for both. A legacy pending
+  highlight tip (one without a stored intent) is not verified again: the
+  highlight recovery marks it `FAILED` with
+  `legacy_pending_highlight_tip_quarantined`, and reports it as
+  `quarantined`.
 - A v1 tip sent directly to the v1 contract outside the app after the switch
   is not recorded. Stage 7 pauses the v1 contract to stop this when the v1
   admin key is available.
@@ -375,26 +411,122 @@ signature, submit, then server verification against Horizon.
 Each stage lists the action, the check that proves it worked, and its
 rollback. Do not start a stage until the previous stage's check passes.
 
+### 5.0 The release window
+
+#### 5.0.1 Plan
+
+The release is one combined release of `overhaul/v2` (payments v2 and the
+other work on that branch) in one announced window at a low-traffic time.
+The backend goes first; the site follows within minutes.
+
+The times below were measured in a rehearsal of every stage on a disposable
+local Convex backend with a new testnet contract set and a small data set.
+Live data is larger, so the snapshot, push and backfill steps can take longer.
+
+| Stage | Work                                                  | Measured                                                                                           |
+| ----- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 0     | Tag, snapshot export                                  | Snapshot 2 s                                                                                       |
+| 1     | `--dry-run`, push, cron check, maintenance dry runs   | Dry run 19 s, push 32 s, cron check 2 min                                                          |
+| 2     | Site deploy and checks                                | Checks about 5 min, plus the Vercel build                                                          |
+| 3     | Contract set, TTL extension, variables, indexer check | Deploy 861 s, extension 28 s, variables 8 s, indexer `OK` within 70 s; config refresh up to 1 hour |
+| 4     | Contract version backfill                             | 8 s                                                                                                |
+| 5     | Freeze, 15-minute wait, drain, backfill again         | 15 min 17 s                                                                                        |
+| 6     | Switch on v2, section 7.1                             | Registration indexed in 17 s, direct tip confirmed in 35 s; about 15 min for the full 7.1 list     |
+| —     | Rollback B, if needed                                 | 54 s                                                                                               |
+| —     | Snapshot restore (section 6.2), if needed             | About 1 min, plus the Vercel rollback                                                              |
+
+Plan about 1 hour 15 minutes from stage 0 to the end of stage 6, plus the
+owner's own checks. Stage 3 can run before the window (its contract set is
+unused while `CHAIN_V2_ENABLED=false`), which shortens the window by about
+20 minutes.
+
+#### 5.0.2 Backend push procedure
+
+The live deployment's type (development or production) and the owner's
+credential for it are an owner decision (section 1.6, item 1). The procedure
+below is the same for both types. It uses a deploy key because only
+`convex deploy` has a `--dry-run`, and the dry run prints the target before
+anything is pushed.
+
+1. Get a deploy key for the live deployment itself:
+   - production-type deployment: a production deploy key (dashboard,
+     **Settings → Deploy keys**);
+   - development-type deployment: a development deploy key for that
+     deployment (dashboard, **Settings → Deploy keys**, or
+     `npx convex deployment token create <deployment>` with the owner's login).
+2. In a clean checkout of the tagged release commit, after
+   `bun install --frozen-lockfile`, put the key in the environment without
+   writing it to the shell history, and clear any other target:
+
+   ```bash
+   unset CONVEX_DEPLOYMENT CONVEX_SELF_HOSTED_URL CONVEX_SELF_HOSTED_ADMIN_KEY
+   read -rs CONVEX_DEPLOY_KEY && export CONVEX_DEPLOY_KEY
+   bunx convex deploy --dry-run
+   ```
+
+3. Read the dry-run output. It starts with `Deploying code to deployment:`
+   and the deployment URL. Continue only if that is
+   `https://upbeat-mockingbird-579.convex.cloud`. If it names any other
+   deployment, stop and get the right key. For the release commit the dry run
+   also lists new indexes, ends with `Would have deployed Convex functions`
+   and prints `Change the server's version for Node.js actions:`; that line
+   is expected.
+4. Push with the same shell: `bunx convex deploy`.
+
+Do not push with only a CLI login and `CONVEX_DEPLOYMENT` set:
+`convex deploy` then targets the project's **production** deployment, which
+may not be the live deployment. `convex dev --once` pushes to the deployment
+in `CONVEX_DEPLOYMENT` but has no dry run.
+
+Use the same key for the stage 0 export, the stage 1 and stage 4
+`convex run` calls and any restore (section 6.2), so that every command
+reaches the same deployment. Unset `CONVEX_DEPLOY_KEY` at the end of the
+window.
+
 ### Stage 0. Freeze and tag
 
 1. Stop merges to `overhaul/v2` except cutover fixes.
 2. Tag the release commit: `git tag payments-v2-cutover.1 <sha>` and push the
    tag.
-3. Take the live deployment snapshot (section 1.5).
+3. Take the live deployment snapshot with file storage, outside the
+   repository: `bunx convex export --include-file-storage --path <file>.zip`
+   (section 5.0.2 for the credential), or a dashboard backup. Record the
+   live deployment's environment variable names and values in the owner's
+   password store: a snapshot does not contain them.
 
-**Check:** the tag points to the commit whose checks are recorded in 1.3.
+**Check:** the tag points to the commit whose checks are recorded in 1.3, and
+the snapshot file opens (`unzip -l <file>.zip` lists one folder per table and
+`_storage`).
 **Rollback:** none needed.
 
 ### Stage 1. Release backend on the live deployment (switches off)
 
 1. Confirm on the live deployment: `CHAIN_V2_ENABLED` is unset or `false`,
    and no v2 contract ID is set.
-2. Merge the release PR (`overhaul/v2` into `main`) only when the owner is
-   ready to run stage 2 at once. Vercel builds `main` on merge.
-3. The owner pushes the release commit's functions and schema to the live
-   deployment with the method used for that deployment today (for example
-   `bunx convex deploy` with its deploy key). Run
-   `bunx convex deploy --dry-run` first with the same credentials.
+2. Confirm in Vercel that the release frontend can be held back until
+   stage 2. The default plan: do not merge the release PR yet; the backend
+   goes first. Alternative: turn off automatic production promotion for the
+   window, merge, and promote the build in stage 2.
+3. The owner pushes the tagged release commit's functions and schema with
+   the procedure in section 5.0.2 (dry run, confirm the target, push).
+4. Merge the release PR (`overhaul/v2` into `main`) right after the push, and
+   continue with stage 2. With the default plan, Vercel builds and promotes
+   `main` on merge, so the site follows within minutes. Never merge before
+   the push: the release frontend fails against `main`'s backend
+   (section 2.4).
+5. Run the v1 maintenance jobs as dry runs (section 1.6, item 2):
+
+   ```bash
+   bunx convex run legacyTipCleanup:run '{"table":"tips"}'
+   bunx convex run legacyTipCleanup:run '{"table":"highlightTips"}'
+   bunx convex run authorEarningsBackfill:run '{"dryRun":true}'
+   ```
+
+   `legacyTipCleanup:run` exists only in the release code, so it runs after
+   the push. Both are dry runs with these arguments. Record the output.
+   Apply them (`"apply": true` for `legacyTipCleanup:run`, page by page with
+   `cursor`; `"dryRun": false` for `authorEarningsBackfill:run`) only if the
+   operator decides to, before stage 4.
 
 **Check:**
 
@@ -406,7 +538,10 @@ rollback. Do not start a stage until the previous stage's check passes.
   (`scripts/chain/crons-unconfigured.test.ts`). Together they add about
   3,800 short function calls a day (indexer and earnings sync every minute,
   recheck every 2 minutes, settler every 10 minutes, config refresh hourly).
-- `GET https://www.quilltip.me/api/health` returns 200.
+- A release-only public query answers:
+  `bunx convex run chain/config:getChainConfig` returns `"v2Enabled": false`
+  and no contract IDs. (`/api/health` ships with the release frontend, so it is checked in
+  stage 2, not here.)
 
 **Rollback:** set `CHAIN_V2_ENABLED=false` (already) and leave the code. The
 v2 crons do nothing without contract IDs. Do not push `main`'s previous schema
@@ -428,7 +563,10 @@ v2 crons do nothing without contract IDs. Do not push `main`'s previous schema
 
 **Rollback:** Vercel **Instant Rollback** to the previous production
 deployment. The backend stays on the release code; the section 2.3 exceptions
-then apply, so roll forward again as soon as possible.
+then apply, so roll forward again as soon as possible. Use it only before
+stage 5. `main`'s frontend does not read the paused state: from stage 5 it
+still shows the v1 tip button, and the tip then fails at prepare. After
+stage 5, fix the site forward instead.
 
 ### Stage 3. Live contract set and v2 environment
 
@@ -454,27 +592,44 @@ then apply, so roll forward again as soon as possible.
    `--steps build` to check the build first). Commit the evidence document in
    a docs-only PR.
 
-2. The owner sets variables 2 to 12 of section 3.1 on the live deployment, in
+2. Extend the new set's storage. A newly deployed set reports its role
+   entries as `due` (about 7 days left against the 30-day threshold), so the
+   TTL check below fails until they are extended:
+
+   ```bash
+   bun run contracts:extend-v2 --set live --keys-dir <dir> --submit
+   ```
+
+3. The owner sets variables 2 to 12 of section 3.1 on the live deployment, in
    that order, with `CHAIN_V2_ENABLED=false`.
-3. The owner sets the Vercel contract IDs from section 3.2 and redeploys the
+4. The owner sets the Vercel contract IDs from section 3.2 and redeploys the
    site if stage 2 already ran.
 
 **Check:**
 
 - `bun run contracts:roles-v2 --set live --keys-dir <dir>` exits 0.
-- `bun run contracts:extend-v2 --set live --keys-dir <dir>` shows no `due` or
-  `archived` entry.
+- `bun run contracts:extend-v2 --set live --keys-dir <dir>` (report only)
+  ends with `archived 0, due 0`. One `absent` entry for a claimed balance is
+  normal.
 - Within 2 minutes, `/ops/chain` shows the cursor with status `OK`, the
-  `live` contract IDs, and `lagLedgers` under 720.
-- Within 1 hour, `chain/config:getChainConfig` returns the `live` IDs and
-  `paused: false` for each contract.
+  `live` contract IDs, `lagLedgers` under 720 and a `lastRunAt` within the
+  last 2 minutes. With `INDEXER_START_LEDGER` set to the Core deploy ledger,
+  the indexer also reads the deploy's own smoke flows; their events show as
+  `orphan` (their articles are not in this database). That is expected.
+- `chain/config:getChainConfig` returns the `live` IDs, `paused: false` for
+  each contract and a `refreshedAt` time. The hourly cron fills it; to load
+  it at once, run the internal action `chain/config:refreshChainConfig` from
+  the dashboard. Do not start stage 6 before this check passes: until the
+  config is loaded, v2 tips refuse with `CHAIN_CONFIG_MISSING`.
 - The Convex logs show no `TAB_ACCEPTOR_MISMATCH` and no
   `TAB_SETTLER_RUN_FAILED`.
 
 **Rollback:** set `SETTLEMENT_ENABLED=false` and remove the contract IDs and
 `INDEXER_START_LEDGER`. Nothing user-facing uses the set while
-`CHAIN_V2_ENABLED=false`. If the set itself is wrong, deploy a new set with a
-new `CHAIN_EPOCH`.
+`CHAIN_V2_ENABLED=false`. The indexer then stops, but its cursor keeps
+status `OK`; check that `lastRunAt` stops moving and the contract IDs are
+empty. Setting the variables again resumes it from its cursor. If the set
+itself is wrong, deploy a new set with a new `CHAIN_EPOCH`.
 
 ### Stage 4. Contract version backfill
 
@@ -491,9 +646,13 @@ with `"cursor"` set to the returned `continueCursor`. Repeat for
 `"table":"highlightTips"` and `"table":"articleNFTs"`. The owner runs these
 with credentials for the live deployment.
 
-**Check:** the final dry run for each table reports 0 rows to change.
+**Check:** the final dry run for each table reports `"toUpdate": 0`.
 **Rollback:** not needed. The field is optional, and an unset value already
 reads as `v1`.
+
+v1 rows confirmed after this stage (tips in flight at the freeze) have no
+`contractVersion`. Stage 6, step 1 runs this backfill once more after the
+drain.
 
 ### Stage 5. Freeze v1 and drain
 
@@ -518,10 +677,14 @@ while payments are updated." instead of the mint and transfer buttons.
 
 ### Stage 6. Switch on v2
 
-1. Set `CHAIN_V2_ENABLED=true` on the live deployment. Record the time.
-2. Run the post-cutover verification (section 7) at once.
+1. Run the stage 4 backfill again for the three tables (dry run, apply, dry
+   run), so that the v1 rows confirmed during the drain carry
+   `contractVersion: 'v1'`.
+2. Set `CHAIN_V2_ENABLED=true` on the live deployment. Record the time.
+3. Run the post-cutover verification (section 7) at once.
 
-**Check:** section 7.1 passes.
+**Check:** the backfill's final dry runs report `"toUpdate": 0`, and
+section 7.1 passes.
 **Rollback:** section 6, stage B.
 
 ### Stage 7. Pause the v1 contracts
@@ -531,8 +694,8 @@ Only if the v1 admin key is available. The v1 tipping contract has
 `--network testnet`, the testnet RPC URL and the testnet passphrase
 explicitly, signed by the v1 admin.
 
-**Check:** a simulated v1 `tip_article` call fails with the contract's paused
-error.
+**Check:** `is_paused` returns `true`, and a simulated v1 `tip_article` call
+fails with the contract's paused error, `Error(Contract, #1000)`.
 **Rollback:** `unpause(admin)` with the same key. Required before a rollback
 to v1 payments (section 6, stage B).
 
@@ -558,6 +721,74 @@ Rollback B does not stop v2 records that are already in flight. The
 because verification does not depend on `CHAIN_V2_ENABLED`.
 
 Never roll back by pushing `main`'s earlier backend code (section 2.2).
+
+### 6.1 Return to v2 after rollback B
+
+1. Find and fix the cause of rollback B.
+2. Unpause the v2 Tab:
+   `bun run contracts:roles-v2 --set live --keys-dir <dir> --action unpause --contracts tab --submit`.
+   The report then shows `tab paused false`.
+3. If stage 7 ran before the rollback, pause the v1 contract again (stage 7).
+4. Run stage 5 again: set `CHAIN_V1_PREPARES_ENABLED=false`, record T, wait
+   15 minutes, drain.
+5. Run stage 6 again, including its backfill step: v1 tips made during the
+   rollback have no `contractVersion`.
+
+### 6.2 Snapshot restore (last resort)
+
+The switches cover every planned rollback. Restore the stage 0 snapshot only
+if the live data itself must go back to its stage 0 state, for example after
+a defect that wrote wrong data. A restore discards every record written since
+stage 0, including real testnet tips, so the owner decides it.
+
+What a snapshot holds: every table's documents with their IDs and creation
+times, and, when exported with `--include-file-storage`, the stored files.
+It does not hold the functions, the schema, the environment variables, or
+pending scheduled functions (Convex documentation, data import and export).
+
+Procedure, with the credential from section 5.0.2, in a checkout of `main`'s
+previous release commit (the code that ran at stage 0):
+
+1. Stop new writes from the v2 code. Set the environment variables back to
+   their stage 0 values: remove `CHAIN_V2_ENABLED`,
+   `CHAIN_V1_PREPARES_ENABLED`, `CHAIN_EPOCH`, the four contract IDs,
+   `INDEXER_START_LEDGER`, `OPS_USER_IDS`, `SETTLEMENT_ENABLED`,
+   `TAB_ACCEPTOR_SECRET`, `TAB_SETTLER_SECRET` and the other variables set in
+   stage 3. Without this, the release crons keep writing chain rows between
+   the import and the code push.
+2. Import the snapshot over all data:
+
+   ```bash
+   bunx convex import --replace-all -y <stage0-file>.zip
+   ```
+
+   `--replace-all` replaces every table in the snapshot and clears tables
+   that are in the deployed schema but not in the snapshot. Document IDs,
+   creation times and stored files come back as they were.
+
+3. Push `main`'s previous code: `bunx convex deploy --dry-run`, confirm the
+   target, then `bunx convex deploy`. This push succeeds only after step 2;
+   before it, the release rows fail `main`'s schema (section 2.2).
+4. Import the snapshot once more with the same command. Under `main`'s
+   schema this deletes the v2 tables (they are in neither the snapshot nor the
+   schema) and any row written between steps 2 and 3.
+5. In Vercel, roll the site back to the previous production deployment
+   (stage 2 rollback).
+
+**Check:** export the restored deployment
+(`bunx convex export --include-file-storage --path <after>.zip`) and compare
+it with the stage 0 file: the same table list, and for each table the same
+row count, document IDs and content. Environment variable names match the
+list recorded at stage 0. The `_scheduled_functions` history from the
+release code stays (a snapshot does not replace it); confirm that no entry is
+`pending`, or cancel it in the dashboard before step 3.
+
+Measured on a disposable local backend with a small data set: step 1
+13 s, step 2 4 s, step 3 24 s, step 4 10 s; about 1 minute in all, plus the
+Vercel rollback. Every table, ID, content hash and stored file matched the
+stage 0 file after step 4. A cloud deployment with live data takes longer;
+the owner confirms the procedure once on a development deployment before
+the window.
 
 ## 7. Post-cutover verification
 
@@ -588,8 +819,9 @@ and the writer receives the rest (97.5%).
 
 ### 7.2 Indexer lag
 
-`/ops/chain` shows status `OK` and `lagLedgers` under 720. Check again after
-1 hour and after 24 hours. `events.error` is 0. Alerts are Convex log lines
+`/ops/chain` shows status `OK`, `lagLedgers` under 720 and a recent
+`lastRunAt` (status alone stays `OK` when the indexer is not running). Check
+again after 1 hour and after 24 hours. `events.error` is 0. Alerts are Convex log lines
 with codes starting `CHAIN_INDEXER_`.
 
 ### 7.3 Settler run
