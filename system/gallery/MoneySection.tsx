@@ -158,6 +158,16 @@ export function MoneySection() {
           }}
         />
       </Specimen>
+      <Specimen name="A long name never cuts the amount">
+        <TipControl
+          state={{ phase: 'idle' }}
+          amount={money.three}
+          amounts={amounts}
+          onAmountChange={noop}
+          onTip={noop}
+          recipient="Maximiliana-Alexandrina Featherstonehaugh"
+        />
+      </Specimen>
       <Specimen name="Sending">
         <TipControl
           state={{ phase: 'sending', amount: money.three }}

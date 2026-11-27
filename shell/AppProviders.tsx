@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { AuthSessionProvider } from '@/components/providers/AuthContext'
 import { BalanceSourceContext } from './balance'
 import { useLiveBalance } from './liveBalance'
+import { SignOutWatch } from './SignOutWatch'
 
 // The same deployment and the same Convex Auth storage key as the legacy
 // pages, so a session survives the full page load between the two.
@@ -24,6 +25,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
         <BalanceSourceContext.Provider value={useLiveBalance}>
           {children}
         </BalanceSourceContext.Provider>
+        <SignOutWatch />
       </AuthSessionProvider>
     </ConvexAuthProvider>
   )

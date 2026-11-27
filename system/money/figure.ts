@@ -16,8 +16,19 @@
  * from a display string the money layer gave.
  */
 
-/** The shape the money layer hands the UI (lib/payments/types.ts `Money`). */
-export type MoneyValue = { readonly cents: number; readonly display: string }
+/**
+ * The shape the money layer hands the UI (lib/payments/types.ts `Money`).
+ * `converted`: the figure is a conversion at today's price (the reader's
+ * balance held in XLM, D24): written with the approximate mark, two
+ * decimals, and heard as "about". Amounts fixed at tip time are exact and
+ * never converted. The money layer sets the flag and writes `display`
+ * without the mark; the figure adds it from the flag.
+ */
+export type MoneyValue = {
+  readonly cents: number
+  readonly display: string
+  readonly converted?: boolean
+}
 
 export type FigureParts = {
   /** "≈": converted at today's price, an estimate. */
@@ -71,5 +82,29 @@ export function figureState(
   if (status === 'loading') return { kind: 'loading' }
   if (status === 'unavailable' || value === null) return { kind: 'unavailable' }
   const parts = figureParts(value.display)
-  return parts ? { kind: 'value', parts } : { kind: 'unavailable' }
+  if (!parts) return { kind: 'unavailable' }
+  if (value.converted && !parts.approx) {
+    const amount = `$${parts.whole}${parts.fraction}`
+    return {
+      kind: 'value',
+      parts: { ...parts, approx: true, spoken: `about ${amount}` },
+    }
+  }
+  return { kind: 'value', parts }
+}
+
+/**
+ * A figure in words, for a label that is read aloud: "18 dollars 40",
+ * "about 18 dollars 40", "5 dollars", "0.0975 dollars".
+ */
+export function spokenDollars(parts: FigureParts): string {
+  const whole = parts.whole.replace(/,/g, '')
+  const cents = parts.fraction.slice(1)
+  const words =
+    cents === '' || cents === '00'
+      ? `${whole} dollars`
+      : cents.length === 2
+        ? `${whole} dollars ${cents}`
+        : `${whole}.${cents} dollars`
+  return parts.approx ? `about ${words}` : words
 }

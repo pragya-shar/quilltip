@@ -271,6 +271,27 @@ test('reduced motion keeps the hold at its full length', async ({ page }) => {
   expect(duration).toBe('3s')
 })
 
+test('a long name never cuts the amount on the tip button', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 })
+  await open(page)
+  const button = page
+    .locator('[data-specimen="A long name never cuts the amount"]')
+    .locator('.qt-tip__button')
+  const fits = await button.evaluate((el) => {
+    const amount = el.querySelector('.qt-tip__amount') as HTMLElement
+    const a = amount.getBoundingClientRect()
+    const b = el.getBoundingClientRect()
+    return {
+      text: amount.textContent,
+      inside: a.right <= b.right + 0.5 && a.left >= b.left - 0.5,
+      whole: amount.scrollWidth <= amount.clientWidth + 0.5,
+    }
+  })
+  expect(fits).toEqual({ text: '$3', inside: true, whole: true })
+})
+
 test('another amount: typed, checked, chosen without sending', async ({
   page,
 }) => {

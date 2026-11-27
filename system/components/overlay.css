@@ -228,11 +228,15 @@
   }
 
   /* Toasts: always dark, above the phone navigation. */
+  /* Toasts sit above whatever is docked at the foot of the screen: the
+   * phone bar on a place, nothing on a pushed screen, a docked bar (the tip
+   * bar) when one reports its height (shell/Dock.tsx). */
   .qt-toasts {
+    --qt-toast-lift: calc(var(--qt-nav-h) + var(--qt-space-5));
     position: fixed;
     inset-inline: 0;
     inset-block-end: calc(
-      var(--qt-safe-bottom) + var(--qt-nav-h) + var(--qt-space-8)
+      var(--qt-safe-bottom) + var(--qt-toast-lift) + var(--qt-space-3)
     );
     z-index: var(--qt-z-toast);
     display: flex;
@@ -301,10 +305,20 @@
   .qt-toast__action:focus-visible {
     outline-color: var(--qt-toast-ink);
   }
+  .qt-shell:has([data-shell-chrome='pushed']) .qt-toasts {
+    --qt-toast-lift: 0px;
+  }
+  /* --qt-dock-h already counts from the viewport's bottom edge. */
+  :root[data-docked] .qt-toasts {
+    --qt-toast-lift: calc(var(--qt-dock-h, 0px) - var(--qt-safe-bottom));
+  }
   @media (min-width: 64rem) {
     .qt-toasts {
-      inset-block-end: var(--qt-space-8);
+      --qt-toast-lift: var(--qt-space-5);
       inset-inline-start: var(--qt-rail-w);
+    }
+    :root[data-docked] .qt-toasts {
+      --qt-toast-lift: calc(var(--qt-dock-h, 0px) - var(--qt-safe-bottom));
     }
   }
 

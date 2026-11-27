@@ -8,6 +8,7 @@ import { AppProviders } from '@/shell/AppProviders'
 import { AppShell } from '@/shell/AppShell'
 import { PaymentsSlot } from '@/shell/PaymentsSlot'
 import { SheetHost } from '@/shell/SheetHost'
+import { PRE_PAINT_SCRIPT } from '@/shell/prePaint'
 import { NONCE_HEADER } from '@/lib/security/contentSecurityPolicy'
 import { SITE_NAME, SITE_ORIGIN } from '@/lib/seo/siteMetadata'
 
@@ -31,9 +32,6 @@ export const viewport: Viewport = {
   ],
 }
 
-const THEME_SCRIPT =
-  "try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}"
-
 /**
  * The application's root layout, beside app/(legacy)'s. It loads only the
  * design system's CSS and the reading face, and composes its own providers.
@@ -54,12 +52,11 @@ export default async function AppRootLayout({
       suppressHydrationWarning
     >
       <head>
-        {/* A light or dark choice made on the legacy pages (next-themes,
-            key "theme") applies before paint, so crossing between the two
-            root layouts never flashes the other theme. */}
+        {/* Before paint: the stored theme, and whether a session token
+            is held (shell/prePaint.ts). */}
         <script
           nonce={nonce}
-          dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }}
+          dangerouslySetInnerHTML={{ __html: PRE_PAINT_SCRIPT }}
         />
       </head>
       <body>

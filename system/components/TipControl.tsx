@@ -47,8 +47,11 @@ export type TipControlProps = {
   onAddMoney?: () => void
   /** After a failure: leaves it, back to idle ("Not now"). */
   onNotNow?: () => void
-  /** The writer: "Tip Tomás $1", and what a screen reader hears. */
+  /** The writer's full name, for what a screen reader hears. */
   recipient: string
+  /** The name on the button ("Tip Tomás $1"); the first word of
+   * `recipient` by default. Empty: "Tip $1". */
+  recipientFirstName?: string
   /** passage: a line is chosen and the button says "Tip this line". */
   target?: 'article' | 'passage'
   /** Clears a chosen line; shown only while a line is chosen. */
@@ -93,6 +96,7 @@ export function TipControl({
   onAddMoney,
   onNotNow,
   recipient,
+  recipientFirstName,
   target = 'article',
   onClearTarget,
   hold,
@@ -119,7 +123,7 @@ export function TipControl({
   const inert = state.phase === 'offline' || Boolean(unavailable) || stuck
   const parts = unavailable
     ? { words: unavailable, amount: null }
-    : tipButtonParts(state, amount, target, recipient)
+    : tipButtonParts(state, amount, target, recipientFirstName ?? recipient)
   const noteText = tipNote(state)
 
   useEffect(() => watchInputModality(), [])

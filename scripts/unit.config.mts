@@ -35,8 +35,10 @@ export default defineConfig({
       'scripts/system/*.test.ts',
       // Files deleted by the rebuild stay deleted through merges.
       'scripts/rebuild/*.test.ts',
-      // The balance (Pocket): one activity list from two, and its words.
+      // The balance: its activity lists and their words.
       'scripts/pocket/*.test.ts',
+      // Production-build checks, one file per package.
+      'scripts/app-checks/*.test.ts',
     ],
   },
 })
