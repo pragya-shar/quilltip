@@ -10,6 +10,9 @@
  *   absolute balance applies only when its event is newer than the last one
  *   applied, minus the debits of newer `TabSettled` events already seen. A
  *   debit older than the applied absolute balance is already included in it.
+ *   Each applied debit keeps a `tabBalanceDebits` row until a balance covers
+ *   it, so a replayed or re-dispatched `TabSettled` debits once, however
+ *   many settlements came after it.
  * - **Status** (`OPEN`, `CLOSING`, `CLOSED`) follows the newest status event.
  * - **Keys.** Revocation only lowers `valid_until` and never un-revokes, so
  *   `KeyRegistered` and `KeyRevoked` give the same result in either order.
