@@ -4612,4 +4612,215 @@ describe('spendable balance across settler records and indexed events', () => {
     }
     console.info(`review property: worst lossy gap ${worstGap}`)
   }, 600_000)
+
+  // Writer lifetime totals (#552) on both settlement paths: one credit per
+  // paid range, whichever path arrives first, equal to a rebuild.
+  async function writerTotals(t: T, s: Seeded) {
+    const row = (await ctx(t)).find((r) => r.userId === s.authorId)!
+    return {
+      tips: row.tabTipCount ?? 0,
+      units: row.tabSettledBaseUnits?.[TOKEN] ?? '0',
+      cents: row.tabEarnedCents ?? 0,
+    }
+  }
+  const ctx = (t: T) =>
+    t.run(async (c) => c.db.query('authorEarnings').collect())
+  /** The pairs' paid net on chain: what the tab totals must equal. */
+  async function chainPaid(t: T) {
+    const net = (await pairs(t)).reduce(
+      (sum, v) => sum + netOf(BigInt(v.paidOnChain)),
+      BigInt(0)
+    )
+    return net.toString()
+  }
+  /** Rebuilds the writer's row from history and returns its tab totals. */
+  async function rebuilt(t: T, s: Seeded) {
+    await t.run(async (c) => {
+      const row = (await c.db.query('authorEarnings').collect()).find(
+        (r) => r.userId === s.authorId
+      )!
+      await c.db.patch(row._id, {
+        tabTipCount: undefined,
+        tabEarnedCents: undefined,
+        tabSettledBaseUnits: undefined,
+        walletEarnedBaseUnits: undefined,
+        lifetimeTotalsAt: undefined,
+        lifetimeRebuild: undefined,
+      })
+    })
+    vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'true')
+    for (let i = 0; i < 20; i += 1) {
+      const r = await t.action(internal.earningsTotalsBackfill.run, {})
+      if (r.rebuilt + r.inProgress === 0) break
+    }
+    return writerTotals(t, s)
+  }
+  async function expectWriter(
+    t: T,
+    s: Seeded,
+    f: { tips: number; units: string; cents: number }
+  ) {
+    expect(await writerTotals(t, s)).toEqual(f)
+    expect(await chainPaid(t)).toBe(f.units)
+  }
+
+  for (const order of ['record first', 'event first'] as const) {
+    it(`writer totals (#552): ${order}, each replayed, one credit, equal to a rebuild`, async () => {
+      const { t, s } = await opened(BigInt(15) * CENT, [10])
+      const { settlementId } = await beginSettlement(t)
+      const paid = {
+        kind: 'settled' as const,
+        writer: WRITER,
+        cumulative: BigInt(10) * CENT,
+        paidAfter: BigInt(10) * CENT,
+        gross: BigInt(10) * CENT,
+      }
+      const event = settledEvent(paid)
+      const once = { tips: 1, units: '975000', cents: 9.75 }
+      if (order === 'record first') {
+        await settlerRecord(t, settlementId, [paid])
+        await expectWriter(t, s, once)
+        await ingest(t, event)
+      } else {
+        await ingest(t, event)
+        await expectWriter(t, s, once)
+        await settlerRecord(t, settlementId, [paid])
+      }
+      await expectWriter(t, s, once)
+      // Replays: the same event, the same report under a new id, the record.
+      await ingest(t, event)
+      await ingest(t, settledEvent(paid))
+      await settlerRecord(t, settlementId, [paid])
+      await expectWriter(t, s, once)
+      expect(await rebuilt(t, s)).toEqual(once)
+    })
+  }
+
+  it("writer totals (#552): the writer's settle_own with the settler's STALE skip counts once", async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [
+      {
+        kind: 'skipped',
+        writer: WRITER,
+        cumulative: BigInt(10) * CENT,
+        reason: 3,
+      },
+    ])
+    // A STALE skip means the chain holds the payment: the record applies it,
+    // and the writer's own event and its replay add nothing.
+    const once = { tips: 1, units: '975000', cents: 9.75 }
+    await expectWriter(t, s, once)
+    const own = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    await ingest(t, settledEvent(own))
+    await ingest(t, settledEvent(own))
+    await expectWriter(t, s, once)
+    expect(await rebuilt(t, s)).toEqual(once)
+  })
+
+  it('writer totals (#552): a partial settler record, then the rest by event, counted by paid range', async () => {
+    const { t, s } = await opened(BigInt(40) * CENT, [10, 25])
+    const { settlementId } = await beginSettlement(t)
+    // The settler paid 0.15 of 0.35 XLM: tip 1 in full, 0.05 of tip 2.
+    const part = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(35) * CENT,
+      paidAfter: BigInt(15) * CENT,
+      gross: BigInt(15) * CENT,
+    }
+    await settlerRecord(t, settlementId, [part])
+    const partial = { tips: 2, units: '1462500', cents: 14.625 }
+    await expectWriter(t, s, partial)
+    await ingest(t, settledEvent(part))
+    await expectWriter(t, s, partial)
+    expect(await rebuilt(t, s)).toEqual(partial)
+    // The writer's settle_own pays the rest; its event arrives twice.
+    const rest = settledEvent({
+      kind: 'settled',
+      writer: WRITER,
+      cumulative: BigInt(35) * CENT,
+      paidAfter: BigInt(35) * CENT,
+      gross: BigInt(20) * CENT,
+    })
+    await ingest(t, rest)
+    await ingest(t, rest)
+    const full = { tips: 2, units: '3412500', cents: 34.125 }
+    await expectWriter(t, s, full)
+    expect(await rebuilt(t, s)).toEqual(full)
+  })
+
+  it('writer totals (#552): a pair written before indexedPaid, then new records and events', async () => {
+    const { t, s } = await opened(BigInt(40) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const first = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    await settlerRecord(t, settlementId, [first])
+    // As the old code left it: no indexed ranges, no reserve.
+    await t.run(async (c) => {
+      const a = await c.db.query('tabAccounts').first()
+      await c.db.patch(a!._id, { settledUnindexed: undefined })
+      for (const v of await c.db.query('tabVouchers').collect()) {
+        await c.db.patch(v._id, { indexedPaid: undefined })
+      }
+    })
+    expect(await rebuilt(t, s)).toEqual({
+      tips: 1,
+      units: '975000',
+      cents: 9.75,
+    })
+    await tip(t, s, { cents: 5 })
+    const next = await beginSettlement(t)
+    const second = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(15) * CENT,
+      paidAfter: BigInt(15) * CENT,
+      gross: BigInt(5) * CENT,
+    }
+    await settlerRecord(t, next.settlementId, [second])
+    await ingest(t, settledEvent(second))
+    await ingest(t, settledEvent(first))
+    // netOf(0.15 XLM): 1,462,500; 9.75 + 4.875 cents.
+    const both = { tips: 2, units: '1462500', cents: 14.625 }
+    await expectWriter(t, s, both)
+    expect(await rebuilt(t, s)).toEqual(both)
+  })
+
+  it('writer totals (#552): a rebuild of a pre-field pair reads its whole paidOnChain', async () => {
+    const { t, s } = await opened(BigInt(40) * CENT, [10, 25])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [
+      {
+        kind: 'settled',
+        writer: WRITER,
+        cumulative: BigInt(35) * CENT,
+        paidAfter: BigInt(35) * CENT,
+        gross: BigInt(35) * CENT,
+      },
+    ])
+    await t.run(async (c) => {
+      for (const v of await c.db.query('tabVouchers').collect()) {
+        await c.db.patch(v._id, { indexedPaid: undefined })
+      }
+    })
+    const pair = (await pairs(t))[0]!
+    expect(pair.earnedNet).toBe(netOf(BigInt(pair.paidOnChain)).toString())
+    expect(await rebuilt(t, s)).toEqual({
+      tips: 2,
+      units: netOf(BigInt(35) * CENT).toString(),
+      cents: 34.125,
+    })
+  })
 })
