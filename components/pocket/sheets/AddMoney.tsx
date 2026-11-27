@@ -19,7 +19,7 @@ export type AddMoneyProps = {
  * `{ need }` when the balance is short). Until the money layer can add
  * money it says plainly what is and is not possible on testnet today, with
  * no button that pretends to work. Nothing here sends a tip: after adding,
- * the tip needs its own tap (D15).
+ * the tip needs its own tap.
  */
 export default function AddMoneyBody({
   props,

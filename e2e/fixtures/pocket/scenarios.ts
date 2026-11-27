@@ -4,8 +4,9 @@
  * names and the same figures (50¢, 10¢ and 10¢ tips; 97.5% to the writer),
  * plus `none`: a signed-in account the server confirmed is empty. Here the
  * fixture plays the money layer, so it writes the display text and the
- * exact formatters, in design N2's money text (exact, no "≈"); the Pocket
- * itself never formats money. Replaced by
+ * exact formatters: figures stored at tip time exact to six decimals, the
+ * reader's converted balance "≈" with two decimals. The Pocket itself never
+ * formats money. Replaced by
  * `fakeRuntime` when 561 merges.
  *
  * `role` shows one side only: a person who only reads (the money layer says
@@ -50,7 +51,7 @@ const STROOPS = 10_000_000
 const noop = () => {}
 
 /**
- * Money text as design N2 writes it, the fixture standing in for the money
+ * Exact money text, the fixture standing in for the money
  * layer: exact, two decimals, up to six when there are fractions of a cent
  * ("$0.0975"), trailing zeros after the second dropped, never rounded.
  */
@@ -63,7 +64,7 @@ export function exactCents(cents: number) {
   return `$${whole.toLocaleString('en-US')}.${fraction}`
 }
 const money = (cents: number): Money => ({ cents, display: exactCents(cents) })
-/** The reader's balance, converted at today's price (D24): "≈", two
+/** The reader's balance, converted at today's price: "≈", two
  * decimals, floored once at the figure. */
 function converted(cents: number): Money {
   const whole = Math.floor(cents + 1e-9)

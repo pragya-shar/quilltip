@@ -22,7 +22,7 @@ export type Cents = number
 export type Money = {
   cents: Cents
   display: string
-  /** Accepted for 561 (D24): a dollar figure converted from the token at
+  /** Accepted for 561: a dollar figure converted from the token at
    * today's price (the reader's Ready to tip while the balance is held in
    * XLM). It is written with "≈" and two decimals. Figures stored at tip
    * time are exact and never converted. */
@@ -52,7 +52,7 @@ export type BalanceView = {
   exact?: { token: 'XLM'; available: string } | null
   /** Accepted for 561: when the server last answered (for stale figures). */
   asOf?: number | null
-  /** Asked of 561 (interface ask 10): the price the converted figure used,
+  /** Asked of 561: the price the converted figure used,
    * dollars per token; null when not converted or unknown. */
   price?: { perToken: Money; asOf: number } | null
 }

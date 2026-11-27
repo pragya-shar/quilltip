@@ -42,9 +42,9 @@ export type PocketSource = {
   useBalance(): BalanceView
   useEarnings(): EarningsView
   useActivity(role: 'reader' | 'writer'): ActivityView
-  /** The practice-money flow of slice 2, then real funding. */
+  /** Practice money for new accounts, then funding from a wallet. */
   useAddMoney(): MoneyAct | null
-  /** The writer's collect (B4). */
+  /** Collecting a writer's earnings to their wallet. */
   useWithdraw(): MoneyAct | null
 }
 

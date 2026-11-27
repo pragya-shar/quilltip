@@ -11,7 +11,7 @@ import { usePocketSource } from '../source'
 /**
  * Withdraw a writer's earnings: exactly what is ready to withdraw, never
  * tips still on their way (declared in shell/sheets/pocket.ts). The balance
- * links here only once the money layer can withdraw (B4); until then the
+ * links here only once the money layer can withdraw; until then the
  * body says what is and is not possible today.
  */
 export default function WithdrawBody({ close }: SheetBodyProps<unknown>) {

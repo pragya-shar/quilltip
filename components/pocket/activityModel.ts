@@ -19,8 +19,7 @@ const TITLES = { reader: 'Your tips', writer: 'Tips to you' }
  * each newest first and paged by the server on its own. They are never
  * merged on the client: a merge across two paged lists can show a row ahead
  * of an older page that is not loaded yet. One server-ordered list replaces
- * this when the money layer has it (design N3: "Your tips", then "Tips to
- * you").
+ * this when the money layer has it.
  */
 export function activityLists(
   reader: ActivityView,

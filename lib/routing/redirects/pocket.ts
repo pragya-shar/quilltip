@@ -1,7 +1,7 @@
 import type { Redirect } from './types'
 
 /**
- * The pocket package's redirects (rebuild plan 5.3). Owned by that package.
+ * The pocket package's redirects. Owned by that package.
  *
  * `/dashboard` and `/dashboard/earnings` only forwarded to the stats page;
  * money now lives in the balance. The other `/dashboard/*` pages, and

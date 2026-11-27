@@ -157,7 +157,7 @@ type Expect = {
 }
 
 const A_READER = 'A reader'
-// Money text per design N2 as amended by D24: figures stored at tip time
+// Money text: figures stored at tip time
 // exact to six decimals; the reader's converted balance "≈" with two
 // decimals (the fixture writes it as the money layer will).
 const SCENARIOS: Record<string, Expect> = {
@@ -251,6 +251,44 @@ const SCENARIOS: Record<string, Expect> = {
   },
 }
 
+test.describe('who is here', () => {
+  test('while auth loads, only a neutral placeholder shows', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?auth=loading')
+    const root = page.locator('.qt-pocket')
+    await expect(root).toHaveAttribute('data-auth', 'loading')
+    await expect(root).toHaveAttribute('aria-busy', 'true')
+    await expect(root.locator('[data-skeleton]')).toHaveCount(1)
+    const text = await root.innerText()
+    for (const words of [
+      'Ready to tip',
+      'Activity',
+      'shows up here',
+      'Sign in',
+    ])
+      expect(text).not.toContain(words)
+    expect(await root.textContent()).not.toMatch(/\$\s?\d/)
+  })
+
+  test('signed out, the balance asks to sign in and shows no money', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?auth=signed-out')
+    const root = page.locator('.qt-pocket')
+    await expect(root).toContainText(
+      'Sign in to see your balance and your tips.'
+    )
+    await expect(root.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+      'href',
+      '/login'
+    )
+    await expect(root).not.toContainText('Ready to tip')
+    await expect(root).not.toContainText('Activity')
+    expect(await root.textContent()).not.toMatch(/\$\s?\d/)
+  })
+})
+
 test.describe('every money scenario', () => {
   for (const [name, want] of Object.entries(SCENARIOS)) {
     test(`${name}`, async ({ page }) => {
@@ -285,7 +323,7 @@ test.describe('every money scenario', () => {
         if (typeof t === 'string') expect(text).toContain(t)
         else expect(await root.innerText()).toMatch(t)
       for (const t of want.absent ?? []) expect(text).not.toMatch(t)
-      // The first release offers no control that does nothing (design N3).
+      // The first release offers no control that does nothing.
       await expect(root.getByRole('button', { name: /Add money/ })).toHaveCount(
         0
       )

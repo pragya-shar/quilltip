@@ -15,7 +15,7 @@ export type ReceiptProps = { item: ActivityItem }
  * One tip's receipt, over the balance (declared in shell/sheets/pocket.ts,
  * loaded when it first opens). The figure is what the row showed: the tip
  * as sent, or your share of a tip to you. The exact share and Quilltip's fee
- * are stated once, below. A tip received names no one (D4).
+ * are stated once, below. A tip received never names the reader.
  */
 export default function ReceiptBody({ props }: SheetBodyProps<ReceiptProps>) {
   const { format } = usePocketSource()

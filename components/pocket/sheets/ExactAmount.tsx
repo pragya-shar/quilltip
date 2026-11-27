@@ -7,9 +7,9 @@ import type { SheetBodyProps } from '@/shell/sheets/types'
 import { usePocketSource } from '../source'
 
 /**
- * The exact amount behind Ready to tip (screen 40f): the token amount the
+ * The exact amount behind Ready to tip: the token amount the
  * balance is held in, and what the dollar figure means. Opened by pressing
- * the figure, only while the money layer marks it as converted (D24).
+ * the figure, only while the money layer marks it as converted.
  */
 export default function ExactAmountBody(_: SheetBodyProps<unknown>) {
   const source = usePocketSource()
@@ -36,7 +36,7 @@ export default function ExactAmountBody(_: SheetBodyProps<unknown>) {
       <p className="qt-pocket__plain">
         Your balance is held in Lumens.
         {available && price ? (
-          // Screen 40f's sentence, only with the price the figure used.
+          // The price is named only when the money layer gives the one it used.
           <>
             {' '}
             At today&rsquo;s price of{' '}

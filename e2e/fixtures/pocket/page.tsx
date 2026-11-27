@@ -71,7 +71,7 @@ export function sendElsewhere() {
 
 const NOW = Date.now()
 // `?writer-converted`: the money layer marks the writer's figures as
-// converted at today's price (D24), written "≈" with two decimals.
+// converted at today's price, written "≈" with two decimals.
 const base = forRole(scenario(name, NOW), role)
 const approx = (figure: Money | null): Money | null =>
   figure && {

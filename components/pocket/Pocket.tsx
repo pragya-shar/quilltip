@@ -3,6 +3,7 @@
 import './pocket.css'
 import { Button } from '@/system/components/Button'
 import { EmptyState } from '@/system/components/EmptyState'
+import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { Notice } from '@/system/components/Notice'
 import { TestnetNote } from '@/system/components/TestnetNote'
 import { BalanceIcon } from '@/system/icons'
@@ -69,14 +70,23 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
         <TestnetNote />
       </div>
     )
-  // Until auth is known nothing has answered: everything holds its space.
-  const authLoading = reading.auth === 'loading'
-  const isWriter = !authLoading && writes(earnings)
-  const activity: PocketActivity = authLoading
-    ? { status: 'loading', lists: [] }
-    : activityLists(reader, writer)
+  // Until auth is known, nobody is known to be signed in: a neutral
+  // placeholder in the shape of the shell's, with no labels or words that
+  // belong to a signed-in person.
+  if (reading.auth === 'loading')
+    return (
+      <div
+        className="qt-pocket"
+        data-auth="loading"
+        aria-busy="true"
+        aria-label="Loading"
+      >
+        <MoneyFigure value={null} status="loading" size="xl" />
+      </div>
+    )
+  const isWriter = writes(earnings)
+  const activity: PocketActivity = activityLists(reader, writer)
   const down =
-    !authLoading &&
     balance.status === 'unavailable' &&
     earnings.status !== 'ready' &&
     activity.status === 'unavailable'
@@ -88,7 +98,7 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
           Your money is safe and nothing you sent is lost. Reading works as
           usual; try again in a moment.
         </Notice>
-      ) : !authLoading && !balance.online ? (
+      ) : !balance.online ? (
         <Notice tone="offline">
           {asOf
             ? `Offline. These figures are from ${ago(asOf, now)}.`
@@ -96,11 +106,7 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
           Tipping waits until you are back online.
         </Notice>
       ) : null}
-      <SpendableSection
-        balance={balance}
-        authLoading={authLoading}
-        compact={isWriter}
-      />
+      <SpendableSection balance={balance} compact={isWriter} />
       {isWriter ? (
         <EarningsSection earnings={earnings} headingLevel={headingLevel} />
       ) : null}

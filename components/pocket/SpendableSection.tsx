@@ -16,29 +16,26 @@ import type { BalanceView } from './types'
  * writes it, with the exact token amount one tap away. Tips on their way
  * out are said in words beside it (they are already out of it), never as a
  * second balance. Add money appears only once the money layer can add money
- * (design N3); until then a line says how money arrives.
+ * ; until then a line says how money arrives.
  */
 export function SpendableSection({
   balance,
-  authLoading,
   compact,
 }: {
   balance: BalanceView
-  /** Who is here is not known yet. */
-  authLoading: boolean
   /** A writer: the earnings below lead, so this figure is smaller. */
   compact: boolean
 }) {
   const source = usePocketSource()
   const addMoney = source.useAddMoney()
   const status =
-    authLoading || balance.status === 'loading'
+    balance.status === 'loading'
       ? 'loading'
       : balance.status === 'unavailable' || balance.status === 'signed-out'
         ? 'unavailable'
         : 'ready'
   const available = status === 'ready' ? balance.available : null
-  // The money layer says which figure is a conversion (D24); the screen
+  // The money layer says which figure is converted at today's price; the screen
   // never decides it.
   const converted = available?.converted === true
   const exact = status === 'ready' ? balance.exact : null
@@ -59,7 +56,7 @@ export function SpendableSection({
     <section className="qt-pocket__spend" aria-label="Ready to tip">
       {converted && exact ? (
         // A converted figure is a button: it opens the exact token amount
-        // (screen 40f).
+        // with an explanation.
         <button
           type="button"
           className="qt-pocket__figure-button"

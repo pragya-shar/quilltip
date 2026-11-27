@@ -29,4 +29,5 @@ test('with no script, /pocket explains itself and links to sign in', async ({
     page.locator('.qt-skeleton:visible, [data-skeleton]:visible')
   ).toHaveCount(0)
   expect(await page.locator('main').innerText()).not.toMatch(/\$\s?\d/)
+  expect(await page.locator('main').innerText()).not.toContain('Ready to tip')
 })

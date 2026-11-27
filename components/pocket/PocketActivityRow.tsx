@@ -13,7 +13,7 @@ import type { ActivityItem } from './types'
  * One money movement; the whole row opens its receipt as a sheet. A tip you
  * sent shows the tip as sent ("−$1.00"); a tip to you shows your share and
  * the tip it came from ("+$0.0975", "from a $0.10 tip"), so the rows add up
- * to the figures above them (design N2). A tip received names no one (D4).
+ * to the figures above them. A tip received never names the reader.
  */
 export function PocketActivityRow({
   item,

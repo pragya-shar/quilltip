@@ -90,7 +90,7 @@ export function rowWords(item: ActivityItem): RowWords {
   }
 }
 
-/** "3 tips", "1 tip" (D13): a count of tips says tips. */
+/** "3 tips", "1 tip": a count of tips says tips, never readers. */
 export function tipsCount(n: number): string {
   return `${n.toLocaleString('en-US')} ${n === 1 ? 'tip' : 'tips'}`
 }

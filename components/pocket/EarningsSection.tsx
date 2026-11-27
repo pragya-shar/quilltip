@@ -17,12 +17,12 @@ const positive = (money: { cents: number } | null | undefined) =>
   (money?.cents ?? 0) > 0
 
 /**
- * A writer's money, three figures kept apart (D10): ready to withdraw
+ * A writer's money, three figures kept apart: ready to withdraw
  * (arrived, collectable now), on its way (accepted, not arrived) and paid to
  * your wallet (collected). Each is the sum of the shares its rows show, net
- * of the 2.5%, said once (design N2). Slow and failed tips are said in
+ * of the 2.5%, said once. Slow and failed tips are said in
  * words beside them; nothing here adds figures up. Withdraw appears only
- * once the money layer can withdraw (design N3).
+ * once the money layer can withdraw.
  */
 export function EarningsSection({
   earnings,
@@ -124,7 +124,7 @@ export function EarningsSection({
       {[available, earnings.pending, earnings.collected].some(
         (figure) => ready && figure?.converted === true
       ) ? (
-        // Only when the money layer marks a figure as a conversion (D24).
+        // Only when the money layer marks a figure as converted at today's price.
         <p className="qt-pocket__fine">
           Held in Lumens. Figures move with the price; each tip below shows its
           dollars at the time.
