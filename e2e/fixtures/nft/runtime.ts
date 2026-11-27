@@ -9,6 +9,7 @@ const mode = params.get('mode') ?? 'success'
 export const articleTitle =
   'The words we keep: an article about attention and the things that stay with us'
 export const api = {
+  chain: { config: { getChainConfig: 'getChainConfig' } },
   nfts: { mintNFT: 'mint', transferNFT: 'transfer' },
   nftMetadataUpload: { uploadNftMetadataForMint: 'metadata' },
 }
@@ -131,3 +132,8 @@ export const nftClient = {
 export const NO_WALLET_AVAILABLE_ERROR_CODE = 'NO_WALLET'
 export const ALBEDO_INSECURE_LOCALHOST_ERROR_CODE = 'INSECURE'
 export const InstallWalletDialog = () => null
+
+/** `NFTIntegration` reads the chain config; these fixtures render v1 (v2 off). */
+export function useQuery(ref: unknown) {
+  return ref === 'getChainConfig' ? { v2Enabled: false } : undefined
+}

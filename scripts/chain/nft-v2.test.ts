@@ -594,6 +594,15 @@ describe('prepareMint', () => {
     expect((await mint(t, s, 'mint-2')).existing).toBe(false)
   })
 
+  it('refuses while the cached config says the NFT contract is paused', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const config = await seedConfig(t, { paused: { nft: true } })
+    expect(await errorOf(mint(t, s))).toMatchObject({ code: 'PAUSED' })
+    await t.run(({ db }) => db.patch(config, { paused: { nft: false } }))
+    expect((await mint(t, s)).existing).toBe(false)
+  })
+
   it('validates the gate, the caller, the wallet, the registration and the article', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
@@ -757,6 +766,28 @@ describe('prepareTransfer', () => {
         transfer(t, s, row._id, { kind: 'address', address: COLLECTOR }, 'tx-2')
       )
     ).toMatchObject({ code: 'PENDING', submissionId: prepared.submissionId })
+  })
+
+  it('refuses while the cached config says the NFT contract is paused', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const row = await indexMint(t)
+    const config = await seedConfig(t, { paused: { nft: true } })
+    expect(
+      await errorOf(
+        transfer(t, s, row._id, { kind: 'address', address: STRANGER }, 'p-1')
+      )
+    ).toMatchObject({ code: 'PAUSED' })
+    // A paused contract of another deployment does not count.
+    await t.run(({ db }) => db.patch(config, { nftContractId: OTHER_NFT }))
+    const prepared = await transfer(
+      t,
+      s,
+      row._id,
+      { kind: 'address', address: STRANGER },
+      'p-2'
+    )
+    expect(prepared.args.to).toBe(STRANGER)
   })
 
   it('resolves a QuillTip user to their verified address', async () => {
@@ -1557,6 +1588,24 @@ function thresholdSetEvent(
   }
 }
 
+function pauseEvent(
+  name: 'paused' | 'unpaused',
+  opts: { ledger?: number; contractId?: string } = {}
+): RawRpcEvent {
+  const ledger = opts.ledger ?? LEDGER
+  return {
+    type: 'contract',
+    ledger,
+    ledgerClosedAt: new Date((T0S + 10) * 1000).toISOString(),
+    contractId: opts.contractId ?? NFT,
+    id: rpcEventId(ledger, 1, 0, 0),
+    txHash: HASH,
+    topic: [sym(name).toXDR('base64')],
+    value: map([['caller', addr(AUTHOR)]]).toXDR('base64'),
+    inSuccessfulContractCall: true,
+  }
+}
+
 const progress = (t: T, s: Seeded, userId: Id<'users'> | null = null) =>
   (userId ? as(t, userId) : t).query(api.nftsV2.getMintProgress, {
     articleId: s.articleId,
@@ -1656,6 +1705,33 @@ describe('getMintProgress', () => {
       nftId: row._id,
       ownerAddress: AUTHOR,
     })
+  })
+
+  it('reports the cached pause flag on a minted article', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await indexMint(t)
+    // No current cache: the pause state is unknown.
+    expect((await progress(t, s)).paused).toBeNull()
+    await seedConfig(t, { paused: { nft: true } })
+    expect(await progress(t, s)).toMatchObject({
+      state: 'MINTED',
+      paused: true,
+      configRefreshedAt: T0 - 60_000,
+    })
+  })
+
+  it('follows paused and unpaused events of the configured contract', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await seedConfig(t)
+    await ingest(t, [pauseEvent('paused', { contractId: OTHER_NFT })])
+    expect((await progress(t, s)).paused).toBe(false)
+    await ingest(t, [pauseEvent('paused', { ledger: LEDGER + 1 })])
+    expect((await progress(t, s)).paused).toBe(true)
+    expect(await eventHandled(t, rpcEventId(LEDGER + 1, 1, 0, 0))).toBe('done')
+    await ingest(t, [pauseEvent('unpaused', { ledger: LEDGER + 2 })])
+    expect((await progress(t, s)).paused).toBe(false)
   })
 
   it('reports DISABLED, NOT_FOUND and NOT_REGISTERED', async () => {
