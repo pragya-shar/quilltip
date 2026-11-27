@@ -801,3 +801,74 @@ test('a figure never shows a placeholder zero while loading or unavailable', asy
     page.locator('[data-specimen="Loading"] .qt-money').first()
   ).toHaveAttribute('aria-busy', 'true')
 })
+
+test('a line keeps both of its states, each with its cue', async ({ page }) => {
+  await open(page)
+  const specimen = page.locator('[data-specimen="Lines in two states at once"]')
+  const look = (text: string) =>
+    specimen.locator('.qt-mark', { hasText: text }).evaluate((el) => {
+      const style = getComputedStyle(el)
+      return {
+        state: el.getAttribute('data-state'),
+        fill: style.getPropertyValue('--qt-mark-fill').trim(),
+        underline: style.textDecorationLine,
+        described: el.getAttribute('aria-description'),
+      }
+    })
+  const chosen = await look('A chosen line')
+  expect(chosen.state).toBe('others-top chosen')
+  expect(chosen.fill).not.toBe('transparent')
+  expect(chosen.underline).toContain('underline')
+  await expect(specimen.locator('.qt-line-overlay__tick')).toHaveCount(1)
+  const kept = await look('A line you kept')
+  expect(kept.state).toBe('mine kept')
+  expect(kept.underline).toContain('underline')
+  expect(kept.described).toBe('You tipped this line. Kept')
+  await expect(specimen.locator('.qt-mark__check')).toHaveCount(1)
+})
+
+test('the tray says what is ready to tip, from the money value', async ({
+  page,
+}) => {
+  await open(page)
+  const group = liveTip(page)
+  await press(page, group.getByRole('button', { name: 'Change amount' }))
+  const caption = group.locator('.qt-tray__caption')
+  await expect(caption.locator('.qt-money__digits')).toHaveText('≈$18.40')
+  await expect(caption.locator('.qt-visually-hidden')).toHaveText(
+    'about $18.40'
+  )
+  await expect(caption).toContainText(/ ready to tip$/)
+})
+
+test('the amount control can carry its word', async ({ page }) => {
+  await open(page)
+  const specimen = page.locator(
+    '[data-specimen="Amount control with its word"]'
+  )
+  const control = specimen.getByRole('button', { name: 'Amount', exact: true })
+  await expect(control).toBeVisible()
+  await press(page, control)
+  await expect(specimen.getByRole('radiogroup')).toBeVisible()
+})
+
+test('after a refusal the button states the amount chosen since', async ({
+  page,
+}) => {
+  await open(page)
+  const specimen = page.locator(
+    '[data-specimen="Refused, then another amount chosen"]'
+  )
+  await expect(
+    specimen.getByRole('button', { name: 'Try again: tip $1', exact: true })
+  ).toBeVisible()
+})
+
+test('an empty place can be a section heading', async ({ page }) => {
+  await open(page)
+  await expect(
+    page
+      .locator('[data-specimen="Empty state as a section heading"]')
+      .getByRole('heading', { level: 2, name: 'Nothing on your shelf yet.' })
+  ).toBeVisible()
+})

@@ -43,12 +43,20 @@ export function tipButtonParts(
       return { words: 'Sending', amount: state.amount.display }
     case 'sent':
       return { words: 'Sent', amount: state.amount.display }
+    // After a refusal the reader may choose another amount: the button
+    // states the amount it will send now, as the amount control does.
     case 'failed':
-      return { words: 'Try again: tip', amount: state.amount.display }
+      return {
+        words: 'Try again: tip',
+        amount: (amount ?? state.amount).display,
+      }
     case 'offline':
       return { words: 'Offline. You can tip when you reconnect.', amount: null }
     case 'needs-funds':
-      return { words: 'Add money to tip', amount: state.amount.display }
+      return {
+        words: 'Add money to tip',
+        amount: (amount ?? state.amount).display,
+      }
     case 'other':
       return { words: state.words, amount: state.amount.display }
     case 'idle': {

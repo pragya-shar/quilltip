@@ -132,6 +132,13 @@
     color: var(--qt-action-ink);
     box-shadow: none;
   }
+  .qt-tip__round[data-labelled] {
+    display: inline-flex;
+    gap: var(--qt-space-2);
+    width: auto;
+    padding-inline: var(--qt-space-3) var(--qt-space-4);
+    font-weight: var(--qt-weight-ui-strong);
+  }
   .qt-tip__round[aria-expanded='true'] {
     outline: 2px solid var(--qt-marker-ink);
     outline-offset: 2px;
@@ -259,6 +266,17 @@
     box-shadow: var(--qt-shadow-float);
     animation: qt-rise var(--qt-dur-base) var(--qt-ease-out);
   }
+  .qt-tray__caption {
+    display: flex;
+    flex-basis: 100%;
+    align-items: baseline;
+    gap: 0.3em;
+    margin: 0;
+    padding-inline: var(--qt-space-1);
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+    color: var(--qt-ink-2);
+  }
   .qt-tray__amounts {
     display: flex;
     flex-wrap: wrap;
@@ -372,25 +390,29 @@
     text-decoration-thickness: var(--qt-underline);
     text-underline-offset: var(--qt-underline-offset);
   }
-  .qt-mark[data-state='others-top'] {
+  .qt-mark[data-state~='others-top'] {
     --qt-mark-fill: var(--qt-marker-soft);
   }
-  .qt-mark[data-state='others'] {
+  .qt-mark[data-state~='others'] {
     --qt-mark-fill: var(--qt-marker-faint);
   }
-  .qt-mark[data-state='mine'] {
+  .qt-mark[data-state~='mine'] {
     --qt-mark-fill: var(--qt-marker);
     color: var(--qt-on-marker);
   }
-  .qt-mark[data-state='kept'] {
+  .qt-mark[data-state~='kept'] {
     text-decoration-line: underline;
     text-decoration-color: var(--qt-marker-ink);
   }
-  .qt-mark[data-state='chosen'] {
+  .qt-mark[data-state~='chosen'] {
     text-decoration-line: underline;
     text-decoration-color: var(--qt-ink);
   }
-  .qt-mark[data-state='share-line'] {
+  /* Kept and yours: the underline in the ink on the marker. */
+  .qt-mark[data-state~='mine'][data-state~='kept'] {
+    text-decoration-color: var(--qt-on-marker);
+  }
+  .qt-mark[data-state~='share-line'] {
     text-decoration-line: underline;
     text-decoration-style: dashed;
     text-decoration-color: var(--qt-marker-ink);
@@ -493,9 +515,9 @@
     }
   }
   @media (forced-colors: active) {
-    .qt-mark[data-state='mine'],
-    .qt-mark[data-state='others-top'],
-    .qt-mark[data-state='others'] {
+    .qt-mark[data-state~='mine'],
+    .qt-mark[data-state~='others-top'],
+    .qt-mark[data-state~='others'] {
       forced-color-adjust: none;
       background: Highlight;
       color: HighlightText;

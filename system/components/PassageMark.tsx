@@ -30,9 +30,23 @@ export type PassageState =
   | 'place'
   | 'share-line'
 
+/** States that go together on one line: a chosen line keeps other readers'
+ * fill; a line can be kept and tipped by you at once. */
+export const COMBINABLE: readonly (readonly PassageState[])[] = [
+  ['others-top', 'chosen'],
+  ['others', 'chosen'],
+  ['mine', 'chosen'],
+  ['kept', 'chosen'],
+  ['mine', 'kept'],
+  ['others-top', 'kept'],
+  ['others', 'kept'],
+]
+
 type PassageMarkProps = {
   children: ReactNode
-  state: PassageState
+  /** One state, or several that go together (`COMBINABLE`):
+   * `['others-top', 'chosen']`, `['mine', 'kept']`. */
+  state: PassageState | readonly PassageState[]
   /** Times readers tipped this line (others-top shows it; both say it). */
   count?: number
   /** A tip just landed (mine): the stroke draws once. */
@@ -56,36 +70,50 @@ export function PassageMark({
   holdKey,
   className,
 }: PassageMarkProps) {
-  const others = state === 'others-top' || state === 'others'
+  const states: readonly PassageState[] =
+    typeof state === 'string' ? [state] : state
+  const has = (s: PassageState) => states.includes(s)
+  const others = has('others-top') || has('others')
   const description =
-    others && count
-      ? `Readers tipped this line ${count} ${count === 1 ? 'time' : 'times'}`
-      : state === 'mine'
-        ? 'You tipped this line'
-        : undefined
+    [
+      others && count
+        ? `Readers tipped this line ${count} ${count === 1 ? 'time' : 'times'}`
+        : has('mine')
+          ? 'You tipped this line'
+          : null,
+      has('kept') ? 'Kept' : null,
+    ]
+      .filter(Boolean)
+      .join('. ') || undefined
+  // The one thing drawn outside the text: the hold's band, else a tick.
+  const overlay = has('holding')
+    ? 'holding'
+    : has('chosen')
+      ? 'chosen'
+      : has('place')
+        ? 'place'
+        : null
   return (
     <>
       <mark
         className={cx('qt-mark', className)}
-        data-state={state}
+        data-state={states.join(' ')}
         data-fresh={fresh || undefined}
         aria-description={description}
       >
         {children}
       </mark>
-      {state === 'others-top' && count ? (
+      {has('others-top') && count ? (
         <span className="qt-mark__count" aria-hidden="true">
           {count}
         </span>
       ) : null}
-      {state === 'mine' ? (
+      {has('mine') ? (
         <span className="qt-mark__check" aria-hidden="true">
           <Icon icon={DoneIcon} size={16} />
         </span>
       ) : null}
-      {state === 'chosen' || state === 'place' || state === 'holding' ? (
-        <LineOverlay kind={state} restartKey={holdKey} />
-      ) : null}
+      {overlay ? <LineOverlay kind={overlay} restartKey={holdKey} /> : null}
     </>
   )
 }

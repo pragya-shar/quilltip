@@ -51,6 +51,23 @@ describe('tip button words', () => {
     )
   })
 
+  it('states the chosen amount after a refusal, as the amount control does', () => {
+    const two = { cents: 200, display: '$2' }
+    expect(
+      tipButtonLabel({ phase: 'failed', amount: three }, two, 'article')
+    ).toBe('Try again: tip $2')
+    expect(
+      tipButtonLabel(
+        { phase: 'needs-funds', amount: three, available: null },
+        two,
+        'article'
+      )
+    ).toBe('Add money to tip $2')
+    expect(
+      tipButtonLabel({ phase: 'failed', amount: three }, null, 'article')
+    ).toBe('Try again: tip $3')
+  })
+
   it('takes one more phase from outside, with its own words', () => {
     expect(
       tipButtonLabel(

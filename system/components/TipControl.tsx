@@ -65,6 +65,13 @@ export type TipControlProps = {
   unavailable?: string | null
   /** Offers an "Other" amount field in the tray. */
   allowOther?: boolean
+  /** What the reader can tip now (the money layer's figure); the tray
+   * shows "≈ $18.40 ready to tip". */
+  balance?: MoneyValue | null
+  /** `labelled`: the amount control shows the word "Amount" beside its
+   * icon, where the design has one. `icon` (default): the icon alone, named
+   * "Change amount". */
+  amountControl?: 'icon' | 'labelled'
   className?: string
 }
 
@@ -114,6 +121,8 @@ export function TipControl({
   hold,
   unavailable,
   allowOther = true,
+  balance,
+  amountControl = 'icon',
   className,
 }: TipControlProps) {
   const trayId = useId()
@@ -265,6 +274,7 @@ export function TipControl({
           amounts={amounts}
           value={amount}
           allowOther={allowOther}
+          balance={balance}
           onChange={onAmountChange}
           onClose={closeTray}
           anchor={amountButton}
@@ -302,7 +312,10 @@ export function TipControl({
             type="button"
             className="qt-tip__round"
             data-variant="action"
-            aria-label="Change amount"
+            data-labelled={amountControl === 'labelled' || undefined}
+            aria-label={
+              amountControl === 'labelled' ? undefined : 'Change amount'
+            }
             aria-expanded={trayOpen}
             aria-controls={trayOpen ? trayId : undefined}
             onClick={() => setTrayOpen((open) => !open)}
@@ -314,6 +327,9 @@ export function TipControl({
             }}
           >
             <Icon icon={AmountIcon} size={24} />
+            {amountControl === 'labelled' ? (
+              <span className="qt-tip__amount-word">Amount</span>
+            ) : null}
           </button>
         ) : null}
         {busy ? (

@@ -140,6 +140,28 @@ export function ReadingSection() {
           action={<Button variant="primary">Add money</Button>}
         />
       </Specimen>
+      <Specimen name="Empty state as a section heading">
+        <EmptyState
+          headingLevel={2}
+          title="Nothing on your shelf yet."
+          body="Keep an article and it waits here."
+        />
+      </Specimen>
+      <Specimen name="Lines in two states at once" wide>
+        <Prose>
+          <p>
+            <PassageMark state={['others-top', 'chosen']} count={12}>
+              A chosen line keeps other readers’ fill.
+            </PassageMark>{' '}
+            <PassageMark state={['mine', 'kept']}>
+              A line you kept and tipped.
+            </PassageMark>{' '}
+            <PassageMark state={['others', 'kept']} count={2}>
+              Kept, and tipped by others.
+            </PassageMark>
+          </p>
+        </Prose>
+      </Specimen>
     </GallerySection>
   )
 }

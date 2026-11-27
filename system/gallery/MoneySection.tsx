@@ -111,6 +111,7 @@ export function MoneySection() {
             onTip={demo.tip}
             onNotNow={() => demo.setCents(demo.amount.cents)}
             recipient="Tomás Reyes"
+            balance={{ ...money.balance, converted: true }}
           />
         </div>
       </Specimen>
@@ -140,6 +141,28 @@ export function MoneySection() {
           amounts={amounts}
           onAmountChange={noop}
           onTip={noop}
+          recipient="Tomás"
+        />
+      </Specimen>
+      <Specimen name="Amount control with its word">
+        <TipControl
+          state={{ phase: 'idle' }}
+          amount={money.one}
+          amounts={amounts}
+          onAmountChange={noop}
+          onTip={noop}
+          recipient="Tomás"
+          amountControl="labelled"
+        />
+      </Specimen>
+      <Specimen name="Refused, then another amount chosen">
+        <TipControl
+          state={{ phase: 'failed', amount: money.three }}
+          amount={money.one}
+          amounts={amounts}
+          onAmountChange={noop}
+          onTip={noop}
+          onNotNow={noop}
           recipient="Tomás"
         />
       </Specimen>

@@ -87,11 +87,14 @@ Wire `TipControl` to `useTip(target, meta)` from `hooks/payments`:
 | `target`, `onClearTarget` | `'passage'` while a line is chosen ("Tip this line $1"), and how to clear it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `hold`                    | while the controller holds the tip (the hold before sending): `{ projected?: { before, after }, onCancel, onAddOne, addOneBlocked?: reason, restartKey }`, with `before` and `after` money values ("≈ $18.40 → ≈ $17.40" drawn, "about 18 dollars 40, then about 17 dollars 40" heard). The control draws Cancel, the status with a countdown over `--qt-dur-hold` (3000 ms, not shortened by reduced motion), and "+$1" (disabled with its reason); Escape cancels while focus is in the control. It keeps no timer: the controller owns the hold, its timing, the caps and the sending. |
 | `unavailable`             | a few words when `controller.unavailable` is set (for example "Tipping paused"); hide the control on the writer's own article and page                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `balance`                 | the reader's spendable figure (`controller.balance`): the tray shows "≈ $18.40 ready to tip"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `amountControl`           | `labelled` where the design shows the word "Amount" on the amount control; `icon` (default) names it "Change amount"                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 The words follow the design's tip moment: "Tip Tomás $1", "Tip this line $1", "Sending $1",
 "Sent $1", "Try again: tip $1" with "Not now" and the reason "That tip did
 not go through. You were not charged.", "Offline. You can tip when you
-reconnect.", "Add money to tip $1". Focus goes to the status when a tip is
+reconnect.", "Add money to tip $1". After a refusal, the button states the
+amount chosen since, as the amount control does. Focus goes to the status when a tip is
 held or sending, stays on "Sent", and moves to the reason on a failure; the
 one live announcement is "Cancelled. Nothing was sent." A held key or a
 double press asks for one tip: repeated keys are refused on every button of
@@ -103,7 +106,9 @@ the gallery and the tests.
 ### Passage marks and reading
 
 `PassageMark` takes a `state`, each with a cue that does not
-rest on colour:
+rest on colour, or two that go together (`COMBINABLE`): a chosen line keeps
+other readers' fill (`['others-top', 'chosen']`), and a line can be kept and
+yours at once (`['mine', 'kept']`):
 
 | `state`                     | Look                                                         | Cue beyond colour                                              |
 | --------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------- |
@@ -308,15 +313,15 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
 
 ## States every surface handles
 
-| State                                | How                                                                                                      |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| Loading, public                      | Nothing: content is in the first response                                                                |
-| Loading, signed-in                   | `loading.tsx` in the signed-in segment, or `Skeleton` at final size inside a region with `aria-busy`     |
-| Empty                                | `EmptyState`: what is empty, and the one action that fills it                                            |
-| Error                                | The route's `error.tsx` falls back to `app/(app)/error.tsx`; inline problems use `Notice tone="failure"` |
-| Offline                              | `Notice tone="offline"`; the tip control has its own offline phase                                       |
-| Payments unavailable                 | Figures `status="unavailable"`; reading is unaffected                                                    |
-| Long, missing and right-to-left text | Test with `system/gallery/samples.ts` `worst` values                                                     |
+| State                                | How                                                                                                                     |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Loading, public                      | Nothing: content is in the first response                                                                               |
+| Loading, signed-in                   | `loading.tsx` in the signed-in segment, or `Skeleton` at final size inside a region with `aria-busy`                    |
+| Empty                                | `EmptyState`: what is empty, and the one action that fills it; `headingLevel` (1 to 3) when it is a section of the page |
+| Error                                | The route's `error.tsx` falls back to `app/(app)/error.tsx`; inline problems use `Notice tone="failure"`                |
+| Offline                              | `Notice tone="offline"`; the tip control has its own offline phase                                                      |
+| Payments unavailable                 | Figures `status="unavailable"`; reading is unaffected                                                                   |
+| Long, missing and right-to-left text | Test with `system/gallery/samples.ts` `worst` values                                                                    |
 
 ## Naming
 

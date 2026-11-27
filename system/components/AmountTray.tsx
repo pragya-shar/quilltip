@@ -10,12 +10,16 @@ import {
 } from 'react'
 import type { MoneyValue } from '../money/figure'
 import { centsFromInput } from '../money/tip'
+import { MoneyFigure } from './MoneyFigure'
 
 type AmountTrayProps = {
   id: string
   amounts: readonly MoneyValue[]
   value: MoneyValue | null
   allowOther: boolean
+  /** What the reader can tip now, from the money layer: "≈ $18.40 ready to
+   * tip" above the amounts. */
+  balance?: MoneyValue | null
   onChange: (cents: number) => void
   /** `returnFocus`: put focus back on the amount button. */
   onClose: (returnFocus: boolean) => void
@@ -33,6 +37,7 @@ export function AmountTray({
   amounts,
   value,
   allowOther,
+  balance,
   onChange,
   onClose,
   anchor,
@@ -116,6 +121,11 @@ export function AmountTray({
 
   return (
     <div className="qt-tray" id={id} ref={root}>
+      {balance ? (
+        <p className="qt-tray__caption">
+          <MoneyFigure value={balance} size="s" /> ready to tip
+        </p>
+      ) : null}
       <span className="qt-visually-hidden" id={labelId}>
         Tip amount
       </span>
