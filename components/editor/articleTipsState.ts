@@ -15,7 +15,16 @@ export type ArticleTipsView =
   | { kind: 'no_wallet' }
   | { kind: 'unverified' }
   | { kind: 'not_registered'; retry: boolean }
-  | { kind: 'pending'; action: PendingAction; txHash: string | null }
+  | {
+      kind: 'pending'
+      action: PendingAction
+      /**
+       * `prepared`: the request exists, but no signed transaction is
+       * recorded yet. `submitted`: the signed transaction was sent.
+       */
+      stage: 'prepared' | 'submitted'
+      txHash: string | null
+    }
   | { kind: 'review'; txHash: string | null }
   | {
       kind: 'registered'
@@ -51,6 +60,7 @@ export function articleTipsView(
     return {
       kind: 'pending',
       action: submission.kind as PendingAction,
+      stage: submission.status === 'SUBMITTED' ? 'submitted' : 'prepared',
       txHash: submission.txHash,
     }
   }
