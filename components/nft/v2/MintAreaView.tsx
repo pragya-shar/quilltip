@@ -50,6 +50,8 @@ export function MintAreaView({
           <p className="nft-v2-note">{NFT_COPY.mintHint}</p>
         </div>
       )
+    case 'not-configured':
+      return <PaymentNotice kind="refused" copy={NFT_COPY.notConfigured} />
     case 'retry-later':
       return (
         <div className="nft-v2-action">

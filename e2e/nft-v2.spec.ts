@@ -1171,3 +1171,102 @@ test.describe('worst-case data', () => {
     })
   }
 })
+
+// --- Follow-ups from the testnet wallet run (#547) -------------------------
+
+test.describe('testnet wallet run follow-ups (#547)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('a wallet on another account is asked to switch to the linked address; nothing was signed', async ({
+    page,
+  }) => {
+    const errors = await open(page, 'state=author-eligible&wallet=other')
+    await mint(page)
+    await expect(
+      panel(page).getByText(
+        /^Switch your wallet to G[A-Z0-9]{3,5}…[A-Z0-9]{4}$/
+      )
+    ).toBeVisible()
+    await expect(
+      panel(page)
+        .getByText(
+          /Minting is signed by .+, the address linked to your Quilltip account\. Your wallet is on .+\. Switch accounts in your wallet, then try again\. Nothing was signed\./
+        )
+        .first()
+    ).toBeVisible()
+    await expect(
+      panel(page).getByText(/signed with another account/)
+    ).toHaveCount(0)
+    expect((await log(page)).signed).toEqual([])
+    expect((await log(page)).failed).toEqual([
+      expect.objectContaining({
+        reason: 'wallet_rejected',
+        detail: 'wrong_account',
+      }),
+    ])
+    expect(errors).toEqual([])
+  })
+
+  test('after a confirmed mint and Done, the panel waits for the owner instead of offering Mint', async ({
+    page,
+  }) => {
+    await open(page, 'state=author-eligible&confirm=lagging')
+    await mint(page)
+    await expect(
+      page.getByRole('heading', { name: 'Article NFT minted' })
+    ).toBeVisible()
+    await page.getByRole('button', { name: 'Done' }).click()
+    await expect(
+      panel(page).getByText(
+        'Stellar testnet confirmed the mint. The token and its owner show here in a moment.'
+      )
+    ).toBeVisible()
+    await expect(
+      panel(page).getByRole('button', { name: 'Mint article NFT' })
+    ).toHaveCount(0)
+    // Once the owner record arrives, the minted token shows.
+    await expect(panel(page).getByText('Token', { exact: true })).toBeVisible({
+      timeout: 8_000,
+    })
+    await expect(
+      panel(page).getByRole('button', { name: 'Mint article NFT' })
+    ).toHaveCount(0)
+  })
+
+  test('a resumed mint that sent nothing does not call it a payment', async ({
+    page,
+  }) => {
+    await open(page, 'state=author-eligible&resume=mint:FAILED')
+    await expect(
+      panel(page).getByText(
+        'Quilltip recorded no mint for this request. Nothing was sent.'
+      )
+    ).toBeVisible()
+    await expect(panel(page).getByText(/recorded no payment/)).toHaveCount(0)
+  })
+
+  test('without the client NFT contract, the panel says minting is not available', async ({
+    page,
+  }) => {
+    await open(page, 'state=author-eligible&clientNft=none')
+    await expect(
+      panel(page).getByText('Minting isn’t available on this site yet')
+    ).toBeVisible()
+    await expect(
+      panel(page).getByRole('button', { name: 'Mint article NFT' })
+    ).toHaveCount(0)
+    expect((await log(page)).prepared).toEqual([])
+  })
+
+  test('without the client NFT contract, the owner is not offered a transfer', async ({
+    page,
+  }) => {
+    await open(page, 'state=owner&clientNft=none')
+    await expect(
+      panel(page).getByText('Transfers aren’t available on this site yet')
+    ).toBeVisible()
+    await expect(
+      panel(page).getByRole('button', { name: 'Transfer NFT' })
+    ).toHaveCount(0)
+  })
+})

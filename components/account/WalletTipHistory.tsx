@@ -5,6 +5,7 @@ import type { TipActivityItem } from '@/lib/account/tipActivity'
 import {
   recordedUsd,
   TipReceiptDialog,
+  tipGenerationLabel,
   tipStatusLabel,
 } from './TipReceiptDialog'
 
@@ -80,9 +81,13 @@ export function WalletTipHistory({ items }: { items: TipActivityItem[] }) {
                     ? item.direction === 'sent'
                       ? 'Sent'
                       : 'Received'
-                    : tipStatusLabel(item.status)}
+                    : tipStatusLabel(item.status, item.mismatchReason)}
                 </span>
-                {item.stellarNetwork === 'TESTNET' && <span>Testnet</span>}
+                {tipGenerationLabel(item) ? (
+                  <span>{tipGenerationLabel(item)}</span>
+                ) : item.stellarNetwork === 'TESTNET' ? (
+                  <span>Testnet</span>
+                ) : null}
               </div>
               <button
                 className="account-text-link"

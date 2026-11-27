@@ -270,7 +270,7 @@ export const RESULT_COPY: Record<
   accepted: {
     title: 'Tip sent from your tab',
     detail:
-      'It usually settles on Stellar testnet within about 6 hours. Your tab balance already counts it.',
+      'Quilltip settles it on Stellar testnet once your unsettled tips to this writer reach 5 XLM, or when the oldest is 6 hours old. Your tab balance already counts it.',
   },
   shortfall: {
     title: 'Waiting for the tab balance',
@@ -283,6 +283,21 @@ export const RESULT_COPY: Record<
       'Stellar testnet was reset before this tip settled. No real money was involved.',
   },
 }
+
+/**
+ * `RESULT_COPY.failed` for flows that are not payments: an NFT mint or
+ * transfer that ended `FAILED` with no client failure to show.
+ */
+export const FAILED_COPY_BY_FLOW = {
+  'nft-mint': {
+    title: 'Not completed',
+    detail: 'Quilltip recorded no mint for this request. Nothing was sent.',
+  },
+  'nft-transfer': {
+    title: 'Not completed',
+    detail: 'Quilltip recorded no transfer for this request. Nothing was sent.',
+  },
+} as const satisfies Partial<Record<PaymentFlow, CopyBlock>>
 
 /** Tab tip results that read differently for the reader and the writer. */
 export const TAB_TIP_RESULT = {
@@ -350,12 +365,24 @@ export const FAILURE_COPY = {
  * shown. Every wallet error kind except `cancelled` has an entry, so a new
  * kind does not compile until it has copy.
  */
+/**
+ * The wallet is on another account than the linked address that must sign,
+ * found before any signature was requested (addresses shortened).
+ */
+export const WRONG_ACCOUNT_BEFORE_SIGNING = (
+  linked: string,
+  wallet: string
+): CopyBlock => ({
+  title: `Switch your wallet to ${linked}`,
+  detail: `This is signed by ${linked}, the address linked to your Quilltip account. Your wallet is on ${wallet}. Switch accounts in your wallet, then try again. Nothing was signed.`,
+})
+
 export const WALLET_FAILURE_COPY = {
   rejected: RESULT_COPY.declined,
   timeout: {
     title: 'Your wallet did not respond',
     detail:
-      'Check for an open wallet window, close it, then try again. Nothing was sent.',
+      'Your wallet may be locked: unlock it, then try again. If a wallet window is open, close it first. Nothing was sent.',
   },
   unsupported: {
     title: 'This wallet cannot be used here',

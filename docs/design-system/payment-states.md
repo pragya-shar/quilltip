@@ -339,7 +339,7 @@ Set `resultPlace` to where the result shows later, for example "your tab".
 | Failed                                | Not completed (or the client's failure title)       | QuillTip recorded no payment for this request. (or the client's failure detail)                                                                                          | Try again           | danger  | assertive |
 | Declined                              | Request declined in your wallet                     | Nothing was signed or sent.                                                                                                                                              | Try again           | warning | assertive |
 | Expired                               | This request timed out                              | Stellar testnet did not include it in time, so nothing was paid. Try again to start a new request.                                                                       | Try again           | warning | assertive |
-| Tab tip accepted                      | Tip sent from your tab                              | It usually settles on Stellar testnet within about 6 hours. Your tab balance already counts it.                                                                          | none                | info    | polite    |
+| Tab tip accepted                      | Tip sent from your tab                              | Quilltip settles it on Stellar testnet once your unsettled tips to this writer reach 5 XLM, or when the oldest is 6 hours old. Your tab balance already counts it.       | none                | info    | polite    |
 | Tab tip shortfall                     | Waiting for the tab balance                         | This tip is recorded, but the tab ran short. It settles after the next top-up.                                                                                           | none                | warning | polite    |
 | Tab tip unpaid, reader                | Not paid                                            | This tip was not settled before its quick-tip key ran out, so it was not paid. The amount is back in your tab balance.                                                   | none                | danger  | polite    |
 | Tab tip unpaid, writer                | Not paid                                            | This tip was not settled in time, so it will not be paid.                                                                                                                | none                | danger  | polite    |
@@ -397,18 +397,18 @@ Wallet failures while signing, with fixed titles. Every wallet error kind
 except `cancelled` has a row; a unit test fails to compile when a new kind
 has none.
 
-| Kind            | Title                                   | Detail                                                                               |
-| --------------- | --------------------------------------- | ------------------------------------------------------------------------------------ |
-| `rejected`      | Request declined in your wallet         | Nothing was signed or sent.                                                          |
-| `timeout`       | Your wallet did not respond             | Check for an open wallet window, close it, then try again. Nothing was sent.         |
-| `unsupported`   | This wallet cannot be used here         | Choose another wallet in the wallet list. Nothing was sent.                          |
-| `wrong-account` | Your wallet signed with another account | Switch back to the connected account in your wallet, or reconnect. Nothing was sent. |
-| `popup-blocked` | Your browser blocked the wallet window  | Allow pop-ups for this site in your browser, then try again. Nothing was sent.       |
-| `disconnected`  | Your wallet disconnected                | Your wallet ended the connection. Connect again, then try again. Nothing was sent.   |
-| `no-wallet`     | No Stellar wallet found                 | Install a Stellar wallet, then try again. Nothing was sent.                          |
-| `locked`        | Your wallet is locked                   | Unlock your wallet, then connect again. Nothing was sent.                            |
-| `wrong-network` | Switch your wallet to Testnet           | Switch it to Testnet, then try again. Nothing was sent.                              |
-| `failed`        | Your wallet reported a problem          | Try again, or reconnect your wallet. Nothing was sent.                               |
+| Kind            | Title                                   | Detail                                                                                                              |
+| --------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `rejected`      | Request declined in your wallet         | Nothing was signed or sent.                                                                                         |
+| `timeout`       | Your wallet did not respond             | Your wallet may be locked: unlock it, then try again. If a wallet window is open, close it first. Nothing was sent. |
+| `unsupported`   | This wallet cannot be used here         | Choose another wallet in the wallet list. Nothing was sent.                                                         |
+| `wrong-account` | Your wallet signed with another account | Switch back to the connected account in your wallet, or reconnect. Nothing was sent.                                |
+| `popup-blocked` | Your browser blocked the wallet window  | Allow pop-ups for this site in your browser, then try again. Nothing was sent.                                      |
+| `disconnected`  | Your wallet disconnected                | Your wallet ended the connection. Connect again, then try again. Nothing was sent.                                  |
+| `no-wallet`     | No Stellar wallet found                 | Install a Stellar wallet, then try again. Nothing was sent.                                                         |
+| `locked`        | Your wallet is locked                   | Unlock your wallet, then connect again. Nothing was sent.                                                           |
+| `wrong-network` | Switch your wallet to Testnet           | Switch it to Testnet, then try again. Nothing was sent.                                                             |
+| `failed`        | Your wallet reported a problem          | Try again, or reconnect your wallet. Nothing was sent.                                                              |
 
 Send and contract failures: "Not sent" with "Nothing was sent.", or for
 `not_sent`, "Stellar testnet is busy" with "Stellar testnet did not accept it.

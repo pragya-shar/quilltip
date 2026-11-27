@@ -506,12 +506,18 @@ describe('runNftCall', () => {
     ])
   })
 
-  it('refuses a wallet on another account', async () => {
+  it('refuses a wallet on another account before anything is signed', async () => {
     const d = deps({ connect: async () => RECIPIENT })
     const result = await runNftCall(d)
-    expect(result).toMatchObject({
-      status: 'wallet_failed',
-      error: { kind: 'wrong-account' },
+    // Named as a wrong account, not as a signature from one (#547).
+    expect(result).toEqual({
+      status: 'wrong_account',
+      expected: OWNER,
+      connected: RECIPIENT,
+    })
+    expect(recordFor(result)).toEqual({
+      reason: 'wallet_rejected',
+      detail: 'wrong_account',
     })
   })
 

@@ -40,6 +40,16 @@ export const NFT_COPY = {
     'Turn on tips for this article first. The NFT unlocks from tips on Stellar testnet.',
   unavailable: 'The NFT status can’t be read right now. Try again in a minute.',
   rateLimited: 'Too many checks in a row. Try again in a minute.',
+  notConfigured: {
+    title: 'Minting isn’t available on this site yet',
+    detail:
+      'This Quilltip site is not set up to mint article NFTs on Stellar testnet. Your tips still count toward the NFT.',
+  },
+  transferNotConfigured: {
+    title: 'Transfers aren’t available on this site yet',
+    detail:
+      'This Quilltip site is not set up for article NFTs on Stellar testnet. The NFT stays in your wallet.',
+  },
 } as const
 
 /** Author-only eligibility states with their own message (`getMintEligibility`). */
@@ -161,6 +171,21 @@ export const PREPARE_REFUSAL_FALLBACK: NftCopy = {
   title: 'Quilltip couldn’t prepare this',
   detail: 'Check your connection and try again. Nothing was sent.',
 }
+
+/**
+ * The wallet is on another account than the linked address, which must sign.
+ * Nothing was signed yet. Addresses are shortened.
+ */
+export const wrongAccountCopy = (
+  action: 'mint' | 'transfer',
+  linked: string,
+  connected: string
+): NftCopy => ({
+  title: `Switch your wallet to ${linked}`,
+  detail: `${
+    action === 'mint' ? 'Minting' : 'A transfer'
+  } is signed by ${linked}, the address linked to your Quilltip account. Your wallet is on ${connected}. Switch accounts in your wallet, then try again. Nothing was signed.`,
+})
 
 /** Shown when the local check refuses what the server prepared. */
 export const CHECK_FAILED_TITLE =

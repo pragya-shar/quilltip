@@ -267,7 +267,10 @@ The Next.js side reads `NEXT_PUBLIC_CORE_CONTRACT_ID`,
 `NEXT_PUBLIC_TAB_CONTRACT_ID`, `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` and
 `NEXT_PUBLIC_TOKEN_CONTRACT_ID`. The v2 NFT name differs from
 `NEXT_PUBLIC_NFT_CONTRACT_ID`, which the v1 NFT code reads until it is
-removed. The cutover order is in
+removed. `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` must name the same contract as
+the backend's `NFT_CONTRACT_ID`; while it is unset or different, the article
+NFT panel says minting and transfers are not available on this site instead
+of offering them. The cutover order is in
 [payments-v2-cutover.md](operations/payments-v2-cutover.md).
 
 Every function that reads the chain calls `assertBackendTestnet()` first. The

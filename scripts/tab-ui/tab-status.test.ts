@@ -37,6 +37,7 @@ const tab = (o: Partial<MyTab> = {}) =>
     acceptedToday: '0',
     acceptedDay: '2026-11-27',
     withdrawUnlockLedger: null,
+    onChain: true,
     keys: [],
     pairs: [],
     ...o,
@@ -71,6 +72,14 @@ describe('tabStatusView', () => {
     expect(
       tabStatusView({ tab: tab(), chainConfig: config(), clock }).kind
     ).toBe('open')
+    // Prepared, with no Tab event indexed yet: no tab to show (#547).
+    expect(
+      tabStatusView({
+        tab: tab({ onChain: false, confirmedBalance: '0', available: '0' }),
+        chainConfig: config(),
+        clock,
+      }).kind
+    ).toBe('none')
     expect(
       tabStatusView({
         tab: tab({ status: 'CLOSED' }),

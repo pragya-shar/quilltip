@@ -18,6 +18,10 @@ export const TAB_BALANCE = {
   heading: 'Balance',
   free: 'Free to tip',
   freeNote: 'What quick tips can use now.',
+  /** The same figure while the tab is closing: quick tips are off (#547). */
+  closingFree: 'Comes back to you',
+  closingFreeNote:
+    'Your tab is closing, so quick tips are off. This returns to your wallet with the withdrawal, after the tips still settling.',
   settling: 'Settling',
   settlingNote: 'Tips sent, not settled on chain yet.',
   confirmed: 'Tab balance',
@@ -28,6 +32,10 @@ export const TAB_EMPTY = {
   title: 'You don’t have a tab yet',
   detail:
     'A tab is a prepaid balance for tips. You approve one deposit in your wallet, and this device can then tip without asking again. You can close it and take back what is left at any time.',
+  /** The open was sent; its first events are on their way. */
+  openingTitle: 'Opening your tab',
+  openingDetail:
+    'Stellar testnet is confirming your deposit and this device’s key. This page updates by itself when it is done. There is nothing else to do.',
   closedTitle: 'Your tab is closed',
   closedDetail:
     'Your balance went back to your wallet. Open a tab again to tip without a wallet prompt.',
@@ -120,7 +128,8 @@ export const TAB_HISTORY = {
   highlight: 'Highlight',
   to: (name: string) => `To ${name}`,
   readMore: 'Read more',
-  accepted: 'Usually settles within about 6 hours',
+  /** The settler's rule (convex/lib/chain/settler.ts), not a fixed wait. */
+  accepted: 'Settles at 5 XLM to this writer, or after 6 hours',
 } as const
 
 export const TAB_CLOSE = {
@@ -159,7 +168,7 @@ export const TAB_SETTLEMENT = {
 export const TAB_TIP = {
   heading: 'Tip from your tab',
   noPrompt:
-    'No wallet prompt. It usually settles on Stellar testnet within about 6 hours.',
+    'No wallet prompt. Quilltip settles it on Stellar testnet once your unsettled tips to this writer reach 5 XLM, or when the oldest is 6 hours old.',
   /** After the amount: "12.5 XLM free in your tab". */
   freeSuffix: 'free in your tab',
   amountLabel: 'Tip amount',

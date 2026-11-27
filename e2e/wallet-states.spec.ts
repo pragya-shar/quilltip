@@ -105,6 +105,31 @@ test('locked wallet', async ({ page }) => {
   await expect(picker(page)).toBeHidden()
 })
 
+test('a locked wallet behind a password prompt is named while waiting and after (#547)', async ({
+  page,
+}) => {
+  // The real extension, when locked, waits behind its password prompt and
+  // tells the page nothing, so the app cannot show "locked" at once.
+  await page.clock.install()
+  await open(page, 'locked-prompt')
+  await chooseVarial(page)
+  await expect(
+    picker(page).getByText(
+      'Approve the request in Varial. If it asks for your password, unlock it first. If no window opened, check your browser toolbar.'
+    )
+  ).toBeVisible()
+  await expect
+    .poll(async () => (await requests(page)).map((r) => r.type))
+    .toContain('REQUEST_ACCESS')
+  await page.clock.fastForward(61_000)
+  await expect(page.getByText('Your wallet did not respond')).toBeVisible()
+  await expect(
+    page.getByText(
+      /Varial may be locked: unlock it, then try again\. If a wallet window is open, close it first\. Nothing was sent\./
+    )
+  ).toBeVisible()
+})
+
 test('wrong network is refused before any signature', async ({ page }) => {
   await open(page, 'wrong-network')
   await chooseVarial(page)

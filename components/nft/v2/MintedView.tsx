@@ -84,6 +84,9 @@ export function MintedView({
           {NFT_COPY.transferAction}
         </Button>
       ) : null}
+      {panel.transfer === 'not-configured' ? (
+        <PaymentNotice kind="refused" copy={NFT_COPY.transferNotConfigured} />
+      ) : null}
       {panel.transfer === 'paused' ? (
         <PaymentNotice kind="paused" copy={NFT_PAUSED_COPY.transfer} />
       ) : null}

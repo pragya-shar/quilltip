@@ -1058,6 +1058,13 @@ describe('event handlers', () => {
       spendLimit: (BigInt(50) * XLM).toString(),
       extractable: true,
     })
+    // Prepared, nothing indexed: the account exists but is not on chain yet
+    // (#547), so the screens do not show an open tab with zero balances.
+    expect(await as(t, s.readerId).query(api.tabs.getMyTab, {})).toMatchObject({
+      status: 'OPEN',
+      confirmedBalance: '0',
+      onChain: false,
+    })
     await ingest(
       t,
       ev.deposited(READER, BigInt(10) * XLM, BigInt(10) * XLM),
@@ -1065,6 +1072,7 @@ describe('event handlers', () => {
     )
     const tab = await as(t, s.readerId).query(api.tabs.getMyTab, {})
     expect(tab).toMatchObject({
+      onChain: true,
       status: 'OPEN',
       confirmedBalance: '100000000',
       available: '100000000',
