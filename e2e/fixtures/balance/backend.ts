@@ -313,10 +313,10 @@ function earnings() {
       collected: state.collectedBase,
     },
     figures: {
-      tabEarnedCents: settled,
+      settledCents: settled,
       tabCollectedCents: state.collectedCents,
       walletCents: 0,
-      tabSettledBaseUnits: '0',
+      settledBaseUnits: '0',
     },
     settlement: { enabled: true, expectedWithinMs: 75_000 },
   }

@@ -18,12 +18,21 @@ import { ConvexError } from 'convex/values'
 import { StrKey } from '@stellar/stellar-sdk'
 import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../../_generated/server'
-import { creditAuthorEarnings, tabShareCents } from '../authorEarnings'
+import {
+  creditAuthorEarnings,
+  newRowTotalsFields,
+  tabShareCents,
+} from '../authorEarnings'
+import {
+  creditTabTipTotals,
+  notePairEarned,
+  tabPaidDelta,
+} from '../lifetimeEarnings'
 import {
   isStellarAddressVerified,
   verifiedStellarAddress,
 } from '../walletVerification'
-import { creditTipRowTotals, syncReceiptMoney } from './balanceFigures'
+import { syncPaidPart, syncReceiptMoney, type PaidPart } from './balanceFigures'
 import { requireChainV2Enabled, type ChainEnv } from './env'
 import { BPS_DENOMINATOR, FEE_BPS } from './fees'
 import { highlightIdHex, isHexOfLength, newClientRefHex } from './ids'
@@ -1154,6 +1163,7 @@ export async function adjustBaseUnitEarnings(
       ...(collected !== ZERO
         ? { collectedBaseUnits: { [args.token]: collected.toString() } }
         : {}),
+      ...(await newRowTotalsFields(ctx, args.userId, args.now)),
       createdAt: args.now,
       updatedAt: args.now,
     })
@@ -1226,10 +1236,82 @@ export async function recomputePairEarnings(
     pending: dPending,
     now,
   })
+  // A rebuild of the writer's lifetime totals in progress needs the change
+  // (#552); the totals themselves count settled receipts, not pair payments.
+  if (dEarned !== ZERO) await notePairEarned(ctx, voucher, dEarned)
 }
 
 // ---------------------------------------------------------------------------
 // Receipt states
+
+/**
+ * The writer's net of the part of a receipt that the pair's `paid` amount
+ * covers (#552). The receipt spans `cumulativeAfter − amount` to
+ * `cumulativeAfter` of the pair's cumulative amount, so over a pair's receipts
+ * this sums to `netOf(paid)`; a fully paid receipt gives `receiptNet`.
+ */
+export function receiptPaidNet(
+  r: Pick<Doc<'tabReceipts'>, 'amount' | 'cumulativeAfter'>,
+  paid: bigint
+): bigint {
+  const after = big(r.cumulativeAfter)
+  const before = after - big(r.amount)
+  if (paid <= before) return ZERO
+  return netOf(paid < after ? paid : after) - netOf(before)
+}
+
+/**
+ * Credits the writers' lifetime tab totals with what each receipt of the pair
+ * gained when its paid amount grew from `oldPaid` to `newPaid` (#552). It runs
+ * once per paid range, so a replayed or repeated settlement adds nothing.
+ */
+async function creditTabPaidRange(
+  ctx: MutationCtx,
+  voucher: Doc<'tabVouchers'>,
+  oldPaid: bigint,
+  newPaid: bigint
+): Promise<void> {
+  for (const receipt of await pairReceipts(ctx, voucher)) {
+    const before = receiptPaidNet(receipt, oldPaid)
+    const after = receiptPaidNet(receipt, newPaid)
+    if (after === before) continue
+    const row = (await ctx.db.get(receipt.tipRowId)) as TipRow | null
+    // The running figures: on hold, reserved, and collects held ahead.
+    await syncPaidPart(ctx, receipt, {
+      amountCents: receipt.amountCents ?? row?.amountCents ?? 0,
+      before: paidPartOf(receipt, oldPaid),
+      after: paidPartOf(receipt, newPaid),
+      token: voucher.tokenContractId,
+      now: Date.now(),
+    })
+    if (!row) continue
+    await creditTabTipTotals(
+      ctx,
+      receipt.authorId,
+      ctx.db.normalizeId('tips', row._id) ? 'tips' : 'highlightTips',
+      row,
+      tabPaidDelta(
+        row.amountCents,
+        big(receipt.amount),
+        voucher.tokenContractId,
+        before,
+        after
+      )
+    )
+  }
+}
+
+/** What of a receipt a pair's paid amount covers, gross and net. */
+export function paidPartOf(
+  r: Pick<Doc<'tabReceipts'>, 'amount' | 'cumulativeAfter'>,
+  paid: bigint
+): PaidPart {
+  const after = big(r.cumulativeAfter)
+  const before = after - big(r.amount)
+  const gross =
+    paid <= before ? ZERO : paid < after ? paid - before : big(r.amount)
+  return { gross, net: receiptPaidNet(r, paid) }
+}
 
 /** The writer's net for one receipt under the cumulative fee rule. */
 export function receiptNet(
@@ -1263,6 +1345,7 @@ export async function syncReceiptMoneyFor(
   await syncReceiptMoney(ctx, receipt, {
     amountCents,
     net: receiptNet(receipt),
+    paid: paidPartOf(receipt, big(pair?.paidOnChain ?? '0')),
     token: pair?.tokenContractId ?? '',
     now,
   })
@@ -1300,16 +1383,6 @@ async function setReceiptStatus(
       earningsAppliedAt: now,
       updatedAt: now,
     })
-    // The settled row, by the lifetime totals' rule (#552).
-    const settled = (await ctx.db.get(row._id)) as TipRow | null
-    if (settled) {
-      await creditTipRowTotals(
-        ctx,
-        receipt.authorId,
-        ctx.db.normalizeId('tips', settled._id) ? 'tips' : 'highlightTips',
-        settled
-      )
-    }
     return
   }
   await patchTipRow(ctx, row._id, { status, updatedAt: now })
@@ -1595,6 +1668,7 @@ export async function applyPairSettlement(
         updatedAt: args.now,
       })
     }
+    await creditTabPaidRange(ctx, voucher, oldPaid, newPaid)
   }
   await applyPairPayment(ctx, voucher._id, {
     shortfallUpTo:

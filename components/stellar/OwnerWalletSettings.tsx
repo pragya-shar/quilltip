@@ -22,9 +22,14 @@ export function OwnerWalletSettings({
   className = '',
 }: WalletSettingsProps) {
   const updateProfile = useMutation(api.users.updateProfile)
-  const { isConnected, publicKey, network, disconnect } = useWallet({
-    activateOnMount: true,
-  })
+  const { isConnected, isRestoring, lastUsed, publicKey, network, disconnect } =
+    useWallet({
+      activateOnMount: true,
+    })
+  // A restored or switched wallet can be on another account than the saved
+  // one; payments sign with the saved one, so say so before any payment.
+  const otherAccount =
+    isConnected && publicKey && walletAddress && publicKey !== walletAddress
   const [removing, setRemoving] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -93,12 +98,16 @@ export function OwnerWalletSettings({
           <div className="account-connection-heading">
             <h2 id="wallet-connection-title">Your wallet</h2>
             <span className="account-badge">
-              {isConnected ? 'Connected' : 'Not connected'}
+              {isRestoring
+                ? 'Checking…'
+                : isConnected
+                  ? 'Connected'
+                  : 'Not connected'}
             </span>
           </div>
           <p>
             {walletAddress
-              ? isConnected
+              ? isConnected || isRestoring
                 ? 'Your receiving address is saved.'
                 : 'Your receiving address is saved. You can receive tips while disconnected.'
               : 'Connect to send tips. Save a receiving address to receive them.'}
@@ -113,6 +122,21 @@ export function OwnerWalletSettings({
                 Connected wallet{network ? ` (${network.toLowerCase()})` : ''}
               </span>
               <span>{publicKey}</span>
+            </p>
+          )}
+          {lastUsed && !isConnected && (
+            <p className="account-key">
+              <span>Last used: {lastUsed.walletName}</span>
+              <span>{lastUsed.address}</span>
+            </p>
+          )}
+          {otherAccount && (
+            <p className="account-key-mismatch">
+              This is not your saved address. To tip, switch your wallet to{' '}
+              <span className="account-key-short">
+                {walletAddress.slice(0, 4)}…{walletAddress.slice(-4)}
+              </span>
+              .
             </p>
           )}
         </div>

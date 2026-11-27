@@ -44,7 +44,7 @@ export const FIXTURES = [
     name: 'wallet',
     server: 'e2e/fixtures/wallet/server.mjs',
     port: 4177,
-    spec: 'e2e/wallet-(states|verification|coverage|connect).spec.ts',
+    spec: 'e2e/wallet-(states|verification|coverage|connect|restore).spec.ts',
     env: {
       WALLET_FIXTURES: '1',
       PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4177',

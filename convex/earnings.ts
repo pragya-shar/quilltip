@@ -20,35 +20,29 @@
  * never a scan, so it is exact at any history length. Cents carry
  * 1/10,000 of a cent; the screens floor them to whole cents.
  */
+import type { Doc } from './_generated/dataModel'
 import { query } from './_generated/server'
 import { roundCents } from './lib/authorEarnings'
+import { tabSettledOf } from './lib/lifetimeEarnings'
 import { caller, settlementExpectation } from './lib/moneyViews'
 
 const ZERO = BigInt(0)
 const big = (value: string | undefined) => (value ? BigInt(value) : ZERO)
 
 /**
- * Ready to collect, in base units, from balance-tip figures only: tab tips
- * settled on chain (`tabSettledBaseUnits`) minus what indexed `Claimed`
- * events collected (`collectedBaseUnits`). Wallet tips are never part of it
- * (they were paid straight to the wallet), so it does not read
- * `earnedBaseUnits`, and it needs no field that only the lifetime totals
- * change writes. Never below zero for display; a negative value is flagged.
+ * Ready to collect, in base units, from balance-tip figures only: the tab
+ * tips' net paid on chain (the lifetime totals' settled base units, #552)
+ * minus what indexed `Claimed` events collected (`collectedBaseUnits`).
+ * Wallet tips are never part of it (they were paid straight to the wallet),
+ * so it does not read `earnedBaseUnits`. Never below zero for display; a
+ * negative value is flagged.
  */
 export function readyToCollectBaseUnits(
-  row:
-    | {
-        userId?: string
-        tabSettledBaseUnits?: Record<string, string>
-        collectedBaseUnits?: Record<string, string>
-      }
-    | null
-    | undefined,
+  row: Doc<'authorEarnings'> | null | undefined,
   token: string
 ): bigint {
   const left =
-    big(row?.tabSettledBaseUnits?.[token]) -
-    big(row?.collectedBaseUnits?.[token])
+    tabSettledOf(row, token).baseUnits - big(row?.collectedBaseUnits?.[token])
   if (left < ZERO) {
     console.warn(
       JSON.stringify({
@@ -73,7 +67,8 @@ export const mine = query({
       .withIndex('by_user', (q) => q.eq('userId', me.userId))
       .first()
     const token = me.chain.tokenContractId ?? ''
-    const settled = row?.tabEarnedCents ?? 0
+    const tab = tabSettledOf(row, token)
+    const settled = tab.cents
     const tabCollected = row?.tabCollectedCents ?? 0
     const pendingCents = row?.tabPendingCents ?? 0
     const availableCents = Math.max(0, roundCents(settled - tabCollected))
@@ -88,7 +83,7 @@ export const mine = query({
       onHoldCents: row?.tabOnHoldCents ?? 0,
       notPaidCents: row?.tabNotPaidCents ?? 0,
       pendingCount: row?.tabPendingCount ?? 0,
-      settledCount: row?.tabTipCount ?? 0,
+      settledCount: tab.tipCount,
       onHoldCount: row?.tabOnHoldCount ?? 0,
       notPaidCount: row?.tabNotPaidCount ?? 0,
       baseUnits: {
@@ -101,10 +96,10 @@ export const mine = query({
       },
       /** The running figures behind the three, for reconciliation. */
       figures: {
-        tabEarnedCents: settled,
+        settledCents: settled,
         tabCollectedCents: tabCollected,
         walletCents,
-        tabSettledBaseUnits: row?.tabSettledBaseUnits?.[token] ?? '0',
+        settledBaseUnits: tab.baseUnits.toString(),
       },
       settlement: settlementExpectation(),
     }

@@ -302,6 +302,11 @@ export const tabTables = {
      * the receipt's money from this status to `status` once; unset means none.
      */
     moneyAppliedStatus: v.optional(tabReceiptStatusValidator),
+    /** The cents this receipt holds in its writer bucket (pending, on hold
+     * or not paid); unset on receipts applied before it existed. */
+    moneyAppliedCents: v.optional(v.number()),
+    /** The reader's cents it reserves (its unpaid part); unset as above. */
+    moneyReservedCents: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

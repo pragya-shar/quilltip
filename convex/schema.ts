@@ -4,6 +4,7 @@ import { v } from 'convex/values'
 import { authTables } from '@convex-dev/auth/server'
 import { nftChainFields, nftTransferChainFields } from './lib/chain/nftSchema'
 import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
+import { lifetimeTotalsFields } from './lib/lifetimeTotalsFields'
 
 export default defineSchema({
   ...authTables,
@@ -604,14 +605,6 @@ export default defineSchema({
     // The v2 part of tipCount and totalEarnedCents.
     v2TipCount: v.optional(v.number()),
     v2EarnedCents: v.optional(v.number()),
-    // Lifetime totals of tab tips settled on chain, as in the lifetime
-    // totals change (#552, `lifetimeTotalsFields`): written by
-    // `creditTipRowTotals` when `setReceiptStatus` settles a tip row.
-    // `walletEarnedBaseUnits` is the wallet part of `earnedBaseUnits`.
-    tabTipCount: v.optional(v.number()),
-    tabEarnedCents: v.optional(v.number()),
-    tabSettledBaseUnits: v.optional(v.record(v.string(), v.string())),
-    walletEarnedBaseUnits: v.optional(v.record(v.string(), v.string())),
     // Tab tips not settled, and collects, as running figures kept by
     // `syncReceiptMoney` and `syncCollectedCents`
     // (convex/lib/chain/balanceFigures.ts). Cents are the writer's share on
@@ -638,6 +631,11 @@ export default defineSchema({
     /** The `collectedBaseUnits` value already applied to cents. */
     tabCollectedAppliedBaseUnits: v.optional(v.record(v.string(), v.string())),
 
+    // Lifetime totals per recipient for the writer's earnings summary
+    // (#552, convex/lib/lifetimeEarnings.ts), and the progress of a row's
+    // rebuild from its history (convex/earningsTotalsBackfill.ts).
+    ...lifetimeTotalsFields,
+
     // Top articles (denormalized)
     topArticles: v.optional(
       v.array(
@@ -653,7 +651,13 @@ export default defineSchema({
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_user', ['userId']),
+  })
+    .index('by_user', ['userId'])
+    .index('by_lifetime_totals', [
+      'lifetimeTotalsAt',
+      'lifetimeRebuildFailedAt',
+      'lifetimeRebuildTurnAt',
+    ]),
 
   // Article NFTs table
   articleNFTs: defineTable({

@@ -16,10 +16,14 @@ import type { Id } from '../../convex/_generated/dataModel'
 import {
   SETTLE_GRACE_LEDGERS,
   netOf,
+  paidPartOf,
   receiptNet,
 } from '../../convex/lib/chain/tabLedger'
 import { tabShareCents } from '../../convex/lib/authorEarnings'
-import { syncCollectedCents } from '../../convex/lib/chain/balanceFigures'
+import {
+  syncCollectedCents,
+  unpaidCents,
+} from '../../convex/lib/chain/balanceFigures'
 import {
   centsFromBaseUnits,
   receiptShareCents,
@@ -103,6 +107,15 @@ async function checkInvariants(t: T, s: Seeded) {
   const pairs = await t.run(async (ctx) =>
     ctx.db.query('tabVouchers').collect()
   )
+  const paidOf = (r: (typeof rows)[number]) => {
+    const pair = pairs.find(
+      (p) =>
+        p.tabAccountId === r.tabAccountId &&
+        p.keyId === r.keyId &&
+        p.writerAddress === r.writerAddress
+    )
+    return paidPartOf(r, BigInt(pair?.paidOnChain ?? '0'))
+  }
 
   // M1: one entry per receipt on each side, and one receipt per tip row.
   const readerIds = v.readerActivity.page.map((e) => e.id)
@@ -138,31 +151,63 @@ async function checkInvariants(t: T, s: Seeded) {
     )
     expect(available <= confirmed - acceptedUnsettled).toBe(true)
     expect(v.session.availableCents).toBe(centsFromBaseUnits(available, 1))
-    expect(v.session.pendingCents).toBe(
+    // The reader's pending: the unpaid part of every tip still reserved.
+    expectCents(
+      v.session.pendingCents,
       rows
         .filter((r) => r.status === 'ACCEPTED' || r.status === 'SHORTFALL')
-        .reduce((sum, r) => sum + (cents.get(r._id) ?? 0), 0)
+        .reduce(
+          (sum, r) =>
+            sum +
+            unpaidCents(
+              cents.get(r._id) ?? 0,
+              BigInt(r.amount),
+              paidOf(r).gross
+            ),
+          0
+        )
     )
   }
 
-  // M3: the buckets partition the writer's receipts by status, and pending,
-  // available and collected sum to the tips that did not fail.
-  const share = (statuses: string[]) =>
+  // M3: what is paid on chain is settled (a tip paid in part counts its
+  // paid part, #552); the rest of a tip is pending while accepted, on hold
+  // while short, not paid once its pair closed. Pending, available and
+  // collected sum to the tips that did not fail plus the paid parts of
+  // those that did.
+  const shareOf = (r: (typeof rows)[number]) =>
+    receiptShareCents(r, cents.get(r._id)!)
+  const paidShare = (r: (typeof rows)[number]) =>
+    tabShareCents(cents.get(r._id)!, paidOf(r).net, BigInt(r.amount))
+  const sumOf = (
+    statuses: string[] | null,
+    pick: (r: (typeof rows)[number]) => number
+  ) =>
     writerRows
-      .filter((r) => statuses.includes(r.status))
-      .reduce((sum, r) => sum + receiptShareCents(r, cents.get(r._id)!), 0)
+      .filter((r) => !statuses || statuses.includes(r.status))
+      .reduce((sum, r) => sum + pick(r), 0)
   const e = v.earnings
-  expectCents(e.pendingCents, share(['ACCEPTED']))
-  expectCents(e.figures.tabEarnedCents, share(['SETTLED']))
+  expectCents(e.pendingCents, sumOf(['ACCEPTED'], shareOf))
+  expectCents(e.figures.settledCents, sumOf(null, paidShare))
   expectCents(
     e.availableCents + e.figures.tabCollectedCents,
-    share(['SETTLED'])
+    sumOf(null, paidShare)
   )
-  expectCents(e.onHoldCents, share(['SHORTFALL']))
-  expectCents(e.notPaidCents, share(['UNPAID', 'REJECTED', 'VOID_RESET']))
+  expectCents(
+    e.onHoldCents,
+    sumOf(['SHORTFALL'], (r) => shareOf(r) - paidShare(r))
+  )
+  expectCents(
+    e.notPaidCents,
+    sumOf(
+      ['UNPAID', 'REJECTED', 'VOID_RESET'],
+      (r) => shareOf(r) - paidShare(r)
+    )
+  )
   expectCents(
     e.pendingCents + e.availableCents + e.collectedCents,
-    share(['ACCEPTED', 'SETTLED']) + e.figures.walletCents
+    sumOf(['ACCEPTED'], shareOf) +
+      sumOf(null, paidShare) +
+      e.figures.walletCents
   )
   expectCents(
     e.totalCents,
@@ -171,15 +216,17 @@ async function checkInvariants(t: T, s: Seeded) {
   expect(e.pendingCount).toBe(
     writerRows.filter((r) => r.status === 'ACCEPTED').length
   )
+  // A tip counts once, from its first paid part.
   expect(e.settledCount).toBe(
-    writerRows.filter((r) => r.status === 'SETTLED').length
+    writerRows.filter((r) => paidOf(r).net > BigInt(0)).length
   )
-  // Base units: available is the settled tips' net minus what was
-  // collected, the same tips as the cents (never the pairs' part payments).
+  // Base units: available is the paid net minus what was collected, the
+  // same paid parts as the cents.
   const writerPairs = pairs.filter((p) => p.authorId === s.authorId)
-  const settledBase = writerRows
-    .filter((r) => r.status === 'SETTLED')
-    .reduce((sum, r) => sum + receiptNet(r), BigInt(0))
+  const settledBase = writerRows.reduce(
+    (sum, r) => sum + paidOf(r).net,
+    BigInt(0)
+  )
   const ready = settledBase - BigInt(e.baseUnits.collected)
   expect(BigInt(e.baseUnits.available)).toBe(
     ready > BigInt(0) ? ready : BigInt(0)
@@ -440,12 +487,12 @@ describe('money states across settlement', () => {
     ).toEqual(['rejected', 'rejected'])
   })
 
-  it('shows only fully paid tips as available after a short payment', async () => {
+  it('counts the paid part of a short payment as ready and holds the rest, one tip each', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
-    await tip(t, s, { cents: 10 })
-    await tip(t, s, { cents: 25 })
-    await tip(t, s, { cents: 4 })
+    await tip(t, s, { cents: 10 }) // 1.0 M base units
+    await tip(t, s, { cents: 25 }) // 2.5 M
+    await tip(t, s, { cents: 4 }) // 0.4 M
     await ingest(
       t,
       ev.tabSettled({
@@ -455,16 +502,77 @@ describe('money states across settlement', () => {
       })
     )
     const partial = await checkInvariants(t, s)
+    // The 10 cent tip is paid; the 25 cent tip is paid for 0.5 M of 2.5 M.
+    // Ready: 9.75 + 24.375 x 1/5 = 14.625 cents, netOf(1.5 M) base units.
+    // On hold: the rest of the 25 cent tip (19.5) and the 4 cent tip (3.9).
     expect(partial.views.earnings).toMatchObject({
-      availableCents: 9.75, // the 10 cent tip, net: the only one fully paid
+      availableCents: 14.625,
+      onHoldCents: 23.4,
       onHoldCount: 2,
       pendingCents: 0,
+      settledCount: 2,
     })
-    // Ready counts fully paid tips in both units: the 10 cent tip's net.
-    // (The pair's part payment of the next tip shows on that tip's row.)
     expect(partial.views.earnings.baseUnits.available).toBe(
-      receiptNet({ amount: '1000000', cumulativeAfter: '1000000' }).toString()
+      netOf(BigInt(1_500_000)).toString()
     )
+    // The reader: the unpaid parts stay reserved (25 cents x 4/5, and 4).
+    expect(partial.views.session!.pendingCents).toBe(24)
+    // Paid in full later: all of it ready, nothing on hold, still two tips
+    // plus the third.
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_900_000),
+        paidAfter: BigInt(3_900_000),
+        gross: BigInt(2_400_000),
+      })
+    )
+    const full = await checkInvariants(t, s)
+    expect(full.views.earnings).toMatchObject({
+      onHoldCents: 0,
+      onHoldCount: 0,
+      pendingCents: 0,
+      settledCount: 3,
+      baseUnits: { available: netOf(BigInt(3_900_000)).toString() },
+    })
+    expectCents(full.views.earnings.availableCents, 9.75 + 24.375 + 3.9)
+    expect(full.views.session!.pendingCents).toBe(0)
+  })
+
+  it('matches a collect seen before the last payment of a partly paid tip against what that payment paid', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 100 }) // 10 M
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(10_000_000),
+        paidAfter: BigInt(4_000_000),
+        gross: BigInt(4_000_000),
+      })
+    )
+    // The writer collects everything settled and more (the rest, early).
+    await ingest(t, ev.claimed(WRITER, netOf(BigInt(10_000_000))))
+    let e = (await checkInvariants(t, s)).views.earnings
+    expect(e).toMatchObject({ availableCents: 0, collectedCents: 39 })
+    expect(e.baseUnits.available).toBe('0')
+    // The last payment settles the rest; the early collect covers exactly it.
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(10_000_000),
+        paidAfter: BigInt(10_000_000),
+        gross: BigInt(6_000_000),
+      })
+    )
+    e = (await checkInvariants(t, s)).views.earnings
+    expect(e).toMatchObject({
+      availableCents: 0,
+      collectedCents: 97.5,
+      onHoldCents: 0,
+      pendingCents: 0,
+    })
+    expect(e.baseUnits.available).toBe('0')
   })
 
   it('keeps every invariant through a mixed sequence of tips and outcomes', async () => {
@@ -791,7 +899,8 @@ describe('totals at any history length and across collects (D10)', () => {
   })
 
   // The running fields as on a deployment that predates them: settled
-  // receipts and indexed collects, with no running figures yet.
+  // receipts and indexed collects, with neither the lifetime totals nor
+  // this slice's figures yet.
   async function clearRunningFigures(t: T) {
     await t.run(async (ctx) => {
       for (const row of await ctx.db.query('authorEarnings').collect())
@@ -799,6 +908,10 @@ describe('totals at any history length and across collects (D10)', () => {
           tabTipCount: undefined,
           tabEarnedCents: undefined,
           tabSettledBaseUnits: undefined,
+          walletEarnedBaseUnits: undefined,
+          lifetimeTotalsAt: undefined,
+          lifetimeRebuild: undefined,
+          lifetimeRebuildTurnAt: undefined,
           tabPendingCents: undefined,
           tabPendingCount: undefined,
           tabOnHoldCents: undefined,
@@ -811,15 +924,44 @@ describe('totals at any history length and across collects (D10)', () => {
           tabCollectedAppliedBaseUnits: undefined,
         })
       for (const r of await ctx.db.query('tabReceipts').collect())
-        await ctx.db.patch(r._id, { moneyAppliedStatus: undefined })
+        await ctx.db.patch(r._id, {
+          moneyAppliedStatus: undefined,
+          moneyAppliedCents: undefined,
+          moneyReservedCents: undefined,
+        })
       for (const a of await ctx.db.query('tabAccounts').collect())
         await ctx.db.patch(a._id, { reservedCents: undefined })
     })
   }
 
+  /** The lifetime totals' rebuild (#552), to its end. */
+  async function lifetimeRebuild(t: T) {
+    // Only this switch: the tab kit's own environment stays as it is.
+    process.env.EARNINGS_TOTALS_REBUILD_ENABLED = 'true'
+    try {
+      for (let i = 0; i < 100; i += 1) {
+        const pending = await t.query(
+          internal.earningsTotalsBackfill.pendingRows,
+          { limit: 1 }
+        )
+        if (pending.length === 0) return
+        await t.action(internal.earningsTotalsBackfill.run, {})
+      }
+      throw new Error('the lifetime rebuild did not finish')
+    } finally {
+      delete process.env.EARNINGS_TOTALS_REBUILD_ENABLED
+    }
+  }
+
   async function backfill(t: T) {
     await t.mutation(internal.balanceBackfill.start, {})
     await t.finishAllScheduledFunctions(vi.runAllTimers)
+  }
+
+  /** The order the backfills run in: the lifetime totals, then this one. */
+  async function backfillInOrder(t: T) {
+    await lifetimeRebuild(t)
+    await backfill(t)
   }
 
   it('backfills settled and collected history, twice, and a later tip is ready, not collected', async () => {
@@ -831,10 +973,12 @@ describe('totals at any history length and across collects (D10)', () => {
     expect(live).toMatchObject({ availableCents: 0, collectedCents: 390 })
 
     await clearRunningFigures(t)
-    await backfill(t)
+    await backfillInOrder(t)
     const once = (await checkInvariants(t, s)).views.earnings
     expect(once).toEqual(live)
+    // Either backfill again, in either order: the same figures.
     await backfill(t)
+    await lifetimeRebuild(t)
     expect(await as(t, s.authorId).query(api.earnings.mine, {})).toEqual(live)
 
     // A new tip after the backfill: ready to withdraw, not collected.
@@ -884,7 +1028,7 @@ describe('totals at any history length and across collects (D10)', () => {
         tabCollectedCents: 0,
       })
     })
-    await backfill(t)
+    await backfillInOrder(t)
     expect(await as(t, s.authorId).query(api.earnings.mine, {})).toEqual(live)
     await backfill(t)
     expect(await as(t, s.authorId).query(api.earnings.mine, {})).toEqual(live)
@@ -1196,7 +1340,7 @@ describe('ready to collect counts balance tips only, in both units', () => {
   async function check(
     t: T,
     s: Seeded,
-    expected: { readyBase: bigint; readyCents: number }
+    expected: { readyBase: bigint; readyCents: number; with567?: boolean }
   ) {
     const e = (await as(t, s.authorId).query(api.earnings.mine, {}))!
     expect(BigInt(e.baseUnits.available)).toBe(expected.readyBase)
@@ -1211,13 +1355,16 @@ describe('ready to collect counts balance tips only, in both units', () => {
       e.totalCents,
       e.pendingCents + e.availableCents + e.collectedCents
     )
-    // With the lifetime totals' fields present, their formula agrees.
+    // On a row that keeps the lifetime totals' wallet part, their formula
+    // agrees. (On a row that predates them, the totals' live credit writes an
+    // empty wallet part until the rebuild fills it: their formula does not
+    // apply there yet, and ready above does not depend on it.)
     const row = await t.run(async (ctx) =>
       (await ctx.db.query('authorEarnings').collect()).find(
         (r) => r.userId === s.authorId
       )
     )
-    if (row?.walletEarnedBaseUnits) {
+    if (expected.with567 && row?.walletEarnedBaseUnits) {
       const u = (r?: Record<string, string>) => BigInt(r?.[TOKEN] ?? '0')
       expect(
         u(row.earnedBaseUnits) -
@@ -1247,7 +1394,11 @@ describe('ready to collect counts balance tips only, in both units', () => {
       const t = convexTest(schema, modules)
       const s = await seed(t)
       await walletTip(t, s, with567)
-      const e = await check(t, s, { readyBase: BigInt(0), readyCents: 0 })
+      const e = await check(t, s, {
+        readyBase: BigInt(0),
+        readyCents: 0,
+        with567,
+      })
       expect(e.collectedCents).toBe(WALLET_CENTS)
     })
     it(`balance tips only (${label})`, async () => {
@@ -1262,7 +1413,7 @@ describe('ready to collect counts balance tips only, in both units', () => {
           ).find((r) => r.userId === s.authorId))!
           await ctx.db.patch(row._id, { walletEarnedBaseUnits: {} })
         })
-      await check(t, s, { readyBase: net, readyCents: 390 })
+      await check(t, s, { readyBase: net, readyCents: 390, with567 })
     })
     it(`wallet and balance tips (${label})`, async () => {
       const t = convexTest(schema, modules)
@@ -1270,7 +1421,7 @@ describe('ready to collect counts balance tips only, in both units', () => {
       await walletTip(t, s, with567)
       const { gross, net } = await balanceTips(t, s)
       await settle(t, gross)
-      const e = await check(t, s, { readyBase: net, readyCents: 390 })
+      const e = await check(t, s, { readyBase: net, readyCents: 390, with567 })
       expect(e.collectedCents).toBe(WALLET_CENTS)
     })
     it(`wallet and balance tips with a partial claim (${label})`, async () => {
@@ -1293,7 +1444,11 @@ describe('ready to collect counts balance tips only, in both units', () => {
       const { gross, net } = await balanceTips(t, s)
       await ingest(t, ev.claimed(WRITER, net))
       await settle(t, gross)
-      const e = await check(t, s, { readyBase: BigInt(0), readyCents: 0 })
+      const e = await check(t, s, {
+        readyBase: BigInt(0),
+        readyCents: 0,
+        with567,
+      })
       expectCents(e.collectedCents, WALLET_CENTS + 390)
     })
   }

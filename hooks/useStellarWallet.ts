@@ -1,7 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { wallet, type WalletConnection } from '@/lib/stellar/v2/wallet-kit'
+import { useAuth } from '@/components/providers/AuthContext'
+import {
+  REMEMBERED_WALLET_PREFIX,
+  type RememberedWallet,
+} from '@/lib/wallet/remembered-wallet'
+import { walletDisplayName } from '@/lib/stellar/wallet-catalog'
 import {
   isWalletError,
   type WalletErrorKind,
@@ -14,10 +20,28 @@ export interface WalletInfo {
   name: string
 }
 
+/** The reader's remembered wallet while it is not connected (#562). */
+export interface LastUsedWallet {
+  walletId: string
+  walletName: string
+  address: string
+}
+
 export interface StellarWalletState {
   isInstalled: boolean
   isConnected: boolean
   isLoading: boolean
+  /**
+   * Checking, without a prompt, whether the reader's last wallet can
+   * reconnect after a page load. It does not set `isLoading`, so nothing
+   * that waits on the wallet waits on the restore.
+   */
+  isRestoring: boolean
+  /**
+   * The signed-in reader's remembered wallet when it did not reconnect (it
+   * would need a prompt, or it is on another account), shown as last used.
+   */
+  lastUsed: LastUsedWallet | null
   publicKey: string | null
   network: string | null
   networkPassphrase: string | null
@@ -58,7 +82,18 @@ function connectedState(connection: WalletConnection) {
     networkPassphrase: connection.networkPassphrase,
     networkReported: connection.networkReported,
     selectedWallet: { id: connection.walletId, name: connection.walletName },
+    lastUsed: null,
   } satisfies Partial<StellarWalletState>
+}
+
+function lastUsedOf(record: RememberedWallet | null): LastUsedWallet | null {
+  return record
+    ? {
+        walletId: record.walletId,
+        walletName: walletDisplayName(record.walletId, 'Wallet'),
+        address: record.address,
+      }
+    : null
 }
 
 export function useStellarWallet(): StellarWalletState & StellarWalletActions {
@@ -67,6 +102,8 @@ export function useStellarWallet(): StellarWalletState & StellarWalletActions {
     return {
       isInstalled: false,
       isLoading: false,
+      isRestoring: false,
+      lastUsed: null,
       error: null,
       errorKind: null,
       ...DISCONNECTED,
@@ -128,6 +165,7 @@ export function useStellarWallet(): StellarWalletState & StellarWalletActions {
       ...prev,
       ...DISCONNECTED,
       isLoading: false,
+      lastUsed: null,
       error: null,
       errorKind: null,
     }))
@@ -163,12 +201,60 @@ export function useStellarWallet(): StellarWalletState & StellarWalletActions {
             case 'account':
               return { ...prev, publicKey: event.address }
             case 'disconnected':
-              return { ...prev, ...DISCONNECTED }
+              return { ...prev, ...DISCONNECTED, lastUsed: null }
           }
         })
       }),
     []
   )
+
+  // Restore (#562): while a reader is signed in, reconnect their last wallet
+  // only when it still reports the remembered address without a prompt.
+  // Otherwise it stays disconnected and is shown as last used. Signing out,
+  // or another reader signing in, forgets the previous reader's choice and
+  // connection.
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
+  const userId = isAuthenticated ? (user?._id ?? null) : null
+  const signedInAs = useRef<string | null | undefined>(undefined)
+  useEffect(() => {
+    if (authLoading || (isAuthenticated && !userId)) return
+    const previous = signedInAs.current
+    signedInAs.current = userId
+    // Forgets under the previous reader's key, before it changes.
+    if (previous && previous !== userId) disconnect()
+    wallet.setRemembering(userId)
+    if (!userId) {
+      setState((prev) => ({ ...prev, lastUsed: null }))
+      return
+    }
+    if (wallet.getConnection()) return
+    setState((prev) =>
+      prev.isConnected ? prev : { ...prev, isRestoring: true }
+    )
+    void wallet.restore().finally(() => {
+      setState((prev) => ({
+        ...prev,
+        isRestoring: false,
+        lastUsed: prev.isConnected
+          ? null
+          : lastUsedOf(wallet.rememberedWallet()),
+      }))
+    })
+  }, [authLoading, isAuthenticated, userId, disconnect])
+
+  // Disconnect or sign-out in another tab removes the remembered wallet:
+  // this tab lets go of it too.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && !event.key.startsWith(REMEMBERED_WALLET_PREFIX))
+        return
+      if (wallet.rememberedWallet()) return
+      if (wallet.getConnection()) disconnect()
+      else setState((prev) => ({ ...prev, lastUsed: null }))
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [disconnect])
 
   // A wallet can switch networks while the page is open. Check again when the
   // reader comes back to the tab; the request does not prompt.

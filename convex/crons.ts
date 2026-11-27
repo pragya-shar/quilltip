@@ -107,4 +107,13 @@ crons.interval(
   internal.tipEarnings.syncV2TipEarnings
 )
 
+// Rebuild earnings rows' lifetime totals from their history (#552). Each run
+// advances the rows that waited longest by bounded steps; it does nothing once
+// every row is rebuilt.
+crons.interval(
+  'rebuild lifetime earnings totals',
+  { minutes: 1 },
+  internal.earningsTotalsBackfill.run
+)
+
 export default crons

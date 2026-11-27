@@ -4,11 +4,14 @@
  * per call, read and written in one mutation, so a concurrent acceptance or
  * settlement either sees the recount or is retried after it.
  *
- * Writer: every bucket (pending, settled, on hold, not paid) is summed again
- * from the writer's receipts and written as an absolute value, and each
- * receipt's `moneyAppliedStatus` is set to its status. That credits receipts
- * settled before the figures existed (they were never credited), and running
- * it again writes the same values.
+ * Writer: pending (the whole share of each accepted tip), on hold and not
+ * paid (the share less what was paid) are summed again from the writer's
+ * receipts and written as absolute values, and each receipt's applied
+ * status and cents are set. Settled figures are the lifetime totals'
+ * (`tabTipCount`, `tabEarnedCents`, `tabSettledBaseUnits`, #552), which
+ * their own rebuild (`earningsTotalsBackfill`) fills; this file only reads
+ * them. Run this after that rebuild. Running either again is safe: this
+ * recount writes the same values from the same receipts and totals.
  *
  * Collected: rebuilt from the settled totals and the indexed
  * `collectedBaseUnits` at the average cost of everything settled
@@ -20,8 +23,9 @@
 import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx } from '../../_generated/server'
 import { roundCents, tabShareCents } from '../authorEarnings'
-import { bucketOf, earningsRow, reserves } from './balanceFigures'
-import { receiptNet } from './tabLedger'
+import { tabSettledOf } from '../lifetimeEarnings'
+import { bucketOf, earningsRow, reserves, unpaidCents } from './balanceFigures'
+import { paidPartOf, receiptNet, tabVoucher } from './tabLedger'
 
 const ZERO = BigInt(0)
 type TipRow = Doc<'tips'> | Doc<'highlightTips'>
@@ -57,6 +61,24 @@ export function rebuiltCollected(
   return { collectedCents, matched, ahead: collected - matched }
 }
 
+/** The pair's paid amount for a receipt, read once per pair. */
+function pairPaid(ctx: MutationCtx) {
+  const cache = new Map<string, bigint>()
+  return async (r: Doc<'tabReceipts'>) => {
+    const key = `${r.tabAccountId}:${r.keyId}:${r.writerAddress}`
+    if (!cache.has(key)) {
+      const pair = await tabVoucher(
+        ctx,
+        r.tabAccountId,
+        r.keyId,
+        r.writerAddress
+      )
+      cache.set(key, BigInt(pair?.paidOnChain ?? '0'))
+    }
+    return cache.get(key)!
+  }
+}
+
 /** Recounts one writer's figures from their receipts. */
 export async function recountWriter(
   ctx: MutationCtx,
@@ -69,29 +91,50 @@ export async function recountWriter(
     .withIndex('by_author_accepted', (q) => q.eq('authorId', userId))
     .collect()
   if (receipts.length === 0) return false
-  const cents = { pending: 0, onHold: 0, notPaid: 0, settled: 0 }
-  const counts = { pending: 0, onHold: 0, notPaid: 0, settled: 0 }
-  let settledBase = ZERO
+  const paidOf = pairPaid(ctx)
+  const cents = { pending: 0, onHold: 0, notPaid: 0 }
+  const counts = { pending: 0, onHold: 0, notPaid: 0 }
   for (const r of receipts) {
-    const net = receiptNet(r)
-    const share = tabShareCents(await centsOf(ctx, r), net, BigInt(r.amount))
+    const amount = BigInt(r.amount)
+    const amountCents = await centsOf(ctx, r)
+    const paid = paidPartOf(r, await paidOf(r))
+    const share = tabShareCents(amountCents, receiptNet(r), amount)
     const bucket = bucketOf(r.status)
-    cents[bucket] = roundCents(cents[bucket] + share)
-    counts[bucket] += 1
-    if (bucket === 'settled') settledBase += net
-    if (r.moneyAppliedStatus !== r.status)
-      await ctx.db.patch(r._id, { moneyAppliedStatus: r.status })
+    const held =
+      bucket === 'settled'
+        ? 0
+        : bucket === 'pending'
+          ? share
+          : Math.max(
+              0,
+              roundCents(share - tabShareCents(amountCents, paid.net, amount))
+            )
+    if (bucket !== 'settled') {
+      cents[bucket] = roundCents(cents[bucket] + held)
+      counts[bucket] += 1
+    }
+    const reserved = reserves(r.status)
+      ? unpaidCents(amountCents, amount, paid.gross)
+      : 0
+    if (
+      r.moneyAppliedStatus !== r.status ||
+      r.moneyAppliedCents !== held ||
+      r.moneyReservedCents !== reserved
+    )
+      await ctx.db.patch(r._id, {
+        moneyAppliedStatus: r.status,
+        moneyAppliedCents: held,
+        moneyReservedCents: reserved,
+      })
   }
   const row = await earningsRow(ctx, userId, now)
+  // Settled figures are the lifetime totals'; read, never written here.
+  const settled = tabSettledOf(row, token)
+  const settledCents = settled.cents
+  const settledBase = settled.baseUnits
   const collected = BigInt(row.collectedBaseUnits?.[token] ?? '0')
-  const rebuilt = rebuiltCollected(cents.settled, settledBase, collected)
+  const rebuilt = rebuiltCollected(settledCents, settledBase, collected)
   await ctx.db.patch(row._id, {
-    tabTipCount: counts.settled,
-    tabEarnedCents: cents.settled,
-    tabSettledBaseUnits: {
-      ...row.tabSettledBaseUnits,
-      [token]: settledBase.toString(),
-    },
     tabPendingCents: cents.pending,
     tabPendingCount: counts.pending,
     tabOnHoldCents: cents.onHold,
@@ -116,7 +159,7 @@ export async function recountWriter(
   return true
 }
 
-/** Recounts one reader's reserved cents from their receipts. */
+/** Recounts one reader's reserved cents (unpaid parts) from their receipts. */
 export async function recountReader(
   ctx: MutationCtx,
   account: Doc<'tabAccounts'>,
@@ -126,9 +169,18 @@ export async function recountReader(
     .query('tabReceipts')
     .withIndex('by_account_accepted', (q) => q.eq('tabAccountId', account._id))
     .collect()
+  const paidOf = pairPaid(ctx)
   let reserved = 0
   for (const r of receipts)
-    if (reserves(r.status)) reserved += await centsOf(ctx, r)
+    if (reserves(r.status))
+      reserved = roundCents(
+        reserved +
+          unpaidCents(
+            await centsOf(ctx, r),
+            BigInt(r.amount),
+            paidPartOf(r, await paidOf(r)).gross
+          )
+      )
   if (account.reservedCents !== reserved)
     await ctx.db.patch(account._id, { reservedCents: reserved, updatedAt: now })
 }
