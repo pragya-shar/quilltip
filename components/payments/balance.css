@@ -101,7 +101,7 @@
   bottom: 0;
   z-index: 85;
   padding: 0.625rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
-  background: color-mix(in oklch, var(--qt-paper) 94%, transparent);
+  background: var(--qt-paper);
   border-top: 1px solid var(--qt-line);
   box-shadow: 0 -8px 32px oklch(0.2 0.012 250 / 0.1);
   backdrop-filter: saturate(1.2);
