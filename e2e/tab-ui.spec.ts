@@ -223,7 +223,7 @@ const RESULTS: Array<[string, string | RegExp, boolean]> = [
   ['op-send-error', 'Not sent', true],
   ['op-busy', 'Stellar testnet is busy', true],
   ['op-expired', 'This request timed out', true],
-  ['op-failed', 'Not sent', true],
+  ['op-failed', 'Not completed', true],
   ['op-wallet-balance', 'Not enough XLM in your wallet', false],
   ['op-locked', 'Your wallet is locked', false],
   ['op-paused', 'Payments are paused', false],
