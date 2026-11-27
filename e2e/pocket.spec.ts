@@ -385,9 +385,7 @@ test.describe('every money scenario', () => {
       /^[\d,]+\.\d+ XLM$/
     )
     await expect(sheet).toContainText('Your balance is held in Lumens.')
-    await expect(sheet).toContainText(
-      'At today’s price of $0.127328'
-    )
+    await expect(sheet).toContainText('At today’s price of $0.127328')
     await expect(sheet).toContainText('Tips are sent in dollars.')
     await page.keyboard.press('Escape')
     await expect
