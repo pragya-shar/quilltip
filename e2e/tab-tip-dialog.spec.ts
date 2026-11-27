@@ -655,3 +655,168 @@ test.describe('signed out', () => {
     await expect(dialog.getByText('Tip without a wallet prompt')).toHaveCount(0)
   })
 })
+
+// --- Review of #550: time, presets and refusals --------------------------------
+
+/** The page's session id, for the stand-in backend. */
+const sessionOf = (page: Page) =>
+  new URL(page.url()).searchParams.get('session')!
+
+/** Changes the tab's tip limits in the stand-in backend, as an update would. */
+async function patchTipLimits(page: Page, patch: Record<string, unknown>) {
+  const session = sessionOf(page)
+  const state = await (
+    await page.request.get(`/api/state?session=${session}`)
+  ).json()
+  await page.request.post(`/api/control?session=${session}`, {
+    data: {
+      patch: {
+        tab: { ...state.tab, tipLimits: { ...state.tab.tipLimits, ...patch } },
+      },
+    },
+  })
+}
+
+test.describe('the clock with the dialog open', () => {
+  test.use({ viewport: { width: 1440, height: 1000 } })
+
+  test("today's limit lifts at 00:00 UTC without a reload", async ({
+    page,
+  }) => {
+    // 19.5 of 20 XLM accepted today: $0.10 (1 XLM) is over what is left.
+    const day = new Date().toISOString().slice(0, 10)
+    const beforeMidnight = Date.parse(`${day}T23:59:00.000Z`)
+    await page.clock.install({ time: beforeMidnight })
+    await open(page, 'dialog-daily-left')
+    // The cached price was fetched a minute ago by this clock.
+    await patchTipLimits(page, { priceFetchedAt: beforeMidnight - 60_000 })
+    const dialog = await openDialog(page, 'article')
+    const send = tabSection(dialog).getByRole('button', {
+      name: 'Send $0.10 from your tab',
+    })
+    await expect(
+      tabSection(dialog).getByText('This is over today’s tab limit', {
+        exact: true,
+      })
+    ).toBeVisible()
+    await expect(send).toHaveAttribute('aria-disabled', 'true')
+    await page.clock.fastForward('01:30')
+    await expect(
+      tabSection(dialog).getByText('This is over today’s tab limit', {
+        exact: true,
+      })
+    ).toHaveCount(0)
+    await expect(send).not.toHaveAttribute('aria-disabled', 'true')
+  })
+
+  test('a price that turns stale while the dialog is open is explained, and nothing is sent', async ({
+    page,
+  }) => {
+    const start = Date.now()
+    await page.clock.install({ time: start })
+    await open(page, 'tip-ready')
+    await patchTipLimits(page, { priceFetchedAt: start })
+    const dialog = await openDialog(page, 'article')
+    // The label follows the chosen amount, which the presets reset below.
+    const send = tabSection(dialog).getByRole('button', {
+      name: /^Send \$\d+\.\d\d from your tab$/,
+    })
+    await expect(send).not.toHaveAttribute('aria-disabled', 'true')
+    await expect
+      .poll(() => presets(dialog))
+      .toEqual(['$0.10', '$0.25', '$0.50'])
+    // Past prepare's 30-minute limit for a cached price.
+    await page.clock.fastForward('30:01')
+    await expect(
+      tabSection(dialog).getByText('No XLM price right now', { exact: true })
+    ).toBeVisible()
+    await expect(send).toHaveAttribute('aria-disabled', 'true')
+    // With no tab maximum to follow, the presets are the wallet's again.
+    await expect.poll(() => presets(dialog)).toEqual(['$1', '$2', '$5'])
+    await send.click({ force: true })
+    await page.waitForTimeout(300)
+    expect((await backend(page)).calls).not.toContain('prepareTip')
+  })
+})
+
+test.describe('presets, headings and refusals', () => {
+  test.use({ viewport: { width: 1440, height: 1000 } })
+
+  test('presets do not follow a tab that cannot send here', async ({
+    page,
+  }) => {
+    await open(page, 'tip-key-none')
+    const dialog = await openDialog(page, 'article')
+    await expect(
+      tabSection(dialog).getByText('Quick tips aren’t set up on this device', {
+        exact: true,
+      })
+    ).toBeVisible()
+    await page.waitForTimeout(400)
+    expect(await presets(dialog)).toEqual(['$1', '$2', '$5'])
+    await expect(dialog.getByText(/Tab tips go up to/)).toHaveCount(0)
+  })
+
+  test('a pressed preset that no longer fits becomes the largest that does', async ({
+    page,
+  }) => {
+    await open(page, 'tip-ready')
+    const dialog = await openDialog(page, 'article')
+    await dialog.getByRole('button', { name: '$0.50', exact: true }).click()
+    await expect(
+      tabSection(dialog).getByRole('button', {
+        name: 'Send $0.50 from your tab',
+      })
+    ).toBeVisible()
+    // The maximum drops to 2.5 XLM ($0.25).
+    await patchTipLimits(page, { tipMax: '25000000', tipMaxCents: 25 })
+    await expect
+      .poll(() => presets(dialog))
+      .toEqual(['$0.05', '$0.10', '$0.25'])
+    await expect(
+      dialog.getByRole('button', { name: '$0.25', exact: true })
+    ).toHaveAttribute('aria-pressed', 'true')
+    await expect(
+      tabSection(dialog).getByRole('button', {
+        name: 'Send $0.25 from your tab',
+      })
+    ).toBeVisible()
+  })
+
+  test('the wallet keeps its heading when the tab is blocked', async ({
+    page,
+  }) => {
+    await open(page, 'tip-ready')
+    const dialog = await openDialog(page, 'article')
+    await expect(
+      dialog.getByRole('heading', { name: 'From your wallet' })
+    ).toBeVisible()
+    await chooseAmount(dialog, '0.75')
+    await expect(
+      tabSection(dialog).getByText('Tab tips go up to $0.50 right now', {
+        exact: true,
+      })
+    ).toBeVisible()
+    await expect(
+      dialog.getByRole('heading', { name: 'From your wallet' })
+    ).toBeVisible()
+  })
+
+  test('a refusal clears when the amount changes', async ({ page }) => {
+    // The server refuses every quick tip with its daily limit.
+    await open(page, 'tip-daily-limit')
+    const dialog = await openDialog(page, 'article')
+    await sendFromTab(dialog)
+    const refusal = tabSection(dialog)
+      .locator('.pay-panel')
+      .getByText('Daily quick-tip limit reached', { exact: true })
+    await expect(refusal).toBeVisible()
+    await dialog.getByRole('button', { name: '$0.25', exact: true }).click()
+    await expect(refusal).toHaveCount(0)
+    await expect(
+      tabSection(dialog).getByRole('button', {
+        name: 'Send $0.25 from your tab',
+      })
+    ).toBeVisible()
+  })
+})

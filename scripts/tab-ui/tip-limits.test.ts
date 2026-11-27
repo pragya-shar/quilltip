@@ -6,21 +6,29 @@ import {
 } from '../../convex/lib/chain/tabLedger'
 import {
   checkTabTipAmount,
+  nextLimitsChange,
+  tabTipLimitsAt,
   tabTipPresets,
   tabTipStroops,
   type TabTipLimits,
 } from '../../lib/tab-ui/tip-limits'
 
 const XLM = BigInt(10_000_000)
+const NOW = Date.UTC(2026, 10, 27, 15, 0, 0)
+const MAX_AGE = 30 * 60 * 1000
 const limits = (o: Partial<TabTipLimits> = {}): TabTipLimits => ({
   tipMax: (BigInt(5) * XLM).toString(),
   dailyLimit: (BigInt(20) * XLM).toString(),
-  dailyLeft: (BigInt(20) * XLM).toString(),
+  acceptedToday: '0',
+  acceptedDay: '2026-11-27',
   minTip: '1000000',
   priceUsd: 0.13,
+  priceFetchedAt: NOW,
+  priceMaxAgeMs: MAX_AGE,
   tipMaxCents: maxCentsWithin(BigInt(5) * XLM, 0.13),
   ...o,
 })
+const free = (BigInt(20) * XLM).toString()
 
 describe('tab tip amounts (#546)', () => {
   it('converts cents exactly as prepare does', () => {
@@ -47,65 +55,155 @@ describe('tab tip amounts (#546)', () => {
   })
 
   it('reports the first limit an amount meets, in prepare order', () => {
-    const free = (BigInt(20) * XLM).toString()
-    expect(checkTabTipAmount({ cents: 65, limits: limits(), free })).toEqual({
+    const at = { limits: limits(), free, now: NOW }
+    expect(checkTabTipAmount({ ...at, cents: 65 })).toEqual({
       ok: true,
       amount: '50000000',
     })
-    expect(checkTabTipAmount({ cents: 66, limits: limits(), free })).toEqual({
+    expect(checkTabTipAmount({ ...at, cents: 66 })).toEqual({
       ok: false,
       reason: 'above-max',
       maxCents: 65,
     })
-    expect(
-      checkTabTipAmount({ cents: 1, limits: limits(), free })
-    ).toMatchObject({ ok: false, reason: 'below-minimum' })
-    expect(
-      checkTabTipAmount({
-        cents: 50,
-        limits: limits({ dailyLeft: '1000' }),
-        free,
-      })
-    ).toMatchObject({ ok: false, reason: 'daily-limit', left: '1000' })
-    expect(
-      checkTabTipAmount({ cents: 50, limits: limits(), free: '1' })
-    ).toMatchObject({ ok: false, reason: 'balance', free: '1' })
+    expect(checkTabTipAmount({ ...at, cents: 1 })).toMatchObject({
+      ok: false,
+      reason: 'below-minimum',
+    })
+    expect(checkTabTipAmount({ ...at, cents: 50, free: '1' })).toMatchObject({
+      ok: false,
+      reason: 'balance',
+      free: '1',
+    })
     expect(
       checkTabTipAmount({
+        ...at,
         cents: 50,
-        limits: limits(),
-        free,
         key: { acceptedTotal: '10', spendLimit: '20' },
       })
     ).toMatchObject({ ok: false, reason: 'key-limit', left: '10' })
     expect(
       checkTabTipAmount({
+        ...at,
         cents: 50,
-        limits: limits({ priceUsd: null, tipMaxCents: null }),
+        limits: limits({ priceUsd: null, priceFetchedAt: null }),
+      })
+    ).toEqual({ ok: false, reason: 'no-price' })
+  })
+})
+
+describe("today's limit (review of #550)", () => {
+  // $0.10 per XLM: 50 cents is exactly 5 XLM.
+  const at = (o: Partial<TabTipLimits>, now = NOW) => ({
+    // A price fetched at `now`, so only the day decides.
+    limits: limits({
+      priceUsd: 0.1,
+      tipMaxCents: 50,
+      priceFetchedAt: now,
+      ...o,
+    }),
+    free,
+    now,
+  })
+
+  it('a tip exactly equal to what is left today passes; one stroop more does not', () => {
+    // 15 of 20 XLM accepted today: 5 XLM left.
+    const left = { acceptedToday: (BigInt(15) * XLM).toString() }
+    expect(checkTabTipAmount({ ...at(left), cents: 50 })).toEqual({
+      ok: true,
+      amount: '50000000',
+    })
+    expect(
+      checkTabTipAmount({
+        ...at({ acceptedToday: (BigInt(15) * XLM + BigInt(1)).toString() }),
+        cents: 50,
+      })
+    ).toMatchObject({ ok: false, reason: 'daily-limit', left: '49999999' })
+  })
+
+  it('a new UTC day starts at zero, by the clock passed in', () => {
+    const spent = { acceptedToday: (BigInt(20) * XLM).toString() }
+    const beforeMidnight = Date.UTC(2026, 10, 27, 23, 59, 59, 999)
+    const afterMidnight = Date.UTC(2026, 10, 28, 0, 0, 0)
+    expect(
+      checkTabTipAmount({ ...at(spent, beforeMidnight), cents: 10 })
+    ).toMatchObject({ ok: false, reason: 'daily-limit', left: '0' })
+    expect(
+      checkTabTipAmount({ ...at(spent, afterMidnight), cents: 10 })
+    ).toMatchObject({ ok: true })
+    expect(tabTipLimitsAt(limits(spent), afterMidnight).dailyLeft).toBe(
+      BigInt(20) * XLM
+    )
+  })
+
+  it('a price turns stale after its maximum age, by the clock passed in', () => {
+    const fresh = tabTipLimitsAt(limits(), NOW + MAX_AGE)
+    expect(fresh).toMatchObject({ priceUsd: 0.13, tipMaxCents: 65 })
+    const stale = tabTipLimitsAt(limits(), NOW + MAX_AGE + 1)
+    expect(stale).toMatchObject({ priceUsd: null, tipMaxCents: null })
+    expect(
+      checkTabTipAmount({
+        limits: limits(),
         free,
+        now: NOW + MAX_AGE + 1,
+        cents: 25,
       })
     ).toEqual({ ok: false, reason: 'no-price' })
   })
 
+  it('knows when to check again: the price going stale, else midnight', () => {
+    expect(nextLimitsChange(limits(), NOW)).toBe(NOW + MAX_AGE + 1)
+    const midnight = Date.UTC(2026, 10, 28)
+    const late = Date.UTC(2026, 10, 27, 23, 50)
+    expect(nextLimitsChange(limits({ priceFetchedAt: late }), late)).toBe(
+      midnight
+    )
+    expect(nextLimitsChange(limits({ priceFetchedAt: null }), NOW)).toBe(
+      midnight
+    )
+    // Already stale: only midnight is ahead.
+    expect(nextLimitsChange(limits(), NOW + MAX_AGE + 5)).toBe(midnight)
+  })
+})
+
+describe('presets', () => {
+  const base = [100, 200, 500]
+
   it('never offers a preset above the maximum', () => {
-    const base = [100, 200, 500]
     expect(tabTipPresets(base, 10_000)).toEqual(base)
     expect(tabTipPresets(base, 500)).toEqual(base)
-    // 65 cents: $0.65 is the top preset.
     expect(tabTipPresets(base, 65, 3)).toEqual([25, 50, 65])
-    // 61 cents rounds down to $0.60.
     expect(tabTipPresets(base, 61, 3)).toEqual([25, 50, 60])
     expect(tabTipPresets(base, 384, 3)).toEqual([100, 200, 380])
     expect(tabTipPresets(base, 12, 3)).toEqual([5, 10, 12])
-    // Nothing fits above the minimum: the presets stay, the tab explains.
-    expect(tabTipPresets(base, 2, 3)).toEqual(base)
-    for (const max of [3, 7, 19, 20, 49, 99, 101, 499]) {
-      const presets = tabTipPresets(base, max, 3)
-      expect(presets.length).toBeGreaterThanOrEqual(1)
-      expect(presets.length).toBeLessThanOrEqual(3)
-      expect(Math.min(...presets)).toBeGreaterThanOrEqual(3)
-      expect(Math.max(...presets)).toBeLessThanOrEqual(max)
-      expect(new Set(presets).size).toBe(presets.length)
+    // The rounded-down top would fall below the minimum: the maximum is it.
+    expect(tabTipPresets(base, 22, 21)).toEqual([22])
+    expect(tabTipPresets(base, 99, 99)).toEqual([99])
+    expect(tabTipPresets(base, 104, 101)).toEqual([104])
+    // Nothing fits: the tab can send nothing, the wallet's presets stay.
+    expect(tabTipPresets(base, 2, 3)).toBeNull()
+  })
+
+  it('property: every preset lies between the minimum and the maximum', () => {
+    for (let min = 1; min <= 150; min += 1) {
+      for (let max = 1; max <= 700; max += 1) {
+        const presets = tabTipPresets(base, max, min)
+        if (max < min) {
+          expect(presets).toBeNull()
+          continue
+        }
+        expect(presets, `min ${min}, max ${max}`).not.toBeNull()
+        const list = presets!
+        expect(list.length).toBeGreaterThanOrEqual(1)
+        expect(list.length).toBeLessThanOrEqual(base.length)
+        expect(new Set(list).size).toBe(list.length)
+        expect([...list].sort((a, b) => a - b)).toEqual(list)
+        for (const cents of list) {
+          expect(cents, `min ${min}, max ${max}: ${list}`).toBeLessThanOrEqual(
+            max
+          )
+          expect(cents).toBeGreaterThanOrEqual(min)
+        }
+      }
     }
   })
 })
