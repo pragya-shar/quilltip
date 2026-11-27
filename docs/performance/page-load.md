@@ -359,13 +359,21 @@ connections the local server allows. The global stylesheet finished at about
 
 ### What changed
 
-- **Body images load lazily.** The server-rendered article body marks every
-  image after the first two top-level blocks `loading="lazy"` and
-  `decoding="async"` (`lib/tiptap/markBodyImagesLazy.ts`). An image in the
-  opening blocks may be on the first screen, or be the largest paint, so it
-  stays eager. Images keep their `width` and `height`, so their space is
-  reserved: scrolling to them after load shifts nothing (CLS 0.000 at 375 and
-  1440 px). Article applied LCP: 2083 to 1770 ms.
+- **Body images load lazily.** The server-rendered article body marks
+  images `loading="lazy"` and `decoding="async"`
+  (`lib/tiptap/markBodyImagesLazy.ts`), except in the first two top-level
+  blocks and in the block that holds the first image. Those may be on the
+  first screen or be the largest paint (in an article without a cover, the
+  first image often is, even after a heading and a paragraph), so they stay
+  eager. Article applied LCP: 2083 to 1770 ms.
+  - Only images with a stored `width` and `height` reserve their space. The
+    writing desk stores them only after a writer resizes an image, so other
+    images reserve none, lazy or eager, as before this change. On the seeded
+    article, whose images have sizes, scrolling after load shifted nothing
+    (CLS 0.000 at 375 and 1440 px).
+  - Lazy marking covers the server HTML only. The client body that replaces
+    it after load renders every image eagerly, as before, so the gain is in
+    the first seconds of the load.
 - **The highlight stylesheet left the root layout.** `highlights.css` was
   render-blocking on every page (3.5 KB gzip), and none of its rules apply at
   first paint on these four routes. It now lives in
