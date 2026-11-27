@@ -17,7 +17,13 @@ export type Cents = number
  * follows `CONVERTED_STYLE` in `money.ts`; write it yourself with
  * `formatMoney(cents, { converted, convertedStyle })` to choose otherwise.
  */
-export type Money = { cents: Cents; display: string; converted?: boolean }
+export type Money = {
+  cents: Cents
+  display: string
+  converted?: boolean
+  /** For a screen reader: "about 18 dollars 40" (`spokenMoney`). */
+  spoken?: string
+}
 
 export type PassageRef = {
   text: string
@@ -105,6 +111,12 @@ export type BalanceView = {
   network: 'testnet'
   /** The exact token amount of `available`. Null until read. */
   exact?: { token: 'XLM'; available: string } | null
+  /**
+   * The price the converted `available` used: one token's dollar price,
+   * exact to four decimals ("$0.1273"), and when it was read. Null when the
+   * balance is not converted or no price is known.
+   */
+  price?: { perToken: Money; asOf: number } | null
   /**
    * When these figures were last known current (client time): it advances
    * while online and stops when offline, so a screen can say how old they

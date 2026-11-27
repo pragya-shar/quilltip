@@ -10,7 +10,11 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { useAsOf } from '../../components/payments/useAsOf'
 import { FAKE_SCENARIOS, fakePayments } from '../../lib/payments/fake'
-import { centsToBaseUnits } from '../../lib/payments/money'
+import {
+  centsToBaseUnits,
+  convertedMoney,
+  spokenMoney,
+} from '../../lib/payments/money'
 import type { OutboxEntry } from '../../lib/payments/outbox'
 import {
   activityItemOf,
@@ -378,5 +382,37 @@ describe('a tip intent returning from sign-in', () => {
     expect(clampIntent(25, ladder)).toBe(25)
     expect(clampIntent(5, ladder)).toBeNull()
     expect(clampIntent(100, [100, 200, 300, 500])).toBe(100)
+  })
+})
+
+describe('the spoken form and the conversion price', () => {
+  it('says money for a screen reader, "about" for a conversion', () => {
+    expect(spokenMoney(1840, { converted: true })).toBe('about 18 dollars 40')
+    expect(spokenMoney(1840.9, { converted: true })).toBe('about 18 dollars 40')
+    expect(spokenMoney(100)).toBe('1 dollar')
+    expect(spokenMoney(9.75)).toBe('9.75 cents')
+    expect(spokenMoney(1)).toBe('1 cent')
+    expect(convertedMoney(1840)).toMatchObject({
+      display: '≈ $18.40',
+      spoken: 'about 18 dollars 40',
+      converted: true,
+    })
+  })
+
+  it('names the price the converted balance used, to four decimals', () => {
+    const v = balance(session())
+    expect(v.price!.perToken).toMatchObject({
+      cents: 12.73,
+      display: '$0.1273',
+      converted: false,
+    })
+    expect(v.price!.asOf).toBe(NOW)
+    expect(balance(undefined).price).toBeNull()
+    // The fake names it too, wherever the balance is converted.
+    expect(fakePayments('ready', NOW).balance.price!.perToken.display).toBe(
+      '$0.1273'
+    )
+    expect(fakePayments('loading', NOW).balance.price).toBeNull()
+    expect(fakePayments('signed-out', NOW).balance.price).toBeNull()
   })
 })

@@ -32,7 +32,10 @@ The signed-in reader's balance.
 Also: `device` (`loading`, `ready`, `needs-setup`, `unavailable`): whether
 this device can tip without a prompt; `online`; `settlement.expectedWithinMs`;
 `exact` (`{ token: 'XLM', available }`: spendable in base units, the token
-amount behind the converted figure, null until read); `asOf` (client time the figures were last
+amount behind the converted figure, null until read); `price` (`{ perToken,
+asOf }`: the dollar price of one XLM the conversion used, exact to four
+decimals, "1 XLM is $0.1273 now", and when it was read; null when there is
+no converted figure or no price); `asOf` (client time the figures were last
 known current: it follows the clock while online and stops when offline, so
 a screen can say "as of 4 minutes ago"; null until read).
 
@@ -168,9 +171,10 @@ amount; a `Money`'s `display` is its output with the defaults.
   | A row's `amount`, `net`, `paid`, `fee`, `unpaid` | tip-time cents                                                                          | `false`     |
   | A tip button's amount and the ladder             | cents chosen at tip time                                                                | `false`     |
 
-  A `Money`'s `display` is the sheet form. The bar's balance item is
-  written bare by the foundation (`formatMoney(cents, { converted: true,
-convertedStyle: 'plain' })`), not by this default.
+  A screen writes "≈" wherever a figure's `converted` is true, the bar's
+  balance item included: `display` is that form ("≈ $18.40", two decimals),
+  and `spoken` says "about 18 dollars 40" for a screen reader
+  (`spokenMoney`).
 
 - **Converted figures:** a `Money` converted from a token amount at today's
   price (the reader's spendable `available`) has `converted: true`; its

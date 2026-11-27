@@ -74,8 +74,34 @@ export function formatShort(cents: Cents): string {
 }
 
 /** A figure stored at tip time: exact, never a conversion. */
+/**
+ * The spoken form, for a screen reader: "18 dollars 40", "9.75 cents"; a
+ * converted figure reads to the cent with "about" in place of "≈" ("about
+ * 18 dollars 40").
+ */
+export function spokenMoney(
+  cents: Cents,
+  format: Pick<MoneyFormat, 'converted'> = {}
+): string {
+  const value = format.converted
+    ? Math.floor(Math.max(0, cents) + 1e-9)
+    : Math.round(Math.max(0, cents) * 10_000) / 10_000
+  const dollars = Math.floor(value / 100)
+  const rest = Math.round((value - dollars * 100) * 10_000) / 10_000
+  const words =
+    dollars === 0
+      ? `${rest} ${rest === 1 ? 'cent' : 'cents'}`
+      : `${dollars.toLocaleString('en-US')} ${dollars === 1 ? 'dollar' : 'dollars'}${rest ? ` ${rest}` : ''}`
+  return format.converted ? `about ${words}` : words
+}
+
 export function money(cents: Cents): Money {
-  return { cents, display: formatMoney(cents), converted: false }
+  return {
+    cents,
+    display: formatMoney(cents),
+    converted: false,
+    spoken: spokenMoney(cents),
+  }
 }
 
 /** A figure converted from a token amount at today's price. */
@@ -84,6 +110,7 @@ export function convertedMoney(cents: Cents): Money {
     cents,
     display: formatMoney(cents, { converted: true }),
     converted: true,
+    spoken: spokenMoney(cents, { converted: true }),
   }
 }
 

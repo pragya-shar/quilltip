@@ -97,7 +97,7 @@ describe('money text (N2)', () => {
     // A figure stored at tip time is never approximate.
     expect(formatMoney(254, { convertedStyle: 'approx' })).toBe('$2.54')
     // The default is the constant, and the views use it.
-    expect(convertedMoney(254)).toEqual({
+    expect(convertedMoney(254)).toMatchObject({
       cents: 254,
       converted: true,
       display: formatMoney(254, {

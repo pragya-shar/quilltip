@@ -102,6 +102,7 @@ function balance(over: Partial<BalanceView>, asOf: number): BalanceView {
     online: true,
     network: 'testnet',
     asOf,
+    price: { perToken: money(12.73), asOf },
     ...over,
   }
   return {
@@ -116,6 +117,7 @@ function balance(over: Partial<BalanceView>, asOf: number): BalanceView {
 }
 
 const LOADING_BALANCE: Partial<BalanceView> = {
+  price: null,
   status: 'loading',
   available: null,
   pending: null,

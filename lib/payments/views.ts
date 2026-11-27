@@ -152,11 +152,20 @@ export function balanceViewOf(input: {
     network: 'testnet',
     exact: null,
     asOf: null,
+    price: null,
   }
   if (input.authLoading) return base
   if (!input.signedIn || session === null)
     return { ...base, status: 'signed-out' }
   if (session === undefined) return base
+  // The price the conversion uses, the same one the server's figure used.
+  const read = session.prices[0]
+  const priceView = read
+    ? {
+        perToken: money(Math.round(read.usd * 10_000) / 100),
+        asOf: read.at,
+      }
+    : null
   // The server answered: no balance yet is a real zero.
   if (session.status === 'none')
     return {
@@ -166,6 +175,7 @@ export function balanceViewOf(input: {
       pending: money(0),
       exact: { token: 'XLM', available: '0' },
       asOf: input.asOf ?? null,
+      price: priceView,
     }
 
   const price = session.prices[0]?.usd ?? 0
@@ -216,6 +226,7 @@ export function balanceViewOf(input: {
       available: (left > BigInt(0) ? left : BigInt(0)).toString(),
     },
     asOf: input.asOf ?? null,
+    price: priceView,
     pending: money(session.pendingCents + sendingCents),
     deviceReady: input.device === 'ready',
     limits,
