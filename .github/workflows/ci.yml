@@ -329,15 +329,44 @@ jobs:
             ${{ runner.temp }}/wasm/sizes.tsv
           if-no-files-found: error
 
+  # One shard per fixture suite, in parallel. Required reads the combined
+  # result: it fails when any shard fails or is cancelled. Every suite in
+  # scripts/fixture-suites.ts must appear in exactly one shard
+  # (scripts/ci/fixture-shards.test.ts).
   e2e-fixtures:
-    name: Playwright (fixtures)
+    name: Playwright (fixtures, ${{ matrix.shard }})
     runs-on: ubuntu-latest
-    # The suites run one after another on one worker: about 15 minutes with
-    # the tips v2 suite (#448), so allow room as suites grow.
-    timeout-minutes: 25
+    # Per shard; the longest shard took about 6 minutes on 8f7cc45.
+    timeout-minutes: 15
     permissions:
       contents: read
     needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: presentation
+            suites: nft,recovery,avatar
+            browsers: chromium
+          - shard: payments
+            suites: payments
+            browsers: chromium
+          - shard: wallet
+            suites: wallet
+            browsers: chromium
+          - shard: article-tips
+            suites: article-tips
+            browsers: chromium
+          - shard: tips-v2
+            suites: tips-v2
+            browsers: chromium
+          - shard: nft-v2
+            suites: nft-v2
+            browsers: chromium
+          # The tab session-key suite runs in all three engines.
+          - shard: tab
+            suites: tab
+            browsers: chromium firefox webkit
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -350,12 +379,17 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # The tab session-key suite runs in all three engines.
       - name: Install Playwright browsers
-        run: bunx playwright install --with-deps chromium firefox webkit
+        env:
+          SHARD_BROWSERS: ${{ matrix.browsers }}
+        run: |
+          read -r -a engines <<<"$SHARD_BROWSERS"
+          bunx playwright install --with-deps "${engines[@]}"
 
       - name: Run fixture suites (no secrets, no backend)
-        run: bun run test:e2e:fixtures
+        env:
+          SUITES: ${{ matrix.suites }}
+        run: bun run test:e2e:fixtures --suite "$SUITES"
 
   contracts-integration:
     name: Contracts (local network)
