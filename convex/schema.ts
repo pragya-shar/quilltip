@@ -5,6 +5,7 @@ import { authTables } from '@convex-dev/auth/server'
 import { nftChainFields, nftTransferChainFields } from './lib/chain/nftSchema'
 import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
 import { lifetimeTotalsFields } from './lib/lifetimeTotalsFields'
+import { countsTables } from './schema/counts'
 import { passagesTables } from './schema/passages'
 
 export default defineSchema({
@@ -876,4 +877,5 @@ export default defineSchema({
   ...chainTables,
   ...tabTables,
   ...passagesTables,
+  ...countsTables,
 })
