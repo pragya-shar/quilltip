@@ -362,10 +362,16 @@ connections the local server allows. The global stylesheet finished at about
 - **Body images load lazily.** The server-rendered article body marks
   images `loading="lazy"` and `decoding="async"`
   (`lib/tiptap/markBodyImagesLazy.ts`), except in the first two top-level
-  blocks and in the block that holds the first image. Those may be on the
-  first screen or be the largest paint (in an article without a cover, the
-  first image often is, even after a heading and a paragraph), so they stay
-  eager. Article applied LCP: 2083 to 1770 ms.
+  blocks and in the block that holds the first image when at most 500
+  characters of text come before it. Those may be on the first screen or be
+  the largest paint (in an article without a cover, an image after a heading
+  and a short paragraph often is), so they stay eager. Article applied LCP:
+  2083 to 1770 ms.
+  - An earlier version kept the first image eager wherever it was. On the
+    seeded article, whose first image comes about 7,700 characters after the
+    largest paint, that image (198 KB) then loaded with the stylesheet:
+    desktop render delay rose from 400 to 680 ms and simulated mobile LCP
+    from 2704 to 2855 ms (HTTP/2, five runs).
   - Only images with a stored `width` and `height` reserve their space. The
     writing desk stores them only after a writer resizes an image, so other
     images reserve none, lazy or eager, as before this change. On the seeded
