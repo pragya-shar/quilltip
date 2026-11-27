@@ -139,6 +139,12 @@ export function HighlightableArticle({
   // the article body and the native selection collapses. Defer popover to pointerup.
   const isDraggingRef = useRef(false)
   const isKeyboardSelectingRef = useRef(false)
+  // While the passage tip bar is open, a tap on it (which collapses the
+  // text selection on phones) keeps the chosen passage until it is cleared.
+  const keepPassageRef = useRef(false)
+  const keepPassage = useCallback((keep: boolean) => {
+    keepPassageRef.current = keep
+  }, [])
 
   const { user, isAuthenticated } = useAuth()
   const currentUserIdRef = useRef(user?._id)
@@ -207,6 +213,7 @@ export function HighlightableArticle({
           }
         }
       } else {
+        if (keepPassageRef.current) return
         setSelectedText(null)
         setPopoverPosition(null)
         setSignInSelection(null)
@@ -783,6 +790,7 @@ export function HighlightableArticle({
           editor &&
           (highlightsActive || signInPromptActive) && (
             <HighlightPopover
+              onKeepPassage={keepPassage}
               position={popoverPosition}
               onCreateHighlight={handleCreateHighlight}
               onSignInToSave={() => {
