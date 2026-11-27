@@ -18,7 +18,12 @@ import { ConvexError } from 'convex/values'
 import { StrKey } from '@stellar/stellar-sdk'
 import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../../_generated/server'
-import { creditAuthorEarnings, roundCents } from '../authorEarnings'
+import {
+  creditAuthorEarnings,
+  newRowTotalsFields,
+  tabShareCents,
+} from '../authorEarnings'
+import { creditTipRowTotals, notePairEarned } from '../lifetimeEarnings'
 import {
   isStellarAddressVerified,
   verifiedStellarAddress,
@@ -1150,6 +1155,7 @@ export async function adjustBaseUnitEarnings(
       ...(collected !== ZERO
         ? { collectedBaseUnits: { [args.token]: collected.toString() } }
         : {}),
+      ...(await newRowTotalsFields(ctx, args.userId, args.now)),
       createdAt: args.now,
       updatedAt: args.now,
     })
@@ -1222,6 +1228,9 @@ export async function recomputePairEarnings(
     pending: dPending,
     now,
   })
+  // A rebuild of the writer's lifetime totals in progress needs the change
+  // (#552); the totals themselves count settled receipts, not pair payments.
+  if (dEarned !== ZERO) await notePairEarned(ctx, voucher, dEarned)
 }
 
 // ---------------------------------------------------------------------------
@@ -1233,23 +1242,6 @@ export function receiptNet(
 ) {
   const after = big(r.cumulativeAfter)
   return netOf(after) - netOf(after - big(r.amount))
-}
-
-/**
- * The writer's share of a settled tab tip in US cents: its recorded cents
- * scaled by net over gross. `setReceiptStatus` credits exactly this, and the
- * writer's earnings summary counts it the same way.
- */
-export function tabShareCents(
-  amountCents: number,
-  net: bigint,
-  gross: bigint
-): number {
-  return gross > ZERO
-    ? roundCents(
-        amountCents * (Number((net * BigInt(1_000_000)) / gross) / 1_000_000)
-      )
-    : 0
 }
 
 async function setReceiptStatus(
@@ -1283,6 +1275,16 @@ async function setReceiptStatus(
       earningsAppliedAt: now,
       updatedAt: now,
     })
+    // The settled row, by the lifetime totals' rule (#552).
+    const settled = (await ctx.db.get(row._id)) as TipRow | null
+    if (settled) {
+      await creditTipRowTotals(
+        ctx,
+        receipt.authorId,
+        ctx.db.normalizeId('tips', settled._id) ? 'tips' : 'highlightTips',
+        settled
+      )
+    }
     return
   }
   await patchTipRow(ctx, row._id, { status, updatedAt: now })

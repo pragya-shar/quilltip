@@ -127,6 +127,46 @@ test('server verification stamps verifiedAt on article tips', async () => {
   expect(tip?.verifiedAt).toBeGreaterThan(0)
 })
 
+test('a v1 verification credits the lifetime totals the summary reads (#552)', async () => {
+  const t = newTest()
+  const ids = await seed(t)
+  // A verified tip before the change: in the history only.
+  await insertArticleTip(t, ids, { status: 'CONFIRMED', verifiedAt: ids.now })
+  const tipId = await insertArticleTip(t, ids, { status: 'PENDING' })
+  await t.mutation(internal.articleTipVerify.confirmVerifiedArticleTip, {
+    tipId,
+  })
+  const row = () =>
+    t.run(async ({ db }) =>
+      (await db.query('authorEarnings').collect()).find(
+        (r) => r.userId === ids.authorId
+      )
+    )
+  // The live credit: 2 XLM less the 2.5% fee, and 97.5 of 100 cents.
+  expect(await row()).toMatchObject({
+    v1TipCount: 1,
+    v1ShareStroops: '19500000',
+    v1EarnedCents: 97.5,
+  })
+  const author = t.withIdentity({ subject: `${ids.authorId}|session` })
+  const read = () => author.query(api.tips.getMyEarningsSummary, {})
+  const expected = {
+    tipCount: 2,
+    earnedStroops: '39000000',
+    estimatedUsd: 1.95,
+    complete: true,
+  }
+  // Before the rebuild the summary reads the history; after it, the totals.
+  expect(await read()).toMatchObject(expected)
+  await t.action(internal.earningsTotalsBackfill.run, {})
+  expect(await row()).toMatchObject({
+    v1TipCount: 2,
+    v1ShareStroops: '39000000',
+    lifetimeTotalsAt: expect.any(Number),
+  })
+  expect(await read()).toMatchObject(expected)
+})
+
 test('public and writer stats count verified tips only', async () => {
   const t = newTest()
   const ids = await seed(t)
@@ -180,7 +220,9 @@ test('public and writer stats count verified tips only', async () => {
     estimatedUsd: 2.925,
     earnedBaseUnits: {},
     v2TipCount: 0,
+    unpricedTipCount: 0,
     complete: true,
+    updating: false,
   })
 })
 

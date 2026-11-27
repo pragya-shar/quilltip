@@ -71,6 +71,11 @@ describe('payments v2 crons without configuration', () => {
     expect(
       await t.mutation(internal.tipEarnings.syncV2TipEarnings, {})
     ).toEqual({ credited: 0, more: false })
+    // No earnings row to rebuild (#552).
+    expect(await t.action(internal.earningsTotalsBackfill.run, {})).toEqual({
+      rebuilt: 0,
+      inProgress: 0,
+    })
 
     expect(fetchSpy).not.toHaveBeenCalled()
     const counts = await t.run(async ({ db }) =>
