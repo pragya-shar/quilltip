@@ -12,6 +12,7 @@ import { paginationOptsValidator } from 'convex/server'
 import { v } from 'convex/values'
 import type { Doc } from './_generated/dataModel'
 import { query, type QueryCtx } from './_generated/server'
+import { roundCents } from './lib/authorEarnings'
 import {
   receiptNet,
   tabAccountForReader,
@@ -36,17 +37,21 @@ export type ActivityEntry = {
   counterparty: { name: string; username: string | null }
   article: { title: string; slug: string; authorUsername: string | null }
   passage: string | null
-  /** The tip as the reader chose it, in US cents. */
+  /** The tip as the reader chose it, in whole US cents (exact). */
   amountCents: number
-  /** The writer's share in whole cents, floored. */
+  /**
+   * The writer's exact share, on the 1/10,000-cent grid of the running
+   * figures, never floored: rows show it in their detail, and the totals
+   * are sums of these, floored once when shown.
+   */
   netCents: number
   /**
    * The part of this tip already paid on chain, in the tip's own cents
-   * (floored): all of it when settled, none when accepted, and for a tip on
-   * hold or not paid, what a short payment of its pair covered.
+   * (exact, same grid): all of it when settled, none when accepted, and for
+   * a tip on hold or not paid, what a short payment of its pair covered.
    */
   paidCents: number
-  /** The writer's share of `paidCents`, floored. */
+  /** The writer's exact share of `paidCents`. */
   paidNetCents: number
   state: MoneyState
   notPaidReason: NotPaidReason | null
@@ -108,9 +113,9 @@ async function entryOf(
     },
     passage: passagePreview(row),
     amountCents: cents,
-    netCents: Math.floor(share),
-    paidCents: Math.floor(cents * paidRatio),
-    paidNetCents: Math.floor(share * paidRatio),
+    netCents: share,
+    paidCents: roundCents(cents * paidRatio),
+    paidNetCents: roundCents(share * paidRatio),
     state,
     notPaidReason: reason,
     at: receipt.acceptedAt,

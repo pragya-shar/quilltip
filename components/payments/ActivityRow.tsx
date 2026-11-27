@@ -1,14 +1,15 @@
 'use client'
 
 /**
- * One tip in a list (view only). A tap opens the detail: what happened to
- * the money in plain words, the exact token amount, and the public record
- * once it is paid.
+ * One tip in a list (view only). The row states the tip as the reader sent
+ * it, in whole cents, on both screens. A tap opens the detail: what
+ * happened to the money in plain words, the writer's exact share (never
+ * floored), the exact token amount, and the public record once it is paid.
  */
 import { useId, useState } from 'react'
 import { ChevronDown, Clock } from 'lucide-react'
 import { TX_LINK, statusCopy, whenCopy } from '@/lib/payments/copy'
-import { formatTokenAmount } from '@/lib/payments/money'
+import { formatExactCents, formatTokenAmount } from '@/lib/payments/money'
 import type { ActivityItem } from '@/lib/payments/types'
 
 export function ActivityRow({
@@ -22,7 +23,7 @@ export function ActivityRow({
   const detailId = useId()
   const copy = statusCopy(item)
   const reader = item.role === 'reader'
-  const amount = reader ? item.amount : item.net
+  const amount = item.amount
   // Grey only for money that did not move: a tip paid in part keeps colour.
   const muted =
     item.status === 'sending' ||
@@ -79,8 +80,10 @@ export function ActivityRow({
             <dd>{item.amount.display}</dd>
             {!reader ? (
               <>
-                <dt>You get</dt>
-                <dd>{item.net.display} (97.5%)</dd>
+                <dt>Your earnings</dt>
+                <dd data-testid="row-share">
+                  {formatExactCents(item.net.cents)} (you keep 97.5%)
+                </dd>
               </>
             ) : null}
             {item.exact ? (

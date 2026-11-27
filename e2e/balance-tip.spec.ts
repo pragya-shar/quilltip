@@ -316,7 +316,9 @@ test.describe('balance screen', () => {
           page.getByText('Did not complete', { exact: true })
         ).toBeVisible()
         await expect(page.getByText('On hold')).toBeVisible()
-        await expect(page.getByText('Paid', { exact: true })).toBeVisible()
+        await expect(
+          page.getByText('Added to earnings', { exact: true })
+        ).toBeVisible()
         await page
           .getByTestId('activity-row')
           .nth(1)
@@ -423,6 +425,57 @@ test.describe('earnings screen', () => {
       })
     })
   }
+})
+
+test.describe('earnings rows and their total', () => {
+  test('three tips of 50¢, 10¢ and 10¢: rows as sent, exact shares, one total', async ({
+    page,
+  }) => {
+    await open(page, 'earnings', 'writer-three')
+    await expect(page.getByTestId('earnings-available')).toHaveText('$0.68')
+    const rows = page.getByTestId('activity-row')
+    await expect(rows.locator('.qt-row-amount')).toHaveText([
+      '$0.10',
+      '$0.10',
+      '$0.50',
+    ])
+    await expect(rows.locator('.qt-status')).toHaveText([
+      'Added to earnings',
+      'Added to earnings',
+      'Added to earnings',
+    ])
+    for (let i = 0; i < 3; i++) await rows.nth(i).getByRole('button').click()
+    await expect(rows.getByTestId('row-share')).toHaveText([
+      '9.75¢ (you keep 97.5%)',
+      '9.75¢ (you keep 97.5%)',
+      '48.75¢ (you keep 97.5%)',
+    ])
+    await expect(page.getByTestId('earnings-rows-note')).toContainText(
+      'Your earnings are 97.5% of each tip'
+    )
+    // Settled tips are never called paid to the wallet; only collected money is.
+    await expect(rows.getByText(/Paid to/)).toHaveCount(0)
+  })
+
+  test('the total is the exact sum rounded once, not the sum of rounded rows', async ({
+    page,
+  }) => {
+    // Seven 9.75¢ shares: flooring each gives $0.63; the exact sum is 68.25¢.
+    await open(page, 'earnings', 'writer-seven')
+    await expect(page.getByTestId('earnings-available')).toHaveText('$0.68')
+    const rows = page.getByTestId('activity-row')
+    await expect(rows).toHaveCount(7)
+    await expect(rows.locator('.qt-row-amount')).toHaveText(
+      Array(7).fill('$0.10')
+    )
+  })
+
+  test('the reader sees the same states in their words', async ({ page }) => {
+    await open(page, 'balance', 'reader-history')
+    const rows = page.getByTestId('activity-row')
+    await expect(rows.getByText('Added to earnings')).toHaveCount(1)
+    await expect(rows.getByText(/^Paid$/)).toHaveCount(0)
+  })
 })
 
 test.describe('payments never take reading with them', () => {
@@ -584,19 +637,23 @@ test.describe('contrast and partly paid tips', () => {
     await expect(rows.first()).toContainText('Paid in part')
     await rows.nth(0).getByRole('button').click()
     await expect(
-      page.getByText('$0.10 was paid. $0.15 is back in your balance.')
+      page.getByText('10¢ was paid. 15¢ is back in your balance.')
     ).toBeVisible()
     await rows.nth(1).getByRole('button').click()
     await expect(
       page.getByText(
-        '$0.10 was paid. $0.15 waits on your balance; add money and it goes through.'
+        '10¢ was paid. 15¢ waits on your balance; add money and it goes through.'
       )
     ).toBeVisible()
     await open(page, 'earnings', 'writer-partial')
     const wrows = page.getByTestId('activity-row')
+    // The row states the tip as sent; the detail states exact amounts.
+    await expect(wrows.nth(1).locator('.qt-row-amount')).toHaveText('$0.25')
     await wrows.nth(1).getByRole('button').click()
     await expect(
-      page.getByText("$0.09 arrived. $0.15 is waiting on the reader's balance.")
+      page.getByText(
+        "9.75¢ arrived. 14.625¢ is waiting on the reader's balance."
+      )
     ).toBeVisible()
     await expect(page.getByText(/not charged/)).toHaveCount(0)
   })

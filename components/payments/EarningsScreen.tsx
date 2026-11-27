@@ -106,7 +106,10 @@ export function EarningsScreen({
           what arrived.
         </p>
       ) : null}
-      <p className="qt-figure-note">You keep 97.5% of every tip.</p>
+      <p className="qt-figure-note" data-testid="earnings-rows-note">
+        Your earnings are 97.5% of each tip. Tips below show what readers sent;
+        open one to see your exact share.
+      </p>
       <ActivityList
         activity={activity}
         now={now}

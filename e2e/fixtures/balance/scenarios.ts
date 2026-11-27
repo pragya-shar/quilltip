@@ -135,6 +135,24 @@ export const SCENARIOS: Record<string, (s: FixtureState) => void> = {
   'writer-empty': (s) => {
     s.user = 'w'
   },
+  // The real run's three tips: 50¢, 10¢, 10¢, settled (68.25¢ to the writer).
+  'writer-three': (s) => {
+    s.user = 'w'
+    receipt(s, { cents: 50, status: 'SETTLED', ago: 30 * MIN, tx: true })
+    receipt(s, { cents: 10, status: 'SETTLED', ago: 20 * MIN, tx: true })
+    receipt(s, { cents: 10, status: 'SETTLED', ago: 10 * MIN, tx: true })
+  },
+  // Seven 10¢ tips: flooring each 9.75¢ share gives 63¢; the sum is 68.25¢.
+  'writer-seven': (s) => {
+    s.user = 'w'
+    for (let i = 0; i < 7; i++)
+      receipt(s, {
+        cents: 10,
+        status: 'SETTLED',
+        ago: (10 + i) * MIN,
+        tx: true,
+      })
+  },
   'reader-outage': (s) => {
     s.user = 'a'
     s.accounts.a = { confirmed: XLM(20) }

@@ -15,7 +15,12 @@ import type { Cents, Money } from './types'
 
 const STROOPS_PER_XLM = 10_000_000
 
-/** "$4.20". Fractions of a cent are floored: a figure never shows more. */
+/**
+ * "$4.20". The one rounding rule for a figure: fractions of a cent are
+ * floored, once, at the figure. Totals are summed from exact shares (cents
+ * on a 1/10,000-cent grid) and floored only when shown, so a displayed total
+ * never exceeds what the writer can collect or the reader can spend.
+ */
 export function formatMoney(cents: Cents): string {
   const whole = Math.max(0, Math.floor(cents + 1e-9))
   const dollars = Math.floor(whole / 100)
@@ -28,6 +33,22 @@ export function formatShort(cents: Cents): string {
   return cents % 100 === 0
     ? `$${(cents / 100).toLocaleString('en-US')}`
     : formatMoney(cents)
+}
+
+/**
+ * An exact amount for a detail line, never floored: "48.75¢" below a
+ * dollar, "$4.875" from a dollar up. Cents carry at most 1/10,000 of a cent.
+ */
+export function formatExactCents(cents: Cents): string {
+  const tenThousandths = Math.round(Math.max(0, cents) * 10_000)
+  const whole = Math.floor(tenThousandths / 10_000)
+  const part = String(tenThousandths % 10_000)
+    .padStart(4, '0')
+    .replace(/0+$/, '')
+  if (whole < 100) return `${whole}${part ? `.${part}` : ''}¢`
+  const dollars = Math.floor(whole / 100)
+  const fraction = `${String(whole % 100).padStart(2, '0')}${part ? String(tenThousandths % 10_000).padStart(4, '0') : ''}`
+  return `$${dollars.toLocaleString('en-US')}.${fraction.replace(/(\d{2})(\d*?)0*$/, '$1$2')}`
 }
 
 export function money(cents: Cents): Money {

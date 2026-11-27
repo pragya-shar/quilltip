@@ -251,10 +251,11 @@ function entry(r: Receipt, role: 'reader' | 'writer') {
     },
     passage: r.passage,
     amountCents: r.amountCents,
-    netCents: Math.floor(share(r.amountCents)),
+    // Exact shares, as `activity.mine` returns them.
+    netCents: share(r.amountCents),
     paidCents: r.status === 'SETTLED' ? r.amountCents : (r.paidCents ?? 0),
-    paidNetCents: Math.floor(
-      share(r.status === 'SETTLED' ? r.amountCents : (r.paidCents ?? 0))
+    paidNetCents: share(
+      r.status === 'SETTLED' ? r.amountCents : (r.paidCents ?? 0)
     ),
     state: state_,
     notPaidReason: reason,
