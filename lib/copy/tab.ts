@@ -18,6 +18,10 @@ export const TAB_BALANCE = {
   heading: 'Balance',
   free: 'Free to tip',
   freeNote: 'What quick tips can use now.',
+  /** The same figure while the tab is closing: quick tips are off (#547). */
+  closingFree: 'Comes back to you',
+  closingFreeNote:
+    'Your tab is closing, so quick tips are off. This returns to your wallet with the withdrawal, after the tips still settling.',
   settling: 'Settling',
   settlingNote: 'Tips sent, not settled on chain yet.',
   confirmed: 'Tab balance',

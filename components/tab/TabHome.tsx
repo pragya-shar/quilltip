@@ -221,7 +221,7 @@ export function TabHome() {
     <div className="tab-page">
       {conditions}
       <div className="tab-section">
-        <TabBalance balances={balances} />
+        <TabBalance balances={balances} closing={tab.status === 'CLOSING'} />
         {progress}
         {!running && !paused && !quickTipsOff
           ? gate(

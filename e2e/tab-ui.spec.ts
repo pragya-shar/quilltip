@@ -567,6 +567,31 @@ test('after an open is sent, the page waits for the first events and asks for no
   await expect(visibleText(page, 'Free to tip')).toBeVisible()
 })
 
+test('while the tab is closing, the free balance is not offered for quick tips (#547)', async ({
+  page,
+}) => {
+  await open(page, 'home-closing')
+  await expect(visibleText(page, /Your balance unlocks around/)).toBeVisible()
+  const balance = page.getByRole('region', { name: 'Balance' })
+  await expect(balance.getByText('Free to tip', { exact: true })).toHaveCount(0)
+  await expect(
+    balance.getByText('What quick tips can use now.', { exact: true })
+  ).toHaveCount(0)
+  await expect(
+    balance.getByText('Comes back to you', { exact: true })
+  ).toBeVisible()
+  await expect(
+    balance.getByText(/Your tab is closing, so quick tips are off\./)
+  ).toBeVisible()
+  // An open tab still offers it.
+  await page.goto('/?state=home-open')
+  await expect(
+    page.getByRole('region', { name: 'Balance' }).getByText('Free to tip', {
+      exact: true,
+    })
+  ).toBeVisible()
+})
+
 test('keyboard only: the top-up form submits with Enter and focus follows the payment', async ({
   page,
 }) => {
