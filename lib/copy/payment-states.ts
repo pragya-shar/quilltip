@@ -54,7 +54,7 @@ export function gateCopy(
     case 'signed-out':
       return {
         title: 'Sign in to continue',
-        detail: 'Tips and tabs belong to your QuillTip account.',
+        detail: 'Tips and tabs belong to your Quilltip account.',
         action: 'Sign in',
       }
     case 'no-wallet':
@@ -251,12 +251,12 @@ export const RESULT_COPY: Record<
   'under-review': {
     title: 'Sent, but under review',
     detail:
-      'The payment went through on Stellar testnet, but the details did not match what QuillTip expected. Your XLM may have moved, so do not send it again. We are checking it.',
+      'The payment went through on Stellar testnet, but the details did not match what Quilltip expected. Your XLM may have moved, so do not send it again. We are checking it.',
   },
   /** A `FAILED` record with no client failure to show (for example after a reload). */
   failed: {
     title: 'Not completed',
-    detail: 'QuillTip recorded no payment for this request.',
+    detail: 'Quilltip recorded no payment for this request.',
   },
   declined: {
     title: 'Request declined in your wallet',
@@ -316,12 +316,12 @@ export const TAB_TIP_RESULT = {
     reader: {
       title: 'Not settled',
       detail:
-        'QuillTip could not settle this tip, so it was not paid and your tab was not charged for it. We are checking it.',
+        'Quilltip could not settle this tip, so it was not paid and your tab was not charged for it. We are checking it.',
     },
     writer: {
       title: 'Not settled',
       detail:
-        'QuillTip could not settle this tip, so it was not paid to you. We are checking it.',
+        'Quilltip could not settle this tip, so it was not paid to you. We are checking it.',
     },
   },
 } as const
@@ -437,7 +437,7 @@ export const TAB_REFUSAL_COPY = {
   },
   noPrice: {
     title: 'No XLM price right now',
-    detail: 'QuillTip can’t convert this amount yet. Try again in a minute.',
+    detail: 'Quilltip can’t convert this amount yet. Try again in a minute.',
   },
   timedOut: {
     title: 'This tip took too long',
@@ -460,11 +460,11 @@ export const TAB_REFUSAL_COPY = {
     detail: 'Sign in to the account that opened it, or use another wallet.',
   },
   badVoucher: {
-    title: 'QuillTip could not accept this tip',
+    title: 'Quilltip could not accept this tip',
     detail: 'Set up quick tips again on this device.',
   },
   generic: {
-    title: 'QuillTip could not accept this',
+    title: 'Quilltip could not accept this',
     detail: 'Try again in a minute.',
   },
 } as const
@@ -498,12 +498,12 @@ export const NOTICE_COPY = {
     reader: {
       title: 'Payments are paused',
       detail:
-        'QuillTip has paused new payments on Stellar testnet. Tips you already sent still settle, and you can still withdraw your tab.',
+        'Quilltip has paused new payments on Stellar testnet. Tips you already sent still settle, and you can still withdraw your tab.',
     },
     writer: {
       title: 'Payments are paused',
       detail:
-        'QuillTip has paused new payments on Stellar testnet. Tips already sent still settle, and you can still collect.',
+        'Quilltip has paused new payments on Stellar testnet. Tips already sent still settle, and you can still collect.',
     },
   },
   insufficientWallet: (needed?: string, available?: string): CopyBlock => ({

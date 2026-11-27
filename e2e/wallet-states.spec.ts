@@ -135,7 +135,7 @@ test('wrong network is refused before any signature', async ({ page }) => {
   await chooseVarial(page)
   await expect(page.getByText('Switch your wallet to Testnet')).toBeVisible()
   await expect(
-    page.getByText(/Your wallet is on Mainnet\. QuillTip uses Testnet/)
+    page.getByText(/Your wallet is on Mainnet\. Quilltip uses Testnet/)
   ).toBeVisible()
   expect((await requests(page)).map((r) => r.type)).not.toContain(
     'SUBMIT_TRANSACTION'

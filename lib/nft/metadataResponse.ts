@@ -61,7 +61,7 @@ export function buildNftMetadata(
   if (!meta.available) {
     return {
       name: `QuillTip Article #${meta.tokenId}`,
-      description: `This article is not available on QuillTip. Minted on the ${network}.`,
+      description: `This article is not available on Quilltip. Minted on the ${network}.`,
       attributes: [{ trait_type: 'network', value: network }],
     }
   }
@@ -82,12 +82,12 @@ export function buildNftMetadata(
   if (!meta.title || !meta.authorUsername || !meta.slug) {
     return {
       name: `QuillTip Article #${meta.tokenId}`,
-      description: `This article is not available on QuillTip. Minted on the ${network}.`,
+      description: `This article is not available on Quilltip. Minted on the ${network}.`,
       attributes,
     }
   }
   const summary = asSentence(
-    meta.excerpt?.trim() || `An article by @${meta.authorUsername} on QuillTip.`
+    meta.excerpt?.trim() || `An article by @${meta.authorUsername} on Quilltip.`
   )
   return {
     name: meta.title,

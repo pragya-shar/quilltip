@@ -151,7 +151,7 @@ export function HighlightDetailsPanel({
           >
             <X aria-hidden className="h-5 w-5" />
           </button>
-          <p className="slip-meta">QuillTip · Your reading notes</p>
+          <p className="slip-meta">Quilltip · Your reading notes</p>
           <p className="slip-label">
             {context?.personalId || isOwner
               ? 'In your highlights'

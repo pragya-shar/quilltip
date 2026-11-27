@@ -44,7 +44,7 @@ export function AccountShell({
             {children}
             {footer}
             <p className="account-legal">
-              See QuillTip’s <Link href="/terms">Terms of Service</Link> and{' '}
+              See Quilltip’s <Link href="/terms">Terms of Service</Link> and{' '}
               <Link href="/privacy">Privacy Policy</Link>.
             </p>
           </div>
@@ -52,7 +52,7 @@ export function AccountShell({
       </main>
       <footer className="account-footer">
         <span>Read freely. Write in your own voice.</span>
-        <Link href="/">Back to QuillTip</Link>
+        <Link href="/">Back to Quilltip</Link>
       </footer>
     </>
   )

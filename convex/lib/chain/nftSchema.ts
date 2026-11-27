@@ -63,7 +63,7 @@ export const expectedNftValidator = v.union(
     signer: v.string(),
     from: v.string(),
     to: v.string(),
-    /** Set when `to` was resolved from a QuillTip user. */
+    /** Set when `to` was resolved from a Quilltip user. */
     toUserId: v.optional(v.id('users')),
   })
 )

@@ -234,7 +234,7 @@ describe('error mapping', () => {
     const message = (kind: WalletErrorKind, walletId: string) =>
       walletErrorMessage(new WalletError(kind, 'detail', { walletId }))
     expect(message('locked', 'hana')?.detail).toBe(
-      'Unlock Hana, allow QuillTip to connect, then try again.'
+      'Unlock Hana, allow Quilltip to connect, then try again.'
     )
     expect(message('popup-blocked', 'albedo')).toEqual({
       title: 'Your browser blocked the wallet window',
@@ -571,7 +571,7 @@ describe('signature check for wallets that cannot report a network', () => {
       expect(walletErrorMessage(error)).toEqual({
         title: 'Switch your wallet to Testnet',
         detail: expect.stringMatching(
-          /QuillTip uses Testnet\. Change the network in .+, then try again\. Nothing was sent\.$/
+          /Quilltip uses Testnet\. Change the network in .+, then try again\. Nothing was sent\.$/
         ),
       })
     }

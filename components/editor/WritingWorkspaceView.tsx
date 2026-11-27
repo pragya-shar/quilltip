@@ -117,7 +117,7 @@ export function WritingWorkspaceView({
   }
   function download() {
     const doc = document.implementation.createHTMLDocument(
-      w.title || 'QuillTip draft'
+      w.title || 'Quilltip draft'
     )
     const charset = doc.createElement('meta')
     charset.setAttribute('charset', 'utf-8')
@@ -151,7 +151,7 @@ export function WritingWorkspaceView({
     )
     const a = document.createElement('a')
     a.href = url
-    a.download = `${(w.title || 'QuillTip draft').replace(/[^\p{L}\p{N} -]/gu, '').slice(0, 80)}.html`
+    a.download = `${(w.title || 'Quilltip draft').replace(/[^\p{L}\p{N} -]/gu, '').slice(0, 80)}.html`
     a.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }

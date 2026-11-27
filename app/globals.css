@@ -553,7 +553,7 @@
 
 @theme inline {
   --font-sans: var(--ui-font);
-  --font-display: 'QuillTip Display', 'Syne 600 Fallback', sans-serif;
+  --font-display: 'Quilltip Display', 'Syne 600 Fallback', sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-card: var(--card-radius);
   --shadow-card: var(--card-shadow);

@@ -405,7 +405,7 @@ describe('5.10 NFT through nftsV2', () => {
     expect(row!.metadataUrl).toBe(tokenUri)
   })
 
-  it('transfers to a QuillTip user resolved to their verified address', async () => {
+  it('transfers to a Quilltip user resolved to their verified address', async () => {
     const prepared = await as(ids.authorId).mutation(
       api.nftsV2.prepareTransfer,
       {
@@ -434,7 +434,7 @@ describe('5.10 NFT through nftsV2', () => {
     })
   })
 
-  it('transfers to an address outside QuillTip', async () => {
+  it('transfers to an address outside Quilltip', async () => {
     const prepared = await as(ids.collectorId).mutation(
       api.nftsV2.prepareTransfer,
       {

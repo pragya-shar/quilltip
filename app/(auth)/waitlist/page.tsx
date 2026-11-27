@@ -4,9 +4,9 @@ import { AccountShell } from '@/components/auth/AccountShell'
 import { WaitlistForm } from '@/components/beta/WaitlistForm'
 
 export const metadata: Metadata = {
-  title: 'Join the beta waitlist · QuillTip',
+  title: 'Join the beta waitlist · Quilltip',
   description:
-    'Join the QuillTip beta waitlist. We invite new writers and readers in small groups.',
+    'Join the Quilltip beta waitlist. We invite new writers and readers in small groups.',
 }
 
 export default function WaitlistPage() {

@@ -146,7 +146,7 @@ export function ForgotPasswordForm() {
         >
           <p>{formError.message}</p>
           {formError.unavailable && (
-            <Link href="/contact">Contact QuillTip</Link>
+            <Link href="/contact">Contact Quilltip</Link>
           )}
         </div>
       )}

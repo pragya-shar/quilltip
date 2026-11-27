@@ -18,7 +18,7 @@
  *    network rejects the transaction if it is ever submitted: it can move
  *    nothing.
  *
- * Both bind the address, the QuillTip user, the network passphrase, the site
+ * Both bind the address, the Quilltip user, the network passphrase, the site
  * origin and a single-use nonce.
  */
 

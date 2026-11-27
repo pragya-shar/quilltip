@@ -7,7 +7,7 @@ export function LandingFooter() {
       <div className="footer-brand">
         <LandingWordmark />
       </div>
-      <nav aria-label="Explore QuillTip">
+      <nav aria-label="Explore Quilltip">
         <h2>Find your way</h2>
         <Link href="/articles">Read</Link>
         <Link href="/write">Write</Link>

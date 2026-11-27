@@ -49,7 +49,7 @@ export function PublishedArticleLocked({
               This article is published and can&rsquo;t be changed.
             </h1>
             <p>
-              The permanent copy is saved as it was published, so the QuillTip
+              The permanent copy is saved as it was published, so the Quilltip
               page stays the same. Start a new draft to write something new.
             </p>
             {articleHref && (

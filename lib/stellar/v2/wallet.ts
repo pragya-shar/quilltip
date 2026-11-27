@@ -2,7 +2,7 @@
  * Stellar Wallets Kit 2.x adapter (docs/architecture/v2/06-app-integration.md,
  * section 6.6). Every wallet call in the app goes through this module:
  *
- * - `StellarWalletsKit.init` once, with the modules QuillTip supports and the
+ * - `StellarWalletsKit.init` once, with the modules Quilltip supports and the
  *   network from the single network setting (`STELLAR_CONFIG`).
  * - `connect()` opens the kit's `authModal` (or connects one wallet by ID).
  * - `signTransaction()` signs one envelope for the connected address. It
@@ -76,7 +76,7 @@ export type WalletConnection = {
   /**
    * The wallet's passphrase when it reports one. Wallets that cannot report a
    * network (xBull, Albedo, Lobstr, Rabet, Hana) sign for the passphrase
-   * QuillTip passes, so this is then QuillTip's passphrase and
+   * Quilltip passes, so this is then Quilltip's passphrase and
    * `networkReported` is false.
    */
   networkPassphrase: string
@@ -341,7 +341,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
   if (expected.trim() === MAINNET_PASSPHRASE) {
     throw new WalletError(
       'wrong-network',
-      'QuillTip does not sign for Stellar mainnet'
+      'Quilltip does not sign for Stellar mainnet'
     )
   }
   const signTimeoutMs = options.signTimeoutMs ?? DEFAULT_SIGN_TIMEOUT_MS
@@ -707,7 +707,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
     },
     /**
      * Signs one transaction envelope (classic or Soroban) with the connected
-     * address, for QuillTip's network. Checks the wallet's network first and
+     * address, for Quilltip's network. Checks the wallet's network first and
      * the returned signer after.
      */
     async signTransaction(

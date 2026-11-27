@@ -1,0 +1,91 @@
+[
+  {
+    "class": "C",
+    "path": "scripts/contracts/deploy-v2/config.ts",
+    "match": "NFT_NAME = 'QuillTip Article'",
+    "reason": "The NFT collection name stored on chain by the deployed NFT contract is \"QuillTip Article\". This constant is the constructor argument, and deploy-v2/steps.ts checks nft.name against it."
+  },
+  {
+    "class": "C",
+    "path": "lib/nft/metadataResponse.ts",
+    "match": "name: `QuillTip Article #",
+    "reason": "The NFT collection name stored on chain by the deployed NFT contract is \"QuillTip Article\". Token metadata names mirror it."
+  },
+  {
+    "class": "C",
+    "path": "scripts/nft/metadata-route.test.ts",
+    "match": "name: 'QuillTip Article #",
+    "reason": "The NFT collection name stored on chain by the deployed NFT contract is \"QuillTip Article\". The metadata route test asserts the token names that mirror it."
+  },
+  {
+    "class": "C",
+    "path": "docs/contracts/v2-testnet-deployment.md",
+    "match": "`\"QuillTip Article\"`",
+    "reason": "The NFT collection name stored on chain by the deployed NFT contract is \"QuillTip Article\". This record lists the deployed value."
+  },
+  {
+    "class": "C",
+    "path": "convex/lib/walletChallenge.ts",
+    "match": "QuillTip asks you to prove you control this Stellar account.",
+    "reason": "Wallet challenge text. The server rebuilds it from the stored challenge and checks the wallet signature over it, so a challenge issued before a deploy and answered after it (5 minute lifetime) would fail."
+  },
+  {
+    "class": "C",
+    "path": "convex/lib/walletChallenge.ts",
+    "match": "QuillTip user: ",
+    "reason": "Wallet challenge text. The server rebuilds it from the stored challenge and checks the wallet signature over it, so a challenge issued before a deploy and answered after it (5 minute lifetime) would fail."
+  },
+  {
+    "class": "C",
+    "path": "lib/stellar/practice.ts",
+    "match": "'QuillTip wallet practice'",
+    "reason": "Memo inside the signed practice transaction, written on chain. The SDK parity baseline records it."
+  },
+  {
+    "class": "C",
+    "path": "scripts/stellar/fixtures/sdk-baseline.json",
+    "match": "\"QuillTip wallet practice\"",
+    "reason": "Recorded observation of the practice transaction memo, compared by the SDK parity test."
+  },
+  {
+    "class": "B",
+    "path": "scripts/contracts/bindings.ts",
+    "match": "className: 'QuillTip",
+    "reason": "Contract names passed to stellar-js generate for lib/stellar/v2/bindings/. A change alters generated code that is owned with the contracts."
+  },
+  {
+    "class": "D",
+    "path": "contracts/",
+    "reason": "Contract sources and tests. A change to Rust sources can change the built Wasm and its hash; the deployed contract set is fixed."
+  },
+  {
+    "class": "D",
+    "path": "lib/stellar/v2/bindings/",
+    "reason": "Generated from the contract Wasm by scripts/contracts/bindings.ts. Do not edit by hand."
+  },
+  {
+    "class": "D",
+    "path": "docs/architecture/v2/",
+    "reason": "The payments v2 specification, maintained by its owners."
+  },
+  {
+    "class": "D",
+    "match": "pragya-shar/QuillTip",
+    "reason": "The repository path. In the reproducible build it is embedded in the contract Wasm metadata."
+  },
+  {
+    "class": "E",
+    "path": "public/images/banner.png",
+    "reason": "Drawn wordmark reads \"QuillTip\". Needs a redrawn image; not referenced by app code."
+  },
+  {
+    "class": "E",
+    "path": "public/images/quilltip-cover.jpg",
+    "reason": "Drawn wordmark reads \"QuillTip\". Needs a redrawn image; not referenced by app code."
+  },
+  {
+    "class": "tool",
+    "path": "scripts/brand/",
+    "reason": "The spelling tool names the old spellings in its rules, allowlist and tests."
+  }
+]

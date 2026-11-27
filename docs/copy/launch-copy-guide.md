@@ -2,6 +2,14 @@
 
 Internal reference for ENG-261. Product surfaces import approved strings from `lib/copy/*` — do not add user-facing copy inline in components.
 
+## Product name
+
+Write the name **Quilltip**, with one capital letter, everywhere: at the start
+of a sentence, in headings, titles and metadata, and in possessives
+(Quilltip's). Never capitalise the T and never split the name into two words.
+All-capital text styles may show it as QUILLTIP. `bun run brand:check` fails on
+the old spelling; `bun run brand:apply` fixes it.
+
 ## Primary value prop
 
 **Headline (hero only):** Reward the words that move you

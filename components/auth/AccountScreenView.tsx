@@ -51,7 +51,7 @@ export function AccountScreenView({
             </p>
             {children}
             <p className="account-switch">
-              {login ? 'New to QuillTip?' : 'Already have an account?'}{' '}
+              {login ? 'New to Quilltip?' : 'Already have an account?'}{' '}
               <Link
                 href={
                   login
@@ -63,7 +63,7 @@ export function AccountScreenView({
               </Link>
             </p>
             <p className="account-legal">
-              By continuing, you agree to QuillTip’s{' '}
+              By continuing, you agree to Quilltip’s{' '}
               <Link href="/terms">Terms of Service</Link> and{' '}
               <Link href="/privacy">Privacy Policy</Link>.
             </p>
@@ -72,7 +72,7 @@ export function AccountScreenView({
       </main>
       <footer className="account-footer">
         <span>Read freely. Write in your own voice.</span>
-        <Link href="/">Back to QuillTip</Link>
+        <Link href="/">Back to Quilltip</Link>
       </footer>
     </>
   )

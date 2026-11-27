@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reproducible build of the QuillTip v2 contracts.
+# Reproducible build of the Quilltip v2 contracts.
 #
 # Specification: docs/architecture/v2/08-testing-and-deployment.md, section 8.2.
 #

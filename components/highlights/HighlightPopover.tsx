@@ -132,7 +132,7 @@ export function HighlightPopover({
           >
             <X aria-hidden className="h-5 w-5" />
           </button>
-          <p className="slip-meta">QuillTip · Your reading notes</p>
+          <p className="slip-meta">Quilltip · Your reading notes</p>
           <p className="slip-label">A passage you picked</p>
           <h2 className="slip-title">Keep these words.</h2>
           {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Scrollable quotes need keyboard access. */}

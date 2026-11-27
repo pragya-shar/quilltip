@@ -1,6 +1,6 @@
-# QuillTip agent guide
+# Quilltip agent guide
 
-QuillTip is a Next.js App Router publishing app with Convex Auth/backend,
+Quilltip is a Next.js App Router publishing app with Convex Auth/backend,
 Stellar/Soroban tipping, and optional permanent Arweave storage. Use Bun;
 `package.json` and `bun.lock` define scripts and dependency versions.
 
@@ -18,7 +18,7 @@ Stellar/Soroban tipping, and optional permanent Arweave storage. Use Bun;
   A request to push does not authorize those other actions. Preserve shared Git
   history with regular merges; do not force-push `main`.
 
-## QuillTip invariants
+## Quilltip invariants
 
 - Preserve auth/ownership boundaries and transaction verification, tip accounting,
   pause guards, fee math, and storage keys. Writers receive 97.5%; the platform 2.5%.
@@ -29,6 +29,11 @@ Stellar/Soroban tipping, and optional permanent Arweave storage. Use Bun;
 - Never commit secrets, wallet keys, `.env.local`, `.stellar`, build output, or
   private QA evidence. `.env.example` contains placeholders only.
 - Published content is called **articles**; article links say **Read more**.
+- The product name is **Quilltip**, with one capital letter, also at the start of
+  a sentence, in headings and in possessives. `bun run brand:check` enforces it;
+  `bun run brand:apply` fixes it. `scripts/brand/allowlist.json` lists the
+  stored, signed or externally owned text that keeps the old spelling, with a
+  reason for each entry.
 
 ## Verification
 

@@ -78,7 +78,7 @@ export function FeedbackForm({ fromPath }: { fromPath?: string }) {
         </h2>
         <p className="account-muted">
           We can’t reply to each one, but your note goes straight to the people
-          building QuillTip.
+          building Quilltip.
         </p>
         <button
           type="button"
