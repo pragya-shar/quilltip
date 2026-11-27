@@ -464,6 +464,16 @@
   gap: 4px;
   overflow-wrap: anywhere;
 }
+.account-connection-summary > .account-key-mismatch {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--account-wine);
+  overflow-wrap: anywhere;
+}
+.account-key-short {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .account-connection-actions {
   flex-shrink: 0;
   max-width: 100%;
