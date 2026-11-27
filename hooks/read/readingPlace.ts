@@ -50,9 +50,28 @@ export type ReadingPlace = {
   finished: boolean
 }
 
-/** A path on this site: `/…`, never `//host`, `/\host` or a scheme. */
+const PLACE_ORIGIN = 'https://site.invalid'
+
+/**
+ * `href` as a path on this site (`/…?…`), normalised, or null. A backslash,
+ * a space or a control character refuses it before parsing, since URL
+ * parsers drop tabs and newlines and read `\` as `/`; the parsed address
+ * must keep this site's origin, so `//host`, `/\host` and schemes fail.
+ */
+export function sitePath(href: string): string | null {
+  if (!href.startsWith('/') || /[\\\s\u0000-\u001f\u007f-\u009f]/.test(href))
+    return null
+  try {
+    const url = new URL(href, PLACE_ORIGIN)
+    return url.origin === PLACE_ORIGIN ? url.pathname + url.search : null
+  } catch {
+    return null
+  }
+}
+
+/** Whether `href` is a path on this site (`sitePath`). */
 export function isSitePath(href: string): boolean {
-  return /^\/(?![/\\])[^\s]*$/.test(href) && !/[\u0000-\u001f]/.test(href)
+  return sitePath(href) !== null
 }
 
 /** One stored entry, or null. Missing `sentence` and `finished` (older or
@@ -76,7 +95,7 @@ function toPlace(value: unknown): ReadingPlace | null {
     return null
   return {
     articleId: v.articleId,
-    href: v.href,
+    href: sitePath(v.href) as string,
     title: v.title,
     sentence: typeof v.sentence === 'string' ? v.sentence : '',
     ...(Number.isSafeInteger(v.at) && (v.at as number) >= 0

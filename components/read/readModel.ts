@@ -1,5 +1,10 @@
 import type { Id } from '@/convex/_generated/dataModel'
 import { firstName } from '@/system/money/tip'
+import {
+  deploymentSources,
+  safeImageSrc,
+  type ReadingSources,
+} from '@/lib/tiptap/sanitizeReadingDoc'
 
 /**
  * What the reading view shows of a published article: plain data the server
@@ -64,7 +69,8 @@ export function publishedLabel(at: number, now: number = Date.now()): string {
 
 export function toReadArticle(
   article: PublishedArticle,
-  now: number = Date.now()
+  now: number = Date.now(),
+  sources: ReadingSources = deploymentSources()
 ): ReadArticle {
   const username = article.author.username
   const name = article.author.name?.trim() || username
@@ -90,7 +96,8 @@ export function toReadArticle(
     publishedIso: article.publishedAt
       ? new Date(article.publishedAt).toISOString()
       : null,
-    coverImage: article.coverImage || null,
+    // Under the same rule as body images: this deployment's storage only.
+    coverImage: safeImageSrc(article.coverImage, sources),
     version: {
       updatedAt: article.updatedAt,
       contentVersion: article.contentVersion,

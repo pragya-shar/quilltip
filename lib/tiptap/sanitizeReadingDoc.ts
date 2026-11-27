@@ -3,14 +3,19 @@
  * nodes, marks and attributes, rebuilt from the author's JSON. Anything not
  * listed is dropped, so an author cannot add classes, styles, event
  * handlers, ids, link targets or unknown attributes to the page, whatever
- * the stored document holds. Attribute values are checked here and
- * escaped by the renderer; nothing edits rendered HTML afterwards.
+ * the stored document holds. Each parent takes only the children listed for
+ * it, and every value is checked before it is copied. The renderer then
+ * validates the result against the reading schema and escapes it; nothing
+ * edits rendered HTML afterwards.
  */
 import type { JSONContent } from '@tiptap/core'
 
+/** A placeholder origin that resolves same-site paths; never served. */
 const ORIGIN = 'https://reading.invalid'
 const MAX_TEXT_ATTR = 500
 const MAX_DIMENSION = 10_000
+/** Marks read on one text node; a text node needs a handful. */
+const MAX_MARKS = 8
 
 /**
  * What the reading view will process of one document. Past any of these
@@ -21,12 +26,16 @@ const MAX_DIMENSION = 10_000
 export const READING_LIMITS = {
   /** Nesting of nodes, the document's own level included. */
   depth: 24,
-  /** Nodes of every kind, text included. */
+  /** Entries of every kind in every content list, text included. */
   nodes: 20_000,
   /** Characters in one text node. */
   textLength: 50_000,
   /** Characters in a link or an image address. */
   urlLength: 2_048,
+  /** Video embeds. */
+  embeds: 20,
+  /** Images. */
+  images: 200,
 } as const
 
 export class DocumentTooLarge extends Error {
@@ -35,75 +44,171 @@ export class DocumentTooLarge extends Error {
   }
 }
 
-type Budget = { nodes: number }
+/** Where the reading view may load article images from. */
+export type ReadingSources = {
+  /**
+   * The origin of this deployment's file storage (`https://<name>.convex.cloud`),
+   * or null when none is configured. Only its exact origin is accepted.
+   */
+  storageOrigin: string | null
+}
 
-/** Link targets a reader may follow: web pages, mail, and same-site paths. */
+/** This deployment's file storage: the origin of its Convex URL. */
+export function deploymentSources(): ReadingSources {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_CONVEX_URL ?? '')
+    return {
+      storageOrigin:
+        url.protocol === 'https:' || url.protocol === 'http:'
+          ? url.origin
+          : null,
+    }
+  } catch {
+    return { storageOrigin: null }
+  }
+}
+
+/** Same-site paths that hold the site's own images. */
+const SITE_IMAGE_PATHS = ['/images/']
+/** Paths of uploaded files on the storage origin. */
+const STORAGE_PATH = '/api/storage/'
+
+/** Controls, spaces and backslashes: refused in any address before parsing. */
+const UNSAFE_IN_URL = /[\\\s\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/
+/** Bidirectional controls, stripped from link text. */
+const BIDI_CONTROLS = /[‪-‮⁦-⁩]/g
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** The trimmed address when it is a string within the caps, or null. */
+function address(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > READING_LIMITS.urlLength)
+    return null
+  const url = value.trim()
+  return url && !UNSAFE_IN_URL.test(url) ? url : null
+}
+
+/** The address parsed against the placeholder origin, or null. */
+function parse(value: string): URL | null {
+  try {
+    return new URL(value, ORIGIN)
+  } catch {
+    return null
+  }
+}
+
+const MAIL_ADDRESS =
+  /^[A-Za-z0-9.!#$&'*+/=^_`{|}~-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/
+
+/**
+ * Link targets a reader may follow: web pages without credentials, one mail
+ * address, and same-site paths. Same-site is decided by parsing, and the
+ * normalised path is what the page links to.
+ */
 export function safeLinkHref(value: unknown): string | null {
-  if (typeof value !== 'string' || value.length > READING_LIMITS.urlLength)
-    return null
-  const href = value.trim()
-  if (!href || /[\u0000-\u001f\u007f]/.test(href)) return null
-  if (href.startsWith('/') && !href.startsWith('//') && !href.startsWith('/\\'))
-    return href
-  if (href.startsWith('#')) return href
-  try {
-    const url = new URL(href, ORIGIN)
-    if (url.origin === ORIGIN) return null
-    return ['http:', 'https:', 'mailto:'].includes(url.protocol)
-      ? url.href
-      : null
-  } catch {
-    return null
+  const href = address(value)
+  if (!href) return null
+  if (/^#[\w-]+$/.test(href)) return href
+  const url = parse(href)
+  if (!url) return null
+  if (href.startsWith('/')) {
+    // `//host` parses to another origin and is refused here.
+    return url.origin === ORIGIN ? url.pathname + url.search + url.hash : null
   }
+  // A relative path, or the placeholder origin itself, is not a link.
+  if (url.origin === ORIGIN) return null
+  if (url.protocol === 'mailto:')
+    return MAIL_ADDRESS.test(url.pathname) ? `mailto:${url.pathname}` : null
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
+  if (url.username || url.password) return null
+  return url.href
 }
 
-/** Image sources: web images and same-site paths, never data or script. */
-export function safeImageSrc(value: unknown): string | null {
-  if (typeof value !== 'string' || value.length > READING_LIMITS.urlLength)
-    return null
-  const src = value.trim()
-  if (!src || /[\u0000-\u001f\u007f\s]/.test(src)) return null
-  if (src.startsWith('/') && !src.startsWith('//') && !src.startsWith('/\\'))
-    return src
-  try {
-    const url = new URL(src)
-    return url.protocol === 'https:' || url.protocol === 'http:'
-      ? url.href
+/**
+ * Image sources: the site's own image paths, or an upload on this
+ * deployment's file storage. The query and fragment are dropped. Every
+ * other host, and data or script addresses, are refused.
+ */
+export function safeImageSrc(
+  value: unknown,
+  sources: ReadingSources
+): string | null {
+  const src = address(value)
+  if (!src) return null
+  const url = parse(src)
+  if (!url || url.username || url.password) return null
+  if (url.origin === ORIGIN)
+    return src.startsWith('/') &&
+      SITE_IMAGE_PATHS.some((path) => url.pathname.startsWith(path))
+      ? url.pathname
       : null
-  } catch {
-    return null
-  }
+  // Written in full: a protocol-relative address is refused.
+  return sources.storageOrigin !== null &&
+    src.startsWith(`${sources.storageOrigin}/`) &&
+    url.origin === sources.storageOrigin &&
+    url.pathname.startsWith(STORAGE_PATH)
+    ? url.origin + url.pathname
+    : null
 }
 
+/** The only embed address the reading view renders. */
+export const YOUTUBE_EMBED =
+  /^https:\/\/www\.youtube-nocookie\.com\/embed\/[\w-]{11}$/
+
+const YOUTUBE_ID = /^[\w-]{11}$/
 const YOUTUBE_HOSTS = new Set([
   'youtube.com',
   'www.youtube.com',
   'm.youtube.com',
-  'youtu.be',
-  'www.youtube-nocookie.com',
   'youtube-nocookie.com',
+  'www.youtube-nocookie.com',
 ])
 
-/** A YouTube address over https, or null. */
-export function safeYoutubeSrc(value: unknown): string | null {
-  if (typeof value !== 'string' || value.length > READING_LIMITS.urlLength)
-    return null
+/** The video id in a YouTube address of a known form, or null. */
+export function youtubeId(value: unknown): string | null {
+  const src = address(value)
+  if (!src) return null
+  let url: URL
   try {
-    const url = new URL(value.trim())
-    return url.protocol === 'https:' && YOUTUBE_HOSTS.has(url.hostname)
-      ? url.href
-      : null
+    url = new URL(src)
   } catch {
     return null
   }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port)
+    return null
+  const [first = '', second, ...rest] = url.pathname.split('/').filter(Boolean)
+  let id: string | null = null
+  if (rest.length) return null
+  if (url.hostname === 'youtu.be') {
+    if (second === undefined) id = first
+  } else if (YOUTUBE_HOSTS.has(url.hostname)) {
+    if (first === 'watch' && second === undefined)
+      id = url.searchParams.get('v')
+    else if (
+      second !== undefined &&
+      ['embed', 'shorts', 'live'].includes(first)
+    )
+      id = second
+  }
+  return id && YOUTUBE_ID.test(id) ? id : null
+}
+
+/** The embed address rebuilt from the video id: nothing else is kept. */
+export function safeYoutubeSrc(value: unknown): string | null {
+  const id = youtubeId(value)
+  return id ? `https://www.youtube-nocookie.com/embed/${id}` : null
 }
 
 const shortText = (value: unknown) =>
   typeof value === 'string' && value.trim()
     ? value.slice(0, MAX_TEXT_ATTR)
     : null
+
+/** A whole number from 1 to 10,000, written as a number or as digits. */
 const dimension = (value: unknown) => {
-  const n = typeof value === 'string' ? Number(value) : value
+  const n =
+    typeof value === 'string' && /^\d{1,5}$/.test(value) ? Number(value) : value
   return typeof n === 'number' &&
     Number.isInteger(n) &&
     n > 0 &&
@@ -112,105 +217,176 @@ const dimension = (value: unknown) => {
     : null
 }
 
-const SIMPLE_MARKS = new Set(['bold', 'italic', 'underline', 'strike', 'code'])
+const HEADING_LEVELS = [2, 3, 4]
+const SIMPLE_MARKS = new Set(['bold', 'italic', 'underline', 'strike'])
 
-function cleanMarks(marks: JSONContent['marks']): JSONContent['marks'] {
-  const out: NonNullable<JSONContent['marks']> = []
-  // A text node needs a handful of marks; more are dropped unread.
-  for (const mark of (marks ?? []).slice(0, 8)) {
-    if (SIMPLE_MARKS.has(mark.type)) out.push({ type: mark.type })
-    else if (mark.type === 'link') {
-      const href = safeLinkHref(mark.attrs?.href)
-      if (href) out.push({ type: 'link', attrs: { href } })
+type Mark = NonNullable<JSONContent['marks']>[number]
+
+/**
+ * The marks of one text node: known types once each, a checked link, and
+ * code alone (it excludes every other mark). Malformed marks are dropped.
+ */
+function cleanMarks(marks: unknown): Mark[] | undefined {
+  if (!Array.isArray(marks)) return undefined
+  const kept = new Map<string, Mark>()
+  for (const mark of marks.slice(0, MAX_MARKS)) {
+    if (!isRecord(mark) || typeof mark.type !== 'string') continue
+    const type = mark.type
+    if (kept.has(type)) continue
+    if (SIMPLE_MARKS.has(type) || type === 'code') kept.set(type, { type })
+    else if (type === 'link' && isRecord(mark.attrs)) {
+      const href = safeLinkHref(mark.attrs.href)
+      if (href) kept.set(type, { type, attrs: { href } })
     }
   }
-  return out.length ? out : undefined
+  if (kept.has('code')) return [{ type: 'code' }]
+  return kept.size ? [...kept.values()] : undefined
+}
+
+const BLOCKS = new Set([
+  'paragraph',
+  'heading',
+  'blockquote',
+  'bulletList',
+  'orderedList',
+  'codeBlock',
+  'horizontalRule',
+  'image',
+  'resizableImage',
+  'youtube',
+])
+const INLINE = new Set(['text', 'hardBreak'])
+const LIST_ITEMS = new Set(['listItem'])
+
+/** The children each parent may hold; any other child is dropped. */
+const CHILDREN: Record<string, ReadonlySet<string>> = {
+  doc: BLOCKS,
+  blockquote: BLOCKS,
+  listItem: BLOCKS,
+  bulletList: LIST_ITEMS,
+  orderedList: LIST_ITEMS,
+  paragraph: INLINE,
+  heading: INLINE,
+  codeBlock: new Set(['text']),
+}
+
+type Walk = {
+  sources: ReadingSources
+  nodes: number
+  embeds: number
+  images: number
+  /** Images kept so far. */
+  shown: number
 }
 
 function cleanChildren(
-  node: JSONContent,
-  budget: Budget,
-  depth: number,
-  allowMarks = true
-): JSONContent[] | undefined {
-  if (!Array.isArray(node.content)) return undefined
+  parent: string,
+  content: unknown,
+  walk: Walk,
+  depth: number
+): JSONContent[] {
+  if (!Array.isArray(content)) return []
   if (depth > READING_LIMITS.depth) throw new DocumentTooLarge('depth')
-  const children = node.content
-    .map((child) => cleanNode(child, budget, depth, allowMarks))
-    .filter((child): child is JSONContent => child !== null)
-  return children.length ? children : undefined
+  const allowed = CHILDREN[parent]
+  const out: JSONContent[] = []
+  for (let i = 0; i < content.length; i++) {
+    // Every entry counts, whatever it holds.
+    if (++walk.nodes > READING_LIMITS.nodes) throw new DocumentTooLarge('nodes')
+    const child: unknown = content[i]
+    if (!isRecord(child) || typeof child.type !== 'string') continue
+    if (!allowed?.has(child.type)) continue
+    const clean = cleanNode(parent, child, walk, depth)
+    if (clean) out.push(clean)
+  }
+  return out
 }
 
 function cleanNode(
-  node: JSONContent,
-  budget: Budget,
-  depth: number,
-  allowMarks = true
+  parent: string,
+  node: Record<string, unknown>,
+  walk: Walk,
+  depth: number
 ): JSONContent | null {
-  if (!node || typeof node !== 'object') return null
-  if (++budget.nodes > READING_LIMITS.nodes) throw new DocumentTooLarge('nodes')
-  const children = (n: JSONContent, marks = true) =>
-    cleanChildren(n, budget, depth + 1, marks)
+  const attrs = isRecord(node.attrs) ? node.attrs : {}
+  const children = (type: string) =>
+    cleanChildren(type, node.content, walk, depth + 1)
   switch (node.type) {
     case 'text': {
-      if (typeof node.text !== 'string' || !node.text) return null
+      if (typeof node.text !== 'string') return null
       if (node.text.length > READING_LIMITS.textLength)
         throw new DocumentTooLarge('text')
-      const marks = allowMarks ? cleanMarks(node.marks) : undefined
-      return marks
-        ? { type: 'text', text: node.text, marks }
-        : { type: 'text', text: node.text }
+      // Code blocks hold plain text.
+      const marks = parent === 'codeBlock' ? undefined : cleanMarks(node.marks)
+      const linked = marks?.some((mark) => mark.type === 'link')
+      const text = linked ? node.text.replace(BIDI_CONTROLS, '') : node.text
+      if (!text) return null
+      return marks ? { type: 'text', text, marks } : { type: 'text', text }
     }
     case 'paragraph':
-    case 'blockquote':
-    case 'bulletList':
-    case 'listItem': {
-      const content = children(node)
-      return content ? { type: node.type, content } : { type: node.type }
-    }
-    case 'orderedList': {
-      const start = dimension(node.attrs?.start)
-      const content = children(node)
-      return {
-        type: 'orderedList',
-        ...(start && start !== 1 ? { attrs: { start } } : {}),
-        ...(content ? { content } : {}),
-      }
+    case 'codeBlock': {
+      const content = children(node.type)
+      return content.length ? { type: node.type, content } : { type: node.type }
     }
     case 'heading': {
-      const asked = Number(node.attrs?.level)
-      const level = asked >= 2 && asked <= 4 ? asked : asked > 4 ? 4 : 2
-      const content = children(node)
+      const level = HEADING_LEVELS.includes(attrs.level as number)
+        ? (attrs.level as number)
+        : 2
+      const content = children('heading')
       return {
         type: 'heading',
         attrs: { level },
-        ...(content ? { content } : {}),
+        ...(content.length ? { content } : {}),
       }
     }
-    case 'codeBlock': {
-      const content = children(node, false)
-      return content ? { type: 'codeBlock', content } : { type: 'codeBlock' }
+    case 'blockquote':
+    case 'bulletList': {
+      // An empty quote or list is not valid; it is dropped.
+      const content = children(node.type)
+      return content.length ? { type: node.type, content } : null
+    }
+    case 'orderedList': {
+      const content = children('orderedList')
+      if (!content.length) return null
+      const start = dimension(attrs.start)
+      return {
+        type: 'orderedList',
+        ...(start && start !== 1 ? { attrs: { start } } : {}),
+        content,
+      }
+    }
+    case 'listItem': {
+      // A list item opens with a paragraph.
+      const content = children('listItem')
+      if (content[0]?.type !== 'paragraph')
+        content.unshift({ type: 'paragraph' })
+      return { type: 'listItem', content }
     }
     case 'hardBreak':
     case 'horizontalRule':
       return { type: node.type }
     case 'image':
     case 'resizableImage': {
-      const src = safeImageSrc(node.attrs?.src)
+      if (++walk.images > READING_LIMITS.images)
+        throw new DocumentTooLarge('images')
+      const src = safeImageSrc(attrs.src, walk.sources)
       if (!src) return null
-      const attrs: Record<string, unknown> = { src }
-      const alt = shortText(node.attrs?.alt)
-      const title = shortText(node.attrs?.title)
-      const width = dimension(node.attrs?.width)
-      const height = dimension(node.attrs?.height)
-      if (alt) attrs.alt = alt
-      if (title) attrs.title = title
-      if (width) attrs.width = width
-      if (height) attrs.height = height
-      return { type: 'resizableImage', attrs }
+      const image: Record<string, unknown> = { src }
+      const alt = shortText(attrs.alt)
+      const title = shortText(attrs.title)
+      const width = dimension(attrs.width)
+      const height = dimension(attrs.height)
+      if (alt) image.alt = alt
+      if (title) image.title = title
+      if (width) image.width = width
+      if (height) image.height = height
+      // The first image may be the largest paint; the rest wait.
+      if (++walk.shown > 1) image.loading = 'lazy'
+      return { type: 'resizableImage', attrs: image }
     }
     case 'youtube': {
-      const src = safeYoutubeSrc(node.attrs?.src)
+      if (++walk.embeds > READING_LIMITS.embeds)
+        throw new DocumentTooLarge('embeds')
+      const src = safeYoutubeSrc(attrs.src)
       return src ? { type: 'youtube', attrs: { src } } : null
     }
     default:
@@ -219,11 +395,12 @@ function cleanNode(
 }
 
 /** The author's document, reduced to what the reading view renders. */
-export function sanitizeReadingDoc(content: JSONContent): JSONContent {
-  const budget: Budget = { nodes: 0 }
-  const blocks = Array.isArray(content?.content) ? content.content : []
-  const children = blocks
-    .map((child) => cleanNode(child, budget, 2))
-    .filter((child): child is JSONContent => child !== null)
-  return { type: 'doc', content: children }
+export function sanitizeReadingDoc(
+  content: JSONContent,
+  sources: ReadingSources
+): JSONContent {
+  const walk: Walk = { sources, nodes: 0, embeds: 0, images: 0, shown: 0 }
+  const root: unknown = content
+  const blocks = isRecord(root) ? root.content : undefined
+  return { type: 'doc', content: cleanChildren('doc', blocks, walk, 2) }
 }

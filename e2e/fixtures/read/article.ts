@@ -67,7 +67,7 @@ export const CONTENT = {
     {
       type: 'resizableImage',
       attrs: {
-        src: '/img/ledger.svg',
+        src: '/images/ledger.svg',
         alt: 'An open ledger on a kitchen table',
         title: 'The ledger, open at 1987.',
         width: 800,
@@ -89,6 +89,16 @@ export const CONTENT = {
       content: [
         text('1987-03-04  Señora Ruiz   5\n1987-03-04  Bus singer   1'),
       ],
+    },
+    // One valid embed, given as a watch address with extra parameters: the
+    // renderer keeps only its id. The suite blocks the player's host.
+    {
+      type: 'youtube',
+      attrs: {
+        src: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&autoplay=1',
+        start: 30,
+        width: 9999,
+      },
     },
     ...filler.flatMap((f) => [p(text(f))]),
     ...filler.map((f) => p(text(f.replace('She', 'My grandmother')))),

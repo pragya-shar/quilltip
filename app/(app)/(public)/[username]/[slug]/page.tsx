@@ -16,6 +16,10 @@ import {
 } from '@/lib/seo/siteMetadata'
 import { readingPlainText } from '@/lib/tiptap/readingPlainText'
 import { renderReadingHtml } from '@/lib/tiptap/renderReadingHtml'
+import {
+  deploymentSources,
+  safeImageSrc,
+} from '@/lib/tiptap/sanitizeReadingDoc'
 
 const reads = (
   searchParams: Record<string, string | string[] | undefined>
@@ -48,7 +52,8 @@ export async function generateMetadata({
     article.excerpt?.trim() || readingPlainText(article.content)
   )
   const url = articlePath(article.author.username, article.slug)
-  const images = article.coverImage ? [{ url: article.coverImage }] : undefined
+  const cover = safeImageSrc(article.coverImage, deploymentSources())
+  const images = cover ? [{ url: cover }] : undefined
   return {
     title: article.title,
     description,
@@ -110,10 +115,10 @@ export default async function ArticlePage({
     )
   const article = load.article
 
-  const { html, tooLarge } = renderReadingHtml(article.content)
-  // Past the reading limits the document is not rendered at all, and its
-  // text is not walked again for a fallback.
-  if (tooLarge)
+  const { html } = renderReadingHtml(article.content)
+  // Past the reading limits, refused by the schema or empty: the document
+  // is not shown in part, and its text is not walked again.
+  if (html === undefined)
     return (
       <PushedScreen>
         <div className="qt-page" data-width="read">
@@ -130,11 +135,6 @@ export default async function ArticlePage({
     <ArticleView
       article={toReadArticle(article)}
       bodyHtml={html}
-      fallbackParagraphs={
-        html
-          ? undefined
-          : [readingPlainText(article.content, 200_000)].filter(Boolean)
-      }
       readNext={readNext}
     />
   )

@@ -4,7 +4,8 @@ import { renderReadingHtml } from '@/lib/tiptap/renderReadingHtml'
 import { READING_LIMITS } from '@/lib/tiptap/sanitizeReadingDoc'
 
 // Oversized documents are refused, quickly, not rendered slowly: the
-// renderer reports `tooLarge` and the page shows its not-available state.
+// renderer reports `unavailable: 'too-large'` and the page shows its
+// not-available state.
 
 const text = (t: string) => ({ type: 'text', text: t })
 const p = (t: string) => ({ type: 'paragraph', content: [text(t)] })
@@ -31,7 +32,11 @@ describe('reading limits', () => {
 
   it('refuses a document nested too deeply, at once', () => {
     const { value, ms } = timed(() => renderReadingHtml(nested(5_000)))
-    expect(value).toEqual({ html: undefined, headings: [], tooLarge: true })
+    expect(value).toEqual({
+      html: undefined,
+      headings: [],
+      unavailable: 'too-large',
+    })
     expect(ms).toBeLessThan(250)
   })
 
@@ -41,7 +46,7 @@ describe('reading limits', () => {
       content: Array.from({ length: READING_LIMITS.nodes }, () => p('x')),
     }
     const { value, ms } = timed(() => renderReadingHtml(doc))
-    expect(value.tooLarge).toBe(true)
+    expect(value).toMatchObject({ unavailable: 'too-large' })
     expect(ms).toBeLessThan(500)
   })
 
@@ -50,7 +55,7 @@ describe('reading limits', () => {
       type: 'doc',
       content: [p('a'.repeat(READING_LIMITS.textLength + 1))],
     }
-    expect(renderReadingHtml(doc).tooLarge).toBe(true)
+    expect(renderReadingHtml(doc)).toMatchObject({ unavailable: 'too-large' })
   })
 
   it('drops a link or an image whose address is too long, and keeps the text', () => {
@@ -71,9 +76,10 @@ describe('reading limits', () => {
         { type: 'resizableImage', attrs: { src: long } },
       ],
     }
-    const { html, tooLarge } = renderReadingHtml(doc)
-    expect(tooLarge).toBeUndefined()
-    expect(html).toBe('<p id="s-0-0">linked</p>')
+    expect(renderReadingHtml(doc)).toEqual({
+      html: '<p id="s-0-0">linked</p>',
+      headings: [],
+    })
   })
 
   it('reads a description within the limits, and none from an oversized document', () => {

@@ -13,7 +13,8 @@ export function readingPlainText(
   if (!content) return ''
   let doc: JSONContent
   try {
-    doc = sanitizeReadingDoc(content)
+    // Text only: no image source is read.
+    doc = sanitizeReadingDoc(content, { storageOrigin: null })
   } catch {
     return ''
   }

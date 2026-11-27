@@ -17,9 +17,7 @@ import {
 type ArticleViewProps = {
   article: ReadArticle
   /** The body as server HTML (`renderReadingHtml`). */
-  bodyHtml: string | undefined
-  /** The body as plain paragraphs, when the HTML could not render. */
-  fallbackParagraphs?: string[]
+  bodyHtml: string
   readNext: ReadNextItem[]
 }
 
@@ -31,12 +29,7 @@ type ArticleViewProps = {
  * page; none of them hides or delays it, so the article reads with no
  * script.
  */
-export function ArticleView({
-  article,
-  bodyHtml,
-  fallbackParagraphs = [],
-  readNext,
-}: ArticleViewProps) {
+export function ArticleView({ article, bodyHtml, readNext }: ArticleViewProps) {
   return (
     <PushedScreen>
       <ReadingProgress />
@@ -76,10 +69,15 @@ export function ArticleView({
           </header>
           {article.coverImage ? (
             <figure className="qt-read__cover">
-              {/* The writer's own image, any host: next/image would need
-                  every host listed. Eager: it can be the largest paint. */}
+              {/* The writer's upload, on this deployment's storage. Eager:
+                  it can be the largest paint. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={article.coverImage} alt="" fetchPriority="high" />
+              <img
+                src={article.coverImage}
+                alt=""
+                fetchPriority="high"
+                referrerPolicy="no-referrer"
+              />
             </figure>
           ) : null}
           <p id="read-keys" className="qt-visually-hidden">
@@ -92,33 +90,20 @@ export function ArticleView({
               className="qt-read__margin"
               aria-hidden="true"
             />
-            {bodyHtml ? (
-              // The system's Prose, as a plain element: the body is HTML.
-              <div
-                id={READ_BODY_ID}
-                className="qt-prose qt-read__prose"
-                data-variant="read"
-                data-lead-in=""
-                // One keyboard stop: the arrow keys move between sentences
-                // and Enter chooses a line (the island adds this).
-                // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the body is the keyboard surface for choosing a line
-                tabIndex={0}
-                aria-label="Article text"
-                aria-describedby="read-keys"
-                dangerouslySetInnerHTML={{ __html: bodyHtml }}
-              />
-            ) : (
-              <div
-                id={READ_BODY_ID}
-                className="qt-prose qt-read__prose"
-                data-variant="read"
-                data-lead-in=""
-              >
-                {fallbackParagraphs.map((text, index) => (
-                  <p key={index}>{text}</p>
-                ))}
-              </div>
-            )}
+            {/* The system's Prose, as a plain element: the body is HTML. */}
+            <div
+              id={READ_BODY_ID}
+              className="qt-prose qt-read__prose"
+              data-variant="read"
+              data-lead-in=""
+              // One keyboard stop: the arrow keys move between sentences
+              // and Enter chooses a line (the island adds this).
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the body is the keyboard surface for choosing a line
+              tabIndex={0}
+              aria-label="Article text"
+              aria-describedby="read-keys"
+              dangerouslySetInnerHTML={{ __html: bodyHtml }}
+            />
           </div>
           <footer className="qt-read__end">
             <Avatar

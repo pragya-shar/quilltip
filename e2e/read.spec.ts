@@ -19,7 +19,11 @@ const isWebKit = (page: Page) =>
 /** Tab, with WebKit's option that includes buttons (as Safari's setting). */
 const tabKey = (page: Page) => (isWebKit(page) ? 'Alt+Tab' : 'Tab')
 
+/** The embedded player's host: never reached from the suite. */
+const VIDEO_HOST = /^https:\/\/www\.youtube-nocookie\.com\//
+
 async function open(page: Page, query = '') {
+  await page.route(VIDEO_HOST, (route) => route.abort())
   await page.goto(`${ARTICLE_PATH}?run=${run}${query}`)
   await expect(
     page.getByRole('heading', { level: 1, name: TITLE })
@@ -115,6 +119,34 @@ test('the article reads in full with its title, byline and end', async ({
   await expect(page.locator('.qt-read__wallet')).toContainText('$18.40')
   await expect(page.locator('.qt-read__wallet')).toContainText('Testnet')
   await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
+})
+
+test('the embedded video is a fixed, sandboxed no-cookie frame', async ({
+  page,
+}) => {
+  await open(page)
+  const frame = page.locator('#read-body [data-youtube-video] iframe')
+  await expect(frame).toHaveCount(1)
+  expect(
+    await frame.evaluate((el) =>
+      Object.fromEntries(Array.from(el.attributes, (a) => [a.name, a.value]))
+    )
+  ).toEqual({
+    src: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ',
+    title: 'YouTube video',
+    width: '640',
+    height: '360',
+    loading: 'lazy',
+    referrerpolicy: 'strict-origin-when-cross-origin',
+    sandbox: 'allow-scripts allow-same-origin allow-presentation',
+    allow: 'encrypted-media; picture-in-picture; fullscreen',
+    allowfullscreen: 'true',
+  })
+  // The image is the site's own path, sent with no referrer.
+  await expect(page.locator('#read-body img').first()).toHaveAttribute(
+    'referrerpolicy',
+    'no-referrer'
+  )
 })
 
 test('a tap on a line chooses that sentence, for free, and a second tap lets it go', async ({

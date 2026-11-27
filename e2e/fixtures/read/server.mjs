@@ -117,7 +117,7 @@ Bun.serve({
       return json({ id: `h${state.mutations.length}` })
     }
     if (url.pathname === '/api/mutations') return json(state.mutations)
-    if (url.pathname === '/img/ledger.svg')
+    if (url.pathname === '/images/ledger.svg')
       return new Response(LEDGER_SVG, {
         headers: { 'Content-Type': 'image/svg+xml' },
       })

@@ -63,9 +63,19 @@ describe('reading places for Today', () => {
     const { isSitePath } = await import('@/hooks/read/readingPlace')
     expect(isSitePath('/tomas/ledger')).toBe(true)
     expect(isSitePath('/tomas/ledger?x=1')).toBe(true)
+    // Normalised as the parser reads it, still on this site.
+    const { sitePath } = await import('@/hooks/read/readingPlace')
+    expect(sitePath('/tomas/./ledger/../ledger?x=1#s-1-0')).toBe(
+      '/tomas/ledger?x=1'
+    )
     for (const bad of [
       '//evil.example/x',
       '/\\evil.example/x',
+      '/\\evil.test/x',
+      '/\t/evil.test/x',
+      '/\n/evil.test/x',
+      '/a\\b',
+      '/x\u0085y',
       'https://evil.example/',
       'javascript:alert(1)',
       'tomas/ledger',
