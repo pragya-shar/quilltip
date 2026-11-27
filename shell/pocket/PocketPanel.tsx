@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { Icon } from '@/system/components/Icon'
 import { focusDestination } from '@/system/inputModality'
 import { CloseIcon } from '@/system/icons'
-import { PocketContent } from './PocketContent'
+import { PocketContent } from '@/components/pocket/PocketContent'
 
 /**
  * The Pocket on a desktop: a panel on the right, beside the page, not over

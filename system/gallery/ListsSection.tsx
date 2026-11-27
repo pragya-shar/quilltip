@@ -10,6 +10,7 @@ import { GallerySection } from './GallerySection'
 import { Glyph } from './Glyph'
 import { Specimen } from './Specimen'
 import { money, worst } from './samples'
+import { showToast } from '../toast'
 
 /** Rows, activity and avatars, with worst-case text. */
 export function ListsSection() {
@@ -36,6 +37,7 @@ export function ListsSection() {
             direction="out"
             status="pending"
             time="9:38"
+            onPress={() => showToast({ title: 'Receipt opens here' })}
           />
           <ActivityRow
             lead={<Glyph icon={AddIcon} />}

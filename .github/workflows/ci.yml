@@ -459,6 +459,11 @@ jobs:
           - shard: system
             suites: system
             browsers: chromium webkit
+          # Every rebuilt surface's suite (e2e/suites/, one file per package),
+          # in Chromium and WebKit. A package adds its file, never a shard.
+          - shard: surfaces
+            suites: '@surfaces'
+            browsers: chromium webkit
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

@@ -391,6 +391,27 @@ test('a switch toggles by key and by touch, and a failed save goes back', async 
   await expect(name).toHaveAccessibleDescription(/That did not save/)
 })
 
+test('an activity row is a link or a button, never both', async ({ page }) => {
+  await open(page)
+  const rows = page.locator('.qt-activity')
+  const kinds = await rows.evaluateAll((list) =>
+    list.map((row) => ({
+      links: row.querySelectorAll('a.qt-activity__link').length,
+      buttons: row.querySelectorAll('button.qt-activity__link').length,
+    }))
+  )
+  for (const kind of kinds)
+    expect(kind.links + kind.buttons).toBeLessThanOrEqual(1)
+  expect(kinds.some((k) => k.links === 1)).toBe(true)
+  expect(kinds.some((k) => k.buttons === 1)).toBe(true)
+  const receipt = page.getByRole('button', { name: 'Tomás Reyes' })
+  await receipt.focus()
+  await page.keyboard.press('Enter')
+  await expect(
+    page.locator('.qt-toasts').getByText('Receipt opens here')
+  ).toBeVisible()
+})
+
 test('tabs move with arrow keys', async ({ page }) => {
   await open(page)
   const feed = page.getByRole('tablist', { name: 'Feed' })
