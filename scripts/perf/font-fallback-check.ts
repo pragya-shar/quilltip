@@ -77,6 +77,12 @@ type Snapshot = {
   faces: Record<string, string[]>
   /** Web font faces (not local fallback faces) that loaded. */
   fontsLoaded: number
+  /**
+   * Each fallback face with its status. A face whose local() sources match no
+   * installed font ends in `error`, and its text falls through to the generic
+   * family.
+   */
+  fallbackFaces: string[]
 }
 
 async function snapshot(
@@ -129,10 +135,15 @@ async function snapshot(
         })
       }
       const faces: Record<string, string[]> = {}
+      const fallbackFaces: string[] = []
       let fontsLoaded = 0
       for (const face of document.fonts) {
         const family = face.family.replace(/^["']|["']$/g, '')
         ;(faces[family] ??= []).push(face.weight)
+        if (/ Fallback$/.test(family))
+          fallbackFaces.push(
+            `${family} ${face.weight} ${face.style}: ${face.status}`
+          )
         // Local fallback faces load too; count only web fonts.
         if (face.status === 'loaded' && !/ Fallback$/.test(family))
           fontsLoaded++
@@ -142,6 +153,7 @@ async function snapshot(
         pageHeight: document.documentElement.scrollHeight,
         faces,
         fontsLoaded,
+        fallbackFaces: [...new Set(fallbackFaces)],
       }
     }, TEXT_BLOCKS)
   } finally {
@@ -225,6 +237,10 @@ function compare(
   if (p90 > MAX_P90_MOVE_PX)
     failures.push(
       `${label}: text moves ${p90} px at the 90th percentile when the fonts arrive > ${MAX_P90_MOVE_PX}`
+    )
+  if (failures.length > 0)
+    console.log(
+      `  fallback faces, fonts blocked: ${blocked.fallbackFaces.join('; ')}`
     )
   return failures
 }
