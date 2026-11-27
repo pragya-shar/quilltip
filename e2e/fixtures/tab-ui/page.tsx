@@ -103,7 +103,7 @@ function Fixture() {
   const view = scenario?.view ?? 'home'
   return (
     <TabServicesContext.Provider value={services}>
-      <div className="account-surface ui-light" style={{ minHeight: 'auto' }}>
+      <div className="account-surface" style={{ minHeight: 'auto' }}>
         <main
           className="account-folio"
           style={{ minHeight: 'auto', margin: 0 }}

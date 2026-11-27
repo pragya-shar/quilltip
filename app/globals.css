@@ -108,10 +108,13 @@
 @custom-variant dark (&:is(.dark *));
 
 /* Keep unscoped UI and portal defaults on the current shared palette.
-   `.ui-light` resolves these again from its own light --ui-* tokens. */
+   The always-light surfaces (see app/shared-ui.css) resolve these again from
+   their own light --ui-* tokens. */
 :root,
 .dark,
-.ui-light {
+.ui-light,
+.account-surface,
+.account-dialog {
   --surface: var(--ui-surface);
   --text: var(--ui-foreground);
   --background: var(--ui-surface);
@@ -152,7 +155,9 @@
 }
 
 :root,
-.ui-light {
+.ui-light,
+.account-surface,
+.account-dialog {
   --radius: 0.625rem;
 
   /* Card tokens */

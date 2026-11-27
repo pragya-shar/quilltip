@@ -51,7 +51,7 @@ export function TipReceiptDialog({
     >
       {item && (
         <DialogContent
-          className="account-dialog ui-light account-receipt"
+          className="account-dialog account-receipt"
           onCloseAutoFocus={(event) => {
             if (returnFocusTo?.isConnected) {
               event.preventDefault()

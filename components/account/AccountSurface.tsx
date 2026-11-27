@@ -24,7 +24,7 @@ export function AccountSurface({ children }: { children: ReactNode }) {
         Skip to account content
       </a>
       <AppNavigation />
-      <div className="account-surface ui-light pt-16">
+      <div className="account-surface pt-16">
         <main
           id="account-content"
           className="account-folio account-folio-under-header"

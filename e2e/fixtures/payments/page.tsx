@@ -48,7 +48,7 @@ function Frame({
   if (params.get('surface') === 'dashboard') {
     // The markup of AccountSurface, without the app chrome.
     return (
-      <div className="account-surface ui-light pay-fixture-account">
+      <div className="account-surface pay-fixture-account">
         <section
           className="account-folio"
           aria-label="Fixture"

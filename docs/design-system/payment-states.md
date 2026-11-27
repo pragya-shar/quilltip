@@ -684,12 +684,13 @@ apply on every surface, not only inside the tip dialog.
   words. Colour never carries meaning alone.
 - Inside the tip dialog, which is always light, the kit pins the light status
   colours so dark mode does not lower contrast.
-- The dashboard surface and its dialogs are also always light. They carry
-  `ui-light` (`app/shared-ui.css`), which sets the light `--ui-*` tokens and
-  the aliases built on them again, so the kit and everything else on the
-  dashboard look the same in both appearances. A kit action that is a link
-  keeps its button colours there (`.pay-action` is left out of the dashboard
-  link colour). A new always-light surface takes the same class.
+- The dashboard surface and its dialogs are also always light.
+  `app/shared-ui.css` and `app/globals.css` list `.account-surface` and
+  `.account-dialog` with the light `--ui-*` tokens and the aliases built on
+  them, so the kit and everything else on the dashboard look the same in
+  both appearances. A kit action that is a link keeps its button colours
+  there (`.pay-action` is left out of the dashboard link colour). A new
+  always-light surface takes the `ui-light` class.
 - `e2e/payment-states.spec.ts` checks every state at 375, 768 and 1440 px
   with axe (WCAG 2.2 AA tags), no horizontal overflow, the testnet label on
   every amount and link, keyboard order, focus while running and after a

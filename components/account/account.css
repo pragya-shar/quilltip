@@ -10,8 +10,8 @@
   font-weight: 400 800;
   font-display: swap;
 }
-/* Always light. Each of these elements also carries `ui-light`
-   (app/shared-ui.css), so the theme tokens inside stay light in dark
+/* Always light. app/shared-ui.css and app/globals.css list both classes
+   with the light theme tokens, so the tokens inside stay light in dark
    appearance. */
 .account-surface,
 .account-dialog {

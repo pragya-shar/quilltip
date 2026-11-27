@@ -208,7 +208,7 @@ export function OwnerWalletSettings({
         }}
       >
         <DialogContent
-          className="account-dialog ui-light"
+          className="account-dialog"
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             removeButton.current?.focus()

@@ -32,7 +32,7 @@ function Fixture() {
       {view === 'verify' && (
         <section
           aria-label="Receiving wallet"
-          className="account-surface ui-light mb-8"
+          className="account-surface mb-8"
           style={FOLIO_FRAME}
         >
           <div className="account-folio" style={FOLIO}>
@@ -43,7 +43,7 @@ function Fixture() {
       {view === 'dashboard' && (
         <section
           aria-label="Dashboard wallet"
-          className="account-surface ui-light mb-8"
+          className="account-surface mb-8"
           style={FOLIO_FRAME}
         >
           <div className="account-folio" style={FOLIO}>
