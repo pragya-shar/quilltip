@@ -910,8 +910,8 @@ nothing. Both now answer from the first paint, without changing how Next.js
 loads its scripts.
 
 - **Auth forms** (`/login`, `/register`, `/forgot-password`,
-  `/reset-password`). An inline script at the start of `<body>`
-  (`components/layout/EarlyInteractionScript.tsx`, `lib/auth/earlySubmit.ts`)
+  `/reset-password`). An inline script at the start of the auth layout
+  (`components/auth/EarlySubmitScript.tsx`, `lib/auth/earlySubmit.ts`)
   cancels a submit made before React attaches the form and marks the form as
   holding it; CSS shows the busy label ("One moment…") from the next frame.
   When React attaches the form, `useEarlySubmit` reports the values typed so
@@ -924,8 +924,11 @@ loads its scripts.
   `WAITLIST_MIN_FILL_MS`, so a held submit would be dropped there.
 - **Mobile menu.** The sheet is a native `<dialog>` in the server HTML. Before
   the scripts run, the header button opens it as a popover
-  (`popovertarget`, action `show`); an inline script closes the popover when
-  focus leaves it (`lib/navigation/earlyMenu.ts`). Once the scripts run, the
+  (`popovertarget`, action `show`); an inline script at the start of `<body>`
+  closes the popover when focus leaves it (`lib/navigation/earlyMenu.ts`). An
+  inline script in `<head>` instead changes when Chrome runs the page's
+  chunks: first paint about 0.9 s earlier and React about 0.9 s later on this
+  profile, the same trade-off as #538. Once the scripts run, the
   button opens it with `showModal()` (focus moves in, the page is inert,
   Escape closes it and focus returns to the button), and a popover the reader
   opened earlier becomes the modal dialog in the same frame. The sheet's

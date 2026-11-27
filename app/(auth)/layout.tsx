@@ -1,13 +1,23 @@
 import type { ReactNode } from 'react'
+import { headers } from 'next/headers'
 import Link from 'next/link'
 import { LandingWordmark } from '@/components/landing/LandingWordmark'
 import { ArrowRight } from '@/components/landing/LandingIcons'
 import { AccountIllustrations } from '@/components/auth/AccountIllustrations'
+import { EarlySubmitScript } from '@/components/auth/EarlySubmitScript'
+import { NONCE_HEADER } from '@/lib/security/contentSecurityPolicy'
 import '@/components/auth/account.css'
 
-export default function AuthLayout({ children }: { children: ReactNode }) {
+export default async function AuthLayout({
+  children,
+}: {
+  children: ReactNode
+}) {
+  const nonce = (await headers()).get(NONCE_HEADER) ?? undefined
   return (
     <div className="account-page">
+      {/* Holds a submit made before the page scripts run. */}
+      <EarlySubmitScript nonce={nonce} />
       <AccountIllustrations />
       <header className="account-header">
         <LandingWordmark />

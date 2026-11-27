@@ -4,7 +4,7 @@ import './globals.css'
 import Providers from '@/components/providers/Providers'
 import { Analytics } from '@vercel/analytics/react'
 import { AnalyticsConsent } from '@/components/analytics/AnalyticsConsent'
-import { EarlyInteractionScript } from '@/components/layout/EarlyInteractionScript'
+import { EarlyMenuScript } from '@/components/layout/EarlyMenuScript'
 import { analyticsServerKey } from '@/lib/analytics/config'
 import { NONCE_HEADER } from '@/lib/security/contentSecurityPolicy'
 import { SITE_META_DESCRIPTION } from '@/lib/copy/landing-sections'
@@ -24,7 +24,7 @@ export default async function RootLayout({
   // Reading the request renders every page per request. Next.js adds the CSP
   // nonce from proxy.ts to its scripts only while rendering, so a prerendered
   // page would carry scripts the policy blocks. The theme script needs the
-  // same nonce, as does the early-interaction script. See
+  // same nonce, as do the early-menu and early-submit scripts. See
   // docs/security/content-security-policy.md.
   const nonce = (await headers()).get(NONCE_HEADER) ?? undefined
   return (
@@ -41,11 +41,12 @@ export default async function RootLayout({
         />
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
-        {/* Answers presses made before the page scripts run. It runs before
-            any form or menu is parsed. In <head> it would change when Chrome
-            runs the page's chunks (first paint about 0.9 s earlier, React
-            about 0.9 s later on the slow phone profile; issue #554). */}
-        <EarlyInteractionScript nonce={nonce} />
+        {/* Keeps focus out of the page behind the mobile menu before the
+            page scripts run. Not in <head>: an inline script there changes
+            when Chrome runs the page's chunks (first paint about 0.9 s
+            earlier, React about 0.9 s later on the slow phone profile;
+            issue #554). */}
+        <EarlyMenuScript nonce={nonce} />
         <Providers nonce={nonce}>{children}</Providers>
         <Analytics />
         {analyticsServerKey() && <AnalyticsConsent />}
