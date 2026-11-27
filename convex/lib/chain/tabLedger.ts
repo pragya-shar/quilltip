@@ -411,7 +411,7 @@ export async function checkTabTip(
   if (seq > MAX_RECEIPTS_PER_PAIR) {
     tabError('TAB_RECEIPT_CAP', 'Register a new session key to keep tipping.')
   }
-  if (reservedOf(account) + args.amount > big(account.confirmedBalance)) {
+  if (args.amount > spendableOf(account)) {
     tabError('TAB_OVER_BALANCE', 'The tab balance is too low. Top up first.')
   }
   if (big(key.acceptedTotal) + args.amount > big(key.spendLimit)) {
@@ -1404,15 +1404,43 @@ function indexedRangesOf(
   return big(v.paidOnChain) > ZERO ? [{ from: '0', to: v.paidOnChain }] : []
 }
 
+/**
+ * A ledger amount that must not be negative. A negative value means the
+ * stored figures disagree; it is logged as `CHAIN_TAB_LEDGER_NEGATIVE` for
+ * review and stored as zero, which only ever enlarges the reserve.
+ */
+function flagNegative(
+  value: bigint,
+  field: string,
+  ids: Record<string, string>
+): bigint {
+  if (value >= ZERO) return value
+  console.error(
+    JSON.stringify({
+      code: 'CHAIN_TAB_LEDGER_NEGATIVE',
+      field,
+      value: value.toString(),
+      ...ids,
+    })
+  )
+  return ZERO
+}
+
 /** Paid per the settler's record, not yet debited by an indexed event. */
-function unindexedOf(paid: bigint, ranges: readonly PaidRange[]): bigint {
-  const rest = paid - rangesTotal(ranges)
-  return rest > ZERO ? rest : ZERO
+function unindexedOf(
+  voucherId: Id<'tabVouchers'>,
+  paid: bigint,
+  ranges: readonly PaidRange[]
+): bigint {
+  return flagNegative(paid - rangesTotal(ranges), 'pair.unindexed', {
+    voucherId,
+  })
 }
 
 /**
- * What the reader's balance must still cover: accepted and unsettled, plus
- * settled amounts whose debit the indexer has not applied yet.
+ * What the reader's balance must still cover: accepted and unsettled
+ * (`outstanding`), plus settled amounts whose debit the indexer has not
+ * applied to `confirmedBalance` yet (`settledUnindexed`).
  */
 export function reservedOf(
   account: Pick<Doc<'tabAccounts'>, 'outstanding' | 'settledUnindexed'>
@@ -1420,7 +1448,16 @@ export function reservedOf(
   return big(account.outstanding) + big(account.settledUnindexed ?? '0')
 }
 
-/** `confirmedBalance − reserved`: what new tab tips can use. */
+/**
+ * The reader's spendable tab amount in base units:
+ * `confirmedBalance − outstanding − settledUnindexed`.
+ *
+ * The one definition of the figure. The tab tip check (`TAB_OVER_BALANCE`)
+ * and every read model that shows it (`getMyTab.available`) call this, so
+ * the screen and the acceptance rule cannot disagree. It is not clamped: a
+ * negative result means the tab is over-committed (for example after a
+ * withdrawal, before unpaid pairs close) and accepts no tab tip.
+ */
 export function spendableOf(
   account: Pick<
     Doc<'tabAccounts'>,
@@ -1466,7 +1503,8 @@ export async function applyPairSettlement(
         )
       : oldRanges
   const unindexedDelta =
-    unindexedOf(newPaid, newRanges) - unindexedOf(oldPaid, oldRanges)
+    unindexedOf(voucher._id, newPaid, newRanges) -
+    unindexedOf(voucher._id, oldPaid, oldRanges)
   const rangesChanged =
     voucher.indexedPaid === undefined ||
     rangesTotal(newRanges) !== rangesTotal(oldRanges)
@@ -1493,11 +1531,20 @@ export async function applyPairSettlement(
           })
         : ZERO
     if (owedDelta !== ZERO || unindexedDelta !== ZERO) {
-      const outstanding = big(account.outstanding) - owedDelta
-      const unindexed = big(account.settledUnindexed ?? '0') + unindexedDelta
+      const ids = { tabAccountId: account._id, voucherId: voucher._id }
+      const outstanding = flagNegative(
+        big(account.outstanding) - owedDelta,
+        'account.outstanding',
+        ids
+      )
+      const unindexed = flagNegative(
+        big(account.settledUnindexed ?? '0') + unindexedDelta,
+        'account.settledUnindexed',
+        ids
+      )
       await ctx.db.patch(account._id, {
-        outstanding: (outstanding > ZERO ? outstanding : ZERO).toString(),
-        settledUnindexed: (unindexed > ZERO ? unindexed : ZERO).toString(),
+        outstanding: outstanding.toString(),
+        settledUnindexed: unindexed.toString(),
         updatedAt: args.now,
       })
     }
@@ -1549,9 +1596,13 @@ async function closePair(
   })
   const account = await ctx.db.get(voucher.tabAccountId)
   if (account && owed > ZERO) {
-    const outstanding = big(account.outstanding) - owed
+    const outstanding = flagNegative(
+      big(account.outstanding) - owed,
+      'account.outstanding',
+      { tabAccountId: account._id, voucherId: voucher._id }
+    )
     await ctx.db.patch(account._id, {
-      outstanding: (outstanding > ZERO ? outstanding : ZERO).toString(),
+      outstanding: outstanding.toString(),
       updatedAt: now,
     })
   }

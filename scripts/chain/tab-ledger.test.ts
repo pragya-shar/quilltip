@@ -2129,6 +2129,132 @@ describe('spendable balance across settler records and indexed events', () => {
     expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
   })
 
+  it('a backfill after a long indexer gap, then a replay and a re-dispatch', async () => {
+    // Chain: deposit 0.30; three settlements and a top-up while the indexer
+    // is down; the settler records each result at once.
+    const { t, s } = await opened(BigInt(30) * CENT, [10])
+    const truth = {
+      deposits: BigInt(30) * CENT,
+      /** Deposits the app has indexed: a top-up counts once it is read. */
+      indexed: BigInt(30) * CENT,
+      accepted: BigInt(10) * CENT,
+    }
+    const free = () => truth.deposits - truth.accepted
+    const shown = () => truth.indexed - truth.accepted
+    const events: RawRpcEvent[] = []
+    let paid = BigInt(0)
+    const settleAll = async () => {
+      const { settlementId, vouchers } = await beginSettlement(t)
+      const cumulative = BigInt(vouchers[0]!.cumulative)
+      const o = {
+        kind: 'settled' as const,
+        writer: WRITER,
+        cumulative,
+        paidAfter: cumulative,
+        gross: cumulative - paid,
+      }
+      paid = cumulative
+      events.push(settledEvent(o))
+      await settlerRecord(t, settlementId, [o])
+      expect(await spendable(t, s)).toBe(shown())
+    }
+    await settleAll()
+    expect(await accepts(t, s, 8)).toBe(true)
+    truth.accepted += BigInt(8) * CENT
+    await settleAll()
+    events.push(ev.deposited(READER, BigInt(5) * CENT, BigInt(17) * CENT))
+    truth.deposits += BigInt(5) * CENT
+    expect(await accepts(t, s, 4)).toBe(true)
+    truth.accepted += BigInt(4) * CENT
+    await settleAll()
+    expect(await spendable(t, s)).toBe(shown())
+    expect(shown() < free()).toBe(true)
+    expect(await accepts(t, s, 9)).toBe(false)
+
+    // The indexer catches up in one batch, then sees it all again.
+    await ingest(t, ...events)
+    truth.indexed = truth.deposits
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(13) * CENT).toString(),
+      outstanding: '0',
+      available: free().toString(),
+    })
+    expect((await ingest(t, ...events)).duplicates).toBe(events.length)
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('chainEvents').collect()) {
+        await ctx.db.patch(row._id, { handled: 'pending' })
+      }
+    })
+    await t.mutation(internal.chain.indexer.redispatch, {})
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(13) * CENT).toString(),
+      outstanding: '0',
+      available: free().toString(),
+    })
+    expect((await account(t)).settledUnindexed).toBe('0')
+  })
+
+  it('a settler record that no indexed event confirms keeps the reserve', async () => {
+    // The chain never shows the recorded settlement: the balance is not
+    // debited and the tip is still owed on chain.
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [
+      {
+        kind: 'settled',
+        writer: WRITER,
+        cumulative: BigInt(10) * CENT,
+        paidAfter: BigInt(10) * CENT,
+        gross: BigInt(10) * CENT,
+      },
+    ])
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    // Later events that do not carry it change nothing about the reserve.
+    await ingest(t, ev.deposited(READER, BigInt(5) * CENT, BigInt(20) * CENT))
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(20) * CENT).toString(),
+      outstanding: (BigInt(10) * CENT).toString(),
+      available: (BigInt(10) * CENT).toString(),
+    })
+    expect((await account(t)).settledUnindexed).toBe(
+      (BigInt(10) * CENT).toString()
+    )
+  })
+
+  it('flags a negative ledger amount instead of hiding it', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    // Stored figures that disagree: the pair owes 0.10, the account 0.
+    await t.run(async (ctx) => {
+      const row = await ctx.db.query('tabAccounts').first()
+      await ctx.db.patch(row!._id, { outstanding: '0' })
+    })
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { settlementId } = await beginSettlement(t)
+    const paid = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    await settlerRecord(t, settlementId, [paid])
+    const flagged = errors.mock.calls
+      .map(([line]) => JSON.parse(String(line)) as Record<string, string>)
+      .filter((e) => e.code === 'CHAIN_TAB_LEDGER_NEGATIVE')
+    expect(flagged).toEqual([
+      expect.objectContaining({
+        field: 'account.outstanding',
+        value: (-BigInt(10) * CENT).toString(),
+      }),
+    ])
+    // Stored as zero: the reserve is not lowered by the bad figure.
+    expect(await account(t)).toMatchObject({
+      outstanding: '0',
+      settledUnindexed: (BigInt(10) * CENT).toString(),
+    })
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+  })
+
   /** Deterministic PRNG (mulberry32), so a failing seed can be replayed. */
   function prng(seed: number) {
     let a = seed >>> 0
