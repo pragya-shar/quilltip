@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  extractH2HeadingsFromTiptapJson,
-  withHeadingIds,
-} from '@/lib/articles/toc'
+import { extractH2HeadingsFromTiptapJson } from '@/lib/articles/toc'
 
 const doc = {
   type: 'doc',
@@ -42,17 +39,5 @@ describe('table of contents', () => {
   it('reads nothing from content that is not a document', () => {
     expect(extractH2HeadingsFromTiptapJson(null)).toEqual([])
     expect(extractH2HeadingsFromTiptapJson('text')).toEqual([])
-  })
-
-  it('puts the ids on the rendered headings in order', () => {
-    const headings = extractH2HeadingsFromTiptapJson(doc)
-    expect(
-      withHeadingIds(
-        '<h1>Title</h1><h2>The Ledger</h2><p>Text.</p><h2 class="x">The ledger!</h2><h2></h2>',
-        headings
-      )
-    ).toBe(
-      '<h1>Title</h1><h2 id="the-ledger">The Ledger</h2><p>Text.</p><h2 id="the-ledger-2" class="x">The ledger!</h2><h2></h2>'
-    )
   })
 })

@@ -4,7 +4,6 @@ import {
   parseReadAnchor,
   readAnchor,
 } from '@/lib/tiptap/readAnchors'
-import { renderArticleHtml } from '@/lib/tiptap/renderArticleHtml'
 import { renderReadingHtml } from '@/lib/tiptap/renderReadingHtml'
 
 const text = (t: string) => ({ type: 'text', text: t })
@@ -54,12 +53,7 @@ describe('the server HTML carries the anchors', () => {
     expect(html).toContain('<p id="s-3-0">Four.</p>')
     expect(html).toContain('<li><p>Listed.</p></li>')
     expect(html).toContain('<p><br></p><p></p>')
-    expect(html).toContain('<h2 id="a-heading">A heading</h2>')
-  })
-
-  it('is the article HTML apart from the ids', () => {
-    const { html } = renderReadingHtml(doc)
-    expect(html!.replace(/ id="[^"]+"/g, '')).toBe(renderArticleHtml(doc))
+    expect(html).toContain('<h2 id="h-a-heading">A heading</h2>')
   })
 
   it('renders nothing for no content', () => {

@@ -1,11 +1,10 @@
+import { generateHTML } from '@tiptap/html'
 import type { JSONContent } from '@tiptap/core'
-import {
-  extractH2HeadingsFromTiptapJson,
-  withHeadingIds,
-  type TocHeading,
-} from '@/lib/articles/toc'
-import { withParagraphAnchors } from '@/lib/tiptap/readAnchors'
-import { renderArticleHtml } from '@/lib/tiptap/renderArticleHtml'
+import type { TocHeading } from '@/lib/articles/toc'
+import { markBodyImagesLazy } from '@/lib/tiptap/markBodyImagesLazy'
+import { withReadingAnchors } from '@/lib/tiptap/readAnchors'
+import { getReadingExtensions } from '@/lib/tiptap/readingExtensions'
+import { sanitizeReadingDoc } from '@/lib/tiptap/sanitizeReadingDoc'
 
 export type ReadingHtml = {
   /** The article body as HTML, or undefined when it could not render. */
@@ -15,19 +14,24 @@ export type ReadingHtml = {
 }
 
 /**
- * The article body for the reading view, rendered on the server: the same
- * HTML as `renderArticleHtml` (lazy images below the opening), with ids on
- * the level-2 headings and on every body paragraph (`s-{p}-0`, the anchor
- * scheme of `lib/tiptap/readAnchors.ts`), so links into the article land
- * with no script. Server components only: the reader never downloads the
- * editor libraries.
+ * The article body for the reading view, rendered on the server from the
+ * author's document after reducing it to the nodes, marks and attributes
+ * the reading page allows (`sanitizeReadingDoc`). Body paragraphs carry
+ * `s-{p}-0` and level-2 headings `h-…` (`readAnchors.ts`), set in the
+ * document before rendering, so links into the article land with no script.
+ * Nothing edits the rendered HTML. Server components only: the reader never
+ * downloads the editor libraries.
  */
 export function renderReadingHtml(
   content: JSONContent | null | undefined
 ): ReadingHtml {
-  const headings = extractH2HeadingsFromTiptapJson(content)
-  const html = content
-    ? renderArticleHtml(withParagraphAnchors(content))
-    : undefined
-  return { html: html && withHeadingIds(html, headings), headings }
+  if (!content) return { html: undefined, headings: [] }
+  try {
+    const { doc, headings } = withReadingAnchors(sanitizeReadingDoc(content))
+    const html = generateHTML(markBodyImagesLazy(doc), getReadingExtensions())
+    return { html, headings }
+  } catch (error) {
+    console.error('Server article HTML render failed', error)
+    return { html: undefined, headings: [] }
+  }
 }

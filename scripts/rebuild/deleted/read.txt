@@ -66,3 +66,4 @@ components/read/ReadingUnavailable.tsx
 components/read/unavailable.css
 components/read/readLimit.ts
 components/read/ReceiptSheet.tsx
+lib/tiptap/headings.ts

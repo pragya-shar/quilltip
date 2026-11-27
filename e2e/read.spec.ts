@@ -105,7 +105,7 @@ test('the article reads in full with its title, byline and end', async ({
   )
   await expect(page.getByText('6 min read')).toBeVisible()
   await expect(page.locator('#read-body')).toContainText(LINES.late)
-  await expect(page.locator('#read-body h2#the-line')).toHaveText('The line')
+  await expect(page.locator('#read-body h2#h-the-line')).toHaveText('The line')
   await expect(
     page.getByRole('link', {
       name: 'Read more: The last keeper of the Ras al-Hadd light',

@@ -18,6 +18,10 @@
  * identity (pull request 603), never an anchor.
  */
 import type { JSONContent } from '@tiptap/core'
+import {
+  extractH2HeadingsFromTiptapJson,
+  type TocHeading,
+} from '@/lib/articles/toc'
 
 export function readAnchor(paragraph: number, sentence = 0): string {
   return `s-${paragraph}-${sentence}`
@@ -62,21 +66,52 @@ export function bodyParagraphNodes(
   return paragraphs
 }
 
+/** A heading's id: `h-` and its table-of-contents slug, never an `s-` id. */
+export function headingAnchor(slug: string): string {
+  return `h-${slug}`
+}
+
 /**
- * A copy of the document whose body paragraphs carry `anchor: 's-{p}-0'`,
- * which the read-only paragraph renders as its `id`.
+ * A copy of the document with its reading anchors, unique by
+ * construction: body paragraphs carry `s-{p}-0`, level-2 headings `h-` and
+ * their slug (`-2`, `-3` on a repeat), and every other node carries none,
+ * whatever the stored document said. Returns the headings with their ids.
  */
-export function withParagraphAnchors(content: JSONContent): JSONContent {
-  const anchors = new Map(
+export function withReadingAnchors(content: JSONContent): {
+  doc: JSONContent
+  headings: TocHeading[]
+} {
+  const anchors = new Map<JSONContent, string>(
     bodyParagraphNodes(content).map((node, p) => [node, readAnchor(p)])
   )
+  const toc = extractH2HeadingsFromTiptapJson(content)
+  const taken = new Set<string>()
+  const headings: TocHeading[] = []
+  let next = 0
   const copy = (node: JSONContent): JSONContent => {
-    const anchor = anchors.get(node)
+    let anchor = anchors.get(node) ?? null
+    if (node.type === 'heading' && node.attrs?.level === 2) {
+      const entry = toc[next]
+      // The table of contents skips headings with no text; so does this.
+      const text = (node.content ?? []).map((c) => c.text ?? '').join(' ')
+      if (entry && text.replace(/\s+/g, ' ').trim() !== '') {
+        next++
+        let id = headingAnchor(entry.id)
+        for (let n = 2; taken.has(id); n++)
+          id = headingAnchor(`${entry.id}-${n}`)
+        taken.add(id)
+        anchor = id
+        headings.push({ ...entry, id })
+      }
+    }
+    const attrs = { ...node.attrs }
+    delete attrs.anchor
+    if (anchor) attrs.anchor = anchor
     return {
       ...node,
-      ...(anchor ? { attrs: { ...node.attrs, anchor } } : {}),
+      ...(Object.keys(attrs).length ? { attrs } : { attrs: undefined }),
       ...(node.content ? { content: node.content.map(copy) } : {}),
     }
   }
-  return copy(content)
+  return { doc: copy(content), headings }
 }

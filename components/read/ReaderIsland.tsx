@@ -112,8 +112,8 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
         block.scrollIntoView({ block: 'start', behavior: 'instant' })
         return
       }
-      const { start, text } = blockText(root, block)
-      const span = sentenceSpans(text)[anchor.sentence]
+      const { start, text, gaps } = blockText(root, block)
+      const span = sentenceSpans(text, gaps)[anchor.sentence]
       if (!span) return
       const rect = rangeAt(
         root,

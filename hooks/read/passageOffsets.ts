@@ -98,19 +98,34 @@ export function lineBlockOf(root: Element, node: Node): HTMLElement | null {
 export function blockText(
   root: Element,
   block: Element
-): { start: number; text: string } {
-  const nodes = textNodes(root)
+): { start: number; text: string; gaps: number[] } {
   let start = 0
-  let text = ''
-  let found = false
-  for (const node of nodes) {
-    if (block.contains(node)) {
-      found = true
-      text += node.data
-    } else if (found) break
-    else start += node.length
+  for (const node of textNodes(root)) {
+    if (block.contains(node)) break
+    start += node.length
   }
-  return { start, text }
+  // The block's text, and the offsets where a hard break or an inline image
+  // sits between two of its text nodes: the sentence rule reads each as a
+  // space, as it does in the document.
+  let text = ''
+  const gaps: number[] = []
+  let pendingGap = false
+  const walker = root.ownerDocument.createTreeWalker(
+    block,
+    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT
+  )
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const tag = (node as Element).tagName
+      if (tag === 'BR' || tag === 'IMG') pendingGap = true
+      continue
+    }
+    if (skipped(node, root) || !(node as Text).length) continue
+    if (pendingGap && text) gaps.push(text.length)
+    pendingGap = false
+    text += (node as Text).data
+  }
+  return { start, text, gaps }
 }
 
 /**
@@ -165,13 +180,14 @@ export function choosePassage(
   const b = last === first ? a : blockText(root, last)
   const collapsed = startAt === endAt
   const startSnap = collapsed
-    ? snapToSentences(a.text, startAt - a.start)
+    ? snapToSentences(a.text, startAt - a.start, undefined, a.gaps)
     : snapToSentences(
         a.text,
         Math.max(0, Math.min(startAt - a.start, a.text.length)),
         first === last
           ? Math.min(endAt - a.start, a.text.length)
-          : a.text.length
+          : a.text.length,
+        a.gaps
       )
   const endSnap =
     collapsed || last === first
@@ -179,7 +195,8 @@ export function choosePassage(
       : snapToSentences(
           b.text,
           0,
-          Math.max(1, Math.min(endAt - b.start, b.text.length))
+          Math.max(1, Math.min(endAt - b.start, b.text.length)),
+          b.gaps
         )
   if (!startSnap || !endSnap) return null
   const startOffset = a.start + startSnap.start
@@ -206,8 +223,8 @@ export function sentenceAtLine(root: Element, y: number): string {
     if (!block || seen.has(block)) continue
     seen.add(block)
     if (block.getBoundingClientRect().bottom < y) continue
-    const { start, text } = blockText(root, block)
-    for (const span of sentenceSpans(text)) {
+    const { start, text, gaps } = blockText(root, block)
+    for (const span of sentenceSpans(text, gaps)) {
       const rect = rangeAt(
         root,
         start + span.start,
