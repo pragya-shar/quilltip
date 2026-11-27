@@ -1414,3 +1414,35 @@ test.describe('testnet wallet run follow-ups (#547)', () => {
     ).toHaveCount(0)
   })
 })
+
+test.describe('the wallet account before signing (#547)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('a wallet that switched accounts is asked to switch back before anything is signed', async ({
+    page,
+  }) => {
+    await open(page)
+    const dialog = await openArticleTip(page)
+    await connect(dialog)
+    // The extension moves to another account without telling the page.
+    await page.evaluate(() => {
+      ;(
+        window as unknown as { __fixtureWallet: { address: string } }
+      ).__fixtureWallet.address =
+        'GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR'
+    })
+    await dialog.getByRole('button', { name: 'Send tip' }).click()
+    await expect(
+      dialog.getByRole('heading', { name: /^Switch your wallet to G/ })
+    ).toBeVisible()
+    await expect(
+      dialog
+        .getByText(
+          /the address linked to your Quilltip account\. Your wallet is on GCS5…DUAR\./
+        )
+        .first()
+    ).toBeVisible()
+    await expect(dialog.getByText(/Nothing was signed\./).first()).toBeVisible()
+    expect((await log(page)).signed).toEqual([])
+  })
+})

@@ -43,6 +43,12 @@ export class WalletError extends Error {
   readonly walletPassphrase?: string
   /** Code from the wallet (SEP-43: -1 internal, -2 external, -3 invalid, -4 rejected). */
   readonly walletCode?: number
+  /**
+   * wrong-account found before signing: the address that must sign (the
+   * linked address) and the account the wallet is on. Nothing was signed.
+   */
+  readonly expectedAddress?: string
+  readonly walletAddress?: string
 
   constructor(
     kind: WalletErrorKind,
@@ -52,6 +58,8 @@ export class WalletError extends Error {
       expectedPassphrase?: string
       walletPassphrase?: string
       walletCode?: number
+      expectedAddress?: string
+      walletAddress?: string
       cause?: unknown
     } = {}
   ) {
@@ -62,6 +70,8 @@ export class WalletError extends Error {
     this.expectedPassphrase = details.expectedPassphrase
     this.walletPassphrase = details.walletPassphrase
     this.walletCode = details.walletCode
+    this.expectedAddress = details.expectedAddress
+    this.walletAddress = details.walletAddress
   }
 }
 

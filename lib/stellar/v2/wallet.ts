@@ -151,8 +151,24 @@ export type KitFacade = {
   disconnect(): Promise<void>
   refreshSupportedWallets(): Promise<ISupportedWallet[]>
   on(type: string, callback: (event: unknown) => void): () => void
-  readonly selectedModule: Pick<ModuleInterface, 'productId' | 'productName'>
+  readonly selectedModule: Pick<
+    ModuleInterface,
+    'productId' | 'productName'
+  > & {
+    /** With `skipRequestAccess`, reads the account without a prompt. */
+    getAddress?(params?: {
+      skipRequestAccess?: boolean
+    }): Promise<{ address: string }>
+  }
 }
+
+/**
+ * Wallets whose module reads the current account with no prompt when the site
+ * is already allowed (`getAddress({ skipRequestAccess: true })`). Others are
+ * not asked before signing: their read can open an approval.
+ */
+const SILENT_ACCOUNT_READ = new Set<string>([WALLET_IDS.varial])
+const SILENT_READ_TIMEOUT_MS = 3_000
 
 export type KitBundle = {
   kit: KitFacade
@@ -572,6 +588,45 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
   }
 
   /**
+   * Before a signature is requested: the wallet must be on the account that
+   * signs (the linked address). An extension can switch accounts without
+   * telling the page, so read the account again where that asks nothing.
+   */
+  async function assertSignerAccount(
+    kit: KitFacade,
+    current: WalletConnection,
+    address: string
+  ) {
+    let walletAddress = current.address
+    if (SILENT_ACCOUNT_READ.has(current.walletId)) {
+      const selected = kit.selectedModule
+      try {
+        const read = await withTimeout(
+          selected.getAddress?.({ skipRequestAccess: true }) ??
+            Promise.resolve({ address: '' }),
+          SILENT_READ_TIMEOUT_MS,
+          current.walletId
+        )
+        if (read.address) walletAddress = read.address
+      } catch {
+        // Unread: the signature check after signing still applies.
+      }
+      if (walletAddress !== current.address && connection === current) {
+        connection = { ...current, address: walletAddress }
+        lastAddress = walletAddress
+        emit({ type: 'account', address: walletAddress })
+      }
+    }
+    if (walletAddress !== address) {
+      throw new WalletError(
+        'wrong-account',
+        'The wallet is on another account than the one that signs',
+        { walletId: current.walletId, expectedAddress: address, walletAddress }
+      )
+    }
+  }
+
+  /**
    * For a wallet that cannot report its network: the signature must be the
    * connected address's, for Quilltip's passphrase.
    */
@@ -668,6 +723,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
       const network = await readNetwork(kit, current.walletId)
       assertPassphrase(network, current.walletId)
       await assertCanSign(current, xdr)
+      await assertSignerAccount(kit, current, address)
       let result: { signedTxXdr: string; signerAddress?: string }
       try {
         result = await withTimeout(
