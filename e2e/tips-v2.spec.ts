@@ -369,6 +369,33 @@ const STATES: State[] = [
     },
   },
   {
+    id: 'v1-tips-paused',
+    query: 'article=v1-paused',
+    run: async (page) => page.locator('main'),
+    check: async (scope) => {
+      // Before v2 is on, v1 preparation is paused (#520): a note replaces
+      // both tip buttons, and no basket appears.
+      await expect(
+        scope
+          .locator('.reader-support')
+          .getByText(
+            'Tips are paused for a short time while payments are updated.'
+          )
+      ).toBeVisible()
+      await expect(
+        scope.getByText(
+          'Tips are paused for a short time while payments are updated.'
+        )
+      ).toHaveCount(2)
+      await expect(
+        scope.getByRole('button', { name: /Tip (article|passage)/ })
+      ).toHaveCount(0)
+      await expect(
+        scope.page().getByRole('button', { name: /Tip basket/ })
+      ).toHaveCount(0)
+    },
+  },
+  {
     id: 'own-article',
     query: 'article=own',
     run: async (page) => page.locator('main'),

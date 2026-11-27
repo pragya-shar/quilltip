@@ -81,7 +81,7 @@ const params = new URLSearchParams(location.search)
 export const SCENARIO = {
   v2: params.get('v2') ?? 'on',
   auth: params.get('auth') ?? 'in',
-  /** registered | unregistered | pending | payout | own | paused | price */
+  /** registered | unregistered | pending | payout | own | paused | price | v1-paused */
   article: params.get('article') ?? 'registered',
   /** verified | unverified | none */
   link: params.get('link') ?? 'verified',
@@ -355,13 +355,15 @@ export function useQuery(ref: unknown, args?: unknown) {
       return {
         network: 'TESTNET',
         chainEpoch: 'fixture',
-        v2Enabled: SCENARIO.v2 !== 'off',
+        v2Enabled: SCENARIO.v2 !== 'off' && SCENARIO.article !== 'v1-paused',
         coreContractId: CORE,
         tokenContractId: TOKEN,
         minTip: '1000000',
         paused: { core: SCENARIO.article === 'paused' },
       }
     case 'chain.articles.getArticleTipAvailability':
+      // v1 preparation paused before v2 is on (cutover step 4, #520).
+      if (SCENARIO.article === 'v1-paused') return { status: 'paused' }
       if (SCENARIO.v2 === 'off') return { status: 'disabled' }
       if (a.articleId === ARTICLES.main.id) {
         if (SCENARIO.article === 'unregistered')

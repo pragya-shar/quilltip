@@ -3,6 +3,7 @@ import { WalletActivationProvider } from '../../../components/providers/WalletAc
 import { WalletProvider } from '../../../components/providers/WalletProvider'
 import { ArticleReaderSupport } from '../../../components/articles/ArticleReaderSupport'
 import { HighlightTipButton } from '../../../components/highlights/HighlightTipButton'
+import { HighlightTipGate } from '../../../components/highlights/HighlightTipGate'
 import '../../../components/articles/reader.css'
 import type { Id } from '../../../types/convex'
 import { ARTICLES, seedBasket, seedReload } from './runtime'
@@ -37,14 +38,16 @@ function Fixture() {
       <p>{BODY}</p>
       <section aria-label="Passage" className="tip-fixture-passage">
         <blockquote>{PASSAGE}</blockquote>
-        <HighlightTipButton
-          articleId={article.id as Id<'articles'>}
-          articleSlug={article.slug}
-          authorName={article.author}
-          highlightText={PASSAGE}
-          startOffset={START}
-          endOffset={START + PASSAGE.length}
-        />
+        <HighlightTipGate articleId={article.id as Id<'articles'>}>
+          <HighlightTipButton
+            articleId={article.id as Id<'articles'>}
+            articleSlug={article.slug}
+            authorName={article.author}
+            highlightText={PASSAGE}
+            startOffset={START}
+            endOffset={START + PASSAGE.length}
+          />
+        </HighlightTipGate>
       </section>
       <ArticleReaderSupport
         articleTitle={article.title}

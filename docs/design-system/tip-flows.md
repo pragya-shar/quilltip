@@ -43,7 +43,7 @@ bottom sheets (WHOOP, Hers on iOS) in Mobbin.
 
 1. **Availability.** `getTipEligibility` decides. An article that cannot take
    tips shows `TipsUnavailableNote` in place of the button (`unregistered`,
-   `payout_outdated`; `pending` comes from `getArticleTipAvailability`). A
+   `payout_outdated`; `pending` comes from `getArticleTipAvailability`). While v1 preparation is paused before v2 is on (cutover step 4), the same note reads "Tips are paused for a short time while payments are updated." in place of both the article and the passage tip buttons (`paused`). A
    reader's own article shows no tip button. Account problems (signed out, no
    wallet, unverified) do not hide the button; the dialog shows the gate.
 2. **Amount.** Presets of $1, $2 and $5 (`aria-pressed` buttons) and "Other
