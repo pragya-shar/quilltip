@@ -17,6 +17,7 @@ export default defineConfig({
       'scripts/contracts/*.test.ts',
       'scripts/perf/*.test.ts',
       'scripts/next/*.test.ts',
+      'scripts/nft/*.test.ts',
       // Browser tab modules over fake-indexeddb and Node WebCrypto.
       'scripts/tab/*.test.ts',
       // Convex default-runtime code bundled as Convex bundles it.
