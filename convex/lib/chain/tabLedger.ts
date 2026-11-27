@@ -994,6 +994,8 @@ export async function submitTabTip(
     acceptorPublicKey: acceptor.publicKey,
     acceptanceSignature,
     acceptedAt: now,
+    amountCents: row.amountCents,
+    ...(row.requestId ? { requestId: row.requestId } : {}),
     createdAt: now,
     updatedAt: now,
   })

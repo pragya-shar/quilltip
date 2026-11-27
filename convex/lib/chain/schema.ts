@@ -275,12 +275,22 @@ export const tabTables = {
     acceptanceSignature: v.string(),
     acceptedAt: v.number(),
     settledEventId: v.optional(v.string()),
+    /**
+     * The tip's US cents as the reader chose them, copied from the tip row at
+     * acceptance so the money views read one table. Unset on receipts
+     * accepted before it existed; readers fall back to the tip row.
+     */
+    amountCents: v.optional(v.number()),
+    /** The client's `requestId` of the tip, copied from the tip row. */
+    requestId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_pair_seq', ['tabAccountId', 'keyId', 'writerAddress', 'seq'])
     /** A reader's receipts by time, for the tab screens' recent tips. */
     .index('by_account_accepted', ['tabAccountId', 'acceptedAt'])
+    /** A writer's receipts by time, for the writer's earnings list. */
+    .index('by_author_accepted', ['authorId', 'acceptedAt'])
     .index('by_status_created', ['status', 'createdAt'])
     .index('by_client_ref', ['clientRef']),
 

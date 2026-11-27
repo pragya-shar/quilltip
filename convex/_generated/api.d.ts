@@ -8,12 +8,14 @@
  * @module
  */
 
+import type * as activity from "../activity.js";
 import type * as articleTipVerify from "../articleTipVerify.js";
 import type * as articles from "../articles.js";
 import type * as arweave from "../arweave.js";
 import type * as arweaveHelpers from "../arweaveHelpers.js";
 import type * as auth from "../auth.js";
 import type * as authorEarningsBackfill from "../authorEarningsBackfill.js";
+import type * as balance from "../balance.js";
 import type * as betaMetrics from "../betaMetrics.js";
 import type * as chain_articles from "../chain/articles.js";
 import type * as chain_backfill from "../chain/backfill.js";
@@ -22,6 +24,7 @@ import type * as chain_indexer from "../chain/indexer.js";
 import type * as chain_review from "../chain/review.js";
 import type * as chain_submissions from "../chain/submissions.js";
 import type * as crons from "../crons.js";
+import type * as earnings from "../earnings.js";
 import type * as feedback from "../feedback.js";
 import type * as handles from "../handles.js";
 import type * as highlightTips from "../highlightTips.js";
@@ -52,6 +55,7 @@ import type * as lib_chain_nftEvents from "../lib/chain/nftEvents.js";
 import type * as lib_chain_nftSchema from "../lib/chain/nftSchema.js";
 import type * as lib_chain_nftStore from "../lib/chain/nftStore.js";
 import type * as lib_chain_rpc from "../lib/chain/rpc.js";
+import type * as lib_chain_settleSchedule from "../lib/chain/settleSchedule.js";
 import type * as lib_chain_settlementStore from "../lib/chain/settlementStore.js";
 import type * as lib_chain_settlementSubmitter from "../lib/chain/settlementSubmitter.js";
 import type * as lib_chain_settler from "../lib/chain/settler.js";
@@ -71,6 +75,7 @@ import type * as lib_highlightHash from "../lib/highlightHash.js";
 import type * as lib_horizon from "../lib/horizon.js";
 import type * as lib_imageUpload from "../lib/imageUpload.js";
 import type * as lib_internalAccounts from "../lib/internalAccounts.js";
+import type * as lib_moneyViews from "../lib/moneyViews.js";
 import type * as lib_networkGuard from "../lib/networkGuard.js";
 import type * as lib_nftMetadata from "../lib/nftMetadata.js";
 import type * as lib_passwordResetEmail from "../lib/passwordResetEmail.js";
@@ -124,12 +129,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  activity: typeof activity;
   articleTipVerify: typeof articleTipVerify;
   articles: typeof articles;
   arweave: typeof arweave;
   arweaveHelpers: typeof arweaveHelpers;
   auth: typeof auth;
   authorEarningsBackfill: typeof authorEarningsBackfill;
+  balance: typeof balance;
   betaMetrics: typeof betaMetrics;
   "chain/articles": typeof chain_articles;
   "chain/backfill": typeof chain_backfill;
@@ -138,6 +145,7 @@ declare const fullApi: ApiFromModules<{
   "chain/review": typeof chain_review;
   "chain/submissions": typeof chain_submissions;
   crons: typeof crons;
+  earnings: typeof earnings;
   feedback: typeof feedback;
   handles: typeof handles;
   highlightTips: typeof highlightTips;
@@ -168,6 +176,7 @@ declare const fullApi: ApiFromModules<{
   "lib/chain/nftSchema": typeof lib_chain_nftSchema;
   "lib/chain/nftStore": typeof lib_chain_nftStore;
   "lib/chain/rpc": typeof lib_chain_rpc;
+  "lib/chain/settleSchedule": typeof lib_chain_settleSchedule;
   "lib/chain/settlementStore": typeof lib_chain_settlementStore;
   "lib/chain/settlementSubmitter": typeof lib_chain_settlementSubmitter;
   "lib/chain/settler": typeof lib_chain_settler;
@@ -187,6 +196,7 @@ declare const fullApi: ApiFromModules<{
   "lib/horizon": typeof lib_horizon;
   "lib/imageUpload": typeof lib_imageUpload;
   "lib/internalAccounts": typeof lib_internalAccounts;
+  "lib/moneyViews": typeof lib_moneyViews;
   "lib/networkGuard": typeof lib_networkGuard;
   "lib/nftMetadata": typeof lib_nftMetadata;
   "lib/passwordResetEmail": typeof lib_passwordResetEmail;
