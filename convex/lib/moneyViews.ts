@@ -1,41 +1,41 @@
 /**
  * Money views for the reader's balance and the writer's earnings
- * (`convex/balance.ts`, `convex/activity.ts`, `convex/earnings.ts`). Pure
- * derivations from the tab ledger plus the reads they share. Nothing here
- * writes; the ledger's own writers are the acceptance path
- * (`tabLedger.submitTabTip`) and the Tab event handlers.
+ * (`convex/balance.ts`, `convex/activity.ts`, `convex/earnings.ts`): the
+ * rules they share and the reads they share. Nothing here writes. Totals are
+ * running figures kept by the ledger (`lib/chain/balanceFigures.ts`, plus
+ * `tabAccounts.outstanding` and `authorEarnings`); lists are paged.
  *
  * Money invariants (proved in `scripts/chain/money-views.test.ts`):
  *
  * - **M1, one tip, one row.** Every accepted tip has exactly one
  *   `tabReceipts` row: acceptance is idempotent on the tip's `clientRef`
  *   (one per prepared row, and a prepared row is idempotent on `requestId`).
- *   The reader's activity, the writer's activity and the earnings sums all
- *   read receipts, never tip rows or vouchers, so each tip is listed and
+ *   Lists read receipts, and each running figure moves a receipt's money
+ *   once per state change (`moneyAppliedStatus`), so each tip is listed and
  *   counted once on each side, in every settlement state.
- * - **M2, spendable.** `spendable = max(0, confirmedBalance - outstanding)`,
- *   where `outstanding` is the unpaid value of the reader's `ACCEPTED` and
- *   `SHORTFALL` receipts. It never exceeds the on-chain balance minus the
- *   accepted value not yet paid on chain. An accepted tip leaves spendable in
- *   the accepting mutation and returns only when the server closes its pair
- *   as `UNPAID`, `REJECTED` or `VOID_RESET`.
- * - **M3, pending and available.** For the writer, per receipt:
- *   `ACCEPTED` is pending, `SETTLED` is available, `SHORTFALL` is on hold,
- *   and `UNPAID`, `REJECTED` and `VOID_RESET` are not paid. Hence
- *   `pending + available` is the net of every accepted tip that has not
- *   failed, and `pending + available + onHold + notPaid` is the net of every
- *   accepted tip. Net follows the contract's cumulative fee rule
- *   (`receiptNet`: 2.5% of the pair's cumulative amount, floored), so per
- *   pair it telescopes to `netOf(cumulative)`.
+ * - **M2, spendable.** `spendable = readerSpendable(account) =
+ *   max(0, confirmedBalance - outstanding)`; `outstanding` is the unpaid
+ *   value of the reader's `ACCEPTED` and `SHORTFALL` receipts, so spendable
+ *   never exceeds the on-chain balance minus the accepted value not yet paid
+ *   on chain. An accepted tip leaves spendable in the accepting mutation and
+ *   returns only when the server closes its pair as `UNPAID`, `REJECTED` or
+ *   `VOID_RESET`. (Known gap, fixed in the ledger elsewhere: between a
+ *   settler's own confirmed result and the indexed `TabSettled`.)
+ * - **M3, pending, available, collected.** Per receipt, `ACCEPTED` is
+ *   pending, `SETTLED` is settled, `SHORTFALL` is on hold, and `UNPAID`,
+ *   `REJECTED`, `VOID_RESET` are not paid. Available is settled minus
+ *   collected. Pending, available and collected are disjoint and sum to the
+ *   lifetime total of tips that did not fail; adding on hold and not paid
+ *   gives every accepted tip. Net follows the contract's cumulative fee rule
+ *   (`receiptNet`), and a tip's dollars are its tip-time cents times its net
+ *   share (`shareCentsOf`, the rule `authorEarnings.totalEarnedCents` uses).
  * - **M4, a failure never pays.** A receipt reaches `SETTLED` only through a
  *   `TabSettled` payment that covers it. A skip, `UNPAID` or `REJECTED`
- *   moves receipts out of pending into on hold or not paid; it never adds
- *   to available.
- *
- * Dollar figures are the cents stored at tip time (`amountCents`), never a
- * re-conversion. The writer's net in cents is the tip's cents times its
- * net share in base units, kept in milli-cents so sums stay exact, and shown
- * floored to the cent so a total never shows more than was earned.
+ *   moves money out of pending into on hold or not paid; it never adds to
+ *   available.
+ * - **M5, collects.** An indexed `Claimed` moves cents from available to
+ *   collected by average cost, once per event, in any order relative to the
+ *   settlement that funded it; `available + collected = settled` exactly.
  */
 import type { Doc, Id } from '../_generated/dataModel'
 import type { QueryCtx } from '../_generated/server'
@@ -44,6 +44,7 @@ import { readChainEnv } from './chain/env'
 import type { TabReceiptStatus } from './chain/schema'
 import { settleAfterAcceptMs } from './chain/settleSchedule'
 import { dueRuleFromEnv } from './chain/settler'
+import { shareCentsOf } from './chain/balanceFigures'
 import { centsToStroops, receiptNet } from './chain/tabLedger'
 import { verifiedStellarAddress } from './walletVerification'
 
@@ -51,7 +52,6 @@ type EnvLike = Record<string, string | undefined>
 
 const STROOPS_PER_XLM = 10_000_000
 const ZERO = BigInt(0)
-const MILLI = BigInt(1000)
 
 /** The slice's settlement states of one tip (v3 `SettlementState`). */
 export type MoneyState = 'accepted' | 'on-chain' | 'not-paid'
@@ -84,28 +84,12 @@ export function moneyStateOf(status: TabReceiptStatus): {
   }
 }
 
-/** The receipt's value still reserved against the reader's balance. */
-export function reservesBalance(status: TabReceiptStatus): boolean {
-  return status === 'ACCEPTED' || status === 'SHORTFALL'
-}
-
-/**
- * The writer's net of one receipt in milli-cents: the tip's cents times
- * `receiptNet / amount`, floored. Exact integer arithmetic.
- */
-export function netMilliCents(
+/** The writer's share of a receipt in cents (1/10,000-cent grid). */
+export function receiptShareCents(
   receipt: Pick<Doc<'tabReceipts'>, 'amount' | 'cumulativeAfter'>,
   amountCents: number
-): bigint {
-  const gross = BigInt(receipt.amount)
-  if (gross <= ZERO || !Number.isSafeInteger(amountCents) || amountCents <= 0)
-    return ZERO
-  return (receiptNet(receipt) * BigInt(amountCents) * MILLI) / gross
-}
-
-/** Milli-cents shown as whole cents, floored. */
-export function milliToCents(milli: bigint): number {
-  return Number(milli / MILLI)
+): number {
+  return shareCentsOf(BigInt(receipt.amount), receiptNet(receipt), amountCents)
 }
 
 /** US cents a base-unit amount is worth at `priceUsd` per XLM, floored. */

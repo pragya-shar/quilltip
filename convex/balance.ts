@@ -14,6 +14,7 @@ import type { Id } from './_generated/dataModel'
 import { readChainEnv } from './lib/chain/env'
 import {
   maxCentsWithin,
+  readerSpendable,
   tabAccountForReader,
   tabLimits,
 } from './lib/chain/tabLedger'
@@ -22,8 +23,6 @@ import {
   caller,
   centsFromBaseUnits,
   minimumTipCents,
-  receiptCents,
-  reservesBalance,
   settlementExpectation,
 } from './lib/moneyViews'
 import { verifiedStellarAddress } from './lib/walletVerification'
@@ -34,7 +33,6 @@ export const DEFAULT_TIP_CENTS = 100
 export const QUICK_TIP_MAX_CENTS = 500
 /** Accepted tips whose `requestId` the session lists, newest first. */
 export const RECENT_REQUESTS = 20
-const RECEIPT_SCAN = 500
 
 async function cursorClock(
   ctx: QueryCtx,
@@ -101,35 +99,26 @@ export const session = query({
         onChain: false,
       }
 
-    const confirmed = BigInt(account.confirmedBalance)
-    const outstanding = BigInt(account.outstanding)
-    const free = confirmed - outstanding
-    const available = free > BigInt(0) ? free : BigInt(0)
+    const available = readerSpendable(account)
     const availableCents = price ? centsFromBaseUnits(available, price.usd) : 0
+    // A running figure kept with each receipt's state, never a scan.
+    const pendingCents = account.reservedCents ?? 0
 
-    // Reserved tips at their own cents, and the newest request ids.
-    const receipts = await ctx.db
+    // The newest accepted tips' request ids: one page, not a total.
+    const newest = await ctx.db
       .query('tabReceipts')
       .withIndex('by_account_accepted', (q) =>
         q.eq('tabAccountId', account._id)
       )
       .order('desc')
-      .take(RECEIPT_SCAN)
-    let pendingCents = 0
+      .take(RECENT_REQUESTS)
     const recentRequestIds: string[] = []
-    for (const receipt of receipts) {
-      if (reservesBalance(receipt.status))
-        pendingCents += await receiptCents(ctx, receipt)
-      if (recentRequestIds.length < RECENT_REQUESTS) {
-        const requestId =
-          receipt.requestId ??
-          (
-            (await ctx.db.get(receipt.tipRowId)) as {
-              requestId?: string
-            } | null
-          )?.requestId
-        if (requestId) recentRequestIds.push(requestId)
-      }
+    for (const receipt of newest) {
+      const requestId =
+        receipt.requestId ??
+        ((await ctx.db.get(receipt.tipRowId)) as { requestId?: string } | null)
+          ?.requestId
+      if (requestId) recentRequestIds.push(requestId)
     }
 
     const config = await ctx.db

@@ -19,6 +19,7 @@
 import { StrKey } from '@stellar/stellar-sdk'
 import type { Doc } from '../../_generated/dataModel'
 import type { MutationCtx } from '../../_generated/server'
+import { syncCollectedCents } from './balanceFigures'
 import { readChainEnv } from './env'
 import { isHexOfLength } from './ids'
 import type { ChainEventHandler, IndexedEvent } from './indexerStore'
@@ -418,6 +419,8 @@ const claimed: ChainEventHandler = async (ctx, event) => {
     collected: amount,
     now: event.now,
   })
+  // The collected cents follow the collected base units (D10).
+  await syncCollectedCents(ctx, user._id, token, event.now)
   return 'done'
 }
 

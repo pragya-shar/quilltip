@@ -604,6 +604,30 @@ export default defineSchema({
     // The v2 part of tipCount and totalEarnedCents.
     v2TipCount: v.optional(v.number()),
     v2EarnedCents: v.optional(v.number()),
+    // Balance (tab) tips: running figures kept by `syncReceiptMoney` and
+    // `syncCollectedCents` (convex/lib/chain/balanceFigures.ts). Cents are the
+    // writer's share on the same 1/10,000-cent grid as totalEarnedCents;
+    // settled cents are also part of totalEarnedCents. Unset means zero.
+    balancePendingCents: v.optional(v.number()),
+    balancePendingCount: v.optional(v.number()),
+    balanceSettledCents: v.optional(v.number()),
+    balanceSettledCount: v.optional(v.number()),
+    balanceOnHoldCents: v.optional(v.number()),
+    balanceOnHoldCount: v.optional(v.number()),
+    balanceNotPaidCents: v.optional(v.number()),
+    balanceNotPaidCount: v.optional(v.number()),
+    /** Settled cents moved to collected by indexed `Claimed` amounts. */
+    balanceCollectedCents: v.optional(v.number()),
+    // Base units per token for the collected-cents rule.
+    balanceSettledBaseUnits: v.optional(v.record(v.string(), v.string())),
+    /** Collected base units matched against settled ones. */
+    balanceMatchedBaseUnits: v.optional(v.record(v.string(), v.string())),
+    /** Collected base units seen before the settlement that funded them. */
+    balanceAheadBaseUnits: v.optional(v.record(v.string(), v.string())),
+    /** The `collectedBaseUnits` value already applied to cents. */
+    balanceCollectedAppliedBaseUnits: v.optional(
+      v.record(v.string(), v.string())
+    ),
 
     // Top articles (denormalized)
     topArticles: v.optional(

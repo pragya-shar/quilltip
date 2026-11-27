@@ -18,11 +18,12 @@ import { ConvexError } from 'convex/values'
 import { StrKey } from '@stellar/stellar-sdk'
 import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../../_generated/server'
-import { creditAuthorEarnings, roundCents } from '../authorEarnings'
+import { creditAuthorEarnings } from '../authorEarnings'
 import {
   isStellarAddressVerified,
   verifiedStellarAddress,
 } from '../walletVerification'
+import { shareCentsOf, syncReceiptMoney } from './balanceFigures'
 import { requireChainV2Enabled, type ChainEnv } from './env'
 import { BPS_DENOMINATOR, FEE_BPS } from './fees'
 import { highlightIdHex, isHexOfLength, newClientRefHex } from './ids'
@@ -1062,6 +1063,7 @@ export async function submitTabTip(
     updatedAt: now,
   })
   await recomputePairEarnings(ctx, voucherId, now)
+  await syncReceiptMoneyFor(ctx, receiptId, now)
 
   return {
     status: 'ACCEPTED',
@@ -1237,6 +1239,35 @@ export function receiptNet(
   return netOf(after) - netOf(after - big(r.amount))
 }
 
+/**
+ * Brings the running money figures (`balanceFigures.ts`) in step with the
+ * receipt's current status. Acceptance and every status change call it.
+ */
+export async function syncReceiptMoneyFor(
+  ctx: MutationCtx,
+  receiptId: Id<'tabReceipts'>,
+  now: number
+): Promise<void> {
+  const receipt = await ctx.db.get(receiptId)
+  if (!receipt || receipt.moneyAppliedStatus === receipt.status) return
+  const amountCents =
+    receipt.amountCents ??
+    ((await ctx.db.get(receipt.tipRowId)) as TipRow | null)?.amountCents ??
+    0
+  const pair = await tabVoucher(
+    ctx,
+    receipt.tabAccountId,
+    receipt.keyId,
+    receipt.writerAddress
+  )
+  await syncReceiptMoney(ctx, receipt, {
+    amountCents,
+    net: receiptNet(receipt),
+    token: pair?.tokenContractId ?? '',
+    now,
+  })
+}
+
 async function setReceiptStatus(
   ctx: MutationCtx,
   receipt: Doc<'tabReceipts'>,
@@ -1246,19 +1277,14 @@ async function setReceiptStatus(
 ): Promise<void> {
   if (receipt.status === status) return
   await ctx.db.patch(receipt._id, { status, updatedAt: now, ...extra })
+  await syncReceiptMoneyFor(ctx, receipt._id, now)
   const row = (await ctx.db.get(receipt.tipRowId)) as TipRow | null
   if (!row) return
   if (status === 'SETTLED' && row.earningsAppliedAt === undefined) {
     // Display figures only; base-unit earnings come from the pair formulas.
     const net = receiptNet(receipt)
     const gross = big(receipt.amount)
-    const cents =
-      gross > ZERO
-        ? roundCents(
-            row.amountCents *
-              (Number((net * BigInt(1_000_000)) / gross) / 1_000_000)
-          )
-        : 0
+    const cents = shareCentsOf(gross, net, row.amountCents)
     await creditAuthorEarnings(ctx, {
       authorId: receipt.authorId,
       articleId: receipt.articleId,
@@ -1360,6 +1386,18 @@ export async function applyPairPayment(
     updatedAt: args.now,
   })
   await refreshSettleQueue(ctx, voucherId, args.now)
+}
+
+/**
+ * What a new tip can use now: `max(0, confirmedBalance − outstanding)`.
+ * The one place the reader's spendable amount is computed for the screens
+ * (`balance.session`).
+ */
+export function readerSpendable(
+  account: Pick<Doc<'tabAccounts'>, 'confirmedBalance' | 'outstanding'>
+): bigint {
+  const free = big(account.confirmedBalance) - big(account.outstanding)
+  return free > ZERO ? free : ZERO
 }
 
 /** Accepted amount of a pair that is still owed: `max(0, cumulative − paid)`. */

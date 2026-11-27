@@ -17,11 +17,20 @@ import {
   netOf,
   receiptNet,
 } from '../../convex/lib/chain/tabLedger'
-import { centsFromBaseUnits, netMilliCents } from '../../convex/lib/moneyViews'
+import { shareCentsOf } from '../../convex/lib/chain/balanceFigures'
+import {
+  centsFromBaseUnits,
+  receiptShareCents,
+} from '../../convex/lib/moneyViews'
 import { SETTLE_REQUEST_LEASE } from '../../convex/lib/chain/settleSchedule'
 import {
+  ACCEPTOR_PUBLIC,
+  EPOCH,
   HIGHLIGHT,
   READER,
+  TAB,
+  TOKEN,
+  WRITER,
   VALID_UNTIL,
   XLM,
   as,
@@ -72,9 +81,14 @@ async function tipCents(t: T) {
   return new Map(rows.map((r) => [r._id as string, r.amountCents ?? 0]))
 }
 
+/** Equal on the 1/10,000-cent grid of the running figures. */
+function expectCents(actual: number, expected: number) {
+  expect(Math.round(actual * 10_000)).toBe(Math.round(expected * 10_000))
+}
+
 /**
  * Checks M1 to M3 against the ledger rows after any step, and returns the
- * writer's available milli-cents for M4.
+ * writer's available cents for M4.
  */
 async function checkInvariants(t: T, s: Seeded) {
   const v = await views(t, s)
@@ -98,6 +112,8 @@ async function checkInvariants(t: T, s: Seeded) {
   expect([...writerIds].sort()).toEqual(writerRows.map((r) => r._id).sort())
   expect(new Set(rows.map((r) => r.tipRowId)).size).toBe(rows.length)
   expect(new Set(rows.map((r) => r.clientRef)).size).toBe(rows.length)
+  // Every receipt's money is applied to the running figures.
+  expect(rows.every((r) => r.moneyAppliedStatus === r.status)).toBe(true)
 
   // M2: spendable is the confirmed balance minus the unpaid value of every
   // ACTIVE pair, never more than confirmed minus accepted-and-unsettled.
@@ -126,40 +142,50 @@ async function checkInvariants(t: T, s: Seeded) {
     )
   }
 
-  // M3: the four buckets partition the receipts by status.
-  const milli = (statuses: string[]) =>
+  // M3: the buckets partition the writer's receipts by status, and pending,
+  // available and collected sum to the tips that did not fail.
+  const share = (statuses: string[]) =>
     writerRows
       .filter((r) => statuses.includes(r.status))
-      .reduce((sum, r) => sum + netMilliCents(r, cents.get(r._id)!), BigInt(0))
-  const base = (statuses: string[]) =>
-    writerRows
-      .filter((r) => statuses.includes(r.status))
-      .reduce((sum, r) => sum + receiptNet(r), BigInt(0))
+      .reduce((sum, r) => sum + receiptShareCents(r, cents.get(r._id)!), 0)
   const e = v.earnings
-  expect(e.pendingCents).toBe(Number(milli(['ACCEPTED']) / BigInt(1000)))
-  expect(e.availableCents).toBe(Number(milli(['SETTLED']) / BigInt(1000)))
-  expect(e.onHoldCents).toBe(Number(milli(['SHORTFALL']) / BigInt(1000)))
-  expect(e.notPaidCents).toBe(
-    Number(milli(['UNPAID', 'REJECTED', 'VOID_RESET']) / BigInt(1000))
+  expectCents(e.pendingCents, share(['ACCEPTED']))
+  expectCents(e.figures.balanceSettledCents, share(['SETTLED']))
+  expectCents(
+    e.availableCents + e.figures.balanceCollectedCents,
+    share(['SETTLED'])
   )
-  expect(BigInt(e.baseUnits.pending) + BigInt(e.baseUnits.available)).toBe(
-    base(['ACCEPTED', 'SETTLED'])
+  expectCents(e.onHoldCents, share(['SHORTFALL']))
+  expectCents(e.notPaidCents, share(['UNPAID', 'REJECTED', 'VOID_RESET']))
+  expectCents(
+    e.pendingCents + e.availableCents + e.collectedCents,
+    share(['ACCEPTED', 'SETTLED']) + e.figures.directCents
   )
-  expect(
-    BigInt(e.baseUnits.pending) +
-      BigInt(e.baseUnits.available) +
-      BigInt(e.baseUnits.onHold) +
-      BigInt(e.baseUnits.notPaid)
-  ).toBe(writerRows.reduce((sum, r) => sum + receiptNet(r), BigInt(0)))
+  expectCents(
+    e.totalCents,
+    e.pendingCents + e.availableCents + e.collectedCents
+  )
+  expect(e.pendingCount).toBe(
+    writerRows.filter((r) => r.status === 'ACCEPTED').length
+  )
   expect(e.tipCount).toBe(
-    writerRows.filter((r) => r.status === 'ACCEPTED' || r.status === 'SETTLED')
-      .length
+    writerRows.filter((r) => r.status === 'SETTLED').length
   )
-  // Available never shows more than the chain paid the writer.
-  expect(
-    BigInt(e.baseUnits.available) <= BigInt(e.baseUnits.onChainEarned)
-  ).toBe(true)
-  return { availableMilli: milli(['SETTLED']), views: v }
+  // Base units: available is what the chain paid minus what was collected.
+  const writerPairs = pairs.filter((p) => p.authorId === s.authorId)
+  const earned = writerPairs.reduce(
+    (sum, p) => sum + BigInt(p.earnedNet),
+    BigInt(0)
+  )
+  expect(BigInt(e.baseUnits.available)).toBe(
+    earned - BigInt(e.baseUnits.collected) > BigInt(0)
+      ? earned - BigInt(e.baseUnits.collected)
+      : BigInt(0)
+  )
+  expect(BigInt(e.baseUnits.pending)).toBe(
+    writerPairs.reduce((sum, p) => sum + BigInt(p.pendingNet), BigInt(0))
+  )
+  return { available: e.availableCents, views: v }
 }
 
 describe('exactly once per tip', () => {
@@ -193,7 +219,7 @@ describe('exactly once per tip', () => {
       // The tipper is never named to the writer.
       counterparty: { name: 'A reader', username: null },
     })
-    expect(v.earnings).toMatchObject({ tipCount: 1, supporterCount: 1 })
+    expect(v.earnings).toMatchObject({ pendingCount: 1, tipCount: 0 })
   })
 
   it('accepts a tip once when the page reloads during the send', async () => {
@@ -256,7 +282,7 @@ describe('money states across settlement', () => {
       pendingCents: 100,
     })
     expect(accepted.views.earnings).toMatchObject({
-      pendingCents: Number((netOf(gross) * BigInt(100)) / gross),
+      pendingCents: 97.5, // $1 less 2.5%
       availableCents: 0,
     })
     expect(accepted.views.readerActivity.page[0]!.passage).toBe(HIGHLIGHT.text)
@@ -273,7 +299,8 @@ describe('money states across settlement', () => {
     })
     expect(settled.views.earnings).toMatchObject({
       pendingCents: 0,
-      availableCents: 97,
+      availableCents: 97.5,
+      collectedCents: 0,
       tipCount: 1,
     })
     expect(settled.views.earnings.baseUnits.available).toBe(
@@ -298,14 +325,14 @@ describe('money states across settlement', () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
     await tip(t, s, { cents: 100 })
-    const { availableMilli: was } = await checkInvariants(t, s)
+    const { available: was } = await checkInvariants(t, s)
     await ingest(t, ev.voucherSkipped(BigInt(10_000_000), 4))
     const held = await checkInvariants(t, s)
-    expect(held.availableMilli).toBe(was)
+    expect(held.available).toBe(was)
     expect(held.views.earnings).toMatchObject({
       pendingCents: 0,
       availableCents: 0,
-      onHoldCents: 97,
+      onHoldCents: 97.5,
       onHoldCount: 1,
       tipCount: 0,
     })
@@ -335,7 +362,7 @@ describe('money states across settlement', () => {
     const paid = await checkInvariants(t, s)
     expect(paid.views.earnings).toMatchObject({
       onHoldCents: 0,
-      availableCents: 97,
+      availableCents: 97.5,
       tipCount: 1,
     })
   })
@@ -344,15 +371,15 @@ describe('money states across settlement', () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
     await tip(t, s, { cents: 100 })
-    const { availableMilli: was } = await checkInvariants(t, s)
+    const { available: was } = await checkInvariants(t, s)
     await setLedger(t, VALID_UNTIL + SETTLE_GRACE_LEDGERS + 1)
     await t.mutation(internal.tabs.sweepUnpaid, {})
     const unpaid = await checkInvariants(t, s)
-    expect(unpaid.availableMilli).toBe(was)
+    expect(unpaid.available).toBe(was)
     expect(unpaid.views.earnings).toMatchObject({
       pendingCents: 0,
       availableCents: 0,
-      notPaidCents: 97,
+      notPaidCents: 97.5,
       notPaidCount: 1,
     })
     expect(unpaid.views.session).toMatchObject({
@@ -375,7 +402,7 @@ describe('money states across settlement', () => {
       items: [{ voucherId: pair!._id, reason: 'simulation:test' }],
     })
     const rejected = await checkInvariants(t, s)
-    expect(rejected.availableMilli).toBe(BigInt(0))
+    expect(rejected.available).toBe(0)
     expect(rejected.views.earnings).toMatchObject({
       pendingCents: 0,
       availableCents: 0,
@@ -403,26 +430,25 @@ describe('money states across settlement', () => {
     )
     const partial = await checkInvariants(t, s)
     expect(partial.views.earnings).toMatchObject({
-      availableCents: 9, // the 10 cent tip, net
+      availableCents: 9.75, // the 10 cent tip, net: the only one fully paid
       onHoldCount: 2,
       pendingCents: 0,
     })
-    // The chain paid more than the settled tips' net: never shown as more.
-    expect(
-      BigInt(partial.views.earnings.baseUnits.onChainEarned) >
-        BigInt(partial.views.earnings.baseUnits.available)
-    ).toBe(true)
+    // The exact token amount is what the chain paid, collectable now.
+    expect(partial.views.earnings.baseUnits.available).toBe(
+      netOf(BigInt(1_500_000)).toString()
+    )
   })
 
   it('keeps every invariant through a mixed sequence of tips and outcomes', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
-    let last = BigInt(0)
+    let last = 0
     const step = async (failure: boolean) => {
       const r = await checkInvariants(t, s)
-      if (failure) expect(r.availableMilli).toBe(last)
-      else expect(r.availableMilli >= last).toBe(true)
-      last = r.availableMilli
+      if (failure) expect(r.available).toBe(last)
+      else expect(r.available >= last).toBe(true)
+      last = r.available
     }
     await tip(t, s, { cents: 100 }) // 10 M base units
     await step(false)
@@ -458,6 +484,249 @@ describe('money states across settlement', () => {
     const final = await views(t, s)
     expect(final.earnings).toMatchObject({ tipCount: 2, notPaidCount: 0 })
     expect(final.readerActivity.page).toHaveLength(3)
+  })
+})
+
+describe('totals at any history length and across collects (D10)', () => {
+  /**
+   * 5,000 accepted tips over 20 pairs, written at the table level as
+   * receipts accepted before the running figures existed, then brought in
+   * by the backfill: the totals must be exact, with no cap.
+   */
+  async function longHistory(t: T, s: Seeded) {
+    const KEYS = 20
+    const PER_PAIR = 250
+    await ingest(t, ev.deposited(READER, BigInt(990) * XLM, BigInt(1000) * XLM))
+    for (let k = 1; k < KEYS; k++) await ingest(t, ev.keyRegistered(READER, k))
+    // One real tip gives a tip row to point the rows at.
+    await tip(t, s, { cents: 1, requestId: 'anchor' })
+    return t.run(async (ctx) => {
+      const account = (await ctx.db.query('tabAccounts').first())!
+      const anchor = (await ctx.db.query('tabReceipts').first())!
+      const now = Date.now()
+      let outstanding = BigInt(account.outstanding)
+      let expectedCents = 0
+      let expectedShare = 0
+      for (let k = 1; k < KEYS; k++) {
+        let cumulative = BigInt(0)
+        const leafHashes: string[] = []
+        for (let seq = 1; seq <= PER_PAIR; seq++) {
+          const cents = 1 + ((k + seq) % 5)
+          const amount = BigInt(cents) * BigInt(100_000) // at $1 per XLM
+          cumulative += amount
+          outstanding += amount
+          expectedCents += cents
+          const leaf = (k * 1000 + seq).toString(16).padStart(64, '0')
+          leafHashes.push(leaf)
+          const r = {
+            amount: amount.toString(),
+            cumulativeAfter: cumulative.toString(),
+          }
+          expectedShare += shareCentsOf(amount, receiptNet(r), cents)
+          await ctx.db.insert('tabReceipts', {
+            network: 'TESTNET',
+            chainEpoch: EPOCH,
+            tabAccountId: account._id,
+            keyId: k,
+            writerAddress: WRITER,
+            authorId: s.authorId,
+            articleId: s.articleId,
+            articleKey: anchor.articleKey,
+            seq,
+            ...r,
+            clientRef: leaf.slice(0, 32),
+            contentHash: anchor.contentHash,
+            leafHash: leaf,
+            tipRowId: anchor.tipRowId,
+            status: 'ACCEPTED',
+            receiptsRoot: leaf,
+            voucherSignature: anchor.voucherSignature,
+            acceptorPublicKey: ACCEPTOR_PUBLIC,
+            acceptanceSignature: anchor.acceptanceSignature,
+            acceptedAt: now - k * 1000 - seq,
+            amountCents: cents,
+            createdAt: now,
+            updatedAt: now,
+          })
+        }
+        await ctx.db.insert('tabVouchers', {
+          network: 'TESTNET',
+          chainEpoch: EPOCH,
+          tabAccountId: account._id,
+          tabContractId: TAB,
+          tokenContractId: TOKEN,
+          readerAddress: READER,
+          keyId: k,
+          writerAddress: WRITER,
+          authorId: s.authorId,
+          cumulative: cumulative.toString(),
+          receiptsRoot: leafHashes[leafHashes.length - 1]!,
+          leafHashes,
+          signature: anchor.voucherSignature,
+          acceptance: {
+            acceptor: ACCEPTOR_PUBLIC,
+            signature: anchor.acceptanceSignature,
+          },
+          seq: PER_PAIR,
+          paidOnChain: '0',
+          unsettled: true,
+          oldestUnsettledAt: now - k * 1000 - PER_PAIR,
+          state: 'ACTIVE',
+          settleBy: VALID_UNTIL + SETTLE_GRACE_LEDGERS,
+          settleQueue: 'ready',
+          earnedNet: '0',
+          pendingNet: '0',
+          acceptedAt: now,
+          updatedAt: now,
+        })
+      }
+      await ctx.db.patch(account._id, { outstanding: outstanding.toString() })
+      return {
+        keys: KEYS,
+        perPair: PER_PAIR,
+        // Plus the anchor tip of 1 cent.
+        reservedCents: expectedCents + 1,
+        share: expectedShare,
+      }
+    })
+  }
+
+  it('keeps exact totals for 5,000 tips on both sides, after a backfill', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const h = await longHistory(t, s)
+    await t.mutation(internal.balanceBackfill.start, {})
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+    // Running the backfill again changes nothing.
+    const once = await views(t, s)
+    await t.mutation(internal.balanceBackfill.start, {})
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+    const twice = await views(t, s)
+    expect(twice.earnings).toEqual(once.earnings)
+    expect(twice.session.pendingCents).toBe(once.session.pendingCents)
+
+    const anchorShare = shareCentsOf(BigInt(100_000), BigInt(97_500), 1)
+    expect(once.session.pendingCents).toBe(h.reservedCents)
+    expect(once.earnings.pendingCount).toBe((h.keys - 1) * h.perPair + 1)
+    expectCents(once.earnings.pendingCents, h.share + anchorShare)
+
+    // Settle half the pairs: the totals move exactly, once.
+    let settledShare = 0
+    const rows = await receipts(t)
+    for (let k = 1; k <= 10; k++) {
+      const pair = rows.filter((r) => r.keyId === k)
+      const cumulative = BigInt(pair[pair.length - 1]!.cumulativeAfter)
+      settledShare += pair.reduce(
+        (sum, r) => sum + receiptShareCents(r, r.amountCents!),
+        0
+      )
+      await ingest(
+        t,
+        ev.tabSettled({
+          keyId: k,
+          cumulative,
+          paidAfter: cumulative,
+          gross: cumulative,
+        })
+      )
+    }
+    const after = await views(t, s)
+    expectCents(after.earnings.availableCents, settledShare)
+    expectCents(
+      after.earnings.pendingCents + after.earnings.availableCents,
+      h.share + anchorShare
+    )
+    // (`tipCount` counts per tip row; these rows share one, so read the
+    // receipts' own count.)
+    expect(after.earnings.settledCount).toBe(10 * h.perPair)
+
+    // The writer's list pages through every tip, once each.
+    const seen = new Set<string>()
+    let cursor: string | null = null
+    for (;;) {
+      const p = await as(t, s.authorId).query(api.activity.mine, {
+        role: 'writer',
+        paginationOpts: { numItems: 50, cursor },
+      })
+      for (const e of p.page) seen.add(e.id)
+      if (p.isDone) break
+      cursor = p.continueCursor
+    }
+    expect(seen.size).toBe((h.keys - 1) * h.perPair + 1)
+  }, 120_000)
+
+  async function settleTwo(t: T, s: Seeded) {
+    await tip(t, s, { cents: 100 }) // 10 M base units, 97.5 cents to the writer
+    await tip(t, s, { cents: 300 }) // 30 M, 292.5 cents
+    const gross = BigInt(40_000_000)
+    await ingest(
+      t,
+      ev.tabSettled({ cumulative: gross, paidAfter: gross, gross })
+    )
+    return netOf(gross)
+  }
+
+  it('moves a collect from available to collected once, and shows the same after reopen', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const net = await settleTwo(t, s)
+    const before = (await checkInvariants(t, s)).views.earnings
+    expect(before).toMatchObject({ availableCents: 390, collectedCents: 0 })
+    const claim = ev.claimed(WRITER, net)
+    await ingest(t, claim)
+    const after = (await checkInvariants(t, s)).views.earnings
+    expect(after).toMatchObject({
+      pendingCents: 0,
+      availableCents: 0,
+      collectedCents: 390,
+      totalCents: 390,
+      baseUnits: { available: '0', collected: net.toString() },
+    })
+    // A replayed event and a reopened screen show the same three figures.
+    await ingest(t, claim)
+    const reopened = await as(t, s.authorId).query(api.earnings.mine, {})
+    expect(reopened).toEqual(after)
+  })
+
+  it('values a partial collect at the average cost of what is available', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const net = await settleTwo(t, s) // 39 M base units, 390 cents available
+    const quarter = net / BigInt(4)
+    await ingest(t, ev.claimed(WRITER, quarter))
+    let e = (await checkInvariants(t, s)).views.earnings
+    expect(e.collectedCents).toBe(97.5) // round(390 x 1/4)
+    expect(e.availableCents).toBe(292.5)
+    // The rest empties the base units and moves all remaining cents.
+    await ingest(t, ev.claimed(WRITER, net - quarter))
+    e = (await checkInvariants(t, s)).views.earnings
+    expect(e).toMatchObject({ availableCents: 0, collectedCents: 390 })
+  })
+
+  it('matches a collect indexed before the settlement that funded it', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 100 })
+    const gross = BigInt(10_000_000)
+    // The claim is indexed first: nothing is available to collect yet.
+    await ingest(t, ev.claimed(WRITER, netOf(gross)))
+    let e = (await checkInvariants(t, s)).views.earnings
+    expect(e).toMatchObject({
+      pendingCents: 97.5,
+      availableCents: 0,
+      collectedCents: 0,
+    })
+    await ingest(
+      t,
+      ev.tabSettled({ cumulative: gross, paidAfter: gross, gross })
+    )
+    e = (await checkInvariants(t, s)).views.earnings
+    expect(e).toMatchObject({
+      pendingCents: 0,
+      availableCents: 0,
+      collectedCents: 97.5,
+      totalCents: 97.5,
+    })
   })
 })
 

@@ -210,6 +210,12 @@ export const tabTables = {
     ),
     /** RPC id of the newest event that set `status`. */
     statusEventId: v.optional(v.string()),
+    /**
+     * Running total, in US cents at tip time, of the reader's receipts that
+     * still reserve the balance (`ACCEPTED`, `SHORTFALL`). Kept by
+     * `syncReceiptMoney`; unset before it ran for this account.
+     */
+    reservedCents: v.optional(v.number()),
     /** Keys the client announced before registering them on chain. */
     pendingKeys: v.array(
       v.object({
@@ -283,6 +289,12 @@ export const tabTables = {
     amountCents: v.optional(v.number()),
     /** The client's `requestId` of the tip, copied from the tip row. */
     requestId: v.optional(v.string()),
+    /**
+     * The status whose money the running figures (`tabAccounts.reservedCents`,
+     * the `authorEarnings.balance*` fields) include. `syncReceiptMoney` moves
+     * the receipt's money from this status to `status` once; unset means none.
+     */
+    moneyAppliedStatus: v.optional(tabReceiptStatusValidator),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

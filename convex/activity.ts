@@ -15,11 +15,10 @@ import { query, type QueryCtx } from './_generated/server'
 import { receiptNet, tabAccountForReader } from './lib/chain/tabLedger'
 import {
   caller,
-  milliToCents,
   moneyStateOf,
-  netMilliCents,
   passagePreview,
   receiptCents,
+  receiptShareCents,
   settledTxHash,
   tipRowOf,
   type MoneyState,
@@ -35,7 +34,7 @@ export type ActivityEntry = {
   passage: string | null
   /** The tip as the reader chose it, in US cents. */
   amountCents: number
-  /** The writer's share in cents, floored (writer entries and reader alike). */
+  /** The writer's share in whole cents, floored. */
   netCents: number
   state: MoneyState
   notPaidReason: NotPaidReason | null
@@ -73,7 +72,7 @@ async function entryOf(
     },
     passage: passagePreview(row),
     amountCents: cents,
-    netCents: milliToCents(netMilliCents(receipt, cents)),
+    netCents: Math.floor(receiptShareCents(receipt, cents)),
     state,
     notPaidReason: reason,
     at: receipt.acceptedAt,
