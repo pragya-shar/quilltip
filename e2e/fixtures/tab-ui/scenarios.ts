@@ -84,6 +84,8 @@ function writer(
     pendingNet: '24375000',
     collected: '78000000',
     unpaidPairs: 0,
+    shortfallPairs: 0,
+    shortfallNet: '0',
     settlementEnabled: true,
     oldestUnsettledAt: NOW - 2 * 3_600_000,
     settleWindowEndsSoon: false,
@@ -242,6 +244,25 @@ const S: Scenario[] = [
     },
   },
   {
+    id: 'home-settlement-off-none',
+    title: 'Settlement off, no tab yet',
+    view: 'home',
+    device: 'none',
+    seed: (s) => {
+      s.settlementEnabled = false
+    },
+  },
+  {
+    id: 'home-settlement-off-open',
+    title: 'Settlement off, tab open, nothing waiting',
+    view: 'home',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.settlementEnabled = false
+    },
+  },
+  {
     id: 'home-closing',
     title: 'Closing: waiting for the unlock',
     view: 'home',
@@ -377,6 +398,16 @@ const S: Scenario[] = [
     view: 'home',
     device: 'stopped',
     seed: (s) => open(s),
+  },
+  {
+    id: 'key-unchecked',
+    title: 'Key expiry cannot be checked (RPC unreachable)',
+    view: 'home',
+    device: 'expired',
+    seed: (s) => {
+      open(s)
+      s.rpcDown = true
+    },
   },
   {
     id: 'key-storage',
@@ -529,6 +560,28 @@ const S: Scenario[] = [
         spendable: '45000000',
       }
     },
+  },
+  {
+    id: 'op-wallet-short',
+    title: 'Wallet can spend less than the minimum deposit',
+    view: 'home',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.funds = {
+        balance: '20000000',
+        reserve: '15000000',
+        spendable: '5000000',
+      }
+    },
+  },
+  {
+    id: 'op-tab-full',
+    title: 'Tab has less room than the minimum deposit',
+    view: 'home',
+    device: 'ready',
+    // 999.5 XLM of the 1,000 XLM cap: 0.5 XLM of room, below the 1 XLM minimum.
+    seed: (s) => openTab(s, BigInt('9995000000')),
   },
   {
     id: 'op-reload',
@@ -701,8 +754,62 @@ const S: Scenario[] = [
     id: 'tip-key-none',
     title: 'Quick tip: no key here',
     view: 'tip',
+    device: 'none',
+    seed: (s) => open(s),
+  },
+  {
+    id: 'tip-key-other-device',
+    title: 'Quick tip: key on another device',
+    view: 'tip',
     device: 'other',
     seed: (s) => open(s),
+  },
+  {
+    id: 'tip-key-storage',
+    title: 'Quick tip: browser storage blocked',
+    view: 'tip',
+    device: 'storage-blocked',
+    seed: (s) => open(s),
+  },
+  {
+    id: 'tip-key-stopped',
+    title: 'Quick tip: key stopped',
+    view: 'tip',
+    device: 'stopped',
+    seed: (s) => open(s),
+  },
+  {
+    id: 'tip-key-pending',
+    title: 'Quick tip: key setup not finished',
+    view: 'tip',
+    device: 'pending',
+    seed: (s) => open(s),
+  },
+  {
+    id: 'tip-key-revoked',
+    title: 'Quick tip: key revoked',
+    view: 'tip',
+    device: 'revoked',
+    seed: (s) => open(s),
+  },
+  {
+    id: 'tip-key-unchecked',
+    title: 'Quick tip: key expiry cannot be checked',
+    view: 'tip',
+    device: 'expired',
+    seed: (s) => {
+      open(s)
+      s.rpcDown = true
+    },
+  },
+  {
+    id: 'tip-settlement-off-no-tab',
+    title: 'Quick tip: settlement off, no tab',
+    view: 'tip',
+    device: 'none',
+    seed: (s) => {
+      s.settlementEnabled = false
+    },
   },
   {
     id: 'tip-key-gone',
@@ -823,6 +930,13 @@ const S: Scenario[] = [
     view: 'collect',
     device: 'none',
     seed: (s) => writer(s, { settlementEnabled: false }),
+  },
+  {
+    id: 'collect-shortfall',
+    title: 'Writer: tips waiting on a reader top-up',
+    view: 'collect',
+    device: 'none',
+    seed: (s) => writer(s, { shortfallPairs: 1, shortfallNet: '4875000' }),
   },
   {
     id: 'collect-unpaid',

@@ -41,14 +41,17 @@ const EXPECT: Record<string, string | RegExp> = {
   'home-paused': 'Payments are paused',
   'home-settlement-delayed': 'Settlement is taking longer than usual',
   'home-settle-window': 'Settlement is taking longer than usual',
-  'home-settlement-off': 'Settlement is switched off',
+  'home-settlement-off': 'Quick tips are paused on Stellar testnet',
+  'home-settlement-off-none': 'Quick tips are paused on Stellar testnet',
+  'home-settlement-off-open': 'Quick tips are paused on Stellar testnet',
   'home-closing': /Your balance unlocks around/,
   'home-withdraw-ready': 'Your balance is ready to withdraw',
   'home-closed': 'Your tab is closed',
   'key-none': 'Quick tips aren’t set up on this device',
   'key-pending': 'Setting up quick tips',
   'key-gone': 'This device’s quick-tip key is gone',
-  'key-other-device': 'Quick tips aren’t set up on this device',
+  'key-other-device': 'Quick tips are set up on another device',
+  'key-unchecked': 'Quick tips can’t be checked right now',
   'key-expired': 'Quick tips on this device have expired',
   'key-renew': /Quick tips here stop around/,
   'key-revoked': 'Quick tips are off for this device',
@@ -61,14 +64,22 @@ const EXPECT: Record<string, string | RegExp> = {
   'tip-key-none': 'Quick tips aren’t set up on this device',
   'tip-key-gone': 'This device’s quick-tip key is gone',
   'tip-key-expired': 'Quick tips on this device have expired',
+  'tip-key-other-device': 'Quick tips are set up on another device',
+  'tip-key-storage': 'This browser can’t keep a quick-tip key',
+  'tip-key-stopped': 'Quick tips are stopped on this device',
+  'tip-key-pending': 'Setting up quick tips',
+  'tip-key-revoked': 'Quick tips are off for this device',
+  'tip-key-unchecked': 'Quick tips can’t be checked right now',
   'tip-settlement-off': 'Quick tips are unavailable right now',
+  'tip-settlement-off-no-tab': 'Quick tips are unavailable right now',
   'tip-signed-out': 'Sign in to continue',
   'tip-v2-disabled': 'Quick tips are unavailable right now',
   'collect-ready': 'Ready to collect',
   'collect-nothing': 'Nothing to collect yet',
   'collect-none': 'No tab tips yet',
   'collect-delayed': 'Settlement is taking longer than usual',
-  'collect-settlement-off': 'Settlement is switched off',
+  'collect-settlement-off': 'Tab settlement is paused on Stellar testnet',
+  'collect-shortfall': /from one reader whose tab ran short/,
   'collect-unpaid': /tips will not be paid/,
   'collect-unverified': 'Confirm this wallet is yours',
   'collect-disconnected': 'Connect your wallet',
@@ -113,12 +124,28 @@ async function axe(page: Page) {
   )
 }
 
-/** Every visible XLM amount sits in a region that carries the testnet label. */
+/**
+ * Every XLM amount sits in a section, form or kit surface that carries its
+ * own testnet label: the page intro's label does not count for the figures
+ * below it.
+ */
 async function amountsLabelled(page: Page) {
-  return page.evaluate(() => {
-    const text = document.querySelector('.tab-ui')?.textContent ?? ''
-    return !/\bXLM\b/.test(text) || text.includes('Stellar testnet')
-  })
+  const unlabelled = await page.evaluate(() =>
+    [...document.querySelectorAll('.tab-ui .pay-xlm')]
+      // The kit's progress and notices carry their own label.
+      .map((amount) =>
+        amount.closest('section, form, .pay-progress, .pay-notice')
+      )
+      .filter((region) => !region?.querySelector('.pay-network'))
+      .map(
+        (region) =>
+          region?.getAttribute('aria-labelledby') ??
+          region?.className ??
+          'no region'
+      )
+  )
+  if (unlabelled.length) console.log('unlabelled amounts in', unlabelled)
+  return unlabelled.length === 0
 }
 
 /** The stand-in backend's state for this page's session, read fresh. */
@@ -241,6 +268,202 @@ for (const [id, text, retry] of RESULTS) {
     expect(await axe(page)).toEqual([])
   })
 }
+
+// --- Settlement off: what the reader can and cannot do -----------------------
+
+test('settlement off, no tab: says why and offers no tab to open', async ({
+  page,
+}) => {
+  await open(page, 'home-settlement-off-none')
+  const notice = visibleText(page, 'Quick tips are paused on Stellar testnet')
+  await expect(notice).toBeVisible()
+  await expect(
+    visibleText(
+      page,
+      /opening a tab is paused too.*tip any article from your wallet/
+    )
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open a tab' })).toHaveCount(0)
+  expect((await backend(page)).calls).toEqual([])
+})
+
+test('settlement off, open tab: no top-up or new key; close, withdraw and revoke stay', async ({
+  page,
+}) => {
+  await open(page, 'home-settlement-off-open')
+  await expect(
+    visibleText(page, /can’t tip from your tab or add funds to it/)
+  ).toBeVisible()
+  // Nothing waits, so the waiting sentence stays out.
+  await expect(
+    visibleText(page, /Tips you already sent from your tab are recorded/)
+  ).toHaveCount(0)
+  for (const name of ['Top up', 'Set up quick tips', 'Renew quick tips'])
+    await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0)
+  await expect(
+    visibleText(page, /Setting up quick tips is paused/)
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Close tab' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Revoke/ })).toBeVisible()
+})
+
+test('settlement off with tips waiting: says they settle when quick tips are back', async ({
+  page,
+}) => {
+  await open(page, 'home-settlement-off')
+  await expect(
+    visibleText(page, /Tips you already sent from your tab are recorded/)
+  ).toBeVisible()
+})
+
+// --- Keys: this device, and each quick tip key state -------------------------
+
+for (const id of ['key-expired', 'key-stopped']) {
+  test(`${id}: this browser's own key is labelled This device`, async ({
+    page,
+  }) => {
+    await open(page, id)
+    const list = page.getByRole('list', { name: 'Quick tips on this device' })
+    await expect(list.getByText('This device', { exact: true })).toBeVisible()
+    await expect(list.getByText('Another device or browser')).toHaveCount(0)
+  })
+}
+
+test('key-other-device: a key held elsewhere is labelled as another device', async ({
+  page,
+}) => {
+  await open(page, 'key-other-device')
+  const list = page.getByRole('list', { name: 'Quick tips on this device' })
+  await expect(list.getByText('Another device or browser')).toBeVisible()
+  await expect(list.getByText('This device', { exact: true })).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Set up quick tips' })
+  ).toBeVisible()
+})
+
+const TIP_KEY_STEPS: Array<[string, RegExp, string]> = [
+  ['tip-key-storage', /Its storage is blocked/, 'Tip from wallet'],
+  ['tip-key-stopped', /did not match Quilltip’s/, 'Set up quick tips'],
+  ['tip-key-pending', /registration is not confirmed/, 'Finish setting up'],
+  ['tip-key-revoked', /You revoked its key/, 'Set up quick tips'],
+  ['tip-key-other-device', /on another device or browser/, 'Set up quick tips'],
+  ['tip-key-unchecked', /could not reach Stellar testnet/, 'Tip from wallet'],
+]
+for (const [id, cause, step] of TIP_KEY_STEPS) {
+  test(`quick tip ${id}: its own cause and next step`, async ({ page }) => {
+    await open(page, id)
+    await expect(visibleText(page, cause)).toBeVisible()
+    await expect(
+      page
+        .locator('.tab-ui')
+        .getByRole(step === 'Tip from wallet' ? 'button' : 'link', {
+          name: step,
+        })
+    ).toBeVisible()
+    await expect(visibleText(page, /It takes one wallet approval/)).toHaveCount(
+      0
+    )
+  })
+}
+
+test('an unreachable Stellar RPC never shows an expired key as ready', async ({
+  page,
+}) => {
+  await open(page, 'key-unchecked')
+  await expect(
+    visibleText(page, 'Quick tips can’t be checked right now')
+  ).toBeVisible()
+  await expect(
+    visibleText(page, 'Quick tips on this device have expired')
+  ).toHaveCount(0)
+})
+
+// --- History and the writer ---------------------------------------------------
+
+test('recent tab tips label every receipt status', async ({ page }) => {
+  await open(page, 'home-open')
+  const labels = page.locator('.tab-tip-row .pay-status')
+  await expect(labels).toHaveText([
+    'Settling',
+    'Settled',
+    'Waiting for balance',
+    'Not paid',
+    'Not settled',
+    'Cleared by reset',
+  ])
+})
+
+test('Read more links have a 44px hit area at 375px', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 900 })
+  await open(page, 'home-open')
+  const links = page.locator('.tab-ui .tab-inline-link')
+  expect(await links.count()).toBeGreaterThan(0)
+  for (const box of await links.evaluateAll((els) =>
+    els.map((el) => el.getBoundingClientRect().height)
+  ))
+    expect(box).toBeGreaterThanOrEqual(44)
+})
+
+test('the writer sees which waiting tips depend on a reader top-up', async ({
+  page,
+}) => {
+  await open(page, 'collect-shortfall')
+  await expect(
+    visibleText(
+      page,
+      '0.4875 XLM of what is waiting is from one reader whose tab ran short. It settles after that reader adds funds to their tab.'
+    )
+  ).toBeVisible()
+})
+
+// --- Fund form bounds ---------------------------------------------------------
+
+test('a wallet below the minimum deposit is told so, with no inverted range', async ({
+  page,
+}) => {
+  await open(page, 'op-wallet-short')
+  await page.getByRole('button', { name: 'Top up', exact: true }).click()
+  await expect(
+    visibleText(
+      page,
+      'Your wallet can spend 0.5 XLM, less than the smallest deposit of 1 XLM. Add test XLM to your wallet, then try again.'
+    )
+  ).toBeVisible()
+  await expect(visibleText(page, /^Between /)).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Add / })).toHaveCount(0)
+  expect(await axe(page)).toEqual([])
+})
+
+test('a tab with less room than the minimum deposit is told so', async ({
+  page,
+}) => {
+  await open(page, 'op-tab-full')
+  await page.getByRole('button', { name: 'Top up', exact: true }).click()
+  await expect(
+    visibleText(
+      page,
+      'Your tab can take 0.5 XLM more, less than the smallest deposit of 1 XLM.'
+    )
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Add / })).toHaveCount(0)
+})
+
+test('an invalid amount is described on the field after submit', async ({
+  page,
+}) => {
+  await open(page, 'home-open')
+  await page.getByRole('button', { name: 'Top up', exact: true }).click()
+  const field = page.getByLabel('Amount in XLM')
+  await field.fill('abc')
+  await page
+    .getByRole('button', { name: /^Add|^Top up/ })
+    .last()
+    .click()
+  await expect(field).toHaveAccessibleDescription(
+    /Enter an amount in XLM, with up to 7 decimals\./
+  )
+  await expect(field).toHaveAttribute('aria-invalid', 'true')
+})
 
 test('top-up refuses an amount the wallet cannot spend before any prompt', async ({
   page,

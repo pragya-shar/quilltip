@@ -18,6 +18,7 @@ import type {
   MyTabTips,
   TabServices,
   TabLimits,
+  TabSettlementView,
   WalletAccess,
   WalletFunds,
 } from '../../../lib/tab-ui/types'
@@ -30,9 +31,11 @@ type Snapshot = {
   chainConfig: ChainConfigView
   tab: MyTab | null
   activity: MyTabTips | null
+  settlement: TabSettlementView
   earnings: MyTabEarnings | null
   claimable: string
   clock: LedgerClock
+  rpcDown: boolean
   funds: WalletFunds | null
   limits: TabLimits | null
   calls: string[]
@@ -126,6 +129,7 @@ export function createFixtureServices(params: {
       return s ? (s.address ? s.earnings : null) : undefined
     },
     useChainConfig: () => ready(useSnapshot())?.chainConfig,
+    useTabSettlement: () => ready(useSnapshot())?.settlement,
     useWalletAccess: (): WalletAccess => {
       const s = useSnapshot()
       const kind = s && !s.loading ? s.gate : 'checking'
@@ -166,6 +170,7 @@ export function createFixtureServices(params: {
     latestLedger: async () => {
       await refresh()
       if (!snapshot || snapshot.loading) throw new Error('loading')
+      if (snapshot.rpcDown) throw new TypeError('Failed to fetch')
       return snapshot.clock
     },
     walletFunds: async () => {
