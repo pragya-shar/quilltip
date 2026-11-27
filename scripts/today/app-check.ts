@@ -21,12 +21,38 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv) {
   })
 }
 
+/**
+ * A failed read is never stored (D21): the first request to `/` meets a
+ * failing backend and shows the unreachable state; once the backend answers
+ * again, the next request in the same minute shows the opening. Runs before
+ * anything else asks for `/`, so the cache is empty for this minute.
+ */
+async function failureIsNotStored(backend: string) {
+  const control = (on: 0 | 1) =>
+    fetch(`${backend}/__fail?on=${on}`, { method: 'POST' })
+  await control(1)
+  const failed = await (await fetch(`${BASE_URL}/`)).text()
+  await control(0)
+  const good = await (await fetch(`${BASE_URL}/`)).text()
+  const unreachable = 'Today could not be loaded right now.'
+  const opening = 'The lamp on Orchard Street came on every evening'
+  if (!failed.includes(unreachable) || failed.includes(opening))
+    throw new Error(
+      'With the backend failing, / did not show the unreachable state'
+    )
+  if (!good.includes(opening) || good.includes(unreachable))
+    throw new Error(
+      'After a failed read, the next read did not show the opening: the failure was stored'
+    )
+  console.log('A failed read is not stored: unreachable, then the opening.')
+}
+
 async function main(): Promise<number> {
   // The fixture answers, with a delay the slow-backend test can set.
   const backend = startSlowBackend(CONVEX_PORT)
   const app = await startProductionApp(APP_PORT, BASE_URL)
   try {
-    await fetch(`${BASE_URL}/`).catch(() => {})
+    await failureIsNotStored(`http://127.0.0.1:${CONVEX_PORT}`)
     return await run(
       'bunx',
       ['playwright', 'test', '--config', 'e2e/fixtures/today/app.config.ts'],

@@ -59,7 +59,8 @@ function article(
   return ctx.db.insert('articles', {
     slug,
     title: `Title ${slug}`,
-    content: body(5, 3, `${slug} `),
+    // 12 paragraphs of 30 words: longer than the opening.
+    content: body(12, 3, `${slug} `),
     published: true,
     publishedAt,
     authorId,
@@ -148,15 +149,16 @@ describe('today.opening', () => {
       author: { name: 'Writer 0', username: 'writer0' },
       publishedAt: NOW - 24 * HOUR,
       readMinutes: expect.any(Number),
-      paragraphs: [
-        expect.stringMatching(/^a0 Part 1: /),
-        expect.stringMatching(/^a0 Part 2: /),
-        expect.stringMatching(/^a0 Part 3: /),
-      ],
+      paragraphs: expect.any(Array),
       continues: true,
       minutesLeft: expect.any(Number),
     })
-    expect(result.opening!.minutesLeft).toBeGreaterThan(0)
+    // Whole paragraphs up to 220 words: seven of 30 words (210).
+    expect(result.opening!.paragraphs).toHaveLength(7)
+    expect(result.opening!.paragraphs[0]).toMatch(/^a0 Part 1: /)
+    expect(result.opening!.paragraphs[6]).toMatch(/^a0 Part 7: /)
+    // 150 words left at 230 a minute.
+    expect(result.opening!.minutesLeft).toBe(1)
     expect(JSON.stringify(result)).not.toContain('private planning notes')
   })
 
@@ -215,7 +217,7 @@ describe('today.opening', () => {
 
   test('more to read is a short list that ends, without the opening', async () => {
     const t = convexTest(schema, modules)
-    await catalogue(t, 9)
+    await catalogue(t, 15)
     const result = await t.query(api.today.opening, { at: NOW })
     expect(result.more).toHaveLength(MORE_LIMIT)
     const ids = [
@@ -224,9 +226,9 @@ describe('today.opening', () => {
     ]
     expect(new Set(ids).size).toBe(ids.length)
     for (const item of result.more) {
-      expect(item.href).toMatch(/^\/writer\d\/a\d$/)
+      expect(item.href).toMatch(/^\/writer\d+\/a\d+$/)
       expect(item.first).toMatch(
-        /^a\d Part 1: The ledger sat in the drawer under the bread\.$/
+        /^a\d+ Part 1: The ledger sat in the drawer under the bread\.$/
       )
     }
   })
@@ -318,19 +320,33 @@ describe('today.opening', () => {
 })
 
 describe('the opening rule', () => {
-  test('takes whole paragraphs, at most three, and stops near the word limit', () => {
-    expect(openingOf(body(5, 3))).toMatchObject({
-      paragraphs: [expect.any(String), expect.any(String), expect.any(String)],
-      continues: true,
-    })
-    // Two paragraphs of 90 words pass the word limit after the second.
-    const long = openingOf(body(4, 10))!
-    expect(long.paragraphs).toHaveLength(2)
-    expect(long.continues).toBe(true)
+  test('takes whole paragraphs up to 220 words, never more', () => {
+    // Paragraphs of 29 words: seven fit (203), the eighth would not.
+    const opening = openingOf(body(12, 3))!
+    expect(opening.paragraphs).toHaveLength(7)
+    expect(opening.shownWords).toBe(203)
+    expect(opening.continues).toBe(true)
+    // Paragraphs of 92 words: two fit (184).
+    expect(openingOf(body(4, 10))!.paragraphs).toHaveLength(2)
     // A short article shows whole, and says it does not continue.
     const whole = openingOf(body(2, 4))!
     expect(whole.paragraphs).toHaveLength(2)
     expect(whole.continues).toBe(false)
+    expect(whole.shownWords).toBe(whole.totalWords)
+  })
+
+  test('a first paragraph over 220 words is cut at a sentence', () => {
+    // 30 sentences of nine words in one paragraph, then a second paragraph.
+    const opening = openingOf(body(2, 30))!
+    expect(opening.paragraphs).toHaveLength(1)
+    expect(opening.shownWords).toBeLessThanOrEqual(220)
+    expect(opening.paragraphs[0]).toMatch(/bread\.$/)
+    expect(opening.continues).toBe(true)
+  })
+
+  test('needs at least two body paragraphs', () => {
+    expect(openingOf(body(1, 30))).toBeNull()
+    expect(openingOf(body(2, 1))).not.toBeNull()
   })
 
   test('reads paragraphs in quotes, joins line breaks, skips headings and empty paragraphs', () => {
@@ -378,11 +394,91 @@ describe('the opening rule', () => {
   })
 
   test('cleans the skip list: ids only, at most the limit', () => {
-    const many = Array.from({ length: 40 }, (_, i) => `id${i}`)
+    const many = Array.from({ length: 60 }, (_, i) => `id${i}`)
     expect(cleanExclude(many).size).toBe(EXCLUDE_LIMIT)
     expect([
       ...cleanExclude(['ok1', '../x', '', 'a b', 'x'.repeat(65)]),
     ]).toEqual(['ok1'])
     expect(cleanExclude(undefined).size).toBe(0)
+  })
+})
+
+describe('today.opening past the first page', () => {
+  test('a writer whose newest article is older than 60 others still gets a turn', async () => {
+    const t = convexTest(schema, modules)
+    const quiet = await t.run(async (ctx) => {
+      const busyId = await writer(ctx, 'busy')
+      for (let i = 0; i < 70; i++)
+        await article(ctx, busyId, 'busy', `busy-${i}`, NOW - 24 * HOUR - i)
+      const quietId = await writer(ctx, 'quiet')
+      return article(ctx, quietId, 'quiet', 'quiet', NOW - 30 * 24 * HOUR)
+    })
+    const result = await t.query(api.today.opening, { at: NOW })
+    const ids = [
+      result.opening!.articleId,
+      ...result.more.map((m) => m.articleId),
+    ]
+    expect(ids).toContain(quiet)
+    expect(ids).toHaveLength(2)
+  })
+
+  test('60 newer articles without a body do not leave Today empty', async () => {
+    const t = convexTest(schema, modules)
+    const real = await t.run(async (ctx) => {
+      const notesId = await writer(ctx, 'notes')
+      for (let i = 0; i < 70; i++)
+        await article(ctx, notesId, 'notes', `note-${i}`, NOW - 24 * HOUR - i, {
+          content: body(1, 1),
+        })
+      const writerId = await writer(ctx, 'writer')
+      return article(ctx, writerId, 'writer', 'real', NOW - 30 * 24 * HOUR)
+    })
+    const result = await t.query(api.today.opening, { at: NOW })
+    expect(result.opening!.articleId).toBe(real)
+  })
+})
+
+describe('today.latestDraft', () => {
+  test('the caller’s own newest draft: id, title and words; nothing for anyone else', async () => {
+    const t = convexTest(schema, modules)
+    const ids = await t.run(async (ctx) => {
+      const me = await writer(ctx, 'me')
+      const other = await writer(ctx, 'other')
+      await article(ctx, me, 'me', 'old-draft', 0, {
+        published: false,
+        publishedAt: undefined,
+        updatedAt: 10,
+      })
+      const latest = await article(ctx, me, 'me', 'new-draft', 0, {
+        published: false,
+        publishedAt: undefined,
+        title: '  The year I stopped buying books ',
+        content: { type: 'doc', content: [paragraph('One two three four.')] },
+        updatedAt: 20,
+      })
+      // A newer published article and another writer's draft never count.
+      await article(ctx, me, 'me', 'published', NOW, { updatedAt: 30 })
+      await article(ctx, other, 'other', 'their-draft', 0, {
+        published: false,
+        publishedAt: undefined,
+        updatedAt: 40,
+      })
+      return { me, other, latest }
+    })
+    expect(await t.query(api.today.latestDraft, {})).toBeNull()
+    const mine = await t
+      .withIdentity({ subject: `${ids.me}|session` })
+      .query(api.today.latestDraft, {})
+    expect(mine).toEqual({
+      id: ids.latest,
+      title: 'The year I stopped buying books',
+      words: 4,
+    })
+    const nobody = await t.run(async (ctx) => writer(ctx, 'nobody'))
+    expect(
+      await t
+        .withIdentity({ subject: `${nobody}|session` })
+        .query(api.today.latestDraft, {})
+    ).toBeNull()
   })
 })

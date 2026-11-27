@@ -174,13 +174,13 @@ test.describe('first visit, signed out', () => {
     })
   })
 
-  test('More today is a short list that ends; a tap anywhere on an item opens it', async ({
+  test('More to read is a list that ends; a tap anywhere on an item opens it', async ({
     page,
   }) => {
     await page.goto('/')
-    const more = page.getByRole('region', { name: 'More today' })
+    const more = page.getByRole('region', { name: 'More to read' })
     const items = more.getByRole('listitem')
-    await expect(items).toHaveCount(3)
+    await expect(items).toHaveCount(8)
     await expect(
       page.getByText('You are up to date. New writing arrives through the day.')
     ).toBeVisible()
@@ -257,10 +257,12 @@ test.describe('returning, signed in', () => {
     await watchShifts(page)
     await page.goto('/?auth=loading')
     await page.waitForTimeout(800)
-    await expect(place(page)).toHaveCount(0)
-    // The reserved slots show a quiet fill at their final size.
+    // Your place comes from this browser and shows at once; the draft waits
+    // for the session, in a quiet fill at its final size.
+    await expect(place(page)).toBeVisible()
+    await expect(draft(page)).toHaveCount(0)
     const fill = await page
-      .locator('.qt-today__slot[data-slot="place"]')
+      .locator('.qt-today__slot[data-slot="draft"]')
       .evaluate((slot) => ({
         height: slot.getBoundingClientRect().height,
         background: getComputedStyle(slot).backgroundColor,
@@ -272,23 +274,37 @@ test.describe('returning, signed in', () => {
   })
 })
 
-test('a session that ended gives the reserved space back', async ({ page }) => {
+test('signed out, Your place still shows from this browser; the draft space goes back', async ({
+  page,
+}) => {
   await seed(page, {
     token: true,
     places: [PLACE],
     memory: { place: true, draft: true },
   })
+  await watchShifts(page)
   await page.goto('/?auth=signed-out&delay=200')
+  await expect(place(page)).toBeVisible()
   await expect
     .poll(() =>
       page.evaluate(() => [
         document.documentElement.hasAttribute('data-today-place'),
         document.documentElement.hasAttribute('data-today-draft'),
-        localStorage.getItem('quilltip:today-rows:v1'),
       ])
     )
-    .toEqual([false, false, null])
-  await expect(place(page)).toHaveCount(0)
+    .toEqual([true, false])
+  await expect(draft(page)).toHaveCount(0)
+})
+
+test('a first visit with a stored place: the row shows at once, nothing moves', async ({
+  page,
+}) => {
+  await seed(page, { places: [PLACE] })
+  await watchShifts(page)
+  await page.goto('/')
+  await expect(place(page)).toBeVisible()
+  expect(await titleTop(page)).toBe(await firstTop(page))
+  expect(await shift(page)).toBe(0)
 })
 
 test('an empty catalogue says so and offers the one way to fill it', async ({
@@ -299,7 +315,9 @@ test('an empty catalogue says so and offers the one way to fill it', async ({
   await expect(
     page.getByRole('link', { name: 'Write the first article' })
   ).toHaveAttribute('href', '/write')
-  await expect(page.getByRole('region', { name: 'More today' })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'More to read' })).toHaveCount(
+    0
+  )
 })
 
 test('a backend that does not answer still gives a page', async ({ page }) => {

@@ -23,7 +23,8 @@ const TODAY = {
 const REDIRECTS = [
   { from: '/articles', to: '/' },
   { from: '/articles?page=2&tag=stories', to: '/' },
-  { from: '/articles?q=lamp', to: '/search?q=lamp' },
+  { from: '/articles?search=lamp', to: '/' },
+  { from: '/articles?q=lamp', to: '/' },
   { from: '/demo/write', to: '/write' },
 ]
 
@@ -176,29 +177,46 @@ async function backendDelay(ms: number) {
   })
 }
 
-// D21: a public page never waits without a limit. A skip-list cookie that
-// no other test sends gives each request its own cache entry, so the read
-// really goes to the backend.
+/** The fixture's first article, which opens Today for a new reader. */
+const OPENING_ID = 'fixturearticle000000000000000000'
+
+test('a skip cookie changes the opening in the server HTML', async ({
+  request,
+}) => {
+  const plain = await (await request.get(TODAY.path)).text()
+  expect(plain).toContain(TODAY.heading)
+  for (const cookie of [
+    `qt_finished=${OPENING_ID}`,
+    `qt_opened=${OPENING_ID}`,
+  ]) {
+    const skipped = await (
+      await request.get(TODAY.path, { headers: { cookie } })
+    ).text()
+    expect(skipped).not.toContain(`>${TODAY.heading}</h1>`)
+    expect(skipped).toContain('Fixture Article 2: Notes from a Quiet Street')
+  }
+  // A value that is not an id is ignored: the reader gets the plain opening.
+  const junk = await (
+    await request.get(TODAY.path, {
+      headers: { cookie: 'qt_finished=%3Cscript%3E,..%2F,not-an-id' },
+    })
+  ).text()
+  expect(junk).toContain(TODAY.heading)
+})
+
+// D21: a public page never waits without a limit. A skip list is read from
+// the backend directly (never from the cache), so a reader who finished an
+// article that is not in the catalogue makes a real read here.
 test.describe('a slow backend', () => {
   test.describe.configure({ mode: 'serial' })
   test.afterEach(() => backendDelay(0))
-
-  test('with a fast read, the opening renders', async ({ request }, info) => {
-    const response = await request.get(TODAY.path, {
-      headers: {
-        cookie: `qt_finished=fast${info.project.name.length}${Date.now()}`,
-      },
-    })
-    expect(response.status()).toBe(200)
-    expect(await response.text()).toContain(TODAY.text)
-  })
 
   test('past the limit, / answers within the bound with the unreachable state', async ({
     page,
     request,
   }, info) => {
     await backendDelay(5000)
-    const cookie = `qt_finished=slow${info.project.name.length}${Date.now()}`
+    const cookie = 'qt_finished=k00000000000000000000000000000001'
     const started = Date.now()
     const response = await request.get(TODAY.path, { headers: { cookie } })
     const elapsed = Date.now() - started
@@ -216,17 +234,29 @@ test.describe('a slow backend', () => {
     await page.context().addCookies([
       {
         name: 'qt_finished',
-        value: `slowpage${Date.now()}`,
+        value: 'k00000000000000000000000000000002',
         url: info.project.use.baseURL!,
       },
     ])
     await page.goto(TODAY.path)
     await expect(
-      page.getByText('Today could not be loaded right now.')
+      page.getByRole('heading', {
+        name: 'Today could not be loaded right now.',
+      })
     ).toBeVisible()
     await expect(page.getByRole('link', { name: 'Try again' })).toHaveAttribute(
       'href',
       '/'
     )
+  })
+
+  test('with the backend fast again, the opening renders', async ({
+    request,
+  }) => {
+    const response = await request.get(TODAY.path, {
+      headers: { cookie: 'qt_finished=k00000000000000000000000000000003' },
+    })
+    expect(response.status()).toBe(200)
+    expect(await response.text()).toContain(TODAY.text)
   })
 })

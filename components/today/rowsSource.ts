@@ -23,41 +23,6 @@ export type TodayRowsReading = {
   draft: DraftSummary | null | undefined
 }
 
-type Node = { type?: unknown; text?: unknown; content?: unknown }
-
-function countWords(node: unknown): number {
-  if (!node || typeof node !== 'object') return 0
-  const record = node as Node
-  if (record.type === 'text' && typeof record.text === 'string')
-    return record.text.split(/\s+/u).filter(Boolean).length
-  return Array.isArray(record.content)
-    ? record.content.reduce((sum: number, child) => sum + countWords(child), 0)
-    : 0
-}
-
-type Draft = {
-  _id: string
-  title: string
-  content?: unknown
-  updatedAt: number
-}
-
-/** The draft touched last, as the row shows it. */
-export function latestDraft(drafts: readonly Draft[]): DraftSummary | null {
-  const latest = drafts.reduce<Draft | null>(
-    (best, draft) => (!best || draft.updatedAt > best.updatedAt ? draft : best),
-    null
-  )
-  if (!latest) return null
-  const title = latest.title.trim()
-  return {
-    id: latest._id,
-    title:
-      title && title.toLowerCase() !== 'untitled' ? title : 'Untitled draft',
-    words: countWords(latest.content),
-  }
-}
-
 /** The browser's stored places, read after mount and on changes from other tabs. */
 function useStoredPlaces(): ReadingPlace[] | undefined {
   const [places, setPlaces] = useState<ReadingPlace[] | undefined>(undefined)
@@ -76,18 +41,23 @@ function useStoredPlaces(): ReadingPlace[] | undefined {
   return places
 }
 
-/** The live source: Convex auth, the drafts query, the browser's places. */
+/** The live source: Convex auth, the latest-draft query, the browser's places. */
 export function useLiveTodayRows(): TodayRowsReading {
   const { isAuthenticated, isLoading } = useConvexAuth()
-  const drafts = useQuery(
-    api.articles.getUserDrafts,
-    isAuthenticated ? {} : 'skip'
-  )
+  // One indexed read of the caller's own newest draft: id, title, words.
+  const latest = useQuery(api.today.latestDraft, isAuthenticated ? {} : 'skip')
   const places = useStoredPlaces()
   return {
     auth: isLoading ? 'loading' : isAuthenticated ? 'signed-in' : 'signed-out',
     places,
-    draft: drafts === undefined ? undefined : latestDraft(drafts),
+    draft:
+      latest === undefined
+        ? undefined
+        : latest && {
+            id: latest.id,
+            title: latest.title || 'Untitled draft',
+            words: latest.words,
+          },
   }
 }
 

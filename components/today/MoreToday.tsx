@@ -12,7 +12,7 @@ export function MoreToday({ items }: { items: TodayMoreItem[] }) {
   return (
     <section className="qt-today__more" aria-labelledby="today-more">
       <Heading level={2} variant="section" id="today-more">
-        More today
+        More to read
       </Heading>
       <ul className="qt-today__list">
         {items.map((item) => (

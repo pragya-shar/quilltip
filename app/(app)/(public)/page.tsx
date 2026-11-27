@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import { cookies, headers } from 'next/headers'
 import '@/components/today/today.css'
-import { readToday, todayReadKey } from '@/components/today/data'
+import { readToday } from '@/components/today/data'
 import {
   FINISHED_COOKIE,
-  parseFinishedCookie,
+  OPENED_COOKIE,
+  skipList,
 } from '@/components/today/finished'
 import { TodayView } from '@/components/today/TodayView'
 import { NONCE_HEADER } from '@/lib/security/contentSecurityPolicy'
@@ -42,8 +43,12 @@ export default async function TodayPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const [cookieStore, headerList] = await Promise.all([cookies(), headers()])
-  const finished = parseFinishedCookie(cookieStore.get(FINISHED_COOKIE)?.value)
-  const data = await readToday(...todayReadKey(Date.now(), finished))
+  // Articles this browser opened or finished (D22), validated: ids only.
+  const skip = skipList(
+    cookieStore.get(FINISHED_COOKIE)?.value,
+    cookieStore.get(OPENED_COOKIE)?.value
+  )
+  const data = await readToday(Date.now(), skip)
   return (
     <TodayView
       data={data}

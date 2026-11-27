@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useContext, useEffect, useLayoutEffect, useState } from 'react'
 import { Icon } from '@/system/components/Icon'
-import { ShelfIcon, WriteIcon } from '@/system/icons'
+import { PendingIcon, WriteIcon } from '@/system/icons'
 import { readPlaces } from './readingPlace'
 import { currentPlace } from './resume'
 import {
@@ -60,12 +60,8 @@ export function ResumeRows() {
     setReserved(next)
   }, [])
 
-  const place =
-    reading.auth === 'signed-in' && reading.places
-      ? currentPlace(reading.places)
-      : reading.auth === 'signed-out'
-        ? null
-        : undefined
+  // Your place belongs to this browser, signed in or not (design N4).
+  const place = reading.places ? currentPlace(reading.places) : undefined
   const draft =
     reading.auth === 'signed-in'
       ? reading.draft
@@ -107,7 +103,7 @@ export function ResumeRows() {
             className="qt-today__row"
             aria-label={`Your place: ${place.title}, ${Math.round(place.percent * 100)}% read`}
           >
-            <Icon icon={ShelfIcon} size={20} />
+            <Icon icon={PendingIcon} size={20} />
             <span className="qt-today__row-label">Your place</span>
             <span className="qt-today__row-title">{place.title}</span>
             <span className="qt-today__row-meta">

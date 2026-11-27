@@ -1,12 +1,15 @@
 import { v } from 'convex/values'
-import { query } from './_generated/server'
+import { getAuthUserId } from '@convex-dev/auth/server'
+import { query, type QueryCtx } from './_generated/server'
 import type { Doc } from './_generated/dataModel'
 import { estimateArticleReadingMinutes } from '../lib/reading-time'
 import { isArticleListingReady } from './lib/articleListingReady'
 import {
-  CANDIDATE_READ_LIMIT,
+  CANDIDATE_PAGE,
+  CANDIDATE_PAGES,
   MORE_LIMIT,
   cleanExclude,
+  countWords,
   compareForWindow,
   firstSentence,
   minutesLeft,
@@ -54,16 +57,50 @@ type Candidate = {
   opening: NonNullable<ReturnType<typeof openingOf>>
 }
 
-/** One candidate per writer (their newest), each with a real body. */
-function candidates(recent: Doc<'articles'>[]): Map<string, Candidate> {
+/**
+ * One candidate per writer (their newest eligible article), newest
+ * published first, read in bounded pages until `wanted` writers are found
+ * or CANDIDATE_PAGES pages were read. `before` bounds `publishedAt`
+ * (exclusive for the window, inclusive for the fallback). A page after the
+ * first starts at the last page's oldest time, inclusive, and skips what it
+ * already saw, so articles published in the same millisecond are not lost.
+ */
+async function candidates(
+  ctx: QueryCtx,
+  before: { time: number; inclusive: boolean },
+  wanted: number
+): Promise<Map<string, Candidate>> {
   const byWriter = new Map<string, Candidate>()
-  for (const article of recent) {
-    if (article.publishedAt === undefined || !article.published) continue
-    if (byWriter.has(article.authorId)) continue
-    if (!article.slug.trim() || !isArticleListingReady(article)) continue
-    const opening = openingOf(article.content)
-    if (!opening) continue
-    byWriter.set(article.authorId, { article, opening })
+  const seen = new Set<string>()
+  let bound = before
+  for (let page = 0; page < CANDIDATE_PAGES; page++) {
+    const { time, inclusive } = bound
+    const docs = await ctx.db
+      .query('articles')
+      .withIndex('by_published_date', (q) =>
+        inclusive
+          ? q.eq('published', true).lte('publishedAt', time)
+          : q.eq('published', true).lt('publishedAt', time)
+      )
+      .order('desc')
+      .take(CANDIDATE_PAGE)
+    let fresh = 0
+    for (const article of docs) {
+      if (seen.has(article._id)) continue
+      seen.add(article._id)
+      fresh++
+      if (article.publishedAt === undefined || !article.published) continue
+      if (byWriter.has(article.authorId)) continue
+      if (!article.slug.trim() || !isArticleListingReady(article)) continue
+      const opening = openingOf(article.content)
+      if (!opening) continue
+      byWriter.set(article.authorId, { article, opening })
+    }
+    if (docs.length < CANDIDATE_PAGE || fresh === 0) break
+    if (byWriter.size >= wanted) break
+    const oldest = docs[docs.length - 1]!.publishedAt
+    if (oldest === undefined) break
+    bound = { time: oldest, inclusive: true }
   }
   return byWriter
 }
@@ -76,8 +113,8 @@ function candidates(recent: Doc<'articles'>[]): Map<string, Candidate> {
  * convex/lib/todayOpening.ts.
  *
  * `at` is the moment (ms) the caller renders for. `exclude` lists article
- * ids the reader finished (from their browser); they are skipped while
- * another candidate exists.
+ * ids the reader opened or finished (from their browser's cookies); they
+ * are skipped while another candidate exists.
  */
 export const opening = query({
   args: {
@@ -90,29 +127,18 @@ export const opening = query({
     const window = windowOf(at)
     const skip = cleanExclude(args.exclude)
 
-    // One indexed read: the newest articles published before this window
-    // began, so the choice holds for the whole window.
-    let byWriter = candidates(
-      await ctx.db
-        .query('articles')
-        .withIndex('by_published_date', (q) =>
-          q.eq('published', true).lt('publishedAt', window.startsAt)
-        )
-        .order('desc')
-        .take(CANDIDATE_READ_LIMIT)
+    // Enough writers for the opening and the list, after the skipped ones.
+    const wanted = 1 + MORE_LIMIT + skip.size
+    // Articles published before this day began, so the choice holds all day.
+    let byWriter = await candidates(
+      ctx,
+      { time: window.startsAt, inclusive: false },
+      wanted
     )
-    // A catalogue whose every article is newer than the window (a new
+    // A catalogue whose every article is newer than the day (a new
     // deployment) still opens on writing: read up to `at` instead.
     if (byWriter.size === 0) {
-      byWriter = candidates(
-        await ctx.db
-          .query('articles')
-          .withIndex('by_published_date', (q) =>
-            q.eq('published', true).lte('publishedAt', at)
-          )
-          .order('desc')
-          .take(CANDIDATE_READ_LIMIT)
-      )
+      byWriter = await candidates(ctx, { time: at, inclusive: true }, wanted)
     }
 
     const compare = compareForWindow(window.index)
@@ -164,5 +190,35 @@ export const opening = query({
     }
 
     return { window, opening, more }
+  },
+})
+
+/**
+ * The signed-in person's latest draft, for Today's "Your draft" row: one
+ * indexed read of their own unpublished articles, newest change first.
+ * Only the caller's drafts; null when signed out or when there are none.
+ */
+export const latestDraft = query({
+  args: {},
+  returns: v.union(
+    v.null(),
+    v.object({ id: v.id('articles'), title: v.string(), words: v.number() })
+  ),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return null
+    const draft = await ctx.db
+      .query('articles')
+      .withIndex('by_author_published_updated_at', (q) =>
+        q.eq('authorId', userId).eq('published', false)
+      )
+      .order('desc')
+      .first()
+    if (!draft) return null
+    return {
+      id: draft._id,
+      title: draft.title.trim(),
+      words: countWords(draft.content),
+    }
   },
 })

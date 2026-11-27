@@ -29,7 +29,7 @@ function splitLeadIn(paragraph: string): [string, string] {
 /**
  * The opening: an article already underway. Title, byline, its first
  * paragraphs in the reading face (the first words in small capitals, the
- * last paragraph fading when the article goes on), Read more as a plain
+ * last lines fading into Read more when the article goes on), Read more as a plain
  * link and the time left. Server HTML; nothing here needs a script, and
  * nothing moves or covers it.
  */
@@ -37,7 +37,6 @@ export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
   const writerHref = `/${encodeURIComponent(article.author.username)}`
   const [first = '', ...rest] = article.paragraphs
   const [lead, after] = splitLeadIn(first)
-  const last = article.paragraphs.length - 1
   return (
     <article className="qt-today__opening" aria-labelledby="today-title">
       <Heading level={1} variant="display" id="today-title">
@@ -59,25 +58,25 @@ export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
           </span>
         </span>
       </p>
-      <Prose className="qt-today__prose">
-        {[first, ...rest].map((text, index) => (
-          <p
-            key={index}
-            data-continues={
-              article.continues && index === last ? '' : undefined
-            }
-          >
-            {index === 0 ? (
-              <>
-                <span className="qt-today__lead">{lead}</span>
-                {after}
-              </>
-            ) : (
-              text
-            )}
-          </p>
-        ))}
-      </Prose>
+      <div
+        className="qt-today__text"
+        data-continues={article.continues ? '' : undefined}
+      >
+        <Prose className="qt-today__prose">
+          {[first, ...rest].map((text, index) => (
+            <p key={index}>
+              {index === 0 ? (
+                <>
+                  <span className="qt-today__lead">{lead}</span>
+                  {after}
+                </>
+              ) : (
+                text
+              )}
+            </p>
+          ))}
+        </Prose>
+      </div>
       <p className="qt-today__onward">
         <Button href={article.href} variant="primary" size="l">
           Read more

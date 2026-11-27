@@ -99,11 +99,17 @@ const ARTICLES = Array.from({ length: 9 }, (_, index) => fixtureArticle(index))
 type QueryArgs = Record<string, unknown>
 
 /**
- * Today's answer (`today.opening`): the first article opens, three others
- * follow. Built with the query's own opening rule, so the page renders what
- * the backend would send for these articles.
+ * Today's answer (`today.opening`): the articles in their fixed order, the
+ * skipped ones (`exclude`) moved to the back, as the query does. The first
+ * opens Today, up to 12 follow. Built with the query's own opening rule, so
+ * the page renders what the backend would send for these articles.
  */
-function todayOpening(at: number) {
+function todayOpening(at: number, exclude: unknown) {
+  const skip = new Set(Array.isArray(exclude) ? exclude : [])
+  const ordered = [
+    ...ARTICLES.filter((a) => !skip.has(a._id)),
+    ...ARTICLES.filter((a) => skip.has(a._id)),
+  ]
   const card = (article: (typeof ARTICLES)[number]) => ({
     articleId: article._id,
     title: article.title,
@@ -111,7 +117,7 @@ function todayOpening(at: number) {
     author: { name: FIXTURE_AUTHOR.name, username: FIXTURE_WRITER },
     readMinutes: article.readTime,
   })
-  const first = ARTICLES[0]!
+  const first = ordered[0]!
   const opening = openingOf(first.content)!
   return {
     window: windowOf(at),
@@ -122,7 +128,7 @@ function todayOpening(at: number) {
       continues: opening.continues,
       minutesLeft: minutesLeft(opening.totalWords - opening.shownWords),
     },
-    more: ARTICLES.slice(1, 4).map((article) => ({
+    more: ordered.slice(1, 13).map((article) => ({
       ...card(article),
       first: firstSentence(openingOf(article.content)!.paragraphs[0]!),
     })),
@@ -149,7 +155,9 @@ export function answerFixtureQuery(
             : null,
       }
     case 'today:opening':
-      return { value: todayOpening(Number(args.at) || BASE_TIME) }
+      return {
+        value: todayOpening(Number(args.at) || BASE_TIME, args.exclude),
+      }
     case 'articles:listArticles':
       return {
         value: {

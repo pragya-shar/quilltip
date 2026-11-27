@@ -61,14 +61,17 @@ export function reserve(root: HTMLElement, kind: RowKind, on: boolean) {
 }
 
 /**
- * What to reserve now: nothing without a session token; "Your place" when a
- * place is stored or was shown last time; "Your draft" when it was shown
- * last time (drafts come from the server, after the first paint).
+ * What to reserve now. "Your place" belongs to this browser, signed in or
+ * not: reserved whenever an unfinished place is stored, which is known
+ * before the first paint, so it never moves the page. "Your draft" comes
+ * from the server after the first paint: reserved when this browser holds a
+ * session token and showed the row last time.
  */
 export function reservation(storage: Storage, hasPlace: boolean): RowsMemory {
-  if (!hasAuthToken(storage)) return NONE
-  const memory = readRowsMemory(storage)
-  return { place: hasPlace || memory.place, draft: memory.draft }
+  return {
+    place: hasPlace,
+    draft: hasAuthToken(storage) && readRowsMemory(storage).draft,
+  }
 }
 
 /**
@@ -80,9 +83,10 @@ export function reservation(storage: Storage, hasPlace: boolean): RowsMemory {
 export function reserveScript(readingKey: string): string {
   const j = JSON.stringify
   return (
-    `try{var s=localStorage,t=false,i;for(i=0;i<s.length;i++){if((s.key(i)||'').indexOf(${j(AUTH_TOKEN_PREFIX)})===0){t=true;break}}` +
-    `if(t){var m=JSON.parse(s.getItem(${j(ROWS_MEMORY_KEY)})||'null')||{},p=JSON.parse(s.getItem(${j(readingKey)})||'[]'),h=false;` +
-    `if(p&&p.length)for(i=0;i<p.length;i++){var e=p[i];if(e&&typeof e.articleId==='string'&&e.articleId&&e.finished!==true&&e.percent>0&&typeof e.title==='string'&&e.title.replace(/\s/g,'')&&typeof e.href==='string'&&e.href.charAt(0)==='/'&&e.href.charAt(1)!=='/'){h=true;break}}` +
-    `var r=document.documentElement;if(h||m.place===true)r.setAttribute(${j(RESERVE_ATTR.place)},'');if(m.draft===true)r.setAttribute(${j(RESERVE_ATTR.draft)},'')}}catch(e){}`
+    `try{var s=localStorage,r=document.documentElement,t=false,h=false,i,p=JSON.parse(s.getItem(${j(readingKey)})||'[]');` +
+    `if(p&&p.length)for(i=0;i<p.length&&i<20;i++){var e=p[i];if(e&&typeof e.articleId==='string'&&e.articleId&&e.finished!==true&&typeof e.percent==='number'&&e.percent>0&&typeof e.updatedAt==='number'&&typeof e.title==='string'&&e.title.replace(/\\s/g,'')&&typeof e.href==='string'&&e.href.charAt(0)==='/'&&e.href.charAt(1)!=='/'){h=true;break}}` +
+    `if(h)r.setAttribute(${j(RESERVE_ATTR.place)},'');` +
+    `for(i=0;i<s.length;i++){if((s.key(i)||'').indexOf(${j(AUTH_TOKEN_PREFIX)})===0){t=true;break}}` +
+    `if(t&&(JSON.parse(s.getItem(${j(ROWS_MEMORY_KEY)})||'null')||{}).draft===true)r.setAttribute(${j(RESERVE_ATTR.draft)},'')}catch(e){}`
   )
 }

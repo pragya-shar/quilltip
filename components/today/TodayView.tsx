@@ -1,6 +1,8 @@
 import { Button } from '@/system/components/Button'
 import { EmptyState } from '@/system/components/EmptyState'
+import { Heading } from '@/system/components/Heading'
 import { ReadingUnavailable } from '@/system/components/ReadingUnavailable'
+import { TestnetNote } from '@/system/components/TestnetNote'
 import { TodayIcon } from '@/system/icons'
 import { MoreToday } from './MoreToday'
 import { OfflineNote } from './OfflineNote'
@@ -52,16 +54,23 @@ export function TodayView({
       ) : result.opening ? (
         <TodayOpening article={result.opening} />
       ) : (
-        <EmptyState
-          icon={TodayIcon}
-          title="Nothing to read yet."
-          body="The first article published here opens Today."
-          action={
-            <Button href="/write" variant="primary">
-              Write the first article
-            </Button>
-          }
-        />
+        <>
+          {/* EmptyState sets its title in a paragraph; the page's one
+              heading stays apart until it can take a level. */}
+          <Heading level={1} className="qt-visually-hidden">
+            Today
+          </Heading>
+          <EmptyState
+            icon={TodayIcon}
+            title="Nothing to read yet."
+            body="The first article published here opens Today."
+            action={
+              <Button href="/write" variant="primary">
+                Write the first article
+              </Button>
+            }
+          />
+        </>
       )}
       {result && result.more.length > 0 ? (
         <MoreToday items={result.more} />
@@ -71,9 +80,15 @@ export function TodayView({
           come here, after passage identity and counts exist. Until then
           nothing here leads anywhere. The page stays finite: it ends. */}
       {result?.opening ? (
-        <p className="qt-today__end">
-          You are up to date. New writing arrives through the day.
-        </p>
+        <>
+          <p className="qt-today__end">
+            You are up to date. New writing arrives through the day.
+          </p>
+          {/* Today talks about tipping: say once that it is practice money. */}
+          <TestnetNote className="qt-today__testnet">
+            Quilltip runs on Stellar testnet. Tips are practice money.
+          </TestnetNote>
+        </>
       ) : null}
     </div>
   )

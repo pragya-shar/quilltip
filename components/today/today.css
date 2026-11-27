@@ -145,12 +145,23 @@
   .qt-today__prose {
     overflow-wrap: break-word;
   }
-  /* The last paragraph shown, when the article goes on: it fades toward
-   * Read more, the way a page continues. Only the colour changes; the text
-   * stays in the document for every reader. */
-  .qt-today__prose p[data-continues] {
-    -webkit-mask-image: linear-gradient(to bottom, black 35%, transparent);
-    mask-image: linear-gradient(to bottom, black 35%, transparent);
+  /* When the article goes on, its last lines fade into Read more, the way
+   * a page continues under the button. Only the bottom of the text fades;
+   * the text stays in the document for every reader. */
+  .qt-today__text[data-continues] {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      black calc(100% - 4.5em),
+      transparent
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      black calc(100% - 4.5em),
+      transparent
+    );
+  }
+  .qt-today__text[data-continues] + .qt-today__onward {
+    margin-block-start: calc(-1 * var(--qt-space-6));
   }
   .qt-today__onward {
     display: flex;
@@ -253,6 +264,11 @@
   .qt-today__item:has(.qt-today__item-link:focus-visible) {
     outline: var(--qt-focus-width) solid var(--qt-focus);
     outline-offset: calc(-1 * var(--qt-focus-width));
+  }
+
+  .qt-today__testnet {
+    margin: var(--qt-space-2) 0 0;
+    text-align: center;
   }
 
   /* The end of today's reading. */

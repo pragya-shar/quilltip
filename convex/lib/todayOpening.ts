@@ -18,21 +18,26 @@ export const WINDOW_MS = 24 * 60 * 60 * 1000
 /** Reading speed for "N min left" (D22). */
 export const WORDS_PER_MINUTE = 230
 
-/** Newest published articles read per call: one indexed read, bounded. */
-export const CANDIDATE_READ_LIMIT = 60
+/**
+ * Candidates are read in pages of CANDIDATE_PAGE articles, newest first,
+ * until enough distinct writers are eligible or CANDIDATE_PAGES pages were
+ * read: at most 400 articles per call, however the catalogue is shaped.
+ */
+export const CANDIDATE_PAGE = 50
+export const CANDIDATE_PAGES = 8
 
-/** Articles a reader finished that the caller may ask to skip. */
-export const EXCLUDE_LIMIT = 20
+/** Articles a reader opened or finished that the caller may ask to skip:
+ * the two cookies, at most 20 ids each. */
+export const EXCLUDE_LIMIT = 40
 
-/** "More to read" after the opening: a short list that ends. */
-export const MORE_LIMIT = 4
+/** "More to read" after the opening: a list of 12 that ends (design N4). */
+export const MORE_LIMIT = 12
 
-/** An article shorter than this is not "underway" enough to open Today. */
-export const MIN_BODY_WORDS = 60
+/** An article needs at least this many body paragraphs to open Today. */
+export const MIN_PARAGRAPHS = 2
 
-/** The opening shows at most this many paragraphs, and stops near this many words. */
-export const OPENING_PARAGRAPHS = 3
-export const OPENING_WORDS = 170
+/** The opening shows whole paragraphs up to this many words, never more. */
+export const OPENING_WORDS = 220
 
 export function windowOf(at: number) {
   const index = Math.floor(at / WINDOW_MS)
@@ -73,6 +78,11 @@ const clean = (text: string) => text.replace(/\s+/g, ' ').trim()
 
 const wordCount = (text: string) =>
   text ? text.split(' ').filter(Boolean).length : 0
+
+/** Every word of an article's text, in any block (a draft's length). */
+export function countWords(content: unknown): number {
+  return wordCount(clean(textOf(content)))
+}
 
 /**
  * The article's body as plain paragraphs: top-level paragraphs and the
@@ -115,10 +125,21 @@ export function minutesLeft(remainingWords: number): number {
   return Math.ceil(remainingWords / WORDS_PER_MINUTE)
 }
 
+/** A paragraph cut to at most `max` words: at the last sentence end that
+ * fits, else at a word with an ellipsis. */
+function cutToWords(text: string, max: number): string {
+  const words = text.split(' ')
+  const head = words.slice(0, max).join(' ')
+  const sentenceEnd = head.match(/^.*[.!?…](?=\s|$)/u)?.[0]
+  if (sentenceEnd && wordCount(sentenceEnd) >= max / 2) return sentenceEnd
+  return `${head}…`
+}
+
 /**
- * The first paragraphs of an article, whole: at most OPENING_PARAGRAPHS,
- * stopping once OPENING_WORDS are reached. `continues` says the article has
- * more after them. Null when the body is too short to open Today.
+ * The opening of an article: whole paragraphs from the start, up to
+ * OPENING_WORDS words and never more. A first paragraph longer than that is
+ * cut at a sentence (or a word). `continues` says the article goes on after
+ * what is shown. Null when the body has fewer than MIN_PARAGRAPHS paragraphs.
  */
 export function openingOf(content: unknown): {
   paragraphs: string[]
@@ -127,19 +148,24 @@ export function openingOf(content: unknown): {
   shownWords: number
 } | null {
   const all = bodyParagraphs(content)
+  if (all.length < MIN_PARAGRAPHS) return null
   const total = all.reduce((sum, text) => sum + wordCount(text), 0)
-  if (total < MIN_BODY_WORDS) return null
   const paragraphs: string[] = []
   let words = 0
   for (const text of all) {
-    if (paragraphs.length === OPENING_PARAGRAPHS || words >= OPENING_WORDS)
-      break
+    const count = wordCount(text)
+    if (words + count > OPENING_WORDS) break
     paragraphs.push(text)
-    words += wordCount(text)
+    words += count
+  }
+  if (paragraphs.length === 0) {
+    const cut = cutToWords(all[0]!, OPENING_WORDS)
+    paragraphs.push(cut)
+    words = wordCount(cut.replace(/…$/u, ''))
   }
   return {
     paragraphs,
-    continues: paragraphs.length < all.length,
+    continues: words < total,
     totalWords: total,
     shownWords: words,
   }
