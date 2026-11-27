@@ -78,7 +78,7 @@ export function ActivityRow({
           <dl>
             <dt>Tip</dt>
             <dd>{item.amount.display}</dd>
-            {!reader ? (
+            {!reader && item.net ? (
               <>
                 <dt>Your earnings</dt>
                 <dd data-testid="row-share">

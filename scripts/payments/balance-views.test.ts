@@ -363,9 +363,10 @@ describe('optimistic balance and reconciliation', () => {
       expect(v.amounts).toEqual([])
     }
     // A confirmed account with no balance is a real zero.
+    // No balance is held: an exact zero, not a conversion.
     expect(view(session({ status: 'none' })).available).toMatchObject({
       cents: 0,
-      converted: true,
+      converted: false,
     })
     const loading = earningsViewOf({
       signedIn: true,

@@ -10,9 +10,14 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it } from 'vitest'
 import { useAsOf } from '../../components/payments/useAsOf'
 import { FAKE_SCENARIOS, fakePayments } from '../../lib/payments/fake'
+import { MONEY_TEXT_SAMPLES } from '../../lib/payments/money-samples'
+import { createOutbox } from '../../lib/payments/outbox'
+import { tapOnce } from '../../lib/payments/tip-machine'
+import type { TipPhase } from '../../lib/payments/types'
 import {
   centsToBaseUnits,
   convertedMoney,
+  formatMoney,
   spokenMoney,
 } from '../../lib/payments/money'
 import type { OutboxEntry } from '../../lib/payments/outbox'
@@ -135,9 +140,9 @@ describe('ActivityItem.fee, unpaid and unpaidNet', () => {
       baseUnits: { token: 'XLM', gross: '2500000', net: '2437500' },
     }
     const item = activityItemOf(entry, NOW)
-    expect(item.fee.cents).toBe(0.625)
+    expect(item.fee!.cents).toBe(0.625)
     expect(item.unpaid.cents).toBe(20)
-    expect(item.unpaidNet.cents).toBe(19.5)
+    expect(item.unpaidNet!.cents).toBe(19.5)
   })
 })
 
@@ -259,10 +264,15 @@ describe('the fake runtime by role', () => {
       const v = fakePayments(name, NOW)
       for (const i of [...v.readerActivity.items, ...v.writerActivity.items]) {
         const grid = (n: number) => Math.round(n * 10_000)
-        expect(grid(i.fee.cents)).toBe(grid(i.amount.cents - i.net.cents))
         expect(grid(i.unpaid.cents)).toBe(grid(i.amount.cents - i.paid.cents))
-        expect(grid(i.unpaidNet.cents)).toBe(
-          grid(i.net.cents - i.paidNet.cents)
+        if (i.status === 'sending') {
+          // Unknown until the tip is accepted: never a zero figure.
+          expect([i.net, i.fee, i.unpaidNet]).toEqual([null, null, null])
+          continue
+        }
+        expect(grid(i.fee!.cents)).toBe(grid(i.amount.cents - i.net!.cents))
+        expect(grid(i.unpaidNet!.cents)).toBe(
+          grid(i.net!.cents - i.paidNet.cents)
         )
       }
       expect(v.readerActivity.loadingMore).toBe(false)
@@ -414,5 +424,77 @@ describe('the spoken form and the conversion price', () => {
     )
     expect(fakePayments('loading', NOW).balance.price).toBeNull()
     expect(fakePayments('signed-out', NOW).balance.price).toBeNull()
+  })
+})
+
+describe('the review’s contract points', () => {
+  it('writes the money text samples a parsing component relies on', () => {
+    for (const sample of MONEY_TEXT_SAMPLES)
+      expect(formatMoney(sample.cents, sample.format), sample.name).toBe(
+        sample.text
+      )
+  })
+
+  it('refuses a second tap synchronously: one outbox entry', () => {
+    const data = new Map<string, string>()
+    const outbox = createOutbox({
+      getItem: (k) => data.get(k) ?? null,
+      setItem: (k, v) => void data.set(k, v),
+    })
+    const phases: Record<string, TipPhase> = {}
+    const check = {
+      online: true,
+      available: convertedMoney(500),
+      unavailable: null,
+    }
+    const send = (requestId: string) => {
+      const decision = tapOnce(phases, 'control', 100, check, requestId)
+      if (decision.send)
+        outbox.put({
+          requestId,
+          userId: 'u1',
+          articleId: 'a1',
+          passage: null,
+          amountCents: 100,
+          estimate: '7853732',
+          createdAt: NOW,
+          meta: { articleTitle: 'A', writerName: 'W', href: null },
+        })
+    }
+    // Two calls in the same tick.
+    send('first')
+    send('second')
+    expect(outbox.list('u1').map((e) => e.requestId)).toEqual(['first'])
+    // A call while sending, and one just after acceptance.
+    send('third')
+    phases.control = {
+      phase: 'sent',
+      requestId: 'first',
+      amount: convertedMoney(100),
+    }
+    send('fourth')
+    expect(outbox.list('u1')).toHaveLength(1)
+  })
+
+  it('shows no balance as an exact zero, not a conversion', () => {
+    const none = balance({
+      ...session(),
+      status: 'none',
+    } as unknown as NonNullable<SessionRead>)
+    expect(none).toMatchObject({ status: 'none', exact: null, price: null })
+    expect(none.available).toMatchObject({ cents: 0, converted: false })
+    expect(none.available!.display).toBe('$0.00')
+  })
+
+  it('carries the writer signal in every state', () => {
+    for (const name of FAKE_SCENARIOS) {
+      const e = fakePayments(name, NOW).earnings
+      expect(e.isWriter).toBe(
+        e.status === 'ready' ? true : e.status === 'none' ? false : null
+      )
+    }
+    expect(
+      fakePayments('ready', { now: NOW, role: 'reader' }).earnings.isWriter
+    ).toBe(false)
   })
 })

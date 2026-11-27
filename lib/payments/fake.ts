@@ -143,11 +143,13 @@ function earnings(over: Partial<EarningsView> = {}): EarningsView {
     oldestPendingAt: null,
     exact: { token: 'XLM', available: '0', collected: '0' },
     asOf: null,
+    isWriter: true,
     ...over,
   }
 }
 
 const NO_EARNINGS = earnings({
+  isWriter: null,
   status: 'loading',
   pending: null,
   available: null,
@@ -232,7 +234,7 @@ function item(
         : { title: 'Leave It Overnight', href: '/theo/leave-it-overnight' },
     passage: 'Leave it overnight.',
     amount: money(cents),
-    net: money(status === 'sending' ? 0 : share(cents)),
+    net: status === 'sending' ? null : money(share(cents)),
     paid: money(paidCents),
     paidNet: money(share(paidCents)),
     fee: money(0),
@@ -250,11 +252,13 @@ function item(
     ...over,
   }
   // The same subtractions the server makes, so a surface never does.
+  // A sending tip's net and fee are unknown until it is accepted.
+  const net = base.net
   return {
     ...base,
-    fee: money(grid(base.amount.cents - base.net.cents)),
+    fee: net ? money(grid(base.amount.cents - net.cents)) : null,
     unpaid: money(grid(base.amount.cents - base.paid.cents)),
-    unpaidNet: money(grid(base.net.cents - base.paidNet.cents)),
+    unpaidNet: net ? money(grid(net.cents - base.paidNet.cents)) : null,
   }
 }
 
@@ -284,13 +288,13 @@ function readyEarnings(writer: ActivityItem[], asOf: number): EarningsView {
     i.status === 'not-paid' && i.reason !== 'shortfall'
   const pending = of(
     (i) => i.status === 'sent',
-    (i) => i.net.cents
+    (i) => i.net?.cents ?? 0
   )
   // A tip paid in part: its paid part is ready, the rest on hold or not paid.
   const ready = grid(
     of(
       (i) => i.status === 'on-chain',
-      (i) => i.net.cents
+      (i) => i.net?.cents ?? 0
     ) +
       of(
         (i) => i.status === 'not-paid',
@@ -301,8 +305,8 @@ function readyEarnings(writer: ActivityItem[], asOf: number): EarningsView {
     pending: money(pending),
     available: money(ready),
     total: money(grid(pending + ready)),
-    onHold: money(of(shortfall, (i) => i.unpaidNet.cents)),
-    notPaid: money(of(final, (i) => i.unpaidNet.cents)),
+    onHold: money(of(shortfall, (i) => i.unpaidNet?.cents ?? 0)),
+    notPaid: money(of(final, (i) => i.unpaidNet?.cents ?? 0)),
     counts: {
       pending: writer.filter((i) => i.status === 'sent').length,
       onHold: writer.filter(shortfall).length,
@@ -328,7 +332,12 @@ function forRole(v: FakePayments, role: FakeRole): FakePayments {
       writerActivity: activity([], v.writerActivity.status),
       earnings:
         v.earnings.status === 'ready'
-          ? { ...NO_EARNINGS, status: 'none', asOf: v.earnings.asOf }
+          ? {
+              ...NO_EARNINGS,
+              status: 'none',
+              isWriter: false,
+              asOf: v.earnings.asOf,
+            }
           : v.earnings,
     }
   if (role === 'writer')

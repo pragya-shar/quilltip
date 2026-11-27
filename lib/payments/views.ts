@@ -171,11 +171,12 @@ export function balanceViewOf(input: {
     return {
       ...base,
       status: 'none',
-      available: convertedMoney(0),
+      // No balance is held: an exact zero, not a conversion.
+      available: money(0),
       pending: money(0),
-      exact: { token: 'XLM', available: '0' },
+      exact: null,
       asOf: input.asOf ?? null,
-      price: priceView,
+      price: null,
     }
 
   const price = session.prices[0]?.usd ?? 0
@@ -285,13 +286,13 @@ export function sendingItemOf(entry: OutboxEntry): ActivityItem {
     article: { title: entry.meta.articleTitle, href: entry.meta.href },
     passage: entry.passage?.text ?? null,
     amount: money(entry.amountCents),
-    // Net and fee are known once the server accepts and prices the tip.
-    net: money(0),
+    // Net and fee are unknown until the server accepts and prices the tip.
+    net: null,
     paid: money(0),
     paidNet: money(0),
-    fee: money(0),
+    fee: null,
     unpaid: money(entry.amountCents),
-    unpaidNet: money(0),
+    unpaidNet: null,
     status: 'sending',
     reason: null,
     at: entry.createdAt,
@@ -341,12 +342,20 @@ export function earningsViewOf(input: {
     oldestPendingAt: null,
     exact: null,
     asOf: null,
+    isWriter: null,
   }
   if (!input.signedIn || e === null) return { ...empty, status: 'signed-out' }
   if (e === undefined) return empty
-  if (!e.isWriter) return { ...empty, status: 'none', asOf: input.asOf ?? null }
+  if (!e.isWriter)
+    return {
+      ...empty,
+      status: 'none',
+      isWriter: false,
+      asOf: input.asOf ?? null,
+    }
   return {
     status: 'ready',
+    isWriter: true,
     asOf: input.asOf ?? null,
     pending: money(e.pendingCents),
     available: money(e.availableCents),

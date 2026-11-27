@@ -24,7 +24,7 @@ The signed-in reader's balance.
 | ------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `loading`     | auth or the first answer is pending | `available`, `pending`, `limits` are `null`; `amounts` is empty                                                                 |
 | `signed-out`  | no reader                           | as loading                                                                                                                      |
-| `none`        | signed in, answered, no balance yet | real zeros ("$0.00")                                                                                                            |
+| `none`        | signed in, answered, no balance yet | an exact zero ("$0.00", not converted; `exact` and `price` null)                                                                |
 | `ready`       | answered                            | `available` (converted at today's price: `converted: true`), `pending` (accepted tips not yet paid, exact), `limits`, `amounts` |
 | `closing`     | the balance is being withdrawn      | figures as ready; tips are refused                                                                                              |
 | `unavailable` | payments could not load or answer   | `null`; reading is unaffected                                                                                                   |
@@ -77,8 +77,9 @@ amounts }`: the default and the ladder from public data only (the minimum
 - `tip()`: sends at once, no wallet prompt. `state.phase` goes `sending`, then
   `sent` only after the server accepted (final: there is no Undo), or
   `failed` (nothing charged), `offline` (checked first, nothing sent),
-  `needs-funds`. A second tap while sending is ignored. `reset()` returns to
-  `idle`.
+  `needs-funds`. A second tap in the same tick, while sending, or while the
+  last tip still shows as sent is ignored synchronously (not queued).
+  `reset()` returns to `idle`.
 
 Never: sends twice for one tap or a double tap, says "Sent" before the
 server accepted, follows the writer, saves a highlight, or shares anything.
@@ -86,8 +87,9 @@ server accepted, follows the writer, saves a highlight, or shares anything.
 ### `useActivity(role): ActivityView`
 
 `role` `reader`: tips sent; `writer`: tips received. Newest first, paged
-(`canLoadMore`, `loadMore()`, `loadingMore` while a further page loads);
-`status` `loading` (the first page), `ready` or `unavailable`.
+(`canLoadMore`, `loadMore()`, `loadingMore` while a further page loads;
+`canLoadMore` is false while one loads, so render "Show more" when either
+is true); `status` `loading` (the first page), `ready` or `unavailable`.
 Each `ActivityItem`:
 
 - `amount`: the tip as the reader sent it, whole cents ("−$1.00" on a
@@ -102,7 +104,8 @@ Each `ActivityItem`:
 - `fee`: the platform's 2.5% of the tip (`amount - net`); `unpaid`,
   `unpaidNet`: what is not paid yet, and the writer's share of it. All
   exact, from the server: a screen never subtracts amounts. A sending row
-  has `net` and `fee` of zero until the server prices it.
+  has `net`, `fee` and `unpaidNet` null and `exact` null: they are unknown
+  until the tip is accepted, so a screen must not print them.
 - `lagging`: accepted and older than settlement normally takes.
 - `requestId`: the same on both sides and in the server's receipt.
 - The writer's `counterparty` is always "A reader".
@@ -111,8 +114,9 @@ Each `ActivityItem`:
 
 The signed-in writer's money. Figures exist only when `status` is `ready`.
 `status: 'none'`: signed in, never published and never received a tip:
-there are no earnings to show (not earnings of zero). `asOf` as on the
-balance. `oldestPendingAt`: when the oldest tip still on its way was
+there are no earnings to show (not earnings of zero). `isWriter` says the
+same in every state: true when `ready`, false when `none`, null while not
+known (loading, signed out, unavailable). `asOf` as on the balance. `oldestPendingAt`: when the oldest tip still on its way was
 accepted (server time; null when none), so a screen applies the lag rule
 ("taking longer than usual" after 5 minutes) without scanning rows;
 `lagging` is that rule applied.
@@ -185,6 +189,11 @@ amount; a `Money`'s `display` is its output with the defaults.
   "$2.54". Change it there, not in a surface.
 - `null` means "not read yet": show a skeleton, never "$0.00".
 - `formatShort(cents)`: "$1" for whole dollars on a button label.
+- There is no `formatExactCents` (it was removed): every amount goes through
+  `formatMoney`.
+- `money-samples.ts` exports `MONEY_TEXT_SAMPLES` (plain, six decimals,
+  signed, converted, zero, dust): sample outputs of `formatMoney` that a
+  component parsing the text imports in its own tests.
 
 ## Without a backend: `fake.ts`
 

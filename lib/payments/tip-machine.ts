@@ -34,8 +34,10 @@ export function onTap(
   check: TapCheck,
   requestId: string
 ): TapDecision {
-  // Double tap: one tip in flight at a time.
-  if (phase.phase === 'sending') return { send: false, phase }
+  // Double tap: one tip in flight at a time, and none while the last one
+  // still shows as just accepted.
+  if (phase.phase === 'sending' || phase.phase === 'sent')
+    return { send: false, phase }
   const amount = money(cents)
   if (check.unavailable) return { send: false, phase }
   if (!check.online) return { send: false, phase: { phase: 'offline', amount } }
@@ -46,6 +48,29 @@ export function onTap(
       phase: { phase: 'needs-funds', amount, available: check.available },
     }
   return { send: true, phase: { phase: 'sending', requestId, amount } }
+}
+
+/**
+ * A control's tap, decided and recorded at once: reads the control's phase
+ * from `phases` and writes the next one back before anything is sent, so a
+ * second tap in the same tick, or while one is sending or just accepted, is
+ * ignored (never queued), synchronously, before any await.
+ */
+export function tapOnce(
+  phases: Record<string, TipPhase>,
+  id: string,
+  cents: Cents,
+  check: TapCheck,
+  requestId: string
+): TapDecision {
+  const decision = onTap(
+    phases[id] ?? { phase: 'idle' },
+    cents,
+    check,
+    requestId
+  )
+  phases[id] = decision.phase
+  return decision
 }
 
 /** The phase once the runtime reports on the tip in flight. */

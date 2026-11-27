@@ -763,7 +763,8 @@ test.describe('figures appear only when read', () => {
     await expect(page.getByTestId('earnings-available')).toHaveText('$0.00')
     await expect(page.getByTestId('earnings-pending')).toHaveText('$0.00')
     await expect(page.getByTestId('earnings-collected')).toHaveText('$0.00')
+    // No balance held: an exact zero, not a conversion.
     await open(page, 'balance', 'reader-none')
-    await expect(page.getByTestId('balance-available')).toHaveText('≈ $0.00')
+    await expect(page.getByTestId('balance-available')).toHaveText('$0.00')
   })
 })

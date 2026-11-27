@@ -38,7 +38,7 @@ import {
 } from '@/lib/payments/outbox'
 import { paymentsStore } from '@/lib/payments/store'
 import { money } from '@/lib/payments/money'
-import { onJob, onTap, type JobStatus } from '@/lib/payments/tip-machine'
+import { onJob, tapOnce, type JobStatus } from '@/lib/payments/tip-machine'
 import type {
   BalanceView,
   Cents,
@@ -521,13 +521,14 @@ export function PaymentsEngine() {
           return
         }
         const requestId = crypto.randomUUID()
-        const decision = onTap(
-          current,
+        // Decided and recorded synchronously: a second tap is ignored.
+        const decision = tapOnce(
+          phases.current,
+          id,
           cents,
           { online: b.online, available: b.available, unavailable },
           requestId
         )
-        phases.current[id] = decision.phase
         setPhase(decision.phase)
         if (decision.send)
           sendRef.current(reg.target, cents, reg.meta, requestId)

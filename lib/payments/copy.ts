@@ -48,7 +48,7 @@ export function statusCopy(item: ActivityItem): {
     case 'not-paid': {
       // Never say nothing moved unless nothing was paid for this tip.
       const paid = reader ? item.paid.cents : item.paidNet.cents
-      const whole = reader ? item.amount.cents : item.net.cents
+      const whole = reader ? item.amount.cents : (item.net?.cents ?? 0)
       const rest = Math.max(0, whole - paid)
       const final = item.reason !== 'shortfall'
       if (paid > 0)

@@ -95,7 +95,7 @@ describe('fake scenarios follow the live rules', () => {
       '$0.10',
       '$0.50',
     ])
-    expect(v.writerActivity.items.map((i) => i.net.cents)).toEqual([
+    expect(v.writerActivity.items.map((i) => i.net!.cents)).toEqual([
       9.75, 9.75, 48.75,
     ])
     expect(v.earnings.available!.display).toBe('$0.6825')

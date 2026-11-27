@@ -74,7 +74,7 @@ describe('money text', () => {
       }),
       NOW
     )
-    expect(item.net.display).toBe('$0.00')
+    expect(item.net!.display).toBe('$0.00')
     expect(item.exact).toEqual({ token: 'XLM', gross: '1', net: '1' })
   })
 

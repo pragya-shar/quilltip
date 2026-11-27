@@ -135,18 +135,19 @@ export type ActivityItem = {
   passage: string | null
   /** The tip as chosen, in dollars at tip time. */
   amount: Money
-  /** The writer's share. */
-  net: Money
+  /** The writer's share; null while sending (unknown until accepted). */
+  net: Money | null
   /** What has been paid on chain for this tip (all once paid, part of a
    * tip paid short), and the writer's share of it. */
   paid: Money
   paidNet: Money
-  /** The platform's 2.5% of this tip (`amount - net`), exact. */
-  fee: Money
+  /** The platform's 2.5% of this tip (`amount - net`), exact; null while
+   * sending. */
+  fee: Money | null
   /** What of the tip is not paid on chain (`amount - paid`), and the
    * writer's share of it (`net - paidNet`). Zero once paid in full. */
   unpaid: Money
-  unpaidNet: Money
+  unpaidNet: Money | null
   status: 'sending' | 'sent' | 'on-chain' | 'not-paid'
   reason: NotPaidReason | null
   at: number
@@ -173,6 +174,9 @@ export type ActivityView = {
  */
 export type EarningsView = {
   status: 'loading' | 'signed-out' | 'none' | 'ready' | 'unavailable'
+  /** Has published or received a tip: true (`ready`), false (`none`), null
+   * while not known (loading, signed out, unavailable). */
+  isWriter?: boolean | null
   pending: Money | null
   /** Paid on chain and collectable now. */
   available: Money | null
