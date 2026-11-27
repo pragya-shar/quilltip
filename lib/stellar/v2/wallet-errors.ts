@@ -223,7 +223,7 @@ const TESTNET_PASSPHRASE = 'Test SDF Network ; September 2015'
 
 /**
  * The message of a `wrong-network` error raised after signing: the wallet
- * cannot report its network, and its signature is not valid for QuillTip's.
+ * cannot report its network, and its signature is not valid for Quilltip's.
  */
 export const SIGNED_FOR_ANOTHER_NETWORK =
   'The wallet signed for a different Stellar network'

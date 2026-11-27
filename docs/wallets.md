@@ -1,8 +1,8 @@
 # Stellar wallets
 
-QuillTip connects wallets through Stellar Wallets Kit 2.8.0, the newest
+Quilltip connects wallets through Stellar Wallets Kit 2.8.0, the newest
 release (October 2026). This page lists the main Stellar wallets, what each
-can do for QuillTip on testnet, and which ones the app offers. The code that
+can do for Quilltip on testnet, and which ones the app offers. The code that
 reads it is `lib/stellar/wallet-catalog.ts` (one entry per wallet),
 `lib/stellar/v2/wallet.ts` (the adapter) and `lib/stellar/v2/wallet-errors.ts`
 (one error mapping per wallet).
@@ -47,7 +47,7 @@ every error into `{ code, message }`):
 | D'CENT  | No address: "Getting the address from D'CENT is not allowed…"          | `{ error }`; values not documented                                                                       |
 | Albedo  | Not applicable (web wallet)                                            | -4 "Action request was rejected by the user." Closing its window sends nothing                           |
 
-### What QuillTip does for each
+### What Quilltip does for each
 
 - **One error mapping.** `classifyWalletError` checks the wallet's own rules
   (`WALLET_ERROR_RULES`), then shared ones, and returns one of: `no-wallet`,
@@ -75,7 +75,7 @@ every error into `{ code, message }`):
 
 ### Albedo over http
 
-The kit and earlier QuillTip code treated Albedo as HTTPS-only. Albedo's
+The kit and earlier Quilltip code treated Albedo as HTTPS-only. Albedo's
 source requires `https:` only for its `wallet_redirect` callback. Checked on
 27 November 2026 against `albedo.link` from `http://127.0.0.1` and
 `https://127.0.0.1` (a local self-signed origin): both showed Albedo's request
@@ -88,7 +88,7 @@ state, with the reason, for wallets that need HTTPS.
 
 | Wallet                                 | Why                                                                                                                                                                                                                                                                                                                                                            |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LOBSTR signer extension                | It has no Stellar testnet: the kit drops the network passphrase and the extension signs for mainnet. QuillTip would refuse every signature. Worth adding when mainnet is in scope.                                                                                                                                                                             |
+| LOBSTR signer extension                | It has no Stellar testnet: the kit drops the network passphrase and the extension signs for mainnet. Quilltip would refuse every signature. Worth adding when mainnet is in scope.                                                                                                                                                                             |
 | HOT Wallet                             | The kit module reports Stellar mainnet and sends no network with a signing request. It also needs `global` and `Buffer` polyfills. A scoped polyfill is possible, but the wallet still could not sign testnet transactions.                                                                                                                                    |
 | MetaMask (`@metamask/connect-stellar`) | Mainnet (`stellar:pubnet`) only.                                                                                                                                                                                                                                                                                                                               |
 | Ledger                                 | The kit signs the bare transaction hash unless the app passes `nonBlindTx`, and the Stellar app has blind signing off by default since v6.0.0. The module needs the kit's own account chooser to know which path signs, and a `Buffer` polyfill. The Ledger Stellar app does parse Soroban calls, so a clear-signing path is possible; see "Hardware wallets". |
@@ -106,7 +106,7 @@ allows `usb` for the site. It would need:
 
 1. A `Buffer` polyfill scoped to the Ledger module's chunk.
 2. An account step: the kit's `getAddresses()` fills the paths the module
-   signs with; QuillTip's picker does not call it today.
+   signs with; Quilltip's picker does not call it today.
 3. Signing with `nonBlindTx: true`, so the device shows the contract call
    instead of a hash, and a clear message when the device refuses
    (`0x6C66`, blind signing off; `0x6985`, refused).

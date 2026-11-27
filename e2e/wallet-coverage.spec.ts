@@ -16,7 +16,7 @@ import {
 import { installVarialEmulator } from './helpers/varialEmulator'
 
 /**
- * Every wallet QuillTip offers (#511), through the real wallet runtime,
+ * Every wallet Quilltip offers (#511), through the real wallet runtime,
  * Wallets Kit modules, picker, tip dialog and address proof, against fake
  * providers shaped like each wallet's API (e2e/helpers/walletEmulators.ts).
  * xBull's web wallet runs in a real window served by a stand-in page

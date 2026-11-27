@@ -74,7 +74,7 @@ export function WalletStatus({ className }: WalletStatusProps) {
     }
   }
 
-  // A wallet that cannot report its network signs for QuillTip's, so show
+  // A wallet that cannot report its network signs for Quilltip's, so show
   // that one.
   const shownNetwork = (network || networkLabelLowercase()).toUpperCase()
   const openInExplorer = (address: string) => {

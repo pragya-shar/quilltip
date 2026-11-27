@@ -113,7 +113,7 @@ export function InstallWalletDialog({
         <DialogHeader>
           <DialogTitle>Make room for a little appreciation.</DialogTitle>
           <DialogDescription>
-            Choose a Stellar wallet and follow its setup steps. QuillTip uses
+            Choose a Stellar wallet and follow its setup steps. Quilltip uses
             Stellar testnet. An extension needs a reload once it is installed,
             so save your current task first.
           </DialogDescription>

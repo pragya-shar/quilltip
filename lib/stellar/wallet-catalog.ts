@@ -1,5 +1,5 @@
 /**
- * The Stellar wallets QuillTip knows about: the ones it offers, and the ones
+ * The Stellar wallets Quilltip knows about: the ones it offers, and the ones
  * it does not offer yet with the reason. Plain data with no SDK or Wallets
  * Kit import, so the install guide and error copy can use it on any page
  * without loading wallet code.
@@ -53,7 +53,7 @@ export type WalletCapabilities = {
   /** Signs Soroban authorisation entries. No v2 flow needs it. */
   authEntry: boolean
   /**
-   * Tells the page which network it is on. When false, QuillTip checks the
+   * Tells the page which network it is on. When false, Quilltip checks the
    * returned signature against the testnet passphrase instead.
    */
   reportsNetwork: boolean
@@ -255,7 +255,7 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     },
     offered: false,
     notOfferedReason:
-      'Trezor Connect cannot sign Soroban contract calls, which every QuillTip payment uses.',
+      'Trezor Connect cannot sign Soroban contract calls, which every Quilltip payment uses.',
   },
   {
     id: WALLET_IDS.metamask,
@@ -291,14 +291,14 @@ const BY_ID = new Map<string, WalletCatalogEntry>(
   WALLET_CATALOG.map((entry) => [entry.id, entry])
 )
 
-/** The catalog entry for a kit module ID, if QuillTip knows the wallet. */
+/** The catalog entry for a kit module ID, if Quilltip knows the wallet. */
 export function walletEntry(
   id: string | undefined
 ): WalletCatalogEntry | undefined {
   return id === undefined ? undefined : BY_ID.get(id)
 }
 
-/** The wallets QuillTip offers, in picker order. */
+/** The wallets Quilltip offers, in picker order. */
 export const OFFERED_WALLETS = WALLET_CATALOG.filter((entry) => entry.offered)
 
 /** Offered wallets that work without WalletConnect configured. */
