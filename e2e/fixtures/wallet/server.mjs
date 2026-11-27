@@ -93,9 +93,11 @@ const cssName = [...outputs.keys()].find(
 const wcJsName = [...outputs.keys()].find(
   (name) => name.startsWith('wc-') && name.endsWith('.js')
 )
+// `WALLET_FIXTURE_PORT` moves the server off 4177 when another run uses it.
+const port = Number(process.env.WALLET_FIXTURE_PORT ?? 4177)
 Bun.serve({
   hostname: '127.0.0.1',
-  port: 4177,
+  port,
   async fetch(request) {
     const url = new URL(request.url)
     if (
@@ -127,4 +129,4 @@ Bun.serve({
     )
   },
 })
-console.log('Wallet fixtures: http://127.0.0.1:4177')
+console.log(`Wallet fixtures: http://127.0.0.1:${port}`)

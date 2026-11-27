@@ -278,12 +278,37 @@ export function useQuery(name: string) {
   return params.get('tips') === '1' ? TIPS[name] : undefined
 }
 
+// Signed in unless `?auth=out`; the spec signs out and in again through
+// `window.__fixtureAuth`, as the header menu and the sign-in page would.
+let signedIn = params.get('auth') !== 'out'
+const authListeners = new Set<() => void>()
+const subscribeAuth = (listener: () => void) => {
+  authListeners.add(listener)
+  return () => authListeners.delete(listener)
+}
+const setSignedIn = (next: boolean) => {
+  signedIn = next
+  authListeners.forEach((listener) => listener())
+}
+;(window as unknown as { __fixtureAuth: unknown }).__fixtureAuth = {
+  signOut: () => setSignedIn(false),
+  signIn: () => setSignedIn(true),
+}
+
 export function useAuth() {
+  const isAuthenticated = useSyncExternalStore(subscribeAuth, () => signedIn)
   return {
-    user: { _id: 'qa-reader', username: 'reader', name: 'Reader' },
-    isAuthenticated: true,
+    user: isAuthenticated
+      ? { _id: 'qa-reader', username: 'reader', name: 'Reader' }
+      : null,
+    isAuthenticated,
     isLoading: false,
   }
+}
+
+export function useConvexAuth() {
+  const isAuthenticated = useSyncExternalStore(subscribeAuth, () => signedIn)
+  return { isAuthenticated, isLoading: false }
 }
 
 export const stellarClient = {

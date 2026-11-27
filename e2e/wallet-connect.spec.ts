@@ -348,12 +348,12 @@ test('a live session is restored after a reload without a new code', async ({
   await page.goto('/?wc=1')
   await pairAndApprove(page)
   await page.reload()
-  await page.getByRole('button', { name: 'Connect Wallet' }).click()
-  await picker(page)
-    .getByRole('button', { name: /^Mobile wallet/ })
-    .click()
+  // Restored on load (#562): no picker, no pairing step, no phone request.
   await expect(account(page)).toContainText('Mobile wallet')
-  expect((await fake.state(page)).pairings).toBe(0)
+  await expect(picker(page)).toHaveCount(0)
+  const state = await fake.state(page)
+  expect(state.pairings).toBe(0)
+  expect(state.requests).toEqual([])
 })
 
 test('pairing step: no axe violations', async ({ page }) => {

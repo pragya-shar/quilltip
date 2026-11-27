@@ -96,7 +96,10 @@ function fakeClient(sessions: WcSession[] = []) {
   }
 }
 
-function moduleFor(fake: ReturnType<typeof fakeClient>) {
+function moduleFor(
+  fake: ReturnType<typeof fakeClient>,
+  opts: { remembered?: string | null } = {}
+) {
   const pairing = { show: vi.fn(), clear: vi.fn() }
   const onSessionEnded = vi.fn()
   const loadSignClient = vi.fn(async () => fake.client)
@@ -111,6 +114,7 @@ function moduleFor(fake: ReturnType<typeof fakeClient>) {
     loadSignClient,
     pairing,
     onSessionEnded,
+    rememberedAccount: () => opts.remembered ?? null,
     now: () => NOW,
   })
   return { module: walletModule, pairing, onSessionEnded, loadSignClient }
@@ -196,9 +200,9 @@ describe('pairing', () => {
     expect(loadSignClient).not.toHaveBeenCalled()
   })
 
-  test('restores a live testnet session without a new pairing', async () => {
+  test('reuses the remembered wallet’s live session without a new pairing', async () => {
     const fake = fakeClient([session()])
-    const { module, pairing } = moduleFor(fake)
+    const { module, pairing } = moduleFor(fake, { remembered: ADDRESS })
     await expect(module.getAddress()).resolves.toEqual({ address: ADDRESS })
     expect(fake.client.connect).not.toHaveBeenCalled()
     expect(pairing.show).not.toHaveBeenCalled()
@@ -206,10 +210,59 @@ describe('pairing', () => {
 
   test('does not reuse a session that is about to expire', async () => {
     const fake = fakeClient([session({ expiry: NOW / 1000 + 30 })])
-    const { module } = moduleFor(fake)
+    const { module } = moduleFor(fake, { remembered: ADDRESS })
     void module.getAddress()
     await vi.waitFor(() => expect(fake.client.connect).toHaveBeenCalled())
   })
+
+  test('a session the reader did not choose (none remembered) is closed before a new pairing', async () => {
+    const fake = fakeClient([session({ topic: 'left-behind' })])
+    const { module } = moduleFor(fake, { remembered: null })
+    void module.getAddress()
+    await vi.waitFor(() => expect(fake.client.connect).toHaveBeenCalled())
+    expect(fake.client.disconnect).toHaveBeenCalledWith(
+      expect.objectContaining({ topic: 'left-behind' })
+    )
+  })
+
+  test('a session for another account than the remembered one is not reused', async () => {
+    const other = Keypair.random().publicKey()
+    const fake = fakeClient([session()])
+    const { module } = moduleFor(fake, { remembered: other })
+    void module.getAddress()
+    await vi.waitFor(() => expect(fake.client.connect).toHaveBeenCalled())
+  })
+})
+
+describe('restore after a page load (#562)', () => {
+  test('returns the remembered live session’s account without pairing or a phone request', async () => {
+    const fake = fakeClient([session()])
+    const { module, pairing } = moduleFor(fake, { remembered: ADDRESS })
+    await expect(
+      module.getAddress({ skipRequestAccess: true })
+    ).resolves.toEqual({ address: ADDRESS })
+    expect(fake.client.connect).not.toHaveBeenCalled()
+    expect(fake.client.request).not.toHaveBeenCalled()
+    expect(pairing.show).not.toHaveBeenCalled()
+  })
+
+  for (const [name, sessions, remembered] of [
+    ['nothing remembered', [session()], null],
+    ['no live session', [], ADDRESS],
+    ['an expiring session', [session({ expiry: NOW / 1000 + 30 })], ADDRESS],
+    ['a session on another account', [session()], Keypair.random().publicKey()],
+  ] as const) {
+    test(`${name}: fails without pairing, closing or asking`, async () => {
+      const fake = fakeClient([...sessions])
+      const { module, pairing } = moduleFor(fake, { remembered })
+      const error = await caught(module.getAddress({ skipRequestAccess: true }))
+      expect(error).toMatchObject({ code: -3 })
+      expect(fake.client.connect).not.toHaveBeenCalled()
+      expect(fake.client.disconnect).not.toHaveBeenCalled()
+      expect(fake.client.request).not.toHaveBeenCalled()
+      expect(pairing.show).not.toHaveBeenCalled()
+    })
+  }
 })
 
 const kind = (error: unknown): WalletErrorKind =>
