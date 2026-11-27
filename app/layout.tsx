@@ -4,7 +4,7 @@ import './globals.css'
 import Providers from '@/components/providers/Providers'
 import { Analytics } from '@vercel/analytics/react'
 import { AnalyticsConsent } from '@/components/analytics/AnalyticsConsent'
-import { EarlySubmitScript } from '@/components/auth/EarlySubmitScript'
+import { EarlyInteractionScript } from '@/components/layout/EarlyInteractionScript'
 import { analyticsServerKey } from '@/lib/analytics/config'
 import { NONCE_HEADER } from '@/lib/security/contentSecurityPolicy'
 import { SITE_META_DESCRIPTION } from '@/lib/copy/landing-sections'
@@ -24,7 +24,7 @@ export default async function RootLayout({
   // Reading the request renders every page per request. Next.js adds the CSP
   // nonce from proxy.ts to its scripts only while rendering, so a prerendered
   // page would carry scripts the policy blocks. The theme script needs the
-  // same nonce, as does the early-submit script. See
+  // same nonce, as does the early-interaction script. See
   // docs/security/content-security-policy.md.
   const nonce = (await headers()).get(NONCE_HEADER) ?? undefined
   return (
@@ -39,8 +39,8 @@ export default async function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
-        {/* Holds a sign-in submit made before the page scripts run. */}
-        <EarlySubmitScript nonce={nonce} />
+        {/* Answers presses made before the page scripts run. */}
+        <EarlyInteractionScript nonce={nonce} />
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
         <Providers nonce={nonce}>{children}</Providers>

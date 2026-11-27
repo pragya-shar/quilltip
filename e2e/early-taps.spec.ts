@@ -282,6 +282,35 @@ test.describe('mobile menu before the page scripts run', () => {
     await expect(dialog).toBeHidden()
   })
 
+  test('before the scripts run, Tab out of the menu closes it', async ({
+    page,
+    browserName,
+  }) => {
+    // WebKit moves Tab between links only with a system setting turned on.
+    test.skip(
+      browserName === 'webkit',
+      'WebKit does not Tab to links by default'
+    )
+    await recordConvexMessages(page)
+    await holdPageScripts(page)
+    await page.goto(MENU_PAGE, { waitUntil: 'domcontentloaded' })
+    const trigger = page.getByRole('button', { name: 'Open navigation menu' })
+    const dialog = page.getByRole('dialog', { name: 'Find your way' })
+    await trigger.focus()
+    await page.keyboard.press('Enter')
+    await expect(dialog).toBeVisible({ timeout: 1000 })
+    let inside = true
+    for (let step = 0; step < 20 && inside; step++) {
+      await page.keyboard.press('Tab')
+      inside = await dialog.evaluate((element) =>
+        element.contains(document.activeElement)
+      )
+    }
+    expect(inside).toBe(false)
+    // Focus never rests on a link the sheet covers.
+    await expect(dialog).toBeHidden()
+  })
+
   test('the menu opens without motion when the reader asks for reduced motion', async ({
     page,
   }) => {
