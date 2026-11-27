@@ -11,8 +11,10 @@
 // - the list shows a link named after the article, and following it by
 //   native navigation shows the article's title and prose;
 // - the writer's page shows the writer and a link to the article;
-// - a draft or unknown article, and an unknown writer, answer 404 and show
-//   no article text;
+// - the sign-in pages (reset, log in, register) show a form field;
+// - an unpublished article, an unknown article and an unknown writer answer
+//   404 and show no article text, and no public list names the unpublished
+//   article;
 // - with scripts on, a signed-in section sends a signed-out reader to sign in.
 // The assertions use roles, link targets and visible text only, never class
 // names or file paths, so the same check can run against redesigned pages:
@@ -21,7 +23,7 @@
 import { chromium, webkit, type Browser, type Page } from '@playwright/test'
 import {
   FIXTURE_ARTICLE_PATH,
-  FIXTURE_SLUG,
+  FIXTURE_DRAFT,
   FIXTURE_WRITER,
 } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
@@ -37,12 +39,20 @@ export const READING = {
   articleTitle: 'The Lamp on Orchard Street',
   /** A sentence from the article's body. */
   prose: 'came on every evening at a quarter past six',
+  /** An unpublished article of the writer: its URL answers 404. */
+  draft: {
+    path: `/${FIXTURE_WRITER}/${FIXTURE_DRAFT.slug}`,
+    title: FIXTURE_DRAFT.title,
+    text: FIXTURE_DRAFT.text,
+  },
   /** Paths that must answer 404 with no article text. */
   unreachable: [
-    `/${FIXTURE_WRITER}/${FIXTURE_SLUG}-draft`,
+    `/${FIXTURE_WRITER}/no-such-article`,
     '/no-such-writer-428',
     '/no-such-writer-428/no-such-article',
   ],
+  /** Sign-in pages: each shows a form field without scripts. */
+  authPages: ['/reset-password', '/login', '/register'],
   /**
    * A signed-in section and where it sends a signed-out reader. The redirect
    * runs in the browser, so this one load has scripts on.
@@ -117,6 +127,12 @@ async function check(page: Page, failures: string[], label: string) {
     fail(`${READING.writer} does not show "${READING.writerName}"`)
   if (!(await shown(page.getByRole('link', { name: READING.articleTitle }))))
     fail(`${READING.writer} shows no link named "${READING.articleTitle}"`)
+
+  for (const path of READING.authPages) {
+    await page.goto(BASE_URL + path, { waitUntil: 'load' })
+    if (!(await shown(page.getByRole('textbox'))))
+      fail(`${path} shows no form field`)
+  }
 }
 
 async function main() {
@@ -125,13 +141,27 @@ async function main() {
   const failures: string[] = []
   try {
     // Guards: no article text on a draft or unknown path, and a 404.
-    for (const path of READING.unreachable) {
+    for (const path of [READING.draft.path, ...READING.unreachable]) {
       const response = await fetch(BASE_URL + path, { redirect: 'manual' })
       const body = await response.text()
       if (response.status !== 404)
         failures.push(`${path}: status ${response.status}, expected 404`)
-      if (body.includes(READING.prose) || body.includes(READING.articleTitle))
+      if (
+        body.includes(READING.prose) ||
+        body.includes(READING.articleTitle) ||
+        body.includes(READING.draft.title) ||
+        body.includes(READING.draft.text)
+      )
         failures.push(`${path}: the response contains article text`)
+    }
+    // Guard: the draft is in no public list.
+    for (const path of [READING.home, READING.list, READING.writer]) {
+      const body = await (await fetch(BASE_URL + path)).text()
+      if (
+        body.includes(READING.draft.title) ||
+        body.includes(READING.draft.path)
+      )
+        failures.push(`${path}: the response names the unpublished article`)
     }
     // Guard: a signed-in section still sends a signed-out reader to sign in.
     {

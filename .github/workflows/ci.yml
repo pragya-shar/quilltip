@@ -159,6 +159,9 @@ jobs:
       - name: Check reading without scripts
         run: bun run perf:no-script-reading
 
+      - name: Check reading with a slow backend
+        run: bun run perf:slow-backend-reading
+
   # Text keeps its lines when the web fonts replace the metric-matched
   # fallback faces (app/font-fallbacks.css), in Chromium and WebKit. It runs
   # on macOS, which has Arial and Times New Roman, as Safari readers do. On
