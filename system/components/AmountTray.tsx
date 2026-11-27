@@ -43,10 +43,10 @@ export function AmountTray({
   const root = useRef<HTMLDivElement>(null)
   const [other, setOther] = useState('')
   const [otherError, setOtherError] = useState(false)
-  const checkedIndex = Math.max(
-    0,
-    amounts.findIndex((a) => a.cents === value?.cents)
-  )
+  // The chosen quick amount, or -1 when the amount was typed in Other: then
+  // no radio is checked, and the first one takes Tab.
+  const checkedIndex = amounts.findIndex((a) => a.cents === value?.cents)
+  const tabIndexAt = Math.max(0, checkedIndex)
 
   // Focus the chosen amount on open, as a radio group does.
   useEffect(() => {
@@ -125,14 +125,14 @@ export function AmountTray({
         aria-labelledby={labelId}
       >
         {amounts.map((choice, index) => {
-          const checked = index === checkedIndex && value !== null
+          const checked = index === checkedIndex
           return (
             <button
               key={choice.cents}
               type="button"
               role="radio"
               aria-checked={checked}
-              tabIndex={index === checkedIndex ? 0 : -1}
+              tabIndex={index === tabIndexAt ? 0 : -1}
               className="qt-tray__amount"
               onClick={() => {
                 onChange(choice.cents)

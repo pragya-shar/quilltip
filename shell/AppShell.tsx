@@ -8,7 +8,7 @@ import { NavRail } from './NavRail'
  * the toast region and the payments shell), which sits next to the content
  * and never wraps it. The frame lives in the root layout, so it does not remount when the
  * page changes. Nothing here suspends: the content arrives in the first
- * response (D19).
+ * response.
  */
 export function AppShell({
   children,

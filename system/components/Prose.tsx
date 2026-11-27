@@ -18,7 +18,7 @@ type ProseProps = {
 /**
  * Reading typography: the serif, the measure, paragraph rhythm, quotes,
  * lists, links, emphasis, figures and footnotes inside an article body
- * (design N5). Children are plain elements (p, h2, blockquote, ul, a, em,
+ *. Children are plain elements (p, h2, blockquote, ul, a, em,
  * figure with figcaption, `a.qt-fn-ref` for a footnote reference,
  * `.qt-footnotes` for the notes); Prose styles them.
  */

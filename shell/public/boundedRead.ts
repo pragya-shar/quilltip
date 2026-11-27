@@ -1,5 +1,5 @@
 /**
- * Bounded server reads for public pages (D21). A public page waits for its
+ * Bounded server reads for public pages. A public page waits for its
  * reads before the first byte, so a slow or silent backend must not hold it:
  * after the limit the read counts as unreachable and the page shows
  * `ReadingUnavailable` (@/system/components/ReadingUnavailable), which

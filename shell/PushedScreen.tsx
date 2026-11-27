@@ -8,7 +8,7 @@ import { firstPage } from './firstPage'
  * editor, You, the line pager. It hides the phone bar (CSS reads the
  * marker, so this works with no script), and it slides in only when it was
  * reached by navigation inside the application, never on a first load:
- * nothing animates in front of public content (D19). Its URL, browser back
+ * nothing animates in front of public content. Its URL, browser back
  * and the system edge swipe are the browser's own; the place underneath
  * gets its scroll position back on return.
  */

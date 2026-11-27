@@ -5,6 +5,7 @@ import { MoneyFigure } from '../components/MoneyFigure'
 import { TestnetNote } from '../components/TestnetNote'
 import { TipControl } from '../components/TipControl'
 import { GallerySection } from './GallerySection'
+import { PressCount } from './PressCount'
 import { Specimen } from './Specimen'
 import { amounts, money } from './samples'
 import { useDemoTip } from './useDemoTip'
@@ -77,6 +78,20 @@ export function MoneySection() {
           <MoneyFigure value={null} status="unavailable" size="s" />
         </div>
       </Specimen>
+      <Specimen name="Signs written by the money layer">
+        <div className="qt-gallery__stack">
+          <MoneyFigure value={{ cents: 100, display: '−$1.00' }} size="s" />
+          <MoneyFigure
+            value={{ cents: 195, display: '+$1.95' }}
+            size="s"
+            tone="in"
+          />
+          <MoneyFigure
+            value={{ cents: 240, display: '≈ −$2.40', converted: true }}
+            size="m"
+          />
+        </div>
+      </Specimen>
 
       <Specimen name="Tip control, live (sending, then sent)" wide>
         <div className="qt-gallery__tipbar">
@@ -115,6 +130,9 @@ export function MoneySection() {
           />
         </div>
       </Specimen>
+      <Specimen name="One tip per press (held key, double press)" wide>
+        <PressCount />
+      </Specimen>
       <Specimen name="Tip control, idle">
         <TipControl
           state={{ phase: 'idle' }}
@@ -139,19 +157,17 @@ export function MoneySection() {
       </Specimen>
       <Specimen name="Holding">
         <TipControl
-          state={{
-            phase: 'other',
-            words: 'Sending',
-            amount: money.three,
-            busy: true,
-          }}
+          state={{ phase: 'holding', amount: money.three }}
           amount={money.three}
           amounts={amounts}
           onAmountChange={noop}
           onTip={noop}
           recipient="Tomás Reyes"
           hold={{
-            projected: '$18.40 → $15.40',
+            projected: {
+              before: { cents: 1840, display: '$18.40', converted: true },
+              after: { cents: 1540, display: '$15.40', converted: true },
+            },
             onCancel: noop,
             onAddOne: noop,
             addOneBlocked: 'your daily limit is $5',

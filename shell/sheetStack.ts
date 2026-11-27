@@ -7,7 +7,15 @@
  * The Pocket is the shell's own sheet. A surface adds its sheets with
  * `registerSheet` (shell/sheetRegistry.ts) and opens them here.
  */
+import { sheetFor } from './sheetRegistry'
+import { declaredSheet } from './sheets'
+
 export type SheetId = 'pocket' | (string & {})
+
+/** Whether the shell can draw this sheet now. */
+export function knownSheet(id: SheetId): boolean {
+  return id === 'pocket' || Boolean(sheetFor(id)) || Boolean(declaredSheet(id))
+}
 
 export type SheetEntry = {
   key: number
@@ -40,10 +48,20 @@ export const sheetStack = {
    * one declared in shell/sheets (loaded now). A sheet already open is not
    * opened twice.
    */
-  open(id: SheetId, props?: unknown) {
-    if (entries.some((entry) => entry.id === id && entry.open)) return
+  open(id: SheetId, props?: unknown): boolean {
+    // An id that is neither the Pocket, registered nor declared is refused:
+    // an entry nobody can draw would stay open and hidden.
+    if (!knownSheet(id)) {
+      if (process.env.NODE_ENV !== 'production')
+        console.warn(
+          `sheetStack.open: no sheet "${id}" is registered or declared.`
+        )
+      return false
+    }
+    if (entries.some((entry) => entry.id === id && entry.open)) return true
     entries = [...entries, { key: nextKey++, id, open: true, props }]
     emit()
+    return true
   },
   /** Closes the topmost open sheet with this id (or the top one). */
   close(id?: SheetId) {

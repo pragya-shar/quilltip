@@ -10,7 +10,7 @@ import { SheetLoadBoundary } from './SheetLoadBoundary'
 /**
  * A declared sheet: drawn at once with its title (so focus lands on it, as
  * on every sheet), with a placeholder while its body loads inside. These
- * boundaries sit inside the overlay, never above reading content (D19).
+ * boundaries sit inside the overlay, never above reading content.
  */
 export function LazySheet({
   id,

@@ -2,7 +2,7 @@ import type { IconGlyph } from '@/system/components/Icon'
 import { ShelfIcon, TodayIcon, WriteIcon } from '@/system/icons'
 
 /**
- * The application's places, as data (D20: three places and a balance). The
+ * The application's places, as data (three places and a balance). The
  * phone bar and the desktop rail both render this; a change is one edit.
  *
  * The bar's fourth item is the balance, which is not a place: it opens the

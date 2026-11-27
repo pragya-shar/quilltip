@@ -18,6 +18,8 @@ import { registerSheet } from '../../../shell/sheetRegistry'
 import { SIGN_IN_SHEET } from '../../../shell/signIn'
 import { DemoSignInSheet } from './DemoSignInSheet'
 import { SheetsPage } from './SheetsPage'
+import { setPocketLoader } from '../../../shell/pocket/loadPocket'
+import { PocketContent } from '../../../components/pocket/PocketContent'
 
 // The design system gallery, the sample reading page and the shell's own
 // pages inside the real application shell, with no backend: what
@@ -42,6 +44,15 @@ const reading =
   readings[new URLSearchParams(location.search).get('balance') ?? 'ready'] ??
   readings.ready!
 const useFakeBalance = () => reading
+// `?pocket=fail`: the balance's code fails to load until the test sets
+// `window.__pocketLoads = true` (warming on hover also fails meanwhile).
+if (new URLSearchParams(location.search).get('pocket') === 'fail') {
+  setPocketLoader(() =>
+    (window as unknown as { __pocketLoads?: boolean }).__pocketLoads
+      ? Promise.resolve({ default: PocketContent })
+      : Promise.reject(new Error('offline'))
+  )
+}
 // `?signin=sheet`: a stand-in for the Account surface's sign-in sheet.
 if (new URLSearchParams(location.search).get('signin') === 'sheet')
   registerSheet(SIGN_IN_SHEET, DemoSignInSheet)
