@@ -97,8 +97,10 @@ stage 1.
      the removal (section 8) it shows "Article NFTs aren’t available on this
      site right now."
    - No `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` on the site, or a value other
-     than `NFT_CONTRACT_ID`: the NFT section offers no mint or transfer and
-     says that minting is not available on this site (section 2.5).
+     than `NFT_CONTRACT_ID`: the NFT section offers no mint or transfer. The
+     author sees "Minting isn’t available on this site yet", the owner
+     "Transfers aren’t available on this site yet", and other readers see
+     the NFT status only (section 2.5).
 5. **Contract version backfill.** `chain/backfill:setContractVersionV1` is in
    the release commit (it is on `overhaul/v2` today).
 
@@ -303,14 +305,18 @@ in the repository.
 Variables 9 to 12 are read only after the network guard passes. Never put a
 secret in `.env.example`, a commit, a PR or a log.
 
-**NFT token URI.** Set `SITE_URL` to the public site URL
-(`https://www.quilltip.me`) on the live deployment before the first v2 mint.
-The indexer stores each minted token's metadata URL as
+**NFT token URI.** The indexer stores each minted token's metadata URL as
 `<SITE_URL>/api/nft/<token id>` (`convex/lib/chain/nftStore.ts`) when it
-records the mint, and the stored URL does not change afterwards. On the
-integration deployment `SITE_URL` is `http://localhost:3000`, so its tokens
-point there. The NFT contract's own `base_uri` is set at deploy; check that
-the `live` set's value in `docs/contracts/v2-testnet-deployment.md` is
+records the mint, and the stored URL does not change afterwards. With
+`SITE_URL` unset it uses `https://www.quilltip.me`. Before the first v2 mint,
+read the live deployment's `SITE_URL` and confirm that it is the origin the
+site serves. Do not change it only for the NFT URL: `SITE_URL` also sets the
+password-reset link (`convex/lib/passwordResetEmail.ts`) and the origin that
+may request a wallet challenge (`convex/walletLink.ts`). If it changes, add
+the previous origin to `WALLET_LINK_ORIGINS`. On the integration deployment
+`SITE_URL` is a local URL, so its tokens point there. The NFT contract's own
+`base_uri` is set at deploy; after stage 3 records the `live` set in
+`docs/contracts/v2-testnet-deployment.md`, check that its `base_uri` is
 `https://www.quilltip.me/api/nft/`.
 
 ### 3.2 Vercel (site)
@@ -681,6 +687,8 @@ that removes them changes each of these:
 | `HORIZON_URL`                 | `convex/lib/networkGuard.ts`, `scripts/lib/network-guard.ts`                                                                                                                                       |
 | `NEXT_PUBLIC_NFT_CONTRACT_ID` | `lib/stellar/v2/config.ts` (refuses a v2 NFT ID that equals the v1 one)                                                                                                                            |
 | `TIPPING_CONTRACT_ID`         | `scripts/tips/v1-prepare-switch.test.ts` and `scripts/articles/tip-quote.test.ts` (tests of the v1 functions)                                                                                      |
+
+The tests that set these variables change in the same PR.
 
 The practice wallet (`lib/stellar/practice.ts`) uses the testnet Horizon
 origin on its own, so the content security policy keeps that origin after

@@ -124,7 +124,7 @@ One release after cutover ([section 6.9](06-app-integration.md#69-migration-cuto
 - **Client:**
   - The v1 fallbacks and what only they render: `TipButtonV1`, `HighlightTipButtonV1`, `NFTIntegrationV1`, `MintButton`, `TransferModal`, `NFTBadge`, the v1 tip steps and `WalletTooltip`. `TipButton`, `HighlightTipButton` and `NFTIntegration` stay and render only v2.
   - `lib/stellar/client.ts` (the v1 builders, including the batch builders), `nft-client.ts` (the whole file is v1), `types.ts`, `sdk-loader.ts`, `memo-utils.ts`, `is-valid-stellar-account-id.ts`, `price-fallback.ts`, `stellar-flow-emitter.ts` and `tip-error-messages.ts`.
-  - The v1 sign-in resume (`lib/tip/` and its hooks) and the stored v1 receipts (`pendingArticleTipReceipt`, `pendingHighlightTipReceipt`).
+  - The v1 sign-in resume (the v1 files in `lib/tip/`, not `lib/tip/v2/`, and `hooks/useArticleTipResume.ts`; the auth forms that read `pendingTipIntent` change with it) and the stored v1 receipts (`pendingArticleTipReceipt`, `pendingHighlightTipReceipt`).
   - The v1 fields of `lib/stellar/config.ts`. The network fields stay.
   - `lib/stellar/wallet-adapter.ts` is already gone; `lib/stellar/v2/wallet.ts` replaced it.
 - **Env:**
