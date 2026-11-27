@@ -226,6 +226,10 @@ test('a skip cookie changes the opening in the server HTML', async ({
 // the backend directly (never from the cache), so a reader who finished an
 // article that is not in the catalogue makes a real read here.
 test.describe('a slow backend', () => {
+  test.skip(
+    !process.env.TODAY_BACKEND_URL,
+    'The backend has no delay control (scripts/today/app-check.ts says why)'
+  )
   test.describe.configure({ mode: 'serial' })
   test.afterEach(() => backendDelay(0))
 

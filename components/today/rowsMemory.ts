@@ -1,3 +1,5 @@
+import { AUTH_TOKEN_PREFIX, hasAuthToken } from '@/shell/prePaint'
+
 /**
  * Which of Today's two rows ("Your place", "Your draft") this browser showed
  * last time, so their space is reserved before the first paint and filling
@@ -16,9 +18,6 @@ export type RowKind = keyof typeof RESERVE_ATTR
 export type RowsMemory = Record<RowKind, boolean>
 
 const NONE: RowsMemory = { place: false, draft: false }
-
-/** Convex Auth keeps its token under keys that start with this. */
-const AUTH_TOKEN_PREFIX = '__convexAuthJWT'
 
 export function readRowsMemory(storage: Storage): RowsMemory {
   try {
@@ -40,18 +39,6 @@ export function writeRowsMemory(storage: Storage, memory: RowsMemory) {
   } catch {
     // Storage blocked: rows still show after navigation; nothing breaks.
   }
-}
-
-/** Whether this browser holds a session token at all (signed in, or was). */
-export function hasAuthToken(storage: Storage): boolean {
-  try {
-    for (let i = 0; i < storage.length; i++) {
-      if (storage.key(i)?.startsWith(AUTH_TOKEN_PREFIX)) return true
-    }
-  } catch {
-    // Storage blocked.
-  }
-  return false
 }
 
 /** Sets or clears a row's reservation on <html>. */

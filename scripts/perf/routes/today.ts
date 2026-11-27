@@ -12,7 +12,13 @@ export const routes: PerfRoutes = {
     {
       name: 'today',
       path: '/',
-      budget: { htmlKb: 44, cssKb: 28, fontKb: 101, cls: 0.05, lcpMs: 2000 },
+      budget: {
+        htmlKb: 44,
+        cssKb: 28,
+        fontKb: 101,
+        cls: 0.05,
+        lcpMobileMs: 2000,
+      },
     },
   ],
   fontFallback: [{ name: 'today', path: '/', gateMovement: true }],
