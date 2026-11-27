@@ -54,6 +54,7 @@ import shared from '../../contracts/shared/test-vectors.json'
 import { rpcEventId } from './coreEvents'
 import { seedAddress } from './fixtures'
 
+import { expectRedispatchChangesNothing } from './redispatch'
 const modules = import.meta.glob('../../convex/**/*.ts')
 
 const EPOCH = 'testnet-tab'
@@ -5490,6 +5491,8 @@ describe('spendable balance across settler records and indexed events', () => {
         }
       }
       expect(flagged(), `seed ${seed}`).toEqual([])
+      // Every handler leaves the tables as they are on a full re-dispatch.
+      await expectRedispatchChangesNothing(t)
       vi.restoreAllMocks()
     }
     console.info(
@@ -5562,6 +5565,7 @@ describe('spendable balance across settler records and indexed events', () => {
         async (ctx) => (await ctx.db.query('tabClaims').collect()).length
       )
     ).toBe(4)
+    await expectRedispatchChangesNothing(t)
   })
 
   it('a claim indexed before the settlement it follows (#584)', async () => {
@@ -5579,6 +5583,7 @@ describe('spendable balance across settler records and indexed events', () => {
     await redispatchAll(t)
     expect(await collectedOf(t, s.authorId)).toBe((BigInt(9) * CENT).toString())
     expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    await expectRedispatchChangesNothing(t)
   })
 
   it('rows written before the change: seeding ties existing totals to their events, and a recompute corrects a doubled total (#584)', async () => {
