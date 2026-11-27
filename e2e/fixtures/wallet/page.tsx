@@ -9,6 +9,7 @@ import { ReceivingWalletVerification } from '../../../components/stellar/Receivi
 import { InstallWalletDialog } from '../../../components/stellar/InstallWalletDialog'
 import { WalletAccountContent } from '../../../components/dashboard/WalletAccountContent'
 import type { CurrentUserDoc } from '../../../types/convex'
+import { ForgetWalletWhenSignedOut } from '../../../components/auth/ForgetWalletWhenSignedOut'
 import '../../../components/account/account.css'
 import { ARTICLE, fixtureUser } from './runtime'
 
@@ -23,6 +24,14 @@ const FOLIO_FRAME = { minHeight: 'auto', padding: 8 }
 const FOLIO = { minHeight: 'auto', margin: 0, padding: 16 }
 
 function Fixture() {
+  // The sign-in pages load no wallet code (app/(auth)/layout.tsx).
+  if (view === 'signin')
+    return (
+      <main>
+        <ForgetWalletWhenSignedOut />
+        <p>Sign-in page</p>
+      </main>
+    )
   return (
     <main
       className="reader-surface"
