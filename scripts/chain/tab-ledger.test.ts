@@ -1120,6 +1120,115 @@ describe('writer earnings summary with tab tips (#552)', () => {
     })
   }
 
+  /**
+   * `n` confirmed wallet tips of 0.1 XLM, fast: the first through the earnings
+   * sync, the rest inserted as the sync leaves them and credited in one patch
+   * with the same amounts. `walletRows` credits each row for real.
+   */
+  async function walletRowsBulk(
+    t: T,
+    s: Seeded,
+    n: number,
+    table: 'tips' | 'highlightTips' = 'tips'
+  ) {
+    await walletRows(t, s, 1, table)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      for (let i = 1; i < n; i += 1) {
+        const row = {
+          articleId: s.articleId,
+          tipperId: s.readerId,
+          authorId: s.authorId,
+          articleTitle: 'Words',
+          articleSlug: 'words',
+          amountUsd: 0.1,
+          amountCents: 10,
+          status: 'CONFIRMED',
+          contractVersion: 'v2' as const,
+          channel: 'direct' as const,
+          tokenContractId: TOKEN,
+          onChainTokenContractId: TOKEN,
+          grossBaseUnits: '1000000',
+          netBaseUnits: '975000',
+          onChainAuthorAddress: WRITER,
+          expectedAuthorAddress: WRITER,
+          chainEpoch: EPOCH,
+          verifiedAt: now,
+          earningsAppliedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        }
+        if (table === 'tips') await ctx.db.insert('tips', row)
+        else {
+          await ctx.db.insert('highlightTips', {
+            ...row,
+            highlightId: `b${i}`,
+            highlightText: 'words',
+            startOffset: 0,
+            endOffset: 5,
+          })
+        }
+      }
+      const earnings = (await ctx.db.query('authorEarnings').collect()).find(
+        (r) => r.userId === s.authorId
+      )!
+      const add = (units: Record<string, string> | undefined) => ({
+        ...units,
+        [TOKEN]: (
+          BigInt(units?.[TOKEN] ?? '0') +
+          BigInt(975_000) * BigInt(n - 1)
+        ).toString(),
+      })
+      await ctx.db.patch(earnings._id, {
+        earnedBaseUnits: add(earnings.earnedBaseUnits),
+        walletEarnedBaseUnits: add(earnings.walletEarnedBaseUnits),
+        v2EarnedCents: (earnings.v2EarnedCents ?? 0) + 9.75 * (n - 1),
+        v2TipCount: (earnings.v2TipCount ?? 0) + (n - 1),
+        tipCount: earnings.tipCount + (n - 1),
+        totalEarnedCents: earnings.totalEarnedCents + 9.75 * (n - 1),
+      })
+    })
+  }
+
+  /**
+   * `n` verified v1 tips of 10 cents and 0.1 XLM, fast: inserted, with the
+   * user's earnings row created by one v1 credit (rows from before this
+   * change, as the rebuild finds them).
+   */
+  async function v1RowsBulk(
+    t: T,
+    userId: Id<'users'>,
+    articleId: Id<'articles'>,
+    n: number
+  ) {
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      for (let i = 0; i < n; i += 1) {
+        await ctx.db.insert('tips', {
+          articleId,
+          tipperId: userId,
+          authorId: userId,
+          articleTitle: 'Words',
+          articleSlug: 'words',
+          amountUsd: 0.1,
+          amountCents: 10,
+          expectedAmountStroops: '1000000',
+          status: 'CONFIRMED',
+          verifiedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+      await creditAuthorEarnings(ctx, {
+        authorId: userId,
+        articleId,
+        articleTitle: 'Words',
+        shareCents: writerShareCents(10, '1000000'),
+        now,
+      })
+    })
+  }
+
   /** `n` verified v1 tips of 10 cents and 0.1 XLM, credited as v1 was. */
   async function v1Rows(
     t: T,
@@ -1368,7 +1477,7 @@ describe('writer earnings summary with tab tips (#552)', () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
     await tip(t, s, { cents: 10 })
-    await walletRows(t, s, AGGREGATE_LIMIT + 1)
+    await walletRowsBulk(t, s, AGGREGATE_LIMIT + 1)
     await settleAll(t, BigInt(1_000_000))
     expect((await tabRowIndex(t, s))[0]).toBe(0)
     expect(await summary(t, s)).toMatchObject(lifetime(AGGREGATE_LIMIT + 2))
@@ -1378,7 +1487,7 @@ describe('writer earnings summary with tab tips (#552)', () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
     await tip(t, s, { cents: 10 })
-    await walletRows(t, s, AGGREGATE_LIMIT)
+    await walletRowsBulk(t, s, AGGREGATE_LIMIT)
     await tip(t, s, { cents: 10 })
     await settleAll(t, BigInt(2_000_000))
     expect(await receiptStatuses(t)).toEqual(['SETTLED', 'SETTLED'])
@@ -1389,7 +1498,7 @@ describe('writer earnings summary with tab tips (#552)', () => {
   it('a settled passage tab tip after more than one read of passage wallet rows is in all three', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
-    await walletRows(t, s, AGGREGATE_LIMIT + 1, 'highlightTips')
+    await walletRowsBulk(t, s, AGGREGATE_LIMIT + 1, 'highlightTips')
     await tip(t, s, { cents: 10, highlight: HIGHLIGHT })
     await settleAll(t, BigInt(1_000_000))
     expect((await tabRowIndex(t, s, 'highlightTips'))[0]).toBe(
@@ -1402,7 +1511,7 @@ describe('writer earnings summary with tab tips (#552)', () => {
   it('an accepted, unsettled tab tip after one read is in none of the figures', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
-    await walletRows(t, s, AGGREGATE_LIMIT + 1)
+    await walletRowsBulk(t, s, AGGREGATE_LIMIT + 1)
     await tip(t, s, { cents: 10 })
     expect(await receiptStatuses(t)).toEqual(['ACCEPTED'])
     expect(await summary(t, s)).toMatchObject(lifetime(AGGREGATE_LIMIT + 1))
@@ -1434,7 +1543,7 @@ describe('writer earnings summary with tab tips (#552)', () => {
   it('more v1 rows than one read: updating until the rebuild, then every tip', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
-    await v1Rows(t, s.authorId, s.articleId, AGGREGATE_LIMIT + 1)
+    await v1RowsBulk(t, s.authorId, s.articleId, AGGREGATE_LIMIT + 1)
     await tip(t, s, { cents: 10 })
     await settleAll(t, BigInt(1_000_000))
     // No partial total leaves the query.
@@ -1688,7 +1797,7 @@ describe('writer earnings summary with tab tips (#552)', () => {
         updatedAt: now,
       })
     })
-    await v1Rows(t, s.authorId, s.articleId, 2_100)
+    await v1RowsBulk(t, s.authorId, s.articleId, 2_100)
     // A short writer queued behind.
     await v1Rows(t, s.otherAuthorId, s.otherArticleId, 3)
 
