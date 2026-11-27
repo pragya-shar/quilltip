@@ -150,6 +150,12 @@ jobs:
       - name: Check page-load budget
         run: bun run perf:budget
 
+      # A checkout without the Next.js patch keeps Next.js's scripts and
+      # hydrates, even with the runtimes in node_modules still patched
+      # (patches/next@16.4.6.ts, instrumentation.ts).
+      - name: Check a patched runtime without registration
+        run: bun run perf:stale-runtime
+
   # Text keeps its lines when the web fonts replace the metric-matched
   # fallback faces (app/font-fallbacks.css), in Chromium and WebKit. It runs
   # on macOS, which has Arial and Times New Roman, as Safari readers do. On
