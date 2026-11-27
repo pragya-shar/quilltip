@@ -1,7 +1,10 @@
 'use client'
 
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { ShoppingBasket } from 'lucide-react'
+import { useQuery } from 'convex/react'
+import { Check, ShoppingBasket } from 'lucide-react'
+import { api } from '@/convex/_generated/api'
+import type { Id } from '@/convex/_generated/dataModel'
 import {
   Sheet,
   SheetContent,
@@ -12,6 +15,7 @@ import {
 import { useTipBasket } from '@/hooks/useTipBasket'
 import { useWideLayout } from '@/hooks/useWideLayout'
 import { BASKET_COPY } from '@/lib/copy/tip-flow'
+import { moneyMayHaveMoved } from '@/lib/tip/v2/flow'
 import { OPEN_BASKET_EVENT } from '@/lib/tip/v2/open-basket'
 import { TipDialogLoading } from './TipDialogLoading'
 import './tip-v2.css'
@@ -39,7 +43,19 @@ export function TipBasketButton() {
     return () => window.removeEventListener(OPEN_BASKET_EVENT, onOpen)
   }, [])
 
-  const count = state.items.length
+  // Once the basket's payment moved money, its tips are no longer waiting to
+  // be paid: they leave the count before "Done", and after a reload.
+  const status = useQuery(
+    api.tipsV2.getTipStatus,
+    signedIn && state.submissionId
+      ? { submissionId: state.submissionId as Id<'chainSubmissions'> }
+      : 'skip'
+  )
+  const paid = moneyMayHaveMoved(status?.uiState)
+  const sentIds = new Set((state.sent ?? []).map((item) => item.id))
+  const count = paid
+    ? state.items.filter((item) => !sentIds.has(item.id)).length
+    : state.items.length
   const visible = signedIn && (count > 0 || state.submissionId !== null)
   if (!visible && !open) return null
 
@@ -50,7 +66,11 @@ export function TipBasketButton() {
           ref={buttonRef}
           type="button"
           className="tip-basket-button"
-          aria-label={BASKET_COPY.trigger(count)}
+          aria-label={
+            paid && count === 0
+              ? BASKET_COPY.triggerSent
+              : BASKET_COPY.trigger(count)
+          }
           aria-haspopup="dialog"
           aria-expanded={open}
           onClick={() => setOpen(true)}
@@ -58,7 +78,7 @@ export function TipBasketButton() {
           <ShoppingBasket aria-hidden="true" />
           <span aria-hidden="true">{BASKET_COPY.title}</span>
           <span className="tip-basket-count" aria-hidden="true">
-            {count}
+            {paid && count === 0 ? <Check /> : count}
           </span>
         </button>
       ) : null}

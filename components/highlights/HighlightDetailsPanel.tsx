@@ -40,6 +40,7 @@ interface HighlightDetailsPanelProps {
   // Article data for tipping
   articleId?: Id<'articles'>
   articleSlug?: string
+  articleTitle?: string
   authorName?: string
   authorStellarAddress?: string | null
 }
@@ -52,6 +53,7 @@ export function HighlightDetailsPanel({
   currentUserId,
   articleId,
   articleSlug,
+  articleTitle,
   authorName,
   authorStellarAddress,
 }: HighlightDetailsPanelProps) {
@@ -231,6 +233,7 @@ export function HighlightDetailsPanel({
                 <HighlightTipButton
                   articleId={articleId}
                   articleSlug={articleSlug}
+                  articleTitle={articleTitle}
                   authorName={authorName || 'Author'}
                   authorStellarAddress={authorStellarAddress}
                   highlightText={highlight.text}

@@ -30,6 +30,7 @@ export function HighlightTipButton(props: HighlightTipButtonProps) {
         <HighlightTipV2
           articleId={props.articleId}
           articleSlug={props.articleSlug}
+          articleTitle={props.articleTitle}
           authorName={props.authorName}
           highlightText={props.highlightText}
           startOffset={props.startOffset}
@@ -41,6 +42,7 @@ export function HighlightTipButton(props: HighlightTipButtonProps) {
           onBeforeOpen={props.onBeforeOpen}
           disabled={props.disabled}
           onSuccess={props.onSuccess}
+          onDone={props.onDone}
         />
       ) : (
         <HighlightTipButtonV1 {...props} />

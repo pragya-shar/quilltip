@@ -54,6 +54,7 @@ export function HighlightPopover({
   selectedText,
   articleId,
   articleSlug,
+  articleTitle,
   authorName,
   authorStellarAddress,
   startOffset,
@@ -157,6 +158,7 @@ export function HighlightPopover({
                   <HighlightTipButton
                     articleId={articleId}
                     articleSlug={articleSlug}
+                    articleTitle={articleTitle}
                     authorName={authorName || 'Author'}
                     authorStellarAddress={authorStellarAddress}
                     highlightText={selectedText}
@@ -169,6 +171,8 @@ export function HighlightPopover({
                     className="slip-action"
                     label="Highlight & tip"
                     disabled={isSaving}
+                    // After a result, Done closes this passage slip too.
+                    onDone={onClose}
                     onBeforeOpen={
                       isAuthenticated
                         ? () => handleSaveHighlight(true)

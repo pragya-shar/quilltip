@@ -147,11 +147,17 @@
   cursor: pointer;
   transition: background-color 150ms;
 }
-.tip-preset:hover,
 .tip-preset[aria-pressed='true'] {
   background: var(--ui-primary);
   color: var(--ui-primary-foreground);
   border-color: var(--ui-primary);
+}
+/* Hover is a lighter step than selected, so the choice stays readable. */
+@media (hover: hover) and (pointer: fine) {
+  .tip-preset:not([aria-pressed='true']):hover {
+    background: var(--ui-muted);
+    border-color: var(--ui-primary);
+  }
 }
 .tip-field-label {
   display: block;
