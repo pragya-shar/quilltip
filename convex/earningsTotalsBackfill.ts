@@ -154,7 +154,9 @@ async function advance(
         delete unlisted[address]
       }
     }
-    const last = page.page.at(-1)?._creationTime ?? r.lastCreationTime
+    // The last row of the page; an empty page keeps the position.
+    const last =
+      page.page[page.page.length - 1]?._creationTime ?? r.lastCreationTime
     r = page.isDone
       ? {
           ...r,
@@ -186,7 +188,9 @@ async function advance(
         pairNet = addUnits(pairNet, { [pair.tokenContractId]: pair.earnedNet })
       }
     }
-    const last = page.page.at(-1)?._creationTime ?? r.lastCreationTime
+    // The last row of the page; an empty page keeps the position.
+    const last =
+      page.page[page.page.length - 1]?._creationTime ?? r.lastCreationTime
     r = page.isDone
       ? {
           ...r,
