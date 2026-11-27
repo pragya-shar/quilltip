@@ -21,8 +21,10 @@ import type { ActivityItem } from '../../../components/pocket/types'
 import {
   SCENARIOS,
   elsewhereTip,
+  exactCents,
   forRole,
   scenario,
+  tokenAmount,
   type Role,
   type Scenario,
 } from './scenarios'
@@ -98,6 +100,7 @@ function useFakeAct(label: string, ok: string, fail: boolean): MoneyAct {
 }
 
 const source: PocketSource = {
+  format: { exactCents, token: tokenAmount },
   useBalance: () => views.balance,
   useEarnings: () => views.earnings,
   useActivity: (side) => {

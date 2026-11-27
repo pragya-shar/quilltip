@@ -1,82 +1,45 @@
-import type { ActivityItem, ActivityView } from './types'
+import type { ActivityView } from './types'
 
-/** One row of the Pocket's activity, keyed across both lists. */
-export type ActivityEntry = { key: string; item: ActivityItem }
-
-export type PocketActivity = {
-  /** partial: one list answered and the other cannot. */
-  status: 'loading' | 'ready' | 'partial' | 'unavailable'
-  entries: ActivityEntry[]
-  canLoadMore: boolean
-  loadingMore: boolean
-  loadMore(): void
+/** One labelled list of the Pocket's activity, paged by the server. */
+export type ActivityList = {
+  role: 'reader' | 'writer'
+  title: string
+  /** `ready` with rows, or `unavailable` while the other list answered. */
+  view: ActivityView
 }
 
-export function entryKey(item: ActivityItem): string {
-  return `${item.role}:${item.id}`
-}
+export type PocketActivity =
+  | { status: 'loading' | 'unavailable' | 'empty'; lists: [] }
+  | { status: 'ready'; lists: ActivityList[] }
 
-/** The oldest time a list has shown so far; null when it showed nothing. */
-function oldest(view: ActivityView): number | null {
-  let at: number | null = null
-  for (const item of view.items) if (at === null || item.at < at) at = item.at
-  return at
-}
+const TITLES = { reader: 'Tips you sent', writer: 'Tips you received' }
 
 /**
- * The tips a person sent and the tips they received, as one list, newest
- * first. Each list is paged by the server on its own, so a row is shown only
- * when no unread page of the other list could hold a newer one: below the
- * oldest row loaded from a list that has more, rows wait for "Show more".
- * Nothing is summed here; each row is the money layer's.
+ * The tips a person sent and the tips they received, as two labelled lists,
+ * each newest first and paged by the server on its own. They are never
+ * merged on the client: a merge across two paged lists can show a row ahead
+ * of an older page that is not loaded yet. One server-ordered list replaces
+ * this when the money layer has it. A writer sees what they received first.
  */
-export function mergeActivity(
+export function activityLists(
   reader: ActivityView,
-  writer: ActivityView
+  writer: ActivityView,
+  writerFirst: boolean
 ): PocketActivity {
-  const views = [reader, writer]
-  const loadMore = () => {
-    for (const view of views) if (view.canLoadMore) view.loadMore()
+  const both = [reader, writer]
+  if (both.some((view) => view.status === 'loading'))
+    return { status: 'loading', lists: [] }
+  if (both.every((view) => view.status === 'unavailable'))
+    return { status: 'unavailable', lists: [] }
+  const order: ActivityList['role'][] = writerFirst
+    ? ['writer', 'reader']
+    : ['reader', 'writer']
+  const lists: ActivityList[] = []
+  for (const role of order) {
+    const view = role === 'reader' ? reader : writer
+    if (view.status === 'unavailable' || view.items.length > 0)
+      lists.push({ role, title: TITLES[role], view })
   }
-  const loadingMore = views.some((view) => view.loadingMore === true)
-  if (views.some((view) => view.status === 'loading'))
-    return {
-      status: 'loading',
-      entries: [],
-      canLoadMore: false,
-      loadingMore: false,
-      loadMore,
-    }
-  const answered = views.filter((view) => view.status === 'ready')
-  if (answered.length === 0)
-    return {
-      status: 'unavailable',
-      entries: [],
-      canLoadMore: false,
-      loadingMore: false,
-      loadMore,
-    }
-  let horizon = -Infinity
-  for (const view of answered) {
-    if (!view.canLoadMore) continue
-    const at = oldest(view)
-    if (at !== null && at > horizon) horizon = at
-  }
-  const seen = new Set<string>()
-  const entries: ActivityEntry[] = []
-  for (const view of answered)
-    for (const item of view.items) {
-      const key = entryKey(item)
-      if (seen.has(key) || item.at < horizon) continue
-      seen.add(key)
-      entries.push({ key, item })
-    }
-  entries.sort((a, b) => b.item.at - a.item.at || a.key.localeCompare(b.key))
-  return {
-    status: answered.length === views.length ? 'ready' : 'partial',
-    entries,
-    canLoadMore: answered.some((view) => view.canLoadMore),
-    loadingMore,
-    loadMore,
-  }
+  if (lists.length === 0) return { status: 'empty', lists: [] }
+  return { status: 'ready', lists }
 }

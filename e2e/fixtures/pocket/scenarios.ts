@@ -3,11 +3,12 @@
  * fake runtime (`lib/payments/fake.ts`, `FAKE_SCENARIOS`), with the same
  * names and the same figures (50¢, 10¢ and 10¢ tips; 97.5% to the writer),
  * plus `none`: a signed-in account the server confirmed is empty. Here the
- * fixture plays the money layer, so it writes the display text; the Pocket
- * itself never formats money. Replaced by `fakeRuntime` when 561 merges.
+ * fixture plays the money layer, so it writes the display text and the
+ * exact formatters; the Pocket itself never formats money. Replaced by
+ * `fakeRuntime` when 561 merges.
  *
- * `role` shows one side only (reader or writer), as a person who only reads
- * or only writes sees it.
+ * `role` shows one side only: a person who only reads (the money layer says
+ * they do not write) or only writes (it says they do).
  */
 import type {
   ActivityItem,
@@ -44,6 +45,7 @@ export type FixtureViews = {
 
 const MIN = 60_000
 const PRICE = 12.7328 // cents per XLM in the real run
+const STROOPS = 10_000_000
 const noop = () => {}
 
 function floorCents(cents: number) {
@@ -57,17 +59,22 @@ const approx = (cents: number): Money => ({
   display: `≈ ${floorCents(cents)}`,
 })
 const share = (cents: number) => Math.round(cents * 0.975 * 10_000) / 10_000
-/** "9.75¢" below a dollar, exact. */
-function exactCents(cents: number) {
+const baseUnits = (cents: number) =>
+  String(Math.floor((cents * STROOPS) / PRICE))
+
+/** The money layer's exact formatter, as the fixture's stand-in: "9.75¢"
+ * below a dollar, never floored. */
+export function exactCents(cents: number) {
   const rounded = Math.round(cents * 10_000) / 10_000
   return cents < 100 ? `${rounded}¢` : `$${rounded / 100}`
 }
-function tokens(cents: number) {
-  const base = Math.floor((cents * 10_000_000) / PRICE)
-  const whole = Math.floor(base / 10_000_000)
-  const frac = String(base % 10_000_000)
-    .padStart(7, '0')
-    .replace(/0+$/u, '')
+
+/** The money layer's token formatter: "0.7853732 XLM". */
+export function tokenAmount(base: string) {
+  const units = Number(base)
+  const whole = Math.floor(units / STROOPS)
+  let frac = String(units % STROOPS).padStart(7, '0')
+  while (frac.endsWith('0')) frac = frac.slice(0, -1)
   return `${whole.toLocaleString('en-US')}${frac ? `.${frac}` : ''} XLM`
 }
 
@@ -85,7 +92,7 @@ function item(
 ): ActivityItem {
   const paidCents = over.paid?.cents ?? (status === 'on-chain' ? cents : 0)
   const reader = role === 'reader'
-  const partly = status === 'not-paid' && paidCents > 0
+  const notPaid = status === 'not-paid'
   return {
     id: `${role}-${n}`,
     requestId: `request-${n}`,
@@ -104,22 +111,17 @@ function item(
     at: now - n * MIN,
     lagging: false,
     txHash: status === 'on-chain' ? 'ab'.repeat(32) : null,
-    detail:
+    exact:
       status === 'sending'
         ? null
         : {
-            net: exactCents(share(cents)),
-            fee: exactCents(cents - share(cents)),
-            paid: partly
-              ? exactCents(reader ? paidCents : share(paidCents))
-              : null,
-            unpaid: partly
-              ? exactCents(
-                  reader ? cents - paidCents : share(cents) - share(paidCents)
-                )
-              : null,
-            tokenGross: tokens(cents),
+            token: 'XLM',
+            gross: baseUnits(cents),
+            net: baseUnits(share(cents)),
           },
+    fee: money(cents - share(cents)),
+    unpaid: money(notPaid ? cents - paidCents : 0),
+    unpaidNet: money(notPaid ? share(cents) - share(paidCents) : 0),
     ...over,
   }
 }
@@ -143,7 +145,7 @@ const readyBalance = (over: Partial<BalanceView> = {}): BalanceView => ({
   settlement: { enabled: true, expectedWithinMs: 80_000 },
   online: true,
   network: 'testnet',
-  exact: { token: 'XLM', available: tokens(254.66) },
+  exact: { token: 'XLM', available: baseUnits(254.66) },
   ...over,
 })
 
@@ -197,7 +199,7 @@ function earningsOf(writer: ActivityItem[]): EarningsView {
       settled: writer.filter((i) => i.status === 'on-chain').length,
     },
     lagging: writer.some((i) => i.lagging),
-    exact: { token: 'XLM', available: tokens(ready), collected: '0 XLM' },
+    exact: { token: 'XLM', available: baseUnits(ready), collected: '0' },
   }
 }
 
@@ -231,7 +233,7 @@ export function scenario(name: Scenario, now: number): FixtureViews {
     ],
     now
   )
-  const lower = { token: 'XLM' as const, available: tokens(244.66) }
+  const lower = { token: 'XLM' as const, available: baseUnits(244.66) }
   switch (name) {
     case 'ready':
     case 'available':
@@ -280,6 +282,8 @@ export function scenario(name: Scenario, now: number): FixtureViews {
         reason,
         paid: money(10),
         paidNet: money(share(10)),
+        unpaid: money(15),
+        unpaidNet: money(share(25) - share(10)),
       })
       return views(
         both(
@@ -317,11 +321,11 @@ export function scenario(name: Scenario, now: number): FixtureViews {
         writer: activity([], 'unavailable'),
       }
     case 'offline':
-      return views(settled, { online: false })
+      return views(settled, { online: false, asOf: now - 2 * MIN })
   }
 }
 
-/** One side only: a person who only reads, or only writes. */
+/** One side only. */
 export function forRole(v: FixtureViews, role: Role): FixtureViews {
   if (role === 'both') return v
   const none = activity([], 'ready')
@@ -329,9 +333,19 @@ export function forRole(v: FixtureViews, role: Role): FixtureViews {
     return {
       ...v,
       writer: v.writer.status === 'ready' ? none : v.writer,
-      earnings: v.earnings.status === 'ready' ? earningsOf([]) : v.earnings,
+      earnings:
+        v.earnings.status === 'ready'
+          ? { ...earningsOf([]), status: 'none', isWriter: false }
+          : v.earnings,
     }
-  return { ...v, reader: v.reader.status === 'ready' ? none : v.reader }
+  return {
+    ...v,
+    reader: v.reader.status === 'ready' ? none : v.reader,
+    earnings:
+      v.earnings.status === 'ready'
+        ? { ...v.earnings, isWriter: true }
+        : v.earnings,
+  }
 }
 
 /** A tip someone sent from another page or device, as the server lists it. */

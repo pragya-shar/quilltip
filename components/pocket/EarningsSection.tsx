@@ -11,6 +11,9 @@ import { tipsCount } from './copy'
 import { WITHDRAW_SHEET } from './sheetIds'
 import type { EarningsView } from './types'
 
+const positive = (money: { cents: number } | null | undefined) =>
+  (money?.cents ?? 0) > 0
+
 /**
  * A writer's money, three figures kept apart (D10): ready to withdraw
  * (arrived, collectable now), on its way (accepted, not arrived) and paid to
@@ -32,24 +35,39 @@ export function EarningsSection({
         : 'unavailable'
   const ready = status === 'ready'
   const counts = ready ? earnings.counts : null
-  const canWithdraw = ready && (earnings.available?.cents ?? 0) > 0
-  const onHold =
-    ready && earnings.onHold && earnings.onHold.cents > 0
-      ? earnings.onHold
-      : null
-  const notPaid =
-    ready && earnings.notPaid && earnings.notPaid.cents > 0
-      ? earnings.notPaid
-      : null
   const pendingCount = counts?.pending ?? 0
+  const heading = (
+    <Heading level={headingLevel} variant="section" id="pocket-earnings">
+      Your earnings
+    </Heading>
+  )
+  if (
+    ready &&
+    !positive(earnings.available) &&
+    !positive(earnings.pending) &&
+    !positive(earnings.onHold) &&
+    !positive(earnings.notPaid) &&
+    !positive(earnings.collected) &&
+    !earnings.lagging
+  )
+    return (
+      <section className="qt-pocket__earn" aria-labelledby="pocket-earnings">
+        {heading}
+        <p className="qt-pocket__plain">
+          No earnings yet. Tips on your writing show up here, and you keep 97.5%
+          of each.
+        </p>
+      </section>
+    )
+  const onHold = ready && positive(earnings.onHold) ? earnings.onHold : null
+  const notPaid = ready && positive(earnings.notPaid) ? earnings.notPaid : null
+  const available = ready ? earnings.available : null
   return (
     <section className="qt-pocket__earn" aria-labelledby="pocket-earnings">
-      <Heading level={headingLevel} variant="section" id="pocket-earnings">
-        Your earnings
-      </Heading>
+      {heading}
       <div className="qt-pocket__pair">
         <MoneyFigure
-          value={ready ? earnings.available : null}
+          value={available}
           status={status}
           size="l"
           label="Ready to withdraw"
@@ -79,34 +97,35 @@ export function EarningsSection({
         />
         <span>paid to your wallet</span>
       </p>
-      {canWithdraw ? (
+      {available && positive(available) ? (
         <Button
           variant="primary"
+          size="l"
           icon={WithdrawIcon}
           block
           onClick={() => sheetStack.open(WITHDRAW_SHEET)}
         >
-          Withdraw
+          {`Withdraw ${available.display}`}
         </Button>
       ) : ready ? (
         <p className="qt-pocket__fine">
           {pendingCount > 0
-            ? 'Nothing to withdraw yet. Tips on their way move to Ready to withdraw when they arrive.'
+            ? 'Nothing to withdraw yet. Tips on their way move here when they arrive, usually within a minute.'
             : 'Nothing to withdraw yet.'}
         </p>
       ) : null}
+      <p className="qt-pocket__fine">You keep 97.5% of every tip.</p>
       {ready && earnings.lagging ? (
         <Notice tone="pending">
           Some tips are taking longer than usual. They stay On its way until
-          they arrive.
+          they arrive. If one cannot complete, it shows here and the reader
+          keeps the money.
         </Notice>
       ) : null}
       {onHold ? (
         <Notice tone="pending">
           <MoneyFigure value={onHold} size="s" /> is on hold
-          {counts && counts.onHold > 0
-            ? ` (${tipsCount(counts.onHold)})`
-            : ''}:{' '}
+          {counts && counts.onHold > 0 ? ` (${tipsCount(counts.onHold)})` : ''}:{' '}
           {counts && counts.onHold > 1
             ? 'the readers’ balances were short when they were paid out. They arrive if the readers add money.'
             : 'the reader’s balance was short when it was paid out. It arrives if they add money.'}
@@ -124,7 +143,6 @@ export function EarningsSection({
             : 'The reader kept that money.'}
         </Notice>
       ) : null}
-      <p className="qt-pocket__fine">You keep 97.5% of every tip.</p>
     </section>
   )
 }

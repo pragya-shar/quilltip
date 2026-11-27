@@ -32,6 +32,13 @@ export type MoneyAct = {
  * pull request 561 is merged; until then every view is unavailable.
  */
 export type PocketSource = {
+  /** The money layer's own formatters, for the receipt and the exact
+   * amount: `formatExactCents` ("9.75¢", never floored) and
+   * `formatTokenAmount` ("2.8571428 XLM") from `lib/payments/money`. */
+  format: {
+    exactCents(cents: number): string
+    token(baseUnits: string): string
+  }
   useBalance(): BalanceView
   useEarnings(): EarningsView
   useActivity(role: 'reader' | 'writer'): ActivityView
@@ -75,6 +82,9 @@ const unavailableActivity: ActivityView = {
 
 /** Until the money layer is wired: payments cannot answer. */
 export const unwiredSource: PocketSource = {
+  // Nothing is shown before the money layer is wired, so nothing is
+  // formatted either.
+  format: { exactCents: () => '', token: () => '' },
   useBalance: () => unavailableBalance,
   useEarnings: () => unavailableEarnings,
   useActivity: () => unavailableActivity,

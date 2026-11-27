@@ -109,7 +109,17 @@ export function whenShort(at: number, now: number): string {
   })
 }
 
-/** "28 Nov 2026, 9:38 AM", for a receipt. */
+/** "just now", "2 minutes ago", "3 hours ago": how old figures are. */
+export function ago(at: number, now: number): string {
+  const m = Math.max(0, Math.round((now - at) / 60_000))
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m} ${m === 1 ? 'minute' : 'minutes'} ago`
+  const h = Math.round(m / 60)
+  if (h < 24) return `${h} ${h === 1 ? 'hour' : 'hours'} ago`
+  return `${whenLong(at)}`
+}
+
+/** "28 Nov 2026, 9:38 am", for a receipt. */
 export function whenLong(at: number): string {
   return new Date(at).toLocaleString('en-GB', {
     day: 'numeric',

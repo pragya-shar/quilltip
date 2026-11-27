@@ -1,19 +1,16 @@
 'use client'
 
 import { Button } from '@/system/components/Button'
-import { EmptyState } from '@/system/components/EmptyState'
 import { Heading } from '@/system/components/Heading'
-import { Notice } from '@/system/components/Notice'
 import { Skeleton } from '@/system/components/Skeleton'
-import { TextLink } from '@/system/components/TextLink'
 import type { PocketActivity } from './activityModel'
 import { PocketActivityRow } from './PocketActivityRow'
 import { useNow } from './useNow'
 
 /**
- * Money activity only: tips sent and received (and, once the money layer
- * has them, money added and taken out), newest first, paged by the server.
- * A row opens its receipt as a sheet over the Pocket.
+ * Money activity only: tips sent and tips received, newest first, paged by
+ * the server. Each row opens its receipt as a sheet over the Pocket. Money
+ * added, taken out and collected join here when the money layer has them.
  */
 export function ActivitySection({
   activity,
@@ -23,6 +20,7 @@ export function ActivitySection({
   headingLevel: 2 | 3
 }) {
   const now = useNow()
+  const listLevel = (headingLevel + 1) as 3 | 4
   return (
     <section className="qt-pocket__activity" aria-labelledby="pocket-activity">
       <Heading level={headingLevel} variant="section" id="pocket-activity">
@@ -50,46 +48,55 @@ export function ActivitySection({
         <p className="qt-pocket__plain">
           Your activity cannot be shown right now. Nothing you sent is lost.
         </p>
+      ) : activity.status === 'empty' ? (
+        <p className="qt-pocket__plain">Your tips show up here.</p>
       ) : (
-        <>
-          {activity.status === 'partial' ? (
-            <Notice tone="info">
-              Some of your activity cannot be shown right now.
-            </Notice>
-          ) : null}
-          {activity.entries.length === 0 ? (
-            <EmptyState
-              title="Your tips show up here."
-              body="Tips you send and tips you receive, each with its receipt."
-              action={
-                <TextLink href="/" variant="standalone">
-                  Find something to read
-                </TextLink>
-              }
-            />
-          ) : (
-            <ul className="qt-pocket__rows">
-              {activity.entries.map((entry) => (
-                <li
-                  key={entry.key}
-                  data-request={entry.item.requestId ?? undefined}
-                >
-                  <PocketActivityRow item={entry.item} now={now} />
-                </li>
-              ))}
-            </ul>
-          )}
-          {activity.canLoadMore ? (
-            <Button
-              variant="secondary"
-              block
-              loading={activity.loadingMore}
-              onClick={activity.loadMore}
+        activity.lists.map((list) => {
+          const id = `pocket-activity-${list.role}`
+          return (
+            <section
+              key={list.role}
+              className="qt-pocket__list"
+              aria-labelledby={id}
             >
-              Show more
-            </Button>
-          ) : null}
-        </>
+              {listLevel === 3 ? (
+                <h3 id={id} className="qt-pocket__list-title">
+                  {list.title}
+                </h3>
+              ) : (
+                <h4 id={id} className="qt-pocket__list-title">
+                  {list.title}
+                </h4>
+              )}
+              {list.view.status === 'unavailable' ? (
+                <p className="qt-pocket__plain">
+                  These cannot be shown right now.
+                </p>
+              ) : (
+                <ul className="qt-pocket__rows" data-role={list.role}>
+                  {list.view.items.map((item) => (
+                    <li
+                      key={item.id}
+                      data-request={item.requestId ?? undefined}
+                    >
+                      <PocketActivityRow item={item} now={now} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {list.view.canLoadMore ? (
+                <Button
+                  variant="secondary"
+                  block
+                  loading={list.view.loadingMore === true}
+                  onClick={list.view.loadMore}
+                >
+                  Show more
+                </Button>
+              ) : null}
+            </section>
+          )
+        })
       )}
     </section>
   )

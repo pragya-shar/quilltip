@@ -5,11 +5,14 @@
  * db4b0431) that the Pocket renders, with the same names and shapes, so the
  * screen is built against the money layer's interface before that pull
  * request merges. When it merges, this file becomes a re-export of
- * `@/lib/payments/types` and the fields marked "Asked of 561" either arrive
- * there or leave here.
+ * `@/lib/payments/types`. Fields marked "Accepted for 561" were agreed with
+ * its author and land there before it merges; their exact shapes are
+ * confirmed then.
  *
  * Every amount is a `Money` the money layer wrote: the Pocket never formats,
- * rounds, adds or subtracts money (system/README.md, "Money").
+ * rounds, adds or subtracts money (system/README.md, "Money"). Exact
+ * fractions and token amounts are written by the money layer's own
+ * formatters, reached through the Pocket's source (`format`).
  */
 
 /** Integer US cents (running figures may carry 1/10,000 of a cent). */
@@ -30,18 +33,16 @@ export type BalanceView = {
     | 'unavailable'
   /** What a tip can use now. Null until the server answered. */
   available: Money | null
-  /** Accepted tips not yet paid on chain, at their own dollars. */
+  /** Accepted tips not yet paid on chain, at their own dollars. They are
+   * already out of `available`. */
   pending: Money | null
   device: 'loading' | 'ready' | 'needs-setup' | 'unavailable'
   settlement: { enabled: boolean; expectedWithinMs: number }
   online: boolean
   network: 'testnet'
-  /** Asked of 561: the exact token amount behind `available`, as display
-   * text ("2,000.1234567 XLM"). */
+  /** Accepted for 561: the token amount behind `available`, in base units. */
   exact?: { token: 'XLM'; available: string } | null
-  /** Asked of 561: money added and not yet in `available` (exact). */
-  arriving?: Money | null
-  /** Asked of 561: server time of the figures, for an offline screen. */
+  /** Accepted for 561: when the server last answered (for stale figures). */
   asOf?: number | null
 }
 
@@ -54,7 +55,7 @@ export type ActivityItem = {
   passage: string | null
   /** The tip as the reader sent it, exact. Rows show this. */
   amount: Money
-  /** The writer's share. */
+  /** The writer's share, exact (1/10,000 cent). */
   net: Money
   /** What has been paid on chain for this tip, and the writer's share. */
   paid: Money
@@ -64,21 +65,14 @@ export type ActivityItem = {
   at: number
   lagging: boolean
   txHash: string | null
-  /** Asked of 561: exact display text for the receipt, written by the
-   * money layer ("9.75¢"), so the Pocket never computes a fee or a rest. */
-  detail?: {
-    /** The writer's exact share of the tip. */
-    net: string
-    /** Quilltip's 2.5%, exact. */
-    fee: string
-    /** For a tip paid in part: what arrived and what did not, in the
-     * tip's own terms for this side (reader: of the tip; writer: of the
-     * share). Null when the tip is not paid in part. */
-    paid: string | null
-    unpaid: string | null
-    /** The exact token amounts ("0.0785398 XLM"). */
-    tokenGross: string | null
-  } | null
+  /** The exact token amounts, for the receipt. */
+  exact: { token: 'XLM'; gross: string; net: string } | null
+  /** Accepted for 561: Quilltip's 2.5% of the tip, exact. */
+  fee?: Money
+  /** Accepted for 561: the part of the tip not paid, and the writer's share
+   * of it (zero unless the tip is not paid in full). */
+  unpaid?: Money
+  unpaidNet?: Money
 }
 
 export type ActivityView = {
@@ -86,13 +80,15 @@ export type ActivityView = {
   items: ActivityItem[]
   canLoadMore: boolean
   loadMore(): void
-  /** Asked of 561: a next page is on its way. */
+  /** Accepted for 561: a next page is on its way. */
   loadingMore?: boolean
 }
 
 /** Figures exist only when `status` is `ready`; otherwise they are null. */
 export type EarningsView = {
-  status: 'loading' | 'signed-out' | 'ready' | 'unavailable'
+  /** `none`, accepted for 561: this person does not write (no article and
+   * nothing received). */
+  status: 'loading' | 'signed-out' | 'none' | 'ready' | 'unavailable'
   pending: Money | null
   /** Paid on chain and collectable now. */
   available: Money | null
@@ -109,8 +105,8 @@ export type EarningsView = {
   } | null
   lagging: boolean
   exact: { token: 'XLM'; available: string; collected: string } | null
-  /** Asked of 561: whether this person writes (has published or has been
-   * tipped). Until it exists the Pocket decides from the counts. */
+  /** Accepted for 561 (one of this or status `none`): whether this person
+   * writes. */
   isWriter?: boolean
   asOf?: number | null
 }

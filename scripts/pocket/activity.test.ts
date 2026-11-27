@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { mergeActivity } from '@/components/pocket/activityModel'
+import { describe, expect, it } from 'vitest'
+import { activityLists } from '@/components/pocket/activityModel'
 import { rowWords, tipsCount } from '@/components/pocket/copy'
 import type { ActivityItem, ActivityView } from '@/components/pocket/types'
 
@@ -33,6 +33,7 @@ function tip(
     at,
     lagging: false,
     txHash: null,
+    exact: null,
     ...over,
   }
 }
@@ -48,57 +49,51 @@ const view = (
   ...over,
 })
 
-describe('the Pocket activity: two server-paged lists as one', () => {
-  it('orders both lists newest first, each row once', () => {
-    const merged = mergeActivity(
-      view([tip('reader', 'r1', 30), tip('reader', 'r2', 10)]),
-      view([tip('writer', 'w1', 20), tip('writer', 'w1', 20)])
+describe('the Pocket activity: two labelled lists, never merged', () => {
+  it('shows each list that has rows, received first for a writer', () => {
+    const lists = activityLists(
+      view([tip('reader', 'r1', 30)]),
+      view([tip('writer', 'w1', 20)]),
+      true
     )
-    expect(merged.status).toBe('ready')
-    expect(merged.entries.map((e) => e.key)).toEqual([
-      'reader:r1',
-      'writer:w1',
-      'reader:r2',
+    expect(lists.status).toBe('ready')
+    expect(lists.lists.map((l) => l.title)).toEqual([
+      'Tips you received',
+      'Tips you sent',
     ])
   })
 
-  it('holds back rows a list with more pages could still precede', () => {
-    // The reader list has more pages below its oldest loaded row (at 50):
-    // a writer row at 10 may not be shown before them.
-    const loadMore = vi.fn()
-    const merged = mergeActivity(
-      view([tip('reader', 'r1', 60), tip('reader', 'r2', 50)], {
-        canLoadMore: true,
-        loadMore,
-      }),
-      view([tip('writer', 'w1', 55), tip('writer', 'w2', 10)])
+  it('leaves out an empty list and keeps the server order', () => {
+    const lists = activityLists(
+      view([tip('reader', 'r2', 10), tip('reader', 'r1', 30)]),
+      view([]),
+      false
     )
-    expect(merged.entries.map((e) => e.key)).toEqual([
-      'reader:r1',
-      'writer:w1',
-      'reader:r2',
-    ])
-    expect(merged.canLoadMore).toBe(true)
-    merged.loadMore()
-    expect(loadMore).toHaveBeenCalledOnce()
+    expect(lists.lists).toHaveLength(1)
+    expect(lists.lists[0]!.view.items.map((i) => i.id)).toEqual(['r2', 'r1'])
   })
 
-  it('is loading until both lists answer, and partial when one cannot', () => {
+  it('is loading until both answer, empty with no rows, unavailable when neither can answer', () => {
     expect(
-      mergeActivity(view([], { status: 'loading' }), view([])).status
+      activityLists(view([], { status: 'loading' }), view([]), false).status
     ).toBe('loading')
-    const partial = mergeActivity(
-      view([tip('reader', 'r1', 1)]),
-      view([], { status: 'unavailable' })
-    )
-    expect(partial.status).toBe('partial')
-    expect(partial.entries).toHaveLength(1)
+    expect(activityLists(view([]), view([]), false).status).toBe('empty')
     expect(
-      mergeActivity(
+      activityLists(
         view([], { status: 'unavailable' }),
-        view([], { status: 'unavailable' })
+        view([], { status: 'unavailable' }),
+        false
       ).status
     ).toBe('unavailable')
+    const one = activityLists(
+      view([tip('reader', 'r1', 1)]),
+      view([], { status: 'unavailable' }),
+      false
+    )
+    expect(one.lists.map((l) => l.view.status)).toEqual([
+      'ready',
+      'unavailable',
+    ])
   })
 })
 

@@ -226,7 +226,11 @@ const SCENARIOS: Record<string, Expect> = {
     texts: ['Your tips show up here.'],
   },
   none: { spend: '$0.00', earnings: null, rows: 0 },
-  offline: { spend: '≈$2.54', rows: 6, texts: ['You are offline'] },
+  offline: {
+    spend: '≈$2.54',
+    rows: 6,
+    texts: ['Offline. These figures are from 2 minutes ago.'],
+  },
   loading: { noFigures: true, earnings: null },
   unavailable: {
     noFigures: true,
@@ -293,6 +297,25 @@ test.describe('every money scenario', () => {
     await expect(page.locator('.qt-pocket__rows')).not.toContainText(
       'Theo Marsh'
     )
+  })
+
+  test('sent and received are two labelled lists, received first for a writer', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=ready')
+    const titles = page.locator('.qt-pocket__list-title')
+    await expect(titles).toHaveText(['Tips you received', 'Tips you sent'])
+    await expect(page.locator('[data-role="writer"] > li')).toHaveCount(3)
+    await expect(page.locator('[data-role="reader"] > li')).toHaveCount(3)
+  })
+
+  test('a writer with nothing yet sees one plain line', async ({ page }) => {
+    await page.goto('/pocket?scenario=empty&role=writer')
+    const earn = page.locator('.qt-pocket__earn')
+    await expect(earn).toContainText(
+      'No earnings yet. Tips on your writing show up here, and you keep 97.5% of each.'
+    )
+    await expect(earn.locator('.qt-money')).toHaveCount(0)
   })
 
   test('a person who only reads sees no earnings', async ({ page }) => {
@@ -364,11 +387,12 @@ test.describe('receipts and money sheets', () => {
       '$0.10'
     )
     await expect(
-      receipt.getByText('The writer gets 9.75¢. Quilltip keeps 0.25¢.')
+      receipt.getByText('9.75¢, after Quilltip’s 0.25¢')
     ).toHaveCount(1)
-    await expect(
-      receipt.getByRole('link', { name: /View on Stellar testnet/ })
-    ).toHaveAttribute('href', /stellar\.expert\/explorer\/testnet\/tx\//)
+    await expect(receipt.getByRole('link', { name: /^View/ })).toHaveAttribute(
+      'href',
+      /stellar\.expert\/explorer\/testnet\/tx\//
+    )
     await page.keyboard.press('Escape')
     await expect(receipt).toBeHidden()
     await expect(pocket(page)).toBeVisible()
@@ -382,7 +406,7 @@ test.describe('receipts and money sheets', () => {
     await press(page.getByRole('button', { name: 'Theo Marsh' }).first())
     const receipt = page.getByRole('dialog', { name: 'Receipt' })
     await expect(receipt).toContainText(
-      '10¢ reached the writer; 15¢ is waiting.'
+      '10¢ reached the writer; 15¢ is waiting'
     )
     await expect(receipt).not.toContainText('not charged')
   })

@@ -9,17 +9,20 @@ import { BalanceIcon } from '@/system/icons'
 import { useBalanceReading } from '@/shell/balance'
 import { POCKET } from '@/shell/navigation'
 import { openSignIn } from '@/shell/signIn'
-import { mergeActivity } from './activityModel'
+import { activityLists, type PocketActivity } from './activityModel'
 import { ActivitySection } from './ActivitySection'
+import { ago } from './copy'
 import { EarningsSection } from './EarningsSection'
 import { usePocketSource } from './source'
 import { SpendableSection } from './SpendableSection'
+import { useNow } from './useNow'
 import type { EarningsView } from './types'
 
-/** Whether to show a writer's figures. The money layer is asked for a flag
- * (`isWriter`); until then, any tip received or money collected. */
+/** Whether to show a writer's figures: the money layer's signal (`isWriter`
+ * or status `none`); without one yet, any tip received or money collected. */
 function writes(earnings: EarningsView): boolean {
   if (earnings.isWriter !== undefined) return earnings.isWriter
+  if (earnings.status === 'none') return false
   if (earnings.status !== 'ready') return false
   const c = earnings.counts
   const tips = c ? c.pending + c.onHold + c.notPaid + c.settled : 0
@@ -39,6 +42,7 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
   const earnings = source.useEarnings()
   const reader = source.useActivity('reader')
   const writer = source.useActivity('writer')
+  const now = useNow()
   const signedOut =
     reading.auth === 'signed-out' || balance.status === 'signed-out'
   if (signedOut)
@@ -67,15 +71,16 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
     )
   // Until auth is known nothing has answered: everything holds its space.
   const authLoading = reading.auth === 'loading'
-  const activity = authLoading
-    ? { ...mergeActivity(reader, writer), status: 'loading' as const }
-    : mergeActivity(reader, writer)
   const isWriter = !authLoading && writes(earnings)
+  const activity: PocketActivity = authLoading
+    ? { status: 'loading', lists: [] }
+    : activityLists(reader, writer, isWriter)
   const down =
     !authLoading &&
     balance.status === 'unavailable' &&
-    (earnings.status === 'unavailable' || earnings.status === 'signed-out') &&
+    earnings.status !== 'ready' &&
     activity.status === 'unavailable'
+  const asOf = balance.asOf ?? null
   return (
     <div className="qt-pocket" data-writer={isWriter || undefined}>
       {down ? (
@@ -84,14 +89,17 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
           usual; try again in a moment.
         </Notice>
       ) : !authLoading && !balance.online ? (
-        <Notice tone="offline" title="You are offline">
-          These are the last figures this device received. Tipping waits until
-          you are back online.
+        <Notice tone="offline">
+          {asOf
+            ? `Offline. These figures are from ${ago(asOf, now)}.`
+            : 'Offline. These are the last figures this device received.'}{' '}
+          Tipping waits until you are back online.
         </Notice>
       ) : null}
       <SpendableSection
         balance={balance}
         authLoading={authLoading}
+        compact={isWriter}
         quietAdd={isWriter && (earnings.available?.cents ?? 0) > 0}
       />
       {isWriter ? (
