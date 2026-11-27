@@ -7,6 +7,7 @@ import { isArticleListingReady } from './lib/articleListingReady'
 import {
   CANDIDATE_PAGE,
   CANDIDATE_PAGES,
+  SKIP_READ_LIMIT,
   MORE_LIMIT,
   cleanExclude,
   countWords,
@@ -62,21 +63,25 @@ type Candidate = {
 }
 
 /**
- * One candidate per writer (their newest eligible article), newest
- * published first, read in bounded pages until `wanted` writers are found
- * or CANDIDATE_PAGES pages were read. `before` bounds `publishedAt`
- * (exclusive for the window, inclusive for the fallback). A page after the
- * first starts at the last page's oldest time, inclusive, and skips what it
- * already saw, so articles published in the same millisecond are not lost.
+ * One candidate per writer (their newest eligible article), from the
+ * articles published before `before`, newest first, read in pages until
+ * `wanted` writers are found or CANDIDATE_PAGES pages were read: at most
+ * CANDIDATE_PAGE × CANDIDATE_PAGES (200) article documents per call.
+ *
+ * A page after the first starts at the last page's oldest time, inclusive,
+ * and skips what it already saw, so articles published in the same
+ * millisecond are not lost. When a whole page shares one time and brings
+ * nothing new, the next page starts just before that time, so the read
+ * never stalls (articles of that millisecond beyond the page are passed).
  */
 async function candidates(
   ctx: QueryCtx,
-  before: { time: number; inclusive: boolean },
+  before: number,
   wanted: number
 ): Promise<Map<string, Candidate>> {
   const byWriter = new Map<string, Candidate>()
   const seen = new Set<string>()
-  let bound = before
+  let bound = { time: before, inclusive: false }
   for (let page = 0; page < CANDIDATE_PAGES; page++) {
     const { time, inclusive } = bound
     const docs = await ctx.db
@@ -100,11 +105,11 @@ async function candidates(
       if (!opening) continue
       byWriter.set(article.authorId, { article, opening })
     }
-    if (docs.length < CANDIDATE_PAGE || fresh === 0) break
+    if (docs.length < CANDIDATE_PAGE) break
     if (byWriter.size >= wanted) break
     const oldest = docs[docs.length - 1]!.publishedAt
     if (oldest === undefined) break
-    bound = { time: oldest, inclusive: true }
+    bound = { time: oldest, inclusive: fresh > 0 }
   }
   return byWriter
 }
@@ -131,19 +136,13 @@ export const opening = query({
     const window = windowOf(at)
     const skip = cleanExclude(args.exclude)
 
-    // Enough writers for the opening and the list, after the skipped ones.
-    const wanted = 1 + MORE_LIMIT + skip.size
-    // Articles published before this day began, so the choice holds all day.
-    let byWriter = await candidates(
-      ctx,
-      { time: window.startsAt, inclusive: false },
-      wanted
-    )
-    // A catalogue whose every article is newer than the day (a new
-    // deployment) still opens on writing: read up to `at` instead.
-    if (byWriter.size === 0) {
-      byWriter = await candidates(ctx, { time: at, inclusive: true }, wanted)
-    }
+    // Enough writers for the opening and the list, plus some skipped ones
+    // (at most 20 count toward the read; the rest only reorder).
+    const wanted = 1 + MORE_LIMIT + Math.min(skip.size, SKIP_READ_LIMIT)
+    // Articles published before this day began, so the choice holds all
+    // day. One pass: a catalogue whose every article is newer than the day
+    // opens on the next day.
+    const byWriter = await candidates(ctx, window.startsAt, wanted)
 
     const compare = compareForWindow(window.index)
     const ranked = [...byWriter.values()].sort((a, b) =>

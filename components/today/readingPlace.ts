@@ -24,6 +24,27 @@ export type ReadingPlace = {
   finished: boolean
 }
 
+/** The origin a site path is resolved against; any one origin will do. */
+const BASE = 'https://site.invalid'
+
+/**
+ * A path on this site: it starts with one `/`, has no backslash and no
+ * control character (browsers read `/\evil.test` and `/<tab>/evil.test` as
+ * another host), and resolves to the same origin.
+ */
+export function isSitePath(href: string): boolean {
+  if (!href.startsWith('/') || href.startsWith('//')) return false
+  for (let i = 0; i < href.length; i++) {
+    const code = href.charCodeAt(i)
+    if (code < 0x20 || code === 0x7f || code === 0x5c) return false
+  }
+  try {
+    return new URL(href, BASE).origin === BASE
+  } catch {
+    return false
+  }
+}
+
 /** One stored entry, or null. Missing `sentence` and `finished` read as
  * empty and false; anything else bad drops the entry. */
 function toPlace(value: unknown): ReadingPlace | null {
@@ -34,8 +55,7 @@ function toPlace(value: unknown): ReadingPlace | null {
     typeof v.articleId !== 'string' ||
     !v.articleId ||
     typeof v.href !== 'string' ||
-    !v.href.startsWith('/') ||
-    v.href.startsWith('//') ||
+    !isSitePath(v.href) ||
     typeof v.title !== 'string' ||
     typeof v.percent !== 'number' ||
     !Number.isFinite(v.percent) ||

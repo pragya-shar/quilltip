@@ -7,6 +7,7 @@ import { expect, test, type Page } from '@playwright/test'
 // redirects, CSP) is e2e/today-app.spec.ts.
 
 const TITLE = 'The Lamp on Orchard Street'
+const TESTNET = 'Quilltip runs on Stellar testnet. Tips are practice money.'
 const SENTENCE =
   'The lamp on Orchard Street came on every evening at a quarter past six'
 const PLACE = {
@@ -320,10 +321,14 @@ test('an empty catalogue says so and offers the one way to fill it', async ({
   await expect(page.getByRole('region', { name: 'More to read' })).toHaveCount(
     0
   )
+  // The page keeps one level-1 heading, and still says tips are practice.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Today')
+  await expect(page.getByText(TESTNET)).toBeVisible()
 })
 
 test('a backend that does not answer still gives a page', async ({ page }) => {
   await page.goto('/?data=unreachable')
+  await expect(page.getByText(TESTNET)).toBeVisible()
   await expect(
     page.getByRole('heading', {
       level: 1,

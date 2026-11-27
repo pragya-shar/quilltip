@@ -3,12 +3,14 @@
  * query and its tests share them. The rule and its reasons are written down
  * in docs/architecture/v3/today-opening.md.
  *
- * In short: time is cut into windows of WINDOW_MS. The candidates are the
- * newest article of each writer among the newest published articles, each
- * with a real body, published before the window began. Each candidate gets a
- * score from a hash of (window, article id); the lowest score opens Today,
- * the next ones are "more to read". Tips play no part: every writer gets the
- * opening equally often, with or without tips.
+ * In short: a daily rotation among the writers with the most recent
+ * eligible articles. Time is cut into windows of WINDOW_MS (one UTC day).
+ * The candidates are the newest eligible article of each writer, read from
+ * the newest articles published before the day began, until enough writers
+ * are found (at most 200 articles read). Each candidate gets a score from a
+ * hash of (day, article id); the lowest opens Today, the next ones are "More
+ * to read". Tips play no part. A writer whose newest article is older than
+ * those of the candidates found is not a candidate that day.
  */
 
 /** One UTC day: the place is called Today, and its opening is the
@@ -21,10 +23,15 @@ export const WORDS_PER_MINUTE = 230
 /**
  * Candidates are read in pages of CANDIDATE_PAGE articles, newest first,
  * until enough distinct writers are eligible or CANDIDATE_PAGES pages were
- * read: at most 400 articles per call, however the catalogue is shaped.
+ * read: at most 200 article documents per call, however the catalogue is
+ * shaped. (A stored daily opening, with the reading-positions backend, is
+ * the fix that reads less.)
  */
 export const CANDIDATE_PAGE = 50
-export const CANDIDATE_PAGES = 8
+export const CANDIDATE_PAGES = 4
+
+/** Skipped articles that may widen the read (the rest only reorder). */
+export const SKIP_READ_LIMIT = 20
 
 /** Articles a reader opened or finished that the caller may ask to skip:
  * the two cookies, at most 20 ids each. */
@@ -38,6 +45,10 @@ export const MIN_PARAGRAPHS = 2
 
 /** The opening shows whole paragraphs up to this many words, never more. */
 export const OPENING_WORDS = 220
+
+/** Below this many words the opening goes on into the next paragraph, cut
+ * at a sentence, so it is never one short line under the fade. */
+export const OPENING_MIN_WORDS = 60
 
 export function windowOf(at: number) {
   const index = Math.floor(at / WINDOW_MS)
@@ -126,19 +137,22 @@ export function minutesLeft(remainingWords: number): number {
 }
 
 /** A paragraph cut to at most `max` words: at the last sentence end that
- * fits, else at a word with an ellipsis. */
+ * keeps at least half of them (or the opening's minimum), else at a word
+ * with an ellipsis. */
 function cutToWords(text: string, max: number): string {
   const words = text.split(' ')
   const head = words.slice(0, max).join(' ')
   const sentenceEnd = head.match(/^.*[.!?…](?=\s|$)/u)?.[0]
-  if (sentenceEnd && wordCount(sentenceEnd) >= max / 2) return sentenceEnd
+  const enough = Math.min(max / 2, OPENING_MIN_WORDS)
+  if (sentenceEnd && wordCount(sentenceEnd) >= enough) return sentenceEnd
   return `${head}…`
 }
 
 /**
  * The opening of an article: whole paragraphs from the start, up to
- * OPENING_WORDS words and never more. A first paragraph longer than that is
- * cut at a sentence (or a word). `continues` says the article goes on after
+ * OPENING_WORDS words and never more. When that shows fewer than
+ * OPENING_MIN_WORDS, the next paragraph is added, cut at a sentence (or a
+ * word). `continues` says the article goes on after
  * what is shown. Null when the body has fewer than MIN_PARAGRAPHS paragraphs.
  */
 export function openingOf(content: unknown): {
@@ -147,7 +161,7 @@ export function openingOf(content: unknown): {
   totalWords: number
   shownWords: number
   /** The `bodyParagraphs` index where reading continues: the first
-   * paragraph not shown, or the cut first paragraph itself. */
+   * paragraph not shown, or the paragraph the opening cut. */
   nextParagraph: number
 } | null {
   const all = bodyParagraphs(content)
@@ -162,11 +176,16 @@ export function openingOf(content: unknown): {
     words += count
   }
   let nextParagraph = paragraphs.length
-  if (paragraphs.length === 0) {
-    const cut = cutToWords(all[0]!, OPENING_WORDS)
+  // Too little shown (a short first paragraph before a long one, or a
+  // first paragraph longer than the whole opening): go on into the next
+  // paragraph, cut at a sentence within what is left of the 220 words, and
+  // let Read more continue in that paragraph.
+  if (words < OPENING_MIN_WORDS && paragraphs.length < all.length) {
+    const next = paragraphs.length
+    const cut = cutToWords(all[next]!, OPENING_WORDS - words)
     paragraphs.push(cut)
-    words = wordCount(cut.replace(/…$/u, ''))
-    nextParagraph = 0
+    words += wordCount(cut.replace(/…$/u, ''))
+    nextParagraph = next
   }
   return {
     paragraphs,

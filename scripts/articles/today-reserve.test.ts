@@ -7,7 +7,7 @@ import {
 } from '../../components/today/rowsMemory'
 import { PRE_PAINT_SCRIPT } from '../../shell/prePaint'
 import { currentPlace } from '../../components/today/resume'
-import { parsePlaces } from '../../components/today/readingPlace'
+import { isSitePath, parsePlaces } from '../../components/today/readingPlace'
 
 /** A storage over a plain record, as the inline script and the island see it. */
 function storage(items: Record<string, string>): Storage {
@@ -82,6 +82,45 @@ const cases: [string, Record<string, string>][] = [
     { [READING_PLACE_KEY]: JSON.stringify([place({ href: '//evil.test/x' })]) },
   ],
   [
+    'a backslash link',
+    {
+      [READING_PLACE_KEY]: JSON.stringify([place({ href: '/\\evil.test/x' })]),
+    },
+  ],
+  [
+    'a tab link',
+    {
+      [READING_PLACE_KEY]: JSON.stringify([place({ href: '/\t/evil.test/x' })]),
+    },
+  ],
+  [
+    'a newline link',
+    {
+      [READING_PLACE_KEY]: JSON.stringify([place({ href: '/\n/evil.test/x' })]),
+    },
+  ],
+  [
+    '20 valid finished places before an unfinished one',
+    {
+      [READING_PLACE_KEY]: JSON.stringify([
+        { bad: true },
+        ...Array.from({ length: 20 }, (_, i) =>
+          place({ articleId: `done${i}`, finished: true, percent: 1 })
+        ),
+        place(),
+      ]),
+    },
+  ],
+  [
+    'an unfinished place after an invalid one',
+    {
+      [READING_PLACE_KEY]: JSON.stringify([
+        place({ href: '/\\evil.test/x' }),
+        place({ articleId: 'k2' }),
+      ]),
+    },
+  ],
+  [
     'not started',
     { [READING_PLACE_KEY]: JSON.stringify([place({ percent: 0 })]) },
   ],
@@ -110,5 +149,22 @@ describe('the pre-paint script reserves what the rows island will show', () => {
     expect(results.some((r) => r.place)).toBe(true)
     expect(results.some((r) => r.draft)).toBe(true)
     expect(results.some((r) => !r.place && !r.draft)).toBe(true)
+  })
+})
+
+describe('a stored link is used only when it stays on this site', () => {
+  test.each([
+    ['/noor/kitchen', true],
+    ['/noor/kitchen?highlight=1#s-2-0', true],
+    ['//evil.test/x', false],
+    ['/\\evil.test/x', false],
+    ['/\t/evil.test/x', false],
+    ['/\n/evil.test/x', false],
+    ['/\u0000/x', false],
+    ['https://evil.test/x', false],
+    ['javascript:alert(1)', false],
+    ['noor/kitchen', false],
+  ])('%j is a site path: %s', (href, ok) => {
+    expect(isSitePath(href)).toBe(ok)
   })
 })

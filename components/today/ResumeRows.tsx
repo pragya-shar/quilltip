@@ -32,12 +32,14 @@ function reservedOnPage(): RowsMemory {
 }
 
 /**
- * "Your place" and "Your draft", above the opening, for a person who is
- * signed in. They attach after the content and never move it: a row shows
- * only in space reserved before the first paint (by the inline script on a
- * full load, or here before paint after an in-app navigation). A row the
- * reservation did not foresee is remembered and shows from the next visit.
- * With no script, or signed out, nothing shows and nothing is reserved.
+ * "Your place" and "Your draft", above the opening. Your place belongs to
+ * this browser: it shows for any reader with a stored, unfinished place,
+ * signed in or not. Your draft is for a signed-in writer. They attach after
+ * the content and never move it: a row shows only in space reserved before
+ * the first paint (by the inline script on a full load, or here before
+ * paint after an in-app navigation). A draft row the reservation did not
+ * foresee is remembered and shows from the next visit. With no script,
+ * nothing shows and nothing is reserved.
  */
 export function ResumeRows() {
   const reading = useContext(TodayRowsSourceContext)()

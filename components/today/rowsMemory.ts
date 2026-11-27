@@ -81,8 +81,10 @@ export function sessionHeld(root: HTMLElement): boolean {
 export function reserveScript(readingKey: string): string {
   const j = JSON.stringify
   return (
-    `try{var s=localStorage,r=document.documentElement,h=false,i,p=JSON.parse(s.getItem(${j(readingKey)})||'[]');` +
-    `if(p&&p.length)for(i=0;i<p.length&&i<20;i++){var e=p[i];if(e&&typeof e.articleId==='string'&&e.articleId&&e.finished!==true&&typeof e.percent==='number'&&e.percent>0&&typeof e.updatedAt==='number'&&typeof e.title==='string'&&e.title.replace(/\\s/g,'')&&typeof e.href==='string'&&e.href.charAt(0)==='/'&&e.href.charAt(1)!=='/'){h=true;break}}` +
+    // o(h): the same test as isSitePath in readingPlace.ts.
+    `try{var o=function(h){if(typeof h!=='string'||h.charAt(0)!=='/'||h.charAt(1)==='/')return false;for(var j=0;j<h.length;j++){var c=h.charCodeAt(j);if(c<32||c===127||c===92)return false}try{return new URL(h,'https://site.invalid').origin==='https://site.invalid'}catch(x){return false}};` +
+    `var s=localStorage,r=document.documentElement,h=false,i,n,p=JSON.parse(s.getItem(${j(readingKey)})||'[]');` +
+    `if(p&&p.length)for(i=0,n=0;i<p.length&&n<20;i++){var e=p[i];if(!(e&&typeof e==='object'&&typeof e.articleId==='string'&&e.articleId&&o(e.href)&&typeof e.title==='string'&&typeof e.percent==='number'&&isFinite(e.percent)&&typeof e.updatedAt==='number'&&isFinite(e.updatedAt)))continue;n++;if(e.finished!==true&&e.percent>0&&e.title.replace(/\\s/g,'')){h=true;break}}` +
     `if(h)r.setAttribute(${j(RESERVE_ATTR.place)},'');` +
     `if(r.getAttribute(${j(SESSION_ATTR)})==='held'&&(JSON.parse(s.getItem(${j(ROWS_MEMORY_KEY)})||'null')||{}).draft===true)r.setAttribute(${j(RESERVE_ATTR.draft)},'')}catch(e){}`
   )

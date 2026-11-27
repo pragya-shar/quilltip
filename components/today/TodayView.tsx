@@ -33,9 +33,10 @@ export function TodayView({
   const result = data.status === 'ready' ? data.result : null
   return (
     <div className="qt-page qt-today" data-width="read">
-      {/* Before the rows and the opening are parsed: reserve the rows a
-          returning, signed-in person will see, so filling them later moves
-          nothing. It never runs with scripts off. */}
+      {/* Before the rows and the opening are parsed: reserve the rows this
+          browser will show (Your place for any reader with a stored place,
+          Your draft for a held session that showed it last time), so filling
+          them later moves nothing. It never runs with scripts off. */}
       <script
         nonce={nonce}
         dangerouslySetInnerHTML={{ __html: RESERVE_SCRIPT }}
@@ -80,16 +81,15 @@ export function TodayView({
           come here, after passage identity and counts exist. Until then
           nothing here leads anywhere. The page stays finite: it ends. */}
       {result?.opening ? (
-        <>
-          <p className="qt-today__end">
-            You are up to date. New writing arrives through the day.
-          </p>
-          {/* Today talks about tipping: say once that it is practice money. */}
-          <TestnetNote className="qt-today__testnet">
-            Quilltip runs on Stellar testnet. Tips are practice money.
-          </TestnetNote>
-        </>
+        <p className="qt-today__end">
+          You are up to date. New writing arrives through the day.
+        </p>
       ) : null}
+      {/* Every state of Today names tipping (the line under the wordmark),
+          so every state says once that tips are practice money. */}
+      <TestnetNote className="qt-today__testnet">
+        Quilltip runs on Stellar testnet. Tips are practice money.
+      </TestnetNote>
     </div>
   )
 }

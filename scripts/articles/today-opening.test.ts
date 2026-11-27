@@ -1,4 +1,7 @@
 /// <reference types="vite/client" />
+// Runs under vitest (`bun run test:reader`, scripts/articles/convex.config.mts):
+// convex-test loads the functions through `import.meta.glob`, which plain
+// `bun test` does not provide.
 import { convexTest } from 'convex-test'
 import { describe, expect, test } from 'vitest'
 import type { Doc, Id } from '../../convex/_generated/dataModel'
@@ -183,7 +186,7 @@ describe('today.opening', () => {
     expect(seen.size).toBeGreaterThan(1)
   })
 
-  test('every writer opens Today in turn, tipped or not', async () => {
+  test('among the candidates, each writer opens Today in turn, tipped or not', async () => {
     const t = convexTest(schema, modules)
     const ids = await catalogue(t, 6)
     // The first writer's article is the most tipped by far.
@@ -262,7 +265,7 @@ describe('today.opening', () => {
     expect(later.has(fresh)).toBe(true)
   })
 
-  test('a catalogue newer than the window still opens on writing', async () => {
+  test('a catalogue newer than the day opens on the next day', async () => {
     const t = convexTest(schema, modules)
     const id = await t.run(async (ctx) => {
       const authorId = await writer(ctx, 'first')
@@ -274,8 +277,12 @@ describe('today.opening', () => {
         windowOf(NOW).startsAt + 1
       )
     })
-    const result = await t.query(api.today.opening, { at: NOW })
-    expect(result.opening!.articleId).toBe(id)
+    // One pass, no fallback: nothing opens today, the article opens tomorrow.
+    expect((await t.query(api.today.opening, { at: NOW })).opening).toBeNull()
+    const tomorrow = await t.query(api.today.opening, {
+      at: NOW + WINDOW_MS,
+    })
+    expect(tomorrow.opening!.articleId).toBe(id)
   })
 
   test('a finished article is skipped while another exists', async () => {
@@ -516,5 +523,63 @@ describe('Read more', () => {
     // 180 + 36 words fit; the third body paragraph (index 2) does not.
     expect(openingOf(doc)!.nextParagraph).toBe(2)
     expect(readAnchor(2)).toBe('s-2-0')
+  })
+})
+
+describe('the read is bounded', () => {
+  test('at most 200 articles are read: a writer behind them is not a candidate that day', async () => {
+    const t = convexTest(schema, modules)
+    const quiet = await t.run(async (ctx) => {
+      const busyId = await writer(ctx, 'busy')
+      for (let i = 0; i < 210; i++)
+        await article(ctx, busyId, 'busy', `busy-${i}`, NOW - 24 * HOUR - i)
+      const quietId = await writer(ctx, 'quiet')
+      return article(ctx, quietId, 'quiet', 'quiet', NOW - 30 * 24 * HOUR)
+    })
+    const result = await t.query(api.today.opening, { at: NOW })
+    const ids = [
+      result.opening!.articleId,
+      ...result.more.map((m) => m.articleId),
+    ]
+    expect(ids).toHaveLength(1)
+    expect(ids).not.toContain(quiet)
+  })
+
+  test('more than 50 articles at one publish time do not stall the read', async () => {
+    const t = convexTest(schema, modules)
+    const quiet = await t.run(async (ctx) => {
+      const busyId = await writer(ctx, 'busy')
+      for (let i = 0; i < 60; i++)
+        await article(ctx, busyId, 'busy', `same-${i}`, NOW - 24 * HOUR)
+      const quietId = await writer(ctx, 'quiet')
+      return article(ctx, quietId, 'quiet', 'quiet', NOW - 30 * 24 * HOUR)
+    })
+    const result = await t.query(api.today.opening, { at: NOW })
+    const ids = [
+      result.opening!.articleId,
+      ...result.more.map((m) => m.articleId),
+    ]
+    expect(ids).toContain(quiet)
+  })
+})
+
+describe('a short first paragraph', () => {
+  test('goes on into the next paragraph, cut at a sentence, never past 220 words', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        paragraph('A short first paragraph of eight words.'),
+        paragraph(Array.from({ length: 30 }, () => SENTENCE).join(' ')),
+        paragraph(SENTENCE),
+      ],
+    }
+    const opening = openingOf(doc)!
+    expect(opening.paragraphs).toHaveLength(2)
+    expect(opening.shownWords).toBeGreaterThanOrEqual(60)
+    expect(opening.shownWords).toBeLessThanOrEqual(220)
+    expect(opening.paragraphs[1]).toMatch(/bread\.$/)
+    // Read more continues in the paragraph that was cut.
+    expect(opening.nextParagraph).toBe(1)
+    expect(opening.continues).toBe(true)
   })
 })
