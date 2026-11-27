@@ -6520,4 +6520,273 @@ describe('spendable balance across settler records and indexed events', () => {
       cents: 34.125,
     })
   })
+
+  // -------------------------------------------------------------------------
+  // Review of #585: debit rows under a low read limit and a small budget.
+
+  it('review #585: a balance between the marked one and a newer one not applied keeps the tab marked', async () => {
+    vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', '4')
+    vi.stubEnv('TAB_DEBIT_READ_BUDGET', '5')
+    const { t } = await opened(BigInt(30) * CENT, [])
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    // Settlements at +2, +3 and +6 to +8; top-ups at +1, +4 and +5,
+    // indexed late.
+    await ingestAll(
+      t,
+      [2, 3, 6, 7, 8].map((l, i) => otherSettled(i, LEDGER + l))
+    )
+    const debits = GROSS * BigInt(5)
+    const top = (ledger: number, after: bigint) =>
+      ev.deposited(READER, CENT, after, { ledger: LEDGER + ledger })
+    const a = top(1, BigInt(31) * CENT)
+    const b = top(4, BigInt(32) * CENT - GROSS * BigInt(2))
+    const c = top(5, BigInt(33) * CENT - GROSS * BigInt(2))
+    // One mutation: `a` has 5 later debits (over the limit of 4) and spends
+    // the budget; `c` then finds no budget left. Neither applies.
+    await ingest(t, a, c)
+    const stored = BigInt(30) * CENT - debits
+    expect(await balanceOf(t)).toBe(stored)
+    expect((await account(t)).reconcileRequired?.eventId).toBe(c.id)
+    // `b` is readable on its own (3 later debits), but `c` is newer: the
+    // tab stays marked and the balance stays as it was.
+    await ingest(t, b)
+    expect(await balanceOf(t)).toBe(stored)
+    expect((await account(t)).reconcileRequired?.eventId).toBe(c.id)
+    const truth = BigInt(33) * CENT - debits
+    expect(
+      await reconcileAt(t, {
+        ledger: LEDGER + 8,
+        balance: truth,
+        paid: new Map(),
+      })
+    ).toMatchObject({ status: 'applied' })
+    expect(await balanceOf(t)).toBe(truth)
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+  })
+
+  it.each([
+    [2, 3],
+    [5, 1000],
+    [1000, 1],
+  ])(
+    'review #585: property with a debit read limit of %i and a budget of %i: each balance applies in full or marks the tab, and the end is exact',
+    async (scan, budget) => {
+      const SEEDS = Number(process.env.REVIEW_585_SEEDS ?? 60)
+      const STEPS = Number(process.env.REVIEW_585_STEPS ?? 100)
+      let marksSeen = 0
+      let reconciled = 0
+      for (let seed585 = 1; seed585 <= SEEDS; seed585++) {
+        vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', String(scan))
+        vi.stubEnv('TAB_DEBIT_READ_BUDGET', String(budget))
+        const logs = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const codes = (code: string) =>
+          logs.mock.calls.filter(([line]) => {
+            try {
+              return JSON.parse(String(line)).code === code
+            } catch {
+              return false
+            }
+          }).length
+        let r = seed585 * 7919 + scan * 31 + budget
+        const pick = (n: number) => {
+          r = (r * 1103515245 + 12345) % 2147483648
+          return r % n
+        }
+        const t = convexTest(schema, modules)
+        await seed(t, { open: false })
+        let ledger = LEDGER
+        let chain = BigInt(100) * XLM
+        let paid = BigInt(0)
+        const balanceAt = new Map<number, bigint>()
+        // Balance points: an applied balance's event id and its value.
+        const points = new Map<string, bigint>()
+        const depositValue = new Map<string, bigint>()
+        type Action = { raw: RawRpcEvent; gross?: bigint }
+        const queue: Action[] = []
+        const delivered: Action[] = []
+        const first = ev.deposited(READER, chain, chain, { ledger })
+        balanceAt.set(ledger, chain)
+        points.set(first.id, chain)
+        await ingest(t, first)
+        delivered.push({ raw: first })
+        let marked = false
+        let markTransitions = 0
+        const trace: string[] = []
+        const check = async (label: string) => {
+          trace.push(label)
+          const acc = await account(t)
+          const A = acc.balanceEventId!
+          const base = points.get(A)
+          const where = `seed ${seed585} (${scan}/${budget}) after ${label}\n${trace.slice(-12).join('\n')}`
+          expect(base, where).toBeDefined()
+          const debits = delivered
+            .filter((a) => a.gross !== undefined && a.raw.id > A)
+            .reduce((s, a) => s + a.gross!, BigInt(0))
+          expect(BigInt(acc.confirmedBalance), where).toBe(base! - debits)
+          const maxPoint = delivered
+            .filter((a) => a.gross === undefined)
+            .map((a) => a.raw.id)
+            .reduce((m, id) => (id > m ? id : m), A)
+          if (acc.reconcileRequired) {
+            expect(acc.reconcileRequired.eventId > A, where).toBe(true)
+            expect(
+              delivered.some(
+                (a) =>
+                  a.gross !== undefined &&
+                  a.raw.id > acc.reconcileRequired!.eventId
+              ),
+              where
+            ).toBe(true)
+            if (!marked) markTransitions++
+            marked = true
+            marksSeen++
+          } else {
+            // Every delivered balance is applied or older than the applied one.
+            expect(A >= maxPoint, where).toBe(true)
+            marked = false
+          }
+          expect(
+            codes('CHAIN_TAB_RECONCILE_REQUIRED'),
+            where
+          ).toBeGreaterThanOrEqual(markTransitions)
+          expect(codes('CHAIN_TAB_LEDGER_NEGATIVE'), where).toBe(0)
+        }
+        const deliver = async (actions: Action[]) => {
+          await ingest(t, ...actions.map((a) => a.raw))
+          for (const a of actions) {
+            delivered.push(a)
+            if (a.gross === undefined)
+              points.set(a.raw.id, depositValue.get(a.raw.id)!)
+          }
+        }
+        for (let step = 0; step < STEPS; step++) {
+          // A marked tab is reconciled more often, so the run reaches it.
+          const op = marked && pick(3) === 0 ? 99 : pick(100)
+          if (op < 15) {
+            const amount = BigInt(1 + pick(5)) * XLM
+            chain += amount
+            ledger++
+            const raw = ev.deposited(READER, amount, chain, { ledger })
+            depositValue.set(raw.id, chain)
+            balanceAt.set(ledger, chain)
+            queue.push({ raw })
+            await check(`deposit ${amount} at ${ledger}`)
+          } else if (op < 55) {
+            const n = 1 + pick(4)
+            for (let i = 0; i < n; i++) {
+              const gross = BigInt(1000 + pick(4000))
+              chain -= gross
+              paid += gross
+              ledger++
+              balanceAt.set(ledger, chain)
+              queue.push({
+                raw: ev.tabSettled(
+                  {
+                    writer: OTHER_WRITER,
+                    cumulative: paid,
+                    paidAfter: paid,
+                    gross,
+                  },
+                  { ledger }
+                ),
+                gross,
+              })
+            }
+            await check(`${n} settlements to ${ledger}`)
+          } else if (op < 80 && queue.length) {
+            // Out of order inside a window of 20, in one mutation.
+            const k = 1 + pick(Math.min(6, queue.length))
+            const chosen: Action[] = []
+            for (let i = 0; i < k && queue.length; i++) {
+              chosen.push(queue.splice(pick(Math.min(20, queue.length)), 1)[0]!)
+            }
+            await deliver(chosen)
+            await check(`deliver ${chosen.map((a) => a.raw.ledger).join(',')}`)
+          } else if (op < 88 && delivered.length > 1) {
+            const some = Array.from(
+              { length: 1 + pick(3) },
+              () => delivered[pick(delivered.length)]!.raw.id
+            )
+            const all = pick(3) === 0
+            await t.run(async (ctx) => {
+              for (const row of await ctx.db.query('chainEvents').collect()) {
+                if (all || some.includes(row.eventId)) {
+                  await ctx.db.patch(row._id, { handled: 'pending' })
+                }
+              }
+            })
+            for (;;) {
+              const res = await t.mutation(internal.chain.indexer.redispatch, {
+                limit: 500,
+              })
+              if (res.checked === 0 || res.resolved === 0) break
+            }
+            await check(all ? 'redispatch all' : 'redispatch some')
+          } else if (op < 93 && delivered.length) {
+            await ingest(
+              t,
+              ...Array.from(
+                { length: 1 + pick(5) },
+                () => delivered[pick(delivered.length)]!.raw
+              )
+            )
+            await check('replay')
+          } else if (op >= 93) {
+            const result = await reconcileAt(t, {
+              ledger,
+              balance: chain,
+              paid: new Map(),
+            })
+            if (result.status === 'applied') {
+              points.set(
+                (await account(t)).balanceEventId!,
+                balanceAt.get(ledger)!
+              )
+              reconciled++
+            } else if (marked) {
+              throw new Error(
+                `seed ${seed585}: marked tab not reconciled: ${JSON.stringify(result)}`
+              )
+            }
+            await check(`reconcile at ${ledger}: ${result.status}`)
+          }
+        }
+        // Drain, then a newer deposit: exact, and no mark left.
+        while (queue.length) {
+          const chosen = queue.splice(0, Math.min(queue.length, 1 + pick(10)))
+          await deliver(chosen)
+          await check('drain')
+        }
+        ledger++
+        chain += XLM
+        const last = ev.deposited(READER, XLM, chain, { ledger })
+        depositValue.set(last.id, chain)
+        await deliver([{ raw: last }])
+        await check('final deposit')
+        const acc = await account(t)
+        expect(acc.reconcileRequired, `seed ${seed585}`).toBeUndefined()
+        expect(acc.confirmedBalance, `seed ${seed585}`).toBe(chain.toString())
+        await t.run(async (ctx) => {
+          for (const row of await ctx.db.query('chainEvents').collect()) {
+            await ctx.db.patch(row._id, { handled: 'pending' })
+          }
+        })
+        for (;;) {
+          const res = await t.mutation(internal.chain.indexer.redispatch, {
+            limit: 500,
+          })
+          if (res.checked === 0 || res.resolved === 0) break
+        }
+        await ingest(t, ...delivered.map((a) => a.raw))
+        expect((await account(t)).confirmedBalance, `seed ${seed585}`).toBe(
+          chain.toString()
+        )
+        logs.mockRestore()
+      }
+      // The run reached the bounded path.
+      expect(marksSeen).toBeGreaterThan(0)
+      expect(reconciled).toBeGreaterThan(0)
+    },
+    900_000
+  )
 })
