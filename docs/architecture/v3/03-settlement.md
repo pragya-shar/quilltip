@@ -23,24 +23,177 @@ vouchers) and replaces when it runs and what the transaction does.
 Targets: accepted to on-chain 25 s p50 and 60 s p95; on-chain to the writer's
 wallet in the same transaction.
 
-### Precondition: the spendable fix
+### Preconditions for the fast cadence
 
-The fast cadence turns settlement results from rare to constant, so it must
-not start before the reader's spendable amount is right during settlement.
-Today `outstanding` falls at the settler's result while `confirmedBalance`
-falls only at the indexed `TabSettled`, so spendable reads too high in
-between. The fix lands once, on `overhaul/v2`, from the owner of the tab
-ledger, and `overhaul/v3` takes it by merge; no v3 package writes a second
-fix. P2 does not enable event-driven scheduling until that merge is on
-`overhaul/v3` and its test passes there.
+The fast cadence turns settlement results from rare to constant. P2 does not
+enable event-driven scheduling until all three preconditions below are on
+`overhaul/v3` and their tests pass there.
+
+#### A. Spendable during settlement (merged on `overhaul/v2`, PR 565)
+
+The settler's record of a settlement moves the paid amount from
+`tabAccounts.outstanding` to `tabAccounts.settledUnindexed`; the indexed
+`TabSettled` debits `confirmedBalance` and releases the same amount, by the
+event's paid range `[paid_after − gross, paid_after]`, merged per voucher in
+`tabVouchers.indexedPaid`. The order and repetition of the two never change
+spendable. `overhaul/v3` takes this by merge (PR 570); no v3 package writes a
+second fix.
 
 - **Invariant:** spendable never rises between a settlement result and its
-  indexed event (nor when the event is replayed).
-- **One helper:** `readerSpendable(account: Doc<'tabAccounts'>): bigint`,
-  exported from `convex/lib/chain/tabLedger.ts`. `tabs.getMyTab`,
-  `balance.session`, `tipContext` and `checkTabTip`'s balance rule all call it;
-  nothing else computes spendable. In v3 it also subtracts
-  `withdrawReserved` ([contracts C2](contracts.md#convex-side-of-the-instant-withdrawal)).
+  indexed event, nor when the event is replayed.
+- **One helper:** `readerSpendable(account)` in
+  `convex/lib/chain/tabLedger.ts` =
+  `confirmedBalance − reservedOf(account)`, where `reservedOf` =
+  `outstanding + settledUnindexed`. Not clamped: a negative value means the
+  Tab is over-committed and accepts no balance tip. `tabs.getMyTab`
+  (`available`, and `outstanding` = `reservedOf`), `balance.session`,
+  `tipContext` and `checkTabTip` call it; nothing else computes spendable. A
+  stored ledger figure that would go negative is logged as
+  `CHAIN_TAB_LEDGER_NEGATIVE` and kept at zero, which only enlarges the
+  reserve. In v3, `reservedOf` also adds `withdrawReserved`
+  ([contracts C2](contracts.md#convex-side-of-the-instant-withdrawal)).
+- **Display:** the server never hides a negative value. The view model maps
+  it to `spendable = $0.00` with `overCommitted: true`, and routing treats it
+  as "no amount fits" (no balance route).
+
+#### B. A settlement whose event is never indexed (issue 573)
+
+If a `TabSettled` is never indexed, its paid amount stays in
+`settledUnindexed` for good: spendable is understated (the safe direction)
+and today nothing releases it. v3 adds a release path, unless the v2 ledger
+owner fixes it first.
+
+**Proof that the event will not arrive.** For a voucher with an unindexed
+amount (`paidOnChain` above the total of `indexedPaid`), the last
+settlement record that paid it (`tabSettlements`, `CONFIRMED`, with `txHash`
+and `ledger`) is **stale** when all of these hold:
+
+1. `chainCursor.status` is `OK` and `chainCursor.lastLedger ≥ ledger + 60`
+   (the indexer has covered the settlement's ledger with 5 minutes of margin;
+   the indexer never skips a range, it stops on a gap);
+2. no `chainEvents` row has that `txHash` (`by_tx`) with `type` `TabSettled`
+   for this pair, in any `handled` state (a `pending` or `error` row means the
+   event arrived and the handler must be fixed and re-dispatched, not
+   released);
+3. no settlement for this reader is open (`PREPARED` or `SUBMITTED`).
+
+A settlement record that is not `CONFIRMED` never moved money
+(`finishSettlement` applies only confirmed results), so a failed transaction
+needs no release.
+
+**Release: reconcile from chain, never a bare release.** A stale reserve is
+not simply dropped, because the chain did pay it: dropping it without the
+debit would raise spendable. Instead `internal.tabLedger.reconcileAccount`
+(an action, P5) reads the reader's state by simulation at the latest ledger
+`L`: `Tab.account(reader)` and `Tab.paid(reader, key_id, writer)` for each of
+the reader's ACTIVE pairs. In one mutation it then:
+
+- sets `confirmedBalance` to the chain balance, with
+  `balanceEventId = afterLedgerEventId(L)`, an id that sorts after every event
+  of ledger `L` (the existing ordering rules then ignore every older balance
+  event and debit);
+- for each pair, raises `paidOnChain` to the chain's `paid` through
+  `applyPairSettlement` (so `outstanding` follows) and sets `indexedPaid` to
+  `[0, paid]`;
+- recomputes `settledUnindexed` as Σ (`paidOnChain` − total of `indexedPaid`),
+  which is now zero;
+- writes an audit row.
+
+A late `TabSettled` with an id below `afterLedgerEventId(L)` then debits
+nothing; its range is already in `indexedPaid`, so it releases nothing twice.
+
+**Who releases.** Both:
+
+- **Automatic:** the settler run checks the stale rule for accounts with an
+  unindexed amount (`settledUnindexed > 0`, bounded per run) and schedules
+  `reconcileAccount` with `reason: 'unindexed-stale'`.
+- **Operator:** `npx convex run tabLedger:reconcileAccount '{"tabAccountId":"…","reason":"operator","note":"…"}'`
+  for any account, at any time, under the same rules except the stale rule.
+
+**Audit record** (`tabReconciliations`): `tabAccountId`, `reason`
+(`unindexed-stale`, `since-balance-full` (section C), `operator`),
+`triggeredBy` (`auto` or the operator's user id), `ledger`, `before` and
+`after` (`confirmedBalance`, `outstanding`, `settledUnindexed`, per-pair
+`paidOnChain` and `indexedPaid` totals), the stale settlement hashes, `note`,
+`createdAt`. Any change to `confirmedBalance` other than the stale reserve's
+amount is logged as `CHAIN_TAB_RECONCILE_DRIFT`.
+
+**Tests:** a confirmed settlement whose event is withheld from the fake
+indexer is released only after the cursor passes `ledger + 60`; a `pending`
+event row blocks the release; an open settlement blocks it; after the
+release, spendable equals the chain view and a late event changes nothing;
+the operator path writes the audit row with the user id; a drift case logs
+`CHAIN_TAB_RECONCILE_DRIFT`.
+
+#### C. Bounded balance bookkeeping (`settledSinceBalance`)
+
+Today `TabSettled` debits are kept in `tabAccounts.settledSinceBalance`, at
+most `MAX_SETTLED_SINCE_BALANCE` (256) entries, for two jobs: skipping a
+debit already applied (by event id), and re-applying later debits when an
+older absolute balance event (`Deposited`, `WithdrawStarted`, `Withdrawn`)
+arrives late. With more than 256 settlements between two absolute balance
+events, the oldest entries are cut; a re-dispatch of a cut event then debits
+twice. At a 15 s cadence an active reader reaches 256 in about an hour. v3
+removes the bound in three steps (P5, in `tabEventHandlers.ts` and
+`tabLedger.ts`):
+
+1. **Idempotency by paid range, not by the list.** A `TabSettled` debits
+   `confirmedBalance` by exactly the part of its range
+   `[paid_after − gross, paid_after]` that is new to the pair's
+   `indexedPaid` (`rangesTotal(after) − rangesTotal(before)`). A replay or a
+   re-dispatch adds nothing to `indexedPaid`, so it debits nothing. Events for
+   a pair this deployment never accepted (today's `orphan` return) keep their
+   ranges in a small `tabOrphanPaid` row per (account, key, writer).
+2. **The list only orders, and is compacted.** `settledSinceBalance` keeps
+   only debits with an event id above the indexer's **dispatch watermark**:
+   the id below which every stored event is handled
+   (`chainCursor.dispatchedThrough`, kept by the indexer, P4: just below the
+   lowest `pending` event id, or the cursor when none is pending). An
+   absolute balance event at or below the watermark cannot arrive later, so
+   entries at or below it are dropped on every write. In normal operation the
+   list holds at most one page of events.
+3. **No silent cut.** If the list would still exceed 256 (an event stuck
+   `pending` holds the watermark back), the handler does not truncate: it
+   applies the debit, logs `CHAIN_TAB_SINCE_BALANCE_FULL`, and schedules
+   `reconcileAccount` with `reason: 'since-balance-full'`, which resets the
+   balance from chain (section B) and clears the list.
+
+- **Invariant:** each paid range of each pair is debited from
+  `confirmedBalance` exactly once, whatever the order, replay or re-dispatch
+  of events; `settledSinceBalance` never holds more than 256 entries and is
+  never truncated.
+- **Test:** 300 settlements for one reader between two `Deposited` events,
+  with one `TabSettled` held `pending` and re-dispatched last, plus a full
+  replay of the range: `confirmedBalance` equals the contract's balance and
+  each range is debited once; a forced overflow schedules a reconcile and
+  writes its audit row.
+
+### Runbook rule: pushing Convex functions
+
+A settlement result applied by the old code just before a push, and its
+event applied by the new code after, can disagree on the reserve (for
+example a record applied without `settledUnindexed` has no reserve until its
+event is indexed). So functions are pushed only when the indexer is caught up
+and no settlement is in flight:
+
+1. Hold the settler: set `SETTLER_HOLD=true` on the deployment (P2:
+   `settleDue` returns `held` at once; acceptance continues; the schedule
+   document keeps its request).
+2. Check that no settlement is open; this must print `[]`:
+
+   ```bash
+   npx convex run tabSettlement:listOpenSettlements
+   ```
+
+3. Check that the indexer is caught up: `status` is `OK` and `lagLedgers` is
+   at most 2:
+
+   ```bash
+   npx convex run chain/indexer:readCursor
+   ```
+
+4. Push the functions, then unset `SETTLER_HOLD`. If either check fails, wait
+   one minute and repeat it; do not push.
 
 ## 3.2 Scheduling
 

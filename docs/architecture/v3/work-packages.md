@@ -251,6 +251,7 @@ P0 to P7 use one Tab, for XLM. Further tokens are further Tab instances
 | A1. Accounts       | Passkey smart accounts, fee sponsor, passkey sign-in                                           | [5](05-accounts.md)                  |
 | A2. Assets         | Token registry, prices per asset, accepted tokens, project profiles                            | [6](06-assets.md)                    |
 | A3. Agent payments | HTTP 402 article endpoint and crediting                                                        | [7](07-agent-payments.md)            |
+| K1. Counts         | Article and passage counts as running figures; distinct signed-in readers                      | [K1](#k1-counts)                     |
 | S1. Split legs     | Balance tips for articles with splits: one receipt per recipient, signed and accepted together | [1.1](01-tip-pipeline.md#11-routing) |
 
 Later packages start after P5 and P6 have merged. They may then edit P5's
@@ -304,6 +305,43 @@ listed so the coordinator can sequence them.
 - **Not built:** standard MPP `charge` and x402 `exact` (rejected, 7.6); no
   MPP or x402 SDK dependency is added.
 - **Depends on:** P5, P2. **Size:** M.
+
+#### K1. Counts
+
+- **Goal.** Article and passage counters (tip count, cents, distinct
+  readers, `unidentifiedTipCount`) kept as running figures for balance and
+  wallet tips alike, updated in the same mutation that accepts, fails or
+  reverses a tip, idempotent under retry, replay and double tap.
+- **Design (decided):**
+  - One choke point, `syncTipCounts(ctx, table, rowId)`, called at every
+    status change of a `tips` or `highlightTips` row; it compares the row's
+    stored contribution (`countedIn`: live, cents, reader key, passage id)
+    with what it should be and applies only the difference, so a repeat
+    writes nothing.
+  - What counts: `countsAsTip(row)` beside `countsAsPaid(row)` in
+    `convex/lib/tipReads.ts`. Balance tips count while `ACCEPTED`,
+    `SHORTFALL` or `SETTLED`; wallet and v1 tips when `countsAsPaid` holds.
+  - Integer cents (`articles.tipCents`); `totalTipsUsd` becomes a derived copy.
+  - Distinct readers through membership rows (`tipperMemberships`, one per
+    article or passage and reader, with `liveTips`). The reader key is the
+    signed-in user only; a tip identified only by a Stellar address, or not
+    at all, counts as a tip and in the cents, adds no reader, and moves
+    `unidentifiedTipCount`.
+  - A `passageStats` table (one row per passage), keyed by a `passageId` that
+    passage snapping defines first (sentence range of the article); the
+    on-chain `highlightId` stays unchanged on every row.
+  - A bounded, re-runnable backfill under a counts-epoch marker.
+  - Copy: "N readers" only when `unidentifiedTipCount` is 0, otherwise "N
+    tips"; a private writer view may say "N signed-in readers"
+    (`TipCountsView`, [interfaces](interfaces.md#i1-view-models)).
+- **Edits:** one `syncTipCounts` call each in `submitTabTip` and
+  `setReceiptStatus` (P5's files), `patchRowWithOutcome` and
+  `patchRowStatus` (P4's files), `resolveFlaggedTip`, and the v1 verify and
+  reverse paths (replacing their hand arithmetic); new `convex/lib/tipCounts.ts`
+  or the predicate in `tipReads.ts`; schema additions in `convex/schema.ts`.
+- **Depends on:** the slice merge, and the ledger and lifetime-totals fixes
+  in `overhaul/v3`. The coordinator sequences it with P4 and P5, since it
+  adds one line to functions they own. **Size:** M.
 
 #### S1. Split legs
 

@@ -87,10 +87,15 @@ export type TipResult =
 
 export type BalanceView = {
   status: 'loading' | 'signed-out' | 'none' | 'ready' | 'closing'
-  /** What a new tip can use now: on-chain balance minus reserved and attested withdrawals. */
+  /**
+   * What a new tip can use now: `readerSpendable` (on-chain balance minus
+   * reserved). Shown as $0.00 when the server value is negative.
+   */
   spendable: Money
-  /** Held by accepted tips that are not yet settled on chain. Never counted in spendable. */
+  /** `reservedOf`: accepted and unsettled, plus settled but not yet indexed, plus attested withdrawals. */
   reserved: Money
+  /** The server's spendable is negative: no amount fits, no balance route. */
+  overCommitted: boolean
   byToken: Array<{
     token: TokenId
     spendable: BaseUnits
@@ -145,6 +150,18 @@ export type EarningsView = {
   total: Money
   tipCount: number
   supporterCount: number
+}
+
+/** Article or passage counts (package K1). Copy rule: `label` decides the noun. */
+export type TipCountsView = {
+  tipCount: number
+  total: Money
+  /** Distinct signed-in readers; exact only for them. */
+  readerCount: number
+  /** Live tips with no signed-in reader (wallet-address-only or unknown). */
+  unidentifiedTipCount: number
+  /** 'readers' only when unidentifiedTipCount is 0; otherwise 'tips'. Never a mixed phrase. */
+  label: 'readers' | 'tips'
 }
 
 export type DeviceView = {
@@ -294,9 +311,8 @@ const sessionValidator = v.object({
     token: v.string(),                  // registry id
     contractId: v.string(),
     confirmed: v.string(),
-    reserved: v.string(),            // tabAccounts.outstanding
-    withdrawReserved: v.string(),
-    spendable: v.string(),           // readerSpendable(account)
+    reserved: v.string(),            // reservedOf(account): outstanding + settledUnindexed + withdrawReserved
+    spendable: v.string(),           // readerSpendable(account); may be negative, never clamped here
     spendableCents: v.number(),
   })),
   spendableCents: v.number(),

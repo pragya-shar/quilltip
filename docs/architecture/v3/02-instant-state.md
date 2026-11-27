@@ -67,17 +67,16 @@ the indexer. In the same mutation, v3:
   (section 2.6);
 - sets the activity rows' status to `in-wallet` or `on-chain`.
 
-The reader's spendable amount must not change at settlement:
-`confirmedBalance` falls by the settled gross and `outstanding` by the same
-amount. Today `outstanding` falls at the settler's result and
-`confirmedBalance` only when the indexer applies `TabSettled`, so spendable
-reads too high for one indexer cycle. That defect is fixed once, on
-`overhaul/v2`, by the tab ledger's owner, and `overhaul/v3` takes the fix by
-merge. v3 relies on its invariant: **spendable never rises between a
-settlement result and its indexed event.** Every read model and
-`checkTabTip` compute spendable with one exported helper,
-`readerSpendable(account)` in `convex/lib/chain/tabLedger.ts`
-([section 3.1](03-settlement.md#31-what-changes-from-v2)).
+The reader's spendable amount must not change at settlement. The ledger
+fix merged on `overhaul/v2` (PR 565, into `overhaul/v3` by PR 570) does this:
+the settler's record moves the paid amount from `outstanding` to
+`settledUnindexed`, and the indexed `TabSettled` debits `confirmedBalance`
+and releases it by paid range (`tabVouchers.indexedPaid`). v3 relies on its
+invariant: **spendable never rises between a settlement result and its
+indexed event.** Every read model and `checkTabTip` compute spendable with
+one exported helper, `readerSpendable(account)` =
+`confirmedBalance − reservedOf(account)`, unclamped
+([section 3.1](03-settlement.md#a-spendable-during-settlement-merged-on-overhaulv2-pr-565)).
 
 ### Not paid
 
@@ -197,8 +196,9 @@ in base units (`pendingCents`, `availableCents`, `collectedCents`, and
 only through `moveEarnings(ctx, { userId, token, from, to, cents, baseUnits })`
 in the mutation that changes the receipt's or tip's state. No total is
 computed from a capped scan. Lists (`activity.mine`) are paginated. The
-reader's figures are running fields too: `reserved` is
-`tabAccounts.outstanding`, and `spendable` is `readerSpendable(account)`.
+reader's figures are running fields too: `reserved` is `reservedOf(account)`
+(`outstanding + settledUnindexed`, plus `withdrawReserved` in v3), and
+`spendable` is `readerSpendable(account)`, never clamped on the server.
 
 **Cents.** Each tip carries its writer share in cents at its own acceptance
 price (`tabReceipts.writerCents`, set at acceptance:
