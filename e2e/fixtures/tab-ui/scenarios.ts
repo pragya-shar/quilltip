@@ -594,6 +594,15 @@ const S: Scenario[] = [
       s.indexDelayMs = 8_000
     },
   },
+  {
+    id: 'op-opening',
+    title: 'Opening a tab: sent, first events not indexed yet',
+    view: 'home',
+    device: 'none',
+    seed: (s) => {
+      s.indexDelayMs = 3_000
+    },
+  },
   // --- Reader: quick tip --------------------------------------------------
   {
     id: 'tip-ready',

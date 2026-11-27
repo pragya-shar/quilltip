@@ -286,7 +286,7 @@ colour.
 | State               | Title                         | Detail                                                                                                                                           | Action         | Tone    |
 | ------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ------- |
 | Checking            | Checking your wallet          | This takes a moment.                                                                                                                             | none (spinner) | inline  |
-| Signed out          | Sign in to continue           | Tips and tabs belong to your QuillTip account.                                                                                                   | Sign in        | neutral |
+| Signed out          | Sign in to continue           | Tips and tabs belong to your Quilltip account.                                                                                                   | Sign in        | neutral |
 | No wallet           | No Stellar wallet found       | Install a Stellar wallet such as Varial (formerly Freighter) or xBull in this browser, then try again.                                           | Set up wallet  | neutral |
 | Not connected       | Connect your wallet           | Connecting shares your address. It does not send a payment.                                                                                      | Connect wallet | neutral |
 | Wallet disconnected | Your wallet disconnected      | Your wallet ended the connection. Connect again to continue. Nothing was sent.                                                                   | Connect again  | neutral |
@@ -335,16 +335,16 @@ Set `resultPlace` to where the result shows later, for example "your tab".
 | ------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- | ------- | --------- |
 | Confirmed                             | per flow (below)                                    | per flow (below)                                                                                                                                                         | Done (`doneAction`) | success | polite    |
 | Sent to the registered payout address | Tip sent to the article’s registered payout address | Stellar testnet paid the address registered for this article, which differs from the one shown when you started. The tip is complete, so there is nothing to retry.      | none                | info    | polite    |
-| Under review                          | Sent, but under review                              | The payment went through on Stellar testnet, but the details did not match what QuillTip expected. Your XLM may have moved, so do not send it again. We are checking it. | Get help            | warning | polite    |
-| Failed                                | Not completed (or the client's failure title)       | QuillTip recorded no payment for this request. (or the client's failure detail)                                                                                          | Try again           | danger  | assertive |
+| Under review                          | Sent, but under review                              | The payment went through on Stellar testnet, but the details did not match what Quilltip expected. Your XLM may have moved, so do not send it again. We are checking it. | Get help            | warning | polite    |
+| Failed                                | Not completed (or the client's failure title)       | Quilltip recorded no payment for this request. (or the client's failure detail)                                                                                          | Try again           | danger  | assertive |
 | Declined                              | Request declined in your wallet                     | Nothing was signed or sent.                                                                                                                                              | Try again           | warning | assertive |
 | Expired                               | This request timed out                              | Stellar testnet did not include it in time, so nothing was paid. Try again to start a new request.                                                                       | Try again           | warning | assertive |
-| Tab tip accepted                      | Tip sent from your tab                              | It usually settles on Stellar testnet within about 6 hours. Your tab balance already counts it.                                                                          | none                | info    | polite    |
+| Tab tip accepted                      | Tip sent from your tab                              | Quilltip settles it on Stellar testnet once your unsettled tips to this writer reach 5 XLM, or when the oldest is 6 hours old. Your tab balance already counts it.       | none                | info    | polite    |
 | Tab tip shortfall                     | Waiting for the tab balance                         | This tip is recorded, but the tab ran short. It settles after the next top-up.                                                                                           | none                | warning | polite    |
 | Tab tip unpaid, reader                | Not paid                                            | This tip was not settled before its quick-tip key ran out, so it was not paid. The amount is back in your tab balance.                                                   | none                | danger  | polite    |
 | Tab tip unpaid, writer                | Not paid                                            | This tip was not settled in time, so it will not be paid.                                                                                                                | none                | danger  | polite    |
-| Tab tip rejected, reader              | Not settled                                         | QuillTip could not settle this tip, so it was not paid and your tab was not charged for it. We are checking it.                                                          | Get help            | warning | polite    |
-| Tab tip rejected, writer              | Not settled                                         | QuillTip could not settle this tip, so it was not paid to you. We are checking it.                                                                                       | Get help            | warning | polite    |
+| Tab tip rejected, reader              | Not settled                                         | Quilltip could not settle this tip, so it was not paid and your tab was not charged for it. We are checking it.                                                          | Get help            | warning | polite    |
+| Tab tip rejected, writer              | Not settled                                         | Quilltip could not settle this tip, so it was not paid to you. We are checking it.                                                                                       | Get help            | warning | polite    |
 | Tab tip void reset                    | Cleared by a testnet reset                          | Stellar testnet was reset before this tip settled. No real money was involved.                                                                                           | none                | neutral | polite    |
 
 Every result can lead with a summary line, "{amount} to {recipient}" (for
@@ -397,18 +397,18 @@ Wallet failures while signing, with fixed titles. Every wallet error kind
 except `cancelled` has a row; a unit test fails to compile when a new kind
 has none.
 
-| Kind            | Title                                   | Detail                                                                               |
-| --------------- | --------------------------------------- | ------------------------------------------------------------------------------------ |
-| `rejected`      | Request declined in your wallet         | Nothing was signed or sent.                                                          |
-| `timeout`       | Your wallet did not respond             | Check for an open wallet window, close it, then try again. Nothing was sent.         |
-| `unsupported`   | This wallet cannot be used here         | Choose another wallet in the wallet list. Nothing was sent.                          |
-| `wrong-account` | Your wallet signed with another account | Switch back to the connected account in your wallet, or reconnect. Nothing was sent. |
-| `popup-blocked` | Your browser blocked the wallet window  | Allow pop-ups for this site in your browser, then try again. Nothing was sent.       |
-| `disconnected`  | Your wallet disconnected                | Your wallet ended the connection. Connect again, then try again. Nothing was sent.   |
-| `no-wallet`     | No Stellar wallet found                 | Install a Stellar wallet, then try again. Nothing was sent.                          |
-| `locked`        | Your wallet is locked                   | Unlock your wallet, then connect again. Nothing was sent.                            |
-| `wrong-network` | Switch your wallet to Testnet           | Switch it to Testnet, then try again. Nothing was sent.                              |
-| `failed`        | Your wallet reported a problem          | Try again, or reconnect your wallet. Nothing was sent.                               |
+| Kind            | Title                                   | Detail                                                                                                              |
+| --------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `rejected`      | Request declined in your wallet         | Nothing was signed or sent.                                                                                         |
+| `timeout`       | Your wallet did not respond             | Your wallet may be locked: unlock it, then try again. If a wallet window is open, close it first. Nothing was sent. |
+| `unsupported`   | This wallet cannot be used here         | Choose another wallet in the wallet list. Nothing was sent.                                                         |
+| `wrong-account` | Your wallet signed with another account | Switch back to the connected account in your wallet, or reconnect. Nothing was sent.                                |
+| `popup-blocked` | Your browser blocked the wallet window  | Allow pop-ups for this site in your browser, then try again. Nothing was sent.                                      |
+| `disconnected`  | Your wallet disconnected                | Your wallet ended the connection. Connect again, then try again. Nothing was sent.                                  |
+| `no-wallet`     | No Stellar wallet found                 | Install a Stellar wallet, then try again. Nothing was sent.                                                         |
+| `locked`        | Your wallet is locked                   | Unlock your wallet, then connect again. Nothing was sent.                                                           |
+| `wrong-network` | Switch your wallet to Testnet           | Switch it to Testnet, then try again. Nothing was sent.                                                             |
+| `failed`        | Your wallet reported a problem          | Try again, or reconnect your wallet. Nothing was sent.                                                              |
 
 Send and contract failures: "Not sent" with "Nothing was sent.", or for
 `not_sent`, "Stellar testnet is busy" with "Stellar testnet did not accept it.
@@ -429,14 +429,14 @@ Convex tab refusals with no notice of their own (`kind="refused"`):
 | Above the maximum      | This tip is above the quick-tip maximum      | Choose a smaller amount, or tip from your wallet.              |
 | Below the minimum      | This tip is below the minimum                | Choose a larger amount.                                        |
 | Own article            | You can’t tip your own article               | This tip was not accepted.                                     |
-| No price               | No XLM price right now                       | QuillTip can’t convert this amount yet. Try again in a minute. |
+| No price               | No XLM price right now                       | Quilltip can’t convert this amount yet. Try again in a minute. |
 | Took too long          | This tip took too long                       | This tip was not accepted. Send it again.                      |
 | Already sent           | This tip was already sent                    | Your tab already counts it.                                    |
 | No withdrawal          | No withdrawal is waiting                     | Close your tab first to start one.                             |
 | Quick tips unavailable | Quick tips are unavailable right now         | Tip from your wallet, or try again later.                      |
 | Another account        | This wallet’s tab belongs to another account | Sign in to the account that opened it, or use another wallet.  |
-| Voucher not accepted   | QuillTip could not accept this tip           | Set up quick tips again on this device.                        |
-| Any other code         | QuillTip could not accept this               | Try again in a minute.                                         |
+| Voucher not accepted   | Quilltip could not accept this tip           | Set up quick tips again on this device.                        |
+| Any other code         | Quilltip could not accept this               | Try again in a minute.                                         |
 
 ### Notices
 
@@ -447,8 +447,8 @@ condition there when the page loads) it is not announced.
 
 | Notice                       | Title                                                                                     | Detail                                                                                                                                                                                           | Action (default label)  | Emphasis  | Tone    |
 | ---------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- | --------- | ------- |
-| Paused, reader               | Payments are paused                                                                       | QuillTip has paused new payments on Stellar testnet. Tips you already sent still settle, and you can still withdraw your tab.                                                                    | none                    |           | warning |
-| Paused, writer               | Payments are paused                                                                       | QuillTip has paused new payments on Stellar testnet. Tips already sent still settle, and you can still collect.                                                                                  | none                    |           | warning |
+| Paused, reader               | Payments are paused                                                                       | Quilltip has paused new payments on Stellar testnet. Tips you already sent still settle, and you can still withdraw your tab.                                                                    | none                    |           | warning |
+| Paused, writer               | Payments are paused                                                                       | Quilltip has paused new payments on Stellar testnet. Tips already sent still settle, and you can still collect.                                                                                  | none                    |           | warning |
 | Insufficient balance, wallet | Not enough XLM in your wallet                                                             | This needs {needed} plus a small network fee. Your wallet can spend {available}. Without amounts: Add test XLM to your wallet or choose a smaller amount. The network fee is small but not zero. | Choose a smaller amount | secondary | warning |
 | Insufficient balance, tab    | Not enough in your tab                                                                    | Your tab has {available} free after tips still settling. Top up or choose a smaller tip. Without an amount: Top up your tab or choose a smaller tip.                                             | Top up                  | primary   | warning |
 | Quick tips not set up here   | Quick tips aren’t set up on this device                                                   | Your tab is open. Set up quick tips here to tip without a wallet prompt. It takes one wallet approval.                                                                                           | Set up quick tips       | primary   | info    |

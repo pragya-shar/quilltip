@@ -97,25 +97,25 @@ const TIP_BROADCAST_RECOVERY_MESSAGE: TipFailureMessage = {
 const LEGACY_TIP_RECOVERY_MESSAGE: TipFailureMessage = {
   title: 'Earlier tip saved for recovery',
   detail:
-    'An earlier QuillTip version saved this transaction hash after sending. Check transaction will only register and verify that hash. It cannot resend the payment or open your wallet without the exact signed transaction.',
+    'An earlier Quilltip version saved this transaction hash after sending. Check transaction will only register and verify that hash. It cannot resend the payment or open your wallet without the exact signed transaction.',
 }
 
 const LEGACY_TIP_CHECKING_MESSAGE: TipFailureMessage = {
   title: 'Earlier tip is being checked',
   detail:
-    'QuillTip is checking the saved transaction hash. This recovery path cannot resend the payment or create a replacement transaction.',
+    'Quilltip is checking the saved transaction hash. This recovery path cannot resend the payment or create a replacement transaction.',
 }
 
 const LEGACY_TIP_FAILED_MESSAGE: TipFailureMessage = {
   title: 'Earlier tip could not be verified',
   detail:
-    'The payment server could not verify the saved transaction hash. QuillTip cannot safely resend or replace it because the earlier version did not save the exact signed transaction.',
+    'The payment server could not verify the saved transaction hash. Quilltip cannot safely resend or replace it because the earlier version did not save the exact signed transaction.',
 }
 
 const LEGACY_TIP_RECOVERY_UNAVAILABLE_MESSAGE: TipFailureMessage = {
   title: 'Earlier tip recovery is still unresolved',
   detail:
-    'QuillTip could not check the saved transaction hash right now. No transaction was built, signed, resent, or replaced.',
+    'Quilltip could not check the saved transaction hash right now. No transaction was built, signed, resent, or replaced.',
 }
 
 function configuredStellarNetwork(): 'TESTNET' | 'MAINNET' | null {

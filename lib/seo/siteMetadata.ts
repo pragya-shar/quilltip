@@ -1,6 +1,6 @@
 import { extractPlainTextFromTiptapJson } from '@/lib/tiptap/plainText'
 
-export const SITE_NAME = 'QuillTip'
+export const SITE_NAME = 'Quilltip'
 export const SITE_ORIGIN = 'https://www.quilltip.me'
 
 const DESCRIPTION_MAX = 160

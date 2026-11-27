@@ -342,6 +342,11 @@ export const getMyTab = query({
       acceptedToday: account.acceptedToday,
       acceptedDay: account.acceptedDay,
       withdrawUnlockLedger: account.withdrawUnlockLedger ?? null,
+      // False while the account exists only because an open was prepared:
+      // no Tab event for it has been indexed yet.
+      onChain:
+        account.balanceEventId !== undefined ||
+        account.statusEventId !== undefined,
       // What the next quick tip is checked against, as raw values: the
       // client applies the day and the price's age with its own clock.
       tipLimits: await tabTipLimitsView(ctx, {

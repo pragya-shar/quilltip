@@ -24,6 +24,7 @@ import {
 } from './lib/articleTipExpectation'
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
 import { verifiedStellarAddress } from './lib/walletVerification'
+import { readChainEnv } from './lib/chain/env'
 import { requireV1PreparesEnabled } from './lib/v1Prepares'
 import { getMonthKey, roundCents, writerShareCents } from './lib/authorEarnings'
 import {
@@ -859,6 +860,9 @@ function writerShareStroops(tip: {
 //   table; `complete` is false beyond that).
 // - `earnedBaseUnits`: v2 earnings per token contract ID, from the recorded
 //   on-chain net amounts (`authorEarnings`, section 6.2).
+// - `earnedStroops`: what the stats show as earned XLM: the v1 writer share
+//   plus the v2 earnings in native XLM (`TOKEN_CONTRACT_ID`), so it agrees
+//   with `estimatedUsd`, which also counts both.
 // - `estimatedUsd` and `tipCount`: v1 rows plus the v2 figures in
 //   `authorEarnings`.
 // The network is returned so the UI can label testnet amounts as having no
@@ -871,6 +875,7 @@ export const getMyEarningsSummary = query({
       network: v.union(v.literal('TESTNET'), v.literal('MAINNET')),
       tipCount: v.number(),
       writerShareStroops: v.string(),
+      earnedStroops: v.string(),
       estimatedUsd: v.number(),
       earnedBaseUnits: v.record(v.string(), v.string()),
       v2TipCount: v.number(),
@@ -912,10 +917,20 @@ export const getMyEarningsSummary = query({
     }
     const v2TipCount = earnings?.v2TipCount ?? 0
     const v2Cents = earnings?.v2EarnedCents ?? 0
+    let xlmToken: string | null = null
+    try {
+      xlmToken = readChainEnv().tokenContractId
+    } catch {
+      // Not a v2 deployment: v1 rows only.
+    }
+    const v2Xlm = xlmToken
+      ? BigInt(earnings?.earnedBaseUnits?.[xlmToken] ?? '0')
+      : BigInt(0)
     return {
       network: getStellarNetwork(),
       tipCount: v1Tips.length + v2TipCount,
       writerShareStroops: stroops.toString(),
+      earnedStroops: (stroops + v2Xlm).toString(),
       estimatedUsd: roundCents(cents + v2Cents) / 100,
       earnedBaseUnits: earnings?.earnedBaseUnits ?? {},
       v2TipCount,

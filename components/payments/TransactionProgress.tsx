@@ -24,6 +24,7 @@ import {
   CANCEL_LABEL,
   CHECKING_SLOW,
   DONE_LABEL,
+  FAILED_COPY_BY_FLOW,
   FLOW_COPY,
   HELP_LABEL,
   PROGRESS_HEADING,
@@ -179,7 +180,12 @@ function resultCopy(
     case 'rejected':
       return TAB_TIP_RESULT[phase][options.audience]
     case 'failed':
-      return options.failure ?? RESULT_COPY.failed
+      return (
+        options.failure ??
+        (flow === 'nft-mint' || flow === 'nft-transfer'
+          ? FAILED_COPY_BY_FLOW[flow]
+          : RESULT_COPY.failed)
+      )
     default:
       return RESULT_COPY[phase]
   }

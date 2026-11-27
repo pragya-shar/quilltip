@@ -131,7 +131,9 @@ const UNREACHABLE: PaymentFailure = {
 }
 
 function snapshotOf(tab: MyTab | null | undefined): TabSnapshot {
-  if (!tab) return null
+  // An account that exists only because an open was prepared confirms
+  // nothing: it is OPEN with no Tab event indexed yet (#547).
+  if (!tab || !tab.onChain) return null
   return {
     status: tab.status,
     confirmedBalance: tab.confirmedBalance,
@@ -527,6 +529,19 @@ export function useTabOperation(ctx: TabOperationContext) {
       running.poll === null &&
       !running.declined,
     applied,
+    /**
+     * Sent and not failed, waiting for the indexed tab state to confirm it:
+     * the flow, or null.
+     */
+    confirming:
+      running !== null &&
+      !applied &&
+      running.sent &&
+      !running.declined &&
+      running.failure === null &&
+      (running.poll === null || running.poll === 'SUCCESS')
+        ? running.request.flow
+        : null,
     start,
     retry,
     reset,

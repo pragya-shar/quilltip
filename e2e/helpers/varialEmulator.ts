@@ -18,6 +18,12 @@ export type VarialMode =
   | 'timeout-sign'
   /** Signs transactions but reports that it cannot sign messages. */
   | 'no-message-signing'
+  /**
+   * Locked, as the real extension behaves: the site is allowed, but the
+   * access request waits behind a password prompt and never answers, and
+   * the address read without a prompt is empty.
+   */
+  | 'locked-prompt'
 
 export type VarialEmulatorOptions = { mode: VarialMode; address: string }
 
@@ -70,7 +76,10 @@ export function installVarialEmulator({
       case 'REQUEST_ALLOWED_STATUS':
         return reply({ isAllowed: mode !== 'locked' })
       case 'REQUEST_ACCESS':
+        if (mode === 'locked-prompt') return
+        return reply({ publicKey: mode === 'locked' ? '' : accountAddress() })
       case 'REQUEST_PUBLIC_KEY':
+        if (mode === 'locked-prompt') return reply({ publicKey: '' })
         return reply({ publicKey: mode === 'locked' ? '' : accountAddress() })
       case 'REQUEST_NETWORK_DETAILS':
         return reply({

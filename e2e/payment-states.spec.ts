@@ -229,7 +229,9 @@ test.describe('testnet label', () => {
     for (const state of STATES) {
       await open(page, state.id)
       const root = page.locator('[aria-label="Fixture"]')
-      const text = await root.innerText()
+      // The settlement rule ("reach 5 XLM") is a threshold, not an amount
+      // that moved.
+      const text = (await root.innerText()).replace(/reach \d+ XLM/g, '')
       const hasAmount = /\d XLM/.test(text)
       const hasLink =
         (await root.locator('a[href*="stellar.expert"]').count()) > 0
@@ -370,7 +372,7 @@ test.describe('live regions and focus', () => {
     const title = page.getByRole('heading', { name: 'Not completed' })
     await expect(title).toBeFocused()
     await expect(title).toHaveAccessibleDescription(
-      /QuillTip recorded no payment for this request\./
+      /Quilltip recorded no payment for this request\./
     )
     await expect(assertive(page)).toHaveText('')
     await expect(polite(page)).toHaveText('')
@@ -446,7 +448,7 @@ test.describe('live regions and focus', () => {
     await page.getByRole('link', { name: 'Elsewhere' }).focus()
     await drive(page, 'failed')
     await expect(assertive(page)).toHaveText(
-      'Not completed. QuillTip recorded no payment for this request.'
+      'Not completed. Quilltip recorded no payment for this request.'
     )
     await expect(page.getByRole('link', { name: 'Elsewhere' })).toBeFocused()
     await drive(page, 'checking')
@@ -520,7 +522,7 @@ test.describe('live regions and focus', () => {
     await page.getByRole('button', { name: 'Send tip' }).click()
     const live = page.locator('.pay-notice > [role="status"]')
     await expect(live).toHaveText(
-      'Payments are paused. QuillTip has paused new payments on Stellar testnet. Tips you already sent still settle, and you can still withdraw your tab.'
+      'Payments are paused. Quilltip has paused new payments on Stellar testnet. Tips you already sent still settle, and you can still withdraw your tab.'
     )
     // The region existed, empty, before its text arrived.
     await expect(page.locator('.pay-notice [role="status"]')).toHaveCount(1)

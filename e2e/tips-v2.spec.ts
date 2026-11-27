@@ -1311,3 +1311,138 @@ for (const width of [320, 1440] as const) {
     }
   })
 }
+
+// --- Follow-ups from the testnet wallet run (#547) -------------------------
+
+test.describe('testnet wallet run follow-ups (#547)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('Done after a passage tip closes the passage slip too', async ({
+    page,
+  }) => {
+    await open(page, 'popover=1')
+    const slip = page.getByRole('dialog', { name: 'Create highlight' })
+    await expect(slip).toBeVisible()
+    await slip.getByRole('button', { name: 'Highlight & tip' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Tip this passage' })
+    await sendTip(page, dialog)
+    await expect(
+      dialog.getByRole('heading', { name: 'Highlight tip confirmed' })
+    ).toBeVisible()
+    await dialog.getByRole('button', { name: 'Done' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(slip).toBeHidden()
+    await expect(page.getByTestId('slip-closed')).toBeVisible()
+  })
+
+  test('a passage in the basket is titled with its article', async ({
+    page,
+  }) => {
+    await open(page)
+    await page.getByRole('button', { name: 'Tip passage' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Tip this passage' })
+    await dialog.getByRole('button', { name: 'Add to tip basket' }).click()
+    await dialog.getByRole('button', { name: 'Open basket' }).click()
+    const sheet = page.getByRole('dialog', { name: 'Tip basket' })
+    const row = sheet.getByRole('listitem')
+    await expect(row.locator('.tip-basket-row-title')).toHaveText(
+      'On Writing Well, Again'
+    )
+    await expect(
+      row.getByRole('button', {
+        name: 'Remove the tip for the passage in On Writing Well, Again',
+      })
+    ).toBeVisible()
+  })
+
+  test('a hovered amount looks different from the chosen one', async ({
+    page,
+  }) => {
+    await open(page)
+    const dialog = await openArticleTip(page)
+    const chosen = dialog.getByRole('button', { name: '$1', exact: true })
+    const other = dialog.getByRole('button', { name: '$5', exact: true })
+    await expect(chosen).toHaveAttribute('aria-pressed', 'true')
+    const look = (l: Locator) =>
+      l.evaluate((el) => {
+        const s = getComputedStyle(el)
+        return `${s.backgroundColor}|${s.color}`
+      })
+    const selected = await look(chosen)
+    await other.hover()
+    // Read the settled colours, after the 150 ms background transition.
+    await page.waitForTimeout(400)
+    expect(await look(other)).not.toBe(selected)
+    // Pressing it still selects it.
+    await other.click()
+    await expect(other).toHaveAttribute('aria-pressed', 'true')
+    await page.mouse.move(0, 0)
+    await page.waitForTimeout(400)
+    expect(await look(other)).toBe(selected)
+  })
+
+  test('a confirmed basket stops counting its tips before Done', async ({
+    page,
+  }) => {
+    await open(page, 'basket=2')
+    await page.getByRole('button', { name: /Tip basket/ }).click()
+    const sheet = page.getByRole('dialog', { name: 'Tip basket' })
+    await connect(sheet)
+    await sheet.getByRole('button', { name: /^Send 2 tips/ }).click()
+    await expect(
+      sheet.getByRole('heading', { name: /Tips confirmed/ })
+    ).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(sheet).toBeHidden()
+    await expect(
+      page.getByRole('button', { name: 'Tip basket, tips sent' })
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: /Tip basket, 2 tips/ })
+    ).toHaveCount(0)
+  })
+
+  test('after a reload, a confirmed basket still does not count its tips', async ({
+    page,
+  }) => {
+    await open(page, 'basket=sent')
+    await expect(
+      page.getByRole('button', { name: 'Tip basket, tips sent' })
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: /Tip basket, \d+ tips?$/ })
+    ).toHaveCount(0)
+  })
+})
+
+test.describe('the wallet account before signing (#547)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('a wallet that switched accounts is asked to switch back before anything is signed', async ({
+    page,
+  }) => {
+    await open(page)
+    const dialog = await openArticleTip(page)
+    await connect(dialog)
+    // The extension moves to another account without telling the page.
+    await page.evaluate(() => {
+      ;(
+        window as unknown as { __fixtureWallet: { address: string } }
+      ).__fixtureWallet.address =
+        'GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR'
+    })
+    await dialog.getByRole('button', { name: 'Send tip' }).click()
+    await expect(
+      dialog.getByRole('heading', { name: /^Switch your wallet to G/ })
+    ).toBeVisible()
+    await expect(
+      dialog
+        .getByText(
+          /the address linked to your Quilltip account\. Your wallet is on GCS5…DUAR\./
+        )
+        .first()
+    ).toBeVisible()
+    await expect(dialog.getByText(/Nothing was signed\./).first()).toBeVisible()
+    expect((await log(page)).signed).toEqual([])
+  })
+})

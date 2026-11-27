@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 export function WritingBrand() {
   return (
-    <a className="brand" aria-label="QuillTip home" href="/">
+    <a className="brand" aria-label="Quilltip home" href="/">
       <svg viewBox="0 0 100 112" aria-hidden="true">
         <defs>
           <mask id="writing-ring">
@@ -26,7 +26,7 @@ export function WritingBrand() {
         <circle cx="68" cy="74" r="6" fill="var(--paper)" />
         <path d="M68 74 98 106" stroke="var(--paper)" strokeWidth="3" />
       </svg>
-      <span className="brand-word">uillTip</span>
+      <span className="brand-word">uilltip</span>
       <span className="desk-label"> / Writing desk</span>
     </a>
   )

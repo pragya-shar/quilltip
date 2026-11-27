@@ -514,7 +514,7 @@ from those; they were not measured separately.
    - Each fallback face matches the file its family draws at that weight.
      Syne has three files (400, 600, 700). `Landing Syne` and the sign-in
      pages' `Account Syne` have one face per file, so 500 draws the 400 file:
-     they use `Syne Fallback`. `QuillTip Display`, `Reader`, `Reading Room`,
+     they use `Syne Fallback`. `Quilltip Display`, `Reader`, `Reading Room`,
      `Library`, `Writing` and `Wallet Syne`, and the account pages'
      `Account Syne`, draw the 600 file at every weight: they use
      `Syne 600 Fallback`. Before this split, the `/guide` wallet button

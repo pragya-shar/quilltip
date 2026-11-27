@@ -258,7 +258,7 @@ export default function WalletPractice({ active }: { active: boolean }) {
         <p>
           {confirmed
             ? 'Now you know what happens between approving a transfer and receiving a confirmation.'
-            : 'Send 1 test XLM to QuillTip’s demo wallet. Practice only — this doesn’t tip an article.'}
+            : 'Send 1 test XLM to Quilltip’s demo wallet. Practice only — this doesn’t tip an article.'}
         </p>
         <div
           className={`practice-vignette ${confirmed ? 'is-delivered' : ''} ${busy ? 'is-working' : ''}`}
@@ -348,7 +348,7 @@ export default function WalletPractice({ active }: { active: boolean }) {
             )}
             <p>
               {record.status === 'confirmed'
-                ? 'Delivered to QuillTip’s demo receiver. Your wallet did the signing; Stellar confirmed the transfer.'
+                ? 'Delivered to Quilltip’s demo receiver. Your wallet did the signing; Stellar confirmed the transfer.'
                 : record.status === 'failed'
                   ? 'The payment did not succeed. A network fee may still apply.'
                   : record.status === 'expired'
@@ -471,7 +471,7 @@ export default function WalletPractice({ active }: { active: boolean }) {
                   </div>
                 </dl>
                 <p className="practice-address">
-                  To QuillTip’s demo receiver<code>{RECIPIENT}</code>
+                  To Quilltip’s demo receiver<code>{RECIPIENT}</code>
                 </p>
                 <button
                   className="button primary"

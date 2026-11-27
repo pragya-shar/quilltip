@@ -82,6 +82,10 @@ export interface HighlightTipButtonProps {
   label?: string
   onBeforeOpen?: () => Promise<boolean>
   disabled?: boolean
+  /** The article's title, for the tip basket (payments v2). */
+  articleTitle?: string
+  /** "Done" after a result closed the tip dialog (payments v2). */
+  onDone?: () => void
 }
 
 type HighlightTipRecordArgs = {

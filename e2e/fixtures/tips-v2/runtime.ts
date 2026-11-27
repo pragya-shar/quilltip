@@ -745,6 +745,36 @@ export function seedBasket() {
     articleKey: ARTICLES[key].key,
   })
   let items
+  if (value === 'sent') {
+    // A basket of two tips whose payment the server confirmed, before the
+    // reader pressed "Done" (a reload after the result, #547).
+    items = [make('second', 0), make('shared', 1)]
+    const id = 'sub-basket-sent'
+    store.submissions[id] = {
+      id,
+      method: 'tip_batch',
+      status: 'CONFIRMED',
+      mismatchReason: null,
+      needsReview: false,
+      txHash: 'c9'.repeat(32),
+      maxTime: Math.floor(Date.now() / 1000) + 300,
+      rows: items.map((item) => ({
+        articleId: item.articleId,
+        table: 'tips' as const,
+        amountCents: item.amountCents,
+        gross: grossFor(item.amountCents),
+        status: 'CONFIRMED',
+        mismatchReason: null,
+        needsReview: false,
+        clientRef: random(16),
+      })),
+    }
+    localStorage.setItem(
+      'quilltip:tip-basket:v2:qa-reader',
+      JSON.stringify({ items, submissionId: id, sent: items })
+    )
+    return
+  }
   if (value === 'full') {
     items = Array.from({ length: 10 }, (_, n) => make('second', n, n > 0))
   } else if (value === 'transfers') {

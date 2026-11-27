@@ -26,7 +26,7 @@
  *   Account Syne on the sign-in pages): 400 and 500 draw the 400 file, 600
  *   the 600 file, 700 and 800 the 700 file.
  * - 'Syne 600 Fallback' for families that draw the 600 file at every weight
- *   (`font-weight: 400 800`): QuillTip Display, Reader, Reading Room, Library,
+ *   (`font-weight: 400 800`): Quilltip Display, Reader, Reading Room, Library,
  *   Writing and Wallet Syne, and Account Syne on the account pages.
  */
 @font-face {

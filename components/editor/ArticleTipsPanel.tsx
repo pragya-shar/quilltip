@@ -287,7 +287,7 @@ export function ArticleTipsPanel({
           <p>
             Register this article on Stellar testnet so readers can tip it. Tips
             go to <span translate="no">{shortAddress(author)}</span>
-            {sharing ? ' and your co-authors' : ''}; QuillTip keeps 2.5%. You
+            {sharing ? ' and your co-authors' : ''}; Quilltip keeps 2.5%. You
             approve one transaction in your wallet.
           </p>
           {view.retry && !actions.failure && (
@@ -394,7 +394,7 @@ export function ArticleTipsPanel({
       body = (
         <>
           <p className="tips-note">
-            The transaction finished on Stellar testnet, but not as QuillTip
+            The transaction finished on Stellar testnet, but not as Quilltip
             expected. We are checking it, so there is nothing to retry. Tips
             stay off until the check is done.
           </p>

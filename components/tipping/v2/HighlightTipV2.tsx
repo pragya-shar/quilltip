@@ -30,6 +30,8 @@ const TipDialogV2 = lazy(() =>
 interface HighlightTipV2Props {
   articleId: Id<'articles'>
   articleSlug: string
+  /** For the tip basket row; the dialog shows the passage. */
+  articleTitle?: string
   authorName: string
   highlightText: string
   startOffset: number
@@ -42,12 +44,15 @@ interface HighlightTipV2Props {
   onBeforeOpen?: () => Promise<boolean>
   disabled?: boolean
   onSuccess?: () => void
+  /** "Done" after a result: the dialog closed; close what opened it too. */
+  onDone?: () => void
 }
 
 /** The v2 passage tip: the button and its dialog. */
 export function HighlightTipV2({
   articleId,
   articleSlug,
+  articleTitle = '',
   authorName,
   highlightText,
   startOffset,
@@ -59,6 +64,7 @@ export function HighlightTipV2({
   onBeforeOpen,
   disabled,
   onSuccess,
+  onDone,
 }: HighlightTipV2Props) {
   const eligibility = useQuery(api.tipsV2.getTipEligibility, { articleId })
   const [open, setOpen] = useState(false)
@@ -116,7 +122,7 @@ export function HighlightTipV2({
                 variant="highlight"
                 articleId={articleId}
                 articleSlug={articleSlug}
-                articleTitle=""
+                articleTitle={articleTitle}
                 authorName={authorName}
                 eligibility={eligibility}
                 highlight={{
@@ -134,6 +140,7 @@ export function HighlightTipV2({
                 onDone={() => {
                   setOpen(false)
                   last.refresh()
+                  onDone?.()
                 }}
                 onConfirmed={onSuccess}
               />

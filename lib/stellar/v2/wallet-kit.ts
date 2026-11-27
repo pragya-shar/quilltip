@@ -1,5 +1,5 @@
 /**
- * Loads Stellar Wallets Kit 2.x and the modules QuillTip offers, on demand in
+ * Loads Stellar Wallets Kit 2.x and the modules Quilltip offers, on demand in
  * the browser. Only this file imports the kit at runtime.
  *
  * Modules: Varial (formerly Freighter), xBull (extension, or its web wallet
@@ -33,7 +33,7 @@ import {
 
 export type { WalletConnection, WalletEvent, WalletSignResult } from './wallet'
 
-/** The kit modal in the QuillTip account palette (cream, ink, wine). */
+/** The kit modal in the Quilltip account palette (cream, ink, wine). */
 export const QUILLTIP_WALLET_THEME: SwkAppTheme = {
   background: '#faf5ec',
   'background-secondary': '#f3e9db',

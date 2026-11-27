@@ -12,9 +12,11 @@ import {
   FAILURE_COPY,
   TAB_REFUSAL_COPY,
   WALLET_FAILURE_COPY,
+  WRONG_ACCOUNT_BEFORE_SIGNING,
   type CopyBlock,
 } from '@/lib/copy/payment-states'
 import type { TipsUnavailableReason, WalletGateState } from './ui-state'
+import { shortAddress } from './format'
 
 export type PaymentFailure = { title: string; detail: string }
 
@@ -29,6 +31,9 @@ export type WalletFailureLike = {
   kind: WalletErrorKind
   /** Network passphrase the wallet reported (wrong-network only). */
   walletPassphrase?: string
+  /** wrong-account before signing: who must sign, and the wallet's account. */
+  expectedAddress?: string
+  walletAddress?: string
 }
 
 // Wallet -----------------------------------------------------------------------
@@ -78,6 +83,17 @@ export function failureFromWalletError(
   error: WalletFailureLike
 ): PaymentFailure | null {
   if (error.kind === 'cancelled') return null
+  // Found before the wallet was asked to sign: name the linked address.
+  if (
+    error.kind === 'wrong-account' &&
+    error.expectedAddress &&
+    error.walletAddress
+  ) {
+    return WRONG_ACCOUNT_BEFORE_SIGNING(
+      shortAddress(error.expectedAddress),
+      shortAddress(error.walletAddress)
+    )
+  }
   // The map covers every kind at compile time; a value outside the type at
   // run time still gets the generic copy.
   return WALLET_FAILURE_COPY[error.kind] ?? WALLET_FAILURE_COPY.failed

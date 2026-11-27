@@ -4,6 +4,8 @@ import { WalletProvider } from '../../../components/providers/WalletProvider'
 import { ArticleReaderSupport } from '../../../components/articles/ArticleReaderSupport'
 import { HighlightTipButton } from '../../../components/highlights/HighlightTipButton'
 import { HighlightTipGate } from '../../../components/highlights/HighlightTipGate'
+import { HighlightPopover } from '../../../components/highlights/HighlightPopover'
+import { useState } from 'react'
 import '../../../components/articles/reader.css'
 import type { Id } from '../../../types/convex'
 import { ARTICLES, seedBasket, seedReload } from './runtime'
@@ -20,6 +22,31 @@ const PASSAGE =
 if (query.get('dir') === 'rtl') document.documentElement.dir = 'rtl'
 const BODY = `Opening line. ${PASSAGE}. Closing line.`
 const START = BODY.indexOf(PASSAGE)
+
+/**
+ * `?popover=1`: the passage tip inside the "Keep these words" slip, as on the
+ * article page after a selection (#547).
+ */
+function PassageSlip({ article }: { article: (typeof ARTICLES)['main'] }) {
+  const [open, setOpen] = useState(true)
+  if (!open) return <p data-testid="slip-closed">Slip closed</p>
+  return (
+    <HighlightPopover
+      position={{ top: 80, left: 16 }}
+      onCreateHighlight={() => true}
+      onClose={() => setOpen(false)}
+      onSignInToSave={() => {}}
+      selectedText={PASSAGE}
+      articleId={article.id as Id<'articles'>}
+      articleSlug={article.slug}
+      articleTitle={article.title}
+      authorName={article.author}
+      authorStellarAddress="GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI"
+      startOffset={START}
+      endOffset={START + PASSAGE.length}
+    />
+  )
+}
 
 function Fixture() {
   const article = ARTICLES.main
@@ -42,6 +69,7 @@ function Fixture() {
           <HighlightTipButton
             articleId={article.id as Id<'articles'>}
             articleSlug={article.slug}
+            articleTitle={article.title}
             authorName={article.author}
             highlightText={PASSAGE}
             startOffset={START}
@@ -49,6 +77,7 @@ function Fixture() {
           />
         </HighlightTipGate>
       </section>
+      {query.get('popover') === '1' ? <PassageSlip article={article} /> : null}
       <ArticleReaderSupport
         articleTitle={article.title}
         articleId={article.id as Id<'articles'>}

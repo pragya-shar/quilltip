@@ -1,6 +1,6 @@
 # Architecture
 
-QuillTip's main flow is reading/writing articles, saving exact-passage highlights,
+Quilltip's main flow is reading/writing articles, saving exact-passage highlights,
 and appreciating authors through Stellar tips. Payment development uses testnet;
 Arweave publishing is optional and can be permanent.
 

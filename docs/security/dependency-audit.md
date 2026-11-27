@@ -18,7 +18,7 @@ The live registry gate now reports **0 critical, 6 high, 5 moderate and 1 low** 
 
 ## 2026-11-10 remediation
 
-- Both Stellar SDK versions resolve `toml@^3.0.0` to `5.0.1`, outside all five high-severity advisory ranges. The override preserves the CommonJS `parse` entry used by the SDK. The compatibility suite exercises the real Stellar TOML resolver against a loopback server. The SDK’s prebuilt browser bundles still include the older parser. QuillTip does not call the browser TOML or federation APIs, and this remediation does not rebuild those bundles.
+- Both Stellar SDK versions resolve `toml@^3.0.0` to `5.0.1`, outside all five high-severity advisory ranges. The override preserves the CommonJS `parse` entry used by the SDK. The compatibility suite exercises the real Stellar TOML resolver against a loopback server. The SDK’s prebuilt browser bundles still include the older parser. Quilltip does not call the browser TOML or federation APIs, and this remediation does not rebuild those bundles.
 - Turbo's Solana buffer-layout dependency resolves `bigint-buffer@^1.1.5` to the checked-in JavaScript converter in `patches/portable-bigint-buffer`. It retains the four conversions from the upstream fallback and ships no native binding, build script, or registry dependency. The compatibility suite checks byte order through the installed Solana layout and verifies Turbo's existing RSA signing and bundling paths.
 - The live lockfile scan reports **0 critical, 0 high, 5 moderate and 1 low** records. All six expired entries were removed after their affected packages disappeared from the lockfile. The existing audit threshold and CI gate still apply.
 
@@ -185,7 +185,7 @@ Resolved after: `6.1.7`
 
 ### elliptic
 
-Affected function(s): ECDSA sign. Crypto dependencies under ArDrive/Ethers, Trezor and NEAR. QuillTip uses RSA ArweaveSigner and delegates Stellar Ed25519 signing to wallets. No app ECDSA secret signs attacker messages through elliptic. Same-major 6.6.1 override removes the critical record; a moderate upstream nonce advisory remains outside the blocking threshold.
+Affected function(s): ECDSA sign. Crypto dependencies under ArDrive/Ethers, Trezor and NEAR. Quilltip uses RSA ArweaveSigner and delegates Stellar Ed25519 signing to wallets. No app ECDSA secret signs attacker messages through elliptic. Same-major 6.6.1 override removes the critical record; a moderate upstream nonce advisory remains outside the blocking threshold.
 
 - Runtime manifest, installed `6.5.4` (`@dha-team/arbundles/@ethersproject/signing-key/elliptic`): `@ardrive/turbo-sdk@1.41.0` → `@dha-team/arbundles@1.0.4` → `@ethersproject/signing-key@5.7.0` → `elliptic@6.5.4`
 
@@ -417,7 +417,7 @@ Resolved after: `1.42.7`
 
 ### protobufjs
 
-Affected function(s): reflection/codegen, option paths, recursive decoding and Any JSON conversion. Trezor wallet-kit dependency pinned to 7.4.0. QuillTip never loads caller-supplied protobuf schemas or calls protobuf reflection/codegen directly. Same-major 7.6.6 override removes the critical and high records; no code-execution proof was produced.
+Affected function(s): reflection/codegen, option paths, recursive decoding and Any JSON conversion. Trezor wallet-kit dependency pinned to 7.4.0. Quilltip never loads caller-supplied protobuf schemas or calls protobuf reflection/codegen directly. Same-major 7.6.6 override removes the critical and high records; no code-execution proof was produced.
 
 - Runtime manifest, installed `7.4.0` (`protobufjs`): `@creit.tech/stellar-wallets-kit@1.9.5` → `@trezor/connect-plugin-stellar@9.2.1` → `@trezor/connect@9.6.2` → `@trezor/protobuf@1.4.2` → `protobufjs@7.4.0`
 

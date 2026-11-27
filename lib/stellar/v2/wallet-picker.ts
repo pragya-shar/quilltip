@@ -1,10 +1,10 @@
 /**
- * The open request for QuillTip's wallet picker. `useStellarWallet().connect()`
+ * The open request for Quilltip's wallet picker. `useStellarWallet().connect()`
  * calls `openWalletPicker()`; the `WalletPicker` dialog (rendered once by the
  * wallet runtime) shows the request and settles it with a connection, a
  * wallet error, or `cancelled` when the reader closes it.
  *
- * QuillTip draws its own picker instead of the kit's `authModal` because the
+ * Quilltip draws its own picker instead of the kit's `authModal` because the
  * kit's wallet options are list items with click handlers only: they cannot
  * be reached or chosen with a keyboard.
  */

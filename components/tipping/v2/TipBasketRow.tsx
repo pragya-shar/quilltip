@@ -42,7 +42,8 @@ export function TipBasketRow({
     onAvailability(item.id, !unavailable)
   }, [item.id, unavailable, onAvailability])
 
-  const title = item.articleTitle || item.authorName
+  // A basket saved before passage tips carried the title has none.
+  const title = item.articleTitle || BASKET_COPY.untitled(item.authorName)
   return (
     <li className="tip-basket-row" data-unavailable={unavailable || undefined}>
       <div>

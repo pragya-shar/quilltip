@@ -106,6 +106,10 @@ export const BASKET_COPY = {
     'Send several tips in one payment. You approve once in your wallet.',
   trigger: (count: number) =>
     count === 1 ? 'Tip basket, 1 tip' : `Tip basket, ${count} tips`,
+  /** The basket's tips were sent; the result is still to be seen. */
+  triggerSent: 'Tip basket, tips sent',
+  /** A basket row whose article title is not known. */
+  untitled: (author: string) => `An article by ${author}`,
   empty: 'Your tip basket is empty. Add a tip from an article or a passage.',
   pay: (count: number) => (count === 1 ? 'Send 1 tip' : `Send ${count} tips`),
   remove: 'Remove',

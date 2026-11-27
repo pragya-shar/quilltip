@@ -1,7 +1,7 @@
 # Linear issue conventions
 
 Workspace: [bhvn](https://linear.app/bhvn). Team: Engineering (`ENG`). Use the
-current QuillTip project; code work targets `main`.
+current Quilltip project; code work targets `main`.
 
 ## Before creating or updating
 

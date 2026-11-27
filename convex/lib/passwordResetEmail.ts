@@ -5,7 +5,7 @@ import type { ActionCtx } from '../_generated/server'
 // Password reset codes are emailed through Resend's HTTP API, so no SDK is
 // needed. Configure on the Convex deployment:
 //   AUTH_RESEND_KEY   Resend API key (required for reset emails)
-//   AUTH_EMAIL_FROM   e.g. "QuillTip <no-reply@your-domain>" (verified sender)
+//   AUTH_EMAIL_FROM   e.g. "Quilltip <no-reply@your-domain>" (verified sender)
 //   SITE_URL          app origin used for the reset link
 // Without AUTH_RESEND_KEY the reset flow reports that email is unavailable.
 // Delivery runs in a scheduled action, so a request for an existing account
@@ -37,7 +37,7 @@ export function resetLink(code: string): string {
 
 export function resetEmailText(code: string): string {
   return [
-    'Someone asked to reset the password for this QuillTip account.',
+    'Someone asked to reset the password for this Quilltip account.',
     '',
     `Your reset code is ${code}. It expires in ${RESET_CODE_TTL_S / 60} minutes and works once.`,
     '',
@@ -57,9 +57,9 @@ export async function deliverResetEmail(to: string, code: string) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: process.env.AUTH_EMAIL_FROM ?? 'QuillTip <onboarding@resend.dev>',
+      from: process.env.AUTH_EMAIL_FROM ?? 'Quilltip <onboarding@resend.dev>',
       to: [to],
-      subject: 'Your QuillTip password reset code',
+      subject: 'Your Quilltip password reset code',
       text: resetEmailText(code),
     }),
   })

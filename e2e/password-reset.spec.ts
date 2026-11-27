@@ -55,7 +55,7 @@ for (const viewport of [
             .getByRole('alert')
         ).toContainText('no code was sent')
         await expect(
-          page.getByRole('link', { name: 'Contact QuillTip' })
+          page.getByRole('link', { name: 'Contact Quilltip' })
         ).toBeVisible()
       }
       expect(

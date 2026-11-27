@@ -9,7 +9,7 @@ export function LandingWordmark({ onClick }: { onClick?: () => void }) {
   return (
     <Link
       href="/"
-      aria-label="QuillTip home"
+      aria-label="Quilltip home"
       className="wordmark"
       onClick={onClick}
     >
@@ -56,7 +56,7 @@ export function LandingWordmark({ onClick }: { onClick?: () => void }) {
           </g>
           <path d={nib} mask={`url(#${id}-nib)`} fill="currentColor" />
         </svg>
-        <span aria-hidden="true">uillTip</span>
+        <span aria-hidden="true">uilltip</span>
       </span>
     </Link>
   )

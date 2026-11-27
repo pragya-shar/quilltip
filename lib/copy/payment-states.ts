@@ -54,7 +54,7 @@ export function gateCopy(
     case 'signed-out':
       return {
         title: 'Sign in to continue',
-        detail: 'Tips and tabs belong to your QuillTip account.',
+        detail: 'Tips and tabs belong to your Quilltip account.',
         action: 'Sign in',
       }
     case 'no-wallet':
@@ -251,12 +251,12 @@ export const RESULT_COPY: Record<
   'under-review': {
     title: 'Sent, but under review',
     detail:
-      'The payment went through on Stellar testnet, but the details did not match what QuillTip expected. Your XLM may have moved, so do not send it again. We are checking it.',
+      'The payment went through on Stellar testnet, but the details did not match what Quilltip expected. Your XLM may have moved, so do not send it again. We are checking it.',
   },
   /** A `FAILED` record with no client failure to show (for example after a reload). */
   failed: {
     title: 'Not completed',
-    detail: 'QuillTip recorded no payment for this request.',
+    detail: 'Quilltip recorded no payment for this request.',
   },
   declined: {
     title: 'Request declined in your wallet',
@@ -270,7 +270,7 @@ export const RESULT_COPY: Record<
   accepted: {
     title: 'Tip sent from your tab',
     detail:
-      'It usually settles on Stellar testnet within about 6 hours. Your tab balance already counts it.',
+      'Quilltip settles it on Stellar testnet once your unsettled tips to this writer reach 5 XLM, or when the oldest is 6 hours old. Your tab balance already counts it.',
   },
   shortfall: {
     title: 'Waiting for the tab balance',
@@ -283,6 +283,21 @@ export const RESULT_COPY: Record<
       'Stellar testnet was reset before this tip settled. No real money was involved.',
   },
 }
+
+/**
+ * `RESULT_COPY.failed` for flows that are not payments: an NFT mint or
+ * transfer that ended `FAILED` with no client failure to show.
+ */
+export const FAILED_COPY_BY_FLOW = {
+  'nft-mint': {
+    title: 'Not completed',
+    detail: 'Quilltip recorded no mint for this request. Nothing was sent.',
+  },
+  'nft-transfer': {
+    title: 'Not completed',
+    detail: 'Quilltip recorded no transfer for this request. Nothing was sent.',
+  },
+} as const satisfies Partial<Record<PaymentFlow, CopyBlock>>
 
 /** Tab tip results that read differently for the reader and the writer. */
 export const TAB_TIP_RESULT = {
@@ -301,12 +316,12 @@ export const TAB_TIP_RESULT = {
     reader: {
       title: 'Not settled',
       detail:
-        'QuillTip could not settle this tip, so it was not paid and your tab was not charged for it. We are checking it.',
+        'Quilltip could not settle this tip, so it was not paid and your tab was not charged for it. We are checking it.',
     },
     writer: {
       title: 'Not settled',
       detail:
-        'QuillTip could not settle this tip, so it was not paid to you. We are checking it.',
+        'Quilltip could not settle this tip, so it was not paid to you. We are checking it.',
     },
   },
 } as const
@@ -350,12 +365,24 @@ export const FAILURE_COPY = {
  * shown. Every wallet error kind except `cancelled` has an entry, so a new
  * kind does not compile until it has copy.
  */
+/**
+ * The wallet is on another account than the linked address that must sign,
+ * found before any signature was requested (addresses shortened).
+ */
+export const WRONG_ACCOUNT_BEFORE_SIGNING = (
+  linked: string,
+  wallet: string
+): CopyBlock => ({
+  title: `Switch your wallet to ${linked}`,
+  detail: `This is signed by ${linked}, the address linked to your Quilltip account. Your wallet is on ${wallet}. Switch accounts in your wallet, then try again. Nothing was signed.`,
+})
+
 export const WALLET_FAILURE_COPY = {
   rejected: RESULT_COPY.declined,
   timeout: {
     title: 'Your wallet did not respond',
     detail:
-      'Check for an open wallet window, close it, then try again. Nothing was sent.',
+      'Your wallet may be locked: unlock it, then try again. If a wallet window is open, close it first. Nothing was sent.',
   },
   unsupported: {
     title: 'This wallet cannot be used here',
@@ -410,7 +437,7 @@ export const TAB_REFUSAL_COPY = {
   },
   noPrice: {
     title: 'No XLM price right now',
-    detail: 'QuillTip can’t convert this amount yet. Try again in a minute.',
+    detail: 'Quilltip can’t convert this amount yet. Try again in a minute.',
   },
   timedOut: {
     title: 'This tip took too long',
@@ -433,11 +460,11 @@ export const TAB_REFUSAL_COPY = {
     detail: 'Sign in to the account that opened it, or use another wallet.',
   },
   badVoucher: {
-    title: 'QuillTip could not accept this tip',
+    title: 'Quilltip could not accept this tip',
     detail: 'Set up quick tips again on this device.',
   },
   generic: {
-    title: 'QuillTip could not accept this',
+    title: 'Quilltip could not accept this',
     detail: 'Try again in a minute.',
   },
 } as const
@@ -471,12 +498,12 @@ export const NOTICE_COPY = {
     reader: {
       title: 'Payments are paused',
       detail:
-        'QuillTip has paused new payments on Stellar testnet. Tips you already sent still settle, and you can still withdraw your tab.',
+        'Quilltip has paused new payments on Stellar testnet. Tips you already sent still settle, and you can still withdraw your tab.',
     },
     writer: {
       title: 'Payments are paused',
       detail:
-        'QuillTip has paused new payments on Stellar testnet. Tips already sent still settle, and you can still collect.',
+        'Quilltip has paused new payments on Stellar testnet. Tips already sent still settle, and you can still collect.',
     },
   },
   insufficientWallet: (needed?: string, available?: string): CopyBlock => ({

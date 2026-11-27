@@ -54,6 +54,7 @@ export function HighlightPopover({
   selectedText,
   articleId,
   articleSlug,
+  articleTitle,
   authorName,
   authorStellarAddress,
   startOffset,
@@ -131,7 +132,7 @@ export function HighlightPopover({
           >
             <X aria-hidden className="h-5 w-5" />
           </button>
-          <p className="slip-meta">QuillTip · Your reading notes</p>
+          <p className="slip-meta">Quilltip · Your reading notes</p>
           <p className="slip-label">A passage you picked</p>
           <h2 className="slip-title">Keep these words.</h2>
           {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Scrollable quotes need keyboard access. */}
@@ -157,6 +158,7 @@ export function HighlightPopover({
                   <HighlightTipButton
                     articleId={articleId}
                     articleSlug={articleSlug}
+                    articleTitle={articleTitle}
                     authorName={authorName || 'Author'}
                     authorStellarAddress={authorStellarAddress}
                     highlightText={selectedText}
@@ -169,6 +171,8 @@ export function HighlightPopover({
                     className="slip-action"
                     label="Highlight & tip"
                     disabled={isSaving}
+                    // After a result, Done closes this passage slip too.
+                    onDone={onClose}
                     onBeforeOpen={
                       isAuthenticated
                         ? () => handleSaveHighlight(true)

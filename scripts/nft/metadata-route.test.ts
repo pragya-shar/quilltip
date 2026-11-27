@@ -10,6 +10,7 @@ import {
   CACHE_FOUND,
   CACHE_INVALID,
   CACHE_UNKNOWN,
+  asSentence,
   nftMetadataResponse,
   parseTokenId,
 } from '@/lib/nft/metadataResponse'
@@ -74,7 +75,27 @@ describe('parseTokenId', () => {
   })
 })
 
+describe('asSentence (#547)', () => {
+  it('ends a subtitle with a full stop unless it already ends a sentence', () => {
+    expect(asSentence('Notes on slow reading')).toBe('Notes on slow reading.')
+    expect(asSentence('About words.')).toBe('About words.')
+    expect(asSentence('Why read slowly?')).toBe('Why read slowly?')
+    expect(asSentence('“Read it twice.”')).toBe('“Read it twice.”')
+    expect(asSentence('Wait…')).toBe('Wait…')
+  })
+})
+
 describe('nftMetadataResponse', () => {
+  it('separates a subtitle without a full stop from the network line', async () => {
+    const res = await respond('3', {
+      ...META,
+      excerpt: 'Notes on slow reading',
+    })
+    expect((res.body as { description: string }).description).toBe(
+      'Notes on slow reading. Minted on the Stellar testnet.'
+    )
+  })
+
   it('serves the section 4.1 JSON with the testnet label', async () => {
     const res = await respond('3')
     expect(res.status).toBe(200)
@@ -120,7 +141,7 @@ describe('nftMetadataResponse', () => {
     expect(res.body).toEqual({
       name: 'QuillTip Article #3',
       description:
-        'This article is not available on QuillTip. Minted on the Stellar testnet.',
+        'This article is not available on Quilltip. Minted on the Stellar testnet.',
       attributes: [{ trait_type: 'network', value: 'Stellar testnet' }],
     })
   })
@@ -191,7 +212,7 @@ describe('GET /api/nft/[id]', () => {
     expect(JSON.parse(text)).toEqual({
       name: 'QuillTip Article #3',
       description:
-        'This article is not available on QuillTip. Minted on the Stellar testnet.',
+        'This article is not available on Quilltip. Minted on the Stellar testnet.',
       attributes: [{ trait_type: 'network', value: 'Stellar testnet' }],
     })
     expect(text).not.toContain(META.contentHash!)

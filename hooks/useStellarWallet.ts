@@ -21,7 +21,7 @@ export interface StellarWalletState {
   publicKey: string | null
   network: string | null
   networkPassphrase: string | null
-  /** False when the wallet cannot report its network (QuillTip's is assumed). */
+  /** False when the wallet cannot report its network (Quilltip's is assumed). */
   networkReported: boolean
   error: string | null
   errorKind: WalletErrorKind | null
@@ -30,7 +30,7 @@ export interface StellarWalletState {
 
 export interface StellarWalletActions {
   /**
-   * Opens QuillTip's wallet picker. Resolves true once connected, false when
+   * Opens Quilltip's wallet picker. Resolves true once connected, false when
    * the reader closes the picker; throws a `WalletError` for every other
    * failure. The picker opens without an extension too.
    */

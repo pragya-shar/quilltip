@@ -10,7 +10,7 @@ export function DashboardFeedbackContent() {
       <div className="account-heading">
         <h1>Feedback</h1>
         <p>
-          QuillTip is in beta. Tell us what broke, what confused you, or what
+          Quilltip is in beta. Tell us what broke, what confused you, or what
           you’d like next.
         </p>
       </div>

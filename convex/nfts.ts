@@ -27,7 +27,7 @@ function versionFields(nft: Doc<'articleNFTs'>) {
 }
 
 /**
- * The QuillTip user who owns the row now. v2 ownership is by address: the
+ * The Quilltip user who owns the row now. v2 ownership is by address: the
  * user whose verified address is `ownerAddress`. v1 rows use `currentOwner`.
  */
 async function ownerUserId(

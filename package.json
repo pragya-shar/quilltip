@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "private": true,
   "scripts": {
-    "check": "bun scripts/check-bun-version.ts && bun run format:check && bun run lint && bun run test:component-organization && bun run test:unit && bun run test:highlights && bun run test:reader && bun run test:beta && bun run test:chain && bun run test:tips && bun run typecheck && bun run test:security && bun run test:dependency-compatibility && bun run security:audit && bun run build:check",
+    "check": "bun scripts/check-bun-version.ts && bun run format:check && bun run brand:check && bun run lint && bun run test:component-organization && bun run test:unit && bun run test:highlights && bun run test:reader && bun run test:beta && bun run test:chain && bun run test:tips && bun run typecheck && bun run test:security && bun run test:dependency-compatibility && bun run security:audit && bun run build:check",
     "dev": "npm-run-all --parallel dev:frontend dev:backend",
     "dev:frontend": "bun scripts/check-network-guard.ts --operation \"next dev\" && next dev --turbopack",
     "dev:backend": "bun scripts/convex-dev.ts",
@@ -13,6 +13,8 @@
     "analyze": "ANALYZE=true next build --webpack",
     "start": "next start",
     "lint": "eslint .",
+    "brand:apply": "bun scripts/brand/apply-spelling.ts",
+    "brand:check": "bun scripts/brand/apply-spelling.ts --check",
     "guard:testnet": "bun scripts/check-network-guard.ts",
     "guard:convex": "bun scripts/check-network-guard.ts --convex",
     "test:unit": "vitest run --config scripts/unit.config.mts",

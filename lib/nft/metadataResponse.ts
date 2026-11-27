@@ -61,7 +61,7 @@ export function buildNftMetadata(
   if (!meta.available) {
     return {
       name: `QuillTip Article #${meta.tokenId}`,
-      description: `This article is not available on QuillTip. Minted on the ${network}.`,
+      description: `This article is not available on Quilltip. Minted on the ${network}.`,
       attributes: [{ trait_type: 'network', value: network }],
     }
   }
@@ -82,18 +82,27 @@ export function buildNftMetadata(
   if (!meta.title || !meta.authorUsername || !meta.slug) {
     return {
       name: `QuillTip Article #${meta.tokenId}`,
-      description: `This article is not available on QuillTip. Minted on the ${network}.`,
+      description: `This article is not available on Quilltip. Minted on the ${network}.`,
       attributes,
     }
   }
-  const summary =
-    meta.excerpt?.trim() || `An article by @${meta.authorUsername} on QuillTip.`
+  const summary = asSentence(
+    meta.excerpt?.trim() || `An article by @${meta.authorUsername} on Quilltip.`
+  )
   return {
     name: meta.title,
     description: `${summary} Minted on the ${network}.`,
     external_url: `${origin.replace(/\/+$/, '')}${articlePath(meta.authorUsername, meta.slug)}`,
     attributes,
   }
+}
+
+/**
+ * The summary as a sentence, so the network line that follows reads as its
+ * own: a subtitle without end punctuation gets a full stop (#547).
+ */
+export function asSentence(text: string): string {
+  return /[.!?…][)\]"'”’»]*$/u.test(text) ? text : `${text}.`
 }
 
 function etagOf(body: NftMetadataJson): string {

@@ -1032,7 +1032,9 @@ describe('copy', () => {
     const promises = strings
       .flatMap((text) => text.split(/(?<=\.)\s+/))
       .filter((sentence) => wait.test(sentence))
-    expect(promises.length).toBeGreaterThan(0)
+    // The detector finds a stated wait. The tab tip copy no longer states
+    // one: it names the settlement rule instead (#547).
+    expect(wait.test('It usually settles within about 6 hours.')).toBe(true)
     expect(
       promises.filter((sentence) => !/\busually\b/i.test(sentence))
     ).toEqual([])

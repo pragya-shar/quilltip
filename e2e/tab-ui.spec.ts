@@ -542,6 +542,56 @@ test('opens a tab with a new key in one approval, then tips from it', async ({
   await expect(visibleText(page, 'Free to tip')).toBeVisible()
 })
 
+test('after an open is sent, the page waits for the first events and asks for nothing (#547)', async ({
+  page,
+}) => {
+  await open(page, 'op-opening')
+  await page.getByRole('button', { name: 'Open a tab' }).click()
+  await page.getByRole('button', { name: 'Open tab with 10 XLM' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Opening your tab' })
+  ).toBeVisible()
+  await expect(visibleText(page, /There is nothing else to do\./)).toBeVisible()
+  // No open tab with zero balances, no key to finish, no confirmation yet.
+  await expect(visibleText(page, 'Your tab is open')).toHaveCount(0)
+  await expect(visibleText(page, 'Free to tip')).toHaveCount(0)
+  await expect(
+    visibleText(page, /Finish it with one wallet approval/)
+  ).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Open a tab' })).toHaveCount(0)
+  await shot(page, 'op-opening')
+  // Once the "indexer" applies the open, the tab is confirmed.
+  await expect(visibleText(page, 'Your tab is open')).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(visibleText(page, 'Free to tip')).toBeVisible()
+})
+
+test('while the tab is closing, the free balance is not offered for quick tips (#547)', async ({
+  page,
+}) => {
+  await open(page, 'home-closing')
+  await expect(visibleText(page, /Your balance unlocks around/)).toBeVisible()
+  const balance = page.getByRole('region', { name: 'Balance' })
+  await expect(balance.getByText('Free to tip', { exact: true })).toHaveCount(0)
+  await expect(
+    balance.getByText('What quick tips can use now.', { exact: true })
+  ).toHaveCount(0)
+  await expect(
+    balance.getByText('Comes back to you', { exact: true })
+  ).toBeVisible()
+  await expect(
+    balance.getByText(/Your tab is closing, so quick tips are off\./)
+  ).toBeVisible()
+  // An open tab still offers it.
+  await page.goto('/?state=home-open')
+  await expect(
+    page.getByRole('region', { name: 'Balance' }).getByText('Free to tip', {
+      exact: true,
+    })
+  ).toBeVisible()
+})
+
 test('keyboard only: the top-up form submits with Enter and focus follows the payment', async ({
   page,
 }) => {

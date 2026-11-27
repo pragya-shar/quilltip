@@ -5,7 +5,7 @@ import { AnalyticsPreferences } from '@/components/analytics/AnalyticsPreference
 import { analyticsServerKey } from '@/lib/analytics/config'
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy | QuillTip',
+  title: 'Privacy Policy | Quilltip',
   description:
     'Privacy Policy for Quilltip, describing how we collect, use, and protect your information.',
 }
@@ -32,7 +32,7 @@ export default function PrivacyPage() {
             loading, as a rating and a range for each measure, to check the
             site’s speed. A page view records the page path without search terms
             or other query details, so a visit to a public article records that
-            article’s link. Events go through QuillTip’s own server to PostHog,
+            article’s link. Events go through Quilltip’s own server to PostHog,
             hosted in the EU, so your IP address is not shared with them. We
             never include what you write, your name, your email address or your
             wallet address. Do Not Track and Global Privacy Control are treated

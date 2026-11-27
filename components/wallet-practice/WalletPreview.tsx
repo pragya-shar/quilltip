@@ -521,10 +521,10 @@ export function WalletPreview({
                 </li>
                 <li>
                   Back up your recovery phrase securely. Never share it;
-                  QuillTip will never ask for it.
+                  Quilltip will never ask for it.
                 </li>
                 <li>
-                  QuillTip currently uses Stellar testnet. Use free test XLM,
+                  Quilltip currently uses Stellar testnet. Use free test XLM,
                   not purchased funds.
                 </li>
                 <li>

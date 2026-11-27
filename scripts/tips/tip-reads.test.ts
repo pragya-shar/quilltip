@@ -357,7 +357,7 @@ describe('authorEarnings for v2 direct and batch tips', () => {
     expect(stats).toMatchObject({ totalTips: 1, byVersion: { v1: 0, v2: 1 } })
   })
 
-  it('an address with no QuillTip user credits nobody', async () => {
+  it('an address with no Quilltip user credits nobody', async () => {
     const t = newTest()
     const s = await seed(t)
     await t.run(({ db }) => db.patch(s.coAuthorId, { stellarAddress: null }))
@@ -801,6 +801,9 @@ describe('earnings access and mixed summary', () => {
       network: 'TESTNET',
       tipCount: 2,
       writerShareStroops: '3900000',
+      // The XLM the stats show: 3,900,000 (v1) + 975,000 (v2) stroops, the
+      // same tips `estimatedUsd` counts (#547).
+      earnedStroops: '4875000',
       // 97.5 (v1) + 24.375 (v2) cents
       estimatedUsd: 1.21875,
       earnedBaseUnits: { [TOKEN]: '975000' },

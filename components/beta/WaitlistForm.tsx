@@ -158,7 +158,7 @@ export function WaitlistForm() {
         )}
       </button>
       <p className="account-hint account-waitlist-note">
-        We use your email only for beta invitations. Tipping on QuillTip uses
+        We use your email only for beta invitations. Tipping on Quilltip uses
         Stellar testnet: practice funds, no real money.
       </p>
     </form>

@@ -6,7 +6,7 @@ import {
   searchParamsRecordReader,
 } from '@/lib/auth/safeReturnPath'
 
-export const metadata: Metadata = { title: 'Welcome back. · QuillTip' }
+export const metadata: Metadata = { title: 'Welcome back. · Quilltip' }
 
 /**
  * Reads the return path on the server, so the first HTML holds the whole

@@ -27,8 +27,10 @@ import {
   CHECK_FAILED_TITLE,
   PREPARE_REFUSALS,
   PREPARE_REFUSAL_FALLBACK,
+  wrongAccountCopy,
   type NftCopy,
 } from '@/lib/copy/nft-v2'
+import { shortAddress } from '@/lib/payments/format'
 
 export type NftAction = 'mint' | 'transfer'
 
@@ -138,7 +140,13 @@ export type NftPanel =
       /** The viewer's verified wallet owns the token. */
       viewerOwns: boolean
       /** The row is newer than the record the client acted on. */
-      transfer: 'allowed' | 'paused' | 'not-owner' | 'signed-out'
+      transfer:
+        | 'allowed'
+        | 'paused'
+        | 'not-owner'
+        | 'signed-out'
+        /** This site's client has no Article NFT contract configured. */
+        | 'not-configured'
     }
 
 export type V1Record = { label: string; mintedAt: string | number | null }
@@ -163,6 +171,12 @@ export type MintArea =
   | { kind: 'indexing' }
   | { kind: 'message'; state: string }
   | { kind: 'retry-later'; retryAfterMs: number | null }
+  /**
+   * Eligible, but this site's client has no Article NFT contract configured
+   * (`NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID`), or another one than the server:
+   * a mint could not be checked or signed here.
+   */
+  | { kind: 'not-configured' }
 
 export type MintedToken = {
   tokenId: number
@@ -218,6 +232,20 @@ const ELIGIBILITY_MESSAGES = new Set([
 ])
 
 /**
+ * Whether this client can check and sign the server's NFT calls: it needs an
+ * Article NFT contract of its own (`NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID`),
+ * and the server's, when it reports one, must be the same. With neither, no
+ * mint is offered (#547).
+ */
+export function nftClientConfigured(
+  clientNftContract: string | null | undefined,
+  serverNftContract: string | null | undefined
+): boolean {
+  if (!clientNftContract) return false
+  return !serverNftContract || serverNftContract === clientNftContract
+}
+
+/**
  * What the panel shows. `eligibility` is `undefined` while the author's live
  * read runs and `null` when the viewer is not the author (readers never
  * cause a live read).
@@ -228,7 +256,18 @@ export function deriveNftPanel(input: {
   record: NftRecordLike | undefined
   viewer: ViewerLike | undefined
   eligibility: MintEligibilityLike | null | undefined
+  /**
+   * The client's Article NFT contract matches the server's. False turns the
+   * mint and transfer actions into "not available on this site". Default true.
+   */
+  clientConfigured?: boolean
+  /**
+   * A mint from this page was confirmed on chain. Until the indexed progress
+   * shows it minted, the author sees a waiting line, not the mint action.
+   */
+  mintConfirmed?: boolean
 }): NftPanel {
+  const clientConfigured = input.clientConfigured ?? true
   if (input.v2Enabled === undefined) return { kind: 'loading' }
   if (!input.v2Enabled) return { kind: 'v1' }
   const { progress, viewer } = input
@@ -265,7 +304,9 @@ export function deriveNftPanel(input: {
           ? 'not-owner'
           : progress.paused === true
             ? 'paused'
-            : 'allowed',
+            : !clientConfigured
+              ? 'not-configured'
+              : 'allowed',
       token: {
         tokenId: progress.tokenId,
         nftId: progress.nftId,
@@ -296,6 +337,14 @@ export function deriveNftPanel(input: {
       mint: { kind: 'none' },
     }
   }
+  if (input.mintConfirmed) {
+    return {
+      kind: 'progress',
+      v1Record,
+      progress: figures(progress, false),
+      mint: { kind: 'indexing' },
+    }
+  }
   if (e === undefined) {
     return {
       kind: 'progress',
@@ -308,7 +357,9 @@ export function deriveNftPanel(input: {
   let mint: MintArea
   switch (e.state) {
     case 'ELIGIBLE':
-      mint = { kind: 'eligible' }
+      mint = clientConfigured
+        ? { kind: 'eligible' }
+        : { kind: 'not-configured' }
       break
     case 'BELOW_THRESHOLD':
       mint = { kind: 'below' }
@@ -548,6 +599,14 @@ function afterResult(
     case 'check_failed':
       return tracking({
         failure: { title: CHECK_FAILED_TITLE, detail: result.message },
+      })
+    case 'wrong_account':
+      return tracking({
+        failure: wrongAccountCopy(
+          action,
+          shortAddress(result.expected),
+          shortAddress(result.connected)
+        ),
       })
     case 'wallet_failed': {
       const { kind } = result.error

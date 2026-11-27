@@ -66,11 +66,13 @@ function pendingMessage(option: WalletOption) {
   }
   return option.access === 'web'
     ? `Approve the request in the ${option.name} window. If no window opened, allow pop-ups for this site and try again.`
-    : `Approve the request in ${option.name}. If no window opened, check your browser toolbar.`
+    : // A locked extension shows a password prompt and reports nothing to
+      // the page until it is unlocked (#547).
+      `Approve the request in ${option.name}. If it asks for your password, unlock it first. If no window opened, check your browser toolbar.`
 }
 
 /**
- * QuillTip's wallet picker. A list of real buttons in a modal dialog, so it
+ * Quilltip's wallet picker. A list of real buttons in a modal dialog, so it
  * works with a keyboard and a screen reader, which the kit's own picker does
  * not. Choosing a wallet asks that wallet for its address; the row shows the
  * wait until the wallet answers.
@@ -162,7 +164,7 @@ export function WalletPicker() {
         <DialogHeader>
           <DialogTitle>Choose a wallet</DialogTitle>
           <DialogDescription>
-            QuillTip uses Stellar {network.toLowerCase()}. Nothing is signed
+            Quilltip uses Stellar {network.toLowerCase()}. Nothing is signed
             until you approve it in your wallet.
           </DialogDescription>
         </DialogHeader>
@@ -207,7 +209,7 @@ export function WalletPicker() {
             {pending && !showPairing ? pendingMessage(pending) : ''}
           </p>
           <p className="wallet-install-note">
-            Keep your recovery phrase private; QuillTip will never ask for it.{' '}
+            Keep your recovery phrase private; Quilltip will never ask for it.{' '}
             {offersPhone
               ? 'Hardware wallets are not supported yet.'
               : 'Hardware and mobile wallets are not supported yet.'}

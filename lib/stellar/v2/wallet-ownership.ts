@@ -148,13 +148,13 @@ export function ownershipErrorMessage(reason: string): {
       return {
         title: 'This address is verified on another account',
         detail:
-          'Each Stellar address can be verified on one QuillTip account. Remove it there first, or use another wallet.',
+          'Each Stellar address can be verified on one Quilltip account. Remove it there first, or use another wallet.',
       }
     case 'ORIGIN_NOT_ALLOWED':
     case 'ORIGIN_MISMATCH':
       return {
         title: 'This page cannot verify wallets',
-        detail: 'Open QuillTip at its usual address and try again.',
+        detail: 'Open Quilltip at its usual address and try again.',
       }
     case 'RATE_LIMITED':
       return {
@@ -163,7 +163,7 @@ export function ownershipErrorMessage(reason: string): {
       }
     case 'NETWORK_MISMATCH':
       return {
-        title: 'QuillTip changed networks',
+        title: 'Quilltip changed networks',
         detail: 'Reload the page and try again.',
       }
     case 'SIGNATURE_INVALID':

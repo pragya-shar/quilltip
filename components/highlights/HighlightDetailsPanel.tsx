@@ -40,6 +40,7 @@ interface HighlightDetailsPanelProps {
   // Article data for tipping
   articleId?: Id<'articles'>
   articleSlug?: string
+  articleTitle?: string
   authorName?: string
   authorStellarAddress?: string | null
 }
@@ -52,6 +53,7 @@ export function HighlightDetailsPanel({
   currentUserId,
   articleId,
   articleSlug,
+  articleTitle,
   authorName,
   authorStellarAddress,
 }: HighlightDetailsPanelProps) {
@@ -149,7 +151,7 @@ export function HighlightDetailsPanel({
           >
             <X aria-hidden className="h-5 w-5" />
           </button>
-          <p className="slip-meta">QuillTip · Your reading notes</p>
+          <p className="slip-meta">Quilltip · Your reading notes</p>
           <p className="slip-label">
             {context?.personalId || isOwner
               ? 'In your highlights'
@@ -231,6 +233,7 @@ export function HighlightDetailsPanel({
                 <HighlightTipButton
                   articleId={articleId}
                   articleSlug={articleSlug}
+                  articleTitle={articleTitle}
                   authorName={authorName || 'Author'}
                   authorStellarAddress={authorStellarAddress}
                   highlightText={highlight.text}
