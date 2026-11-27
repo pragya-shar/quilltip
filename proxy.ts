@@ -16,7 +16,7 @@ const ROUTE_CHECK_TIMEOUT_MS = 1500
 // hints out of the HTML head, so send them with the response instead.
 const WRITER_PAGE_FONT_PRELOADS = [
   '</prototype/fonts/library-syne.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin',
-  '</prototype/fonts/library-alegreya.woff>; rel=preload; as=font; type="font/woff"; crossorigin',
+  '</prototype/fonts/library-alegreya.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin',
 ].join(', ')
 
 // Profile settings and new-writer setup lay out in this typeface once the

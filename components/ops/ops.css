@@ -18,6 +18,7 @@
   color: var(--account-ink);
   font:
     400 30px/1.2 'Account Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   font-variant-numeric: tabular-nums;

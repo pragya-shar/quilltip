@@ -22,7 +22,7 @@
 /* Current application palette, shared by root defaults, chrome and portals.
    Page-specific palettes can still override their scoped semantic tokens. */
 :root {
-  --ui-font: 'QuillTip UI', sans-serif;
+  --ui-font: 'QuillTip UI', 'Work Sans Fallback', sans-serif;
   --ui-surface: #faf5ec;
   --ui-foreground: #390c18;
   --ui-primary: #790333;

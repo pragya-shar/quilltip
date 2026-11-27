@@ -1,0 +1,106 @@
+/*
+ * Metric-matched fallback faces. Text paints in a local system font until the
+ * web font arrives; these overrides give the fallback the web font's width
+ * and line metrics, so the swap does not move lines or shift the layout.
+ *
+ * Values are computed the way next/font computes them (hhea ascent, descent
+ * and line gap, and the average width of a Latin letter-frequency string,
+ * against Arial for sans and Times New Roman for serif), one face per weight
+ * because the weights differ in width. Where a system lacks the local font
+ * the stack falls through to the generic family, as before.
+ */
+
+@font-face {
+  font-family: 'Syne Fallback';
+  src: local('Arial'), local('ArialMT');
+  font-weight: 400;
+  size-adjust: 99.63%;
+  ascent-override: 92.84%;
+  descent-override: 27.6%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Syne Fallback';
+  src: local('Arial'), local('ArialMT');
+  font-weight: 500 600;
+  size-adjust: 115.45%;
+  ascent-override: 80.12%;
+  descent-override: 23.82%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Syne Fallback';
+  src: local('Arial'), local('ArialMT');
+  font-weight: 700 800;
+  size-adjust: 124.66%;
+  ascent-override: 74.2%;
+  descent-override: 22.06%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Work Sans Fallback';
+  src: local('Arial'), local('ArialMT');
+  font-weight: 400 500;
+  size-adjust: 112.07%;
+  ascent-override: 82.98%;
+  descent-override: 21.68%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Work Sans Fallback';
+  src: local('Arial'), local('ArialMT');
+  font-weight: 600 800;
+  size-adjust: 112.7%;
+  ascent-override: 82.52%;
+  descent-override: 21.56%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'DM Sans Fallback';
+  src: local('Arial'), local('ArialMT');
+  font-weight: 400 500;
+  size-adjust: 105.13%;
+  ascent-override: 94.36%;
+  descent-override: 29.49%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'DM Sans Fallback';
+  src: local('Arial'), local('ArialMT');
+  font-weight: 600 800;
+  size-adjust: 111.43%;
+  ascent-override: 89.02%;
+  descent-override: 27.82%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Alegreya Fallback';
+  src: local('Times New Roman'), local('TimesNewRomanPSMT');
+  font-style: normal;
+  size-adjust: 100.55%;
+  ascent-override: 101.05%;
+  descent-override: 34.31%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Alegreya Fallback';
+  src: local('Times New Roman Italic'), local('TimesNewRomanPS-ItalicMT');
+  font-style: italic;
+  size-adjust: 89.13%;
+  ascent-override: 113.99%;
+  descent-override: 38.71%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Literata Fallback';
+  src: local('Times New Roman Italic'), local('TimesNewRomanPS-ItalicMT');
+  font-style: italic;
+  size-adjust: 117.21%;
+  ascent-override: 100.42%;
+  descent-override: 26.28%;
+  line-gap-override: 0%;
+}

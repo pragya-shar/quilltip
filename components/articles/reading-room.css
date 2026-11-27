@@ -6,7 +6,7 @@
 }
 @font-face {
   font-family: 'Reading Room Alegreya';
-  src: url('/prototype/fonts/library-alegreya.woff');
+  src: url('/prototype/fonts/library-alegreya.woff2') format('woff2');
   font-display: swap;
 }
 .reading-room {
@@ -27,6 +27,7 @@
   color-scheme: light;
   font:
     15px/1.5 'Reading Room Syne',
+    'Syne Fallback',
     sans-serif;
   font-synthesis: none;
 }
@@ -85,6 +86,7 @@
 .reading-room .intro h1 {
   font:
     600 clamp(48px, 5.5vw, 76px)/1.08 'Reading Room Syne',
+    'Syne Fallback',
     sans-serif;
   letter-spacing: -0.04em;
   margin: 8px auto 10px;
@@ -93,6 +95,7 @@
 .reading-room .intro p {
   font:
     21px/normal 'Reading Room Alegreya',
+    'Alegreya Fallback',
     serif;
   margin: 0 auto;
 }
@@ -389,6 +392,7 @@
 .reading-room-card h2 {
   font:
     600 25px/1.25 'Reading Room Syne',
+    'Syne Fallback',
     sans-serif;
   letter-spacing: -0.025em;
   margin: 14px 0 12px;
@@ -399,6 +403,7 @@
   color: #f0dad5;
   font:
     18px/1.5 'Reading Room Alegreya',
+    'Alegreya Fallback',
     serif;
   margin: 0 0 22px;
   overflow-wrap: anywhere;

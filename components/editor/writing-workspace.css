@@ -12,7 +12,7 @@
 }
 @font-face {
   font-family: 'Writing Alegreya';
-  src: url('/landing/fonts/alegreya-latin-400-italic.woff');
+  src: url('/landing/fonts/alegreya-latin-400-italic.woff2') format('woff2');
   font-style: italic;
 }
 .writing-workspace * {
@@ -24,13 +24,14 @@
   --wine: #660033;
   --ink: #38272c;
   --paper: #eee3cf;
-  --article-font: 'Writing Literata', Georgia, serif;
-  --title-font: 'Writing Literata', Georgia, serif;
+  --article-font: 'Writing Literata', 'Literata Fallback', Georgia, serif;
+  --title-font: 'Writing Literata', 'Literata Fallback', Georgia, serif;
   margin: 0;
   background: var(--paper);
   color: var(--ink);
   font:
     15px/1.5 'Writing Syne',
+    'Syne Fallback',
     sans-serif;
 }
 .writing-workspace button,
@@ -222,6 +223,7 @@
   left: calc(50% - 575px);
   font:
     italic 27px/1.2 'Writing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   color: #804157;
@@ -678,6 +680,7 @@
 .writing-workspace figcaption {
   font:
     14px/1.5 'Writing Syne',
+    'Syne Fallback',
     sans-serif;
   color: #71565c;
   margin-top: 10px;

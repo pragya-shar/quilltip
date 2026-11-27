@@ -32,6 +32,7 @@
   margin: 0;
   font:
     600 clamp(34px, 5vw, 52px) / 1.12 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   letter-spacing: -0.04em;
   overflow-wrap: anywhere;
@@ -52,6 +53,7 @@
   margin: 0 0 16px;
   font:
     600 20px / 1.4 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   letter-spacing: -0.02em;
 }
@@ -61,6 +63,7 @@
   gap: 16px;
   font:
     400 22px / 1.65 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   overflow-wrap: anywhere;

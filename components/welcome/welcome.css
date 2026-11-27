@@ -5,6 +5,7 @@
   color: #390c18;
   font:
     16px/1.55 'Account Syne',
+    'Syne Fallback',
     sans-serif;
   font-synthesis: none;
   color-scheme: light;
@@ -42,6 +43,7 @@
   margin-top: 6px;
   font:
     400 40px/1.15 'Account Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   letter-spacing: -0.02em;

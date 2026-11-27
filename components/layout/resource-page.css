@@ -4,7 +4,7 @@
   flex-direction: column;
   background: #d0a7a3;
   color: #390c18;
-  font-family: 'Landing Syne', sans-serif;
+  font-family: 'Landing Syne', 'Syne Fallback', sans-serif;
   color-scheme: light;
   font-synthesis: none;
 }
@@ -27,6 +27,7 @@
   margin: 0 0 16px;
   font:
     400 clamp(42px, 5vw, 64px) / 1.1 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   letter-spacing: -0.025em;
@@ -36,6 +37,7 @@
   max-width: 60ch;
   font:
     400 24px / 1.5 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
 }
@@ -85,6 +87,7 @@
   margin-bottom: 12px;
   font:
     400 30px / 1.2 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
 }

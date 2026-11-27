@@ -207,7 +207,7 @@ mark[data-note]:hover::before {
   border-left: 2px solid var(--ui-primary);
   background: var(--ui-muted);
   color: var(--ui-foreground);
-  font-family: 'Reader Alegreya', Georgia, serif;
+  font-family: 'Reader Alegreya', 'Alegreya Fallback', Georgia, serif;
   font-size: 18px;
   line-height: 1.5;
   max-height: 132px;
@@ -365,6 +365,7 @@ mark[data-note]:hover::before {
 .slip-title {
   font:
     500 39px/1.12 'Reader Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   color: #660033;
@@ -374,6 +375,7 @@ mark[data-note]:hover::before {
 .slip-quote {
   font:
     25px/1.45 'Reader Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   padding: 22px 0;
@@ -417,6 +419,7 @@ mark[data-note]:hover::before {
   margin: 20px 0 0;
   font:
     italic 17px/1.5 'Reader Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   color: #694652;
@@ -574,6 +577,7 @@ mark[data-note]:hover::before {
   margin-block: 12px;
   font:
     400 18px/1.5 'Reader Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
 }

@@ -7,6 +7,7 @@
 @import '../components/editor/extensions/ResizableImageStyles.css';
 @import 'tw-animate-css';
 @import './shared-ui.css';
+@import './font-fallbacks.css';
 @import '../components/articles/reader.css';
 
 /* Highlight animations and styles */
@@ -544,7 +545,7 @@
 
 @theme inline {
   --font-sans: var(--ui-font);
-  --font-display: 'QuillTip Display', sans-serif;
+  --font-display: 'QuillTip Display', 'Syne Fallback', sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-card: var(--card-radius);
   --shadow-card: var(--card-shadow);
