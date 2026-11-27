@@ -257,7 +257,7 @@ the logic track exports the code list (`BALANCE_ERROR_CODES`).
   and device functions ([interfaces](interfaces.md#i3-convex-functions)).
   `tabs.prepareTip` and `tabs.submitTip` are removed.
 - `tabReceipts.status` gains `UNDONE`; `tabReceipts.segment`,
-  `tabVouchers.segment`, `tabVouchers.token`, `tabReceipts.token` are added.
+  `tabVouchers.segment` and a registry `token` id on `tabAccounts`, `tabVouchers` and `tabReceipts` (derived from the Tab instance) are added.
 - `tabAccounts.acceptedToday` (base units) becomes `acceptedTodayCents`.
 - `tips` and `highlightTips` keep `channel`; balance tips write `channel: 'tab'`
   as today. `requestId` is set on every v3 row.

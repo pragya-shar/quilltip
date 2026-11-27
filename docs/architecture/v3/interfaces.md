@@ -334,7 +334,7 @@ export const send = mutation({
     keyId: v.number(),
     amountCents: v.number(),
     priceAt: v.number(),
-    receipt: receiptValidator,   // v2 shape plus `token` and `segment`
+    receipt: receiptValidator,   // v2 shape plus `segment`; the token is the Tab's
     signature: v.string(),
   },
   returns: v.object({
@@ -463,7 +463,6 @@ export type SignedBalanceTip = {
     contentHash: string
     highlightId: string | null
     clientRef: string
-    token: string
   }
   signature: string
 }

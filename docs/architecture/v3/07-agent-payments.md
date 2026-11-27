@@ -1,140 +1,172 @@
 # 7. Agent payments
 
-Software agents pay to read an article and can tip, over HTTP, with Stellar
-MPP. The writer is credited with the same 97.5% split as a human tip.
+Software agents pay to read an article and can tip, over HTTP, with the
+Stellar MPP handshake. The writer is credited with the same 97.5% split as a
+human tip, enforced on chain.
 
 Package: A3 ([work packages](work-packages.md#later-waves)).
 
-## 7.1 What MPP gives
+## 7.1 Constraints from the rails
 
-From the Stellar MPP documentation (`@stellar/mpp` with `mppx`): the server
-answers `402 Payment Required` with a payment challenge (currency, amount,
-recipient, network); the client pays and retries with a credential; the
-server verifies, and answers `200` with a receipt. Two intents exist:
-
-- **charge**: each request is one Stellar Asset Contract `transfer` to the
-  challenge's recipient, settled on chain individually. In the default
-  "pull" mode the client signs the transaction and the server simulates,
-  checks the transfer, broadcasts and waits for confirmation.
-- **session**: a one-way payment channel contract with off-chain cumulative
-  commitments, closed by the server.
-
-The documented examples use USDC on testnet (`stellar:testnet`). The
-server SDK works on the Web `Request` and `Response` types. Its example store
-(`Store.memory()`) does not persist across server instances.
+- MPP's HTTP flow: `402` with `WWW-Authenticate: Payment …` (the challenge),
+  a retry with `Authorization: Payment …` (the credential), `200` with
+  `Payment-Receipt`.
+- MPP `charge` on Stellar is exactly one token `transfer` to one recipient,
+  with no sub-invocations. It cannot split a payment and cannot call Core or
+  the Tab. Its payer must be a classic account. The `session` intent's
+  channel contract pays one payee per channel.
+- The Tab is already a multi-payee channel with ed25519 keys and the split
+  enforced at settlement.
 
 ## 7.2 Decisions
 
-| #   | Decision                                                                                                                                                                                                                                                                                                                               |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M1  | v3 uses the **charge** intent. The session intent's channel duplicates the Tab for agents; it is a later step once agents read at volume.                                                                                                                                                                                              |
-| M2  | The endpoint is a **Next.js route handler** (Node runtime), `app/api/agents/articles/[slug]/route.ts`. The SDK targets standard `Request`/`Response` on Node; a Convex HTTP action would need a second hop into a Node action for the SDK.                                                                                             |
-| M3  | The challenge's recipient is a platform **agent gateway** account. After the payment confirms, Convex forwards it with `Core.tip` from the gateway account, so the 97.5% / 2.5% split happens on chain in Core as for every wallet tip. The gateway holds an agent's payment for at most one forwarding cycle (target under a minute). |
-| M4  | The SDK's replay store is a Convex-backed adapter (`mppChallenges` table), never the memory store.                                                                                                                                                                                                                                     |
-| M5  | The agent pays its own network fee (pull mode without sponsorship). Quilltip pays only the forwarding transactions.                                                                                                                                                                                                                    |
-| M6  | Asset: USDC on testnet at first (the documented asset); further SAC tokens when the registry enables them ([document 6](06-assets.md)), subject to the SDK accepting them.                                                                                                                                                             |
-| M7  | Writers choose per profile: `agentAccess` (`paid` or `off`, default `paid`) and `agentPriceCents`, default 5. Articles stay free for people.                                                                                                                                                                                           |
+| #   | Decision                                                                                                                                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | **Agents pay through the Tab.** An agent is a Tab reader with its own address and key. Each read or tip is a voucher, accepted by the same Convex code as a human balance tip, settled by the same settler. |
+| M2  | The handshake uses MPP's headers with a Quilltip method, `method="quilltip-tab"`. A small published client signs vouchers. Generic MPP clients that know only `charge` are served by M5 once approved.      |
+| M3  | The endpoints are **Next.js route handlers** (`app/api/agent/**`); each calls one Convex function that does every check, so the rules live in one place.                                                    |
+| M4  | Writers choose per profile: `agentAccess` (`paid` or `off`, default `paid`) and `agentPriceCents` (default 1). Articles stay free for people.                                                               |
+| M5  | Standard MPP `charge` interop is designed (7.6) but not built until the owner decides between a short custodial hop with the fee, or a direct payment to the writer with no fee on that path.               |
 
-## 7.3 HTTP surface
+## 7.3 Agent accounts
+
+An agent registers once:
+
+1. `POST /api/agent/register` with its address and a signature over a server
+   challenge (`agents.challenge`, then `agents.register`), the same message
+   signing proof as a wallet link. Convex creates a `users` row with
+   `kind: 'agent'` (no email, no password) and sets the address as verified.
+2. The agent opens a Tab session from its own account:
+   `Tab.open_session(agent, amount, agentKey, valid_until, spend_limit)`,
+   paying its own fee, or through the fee sponsor with the per-user limits
+   of [section 5.3](05-accounts.md#53-fee-sponsor). It then calls
+   `POST /api/agent/transactions` with the hash (`balance.recordTransaction`
+   for the agent user); the key is usable after verification by hash.
+3. `GET /api/agent/session` returns the agent's balance and key state, as
+   `balance.session` does for a person.
+
+A paid request is authenticated by the voucher signature itself: a voucher
+verifies only under a key registered on chain for the agent's Tab account.
+Registration, session reads and the challenge's pair state use a bearer
+token issued at registration (`agentTokens`, stored hashed).
+
+## 7.4 HTTP surface
 
 ```text
-GET  /api/agents/articles/{slug}             read an article
-POST /api/agents/articles/{slug}/tip         tip, body { "amountCents": 100 }
-GET  /api/agents                             machine-readable index: endpoint, assets, network, prices
+POST /api/agent/register                     address + signature → bearer token
+POST /api/agent/transactions                 record a Tab transaction hash
+GET  /api/agent/session                      balance and key state
+GET  /api/agent/articles/{slug}              read an article (402 until paid)
+POST /api/agent/tips                         tip an article or passage
+GET  /api/agent                              machine-readable index
 ```
 
 Read flow:
 
-1. Unknown or unpublished slug: `404`. Writer has `agentAccess: 'off'`: `403`
-   with a short JSON reason.
-2. No credential: `402` with the challenge from
-   `mppx.charge({ amount, description })`, amount = `agentPriceCents` in
-   USDC, recipient = `AGENT_GATEWAY_ADDRESS`, network `stellar:testnet`, and
-   `description` naming the article and writer.
-3. Credential present: the SDK verifies and broadcasts. On confirmation, the
-   handler calls `agents.recordPayment` (section 7.4), then answers `200` with
-   the SDK's receipt and the article as JSON:
-   `{ title, author: { name, username }, publishedAt, url, contentMarkdown, license }`.
-4. A credential for another article, an expired challenge or a reused
-   challenge is refused by the SDK with its own status; the store makes
-   reuse visible across instances (M4).
+1. Unknown or unpublished slug: `404`. Writer has `agentAccess: off`: `403`.
+2. No credential: `402` with
+   `WWW-Authenticate: Payment method="quilltip-tab", intent="session", request="<base64 JSON>"`.
+   The JSON is
+   `{ tab, token, writer, articleKey, contentHash, amount, network: "stellar:testnet", pair }`,
+   where `pair` (`{ seq, segment, cumulative, leafHashes }`) is this agent's
+   state with this writer. Without a bearer token the challenge omits `pair`
+   and points to `/api/agent/register`.
+3. The agent builds the receipt, signs the voucher (the client library wraps
+   the `lib/stellar/v2/tab` encoders) and retries with
+   `Authorization: Payment <base64 JSON { receipt, signature, keyId, requestId }>`.
+4. The handler calls `agents.acceptRead` (section 7.5). On acceptance it
+   answers `200` with `Payment-Receipt: <base64 JSON { receiptId, cumulative }>`
+   and the article as JSON:
+   `{ title, author: { name, username }, publishedAt, url, contentMarkdown }`.
+   A changed pair answers `402` again with the fresh pair state.
 
-Tip flow: the same, with the amount from the body (between the token's
-minimum and `AGENT_TIP_MAX_CENTS`, default $20), and `204` with the receipt.
+Tip flow: `POST /api/agent/tips` with `{ articleId, passageId?, amountCents }`
+and the same credential; `204` with the receipt. Amount limits are the
+balance limits of [section 1.3](01-tip-pipeline.md#13-limits), with
+`AGENT_TIP_MAX_CENTS` (default $20) per tip.
 
 Discovery: article pages carry
-`<link rel="alternate" type="application/json" href="/api/agents/articles/{slug}">`
-and `/api/agents` lists the surface. `robots.txt` is unchanged.
+`<link rel="alternate" type="application/json" href="/api/agent/articles/{slug}">`;
+`/api/agent` lists the endpoints, the method, the network and the client
+library's package name.
 
-Testnet guard: the handler refuses to start when the configured network is
-not testnet (the same guard as the rest of the app), and challenges name
-`stellar:testnet` only.
+Testnet guard: the handlers refuse to start unless the configured network
+is testnet; challenges name `stellar:testnet` only.
 
-## 7.4 Crediting the writer
+## 7.5 Crediting the writer
 
 ```ts
-// convex/agents.ts (A3); called by the route handler with the gateway secret
-export const recordPayment = mutation({
+// convex/agents.ts (A3)
+export const acceptRead = mutation({
   args: {
-    gatewayToken: v.string(), // AGENT_GATEWAY_TOKEN, compared in constant time
-    challengeId: v.string(),
-    kind: v.union(v.literal('read'), v.literal('tip')),
+    agentToken: v.string(),
     articleSlug: v.string(),
-    payer: v.string(), // the agent's address
-    token: v.string(),
-    amountBaseUnits: v.string(),
-    amountCents: v.number(),
-    txHash: v.string(),
+    keyId: v.number(),
+    requestId: v.string(),
+    receipt: receiptValidator,
+    signature: v.string(),
   },
-  returns: v.object({ paymentId: v.id('agentPayments') }),
+  returns: v.object({ receiptId: v.id('tabReceipts'), cumulative: v.string() }),
 })
+// acceptTip: the same arguments with articleId, passage and amountCents.
 ```
 
-1. `recordPayment` stores the payment once per `challengeId` and `txHash`
-   (`agentPayments` table), writes the writer's activity row (`via: 'agent'`,
-   counterparty "AI reader" with the payer's short address) and adds the
-   writer's share to `incomingCents`. It schedules verification of `txHash`
-   by Convex (the route handler's confirmation is not trusted alone) and the
-   forwarder.
-2. **Forwarder** (`agents.forward`, internal action, debounced 15 s like the
-   settler, under an `agent-forwarder` lease): takes up to 10 verified
-   payments and sends `Core.tip_batch` from the gateway account, one item per
-   payment, `client_ref = sha256(challengeId)[0..16]`, `highlight_id` none.
-   The batch respects Core's transfer limit (`MAX_BATCH_TRANSFERS`).
-3. The `Tipped` events confirm through the v2 path
-   (`coreEventHandlers`); the forwarded tip row links to the payment
-   (`tips.agentPaymentId`), so the writer's figures move from incoming to
-   earned and paid out as for a wallet tip ([section 2.3](02-instant-state.md#23-wallet-tips)).
-4. Article tip counts and the NFT threshold count forwarded tips like other
-   Core tips; the tipper on chain is the gateway account, and Convex records
-   the agent as the payer.
+- Both run the acceptance of `balance.send`
+  ([section 1.4](01-tip-pipeline.md#14-the-balance-route)) with the agent
+  user as the reader: the same rules, signature check, countersignature,
+  receipt, activity, earnings and `requestSettlement`. A read is a receipt
+  with `kind: 'read'`; a tip is a receipt as today.
+- The writer's activity shows `via: 'agent'` with the counterparty "AI
+  reader". Earnings move as for a balance tip: pending at acceptance, earned
+  at settlement, in the writer's wallet in the same transaction
+  ([section 3.5](03-settlement.md#35-automatic-payout)).
+- Settlement pays 97.5% to the writer and 2.5% to the treasury under the
+  cumulative fee rule, like every voucher.
+- Article tip counts include agent tips; agent reads are counted apart
+  (`articles.agentReadCount`). The NFT threshold counts wallet tips only, as
+  in v2.
 
-Failure cases: a forward that fails on chain is retried with the same
-`client_ref` (Core refuses a duplicate, so a retry cannot pay twice); an
-article whose payout address changed between payment and forward is
-forwarded to the current address, as Core resolves the author at tip time;
-an article removed after payment is flagged for review and its payment is
-refunded from the gateway by an operator action.
+Failure cases: an agent without balance gets `402` with
+`error="insufficient-balance"`; an expired or revoked key gets `402` with
+`error="key"`; a voucher for another article or writer is refused; a repeat
+of an accepted `requestId` returns the first receipt.
 
-## 7.5 Configuration
+## 7.6 Standard MPP `charge` interop (designed, not built)
 
-| Name                    | Where  | Meaning                                                                     |
-| ----------------------- | ------ | --------------------------------------------------------------------------- |
-| `MPP_SECRET_KEY`        | Next   | The SDK's challenge key                                                     |
-| `AGENT_GATEWAY_ADDRESS` | Next   | Challenge recipient                                                         |
-| `AGENT_GATEWAY_TOKEN`   | both   | Shared secret for `agents.recordPayment`                                    |
-| `AGENT_GATEWAY_SECRET`  | Convex | The gateway account key, read only by the forwarder after the network guard |
-| `AGENT_TIP_MAX_CENTS`   | Next   | Upper bound of an agent tip                                                 |
+When the owner approves the custodial hop:
 
-## 7.6 Tests (A3)
+1. `402` from `mppx.charge({ amount, description })` with
+   `recipient = AGENT_GATEWAY_ADDRESS`, network `stellar:testnet`, and the
+   token's contract as currency. The replay store is a Convex-backed adapter
+   (`mppChallenges`), never the in-memory store.
+2. After the SDK confirms the transfer, `agents.recordCharge` stores it once
+   per challenge and transaction hash, and Convex verifies the hash.
+3. A forwarder (debounced 15 s, under a lease) sends `Core.tip_batch` from
+   the gateway account, one item per payment, with
+   `client_ref = sha256(challengeId)[0..16]`. Core applies the 97.5% / 2.5%
+   split on chain, and a retry cannot pay twice. The gateway holds a payment
+   for under a minute.
 
-- Route handler with the SDK's client against the local network: `402`
-  shape, paid read returns the article, a reused credential is refused, an
-  `off` writer returns `403`.
-- Store adapter: two handler instances share replay protection.
-- `recordPayment`: idempotent on `challengeId`; wrong token refused;
-  activity and incoming written once.
-- Forwarder: batches up to 10, retries with the same `client_ref`, the
-  writer receives 97.5% on chain and the treasury 2.5%.
-- Testnet run with the SDK client: pay, read, tip; writer's earnings move
-  within a minute.
+The other option, `recipient = writer` with no platform fee, needs no
+forwarder: step 1 changes, and steps 2 and 3 go away. Build on a release of
+the MPP SDK that supports Stellar SDK 17.4; the 0.7.1 release pins an older
+SDK.
+
+## 7.7 Configuration
+
+| Name                                | Where  | Meaning                     |
+| ----------------------------------- | ------ | --------------------------- |
+| `AGENT_TIP_MAX_CENTS`               | Next   | Upper bound of an agent tip |
+| `AGENT_DEFAULT_PRICE_CENTS`         | Convex | Default per-read price (1)  |
+| `AGENT_GATEWAY_*`, `MPP_SECRET_KEY` | both   | Only with 7.6               |
+
+## 7.8 Tests (A3)
+
+- Route handlers: `402` shape with and without a bearer token; a paid read
+  returns the article; a changed pair returns a fresh challenge; an `off`
+  writer returns `403`; the testnet guard.
+- `acceptRead` and `acceptTip` in `convex-test`: the balance acceptance rules
+  hold for an agent user; idempotent on `requestId`; activity `via: 'agent'`.
+- Local network: an agent opens a Tab and reads 40 articles from 5 writers;
+  settlement pays each writer 97.5% of its reads.
+- The client library's vouchers match the `v3.json` vectors.

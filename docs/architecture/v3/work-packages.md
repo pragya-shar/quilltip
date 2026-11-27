@@ -26,8 +26,8 @@ Later    A1 accounts (passkeys)   A2 assets   A3 agent payments   S1 split legs
 
 The user-visible core (one pipeline, instant state, fast settlement,
 persistent session) is P0 to P7. None of P0 to P7 depends on A1, A2 or A3.
-The v3 contracts already support several tokens ([contracts](contracts.md)),
-but P0 to P7 use XLM only.
+P0 to P7 use one Tab, for XLM. Further tokens are further Tab instances
+(A2) and need no contract change.
 
 ### Rules for every package
 
@@ -89,7 +89,7 @@ but P0 to P7 use XLM only.
 - **Tests:** [contracts C5](contracts.md#c5-tests); `cargo test --locked`
   for `tab`, `core`, `shared`; the deploy script's tests
   (`scripts/contracts/*.test.ts`).
-- **Depends on:** nothing. **Size:** L.
+- **Depends on:** nothing. **Size:** M.
 
 ### P2. Settlement
 
@@ -263,28 +263,32 @@ listed so the coordinator can sequence them.
 
 - **New files:** `lib/stellar/v2/tokens.ts`, `convex/prices.ts`,
   `convex/projectProfiles.ts`, `scripts/assets/*.test.ts`,
-  `scripts/contracts/ops-v2/tokens-sync.ts`.
+  `scripts/contracts/ops-v2/tokens-sync.ts`; then the top-up conversion
+  (`lib/payments/live/convert.ts`) as a second step.
+- **Steps:** registry and prices; a USDC, PYUSD and EURC Tab each, Core
+  allowlist entries, treasury trustlines; USDC as the default token;
+  accepted tokens and the trustline check; project profiles; conversion.
 - **Edits:** `convex/schema.ts` (`tokenConfig`, `prices`, `projectProfiles`,
   `users.acceptedTokens`), `convex/chain/config.ts` (token views),
   `convex/crons.ts` (price refresh), `convex/balance.ts` (`tipContext`
   tokens, prices), `lib/payments/route.ts` (token choice).
 - **Interfaces:** `TokenEntry`, `tokenById`, `tokenContractId`, the
   `prices` rows in `balance.session`.
-- **Depends on:** P5, P3, P1's multi-token Tab. **Size:** M.
+- **Depends on:** P5, P3, P1's deploy script (`deploy-tab`). **Size:** M.
 
 #### A3. Agent payments
 
-- **New files:** `app/api/agents/**`, `lib/agents/**` (the store adapter and
-  challenge helpers), `convex/agents.ts`, `convex/lib/agentForwarder.ts`,
-  `scripts/agents/*.test.ts`.
-- **Edits:** `convex/schema.ts` (`agentPayments`, `mppChallenges`,
-  `users.agentAccess`, `users.agentPriceCents`, `tips.agentPaymentId`),
-  `convex/lib/chain/coreEventHandlers.ts` (link forwarded tips),
-  `convex/crons.ts` (forwarder backstop), the article page head (UI track,
-  one `<link>`).
-- **Dependencies to add:** `@stellar/mpp`, `mppx`, at exact versions
-  published at least two weeks before the package starts.
-- **Depends on:** P4, P5. **Size:** M.
+- **New files:** `app/api/agent/**`, `lib/agents/**` (the challenge and
+  credential codec, and the small client library that signs vouchers),
+  `convex/agents.ts`, `scripts/agents/*.test.ts`.
+- **Edits:** `convex/schema.ts` (`users.kind`, `users.agentAccess`,
+  `users.agentPriceCents`, `agentTokens`, `articles.agentReadCount`,
+  `tabReceipts.kind`), `convex/balance.ts` (export the acceptance core so
+  `agents.acceptRead` and `agents.acceptTip` reuse it), the article page head
+  (UI track, one `<link>`).
+- **Not in A3:** the standard MPP `charge` path (7.6) and its SDK
+  dependencies, until the owner decides.
+- **Depends on:** P5, P2. **Size:** M.
 
 #### S1. Split legs
 

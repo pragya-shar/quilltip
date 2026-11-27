@@ -117,10 +117,13 @@ account with `tabAccounts.by_user`, not with `verifiedStellarAddress`:
 
 One session key per device and account address.
 
-- **Spend bound.** v3 removes the per-key spend limit from the contract
-  ([contracts C2](contracts.md#c2-tab)). Each key can spend up to the balance,
-  bounded by the cent limits in Convex (section 1.3). A deposit never needs a
-  new key.
+- **Spend bound.** Each key is registered with `spend_limit` equal to the
+  Tab's `max_balance` ([contracts C1](contracts.md#decisions)), and tips are
+  bounded by the cent limits in Convex (section 1.3). A deposit needs a new
+  key only when the key's remaining headroom is below the deposit; that
+  deposit then uses `open_session`.
+- **One key, several Tabs.** With one Tab per token, the device key is
+  registered in each Tab the reader funds, by the first deposit into it.
 - **Lifetime.** 90 days (`MAX_KEY_LIFETIME`). When the key has less than 14
   days left, the next deposit uses `open_session` with a new key, so renewal
   rides on an approval the reader is already giving. If no deposit happens,

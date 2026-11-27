@@ -2,172 +2,142 @@
 
 One v3 contract set is deployed once on testnet with
 `scripts/contracts/deploy-v2-testnet.ts` (a new set, section C4). It starts a
-new `CHAIN_EPOCH`. Everything below is decided so that the app's later
-packages (assets, passkeys, agents) need no second redeploy.
+new `CHAIN_EPOCH`. The changes are the smallest set the experience needs;
+everything else in the v2 contracts stays, including their proven behaviour
+with passkey (contract) accounts.
 
 ## C1. Summary
 
-| Contract    | Change                                                                                                                                                                                          |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tab         | Multi-token balances; `deposit_for`; direct payout in `settle`; no per-key spend limit; 90 day keys; instant withdrawal countersigned by the acceptor; v3 signing domains                       |
-| Core        | `MAX_TOKENS` 4 → 16. No other change                                                                                                                                                            |
-| Article NFT | No change; redeployed with the set because it is bound to the Core address                                                                                                                      |
-| Shared      | `TAB_DOMAIN = "quilltip_tab_v3"`, `TAB_ACCEPT_DOMAIN = "quilltip_tab_accept_v3"`, new `TAB_WITHDRAW_DOMAIN = "quilltip_tab_withdraw_v3"`; `VoucherPayload` gains `token`; new `WithdrawPayload` |
+| Contract    | Change                                                                                                                                                                                   |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tab         | Direct payout to writers in `settle`; instant withdrawal countersigned by the acceptor; 90 day keys. Still one token per instance: one Tab per registry token                            |
+| Core        | `MAX_TOKENS` 4 → 16, so the allowlist can hold the registry. No other change                                                                                                             |
+| Article NFT | No change; redeployed with the set because it is bound to the Core address                                                                                                               |
+| Shared      | New `TAB_WITHDRAW_DOMAIN = "quilltip_tab_withdraw_v1"` and `WithdrawPayload`. Voucher and acceptance payloads are unchanged (they already bind the Tab contract address and the network) |
+
+### Decisions
+
+- **One Tab instance per token**, not a multi-token Tab. The constructor
+  already takes `token`; per-token instances isolate tokens and keep one
+  audit scope. A reader's device key is registered in each Tab the reader
+  funds; the registration rides on the first deposit into that Tab
+  (`open_session`), so it adds no prompt. Settlement sends one transaction
+  per Tab with due pairs.
+- **The per-key spend limit stays.** The app registers each key with
+  `spend_limit = max_balance` of that Tab, so a deposit needs a new key only
+  when the key's remaining headroom is below the deposit; the app then uses
+  `open_session` for that deposit (one approval, as for any deposit).
+- **No `deposit_for`.** Practice money and gifts reach a reader as a token
+  transfer to the reader's address, which the reader's first `open_session`
+  deposits ([section 5.5](05-accounts.md#55-funding-without-a-wallet)).
 
 ## C2. Tab
 
-### Storage
-
-| Key                                   | Kind       | Value                                               | v2                                 |
-| ------------------------------------- | ---------- | --------------------------------------------------- | ---------------------------------- |
-| `Config`                              | instance   | `{ treasury, acceptor_keys }`                       | also held `token`, limits          |
-| `Token(token)`                        | persistent | `TokenConfig { max_balance, min_deposit, enabled }` | new (limits were global)           |
-| `Tokens`                              | instance   | `Vec<Address>`, at most `MAX_TOKENS = 8`            | new                                |
-| `Reader(reader)`                      | persistent | `{ next_key_id, withdraw_nonce }`                   | part of `Account`                  |
-| `Account(reader, token)`              | persistent | `{ balance, withdraw_unlock }`                      | `Account(reader)` with key counter |
-| `Session(reader, key_id)`             | temporary  | `{ public_key, valid_until, revoked }`              | also `spend_limit`, `spent`        |
-| `Paid(reader, key_id, writer, token)` | temporary  | `i128`                                              | no `token`                         |
-| `Claimable(owner, token)`             | persistent | `i128`                                              | no `token`                         |
-
-Constants: `MAX_KEY_LIFETIME = 90 × DAY`, `SETTLE_GRACE = 7 × DAY`,
-`WITHDRAW_DELAY = 3 × DAY` (fallback path only), `MAX_SETTLE_BATCH = 32`
-(subject to the resource test, C5), `MAX_ACCEPTOR_KEYS = 2`,
-`MAX_WITHDRAW_ATTESTATION = 720` ledgers (1 hour). Temporary entries live
-until `valid_until + SETTLE_GRACE`, at most 97 days, inside the network's
-maximum entry lifetime; P1 checks it against the testnet config.
-
-### Entry points
+### Entry points that change
 
 ```rust
-// Reader
-fn deposit(reader: Address, token: Address, amount: i128);
-fn deposit_for(funder: Address, reader: Address, token: Address, amount: i128);
-fn open_session(reader: Address, token: Address, amount: i128,
-                public_key: BytesN<32>, valid_until: u32) -> u32;
-fn register_key(reader: Address, public_key: BytesN<32>, valid_until: u32) -> u32;
-fn revoke_key(reader: Address, key_id: u32);
-fn withdraw_now(reader: Address, token: Address, amount: i128, nonce: u64,
-                valid_until: u32, acceptor: BytesN<32>, signature: BytesN<64>) -> i128;
-fn withdraw_start(reader: Address, token: Address);   // fallback, 3 day delay
-fn withdraw(reader: Address, token: Address) -> i128; // fallback
-
-// Settlement
+/// Settles reader-signed vouchers. Settler role only.
+/// Every writer in the batch who is not in `hold` is paid the batch's net
+/// for that writer at the end of the call (one transfer per writer).
+/// Writers in `hold` are credited to `Claimable` as in v2.
 fn settle(settler: Address, vouchers: Vec<Voucher>, hold: Vec<Address>) -> SettleSummary;
-fn settle_own(writer: Address, vouchers: Vec<Voucher>) -> SettleSummary; // pays the writer
-fn claim(recipient: Address, token: Address) -> i128;
 
-// Views
-fn account(reader: Address, token: Address) -> Option<ReaderAccount>;
-fn reader(reader: Address) -> Option<ReaderState>;
-fn session_key(reader: Address, key_id: u32) -> Option<SessionKey>;
-fn paid(reader: Address, key_id: u32, writer: Address, token: Address) -> i128;
-fn claimable(owner: Address, token: Address) -> i128;
-fn token_config(token: Address) -> Option<TokenConfig>;
-fn voucher_payload(reader: Address, writer: Address, token: Address, key_id: u32,
-                   cumulative: i128, receipts_root: BytesN<32>) -> Bytes;
-fn withdraw_payload(reader: Address, token: Address, amount: i128, nonce: u64,
-                    valid_until: u32) -> Bytes;
+/// The caller's own countersigned vouchers; the caller is paid directly.
+fn settle_own(writer: Address, vouchers: Vec<Voucher>) -> SettleSummary;
 
-// Administration (admin unless noted)
-fn set_token(token: Address, max_balance: i128, min_deposit: i128, enabled: bool);
-fn set_treasury(treasury: Address);
-fn set_acceptor(public_key: BytesN<32>);
-// pause / unpause / upgrade / migrate / roles: unchanged from v2
+/// Pays `amount` of the reader's balance at once. `acceptor` must be one of
+/// `acceptor_keys`, `signature` an ed25519 signature over `WithdrawPayload`.
+fn withdraw_now(reader: Address, amount: i128, nonce: u64, valid_until: u32,
+                acceptor: BytesN<32>, signature: BytesN<64>) -> i128;
+
+/// The exact bytes the acceptor signs for `withdraw_now`.
+fn withdraw_payload(reader: Address, amount: i128, nonce: u64, valid_until: u32) -> Bytes;
 ```
 
-`Voucher` gains `token: Address` after `writer`. The constructor takes
-`(admin, pauser, upgrader, settler, treasury, acceptor_key, tokens: Vec<TokenInit>)`
-where `TokenInit { token, max_balance, min_deposit }`.
+Unchanged: the constructor, `deposit`, `open_session`, `register_key`,
+`revoke_key`, `withdraw_start` and `withdraw` (the delayed path stays, so a
+reader can always leave without Convex), `claim`, the views, administration,
+pause, upgrade and roles.
 
-### Rules that change
+### Rules
 
-1. **Deposits** check the token's `TokenConfig` (`enabled`, `min_deposit`,
-   `max_balance` per reader and token). A disabled token takes no deposit;
-   its existing balances still settle and withdraw.
-2. **No spend limit.** `settle_batch` computes
-   `gross = min(cumulative − paid, account.balance)`. `Session` is not written
-   during settlement. The bounds on a misused key are the settler role, the
-   acceptance rules in Convex and the reader's balance.
-3. **Payout.** `settle` accumulates `net` per `(writer, token)` in a map. At
-   the end, for each writer not in `hold`, it transfers the sum from the
-   contract to the writer and publishes `PaidOut { writer, token, amount }`;
-   for each writer in `hold`, it adds the sum to `Claimable(writer, token)`.
-   `settle_own` always pays the caller directly. The treasury fee goes to
-   `Claimable(treasury, token)`.
-4. **Instant withdrawal.** `withdraw_now` requires `reader.require_auth()`,
-   an acceptor key in `acceptor_keys`, a valid ed25519 signature over
-   `WithdrawPayload { domain, contract, network_id, reader, token, amount, nonce, valid_until }`,
-   `nonce == Reader.withdraw_nonce`, `now ≤ valid_until ≤ now + MAX_WITHDRAW_ATTESTATION`,
+1. **Payout.** `settle_batch` accumulates `net` per writer in a map. At the
+   end of `settle`, for each writer not in `hold` it transfers the sum from
+   the contract to the writer and publishes `PaidOut { writer, amount }`;
+   for each writer in `hold` it adds the sum to `Claimable(writer)`. The
+   treasury fee is added to `Claimable(treasury)` as in v2. A transfer that
+   cannot succeed (a classic account without a trustline for a credit asset)
+   traps the call; the settler sees it in simulation and puts that writer in
+   `hold` ([section 3.5](03-settlement.md#35-automatic-payout)).
+2. **Instant withdrawal.** `withdraw_now` requires `reader.require_auth()`,
+   `acceptor ∈ acceptor_keys`, a valid signature over
+   `WithdrawPayload { domain, contract, network_id, reader, amount, nonce, valid_until }`,
+   `nonce == WithdrawNonce(reader)`,
+   `now ≤ valid_until ≤ now + MAX_WITHDRAW_ATTESTATION` (720 ledgers, 1 hour)
    and `0 < amount ≤ balance`. It increments the nonce, lowers the balance,
-   transfers, and publishes `WithdrawnNow`. It works while paused, like
-   `withdraw` (v2 I-27). The delayed `withdraw_start` and `withdraw` stay so
-   a reader can always leave without Convex.
-5. **Funding another reader.** `deposit_for` requires `funder.require_auth()`,
-   moves `amount` from the funder and credits `Account(reader, token)` under
-   the same token rules as `deposit`, and publishes `Deposited` with
-   `funder`. It needs no signature from the reader, so the platform can fund
-   testnet practice money at account creation and a sender can fund a gift
-   from a wallet. Funds credited this way are ordinary balance on chain;
-   Convex records `tipOnly` amounts for gifts ([document 6](06-assets.md)).
-6. **Keys** are per reader, not per token: one device key tips in every token.
-7. **Signing domains** are v3, so no v2 signature verifies against v3.
+   transfers, cancels a pending delayed withdrawal if the balance becomes
+   zero, and publishes `WithdrawnNow { reader, amount, nonce }`. It works
+   while paused, like `withdraw` (v2 I-27).
+3. **Key lifetime.** `MAX_KEY_LIFETIME` rises from 30 to 90 days. Temporary
+   entries live until `valid_until + SETTLE_GRACE`, at most 97 days; P1
+   checks this against the testnet maximum entry lifetime.
 
-### Events
+### Storage and events
 
-`Deposited`, `WithdrawStarted`, `WithdrawCancelled`, `Withdrawn`,
-`Claimed`, `TabSettled` and `VoucherSkipped` gain `token`. `TabSettled` gains
-`paid_out: bool`. `KeyRegistered` loses `spend_limit`. New: `PaidOut`,
-`WithdrawnNow`, `TokenSet`. The indexer's Tab handlers
-(`convex/lib/chain/tabEventHandlers.ts`) and the event decoders follow the
-new shapes in P5.
+New: `WithdrawNonce(reader)` (persistent, `u64`). New events: `PaidOut`,
+`WithdrawnNow`. `TabSettled` gains `paid_out: bool`. Nothing else changes, so
+the v2 event handlers keep working for every other event.
 
 ### Convex side of the instant withdrawal
 
 `balance.prepareWithdraw({ token, amountBaseUnits })` signs the attestation
-only when `amount ≤ confirmedBalance − outstanding − reserved`. It sets
-`tabAccounts.withdrawReserved = { amount, nonce, validUntil }`, which
-acceptance subtracts from `available` until the `WithdrawnNow` event lands
-or `validUntil` passes. The reservation is at most `available`, so after the
-withdrawal the balance still covers every accepted voucher, and settlement
-needs no change while a reservation is live.
+only when `amount ≤ confirmedBalance − outstanding − reserved − tipOnly`. It
+sets `tabAccounts.withdrawReserved = { amount, nonce, validUntil }`, which
+acceptance subtracts from `available` until the `WithdrawnNow` event lands or
+`validUntil` passes. Because the reservation is at most `available`, every
+accepted voucher stays payable after the withdrawal, and settlement needs no
+change while a reservation is live.
 
 ## C3. Core
 
-`MAX_TOKENS` rises from 4 to 16 (`contracts/core/src/storage.rs`), so the
-allowlist can hold the registry ([document 6](06-assets.md)). `tip`,
-`tip_batch`, splits, the fee and `client_ref` are unchanged. The token list
-is administered with the existing `set_token` and `remove_token`.
+`MAX_TOKENS` rises from 4 to 16 (`contracts/core/src/storage.rs`). `tip`,
+`tip_batch`, splits, the fee and `client_ref` are unchanged. The token list is
+administered with the existing `set_token` and `remove_token`
+([document 6](06-assets.md)).
 
 ## C4. Deployment
 
-- `scripts/contracts/deploy-v2/config.ts` gains a set `v3` with the new
-  constructor arguments: XLM's Stellar Asset Contract as the only token at
-  deploy (`max_balance` 10,000 XLM, `min_deposit` 1 XLM), the same roles as
-  the integration set, and a new acceptor key.
-- `lib/stellar/v2/bindings/tab` is regenerated (`scripts/contracts/bindings.ts`).
-- The deploy writes `CHAIN_EPOCH=testnet-v3-<yyyy-mm-dd>` and the contract ids
-  into the evidence file; `stepConvexEnv` prints the Convex env for P7.
-- A v3 Convex deployment for integration is a new deployment, not the v2
+- `scripts/contracts/deploy-v2/config.ts` gains a set `v3`: Core, NFT and one
+  Tab for XLM's Stellar Asset Contract (`max_balance` 10,000 XLM,
+  `min_deposit` 1 XLM), the integration set's roles, and a new acceptor key.
+  A2 adds further Tab instances with the same script (a `deploy-tab` step
+  that takes the token's contract id).
+- `lib/stellar/v2/bindings/tab` and `core` are regenerated
+  (`scripts/contracts/bindings.ts`).
+- The deploy writes `CHAIN_EPOCH=testnet-v3-<yyyy-mm-dd>` and the contract
+  ids into the evidence file; `stepConvexEnv` prints the Convex env for P7.
+- The v3 integration backend is a new Convex deployment, not the v2
   integration backend.
 
 ## C5. Tests
 
 Extend the v2 Rust suites (`contracts/tab/src/test/*`):
 
-- `reader.rs`: `deposit_for` credits the reader and needs only the funder's
-  auth; deposits per token, caps per token, disabled token refuses
-  deposits but settles, one key for two tokens.
-- `settle.rs`: payout to writers not in `hold`, `Claimable` for writers in
-  `hold`, aggregation of several vouchers to one writer, a payee transfer that
-  traps (asset without trustline) fails the call so the settler can hold it,
-  fee to treasury per token, no `Session` write.
+- `settle.rs`: payout to writers not in `hold`; `Claimable` for writers in
+  `hold`; several vouchers to one writer make one transfer; a payee transfer
+  that traps (credit asset without trustline) fails the call; the fee goes to
+  the treasury's `Claimable`; `settle_own` pays the caller.
 - `edge.rs`: `withdraw_now` with a wrong nonce, an expired or too-long
   attestation, an unknown acceptor, an amount above the balance, while
-  paused; nonce replay; the delayed path still works.
-- `vectors.rs`: v3 voucher, acceptance and withdraw payload vectors written to
-  `contracts/tab/test-vectors/v3.json`, consumed by the TypeScript encoder
-  tests (P5).
+  paused; nonce replay; the delayed path still works after an instant
+  withdrawal.
+- `vectors.rs`: the `WithdrawPayload` vector added to the existing vectors,
+  written to `contracts/tab/test-vectors/v3.json` for the TypeScript tests
+  (P5).
 - `resource.rs`: the worst case with payouts (32 vouchers, 32 distinct
-  writers, none held) within the limits; if not, lower `MAX_SETTLE_BATCH`.
-- `props.rs`: the cumulative fee invariant per `(pair, token)`; the sum of
-  balances, claimables and payouts equals deposits minus withdrawals per token.
+  writers, none held) within the limits the SDK enforces; if it does not
+  fit, lower `MAX_SETTLE_BATCH`. (Measured on testnet for v2 `settle` at 32
+  vouchers: 48.0M instructions, 49 write entries, 33.8 KB.)
+- `props.rs`: the sum of balances, claimables and payouts equals deposits
+  minus withdrawals.
+- Core: `set_token` accepts a 16th token and refuses a 17th.

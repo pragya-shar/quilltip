@@ -14,7 +14,7 @@ vouchers) and replaces when it runs and what the transaction does.
 
 | Item               | v2                                            | v3                                                                                   |
 | ------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Trigger            | Cron, 10 min                                  | Scheduled from acceptance, 15 s debounce; cron every 5 min as backstop               |
+| Trigger            | Cron, 10 min                                  | Scheduled from acceptance, 15 s debounce; cron every minute as backstop              |
 | Due rule           | 6 h age, 5 XLM, closing, window ending        | Every `ready` pair whose latest receipt is older than the undo window                |
 | Batch              | Up to 32 vouchers                             | Up to 32 vouchers, sized to the network's footprint limits                           |
 | Writer's payout    | `Tab.claim` by the writer                     | Paid in `Tab.settle` ([contracts C2](contracts.md#c2-tab)); `claim` only as fallback |
@@ -61,10 +61,14 @@ Rules:
    `now + SETTLE_DEBOUNCE_MS` (15 s) and store `runAt` and `scheduledId`.
    The debounce is fixed from the first acceptance, not sliding, so a steady
    stream of tips cannot postpone a run.
-4. At the end of a run, the run clears `runAt`. If `rerun` was set, or the
+4. No early flush at 32 vouchers: counting due vouchers on every acceptance
+   would write the schedule document on every tip. With a fixed 15 s
+   debounce a full batch waits at most 15 s, and rule 5 sends further full
+   batches back to back.
+5. At the end of a run, the run clears `runAt`. If `rerun` was set, or the
    run left `ready` pairs because the batch was full, it schedules the next
    run at once (`runAfter(0)`, cost cap permitting).
-5. Cost cap: at most `SETTLER_MAX_RUNS_PER_HOUR` runs (default 240) start per
+6. Cost cap: at most `SETTLER_MAX_RUNS_PER_HOUR` runs (default 240) start per
    hour. Past the cap, the next run is scheduled at the start of the next
    hour and `TAB_SETTLER_RATE_CAPPED` is logged.
 
@@ -105,13 +109,11 @@ The v2 cycle (`runSettlementCycle`) stays, with these changes:
 
 ### Footprint
 
-Per voucher the v3 `settle` writes the pair's `Paid` entry and the reader's
-`Account(reader, token)`; per paid writer it writes the writer's token
-balance; per batch it writes the contract's token balance and the treasury's
-`Claimable`. v3 removes the per-key spend accounting, so `Session` is not
-written ([contracts C2](contracts.md#c2-tab)). The v2 resource test
-(`contracts/tab/src/test/resource.rs`) shows that 32 vouchers to distinct
-readers and writers fit the per-transaction limits the SDK enforces. Payouts
+Per voucher `settle` writes the pair's `Paid` entry, the reader's
+`Account` and the key's `Session`; per paid writer v3 adds a token balance
+write; per batch it writes the contract's token balance and the treasury's
+`Claimable`. v2 `settle` with 32 vouchers measured 48.0M instructions, 49
+write entries and 33.8 KB on testnet, inside the limits (400M, 200, 132 KB). Payouts
 add one token transfer per distinct writer, so P1 extends that test to the
 worst case with payouts (32 vouchers, 32 writers, none held) and lowers
 `MAX_SETTLE_BATCH` if it does not fit. Step 4 protects against limits that
@@ -120,16 +122,35 @@ its report.
 
 ## 3.4 Cost
 
-Each run is one Soroban transaction from the settler account. Cost per run
-is the simulated resource fee plus the inclusion fee (`BASE_FEE`). The run
+A run sends one Soroban transaction per Tab instance with due pairs, in
+sequence from the settler account (one sequence number at a time). Cost per
+transaction is the simulated resource fee plus the inclusion fee.
+
+Measured on testnet for v2 `settle` (rails research, 2026-11-27): 14,082
+stroops for 1 voucher, 59,733 for 8, 188,626 for 32 (5,895 per voucher) on
+pairs that settled before; first settlement of a new pair or a new writer
+adds one-time rent (about 1.2M stroops for a new writer's `Claimable`). At
+the 15 s debounce the modelled daily cost is about $0.02 at 100 tips, $1.3
+at 10,000 tips and $76 at 1,000,000 tips; the 6 hour rule saved at most about
+$0.55 a day at 10,000 tips. Direct payout replaces the first `Claimable`
+write per writer with a token balance write, which P1 measures. Above about
+2 settlement transactions per ledger (around 1M tips a day), the settler
+submits from 2 to 4 source accounts, with the settler address authorising
+each call; that is not needed for testnet. The run
 logs `TAB_SETTLER_RUN_COST` with the fee charged and the vouchers settled.
 Controls: the 15 s debounce (at most 4 runs a minute under load, fewer
-otherwise), the hourly cap (3.2 rule 5), the batch fill, and the optional
+otherwise), the hourly cap (3.2 rule 6), the batch fill, and the optional
 floor. The settler account balance alert of v2 (`BALANCE_ALERT_STROOPS`)
 stays. On testnet the settler account is funded by Friendbot; the deploy
 tooling's `ops-v2` top-up applies.
 
 ## 3.5 Automatic payout
+
+Decision: pay in the settlement transaction, not with a later `claim`. A
+daily or per-run `claim` per writer would add one transaction per writer,
+compete for the settler's sequence numbers, and leave earnings out of the
+writer's wallet for minutes to a day. Direct payout costs one token transfer
+per writer inside a transaction that runs anyway.
 
 v2 credited each writer's net to `Claimable(writer)` and the writer called
 `Tab.claim`. v3's `Tab.settle` takes a `hold` list: every writer in the batch
@@ -153,7 +174,7 @@ and token, at the end of the call. Writers in `hold` are credited to
 | Case                                                  | Handling                                                                                     |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | Run crashes after send                                | v2: the next run finds the recorded envelope and looks up the hash                           |
-| Scheduled run lost (deploy, crash before start)       | The 5 min cron runs `settleDue`; `runAt` in the past is cleared by the cron                  |
+| Scheduled run lost (deploy, crash before start)       | The 1 minute cron runs `settleDue`; `runAt` in the past is cleared by the cron               |
 | Batch over resource limits                            | Halve and retry (3.3 step 4); never a rejection                                              |
 | A bad voucher                                         | v2 bisection, `REJECTED` for review; the reader's reservation is released                    |
 | A payee cannot receive                                | Moved to `hold`, credited to `Claimable`                                                     |

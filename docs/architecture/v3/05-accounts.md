@@ -63,13 +63,25 @@ that can work on the current device (no desktop extensions on a phone).
 
 ## 5.2 Passkey accounts
 
-Assumption until the Stellar rails research decides the mechanism: a
-Soroban smart account per user whose `__check_auth` verifies a WebAuthn
-(secp256r1) signature from the user's passkey, built on an audited smart
-account library, deployed by a factory, with an address derived from the
-factory and a salt of the credential id. Everything else in this document
-holds for any smart account whose address is a contract address (`C…`) and
-whose authorisation is a Soroban auth entry signed by the passkey.
+Mechanism (from the Stellar rails research, proven end to end on testnet):
+
+- `smart-account-kit@0.10.0` in the browser, on the OpenZeppelin
+  `stellar-accounts` v0.8.0 smart account with its WebAuthn verifier. The
+  default context rule 0 holds the passkey; no policies at first.
+- The browser only creates the passkey and signs Soroban auth entries. A
+  Convex Node action with our sponsor key builds, pays for and submits every
+  transaction (section 5.3).
+- Every signed entry passes one context rule id per auth context:
+  `Tab.open_session` and `Tab.deposit` have 2 contexts (the call and the
+  token transfer), `Core.tip` has 3 with no splits. A wrong count fails with
+  contract error 3014. `lib/wallet/passkey.ts` derives the count from the
+  simulation's auth tree, not from a table.
+- Convex keeps `credentialId → contractId` with the account's creation hash
+  and ledger, so a new device signs in without an outside indexer.
+- The kit and the deployed account code are not audited at this version.
+  Testnet only; a mainnet release needs a review and balance caps.
+- Balance tips stay on Tab vouchers signed by the device key (no prompt);
+  smart-account session signers are not used for people.
 
 What the v3 contracts need from it: nothing new. `Tab` and `Core` call
 `require_auth()` on the reader or tipper address, which a contract account
@@ -79,25 +91,31 @@ contract addresses. The Tab account and its session keys work the same for a
 
 ### Creation (one sheet, two biometric prompts)
 
-1. WebAuthn `create` (prompt 1) makes the credential. The browser returns the
-   public key.
-2. `accounts.createPasskeyAccount({ attestation })` (Convex action, A1)
-   verifies the attestation, creates the Convex user, signs them in
-   (section 5.4), and asks the sponsor to deploy the smart account with the
-   public key. The account address is set as the user's verified address
+1. WebAuthn `create` (prompt 1) through `kit.createWallet(appName, userName,
+{ autoSubmit: false })`, which returns the deploy payload.
+2. `accounts.createPasskeyAccount({ attestation, deployPayload })` (Convex
+   action, A1) verifies the attestation, creates the Convex user, signs them
+   in (section 5.4), and submits the deploy with the sponsor key. The account address is set as the user's verified address
    (`users.stellarAddress`, method `passkey`): the server deployed it for this
    credential, so no message signature is needed.
 3. On testnet, the sponsor funds practice money (section 5.5).
-4. The device key is registered: `register_key` signed by the passkey
-   (prompt 2), submitted by the sponsor. From here every balance tip needs no
-   prompt.
+4. `Tab.open_session` signed by the passkey (prompt 2), submitted by the
+   sponsor, registers the device key and deposits the practice money. From
+   here every balance tip needs no prompt. Two prompts is the minimum: the
+   account cannot exist and authorise in one transaction, and WebAuthn
+   `create` signs nothing.
 
 ### Where passkeys do not work
 
 Passkeys are unreliable in third-party WebViews (social apps' in-app
 browsers). There the sheet offers "Open in your browser" for account
 creation. In a wallet's in-app browser, the `injected` provider is used
-instead of a passkey.
+instead of a passkey: the wallet's classic account is the reader. Detection
+follows the rails research (for example `window.stellar.platform ===
+'mobile'` for Varial and Freighter mobile, xBull's `cordova_iab`). There the
+app still pays fees: it asks the wallet to sign auth entries when the wallet
+supports it (`submitMode: 'sponsored'`), and otherwise the wallet signs the
+envelope and pays (`self`).
 
 ## 5.3 Fee sponsor
 
@@ -128,11 +146,14 @@ export const submit = action({
 - `prepare` simulates the call with the user's account as the authorising
   address and returns the auth entries to sign. `submit` builds the
   transaction with the sponsor account as source, attaches the signed
-  entries, re-simulates, signs and sends.
+  entries, re-simulates (a WebAuthn signature is larger than the simulation
+  placeholder), signs and sends.
 - Allowlist: only calls to this deployment's Tab (`deposit`, `open_session`,
   `register_key`, `revoke_key`, `withdraw_now`, `withdraw_start`, `withdraw`),
   Core (`tip`) and the account factory; the authorising address must be the
   signed-in user's account address.
+- Fee caps per call: 2,000,000 stroops for a first `open_session` (measured
+  about 1,210,000 with the new account entry), 300,000 after.
 - Limits: `SPONSOR_MAX_FEE_STROOPS` per transaction, `SPONSOR_DAILY_PER_USER`
   transactions per user, `SPONSOR_DAILY_BUDGET_STROOPS` in all; a refused
   request says so and the sheet offers no workaround.
@@ -157,17 +178,20 @@ with a passkey needs no email or password.
 
 ## 5.5 Funding without a wallet
 
-- **Practice money (testnet only).** At account creation the sponsor calls
-  `Tab.deposit_for` from a testnet treasury account to credit the reader's
-  balance with `PRACTICE_GRANT_CENTS` (default 500) of testnet XLM. One grant
+- **Practice money (testnet only).** At account creation the sponsor
+  transfers `PRACTICE_GRANT_CENTS` (default 500) of the default token from a
+  testnet treasury account to the new account's address. The creation flow's
+  second prompt is the `open_session` that registers the device key and
+  deposits that amount, so practice money costs no extra prompt. One grant
   per credential, device hash and network address hash
   (`practiceGrants` table). Balance views label it "Practice money"; Convex
   records it as `tabAccounts.tipOnly` so the instant withdrawal does not
   include it.
 - **Gift links (later, with the loops work).** On testnet a gift moves from
   the sender to a platform gift account at creation (a token transfer through
-  the sender's provider). A claim calls `Tab.deposit_for` from the gift account
-  to the recipient's balance and records the amount as `tipOnly`; an unclaimed
+  the sender's provider). A claim transfers it from the gift account to the
+  recipient's address; the recipient's next deposit (`open_session` for a new
+  account) moves it into the balance, and Convex records it as `tipOnly`; an unclaimed
   gift returns after 14 days. Holding a sender's money for a recipient is a
   custody decision for any mainnet release.
 - **Add funds from an exchange or card.** Not in v3. On testnet the funding
