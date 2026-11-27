@@ -4,8 +4,10 @@
  *
  *   bun run test:e2e:auth [--skip-build] [-- <playwright args>]
  *
- * 1. Starts `convex dev` for the anonymous local deployment `anonymous-agent`
- *    and waits until the functions are pushed.
+ * 1. Checks the pinned local backend binary against its recorded SHA-256
+ *    (downloading it once if needed), starts `convex dev` for the anonymous
+ *    local deployment `anonymous-agent` on that version, and waits until the
+ *    functions are pushed.
  * 2. Gives that backend a new Convex Auth signing key and SITE_URL.
  * 3. Builds the app against it (unless --skip-build) and serves it.
  * 4. Runs the suite in WebKit and Chromium at phone viewports.
@@ -14,10 +16,20 @@
  * other deployment, because `convex dev` would rewrite that file.
  */
 import { spawn, spawnSync, type ChildProcess } from 'child_process'
-import { existsSync, readFileSync } from 'fs'
-import { randomBytes } from 'crypto'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'fs'
+import { createHash, randomBytes } from 'crypto'
 import { createServer } from 'net'
-import { resolve } from 'path'
+import { homedir, tmpdir } from 'os'
+import { join, resolve } from 'path'
 
 import { ConvexHttpClient } from 'convex/browser'
 
@@ -27,6 +39,27 @@ import { assertScriptConvexDeployAllowed } from '../lib/network-guard'
 const repoRoot = resolve(__dirname, '../..')
 const DEPLOYMENT = 'anonymous:anonymous-agent'
 const READY_TIMEOUT_MS = 240_000
+
+/**
+ * The Convex local backend release this run uses, and the SHA-256 of its
+ * release zip and of the binary inside, per platform. `convex dev` would
+ * otherwise fetch the newest release with no checksum. To move the pin,
+ * download each zip from the release, record both hashes and change them
+ * together.
+ */
+const LOCAL_BACKEND_VERSION = 'precompiled-2026-11-21-cf39368'
+const LOCAL_BACKEND_RELEASES =
+  'https://github.com/convex/convex-backend/releases/download'
+const LOCAL_BACKEND_SHA256: Record<string, { zip: string; binary: string }> = {
+  'aarch64-apple-darwin': {
+    zip: '32530173dcd215b16e296a09f07e17e71f41f3b261136c8469fcb76af6445119',
+    binary: 'c20e92b96ec806211410938c58d9321251d784984eb2a9c62e527a322b955d92',
+  },
+  'x86_64-unknown-linux-gnu': {
+    zip: 'a7bf39daa91535b93a4c59943bcf5c963c3852b021f02be132145500904b5f1d',
+    binary: '3ed17a59853cf744f50c3b962c5fa15ed0813b6c354c9ba82ba2f7d55fa1cd5f',
+  },
+}
 
 function fail(message: string): never {
   throw new Error(`auth e2e: ${message}`)
@@ -112,6 +145,74 @@ function startUntil(
   })
 }
 
+function sha256(path: string): string {
+  return createHash('sha256').update(readFileSync(path)).digest('hex')
+}
+
+/**
+ * Puts the pinned backend binary where `convex dev` looks for it
+ * (~/.cache/convex/binaries/<version>/), checked against the recorded
+ * SHA-256. A cached binary with another hash is refused, not replaced.
+ */
+export async function ensurePinnedLocalBackend(): Promise<void> {
+  const target =
+    process.platform === 'darwin' && process.arch === 'arm64'
+      ? 'aarch64-apple-darwin'
+      : process.platform === 'linux' && process.arch === 'x64'
+        ? 'x86_64-unknown-linux-gnu'
+        : null
+  const expected = target ? LOCAL_BACKEND_SHA256[target] : undefined
+  if (!target || !expected) {
+    fail(
+      `no recorded local backend checksum for ${process.platform} ${process.arch}`
+    )
+  }
+  const dir = join(
+    homedir(),
+    '.cache',
+    'convex',
+    'binaries',
+    LOCAL_BACKEND_VERSION
+  )
+  const binary = join(dir, 'convex-local-backend')
+  if (existsSync(binary)) {
+    if (sha256(binary) !== expected.binary) {
+      fail(
+        `${binary} does not match the recorded SHA-256; remove it to fetch it again`
+      )
+    }
+    return
+  }
+  const url = `${LOCAL_BACKEND_RELEASES}/${LOCAL_BACKEND_VERSION}/convex-local-backend-${target}.zip`
+  const response = await fetch(url)
+  if (!response.ok) {
+    fail(`downloading the local backend: HTTP ${response.status}`)
+  }
+  const work = mkdtempSync(join(tmpdir(), 'convex-local-backend-'))
+  try {
+    const zip = join(work, 'backend.zip')
+    writeFileSync(zip, Buffer.from(await response.arrayBuffer()))
+    if (sha256(zip) !== expected.zip) {
+      fail(
+        'the downloaded local backend zip does not match the recorded SHA-256'
+      )
+    }
+    const unzip = spawnSync('unzip', ['-q', zip, '-d', join(work, 'out')], {
+      stdio: 'inherit',
+    })
+    if (unzip.status !== 0) fail('unzipping the local backend failed')
+    const extracted = join(work, 'out', 'convex-local-backend')
+    if (sha256(extracted) !== expected.binary) {
+      fail('the local backend binary does not match the recorded SHA-256')
+    }
+    mkdirSync(dir, { recursive: true })
+    chmodSync(extracted, 0o755)
+    renameSync(extracted, binary)
+  } finally {
+    rmSync(work, { recursive: true, force: true })
+  }
+}
+
 /** A new RS256 key for Convex Auth, as scripts/generateKeys.mjs writes it. */
 async function signingKey(): Promise<{ privateKey: string; jwks: string }> {
   const keys = await crypto.subtle.generateKey(
@@ -191,6 +292,7 @@ async function main(): Promise<number> {
     QUILLTIP_NETWORK_GUARD_OPT_IN: 'testnet',
   }
   assertScriptConvexDeployAllowed('auth e2e backend', convexEnv)
+  await ensurePinnedLocalBackend()
 
   const children: ChildProcess[] = []
   try {
@@ -204,6 +306,8 @@ async function main(): Promise<number> {
           'disable',
           '--tail-logs',
           'always',
+          '--local-backend-version',
+          LOCAL_BACKEND_VERSION,
         ],
         convexEnv,
         /Convex functions ready/,
@@ -278,12 +382,14 @@ async function main(): Promise<number> {
   }
 }
 
-main().then(
-  (code) => {
-    process.exit(code)
-  },
-  (error) => {
-    console.error(error instanceof Error ? error.message : error)
-    process.exit(1)
-  }
-)
+if (import.meta.main) {
+  main().then(
+    (code) => {
+      process.exit(code)
+    },
+    (error) => {
+      console.error(error instanceof Error ? error.message : error)
+      process.exit(1)
+    }
+  )
+}
