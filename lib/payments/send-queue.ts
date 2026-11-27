@@ -105,6 +105,11 @@ export function createSendQueue(
     const fresh = find(entry.requestId)
     if (!fresh) return
     let current = fresh.requestId
+    // The control waits on the id it sent; a fresh prepare renames the entry.
+    const report = (job: JobStatus) => {
+      deps.report(fresh.requestId, job)
+      if (current !== fresh.requestId) deps.report(current, job)
+    }
     let outcome: TabTipOutcome
     try {
       outcome = await c.signer!.send(fresh, c.keyId, {
@@ -130,8 +135,7 @@ export function createSendQueue(
       }
       if (saved?.submit) {
         // It may have reached the server: leave it for resume.
-        deps.report(
-          current,
+        report(
           n >= maxErrors
             ? { status: 'failed', code: 'UNCONFIRMED' }
             : { status: 'sending' }
@@ -139,18 +143,18 @@ export function createSendQueue(
         return
       }
       deps.outbox.remove(current)
-      deps.report(current, { status: 'failed', code: 'ERROR' })
+      report({ status: 'failed', code: 'ERROR' })
       return
     }
     if (!bound()) return
     if (outcome.kind === 'accepted') {
-      deps.report(current, { status: 'sent' })
+      report({ status: 'sent' })
       return
     }
     if (outcome.kind === 'unconfirmed') return
     if (outcome.kind === 'refused' && KEEP_ON_REFUSAL.has(outcome.code)) return
     deps.outbox.remove(current)
-    deps.report(current, {
+    report({
       status: 'failed',
       code:
         outcome.kind === 'refused'

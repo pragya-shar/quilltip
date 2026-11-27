@@ -1,77 +1,74 @@
 'use client'
 
 /**
- * The one React context the payments hooks read (`hooks/payments/*`). The
- * root layout provides the live runtime (`components/payments/
- * PaymentsProvider.tsx`); fixtures provide a fake one. Without a provider the
- * hooks read a signed-out runtime, so a screen rendered outside the app shell
- * shows the signed-out state instead of failing.
+ * The one React context the payments hooks read (`hooks/payments/*`). Its
+ * default is the shell runtime: hooks that read `paymentsStore`, which the
+ * engine fills once it has loaded. A fixture can provide its own runtime.
+ * The shell's hooks call the same React hooks before and after the engine
+ * arrives, so nothing remounts or resets when it does.
  */
-import { createContext, useContext } from 'react'
-import { money } from './money'
-import type {
-  ActivityView,
-  BalanceView,
-  EarningsView,
-  PaymentsRuntime,
-  TipController,
-} from './types'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useSyncExternalStore,
+} from 'react'
+import { paymentsStore, shellController, type PaymentsState } from './store'
+import type { PaymentsRuntime, TipMeta, TipTarget } from './types'
 
-const ZERO = money(0)
-
-const SIGNED_OUT_BALANCE: BalanceView = {
-  status: 'signed-out',
-  available: ZERO,
-  pending: ZERO,
-  deviceReady: false,
-  device: 'unavailable',
-  limits: null,
-  amounts: [],
-  settlement: { enabled: false, expectedWithinMs: 0 },
-  online: true,
-  network: 'testnet',
+function useStore<T>(select: (s: PaymentsState) => T): T {
+  return useSyncExternalStore(
+    paymentsStore.subscribe,
+    () => select(paymentsStore.get()),
+    () => select(paymentsStore.get())
+  )
 }
 
-const EMPTY_ACTIVITY: ActivityView = {
-  status: 'ready',
-  items: [],
-  canLoadMore: false,
-  loadMore: () => {},
+/** Controllers made before the engine: one per id, stable between reads. */
+const shellControllers = new Map<
+  string,
+  { key: string; value: ReturnType<typeof shellController> }
+>()
+
+function useShellTip(target: TipTarget, meta: TipMeta) {
+  const id = useId()
+  useEffect(
+    () => paymentsStore.register(id, { target, meta }),
+    [id, target, meta]
+  )
+  return useStore((s) => {
+    const computed = s.tips[id]
+    if (computed) return computed
+    const key = `${s.auth}:${s.engine}:${id in s.queuedTaps}`
+    const cached = shellControllers.get(id)
+    if (cached && cached.key === key) return cached.value
+    const value = shellController(id)
+    shellControllers.set(id, { key, value })
+    return value
+  })
 }
 
-const SIGNED_OUT_EARNINGS: EarningsView = {
-  status: 'signed-out',
-  pending: ZERO,
-  available: ZERO,
-  collected: ZERO,
-  total: ZERO,
-  onHold: ZERO,
-  notPaid: ZERO,
-  counts: { pending: 0, onHold: 0, notPaid: 0, settled: 0 },
-  lagging: false,
-  exact: null,
-}
-
-const NO_TIP: TipController = {
-  state: { phase: 'idle' },
-  amount: money(100),
-  amounts: [],
-  setAmount: () => {},
-  tip: async () => {},
-  reset: () => {},
-  ready: true,
-  unavailable: 'signed-out',
-}
-
-export const signedOutRuntime: PaymentsRuntime = {
-  useBalance: () => SIGNED_OUT_BALANCE,
-  useTip: () => NO_TIP,
-  useActivity: () => EMPTY_ACTIVITY,
-  useEarnings: () => SIGNED_OUT_EARNINGS,
+export const shellRuntime: PaymentsRuntime = {
+  useBalance: () => useStore((s) => s.balance),
+  useTip: useShellTip,
+  useActivity: (role) => {
+    useEffect(
+      () => (role === 'writer' ? paymentsStore.watch('writer') : undefined),
+      [role]
+    )
+    return useStore((s) =>
+      role === 'reader' ? s.readerActivity : s.writerActivity
+    )
+  },
+  useEarnings: () => {
+    useEffect(() => paymentsStore.watch('earnings'), [])
+    return useStore((s) => s.earnings)
+  },
 }
 
 export const PaymentsRuntimeContext =
-  createContext<PaymentsRuntime>(signedOutRuntime)
+  createContext<PaymentsRuntime>(shellRuntime)
 
 export function usePaymentsRuntime(): PaymentsRuntime {
   return useContext(PaymentsRuntimeContext)

@@ -21,8 +21,59 @@ export type EarningsRead = FunctionReturnType<typeof api.earnings.mine>
 
 /** Pending tips older than this read as taking longer than usual. */
 export const LAG_NOTICE_MS = 5 * 60 * 1000
-/** The quick amounts beside the tip button, before limits. */
-export const QUICK_AMOUNTS = [100, 200, 300, 500] as const
+
+/**
+ * The one ladder of tip amounts, in cents. The control offers the amounts
+ * of this ladder that fit every bound at that moment (the minimum tip, the
+ * per-tip cap, what is left of today's limit, and the spendable balance):
+ * the largest `MAX_CHOICES` that fit, ascending. A raw ceiling (such as
+ * 63 cents) is never an amount. The default is $1 when it fits, otherwise
+ * the smallest amount offered; a reader's choice is never raised.
+ */
+export const TIP_LADDER = [10, 25, 50, 100, 200, 300, 500] as const
+export const MAX_CHOICES = 4
+export const DEFAULT_CHOICE_CENTS = 100
+
+/** Why no amount of the ladder fits. */
+export type NoAmountReason = 'cap' | 'daily' | 'balance'
+
+export function tipChoices(bounds: {
+  minCents: number
+  perTipCents: number
+  dailyLeftCents: number
+  spendableCents: number
+}): { amounts: number[]; reason: NoAmountReason | null } {
+  const capped = TIP_LADDER.filter(
+    (c) => c >= bounds.minCents && c <= bounds.perTipCents
+  )
+  if (capped.length === 0) return { amounts: [], reason: 'cap' }
+  const today = capped.filter((c) => c <= bounds.dailyLeftCents)
+  if (today.length === 0) return { amounts: [], reason: 'daily' }
+  const fits = today.filter((c) => c <= bounds.spendableCents)
+  if (fits.length === 0) return { amounts: [], reason: 'balance' }
+  return { amounts: fits.slice(-MAX_CHOICES), reason: null }
+}
+
+/** $1 when offered, else the smallest offered amount, else none. */
+export function defaultChoice(amounts: readonly number[]): number | null {
+  if (amounts.includes(DEFAULT_CHOICE_CENTS)) return DEFAULT_CHOICE_CENTS
+  return amounts[0] ?? null
+}
+
+/**
+ * The amount the button states and sends: the reader's choice while it is
+ * offered, else the largest offered amount not above it, else none. Never
+ * above the choice.
+ */
+export function effectiveChoice(
+  chosen: number | null,
+  amounts: readonly number[]
+): number | null {
+  if (chosen === null) return defaultChoice(amounts)
+  if (amounts.includes(chosen)) return chosen
+  const below = amounts.filter((c) => c <= chosen)
+  return below.length ? below[below.length - 1]! : null
+}
 
 export type DeviceState = BalanceView['device']
 
@@ -59,6 +110,7 @@ export function balanceViewOf(input: {
     device: input.device,
     limits: null,
     amounts: [],
+    noAmountReason: null,
     settlement: session?.settlement ?? {
       enabled: false,
       expectedWithinMs: LAG_NOTICE_MS,
@@ -89,6 +141,7 @@ export function balanceViewOf(input: {
   const l = session.limits
   let limits: BalanceView['limits'] = null
   let amounts: Money[] = []
+  let noAmountReason: NoAmountReason | null = null
   if (l) {
     const usedToday =
       (l.acceptedDay === utcDay(input.now) ? l.acceptedTodayCents : 0) +
@@ -100,13 +153,14 @@ export function balanceViewOf(input: {
       minTip: money(l.minTipCents ?? 1),
       defaultTip: money(l.defaultTipCents),
     }
-    const ceiling = Math.min(l.perTipCents, dailyLeft, l.quickTipMaxCents)
-    const min = l.minTipCents ?? 1
-    const quick = QUICK_AMOUNTS.filter((c) => c <= ceiling && c >= min)
-    // A per-tip limit below every quick amount still offers one amount.
-    amounts = (quick.length ? quick : ceiling >= min ? [ceiling] : []).map(
-      money
-    )
+    const choices = tipChoices({
+      minCents: l.minTipCents ?? 1,
+      perTipCents: l.perTipCents,
+      dailyLeftCents: dailyLeft,
+      spendableCents: availableCents,
+    })
+    amounts = choices.amounts.map(money)
+    noAmountReason = choices.reason
   }
   return {
     ...base,
@@ -116,6 +170,7 @@ export function balanceViewOf(input: {
     deviceReady: input.device === 'ready',
     limits,
     amounts,
+    noAmountReason,
   }
 }
 

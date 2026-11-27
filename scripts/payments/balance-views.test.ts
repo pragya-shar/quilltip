@@ -18,7 +18,10 @@ import { onJob, onTap, tipLabel } from '../../lib/payments/tip-machine'
 import type { TipPhase } from '../../lib/payments/types'
 import {
   balanceViewOf,
+  defaultChoice,
+  effectiveChoice,
   readerItemsOf,
+  tipChoices,
   type ActivityEntry,
   type SessionRead,
 } from '../../lib/payments/views'
@@ -227,41 +230,25 @@ describe('optimistic balance and reconciliation', () => {
     expect(after.pending.cents).toBe(100)
   })
 
-  it('offers only amounts within every limit, and the spendable cap is checked at the tap', () => {
+  it('offers ladder amounts within every limit, never the raw ceiling', () => {
     expect(view(session()).amounts.map((m) => m.cents)).toEqual([
       100, 200, 300, 500,
     ])
-    const tight = view(
+    const capped = view(
       session({
         limits: {
-          perTipCents: 170,
+          perTipCents: 63, // 5 XLM at a low price
           dailyCents: 2000,
           acceptedDay: '2026-11-27',
-          acceptedTodayCents: 1850,
+          acceptedTodayCents: 0,
           minTipCents: 4,
           quickTipMaxCents: 500,
           defaultTipCents: 100,
         },
       })
     )
-    expect(tight.amounts.map((m) => m.cents)).toEqual([100])
-    expect(tight.limits?.dailyLeft.cents).toBe(150)
-    // A per-tip limit under $1 still offers one amount.
-    const small = view(
-      session({
-        limits: {
-          perTipCents: 86,
-          dailyCents: 346,
-          acceptedDay: '2026-11-26',
-          acceptedTodayCents: 300,
-          minTipCents: 4,
-          quickTipMaxCents: 500,
-          defaultTipCents: 100,
-        },
-      })
-    )
-    expect(small.amounts.map((m) => m.cents)).toEqual([86])
-    expect(small.limits?.dailyLeft.cents).toBe(346)
+    expect(capped.amounts.map((m) => m.cents)).toEqual([10, 25, 50])
+    expect(capped.noAmountReason).toBeNull()
   })
 
   it('lists an unanswered tip as Sending, once, until the server lists it', () => {
@@ -340,5 +327,65 @@ describe('the outbox is per user and survives a reload', () => {
     const outbox = createOutbox(blocked)
     outbox.put(outboxEntry('m1', 100))
     expect(outbox.list('u1').map((e) => e.requestId)).toEqual(['m1'])
+  })
+})
+
+describe('the tip ladder', () => {
+  const bounds = {
+    minCents: 4,
+    perTipCents: 500,
+    dailyLeftCents: 2000,
+    spendableCents: 10_000,
+  }
+  const offered = (o: Partial<typeof bounds>) => tipChoices({ ...bounds, ...o })
+
+  it('offers the largest four that fit every bound, ascending', () => {
+    expect(offered({})).toEqual({ amounts: [100, 200, 300, 500], reason: null })
+    expect(offered({ perTipCents: 63 }).amounts).toEqual([10, 25, 50])
+    expect(offered({ spendableCents: 30 }).amounts).toEqual([10, 25])
+    expect(offered({ dailyLeftCents: 12 }).amounts).toEqual([10])
+    expect(offered({ minCents: 11, perTipCents: 63 }).amounts).toEqual([25, 50])
+  })
+
+  it('says why when nothing fits, with no amount offered', () => {
+    expect(offered({ perTipCents: 9 })).toEqual({ amounts: [], reason: 'cap' })
+    expect(offered({ minCents: 600 })).toEqual({ amounts: [], reason: 'cap' })
+    expect(offered({ dailyLeftCents: 5 })).toEqual({
+      amounts: [],
+      reason: 'daily',
+    })
+    expect(offered({ spendableCents: 9 })).toEqual({
+      amounts: [],
+      reason: 'balance',
+    })
+  })
+
+  it('defaults to $1 when it fits, else the smallest offered amount', () => {
+    expect(defaultChoice([100, 200, 300, 500])).toBe(100)
+    expect(defaultChoice([10, 25, 50])).toBe(10)
+    expect(defaultChoice([])).toBeNull()
+  })
+
+  it('never raises the reader’s choice as the bounds move', () => {
+    const chosen = 300
+    const steps = [
+      { amounts: [100, 200, 300, 500], expect: 300 },
+      { amounts: [10, 25, 50], expect: 50 }, // the price rose: cap 63 cents
+      { amounts: [10, 25], expect: 25 }, // spendable 30 cents
+      { amounts: [10], expect: 10 }, // daily remainder 12 cents
+      { amounts: [25, 50], expect: 50 }, // minimum above 10 cents
+      { amounts: [], expect: null }, // nothing fits
+      { amounts: [100, 200, 300, 500], expect: 300 }, // larger again: stays
+    ]
+    for (const step of steps) {
+      const shown = effectiveChoice(chosen, step.amounts)
+      expect(shown).toBe(step.expect)
+      if (shown !== null) expect(shown <= chosen).toBe(true)
+    }
+    // A reader who never chose gets the default, not the largest.
+    expect(effectiveChoice(null, [10, 25, 50])).toBe(10)
+    // A choice below every offered amount is not raised: none is shown.
+    expect(effectiveChoice(10, [25, 50])).toBeNull()
+    expect(effectiveChoice(25, [100, 200])).toBeNull()
   })
 })

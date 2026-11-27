@@ -106,13 +106,17 @@ export function HighlightPopover({
     [articleTitle, authorName]
   )
   const balanceTip = useTip(passageTarget, passageMeta)
+  // While the payments code loads for a signed-in reader, the control shows
+  // at once and a tap waits for it (`warming`).
   const fromBalance =
     !!articleId &&
     startOffset !== undefined &&
     endOffset !== undefined &&
-    balanceTip.ready &&
-    balanceTip.unavailable === null
-  const deciding = !!articleId && !balanceTip.ready
+    ((balanceTip.ready && balanceTip.unavailable === null) ||
+      balanceTip.warming ||
+      // Payments failed for a signed-in reader: say so beside the passage.
+      balanceTip.unavailable === 'not-loaded')
+  const deciding = !!articleId && !balanceTip.ready && !balanceTip.warming
 
   const handleSaveHighlight = async (keepOpen = false) => {
     if (!isAuthenticated) {

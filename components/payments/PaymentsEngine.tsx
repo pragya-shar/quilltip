@@ -1,16 +1,18 @@
 'use client'
 
 /**
- * The payments runtime, mounted once in the root layout so the balance, the
- * device key and tips in flight persist across navigation, and resume after
- * a reload. The send rules (single flight, an error ends one job only, jobs
- * bound to one reader, account changes mid-send) are in
- * `lib/payments/send-queue.ts`. Wallet-free: it reads `balance.session` (keyed by the signed-in
- * user), the reader's first page of `activity.mine`, and this browser's
- * outbox; the signer (session key, local ledger, Stellar SDK) loads with
- * `import()` when the browser is idle and the reader has a balance, so no
- * first load carries it.
+ * The payments engine: loaded with `import()` by the shell in the root
+ * layout (`PaymentsShell`) once the visitor is signed in or shows tip
+ * intent, and kept mounted across client navigation, so the balance, the
+ * device key and tips in flight persist between pages and resume after a
+ * reload. It writes every view into `paymentsStore`; the hooks read them.
  *
+ * Wallet-free: it reads `balance.session` (keyed by the signed-in user), the
+ * reader's first page of `activity.mine` and this browser's outbox; the
+ * signer (session key, local ledger, Stellar SDK) loads with a second
+ * `import()` when the browser is idle and the reader has a balance. The send
+ * rules (single flight, an error ends one job only, jobs bound to one
+ * reader, account changes mid-send) are in `lib/payments/send-queue.ts`.
  */
 import {
   useCallback,
@@ -19,7 +21,6 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
-  type ReactNode,
 } from 'react'
 import {
   useConvexAuth,
@@ -35,13 +36,18 @@ import {
   createOutbox,
   type OutboxEntry,
 } from '@/lib/payments/outbox'
-import { PaymentsRuntimeContext } from '@/lib/payments/runtime'
-import type { JobStatus } from '@/lib/payments/tip-machine'
-import {
-  LiveStateContext,
-  liveRuntime,
-  type LiveState,
-} from '@/lib/payments/live/live-runtime'
+import { paymentsStore } from '@/lib/payments/store'
+import { money } from '@/lib/payments/money'
+import { onJob, onTap, type JobStatus } from '@/lib/payments/tip-machine'
+import type {
+  BalanceView,
+  Cents,
+  TipController,
+  TipMeta,
+  TipPhase,
+  TipTarget,
+  UnavailableReason,
+} from '@/lib/payments/types'
 import type { DeviceReading, Signer } from '@/lib/payments/live/signer'
 import {
   createSendQueue,
@@ -50,12 +56,17 @@ import {
   type SendQueue,
 } from '@/lib/payments/send-queue'
 import {
+  TIP_LADDER,
   balanceViewOf,
+  effectiveChoice,
   readerItemsOf,
   unansweredEntries,
   type ActivityEntry,
   type DeviceState,
 } from '@/lib/payments/views'
+import { EarningsWatch } from './EarningsWatch'
+import { TipContextWatch } from './TipContextWatch'
+import { WriterWatch } from './WriterWatch'
 
 const READER_PAGE = 20
 const NO_JOBS: Record<string, JobStatus> = {}
@@ -91,7 +102,17 @@ function whenIdle(run: () => void): () => void {
   return () => window.clearTimeout(id)
 }
 
-export function PaymentsProvider({ children }: { children: ReactNode }) {
+function useStoreValue<T>(
+  select: (s: ReturnType<typeof paymentsStore.get>) => T
+) {
+  return useSyncExternalStore(
+    paymentsStore.subscribe,
+    () => select(paymentsStore.get()),
+    () => select(paymentsStore.get())
+  )
+}
+
+export function PaymentsEngine() {
   const { isAuthenticated, isLoading } = useConvexAuth()
   const session = useQuery(api.balance.session, isAuthenticated ? {} : 'skip')
   const hasBalance = !!session && session.status !== 'none'
@@ -248,9 +269,16 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
       report,
     })
   }, [bindingKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  // A new reader gets a new queue; the old one stops. (Not on effect
+  // cleanup: a development remount must keep the queue it made.)
+  const lastQueue = useRef<SendQueue | null>(null)
   useEffect(() => {
-    setJobState({ key: bindingKey, jobs: {} })
-    return () => queue?.dispose()
+    if (lastQueue.current && lastQueue.current !== queue)
+      lastQueue.current.dispose()
+    lastQueue.current = queue
+    setJobState((state) =>
+      state.key === bindingKey ? state : { key: bindingKey, jobs: {} }
+    )
   }, [queue]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const setJob = useCallback(
@@ -292,7 +320,9 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(id)
   }, [device, entries, recent, queue]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const send = useCallback<LiveState['send']>(
+  const send = useCallback<
+    (target: TipTarget, cents: Cents, meta: TipMeta, requestId: string) => void
+  >(
     (target, cents, meta, requestId) => {
       if (!session || !binding || !queue) return
       const price = session.prices[0]?.usd ?? 0
@@ -346,16 +376,187 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
     [reader, entries, session, now, hasBalance]
   )
 
-  const state = useMemo<LiveState>(
-    () => ({ balance, readerActivity, jobs, send, now }),
-    [balance, readerActivity, jobs, send, now]
+  // Publish the reader's views.
+  useEffect(() => {
+    paymentsStore.set({ balance, readerActivity })
+  }, [balance, readerActivity])
+
+  // Tip controls: one controller per registered control.
+  const registrations = useStoreValue((s) => s.registrations)
+  const queuedTaps = useStoreValue((s) => s.queuedTaps)
+  const watches = useStoreValue((s) => s.watches)
+  const [tipState, setTipState] = useState<
+    Record<string, { phase: TipPhase; chosen: Cents | null }>
+  >({})
+  const [contexts, setContexts] = useState<
+    Record<string, { tippable: boolean; reason: string | null } | undefined>
+  >({})
+  const articleIds = useMemo(
+    () => [
+      ...new Set(Object.values(registrations).map((r) => r.target.articleId)),
+    ],
+    [registrations]
   )
 
+  // Job reports move a control from sending to sent or failed.
+  useEffect(() => {
+    setTipState((all) => {
+      let changed = false
+      const next = { ...all }
+      for (const [id, t] of Object.entries(all)) {
+        if (t.phase.phase !== 'sending') continue
+        const moved = onJob(t.phase, jobs[t.phase.requestId])
+        if (moved !== t.phase) {
+          next[id] = { ...t, phase: moved }
+          changed = true
+        }
+      }
+      return changed ? next : all
+    })
+  }, [jobs])
+
+  const sendRef = useRef(send)
+  sendRef.current = send
+  // The phase a tap sees at once, before React renders the last tap's.
+  const phases = useRef<Record<string, TipPhase>>({})
+  const balanceRef = useRef(balance)
+  balanceRef.current = balance
+
+  const controllers = useMemo(() => {
+    const out: Record<string, TipController> = {}
+    for (const [id, reg] of Object.entries(registrations)) {
+      const context = contexts[reg.target.articleId]
+      const t = tipState[id] ?? {
+        phase: { phase: 'idle' } as TipPhase,
+        chosen: null,
+      }
+      phases.current[id] = t.phase
+      const offered = balance.amounts.map((a) => a.cents)
+      // Never above the reader's choice (views.ts, `effectiveChoice`).
+      const cents = effectiveChoice(t.chosen, offered)
+      const blocked =
+        cents !== null
+          ? null
+          : (balance.noAmountReason ?? (offered.length ? 'choose' : null))
+      const early =
+        balance.status === 'signed-out' ||
+        balance.status === 'none' ||
+        balance.status === 'closing' ||
+        balance.device === 'unavailable' ||
+        balance.device === 'needs-setup'
+      const ready =
+        early ||
+        (balance.status === 'ready' &&
+          balance.device !== 'loading' &&
+          context !== undefined)
+      const unavailable = ready ? unavailableOf(balance, context) : null
+      const setPhase = (phase: TipPhase) =>
+        setTipState((all) => ({
+          ...all,
+          [id]: { phase, chosen: all[id]?.chosen ?? null },
+        }))
+      const tip = async () => {
+        if (!ready || unavailable) return
+        const current = phases.current[id] ?? { phase: 'idle' as const }
+        const b = balanceRef.current
+        if (cents === null) {
+          // No amount fits: nothing is sent; a low balance offers to add money.
+          if (blocked === 'balance' && current.phase !== 'sending') {
+            const next: TipPhase = {
+              phase: 'needs-funds',
+              amount: money(TIP_LADDER[0]),
+              available: b.available,
+            }
+            phases.current[id] = next
+            setPhase(next)
+          }
+          return
+        }
+        const requestId = crypto.randomUUID()
+        const decision = onTap(
+          current,
+          cents,
+          { online: b.online, available: b.available, unavailable },
+          requestId
+        )
+        phases.current[id] = decision.phase
+        setPhase(decision.phase)
+        if (decision.send)
+          sendRef.current(reg.target, cents, reg.meta, requestId)
+      }
+      out[id] = {
+        state: t.phase,
+        amount: cents === null ? null : money(cents),
+        blocked,
+        amounts: balance.amounts,
+        setAmount: (next) =>
+          setTipState((all) => {
+            const prev = all[id]?.phase ?? { phase: 'idle' as const }
+            return {
+              ...all,
+              [id]: {
+                chosen: next,
+                phase: prev.phase === 'sending' ? prev : { phase: 'idle' },
+              },
+            }
+          }),
+        tip,
+        reset: () =>
+          setTipState((all) => {
+            const prev = all[id]
+            if (!prev || prev.phase.phase === 'sending') return all
+            return { ...all, [id]: { ...prev, phase: { phase: 'idle' } } }
+          }),
+        ready,
+        warming: !ready && balance.status !== 'signed-out',
+        queued: id in queuedTaps,
+        unavailable,
+      }
+    }
+    return out
+  }, [registrations, contexts, tipState, balance, queuedTaps])
+
+  useEffect(() => {
+    paymentsStore.set({ tips: controllers })
+    // A tap made before the engine was ready: act on it once.
+    for (const [id, controller] of Object.entries(controllers)) {
+      if (!(id in queuedTaps)) continue
+      if (!controller.ready) continue
+      if (paymentsStore.takeTap(id) && !controller.unavailable)
+        void controller.tip()
+    }
+  }, [controllers]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <PaymentsRuntimeContext.Provider value={liveRuntime}>
-      <LiveStateContext.Provider value={state}>
-        {children}
-      </LiveStateContext.Provider>
-    </PaymentsRuntimeContext.Provider>
+    <>
+      {articleIds.map((articleId) => (
+        <TipContextWatch
+          key={articleId}
+          articleId={articleId as Id<'articles'>}
+          enabled={balance.status === 'ready'}
+          onValue={(value) =>
+            setContexts((all) =>
+              all[articleId] === value ? all : { ...all, [articleId]: value }
+            )
+          }
+        />
+      ))}
+      {watches.writer > 0 ? <WriterWatch now={now} /> : null}
+      {watches.earnings > 0 ? <EarningsWatch now={now} /> : null}
+    </>
   )
+}
+
+function unavailableOf(
+  balance: BalanceView,
+  context: { tippable: boolean; reason: string | null } | undefined
+): UnavailableReason | null {
+  if (balance.status === 'signed-out') return 'signed-out'
+  if (balance.status === 'none') return 'no-balance'
+  if (balance.status === 'closing') return 'closing'
+  if (!balance.settlement.enabled) return 'settlement-off'
+  if (!balance.deviceReady) return 'device'
+  if (context && !context.tippable)
+    return context.reason === 'own-article' ? 'own-article' : 'not-tippable'
+  return null
 }

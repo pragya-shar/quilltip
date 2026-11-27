@@ -17,7 +17,7 @@ import './balance.css'
 export type PassageTipBarProps = {
   phase: TipPhase
   label: string
-  amount: Money
+  amount: Money | null
   amounts: Money[]
   trayOpen: boolean
   /** One plain line above the controls, announced politely. */
@@ -27,6 +27,8 @@ export type PassageTipBarProps = {
     link?: { href: string; label: string }
   } | null
   disabled?: boolean
+  /** The payments code is loaded and answered: a tap sends at once. */
+  live?: boolean
   onTip(): void
   onToggleTray(): void
   onChooseAmount(cents: number): void
@@ -44,6 +46,7 @@ export function PassageTipBar({
   trayOpen,
   status,
   disabled,
+  live,
   onTip,
   onToggleTray,
   onChooseAmount,
@@ -110,6 +113,7 @@ export function PassageTipBar({
             type="button"
             className="qt-tip"
             data-phase={phase.phase}
+            data-live={live ? 'true' : 'false'}
             aria-disabled={sending || disabled ? true : undefined}
             onClick={() => {
               if (!sending && !disabled) onTip()
@@ -139,7 +143,7 @@ export function PassageTipBar({
                   type="radio"
                   name="qt-amount"
                   value={m.cents}
-                  checked={m.cents === amount.cents}
+                  checked={m.cents === amount?.cents}
                   onChange={() => onChooseAmount(m.cents)}
                 />
                 <span>{m.display.replace(/\.00$/, '')}</span>

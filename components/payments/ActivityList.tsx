@@ -31,6 +31,8 @@ export function ActivityList({
             />
           ))}
         </div>
+      ) : activity.status === 'unavailable' ? (
+        <p className="qt-empty">Your tips are unavailable right now.</p>
       ) : activity.items.length === 0 ? (
         <p className="qt-empty">{empty}</p>
       ) : (

@@ -22,6 +22,7 @@ export function EarningsScreen({
   now: number
 }) {
   const loading = earnings.status === 'loading'
+  const unavailable = earnings.status === 'unavailable'
   return (
     <div className="qt-pay qt-screen" data-testid="earnings-screen">
       <h1 className="qt-figure-label">Available</h1>
@@ -31,6 +32,15 @@ export function EarningsScreen({
           style={{ width: '60%', height: 80, marginTop: 8 }}
           aria-label="Loading your earnings"
         />
+      ) : unavailable ? (
+        <p
+          className="qt-notice"
+          role="status"
+          data-testid="earnings-unavailable"
+        >
+          Your earnings are unavailable right now. They come back on their own;
+          nothing is lost.
+        </p>
       ) : (
         <p className="qt-figure" data-testid="earnings-available">
           {earnings.available.display}

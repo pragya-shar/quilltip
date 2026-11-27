@@ -44,6 +44,8 @@ export type UnavailableReason =
   | 'own-article'
   | 'not-tippable'
   | 'settlement-off'
+  /** The payments code could not load. Reading is unaffected. */
+  | 'not-loaded'
 
 export type TipPhase =
   | { phase: 'idle' }
@@ -58,7 +60,14 @@ export type TipPhase =
   | { phase: 'needs-funds'; amount: Money; available: Money }
 
 export type BalanceView = {
-  status: 'loading' | 'signed-out' | 'none' | 'ready' | 'closing'
+  /** `unavailable`: payments could not load or answer; reading is unaffected. */
+  status:
+    | 'loading'
+    | 'signed-out'
+    | 'none'
+    | 'ready'
+    | 'closing'
+    | 'unavailable'
   /** What a tip can use now, including tips sent from this device. */
   available: Money
   /** Accepted tips not yet paid on chain, at their own dollars. */
@@ -74,6 +83,8 @@ export type BalanceView = {
   } | null
   /** The quick amounts beside the tip button, within every limit. */
   amounts: Money[]
+  /** Why no amount fits now, when none does. */
+  noAmountReason: 'cap' | 'daily' | 'balance' | null
   /** Tips accepted but slower than the expected settlement time are lagging. */
   settlement: { enabled: boolean; expectedWithinMs: number }
   online: boolean
@@ -102,14 +113,14 @@ export type ActivityItem = {
 }
 
 export type ActivityView = {
-  status: 'loading' | 'ready'
+  status: 'loading' | 'ready' | 'unavailable'
   items: ActivityItem[]
   canLoadMore: boolean
   loadMore(): void
 }
 
 export type EarningsView = {
-  status: 'loading' | 'signed-out' | 'ready'
+  status: 'loading' | 'signed-out' | 'ready' | 'unavailable'
   pending: Money
   /** Paid on chain and collectable now. */
   available: Money
@@ -126,8 +137,10 @@ export type EarningsView = {
 
 export type TipController = {
   state: TipPhase
-  /** The amount the tip button states. */
-  amount: Money
+  /** The amount the tip button states and sends; null when none fits. */
+  amount: Money | null
+  /** Why the control cannot send now, with no figure in token units. */
+  blocked: 'cap' | 'daily' | 'balance' | 'choose' | null
   amounts: Money[]
   setAmount(cents: Cents): void
   /** Sends the chosen amount from the balance. Ignored while sending. */
@@ -135,6 +148,10 @@ export type TipController = {
   reset(): void
   /** False while the balance, the device or the article check is loading. */
   ready: boolean
+  /** Signed in and the payments code is still loading: show the control. */
+  warming: boolean
+  /** A tap waits for the payments code; it is sent once, when ready. */
+  queued: boolean
   /** Null when this reader can tip here from the balance. */
   unavailable: UnavailableReason | null
 }

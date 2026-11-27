@@ -59,7 +59,7 @@ export function onJob(phase: TipPhase, job: JobStatus | undefined): TipPhase {
 /** "Tip $1", "Tip this line $1", "Sending $1", "Sent $1", "Try again". */
 export function tipLabel(
   phase: TipPhase,
-  amount: Money,
+  amount: Money | null,
   passage: boolean
 ): string {
   const short = (m: Money) => m.display.replace(/\.00$/, '')
@@ -73,6 +73,7 @@ export function tipLabel(
     case 'offline':
       return 'Offline'
     default:
+      if (!amount) return passage ? 'Tip this line' : 'Tip'
       return passage ? `Tip this line ${short(amount)}` : `Tip ${short(amount)}`
   }
 }

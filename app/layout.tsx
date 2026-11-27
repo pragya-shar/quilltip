@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import './globals.css'
 import Providers from '@/components/providers/Providers'
-import { PaymentsProvider } from '@/components/payments/PaymentsProvider'
+import { PaymentsShell } from '@/components/payments/PaymentsShell'
 import { Analytics } from '@vercel/analytics/react'
 import { AnalyticsConsent } from '@/components/analytics/AnalyticsConsent'
 import { analyticsServerKey } from '@/lib/analytics/config'
@@ -41,7 +41,8 @@ export default async function RootLayout({
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
         <Providers nonce={nonce}>
-          <PaymentsProvider>{children}</PaymentsProvider>
+          {children}
+          <PaymentsShell />
         </Providers>
         <Analytics />
         {analyticsServerKey() && <AnalyticsConsent />}

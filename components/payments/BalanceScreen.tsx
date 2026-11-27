@@ -21,6 +21,7 @@ export function BalanceScreen({
   now: number
 }) {
   const loading = balance.status === 'loading'
+  const unavailable = balance.status === 'unavailable'
   return (
     <div className="qt-pay qt-screen" data-testid="balance-screen">
       <h1 className="qt-figure-label">Ready to tip</h1>
@@ -30,11 +31,21 @@ export function BalanceScreen({
           style={{ width: '60%', height: 80, marginTop: 8 }}
           aria-label="Loading your balance"
         />
-      ) : (
+      ) : unavailable ? null : (
         <p className="qt-figure" data-testid="balance-available">
           {balance.available.display}
         </p>
       )}
+      {balance.status === 'unavailable' ? (
+        <p
+          className="qt-notice"
+          role="status"
+          data-testid="balance-unavailable"
+        >
+          Your balance is unavailable right now. It comes back on its own;
+          reading is not affected.
+        </p>
+      ) : null}
       {!balance.online ? (
         <p className="qt-figure-note" role="status">
           You are offline. These figures may be out of date.
@@ -59,7 +70,7 @@ export function BalanceScreen({
           Set up this device once to tip with one tap.
         </p>
       ) : null}
-      {!loading ? (
+      {!loading && !unavailable ? (
         <div className="qt-actions">
           <a className="qt-button" href={ADD_MONEY_HREF}>
             Add money

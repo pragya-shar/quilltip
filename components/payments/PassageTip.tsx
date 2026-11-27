@@ -8,6 +8,7 @@
  * else (D4): no follow, no public highlight.
  */
 import { useEffect, useRef, useState } from 'react'
+import { useBalance } from '@/hooks/payments/useBalance'
 import { tipLabel } from '@/lib/payments/tip-machine'
 import type { TipController } from '@/lib/payments/types'
 import { PassageTipBar, type PassageTipBarProps } from './PassageTipBar'
@@ -54,6 +55,7 @@ export function PassageTip({
 }: PassageTipProps) {
   const [trayOpen, setTrayOpen] = useState(false)
   const [lastSent, setLastSent] = useState<string | null>(null)
+  const balance = useBalance()
   const range = useRef<Range | null>(null)
   const { state } = tip
 
@@ -108,12 +110,31 @@ export function PassageTip({
   }, [state.phase, trayOpen, onClose])
 
   const short = (display: string) => display.replace(/\.00$/, '')
-  let status: PassageTipBarProps['status'] = lastSent
-    ? { text: lastSent }
-    : null
+  const left =
+    balance.status === 'ready'
+      ? `${balance.available.display} ready to tip.`
+      : ''
+  let status: PassageTipBarProps['status'] = {
+    text: lastSent ? `${lastSent} ${left}`.trim() : left,
+  }
+  if (tip.blocked === 'daily')
+    status = { text: 'You reached today’s tip limit. Tip again tomorrow.' }
+  else if (tip.blocked === 'cap')
+    status = { text: 'Tips here are capped below the smallest amount.' }
+  else if (tip.blocked === 'choose') status = { text: 'Choose an amount.' }
+  else if (tip.blocked === 'balance')
+    status = {
+      text: 'Your balance is too low for a tip.',
+      link: { href: ADD_MONEY_HREF, label: 'Add money' },
+    }
+  if (tip.queued) status = { text: 'Getting ready. Your tip goes in a moment.' }
+  else if (tip.unavailable === 'not-loaded')
+    status = {
+      text: 'Tipping is unavailable right now. Reading is not affected.',
+    }
   if (state.phase === 'sending')
     status = {
-      text: `Sending ${short(state.amount.display)} to ${writerName}.`,
+      text: `Sending ${short(state.amount.display)} to ${writerName}. ${left}`,
     }
   else if (state.phase === 'failed')
     status = {
@@ -136,6 +157,11 @@ export function PassageTip({
       phase={state}
       label={tipLabel(state, tip.amount, true)}
       amount={tip.amount}
+      live={tip.ready && !tip.warming}
+      disabled={
+        tip.unavailable !== null ||
+        (tip.blocked !== null && tip.blocked !== 'balance')
+      }
       amounts={tip.amounts}
       trayOpen={trayOpen}
       status={status}
