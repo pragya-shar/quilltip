@@ -9,11 +9,11 @@
  * MetaMask sign for Stellar mainnet only, Trezor cannot sign Soroban calls
  * through the kit, and Ledger would sign a bare transaction hash.
  *
- * WalletConnect (mobile wallets) is not supported yet. The kit's WalletConnect
- * module depends on Reown AppKit, which this app runs on zod 4 through a
- * package override (zod 3 has an unpatched advisory). That combination has
- * not been tested, so setting NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID stops the
- * build and the server, and the wallet here (see `walletconnect-gate.ts`).
+ * WalletConnect (mobile wallets) is added when
+ * NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set (`walletconnect-gate.ts`). It
+ * is Quilltip's own module on `@walletconnect/sign-client`
+ * (`walletconnect-module.ts`), not the kit's, so Reown AppKit is never
+ * loaded; the sign client loads only when a reader chooses a mobile wallet.
  */
 
 import type {
@@ -21,8 +21,15 @@ import type {
   SwkAppTheme,
 } from '@creit.tech/stellar-wallets-kit/types'
 import { STELLAR_CONFIG } from '@/lib/stellar/config'
+import { SITE_NAME } from '@/lib/seo/siteMetadata'
 import { createWalletAdapter, type KitBundle } from './wallet'
-import { assertWalletConnectNotConfigured } from './walletconnect-gate'
+import { configuredWalletConnectProjectId } from './walletconnect-gate'
+import { walletConnectPairing } from './walletconnect-pairing'
+import {
+  WalletConnectModule,
+  type WcMetadata,
+  type WcSignClient,
+} from './walletconnect-module'
 
 export type { WalletConnection, WalletEvent, WalletSignResult } from './wallet'
 
@@ -47,14 +54,40 @@ export const QUILLTIP_WALLET_THEME: SwkAppTheme = {
   'font-family': "'Landing Syne', 'Account Syne', system-ui, sans-serif",
 }
 
-export { WALLETCONNECT_UNSUPPORTED_MESSAGE } from './walletconnect-gate'
+export { WALLETCONNECT_INVALID_MESSAGE } from './walletconnect-gate'
+
+/**
+ * What wallets show about Quilltip when pairing. The URL is the page's own
+ * origin: WalletConnect's Verify API compares it with the origin the request
+ * came from, and the Reown project allows production, previews and local
+ * development.
+ */
+export function walletConnectMetadata(origin: string): WcMetadata {
+  return {
+    name: SITE_NAME,
+    description: 'Tip writers for their articles on Stellar testnet.',
+    url: origin,
+    icons: [`${origin}/favicon.ico`],
+  }
+}
+
+/** The sign client, loaded on first use; telemetry to WalletConnect is off. */
+export async function loadSignClient(options: {
+  projectId: string
+  metadata: WcMetadata
+}): Promise<WcSignClient> {
+  const { SignClient } = await import('@walletconnect/sign-client')
+  const client = await SignClient.init({
+    projectId: options.projectId,
+    metadata: options.metadata,
+    telemetryEnabled: false,
+  })
+  return client as unknown as WcSignClient
+}
 
 export async function loadWalletKitBundle(): Promise<KitBundle> {
-  // The build refuses a project ID too (next.config.ts); this covers a bundle
-  // built before the gate existed.
-  assertWalletConnectNotConfigured(
-    process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
-  )
+  // The build refuses a malformed project ID too (next.config.ts).
+  const walletConnectProjectId = configuredWalletConnectProjectId()
   const [
     { StellarWalletsKit },
     { KitEventType },
@@ -86,6 +119,18 @@ export async function loadWalletKitBundle(): Promise<KitBundle> {
     new DcentModule(),
     new AlbedoModule(),
   ]
+  if (walletConnectProjectId) {
+    modules.push(
+      new WalletConnectModule({
+        projectId: walletConnectProjectId,
+        metadata: walletConnectMetadata(window.location.origin),
+        loadSignClient,
+        pairing: walletConnectPairing,
+        // The phone ended the session: forget the connection here too.
+        onSessionEnded: () => void wallet.disconnect(),
+      })
+    )
+  }
   return {
     kit: StellarWalletsKit as unknown as KitBundle['kit'],
     modules,

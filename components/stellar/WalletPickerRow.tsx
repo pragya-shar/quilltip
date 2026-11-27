@@ -2,7 +2,9 @@
 
 import { ArrowUpRight, Loader2 } from 'lucide-react'
 import type { WalletOption } from '@/lib/stellar/v2/wallet'
+import { WALLETCONNECT_WALLETS } from '@/lib/stellar/wallet-catalog'
 import { WalletIcon } from './WalletIcon'
+import { usePhoneLayout } from './WalletConnectPairing'
 
 function siteOf(url: string) {
   try {
@@ -13,17 +15,22 @@ function siteOf(url: string) {
 }
 
 /** The second line of a row: how the wallet works from this page. */
-function walletNote(option: WalletOption): string {
-  const how = howToUse(option)
+function walletNote(option: WalletOption, phone: boolean): string {
+  const how = howToUse(option, phone)
   return option.formerly ? `Formerly ${option.formerly}. ${how}` : how
 }
 
-function howToUse(option: WalletOption): string {
+function howToUse(option: WalletOption, phone: boolean): string {
   if (option.access === 'unavailable') {
     return option.unavailableReason ?? 'Cannot be used on this page'
   }
   if (option.access === 'web') {
     return `Opens ${siteOf(option.webUrl ?? option.url)} in a new window`
+  }
+  if (option.access === 'mobile') {
+    // Matches the pairing step: a link on a phone, a code on a computer.
+    const wallets = `${WALLETCONNECT_WALLETS.join(', ')} or another wallet`
+    return phone ? `Opens ${wallets} app` : `Scan a code with ${wallets}`
   }
   if (option.access === 'not-installed') return 'Browser extension'
   return 'Installed'
@@ -43,18 +50,23 @@ export function WalletPickerRow({
   pending: WalletOption | null
   onChoose: () => void
 }) {
+  const phone = usePhoneLayout()
   // The note is part of the button's name, so it is not also a description.
   const body = (
     <span className="wallet-row-body">
       <WalletIcon name={option.name} src={option.icon} />
       <span className="wallet-row-text">
         <span className="wallet-install-name">{option.name}</span>
-        <span className="wallet-install-note">{walletNote(option)}</span>
+        <span className="wallet-install-note">{walletNote(option, phone)}</span>
       </span>
     </span>
   )
 
-  if (option.access === 'installed' || option.access === 'web') {
+  if (
+    option.access === 'installed' ||
+    option.access === 'web' ||
+    option.access === 'mobile'
+  ) {
     const isPending = pending?.id === option.id
     return (
       <button

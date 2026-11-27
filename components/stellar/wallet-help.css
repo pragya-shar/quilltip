@@ -296,3 +296,105 @@ button.wallet-picker-option > .wallet-install-destination {
     padding-top: 8px;
   }
 }
+/* WalletConnect pairing step. */
+.wallet-pair {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+.wallet-pair h3 {
+  font:
+    400 24px/1.2 'Wallet Alegreya',
+    Georgia,
+    serif;
+  margin: 0;
+  outline: none;
+}
+.wallet-pair-back,
+.wallet-pair-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 4px;
+  background: none;
+  border: 0;
+  color: #790333;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.wallet-pair-back {
+  margin-left: -4px;
+}
+.wallet-pair-code {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  justify-self: stretch;
+  padding: 16px;
+  border: 1px solid #cdb9b4;
+  border-radius: 3px;
+  background: #fffaf2;
+  text-align: center;
+  font-size: 14px;
+}
+.wallet-pair-code p {
+  margin: 0;
+}
+.wallet-qr {
+  display: block;
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+  height: auto;
+}
+.wallet-qr-placeholder {
+  background: #f3e9db;
+}
+.wallet-pair-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 16px;
+  border-radius: 2px;
+  background: #790333;
+  color: #faf5ec;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+.wallet-pair-more {
+  justify-self: stretch;
+}
+.wallet-pair-more summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.wallet-pair-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.wallet-pair-copied {
+  font-size: 13px;
+  color: #5e535a;
+}
+.wallet-pair :is(button, a, summary):focus-visible {
+  outline: 2px solid #790333;
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .wallet-pair-back:hover,
+  .wallet-pair-copy:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+}

@@ -27,6 +27,8 @@ export type WalletErrorKind =
   | 'unsupported'
   /** The browser blocked the window a web wallet opens. */
   | 'popup-blocked'
+  /** The wallet ended the connection (a WalletConnect session closed or expired). */
+  | 'disconnected'
   /** The wallet signed with a different account from the connected one. */
   | 'wrong-account'
   /** Anything else the wallet reported. */
@@ -125,6 +127,27 @@ export const WALLET_ERROR_RULES: Readonly<
   hana: [{ kind: 'no-wallet', pattern: /hana wallet is not installed/ }],
   scopuly: [
     { kind: 'no-wallet', pattern: /scopuly provider is not available/ },
+  ],
+  // Quilltip's WalletConnect module and the wallet on the phone. Codes are
+  // WalletConnect's (5000 user rejected, 5100 unsupported chains, 5101
+  // unsupported methods) and EIP-1193's 4001.
+  wallet_connect: [
+    // Before the codes: Varial mobile refuses a request for another network
+    // with "Please switch to <network> in Varial Settings".
+    {
+      kind: 'wrong-network',
+      pattern: /not on stellar testnet|please switch to/,
+    },
+    { kind: 'rejected', code: 5000 },
+    { kind: 'rejected', code: 4001 },
+    { kind: 'wrong-network', code: 5100 },
+    { kind: 'unsupported', code: 5101 },
+    { kind: 'timeout', pattern: /(proposal|request) expired/ },
+    {
+      kind: 'disconnected',
+      pattern:
+        /session ended|no matching key|recently deleted|session topic doesn't exist|user disconnected/,
+    },
   ],
   dcent: [
     { kind: 'no-wallet', pattern: /d'cent stellar provider is not available/ },
@@ -278,6 +301,11 @@ export function walletErrorMessage(error: WalletError): WalletMessage | null {
         title: 'Your wallet signed with another account',
         detail:
           'Switch back to the connected account in your wallet, or reconnect. Nothing was sent.',
+      }
+    case 'disconnected':
+      return {
+        title: 'Your wallet disconnected',
+        detail: `${Name} ended the connection. Connect again, then try again. Nothing was sent.`,
       }
     case 'cancelled':
       return null
