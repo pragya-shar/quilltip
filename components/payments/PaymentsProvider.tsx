@@ -3,14 +3,14 @@
 /**
  * The payments runtime, mounted once in the root layout so the balance, the
  * device key and tips in flight persist across navigation, and resume after
- * a reload. Wallet-free: it reads `balance.session` (keyed by the signed-in
+ * a reload. The send rules (single flight, an error ends one job only, jobs
+ * bound to one reader, account changes mid-send) are in
+ * `lib/payments/send-queue.ts`. Wallet-free: it reads `balance.session` (keyed by the signed-in
  * user), the reader's first page of `activity.mine`, and this browser's
  * outbox; the signer (session key, local ledger, Stellar SDK) loads with
  * `import()` when the browser is idle and the reader has a balance, so no
  * first load carries it.
  *
- * Sends are single flight: one queue per page, so two taps or two controls
- * never prepare the same pair at once.
  */
 import {
   useCallback,
@@ -44,6 +44,12 @@ import {
 } from '@/lib/payments/live/live-runtime'
 import type { DeviceReading, Signer } from '@/lib/payments/live/signer'
 import {
+  createSendQueue,
+  type QueueBinding,
+  type QueueContext,
+  type SendQueue,
+} from '@/lib/payments/send-queue'
+import {
   balanceViewOf,
   readerItemsOf,
   unansweredEntries,
@@ -52,6 +58,7 @@ import {
 } from '@/lib/payments/views'
 
 const READER_PAGE = 20
+const NO_JOBS: Record<string, JobStatus> = {}
 /** How often an unanswered tip is resubmitted while the page is open. */
 const RESUME_EVERY_MS = 10_000
 const CLOCK_MS = 30_000
@@ -118,29 +125,63 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
     return () => window.clearInterval(id)
   }, [])
 
-  // The signer: loaded once per reader address, when the browser is idle.
+  // Everything below belongs to one reader: the user id and the verified
+  // address. A change of either (sign-out included) drops the signer, the
+  // device reading, the job map and the queue at once.
   const address = session?.status === 'open' ? session.accountAddress : null
-  const [signer, setSigner] = useState<Signer | null>(null)
-  const [reading, setReading] = useState<DeviceReading | null>(null)
-  const [loadFailed, setLoadFailed] = useState(false)
+  const binding = useMemo<QueueBinding | null>(
+    () => (userId && address ? { userId, readerAddress: address } : null),
+    [userId, address]
+  )
+  const bindingKey = binding ? `${binding.userId}|${binding.readerAddress}` : ''
+
+  const [signerState, setSignerState] = useState<{
+    key: string
+    signer: Signer
+  } | null>(null)
+  const [readingState, setReadingState] = useState<{
+    key: string
+    reading: DeviceReading
+  } | null>(null)
+  const [loadFailed, setLoadFailed] = useState<string | null>(null)
+  const signer = signerState?.key === bindingKey ? signerState.signer : null
+  const reading = readingState?.key === bindingKey ? readingState.reading : null
+
   useEffect(() => {
-    if (!address || (signer && signer.scope.readerAddress === address)) return
-    return whenIdle(() => {
+    // Nothing of the previous reader survives a change of reader.
+    setSignerState(null)
+    setReadingState(null)
+    if (!binding) return
+    const key = bindingKey
+    let alive = true
+    const cancel = whenIdle(() => {
       import('@/lib/payments/live/signer')
-        .then((m) => setSigner(m.createSigner(address)))
-        .catch(() => setLoadFailed(true))
+        .then((m) => {
+          if (alive)
+            setSignerState({
+              key,
+              signer: m.createSigner(binding.readerAddress),
+            })
+        })
+        .catch(() => alive && setLoadFailed(key))
     })
-  }, [address, signer])
+    return () => {
+      alive = false
+      cancel()
+    }
+  }, [bindingKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const devicesKey = (session?.devices ?? [])
     .map((d) => `${d.keyId}:${d.publicKey}:${d.revoked}:${d.validUntilLedger}`)
     .join(',')
   useEffect(() => {
     if (!signer || !session || session.status !== 'open') return
+    if (signer.scope.readerAddress !== address) return
+    const key = bindingKey
     let alive = true
     void signer
       .deviceState(session.devices, session.ledger, Date.now())
-      .then((r) => alive && setReading(r))
+      .then((reading) => alive && setReadingState({ key, reading }))
     return () => {
       alive = false
     }
@@ -148,81 +189,82 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
 
   const device: DeviceState = !hasBalance
     ? 'unavailable'
-    : loadFailed
+    : loadFailed === bindingKey
       ? 'unavailable'
       : !reading
         ? 'loading'
         : reading.state
 
-  // Tips in flight, by request id.
-  const [jobs, setJobs] = useState<Record<string, JobStatus>>({})
-  const setJob = useCallback((requestId: string, job: JobStatus) => {
-    setJobs((all) => ({ ...all, [requestId]: job }))
-  }, [])
-  const inFlight = useRef(new Set<string>())
-  const queue = useRef<Promise<unknown>>(Promise.resolve())
-  const latest = useRef({ signer, reading })
-  latest.current = { signer, reading }
+  // Tips in flight, by request id, for the current reader only.
+  const [jobState, setJobState] = useState<{
+    key: string
+    jobs: Record<string, JobStatus>
+  }>({ key: '', jobs: {} })
+  const jobs = jobState.key === bindingKey ? jobState.jobs : NO_JOBS
 
-  const run = useCallback(
-    (entry: OutboxEntry) => {
-      if (inFlight.current.has(entry.requestId)) return
-      inFlight.current.add(entry.requestId)
-      queue.current = queue.current.then(async () => {
-        const { signer: s, reading: r } = latest.current
-        try {
-          if (!s || r?.state !== 'ready' || r.keyId === null) {
-            // Not ready to sign yet: try again on the next resume.
-            return
-          }
-          const outcome = await s.send(entry, r.keyId, {
-            prepareTip: (args) =>
-              prepareTip({
-                ...args,
-                articleId: args.articleId as Id<'articles'>,
-              }).then((p) => ({ ...p, prepareId: p.prepareId as string })),
-            submitTip: (args) =>
-              submitTip({
-                ...args,
-                prepareId: args.prepareId as Id<'tips'> | Id<'highlightTips'>,
-              }).then((a) => ({ ...a, receiptId: a.receiptId as string })),
-            newRequestId: () => crypto.randomUUID(),
-            saveSubmit: (requestId, submit) =>
-              outbox.update(requestId, { submit }),
-            renameRequest: (from, to) => {
-              outbox.update(from, { requestId: to })
-              setJobs((all) => ({
-                ...all,
-                [to]: all[from] ?? { status: 'sending' },
-              }))
-            },
-          })
-          if (outcome.kind === 'accepted') {
-            setJob(entry.requestId, { status: 'sent' })
-          } else if (outcome.kind === 'unconfirmed') {
-            // The signed tip is saved; the next resume resubmits it.
-          } else {
-            outbox.remove(entry.requestId)
-            setJob(entry.requestId, {
-              status: 'failed',
-              code:
-                outcome.kind === 'refused'
-                  ? outcome.code
-                  : outcome.kind === 'stopped'
-                    ? `STOPPED_${outcome.reason}`
-                    : 'UNREACHABLE',
+  // What a job sees when it runs: always the latest render.
+  const latest = useRef<QueueContext>({
+    binding: null,
+    signer: null,
+    keyId: null,
+  })
+  latest.current = {
+    binding,
+    signer,
+    keyId: reading?.state === 'ready' ? reading.keyId : null,
+  }
+  const mutations = useRef({ prepareTip, submitTip })
+  mutations.current = { prepareTip, submitTip }
+
+  const queue = useMemo<SendQueue | null>(() => {
+    if (!binding) return null
+    const key = bindingKey
+    const report = (requestId: string, job: JobStatus) =>
+      setJobState((state) =>
+        state.key === key
+          ? { key, jobs: { ...state.jobs, [requestId]: job } }
+          : state
+      )
+    return createSendQueue(binding, {
+      context: () => latest.current,
+      outbox,
+      convex: {
+        prepareTip: (args) =>
+          mutations.current
+            .prepareTip({
+              ...args,
+              articleId: args.articleId as Id<'articles'>,
             })
-          }
-        } finally {
-          inFlight.current.delete(entry.requestId)
-        }
-      })
-    },
-    [outbox, prepareTip, submitTip, setJob]
+            .then((p) => ({ ...p, prepareId: p.prepareId as string })),
+        submitTip: (args) =>
+          mutations.current
+            .submitTip({
+              ...args,
+              prepareId: args.prepareId as Id<'tips'> | Id<'highlightTips'>,
+            })
+            .then((a) => ({ ...a, receiptId: a.receiptId as string })),
+      },
+      newRequestId: () => crypto.randomUUID(),
+      report,
+    })
+  }, [bindingKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setJobState({ key: bindingKey, jobs: {} })
+    return () => queue?.dispose()
+  }, [queue]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setJob = useCallback(
+    (requestId: string, job: JobStatus) =>
+      setJobState((state) =>
+        state.key === bindingKey
+          ? { key: bindingKey, jobs: { ...state.jobs, [requestId]: job } }
+          : state
+      ),
+    [bindingKey]
   )
 
-  // Reconcile with the server: drop entries it lists as accepted; resume
-  // the rest while their prepared tip can still be submitted.
+  // Reconcile with the server: drop entries it lists as accepted; expire
+  // those whose prepare window has ended.
   const recent = session?.recentRequestIds.join(',') ?? ''
   useEffect(() => {
     if (!session || session.status === 'none') return
@@ -238,23 +280,25 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
     }
   }, [recent, entries]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Resume this reader's unanswered tips while the page is open.
   useEffect(() => {
-    if (device !== 'ready') return
+    if (device !== 'ready' || !queue) return
     const resume = () => {
-      for (const entry of unansweredEntries(entries, session)) run(entry)
+      for (const entry of unansweredEntries(entries, session))
+        queue.enqueue(entry)
     }
     resume()
     const id = window.setInterval(resume, RESUME_EVERY_MS)
     return () => window.clearInterval(id)
-  }, [device, entries, recent, run]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [device, entries, recent, queue]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = useCallback<LiveState['send']>(
     (target, cents, meta, requestId) => {
-      if (!session || !userId) return
+      if (!session || !binding || !queue) return
       const price = session.prices[0]?.usd ?? 0
       const entry: OutboxEntry = {
         requestId,
-        userId,
+        userId: binding.userId,
         articleId: target.articleId,
         passage: target.kind === 'passage' ? target.passage : null,
         amountCents: cents,
@@ -264,9 +308,9 @@ export function PaymentsProvider({ children }: { children: ReactNode }) {
       }
       outbox.put(entry)
       setJob(requestId, { status: 'sending' })
-      run(entry)
+      queue.enqueue(entry)
     },
-    [session, userId, outbox, setJob, run]
+    [session, binding, queue, outbox, setJob]
   )
 
   const balance = useMemo(
