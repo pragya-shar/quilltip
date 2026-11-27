@@ -436,7 +436,8 @@ test('Read more links have a 44px hit area at 375px', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 900 })
   await open(page, 'home-open')
   const links = page.locator('.tab-ui .tab-inline-link')
-  expect(await links.count()).toBeGreaterThan(0)
+  // The history renders after the tab loads.
+  await expect(links.first()).toBeVisible()
   for (const box of await links.evaluateAll((els) =>
     els.map((el) => el.getBoundingClientRect().height)
   ))
