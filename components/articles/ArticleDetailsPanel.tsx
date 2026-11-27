@@ -14,6 +14,7 @@ import { ArticleTableOfContents } from '@/components/articles/ArticleTableOfCont
 import { HighlightHeatmap } from '@/components/highlights/HighlightHeatmap'
 import { HighlightNotes } from '@/components/highlights/HighlightNotes'
 import { ArweaveStatus } from '@/components/articles/ArweaveStatus'
+import { isArweaveStatus } from '@/lib/arweave/types'
 import { NftSidebarSkeleton } from '@/components/articles/ArticleEngagementSkeleton'
 import { Archive, DollarSign, MessageSquare, Trophy } from 'lucide-react'
 import type { Id } from '@/types/convex'
@@ -168,7 +169,7 @@ export function ArticleDetailsPanel({
               </DetailsSection>
             )}
 
-            {arweaveStatus && (
+            {isArweaveStatus(arweaveStatus) && (
               <DetailsSection>
                 <h4 className="reader-section-title">
                   <Archive className="w-4 h-4 text-muted-foreground" />

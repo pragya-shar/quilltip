@@ -15,7 +15,20 @@ export type ArweaveArticleContent =
   | CanonicalArticle
   | LegacyArweaveArticleContent
 
-export type ArweaveStatus = 'pending' | 'uploaded' | 'verified' | 'failed'
+export const ARWEAVE_STATUSES = [
+  'pending',
+  'uploaded',
+  'verified',
+  'failed',
+] as const
+export type ArweaveStatus = (typeof ARWEAVE_STATUSES)[number]
+
+/** True for a status the storage panel can describe. */
+export function isArweaveStatus(
+  status: string | null | undefined
+): status is ArweaveStatus {
+  return (ARWEAVE_STATUSES as readonly string[]).includes(status ?? '')
+}
 
 export interface ArweaveUploadResult {
   success: boolean
