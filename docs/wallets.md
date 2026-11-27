@@ -117,9 +117,25 @@ Rules:
 - **Checks before signing stay where they were.** A restored connection is an
   ordinary connection: `signTransaction` checks the network and the account
   before the wallet is asked. A wallet on another network is restored with
-  that network shown, and the payment UI blocks the review. After the reader
-  connects a wallet on another account than the saved one, the wallet page
-  shows "This is not your saved address", and the signing check refuses it.
+  that network shown, and the payment UI blocks the review.
+- **Another account than the saved one.** The remembered address is never
+  used to sign. Every payment is signed by the reader's saved address, once it
+  is verified on this network, and never by whatever account the wallet is
+  on. After the reader connects a wallet on another account, the wallet page
+  shows "This is not your saved address. Tips, tab payments and NFT actions
+  are signed by G…, so switch your wallet to that account first." Per flow:
+
+  | Flow                                          | Signs with                                      | Wallet on another account                                                                                                               |
+  | --------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+  | Article tip, passage tip, tip basket          | `tipperAddress` from the server (`runTip`)      | Refused before the wallet is asked ("Switch your wallet to …"); recorded as `wrong_account`. The server also checks the tipper on chain |
+  | Tab open, add funds, close, withdraw, collect | The verified address (`useLiveWalletAccess`)    | Refused before the wallet is asked: the tab gate is `unverified` ("Confirm this wallet is yours")                                       |
+  | NFT mint and transfer                         | `signer` from the server (the verified address) | Refused before the wallet is asked ("Switch your wallet to …"); the server checks the owner                                             |
+
+  `signTransaction` checks the account once more. Varial's account is read
+  again without a prompt; for other wallets the connected account is
+  compared, and a signature by another account is refused after the wallet
+  answers, with nothing sent.
+
 - **Disconnect.** Disconnect forgets the reader's choice and the kit's copy
   of it (`@StellarWalletsKit/*` keys) and ends a WalletConnect session. Other
   open tabs let go of the wallet when the record is removed.
