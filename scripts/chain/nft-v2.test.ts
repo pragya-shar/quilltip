@@ -37,6 +37,7 @@ import {
   successResponse,
 } from './fixtures'
 
+import { expectRedispatchChangesNothing } from './redispatch'
 const modules = import.meta.glob('../../convex/**/*.ts')
 
 const TESTNET = 'Test SDF Network ; September 2015'
@@ -925,6 +926,7 @@ describe('NFT event handlers', () => {
     })
     expect(history[0]!.toUserId).toBeUndefined()
     expect(await eventHandled(t, moved.id)).toBe('done')
+    await expectRedispatchChangesNothing(t)
   })
 
   it('keep the newest owner when transfers arrive out of order', async () => {
@@ -1115,6 +1117,7 @@ describe('mint and transfer verification', () => {
       indexed: true,
       nft: { tokenId: 0, ownerAddress: AUTHOR, contractId: NFT },
     })
+    await expectRedispatchChangesNothing(t)
   })
 
   it('mark a successful transaction without the event MISMATCH, never FAILED', async () => {
