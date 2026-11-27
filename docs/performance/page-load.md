@@ -721,7 +721,11 @@ fails when:
    on where lines break, and fonts with fewer than 30 characters on the page
    are skipped;
 3. a heading (`h1` to `h3`) anywhere on the page changes its height, that is
-   its number of lines.
+   its number of lines;
+4. on the first 1.5 screens, the 90th percentile of the text blocks' vertical
+   movement is over 4 px. Positions are layout positions (`offsetTop`), so
+   transforms and animations do not count. One case is exempt, by name, with
+   its reason: `/guide` at 375 px (below).
 
 Rule 2 is what the faces control. On the fixture build, over 13 routes in
 three engines, matched faces measured 0.985 to 1.051. A face matched to the
@@ -731,13 +735,21 @@ values), and the earlier bold values measured 1.076 to 1.111 in WebKit. The
 landing headline in `Landing Literata` italic is split into single letters
 and has fewer than 30 characters per font, so it is skipped.
 
-The check also reports how far text in view (the first 1.5 screens) moves at
-the swap, without gating it. A line that is already almost full can take one
-more line in a face that is 1% wider, and no face values rule that out for
-every text. On `/guide` at 375 px, one paragraph's text is 663 px wide in
-Work Sans and 669 px in its fallback, in a 335 px column: two lines in Work
-Sans, three in the fallback, so the text below moves 26 px. All Work Sans 400
-text on that page is 1.02 times as wide in its fallback.
+Rule 4 is needed as well: a face a few percent too wide passes rule 2 while
+text in view moves. With `Syne Fallback` 400 to 500 made 5% wider, `/login`
+at 375 px measures 1.067 and moves 22 px in Chromium and WebKit; rule 4 fails it there, and rule 2 fails
+only `/login` at 1440 px (1.074).
+
+**Trade-off on `/guide` at 375 px.** There, text in view moves 26 px at the
+swap, against 0 px on `overhaul/v2`, which has no fallback faces. The cause is
+the "Send 1 test XLM…" paragraph: its text is 663 px wide in Work Sans and
+669 px in the matched fallback, in a 335 px box, so it takes two lines in
+Work Sans and three in the fallback. This happens in Chromium, WebKit and
+Firefox. All Work Sans 400 text on that page is 1.02 times as wide in its
+fallback, within rule 2; a line that is already almost full can wrap in a
+face 1% wider, and no face values rule that out for every text. The check
+reports this case and does not gate it (`MOVEMENT_EXEMPT`). `/guide` at
+1440 px is gated.
 
 Results on the fixture build, five gated routes, Chromium, WebKit and Firefox:
 the check passes, no heading changes lines, and the worst font measures 0.993
@@ -746,7 +758,8 @@ to 1.027. Text in view moves 0 px everywhere (Firefox: at most 2 px) except
 `PERF_FONT_ROUTES="/support /terms /contact /privacy /register /welcome
 /wallet/practice /library"` also passes. `/support` and `/contact` at 1440 px,
 `/terms` and `/wallet/practice` at 375 px still move 26 to 56 px at the swap,
-with every font within 5.1%; those are not gated.
+with every font within 5.1%. Pages added with `PERF_FONT_ROUTES` are checked
+on rules 1 to 3; their movement is only reported.
 
 Deliberate breaks, each failing the check:
 

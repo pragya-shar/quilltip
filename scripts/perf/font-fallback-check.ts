@@ -16,12 +16,14 @@
 //   where lines break. This is what the faces control: a face matched to the
 //   wrong file is 8 to 17 percent off, a matched one at most 5 percent;
 // - no heading (h1 to h3) on the page may change its height, that is its
-//   number of lines.
-// It also reports how far text in view moves (90th percentile, layout
-// positions, so transforms and animations do not count), without gating it:
-// a line that is already almost full can take one more line in a face that is
-// 1 percent wider, which no face values can rule out for every text. See
-// docs/performance/page-load.md.
+//   number of lines;
+// - on the first screen and a half, which a reader sees while the fonts load,
+//   the 90th percentile of the text blocks' vertical movement must stay within
+//   MAX_P90_MOVE_PX. Positions are layout positions (offsetTop), so transforms
+//   and animations do not count. The width rule alone lets a face a few
+//   percent too wide pass while text in view moves, so both are gated. Only
+//   the cases in MOVEMENT_EXEMPT, each with its reason, are not.
+// See docs/performance/page-load.md.
 
 import {
   chromium,
@@ -45,18 +47,36 @@ const ENGINE_NAMES = (process.env.PERF_FONT_ENGINES ?? 'chromium webkit')
 
 // The four measured routes, and /guide, which uses Landing Syne at 500 and
 // Wallet Syne (the 600 file at every weight). PERF_FONT_ROUTES adds paths,
-// for example `/support /terms`, to look at other pages without gating them
-// in CI.
-const ROUTES: { name: string; path: string }[] = [
-  { name: 'landing', path: '/' },
-  { name: 'login', path: '/login' },
-  { name: 'articles', path: '/articles' },
-  { name: 'article', path: FIXTURE_ARTICLE_PATH },
-  { name: 'guide', path: '/guide' },
+// for example `/support /terms`, to look at other pages: their faces and
+// widths are checked, their movement is only reported.
+const ROUTES: { name: string; path: string; gateMovement: boolean }[] = [
+  { name: 'landing', path: '/', gateMovement: true },
+  { name: 'login', path: '/login', gateMovement: true },
+  { name: 'articles', path: '/articles', gateMovement: true },
+  { name: 'article', path: FIXTURE_ARTICLE_PATH, gateMovement: true },
+  { name: 'guide', path: '/guide', gateMovement: true },
   ...(process.env.PERF_FONT_ROUTES ?? '')
     .split(/[\s,]+/)
     .filter(Boolean)
-    .map((extra) => ({ name: extra, path: extra })),
+    .map((extra) => ({ name: extra, path: extra, gateMovement: false })),
+]
+
+/**
+ * Route and width cases whose movement is reported but not gated, each with
+ * the reason. Every other gated case measures 0 px in Chromium and WebKit.
+ */
+const MOVEMENT_EXEMPT: { route: string; width: number; reason: string }[] = [
+  {
+    route: 'guide',
+    width: 375,
+    reason:
+      'the "Send 1 test XLM" paragraph fills two lines of its 335 px box ' +
+      '(663 px of text in Work Sans, 669 px in the matched fallback) and ' +
+      'takes a third in the fallback, so the text below moves 26 px in ' +
+      'Chromium, WebKit and Firefox (0 px on overhaul/v2, without fallback ' +
+      'faces). Work Sans 400 text on the page is 1.02 times as wide in its ' +
+      'fallback, within the width rule.',
+  },
 ]
 
 const VIEWPORTS = [
@@ -75,7 +95,9 @@ const HEADING_TOLERANCE_PX = 2
 const MAX_WIDTH_DIFFERENCE = 0.07
 /** A font with fewer characters than this on the page is not compared. */
 const MIN_FONT_CHARS = 30
-/** The part of the page, in viewport heights, where movement is reported. */
+/** Ninetieth-percentile vertical movement of text in view at the swap. */
+const MAX_P90_MOVE_PX = 4
+/** The part of the page, in viewport heights, where movement counts. */
 const FIRST_SCREENS = 1.5
 
 const TEXT_BLOCKS = 'h1, h2, h3, h4, p, li, blockquote, dt, dd, figcaption'
@@ -244,7 +266,8 @@ function compare(
   label: string,
   viewportHeight: number,
   blocked: Snapshot,
-  loaded: Snapshot
+  loaded: Snapshot,
+  movementGated: boolean
 ): string[] {
   const failures: string[] = []
   if (loaded.fontsLoaded === 0)
@@ -318,6 +341,10 @@ function compare(
   if (firstMoved) console.log(`  first block that moves: ${firstMoved.key}`)
   for (const heading of rewrapped)
     failures.push(`${label}: heading changes lines at the swap: ${heading}`)
+  if (movementGated && p90 > MAX_P90_MOVE_PX)
+    failures.push(
+      `${label}: text in view moves ${p90} px at the 90th percentile when the fonts arrive > ${MAX_P90_MOVE_PX}`
+    )
   for (const { font, ratio } of ratios)
     if (Math.abs(ratio - 1) > MAX_WIDTH_DIFFERENCE)
       failures.push(
@@ -343,9 +370,23 @@ async function main() {
         for (const route of ROUTES) {
           for (const viewport of VIEWPORTS) {
             const label = `${engineName} ${route.name} ${viewport.width}px`
+            const exempt = MOVEMENT_EXEMPT.find(
+              (entry) =>
+                entry.route === route.name && entry.width === viewport.width
+            )
+            if (exempt)
+              console.log(`  ${label}: movement not gated: ${exempt.reason}`)
             const blocked = await snapshot(browser, route.path, viewport, true)
             const loaded = await snapshot(browser, route.path, viewport, false)
-            failures.push(...compare(label, viewport.height, blocked, loaded))
+            failures.push(
+              ...compare(
+                label,
+                viewport.height,
+                blocked,
+                loaded,
+                route.gateMovement && !exempt
+              )
+            )
           }
         }
       } finally {
