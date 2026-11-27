@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { Heading } from '../components/Heading'
@@ -14,7 +15,10 @@ import { Specimen } from './Specimen'
 export function ReadingSection() {
   return (
     <GallerySection id="reading" title="Reading, marks and empty places">
-      <Specimen name="Article" wide>
+      <Specimen
+        name="Article: lead-in, marks (others top, chosen, mine, others, kept, holding, share line), footnote"
+        wide
+      >
         <article className="qt-gallery__article">
           <Heading level={3} variant="display">
             What my grandmother’s ledger taught me about money
@@ -22,43 +26,64 @@ export function ReadingSection() {
           <Text as="p" size="ui-s" tone="ink-2">
             Tomás Reyes · 6 min
           </Text>
-          <Prose>
+          <Prose leadIn>
             <p>
               My grandmother kept a ledger in the drawer under the bread. It was
               not a budget.{' '}
-              <PassageMark
-                heat={3}
-                total="$14 · 23"
-                totalLabel="$14 from 23 tips"
-              >
+              <PassageMark state="others-top" count={23}>
                 She wrote down every coin she ever gave away.
               </PassageMark>{' '}
               Not to remember the money, but to remember the people.
             </p>
             <p>
-              <PassageMark
-                heat={2}
-                total="$4 · 9"
-                totalLabel="$4 from 9 tips"
-                targeted
-              >
+              <PassageMark state="chosen">
                 Two pesos to the boy who carried her bags.
               </PassageMark>{' '}
-              Five to Señora Ruiz, <em>for the medicine</em>. One to a singer on
-              the 14 bus.
-            </p>
-            <blockquote>
-              <PassageMark heat={1} total="$1 · 1" totalLabel="$1 from 1 tip">
-                When she died we read it aloud.
+              Five to Señora Ruiz, <em>for the medicine</em>.{' '}
+              <PassageMark state="mine">
+                One to a singer on the 14 bus.
               </PassageMark>
-            </blockquote>
+            </p>
+            <p>
+              <PassageMark state="others" count={2}>
+                For thirty years she wrote one line each time she gave something
+                away.
+              </PassageMark>{' '}
+              <PassageMark state="kept">A date, a name, a coin.</PassageMark>
+              <Link
+                className="qt-fn-ref"
+                href="/system/reading#fn-1"
+                id="fnref-1"
+              >
+                1
+              </Link>
+            </p>
+            <p>
+              <PassageMark state="holding">
+                When she died we read it aloud, one line each, around the table.
+              </PassageMark>{' '}
+              <PassageMark state="share-line">
+                Nobody cried until the singer on the 14 bus.
+              </PassageMark>
+            </p>
+            <ol className="qt-footnotes">
+              <li id="fn-1">
+                The ledger is now in a shoebox in my mother’s closet.{' '}
+                <Link
+                  href="/system/reading#fnref-1"
+                  aria-label="Back to the text"
+                >
+                  ↩
+                </Link>
+              </li>
+            </ol>
           </Prose>
         </article>
       </Specimen>
       <Specimen name="Right to left">
         <div dir="rtl" lang="ar">
           <Prose variant="line">
-            <PassageMark heat={3} total="$2 · 3" totalLabel="$2 from 3 tips">
+            <PassageMark state="others-top" count={3}>
               كتبت كل عملة أعطتها.
             </PassageMark>
           </Prose>

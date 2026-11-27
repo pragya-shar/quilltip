@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   centsFromInput,
+  firstName,
   tipButtonLabel,
   tipButtonParts,
   tipNote,
@@ -10,6 +11,9 @@ const three = { cents: 300, display: '$3' }
 
 describe('tip button words', () => {
   it('states the amount apart from the words, so it is never cut', () => {
+    expect(
+      tipButtonParts({ phase: 'idle' }, three, 'article', 'Tomás Reyes')
+    ).toEqual({ words: 'Tip Tomás', amount: '$3' })
     expect(tipButtonParts({ phase: 'idle' }, three, 'article')).toEqual({
       words: 'Tip',
       amount: '$3',
@@ -35,10 +39,10 @@ describe('tip button words', () => {
     ).toBe('Sent $3')
     expect(
       tipButtonLabel({ phase: 'failed', amount: three }, three, 'article')
-    ).toBe('Try again')
+    ).toBe('Try again: tip $3')
     expect(
       tipButtonLabel({ phase: 'offline', amount: three }, three, 'article')
-    ).toBe('Offline')
+    ).toBe('Offline. You can tip when you reconnect.')
     expect(tipButtonLabel({ phase: 'idle' }, null, 'article')).toBe(
       'Choose an amount'
     )
@@ -58,8 +62,15 @@ describe('tip button words', () => {
     expect(tipNote({ phase: 'failed', amount: three })).toBe(
       'That tip did not go through. You were not charged.'
     )
-    expect(tipNote({ phase: 'offline', amount: three })).toMatch(/offline/)
+    expect(tipNote({ phase: 'offline', amount: three })).toBeNull()
     expect(tipNote({ phase: 'sent', amount: three })).toBeNull()
+  })
+})
+
+describe('the writer', () => {
+  it('is named by first name on the button', () => {
+    expect(firstName('Tomás Reyes')).toBe('Tomás')
+    expect(firstName('  Noor  ')).toBe('Noor')
   })
 })
 

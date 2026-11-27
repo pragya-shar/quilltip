@@ -86,18 +86,24 @@
     font-weight: var(--qt-weight-ui-strong);
   }
 
-  /* Reading */
+  /* Reading (design N5) */
   .qt-prose {
+    /* The column positions what marks draw in its margin (LineOverlay). */
+    position: relative;
+    isolation: isolate;
     max-width: var(--qt-measure);
     font-family: var(--qt-font-read);
     font-size: var(--qt-text-read);
     line-height: var(--qt-lh-read);
     font-weight: 400;
+    font-optical-sizing: auto;
     color: var(--qt-ink);
     font-variant-numeric: oldstyle-nums proportional-nums;
     font-kerning: normal;
-    hanging-punctuation: first;
+    hanging-punctuation: first allow-end;
     hyphens: manual;
+    widows: 2;
+    orphans: 2;
   }
   .qt-prose[data-variant='line'] {
     font-size: var(--qt-text-line);
@@ -105,7 +111,15 @@
     font-weight: 450;
   }
   .qt-prose > * + * {
-    margin-block-start: 1em;
+    margin-block-start: var(--qt-read-para-gap);
+  }
+  .qt-prose p {
+    text-wrap: pretty;
+  }
+  /* The lead-in: the first line of the first paragraph in small caps. */
+  .qt-prose[data-lead-in] > p:first-of-type::first-line {
+    font-variant-caps: var(--qt-read-lead-in);
+    letter-spacing: var(--qt-read-lead-in-track);
   }
   .qt-prose h2 {
     margin-block-start: 1.8em;
@@ -163,16 +177,58 @@
     border: 0;
     border-block-start: 1px solid var(--qt-line);
   }
-  .qt-prose img,
+  /* Figures: edge to edge on a phone, in the column on a desktop. */
   .qt-prose figure {
-    border-radius: var(--qt-radius-tag);
+    margin-inline: var(--qt-figure-bleed);
+  }
+  .qt-prose figure img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: var(--qt-figure-ratio);
+    object-fit: cover;
   }
   .qt-prose figcaption {
-    margin-block-start: 0.5em;
+    margin-block-start: 10px;
+    padding-inline: var(--qt-gutter-read);
     font-family: var(--qt-font-ui);
-    font-size: var(--qt-text-ui-s);
-    line-height: var(--qt-lh-ui-s);
+    font-size: var(--qt-caption-size);
+    line-height: 1.45;
     color: var(--qt-ink-3);
+  }
+  @media (min-width: 64rem) {
+    .qt-prose figure {
+      margin-inline: 0;
+    }
+    .qt-prose figure img {
+      border-radius: var(--qt-radius-tag);
+    }
+    .qt-prose figcaption {
+      padding-inline: 0;
+    }
+  }
+  /* Footnotes: the reference is small, but its hit area is 44 px. */
+  .qt-prose .qt-fn-ref {
+    display: inline-block;
+    min-width: var(--qt-hit);
+    min-height: var(--qt-hit);
+    margin-block: calc((var(--qt-hit) - 1em) / -2);
+    margin-inline: -0.9em -0.6em;
+    padding-block-start: 0.4em;
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-footnote-ref);
+    font-weight: 650;
+    line-height: 1;
+    color: var(--qt-ink-2);
+    text-align: center;
+    text-decoration: none;
+    vertical-align: super;
+  }
+  .qt-prose .qt-footnotes {
+    margin-block-start: 2em;
+    padding-block-start: 1em;
+    border-block-start: 1px solid var(--qt-line);
+    font-size: var(--qt-footnote-size);
+    color: var(--qt-ink-2);
   }
   .qt-prose code {
     font-family: ui-monospace, 'SF Mono', Menlo, monospace;

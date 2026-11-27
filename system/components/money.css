@@ -44,15 +44,14 @@
     letter-spacing: 0;
     vertical-align: var(--qt-money-cents-raise);
   }
-  .qt-money__approx,
-  .qt-money__below {
+  .qt-money__approx {
     margin-inline-end: 0.08em;
     font-size: 0.6em;
     color: var(--qt-ink-2);
     letter-spacing: 0;
     vertical-align: 0.2em;
   }
-  .qt-money[data-size='s'] :is(.qt-money__approx, .qt-money__below) {
+  .qt-money[data-size='s'] .qt-money__approx {
     font-size: 1em;
     vertical-align: 0;
   }
@@ -113,6 +112,7 @@
   }
   .qt-tip__round {
     display: inline-grid;
+    flex-shrink: 0;
     place-items: center;
     width: var(--qt-control-h);
     height: var(--qt-control-h);
@@ -350,67 +350,212 @@
     }
   }
 
-  /* Passage mark: a marker stroke with slanted ends, cloned per line. */
+  /* Passage marks (design N5). The fill never carries meaning alone:
+   * every state has a cue in shape or words. */
   .qt-mark {
-    --qt-mark-fill: var(--qt-marker);
-    padding: 0.04em 0.3em;
-    margin-inline: -0.25em;
-    border-radius: 0.2em;
-    background: linear-gradient(
-      104deg,
-      transparent 0.3em,
-      var(--qt-mark-fill) 0.4em,
-      var(--qt-mark-fill) calc(100% - 0.4em),
-      transparent calc(100% - 0.3em)
-    );
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
+    --qt-mark-fill: transparent;
+    padding: 0.04em 0.18em;
+    margin-inline: -0.12em;
+    border-radius: 0.18em;
+    background: var(--qt-mark-fill);
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
+    color: inherit;
+    text-decoration-thickness: var(--qt-underline);
+    text-underline-offset: var(--qt-underline-offset);
+  }
+  .qt-mark[data-state='others-top'] {
+    --qt-mark-fill: var(--qt-marker-soft);
+  }
+  .qt-mark[data-state='others'] {
+    --qt-mark-fill: var(--qt-marker-faint);
+  }
+  .qt-mark[data-state='mine'] {
+    --qt-mark-fill: var(--qt-marker);
     color: var(--qt-on-marker);
   }
-  .qt-mark[data-heat='2'] {
-    --qt-mark-fill: var(--qt-marker-soft);
-    color: inherit;
-  }
-  .qt-mark[data-heat='1'] {
-    --qt-mark-fill: var(--qt-marker-faint);
-    color: inherit;
-  }
-  /* The targeted line: an underline in marker-ink, not colour alone. */
-  .qt-mark[data-targeted] {
-    text-decoration: underline;
+  .qt-mark[data-state='kept'] {
+    text-decoration-line: underline;
     text-decoration-color: var(--qt-marker-ink);
-    text-decoration-thickness: 2px;
-    text-underline-offset: 0.22em;
+  }
+  .qt-mark[data-state='chosen'] {
+    text-decoration-line: underline;
+    text-decoration-color: var(--qt-ink);
+  }
+  .qt-mark[data-state='share-line'] {
+    text-decoration-line: underline;
+    text-decoration-style: dashed;
+    text-decoration-color: var(--qt-marker-ink);
+  }
+  .qt-mark[data-state='holding'],
+  .qt-mark[data-state='place'] {
+    padding: 0;
+    margin: 0;
   }
   .qt-mark[data-fresh] {
+    background-image: linear-gradient(var(--qt-mark-fill), var(--qt-mark-fill));
+    background-color: transparent;
+    background-repeat: no-repeat;
     animation: qt-stroke var(--qt-dur-stroke) var(--qt-ease-out) both;
-  }
-  .qt-mark__total {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.2em;
-    margin-inline-start: 0.4em;
-    font-family: var(--qt-font-ui);
-    font-size: var(--qt-text-ui-s);
-    line-height: 1;
-    font-weight: var(--qt-weight-ui-strong);
-    color: var(--qt-marker-ink);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-    vertical-align: 0.15em;
   }
   @keyframes qt-stroke {
     from {
       background-size: 0% 100%;
     }
+    to {
+      background-size: 100% 100%;
+    }
+  }
+  .qt-mark__count {
+    margin-inline-start: 0.3em;
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-text-ui-xxs);
+    line-height: 1;
+    font-weight: var(--qt-weight-ui-strong);
+    color: var(--qt-marker-ink);
+    font-variant-numeric: tabular-nums;
+    vertical-align: 0.2em;
+  }
+  .qt-mark__check {
+    display: inline-flex;
+    margin-inline-start: 0.2em;
+    color: var(--qt-marker-ink);
+    vertical-align: -0.1em;
+  }
+
+  /* Drawn outside the text: margin ticks and the hold's band. */
+  .qt-line-overlay {
+    position: static;
+  }
+  .qt-line-overlay__tick {
+    position: absolute;
+    inset-inline-start: calc(-1 * var(--qt-gutter-read) / 2);
+    width: var(--qt-tick-w);
+    border-radius: var(--qt-tick-w);
+    background: var(--qt-ink);
+    pointer-events: none;
+  }
+  .qt-line-overlay__tick[data-kind='place'] {
+    background: var(--qt-marker-ink);
+    animation: qt-tick-fade var(--qt-dur-tick-fade) var(--qt-ease-out) 2.4s
+      forwards;
+  }
+  @keyframes qt-tick-fade {
+    to {
+      opacity: 0.25;
+    }
+  }
+  .qt-line-overlay__band {
+    position: absolute;
+    z-index: -1;
+    background: var(--qt-marker);
+    clip-path: inset(calc(100% - var(--qt-hold-band)) 0 0 0);
+    transform: scaleX(0);
+    transform-origin: left center;
+    animation: qt-band calc(var(--qt-dur-hold) * var(--qt-band-share)) linear
+      calc(var(--qt-dur-hold) * var(--qt-band-delay)) forwards;
+    pointer-events: none;
+  }
+  [dir='rtl'] .qt-line-overlay__band {
+    transform-origin: right center;
+  }
+  @keyframes qt-band {
+    to {
+      transform: scaleX(1);
+    }
+  }
+  /* The hold is a rule: reduced motion keeps the band's timing. */
+  @media (prefers-reduced-motion: reduce) {
+    .qt-line-overlay__band {
+      animation-duration: calc(
+        var(--qt-dur-hold) * var(--qt-band-share)
+      ) !important;
+      animation-delay: calc(
+        var(--qt-dur-hold) * var(--qt-band-delay)
+      ) !important;
+    }
   }
   @media (forced-colors: active) {
-    .qt-mark {
+    .qt-mark[data-state='mine'],
+    .qt-mark[data-state='others-top'],
+    .qt-mark[data-state='others'] {
       forced-color-adjust: none;
       background: Highlight;
       color: HighlightText;
+    }
+    .qt-line-overlay__tick,
+    .qt-line-overlay__band {
+      forced-color-adjust: none;
+      background: Highlight;
+    }
+  }
+}
+
+@layer components {
+  /* Text buttons beside the tip button: Cancel, +$1, Not now. */
+  .qt-tip__round:not(:has(svg)) {
+    width: auto;
+    min-width: var(--qt-control-h);
+    padding-inline: var(--qt-space-4);
+    font-weight: var(--qt-weight-ui-strong);
+    font-variant-numeric: tabular-nums;
+  }
+  .qt-tip[data-phase='offline'] .qt-tip__words {
+    white-space: normal;
+  }
+  .qt-tip__round[aria-disabled='true'] {
+    color: var(--qt-ink-3);
+    cursor: not-allowed;
+  }
+
+  /* The hold (N1 phase 6): the status, the projected balance under it, and
+   * a band that fills across the pill over --qt-dur-hold, linear, restarted
+   * by +$1. The words carry the meaning; the band is the countdown. */
+  .qt-tip__button {
+    position: relative;
+    overflow: hidden;
+  }
+  .qt-tip[data-phase='holding'] .qt-tip__button {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: var(--qt-space-2);
+    align-items: center;
+    padding-block: var(--qt-space-1);
+  }
+  .qt-tip[data-phase='holding'] .qt-tip__nib {
+    grid-row: span 2;
+  }
+  .qt-tip__projected {
+    grid-column: 2;
+    font-size: var(--qt-text-ui-xs);
+    line-height: var(--qt-lh-ui-xs);
+    font-weight: var(--qt-weight-ui);
+    font-variant-numeric: tabular-nums;
+  }
+  .qt-tip__countdown {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+    height: 0.25rem;
+    background: var(--qt-marker);
+    transform-origin: left center;
+    animation: qt-hold-fill var(--qt-dur-hold) linear both;
+  }
+  [dir='rtl'] .qt-tip__countdown {
+    transform-origin: right center;
+  }
+  @keyframes qt-hold-fill {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  /* The hold is a rule, not an animation: reduced motion keeps its length. */
+  @media (prefers-reduced-motion: reduce) {
+    .qt-tip__countdown {
+      animation-duration: var(--qt-dur-hold) !important;
     }
   }
 }

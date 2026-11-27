@@ -27,8 +27,9 @@ type MoneyFigureProps = {
 }
 
 /**
- * A dollar amount, exactly as the money layer wrote it: "$18.40", "≈ $17.28"
- * or "<$0.01". Cents draw smaller at the large sizes. Figures are tabular,
+ * A dollar amount, exactly as the money layer wrote it (N2): "$18.40",
+ * "$0.0975", or "≈ $17.28" for a converted figure. At the serif sizes the
+ * cents, and any further digits, draw raised and smaller. Figures are tabular,
  * so a changing amount never shifts its neighbours. Until the server
  * answers, a skeleton holds the space; when payments are down, the figure
  * says so. It never draws a placeholder zero.
@@ -48,14 +49,9 @@ export function MoneyFigure({
     state.kind === 'value' ? (
       <span className="qt-money__figure">
         <span aria-hidden="true" className="qt-money__digits">
-          {sign && !state.parts.below ? (
-            <span className="qt-money__sign">{sign}</span>
-          ) : null}
+          {sign ? <span className="qt-money__sign">{sign}</span> : null}
           {state.parts.approx ? (
             <span className="qt-money__approx">≈</span>
-          ) : null}
-          {state.parts.below ? (
-            <span className="qt-money__below">&lt;</span>
           ) : null}
           <span className="qt-money__symbol">{state.parts.symbol}</span>
           <span className="qt-money__whole">{state.parts.whole}</span>

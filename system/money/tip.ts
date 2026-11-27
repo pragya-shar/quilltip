@@ -1,15 +1,15 @@
 import type { MoneyValue } from './figure'
 
 /**
- * The tip control's phases. Structurally the same as `TipPhase` in
- * lib/payments/types.ts, so a surface passes `useTip(...).state` straight
+ * The tip control's phases (design N1). Structurally the same as `TipPhase`
+ * in lib/payments/types.ts, so a surface passes `useTip(...).state` straight
  * in. Sent only after the server accepted; there is no Undo. "Refused" is
  * `failed` (the server said no) or `needs-funds` (checked before sending);
  * "unavailable" is the control's `unavailable` prop.
  *
- * `other` is the slot for one more phase the design may add (the tip
- * moment in the full prototype): its words and amount come from the caller,
- * and `busy` makes it a status that takes focus, like Sending.
+ * `other` is the slot for a phase the money layer adds. The hold (N1 phase
+ * 6) uses it: `{ phase: 'other', words: 'Sending', amount, busy: true }`
+ * with the control's `hold` prop.
  */
 export type TipControlPhase =
   | { phase: 'idle' }
@@ -20,14 +20,20 @@ export type TipControlPhase =
   | { phase: 'needs-funds'; amount: MoneyValue; available: MoneyValue | null }
   | { phase: 'other'; words: string; amount?: MoneyValue; busy: boolean }
 
+/** "Tomás Reyes" → "Tomás": the button names the writer by first name. */
+export function firstName(name: string): string {
+  return name.trim().split(/\s+/u)[0] ?? name
+}
+
 /**
  * The words on the tip button for a phase, and the amount apart from them:
- * the words may be cut with an ellipsis, the amount never is.
+ * the words may be cut with an ellipsis, the amount never is (N1 table).
  */
 export function tipButtonParts(
   state: TipControlPhase,
   amount: MoneyValue | null,
-  target: 'article' | 'passage'
+  target: 'article' | 'passage',
+  recipient = ''
 ): { words: string; amount: string | null } {
   switch (state.phase) {
     case 'sending':
@@ -35,19 +41,20 @@ export function tipButtonParts(
     case 'sent':
       return { words: 'Sent', amount: state.amount.display }
     case 'failed':
-      return { words: 'Try again', amount: null }
+      return { words: 'Try again: tip', amount: state.amount.display }
     case 'offline':
-      return { words: 'Offline', amount: null }
+      return { words: 'Offline. You can tip when you reconnect.', amount: null }
     case 'needs-funds':
       return { words: 'Add money to tip', amount: state.amount.display }
     case 'other':
       return { words: state.words, amount: state.amount?.display ?? null }
-    case 'idle':
+    case 'idle': {
       if (!amount) return { words: 'Choose an amount', amount: null }
-      return {
-        words: target === 'passage' ? 'Tip this line' : 'Tip',
-        amount: amount.display,
-      }
+      if (target === 'passage')
+        return { words: 'Tip this line', amount: amount.display }
+      const name = firstName(recipient)
+      return { words: name ? `Tip ${name}` : 'Tip', amount: amount.display }
+    }
   }
 }
 
@@ -55,23 +62,22 @@ export function tipButtonParts(
 export function tipButtonLabel(
   state: TipControlPhase,
   amount: MoneyValue | null,
-  target: 'article' | 'passage'
+  target: 'article' | 'passage',
+  recipient = ''
 ): string {
-  const parts = tipButtonParts(state, amount, target)
+  const parts = tipButtonParts(state, amount, target, recipient)
   return parts.amount ? `${parts.words} ${parts.amount}` : parts.words
 }
 
-/** The line under the control that explains a failure or a block, if any. */
+/** The line that explains a refusal (it takes focus), if any. */
 export function tipNote(state: TipControlPhase): string | null {
-  switch (state.phase) {
-    case 'failed':
-      return 'That tip did not go through. You were not charged.'
-    case 'offline':
-      return 'You are offline. Tip again when you are back online.'
-    default:
-      return null
-  }
+  return state.phase === 'failed'
+    ? 'That tip did not go through. You were not charged.'
+    : null
 }
+
+/** Said once when the reader cancels a hold (N1). */
+export const HOLD_CANCELLED = 'Cancelled. Nothing was sent.'
 
 /**
  * Cents from what a reader typed in "Other": "2", "2.5", "2.50", "$2.50".
