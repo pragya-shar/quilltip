@@ -43,6 +43,12 @@ export function AccountNavigationMenu(props: AccountNavigationMenuProps) {
           data-state="closed"
           onFocus={() => setHandoff((h) => ({ ...h, focused: true }))}
           onBlur={() => setHandoff((h) => ({ ...h, focused: false }))}
+          onKeyDown={(event) => {
+            // Menus also open with ArrowDown; hand it over like a press.
+            if (event.key !== 'ArrowDown') return
+            event.preventDefault()
+            setHandoff({ focused: true, open: 'keyboard' })
+          }}
           onClick={(event) =>
             setHandoff({
               focused: true,
