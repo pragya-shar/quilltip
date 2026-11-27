@@ -88,6 +88,13 @@ export type WalletCatalogEntry = {
   connectTimeoutMs?: number
   /** How long a signature may take, when longer than the default. */
   signTimeoutMs?: number
+  /**
+   * After a page load the wallet reconnects by itself only when this is true:
+   * its kit module reads the account without a prompt when the site is still
+   * allowed, and answers with an error, not a prompt, when it is not (#562).
+   * Every other wallet waits for the reader to connect again.
+   */
+  silentRestore?: boolean
   /** Offered in the picker. When false, `notOfferedReason` says why. */
   offered: boolean
   notOfferedReason?: string
@@ -115,6 +122,9 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     needsHttps: false,
     opensWindow: false,
     capabilities: FULL,
+    // `getAddress({ skipRequestAccess: true })` asks the extension whether the
+    // site is allowed and reads the address; neither call prompts.
+    silentRestore: true,
     offered: true,
   },
   {
@@ -127,6 +137,8 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     needsHttps: false,
     opensWindow: true,
     capabilities: { ...FULL, authEntry: false, reportsNetwork: false },
+    // No restore: the extension's `connect` and the web wallet both ask the
+    // reader (the web wallet opens a window).
     offered: true,
   },
   {
@@ -143,6 +155,8 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
       authEntry: false,
       reportsNetwork: false,
     },
+    // No restore: `rabet.connect()` is the only address read, and it prompts
+    // when the site is not allowed.
     offered: true,
   },
   {
@@ -154,6 +168,8 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     needsHttps: false,
     opensWindow: false,
     capabilities: { ...FULL, reportsNetwork: false },
+    // No restore: `getPublicKey()` is the only address read, and it prompts
+    // when the site is not connected.
     offered: true,
   },
   {
@@ -164,6 +180,8 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     needsHttps: false,
     opensWindow: false,
     capabilities: FULL,
+    // No restore: with the access request skipped, the module falls back to
+    // `getPublicKey()`, which can prompt.
     offered: true,
   },
   {
@@ -174,6 +192,8 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     needsHttps: false,
     opensWindow: false,
     capabilities: FULL,
+    // No restore: not checked against the extension that a read without the
+    // access request never prompts.
     offered: true,
   },
   {
@@ -193,6 +213,7 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
       authEntry: false,
       reportsNetwork: false,
     },
+    // No restore: every Albedo request opens its window.
     offered: true,
   },
   {
@@ -283,6 +304,9 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     connectTimeoutMs: 5 * 60_000,
     signTimeoutMs: 5 * 60_000,
     // Shown only when NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set.
+    // No restore on load: it would load the sign client and open a relay
+    // connection on every wallet page. The reader's Connect reuses the
+    // remembered account's live session without a new code (#562).
     offered: true,
   },
 ]

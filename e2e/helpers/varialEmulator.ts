@@ -28,9 +28,14 @@ export type VarialMode =
 export type VarialEmulatorOptions = { mode: VarialMode; address: string }
 
 export function installVarialEmulator({
-  mode,
+  mode: initialMode,
   address,
 }: VarialEmulatorOptions) {
+  // `sessionStorage['qa-varial-mode']` changes the mode for the next load of
+  // the tab, as a reader would change the extension between visits.
+  const mode =
+    (sessionStorage.getItem('qa-varial-mode') as VarialMode | null) ??
+    initialMode
   const TESTNET = 'Test SDF Network ; September 2015'
   const PUBLIC = 'Public Global Stellar Network ; September 2015'
   type Request = {
