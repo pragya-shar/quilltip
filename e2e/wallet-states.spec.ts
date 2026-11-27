@@ -1,3 +1,4 @@
+import { TransactionBuilder, type Transaction } from '@stellar/stellar-sdk'
 import { test, expect, type Page } from './helpers/consoleGuard'
 import {
   installVarialEmulator,
@@ -6,8 +7,8 @@ import {
 
 /**
  * Wallet connect and sign states through the real Wallets Kit 2.x, wallet
- * runtime and tip dialog, against an emulated Varial extension. The fixture
- * server stubs Convex and the Stellar client; nothing reaches a network.
+ * runtime and v2 article tip dialog, against an emulated Varial extension. The fixture
+ * server stubs Convex and Stellar RPC; nothing reaches a network.
  *
  *   bun e2e/fixtures/wallet/server.mjs
  *   WALLET_FIXTURES=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:4177 bunx playwright test e2e/wallet-states.spec.ts
@@ -36,13 +37,14 @@ async function chooseVarial(page: Page) {
     .click()
 }
 
+/** Opens the v2 article tip dialog with the default amount ($1, 10 XLM). */
 async function openCheckout(page: Page) {
   await page.getByRole('button', { name: 'Tip article', exact: true }).click()
-  const dialog = page.getByRole('dialog')
-  await dialog.getByRole('button', { name: '1 test XLM' }).click()
-  await dialog
-    .getByRole('button', { name: 'Choose wallet', exact: true })
-    .click()
+  const dialog = page.getByRole('dialog', { name: 'Tip this article' })
+  await expect(dialog.getByRole('button', { name: '$1' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
   return dialog
 }
 
@@ -67,7 +69,7 @@ test('connects through the kit picker and signs a testnet tip', async ({
   await expect(account).toContainText(/testnet/i)
 
   const dialog = await openCheckout(page)
-  await dialog.getByRole('button', { name: 'Review in wallet' }).click()
+  await dialog.getByRole('button', { name: 'Send tip' }).click()
   await expect
     .poll(async () =>
       (await requests(page)).find((r) => r.type === 'SUBMIT_TRANSACTION')
@@ -82,6 +84,24 @@ test('connects through the kit picker and signs a testnet tip', async ({
       )
     )
     .toBeTruthy()
+  // One prepared tip, signed by the connected wallet: a Core contract call
+  // from the wallet's address, for testnet.
+  const { signedXdr, prepared, address } = await page.evaluate(() => {
+    const w = window as unknown as {
+      __walletFixture: { signedXdr: string; prepared: number }
+      __fixtureWallet: { address: string }
+    }
+    return {
+      signedXdr: w.__walletFixture.signedXdr,
+      prepared: w.__walletFixture.prepared,
+      address: w.__fixtureWallet.address,
+    }
+  })
+  expect(prepared).toBe(1)
+  const signed = TransactionBuilder.fromXDR(signedXdr, TESTNET) as Transaction
+  expect(signed.source).toBe(address)
+  expect(signed.signatures).toHaveLength(1)
+  expect(signed.operations.map((op) => op.type)).toEqual(['invokeHostFunction'])
 })
 
 test('no extension: the picker opens with web wallets and install links', async ({
@@ -146,7 +166,7 @@ test('rejected signature', async ({ page }) => {
   await open(page, 'reject-sign')
   await chooseVarial(page)
   const dialog = await openCheckout(page)
-  await dialog.getByRole('button', { name: 'Review in wallet' }).click()
+  await dialog.getByRole('button', { name: 'Send tip' }).click()
   await expect(
     dialog.getByText('Request declined in your wallet')
   ).toBeVisible()
@@ -158,7 +178,7 @@ test('wallet that never answers times out', async ({ page }) => {
   await open(page, 'timeout-sign')
   await chooseVarial(page)
   const dialog = await openCheckout(page)
-  await dialog.getByRole('button', { name: 'Review in wallet' }).click()
+  await dialog.getByRole('button', { name: 'Send tip' }).click()
   await expect
     .poll(async () => (await requests(page)).map((r) => r.type))
     .toContain('SUBMIT_TRANSACTION')

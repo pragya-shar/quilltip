@@ -39,6 +39,8 @@ export const NFT_COPY = {
   notRegisteredAuthor:
     'Turn on tips for this article first. The NFT unlocks from tips on Stellar testnet.',
   unavailable: 'The NFT status can’t be read right now. Try again in a minute.',
+  /** Payments v2 is off, or no Article NFT contract is set on this site. */
+  offline: 'Article NFTs aren’t available on this site right now.',
   rateLimited: 'Too many checks in a row. Try again in a minute.',
   notConfigured: {
     title: 'Minting isn’t available on this site yet',
