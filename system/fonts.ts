@@ -4,10 +4,11 @@ import localFont from 'next/font/local'
 /**
  * The one web font: Literata for reading, display and money figures
  * (variable: optical size 12 to 60 and weight 400 to 700; see
- * system/fonts/README.md). Self-hosted, `display: swap`. next/font writes a
- * fallback face from Times New Roman with Literata's own metrics (size,
- * ascent, descent), so text keeps its lines when the font arrives: no
- * layout shift. The browser picks the optical size from the font size.
+ * system/fonts/README.md). Self-hosted, `display: swap`. Until it arrives,
+ * text paints in Times New Roman at Literata's metrics, one face per weight
+ * band (system/font-fallbacks.css; next/font's own fallback has one face
+ * only, and bold titles re-wrapped at the swap), so text keeps its lines:
+ * no layout shift. The browser picks the optical size from the font size.
  *
  * The roman Latin file (60 KB) is preloaded; the italic (62 KB) is its own
  * family and loads only when a page draws italic text. The Latin Extended
@@ -22,8 +23,8 @@ export const readingFace = localFont({
   variable: '--qt-face-read',
   display: 'swap',
   preload: true,
-  adjustFontFallback: 'Times New Roman',
-  fallback: ['Charter', 'Iowan Old Style', 'Georgia', 'serif'],
+  adjustFontFallback: false,
+  fallback: [],
 })
 
 /** Italic as its own family, so only the roman file is preloaded. */
@@ -34,8 +35,8 @@ export const readingItalicFace = localFont({
   variable: '--qt-face-read-italic',
   display: 'swap',
   preload: false,
-  adjustFontFallback: 'Times New Roman',
-  fallback: ['Charter', 'Iowan Old Style', 'Georgia', 'serif'],
+  adjustFontFallback: false,
+  fallback: [],
 })
 
 const readingExtFace = localFont({
@@ -77,23 +78,45 @@ const readingExtItalicFace = localFont({
 })
 
 /**
- * A family list with the extended face second: after Literata's Latin face
- * and before its metric fallback, which covers every letter and would
- * otherwise win for "Ł".
+ * A family list: Literata's Latin face, its Latin Extended face, then the
+ * metric-matched fallback (system/font-fallbacks.css), which covers every
+ * letter and so comes after both.
  */
-export function withExtended(stack: string, extended: string): string {
-  const [first, ...rest] = stack.split(/,\s*/)
-  return [first, extended, ...rest].join(', ')
+export function readingStack(
+  latin: string,
+  extended: string,
+  fallback: string
+): string {
+  return [latin, extended, `'${fallback}'`].join(', ')
 }
 
 /** The reading families for the root element, as custom properties. */
 export const readingFaceStyle = {
-  '--qt-face-read': withExtended(
+  '--qt-face-read': readingStack(
     readingFace.style.fontFamily,
-    readingExtFace.style.fontFamily
+    readingExtFace.style.fontFamily,
+    'Quilltip Read Fallback'
   ),
-  '--qt-face-read-italic': withExtended(
+  '--qt-face-read-italic': readingStack(
     readingItalicFace.style.fontFamily,
-    readingExtItalicFace.style.fontFamily
+    readingExtItalicFace.style.fontFamily,
+    'Quilltip Read Italic Fallback'
+  ),
+  // The display title and the lead-in line have fallbacks of their own
+  // (system/font-fallbacks.css).
+  '--qt-face-display': readingStack(
+    readingFace.style.fontFamily,
+    readingExtFace.style.fontFamily,
+    'Quilltip Display Fallback'
+  ),
+  '--qt-face-display-wide': readingStack(
+    readingFace.style.fontFamily,
+    readingExtFace.style.fontFamily,
+    'Quilltip Display Wide Fallback'
+  ),
+  '--qt-face-read-caps': readingStack(
+    readingFace.style.fontFamily,
+    readingExtFace.style.fontFamily,
+    'Quilltip Read Caps Fallback'
   ),
 } as CSSProperties

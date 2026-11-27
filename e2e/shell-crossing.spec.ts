@@ -63,15 +63,16 @@ test('before scripts run, a held session shows Balance, never Sign in, at the sa
   await page.route('**/_next/static/chunks/**', (route) => route.abort())
   const slot = page
     .getByRole('navigation', { name: 'Main' })
-    .locator('.qt-balance-slot')
+    .locator('.qt-balance-slot:visible')
   await page.goto('/shelf')
-  await expect(slot).toHaveText('Sign in')
+  // The word that shows: the other is in the HTML, hidden by the marker.
+  await expect(slot).toHaveText('Sign in', { useInnerText: true })
   const signedOut = await slot.boundingBox()
   await page.evaluate(() =>
     localStorage.setItem('__convexAuthJWT_test', 'held')
   )
   await page.goto('/shelf')
-  await expect(slot).toHaveText('Balance')
+  await expect(slot).toHaveText('Balance', { useInnerText: true })
   const held = await slot.boundingBox()
   expect(held!.width).toBe(signedOut!.width)
 })
