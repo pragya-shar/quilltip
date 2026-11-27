@@ -32,6 +32,7 @@ const INACTIVE_WALLET_STUB: WalletContextType = {
   isConnected: false,
   isLoading: false,
   isRestoring: false,
+  lastUsed: null,
   publicKey: null,
   network: null,
   networkPassphrase: null,

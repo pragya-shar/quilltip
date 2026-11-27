@@ -1,15 +1,18 @@
 /**
- * The reader's last wallet choice, kept in `localStorage` so the wallet can
- * reconnect after a page load without a prompt (#562). It holds the wallet ID
- * and the public address, nothing else. No wallet or SDK code is imported
- * here, so the sign-in pages can clear it without loading the wallet.
+ * The reader's last wallet choice, kept in `localStorage` per signed-in
+ * reader (#562). Each record holds the wallet ID and the public address,
+ * nothing else, under `quilltip:wallet:v1:<user ID>`. No wallet or SDK code
+ * is imported here: `readRememberedWallet` is a small synchronous read that
+ * any page can call to show the reader's last wallet without loading the
+ * wallet kit.
  *
  * The record is a hint, never a credential: the adapter restores only a
- * wallet it offers, reads the address from the wallet again, and signs only
- * after the account check in `signTransaction` (`lib/stellar/v2/wallet.ts`).
+ * wallet it offers, only when the wallet still reports the same address
+ * without a prompt, and signs only after the checks in `signTransaction`
+ * (`lib/stellar/v2/wallet.ts`).
  */
 
-export const REMEMBERED_WALLET_KEY = 'quilltip:wallet'
+export const REMEMBERED_WALLET_PREFIX = 'quilltip:wallet:v1:'
 
 /**
  * What Stellar Wallets Kit keeps in `localStorage` for the same choice
@@ -29,35 +32,44 @@ export type RememberedWallet = { walletId: string; address: string }
 
 type ReadStorage = Pick<Storage, 'getItem' | 'removeItem'>
 type WriteStorage = ReadStorage & Pick<Storage, 'setItem'>
+type ListStorage = ReadStorage & Pick<Storage, 'key' | 'length'>
 
 /** A Stellar account ID: G, then 55 base32 characters. */
 const ACCOUNT_ID = /^G[A-Z2-7]{55}$/
 /** A kit module ID: letters, digits, `_` and `-`. */
 const WALLET_ID = /^[A-Za-z0-9_-]{1,40}$/
+/** A Convex document ID, as the signed-in reader's ID. */
+const USER_ID = /^[A-Za-z0-9_-]{1,64}$/
+
+/** The storage key for a reader, or null for an ID that cannot be one. */
+export function rememberedWalletKey(
+  userId: string | null | undefined
+): string | null {
+  return userId && USER_ID.test(userId)
+    ? `${REMEMBERED_WALLET_PREFIX}${userId}`
+    : null
+}
 
 /**
- * The stored record when it is well formed, or null. A malformed record is
- * removed. Callers still check the wallet ID against the wallets they offer.
+ * The reader's stored record when it is well formed, or null. A malformed
+ * record is removed. Callers still check the wallet ID against the wallets
+ * they offer.
  */
 export function readRememberedWallet(
-  storage: ReadStorage | null | undefined
+  storage: ReadStorage | null | undefined,
+  userId: string | null | undefined
 ): RememberedWallet | null {
-  if (!storage) return null
+  const key = rememberedWalletKey(userId)
+  if (!storage || !key) return null
   let raw: string | null
   try {
-    raw = storage.getItem(REMEMBERED_WALLET_KEY)
+    raw = storage.getItem(key)
   } catch {
     return null
   }
   if (raw === null) return null
   const record = parseRecord(raw)
-  if (!record) {
-    try {
-      storage.removeItem(REMEMBERED_WALLET_KEY)
-    } catch {
-      // Storage is read-only here; the record is ignored either way.
-    }
-  }
+  if (!record) remove(storage, key)
   return record
 }
 
@@ -84,15 +96,17 @@ function parseRecord(raw: string): RememberedWallet | null {
 /** Stores the reader's choice. Ignores storage that refuses writes. */
 export function rememberWallet(
   storage: WriteStorage | null | undefined,
+  userId: string | null | undefined,
   record: RememberedWallet
 ) {
-  if (!storage) return
+  const key = rememberedWalletKey(userId)
+  if (!storage || !key) return
   if (!WALLET_ID.test(record.walletId) || !ACCOUNT_ID.test(record.address)) {
     return
   }
   try {
     storage.setItem(
-      REMEMBERED_WALLET_KEY,
+      key,
       JSON.stringify({ walletId: record.walletId, address: record.address })
     )
   } catch {
@@ -100,17 +114,50 @@ export function rememberWallet(
   }
 }
 
-/** Removes the record and the kit's copy of the same choice. */
+/**
+ * Removes a reader's record (when `userId` is given) and the kit's copy of
+ * the last choice.
+ */
 export function forgetRememberedWallet(
-  storage: ReadStorage | null | undefined
+  storage: ReadStorage | null | undefined,
+  userId?: string | null
 ) {
   if (!storage) return
-  for (const key of [REMEMBERED_WALLET_KEY, ...WALLET_KIT_STORAGE_KEYS]) {
-    try {
-      storage.removeItem(key)
-    } catch {
-      // Nothing more can be done from here.
+  const key = rememberedWalletKey(userId)
+  for (const name of key
+    ? [key, ...WALLET_KIT_STORAGE_KEYS]
+    : WALLET_KIT_STORAGE_KEYS) {
+    remove(storage, name)
+  }
+}
+
+/**
+ * Removes every reader's record and the kit's keys. For the sign-in pages,
+ * where no reader is signed in.
+ */
+export function forgetAllRememberedWallets(
+  storage: ListStorage | null | undefined
+) {
+  if (!storage) return
+  const keys: string[] = []
+  try {
+    for (let i = 0; i < storage.length; i++) {
+      const name = storage.key(i)
+      if (name?.startsWith(REMEMBERED_WALLET_PREFIX)) keys.push(name)
     }
+  } catch {
+    // Unreadable storage: the kit's keys are still removed below.
+  }
+  for (const name of [...keys, ...WALLET_KIT_STORAGE_KEYS]) {
+    remove(storage, name)
+  }
+}
+
+function remove(storage: ReadStorage, key: string) {
+  try {
+    storage.removeItem(key)
+  } catch {
+    // Read-only or blocked storage: nothing more can be done from here.
   }
 }
 

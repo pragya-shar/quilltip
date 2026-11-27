@@ -22,7 +22,7 @@ export function OwnerWalletSettings({
   className = '',
 }: WalletSettingsProps) {
   const updateProfile = useMutation(api.users.updateProfile)
-  const { isConnected, isRestoring, publicKey, network, disconnect } =
+  const { isConnected, isRestoring, lastUsed, publicKey, network, disconnect } =
     useWallet({
       activateOnMount: true,
     })
@@ -122,6 +122,12 @@ export function OwnerWalletSettings({
                 Connected wallet{network ? ` (${network.toLowerCase()})` : ''}
               </span>
               <span>{publicKey}</span>
+            </p>
+          )}
+          {lastUsed && !isConnected && (
+            <p className="account-key">
+              <span>Last used: {lastUsed.walletName}</span>
+              <span>{lastUsed.address}</span>
             </p>
           )}
           {otherAccount && (

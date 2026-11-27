@@ -304,9 +304,9 @@ export const WALLET_CATALOG: readonly WalletCatalogEntry[] = [
     connectTimeoutMs: 5 * 60_000,
     signTimeoutMs: 5 * 60_000,
     // Shown only when NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set.
-    // A live session from an earlier pairing is read from the sign client's
-    // storage; no pairing step, QR code or phone request (#562).
-    silentRestore: true,
+    // No restore on load: it would load the sign client and open a relay
+    // connection on every wallet page. The reader's Connect reuses the
+    // remembered account's live session without a new code (#562).
     offered: true,
   },
 ]

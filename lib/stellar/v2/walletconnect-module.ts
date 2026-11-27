@@ -24,9 +24,6 @@
  *   reader's remembered wallet (`rememberedAccount`, #562). Other sessions
  *   left in the sign client's storage (another reader's, before a sign-out)
  *   are closed before a new pairing.
- * - `getAddress({ skipRequestAccess: true })` is the restore after a page
- *   load: it returns the remembered live session's account or fails. It never
- *   pairs, shows a QR code or sends a request to the phone.
  *
  * Errors keep the kit's `{ code, message }` shape; `wallet-errors.ts` maps
  * them (`WALLET_ERROR_RULES.wallet_connect`).
@@ -108,7 +105,7 @@ export type WalletConnectModuleOptions = {
   onSessionEnded?: () => void
   /**
    * The account of the reader's remembered WalletConnect wallet, or null.
-   * Only a session for this account is reused or restored.
+   * Only a session for this account is reused.
    */
   rememberedAccount?: () => string | null
   now?: () => number
@@ -187,15 +184,9 @@ export class WalletConnectModule implements ModuleInterface {
     )
   }
 
-  async getAddress(
-    params: { skipRequestAccess?: boolean } = {}
-  ): Promise<{ address: string }> {
+  async getAddress(): Promise<{ address: string }> {
     const client = await this.signClient()
     let session = this.restorable(client)
-    if (!session && params.skipRequestAccess) {
-      // The restore never pairs: the reader connects again.
-      throw fail(-3, 'There is no WalletConnect session to restore.')
-    }
     if (!session) {
       // Sessions this reader did not choose are not reused: close them.
       for (const left of client.session.getAll()) {

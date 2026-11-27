@@ -26,13 +26,16 @@
  * WalletConnect (mobile wallets) is Quilltip's own kit module: see
  * `wallet-kit.ts` and `walletconnect-module.ts`.
  *
- * Restore after a page load (#562): while the reader is signed in, the
- * adapter keeps their last wallet choice (`lib/wallet/remembered-wallet.ts`).
- * `restore()` reconnects only a wallet whose catalog entry has
- * `silentRestore`, with a read that cannot prompt; every other wallet waits
- * for the reader. A restored connection is an ordinary connection: every
- * signature still goes through the network and account checks in
- * `signTransaction`. `disconnect()` forgets the choice.
+ * Restore after a page load (#562): while a reader is signed in, the
+ * adapter keeps their last wallet choice under their own key
+ * (`lib/wallet/remembered-wallet.ts`). `restore()` is silent or does not
+ * happen: it reconnects only a wallet whose catalog entry has
+ * `silentRestore`, with a read that cannot prompt, and only when the wallet
+ * still reports the remembered address. Otherwise the wallet stays
+ * disconnected and the app shows the remembered address as last used. A
+ * restored connection is an ordinary connection: every signature still goes
+ * through the network and account checks in `signTransaction`.
+ * `disconnect()` forgets the choice.
  *
  * `createWalletAdapter` takes the kit as a dependency so tests can pass a fake.
  */
@@ -187,11 +190,10 @@ export type KitFacade = {
 const SILENT_ACCOUNT_READ = new Set<string>([WALLET_IDS.varial])
 const SILENT_READ_TIMEOUT_MS = 3_000
 /**
- * How long `restore()` waits for the wallet. WalletConnect loads its sign
- * client first; the wallet controls show a waiting state meanwhile.
+ * How long `restore()` waits for the wallet's read; the wallet controls show
+ * a checking state meanwhile.
  */
-export const RESTORE_TIMEOUT_MS = 8_000
-const ACCOUNT_ID = /^G[A-Z2-7]{55}$/
+export const RESTORE_TIMEOUT_MS = 5_000
 
 export type KitBundle = {
   kit: KitFacade
@@ -387,21 +389,24 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
   let connectPromise: Promise<WalletConnection> | null = null
   let restorePromise: Promise<WalletConnection | null> | null = null
   let lastAddress: string | null = null
-  // Off until the app says a reader is signed in (`setRemembering`).
-  let remembering = false
+  // The signed-in reader whose choice is kept; null until the app says one
+  // is signed in (`setRemembering`).
+  let rememberFor: string | null = null
 
   /** Stores the current connection as the reader's choice. */
   function remember() {
     const storage = options.storage
-    if (!remembering || !connection || !storage?.setItem) return
-    rememberWallet(storage as Storage, {
+    if (!rememberFor || !connection || !storage?.setItem) return
+    rememberWallet(storage as Storage, rememberFor, {
       walletId: connection.walletId,
       address: connection.address,
     })
   }
 
+  const forget = () => forgetRememberedWallet(options.storage, rememberFor)
+
   const emit = (event: WalletEvent) => {
-    if (event.type === 'disconnected') forgetRememberedWallet(options.storage)
+    if (event.type === 'disconnected') forget()
     else remember()
     for (const listener of listeners) listener(event)
   }
@@ -713,17 +718,18 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
    * Reconnects the remembered wallet without a prompt, or resolves null.
    * Never opens a wallet window, extension prompt or pairing step: only
    * wallets with `silentRestore` are asked, and only with
-   * `getAddress({ skipRequestAccess: true })`.
+   * `getAddress({ skipRequestAccess: true })`. The wallet must report the
+   * remembered address; another account stays disconnected.
    */
   async function restoreOnce(): Promise<WalletConnection | null> {
     if (connection) return connection
-    if (!remembering || connectPromise) return null
-    const record = readRememberedWallet(options.storage)
+    if (!rememberFor || connectPromise) return null
+    const record = readRememberedWallet(options.storage, rememberFor)
     if (!record) return null
     const entry = walletEntry(record.walletId)
     if (!entry?.offered) {
       // Not a wallet Quilltip offers: a stale or edited record.
-      forgetRememberedWallet(options.storage)
+      forget()
       return null
     }
     if (!entry.silentRestore || unavailableReason(entry, page)) return null
@@ -745,7 +751,9 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
       // Access revoked, the wallet locked or gone: stay disconnected.
       return null
     }
-    if (typeof address !== 'string' || !ACCOUNT_ID.test(address)) return null
+    // Another account, or no answer: not this reader's remembered wallet.
+    // It stays disconnected, and the app shows the remembered one as last used.
+    if (address !== record.address) return null
     let network: { network: string; networkPassphrase: string } | null
     try {
       network = await readNetwork(kit, entry.id)
@@ -785,14 +793,16 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
       return restorePromise
     },
     /**
-     * Whether to remember the reader's wallet choice: on while a reader is
-     * signed in. Turning it off forgets the stored choice.
+     * The signed-in reader whose wallet choice is kept, or null when no one
+     * is signed in. Null also clears the kit's copy of the last choice.
      */
-    setRemembering(on: boolean) {
-      remembering = on
-      if (on) remember()
+    setRemembering(userId: string | null) {
+      rememberFor = userId
+      if (userId) remember()
       else forgetRememberedWallet(options.storage)
     },
+    /** The signed-in reader's remembered wallet, read without a prompt. */
+    rememberedWallet: () => readRememberedWallet(options.storage, rememberFor),
     hasWallet,
     listWallets,
     /**
@@ -946,7 +956,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
       const wasConnected = connection !== null
       connection = null
       lastAddress = null
-      forgetRememberedWallet(options.storage)
+      forget()
       if (bundle) {
         try {
           await bundle.kit.disconnect()

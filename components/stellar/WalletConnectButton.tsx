@@ -43,6 +43,7 @@ export function WalletConnectButton({
     isConnected,
     isLoading,
     isRestoring,
+    lastUsed,
     publicKey,
     network,
     error,
@@ -106,7 +107,7 @@ export function WalletConnectButton({
   }
 
   // Show loading state
-  if (isLoading) {
+  if (isLoading || isRestoring) {
     return (
       <Button
         disabled
@@ -219,6 +220,14 @@ export function WalletConnectButton({
           </>
         )}
       </Button>
+      {lastUsed && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Last used: {lastUsed.walletName},{' '}
+          <span className="tabular-nums">
+            {formatAddress(lastUsed.address)}
+          </span>
+        </p>
+      )}
 
       <InstallWalletDialog
         returnFocusRef={connectButtonRef}

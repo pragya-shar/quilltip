@@ -31,10 +31,7 @@ import {
   type WcMetadata,
   type WcSignClient,
 } from './walletconnect-module'
-import {
-  browserStorage,
-  readRememberedWallet,
-} from '../../wallet/remembered-wallet'
+import { browserStorage } from '../../wallet/remembered-wallet'
 
 export type { WalletConnection, WalletEvent, WalletSignResult } from './wallet'
 
@@ -134,7 +131,7 @@ export async function loadWalletKitBundle(): Promise<KitBundle> {
         // The phone ended the session: forget the connection here too.
         onSessionEnded: () => void wallet.disconnect(),
         rememberedAccount: () => {
-          const remembered = readRememberedWallet(browserStorage())
+          const remembered = wallet.rememberedWallet()
           return remembered?.walletId === WALLETCONNECT_ID
             ? remembered.address
             : null
