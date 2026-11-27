@@ -12,6 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { NftSidebarSkeleton } from '@/components/articles/NftSidebarSkeleton'
 import './nft.css'
+
+const V1_NFT_ACTIONS_PAUSED =
+  'NFT actions are paused for a short time while payments are updated.'
 import { ArrowRight, Trophy, TrendingUp, Users, Zap } from 'lucide-react'
 
 interface NFTIntegrationProps {
@@ -52,8 +55,15 @@ export function NFTIntegration({
     nftStatus.isMinted === true &&
     currentUserId != null &&
     nftStatus.ownerInfo?.id === currentUserId
-  const canMint = isAuthor && !nftStatus?.isMinted && nftStatus?.isEligible
-  const canTransfer = isOwner
+  // While v1 NFT actions are paused for the payments update, the actions
+  // tab shows a note instead of buttons that the backend would refuse.
+  const v1ActionsPaused = nftStatus?.v1ActionsPaused === true
+  const canMint =
+    isAuthor &&
+    !nftStatus?.isMinted &&
+    nftStatus?.isEligible &&
+    !v1ActionsPaused
+  const canTransfer = isOwner && !v1ActionsPaused
 
   const progressPercentage = nftStatus
     ? (nftStatus.totalTips / nftStatus.tipThreshold) * 100
@@ -251,7 +261,14 @@ export function NFTIntegration({
               {/* Status Messages */}
               {!canMint && !canTransfer && (
                 <div className="text-center py-4">
-                  {nftStatus.isMinted ? (
+                  {v1ActionsPaused && (isAuthor || isOwner) ? (
+                    <p
+                      className="text-sm text-ui-muted-foreground"
+                      role="status"
+                    >
+                      {V1_NFT_ACTIONS_PAUSED}
+                    </p>
+                  ) : nftStatus.isMinted ? (
                     <p className="text-sm text-ui-muted-foreground">
                       You don&apos;t own this NFT. Current owner can transfer
                       it.
