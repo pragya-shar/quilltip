@@ -13,7 +13,8 @@ The providers are already mounted once, in `app/layout.tsx` →
    (`lib/stellar/v2/wallet.ts`) keeps `connection` in a closure. After a
    reload it is `null`, and `useStellarWallet` reports `isConnected: false`
    until the reader opens the picker again. The adapter stores no wallet id or
-   address (it only migrates the legacy `selectedWalletId` key).
+   address (it only migrates the legacy `selectedWalletId` key). The
+   wallet restore of section 4.3 replaces this.
 2. **The wallet runtime starts inactive on every load.**
    `WalletActivationProvider` holds `isWalletActive` in React state, `false`
    at start; `WalletRuntime` loads only after a component calls
@@ -37,14 +38,14 @@ package P6), mounted in `Providers.tsx` inside `ConvexAuthProvider`, replaces
 `WalletActivationProvider` and `WalletProvider`. It lives for the page load
 and is never remounted by navigation.
 
-| Part     | Source                                                                                    | Loaded                           | Kept                                       |
-| -------- | ----------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------ |
-| Account  | `balance.session` (reactive, keyed by the signed-in user)                                 | At sign-in, by Convex            | Convex subscription for the page load      |
-| Snapshot | `localStorage` `quilltip:session:v1:<userId>` (balance and limits only)                   | First render, synchronously      | Rewritten on each `balance.session` change |
-| Device   | Session key store (IndexedDB `quilltip-tab`, v2 format, non-extractable)                  | Once, after sign-in              | In memory; re-read after a key operation   |
-| Wallet   | `WalletProvider` interface ([document 5](05-accounts.md)); extension kit loaded on demand | Restored from storage, no prompt | Module state for the page load             |
-| Clock    | `balance.session.ledger` (from the indexer cursor and the settler)                        | With `balance.session`           | Estimated forward between updates          |
-| Outbox   | IndexedDB `quilltip-session`, store `outbox` (section 1.9)                                | Once, after sign-in              | Until each entry is answered               |
+| Part     | Source                                                                                                                 | Loaded                                      | Kept                                       |
+| -------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------ |
+| Account  | `balance.session` (reactive, keyed by the signed-in user)                                                              | At sign-in, by Convex                       | Convex subscription for the page load      |
+| Snapshot | `localStorage` `quilltip:session:v1:<userId>` (balance and limits only)                                                | First render, synchronously                 | Rewritten on each `balance.session` change |
+| Device   | Session key store (IndexedDB `quilltip-tab`, v2 format, non-extractable)                                               | Once, after sign-in                         | In memory; re-read after a key operation   |
+| Wallet   | Verified address from `balance.session`; remembered choice from `readRememberedWallet`; `useWallet` once the kit loads | First render (remembered choice), no prompt | Module state for the page load             |
+| Clock    | `balance.session.ledger` (from the indexer cursor and the settler)                                                     | With `balance.session`                      | Estimated forward between updates          |
+| Outbox   | IndexedDB `quilltip-session`, store `outbox` (section 1.9)                                                             | Once, after sign-in                         | Until each entry is answered               |
 
 `useSession()` returns the combined `SessionState`
 ([interfaces](interfaces.md#i2-headless-hooks)). `useBalance`, `useTip`,
@@ -74,28 +75,60 @@ precision of minutes, not seconds.
 
 ## 4.3 Wallet restore
 
-The wallet is a funding source and the wallet route's signer. It is never
-needed to read state.
+Built on `overhaul/v2` (issue 562, PR 569) and taken by merge; v3 adds no
+second mechanism. What it builds:
 
-- After a successful connect, the adapter stores
-  `localStorage quilltip:wallet:v1 = { walletId, address, network }`.
-  No secret is stored; the address is public.
-- On load, `WalletProvider.restore()` reads it and reports
-  `{ status: 'known', address }` without loading the wallet kit and without
-  a prompt. The account's linked wallet address comes from Convex
-  (`users.stellarAddress`), so a known address also exists on a new device.
-- The first signature request loads the kit, initialises it with the stored
-  `walletId`, and calls `signTransaction` with the stored address. The
-  wallet's own signing prompt is the only prompt. v2's signature checks
-  (`checkSourceSignature`: wrong network, wrong account) run on the result, so
-  a wallet that switched accounts or networks is caught after signing, with
-  nothing sent.
-- If the wallet cannot sign for the stored address (removed, locked, not
-  installed on this device), the sign call fails with the v2 error kinds and
-  the sheet offers "Connect a wallet".
-- WalletConnect keeps its own session store; the module restores the pairing
-  with the stored session topic.
-- The visibility recheck of the network stays, without a prompt.
+- **Remembered choice, per reader.** While a reader is signed in, the last
+  wallet choice is kept in `localStorage` under
+  `quilltip:wallet:v1:<user ID>` as `{ walletId, address }`, nothing else
+  (no network, no secret). `lib/wallet/remembered-wallet.ts` holds it:
+  `readRememberedWallet(storage, userId)` is a small synchronous read with no
+  wallet code, usable at first paint without loading the wallet kit. A
+  malformed record, or one that names a wallet Quilltip does not offer, is
+  removed and nothing is selected.
+- **Silent or nothing.** Where the wallet runtime is loaded, the app
+  reconnects the remembered wallet only through a read that cannot prompt,
+  and only when the wallet still reports the remembered address. Otherwise
+  the wallet stays disconnected and the wallet controls show "Last used:
+  <wallet>, <address>" and wait for the reader. Which wallets can restore
+  silently is a catalog property (`silentRestore`); `docs/wallets.md` lists
+  each wallet's behaviour.
+- **One signing gate.** `signTransaction` checks the account and the network
+  again before every signature, so a restored connection is an ordinary
+  connection. The stored address is never used to sign.
+- **Disconnect and sign-out.** Disconnect forgets the reader's choice (and
+  the wallet kit's copy) and ends a WalletConnect session. Sign-out, or
+  another reader signing in, forgets the previous reader's choice; the
+  sign-in pages forget every reader's choice while signed out.
+- **Hook state.** `useWallet` gains `isRestoring` (the silent check is
+  running; it does not set `isLoading`, so nothing that waits on the wallet
+  waits on the restore) and `lastUsed` (`{ walletId, walletName, address }`
+  when the remembered wallet did not reconnect).
+- No Convex change, and no change to `app/layout.tsx` or `hooks/tab/`.
+
+What v3 adds on top:
+
+1. **"Wallet linked" without the kit.** The session runtime derives
+   `SessionState.wallet` from three sources and loads no wallet code to do
+   it: the account's verified address from `balance.session.wallet`
+   (`users.stellarAddress`, the same on every device), the remembered choice
+   from `readRememberedWallet(localStorage, userId)`, and, once the wallet
+   runtime is loaded, `useWallet`'s `isConnected`, `isRestoring` and
+   `lastUsed`. Routing rule R6 ([section 1.1](01-tip-pipeline.md#11-routing))
+   needs only the verified address; the wallet route's confirm step shows the
+   remembered wallet's name when one exists.
+2. **A balance tip never waits on wallet state.** The balance route uses the
+   device key and `balance.session` only. It never reads `isLoading`,
+   `isRestoring` or the connection, and the tip control is ready while the
+   wallet is restoring, disconnected or not installed.
+
+### Sign-in transition
+
+A guard that redirects before `useConvexAuth` reports the new session after
+sign-in is tracked as issue 575 on `overhaul/v2`; v3 takes the fix by merge
+and designs no second one. The session runtime treats `auth: 'loading'` as
+neither signed in nor signed out, so it neither clears nor writes per-user
+state during that transition.
 
 ## 4.4 Server state keyed by the user
 
@@ -150,8 +183,9 @@ One session key per device and account address.
 3. Keep the device key in IndexedDB. It is bound to the account address and
    is useless without that user's session (4.5). The next sign-in of the
    same user on this device tips at once.
-4. Disconnect WalletConnect sessions and delete `quilltip:wallet:v1`
-   (another user may sign in next).
+4. The wallet choice is forgotten by the v2 wallet restore (section 4.3):
+   the reader's `quilltip:wallet:v1:<user ID>` record and the kit's copy are
+   removed and WalletConnect sessions end.
 5. Settings offer "Remove this device" (4.5) for a shared computer.
 
 ## 4.7 Multi-device consistency
@@ -169,9 +203,12 @@ accepting mutation.
 
 ## 4.8 Tests
 
-- Unit: `WalletProvider.restore()` returns the stored address without
-  loading the kit; signing with a stored address calls the kit once;
-  wrong-account and wrong-network results are refused.
+- Wallet restore: the v2 suites of issue 562 (`e2e/wallet-restore.spec.ts`,
+  `scripts/wallet/remembered-wallet.test.ts`, `scripts/wallet/wallet-adapter.test.ts`)
+  run on `overhaul/v3` after the merge. v3 adds: `SessionState.wallet` is
+  derived without loading the kit; the tip control is ready while
+  `isRestoring` is true and with the wallet disconnected; a balance tip
+  completes with no wallet installed.
 - Component: `SessionProvider` mounts once across a client navigation
   (render count); the tip control is `ready` on the first render after
   navigation; the snapshot renders before Convex answers and is replaced.

@@ -24,7 +24,11 @@ export type ContractCall = {
 
 export interface WalletProvider {
   readonly kind: WalletKind
-  /** Reads stored state; never prompts and never loads a wallet SDK. */
+  /**
+   * Reads stored state; never prompts and never loads a wallet SDK. For
+   * `extension`, `walletconnect` and `injected` this wraps the restore built
+   * on `overhaul/v2` (`readRememberedWallet`, section 4.3).
+   */
   restore(): Promise<{ status: 'none' } | { status: 'known'; address: string }>
   connect(): Promise<{ address: string }>
   disconnect(): Promise<void>

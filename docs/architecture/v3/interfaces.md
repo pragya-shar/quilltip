@@ -172,10 +172,28 @@ export type DeviceView = {
   expiresAt: number
 }
 
+/**
+ * The reader's wallet as the session runtime sees it (section 4.3). Derived
+ * from the verified address, `readRememberedWallet` and, once the kit is
+ * loaded, `useWallet` (`isConnected`, `isRestoring`, `lastUsed`).
+ */
 export type WalletView =
-  | { status: 'none' }
-  | { status: 'known'; address: string; kind: WalletKind }
-  | { status: 'signing'; address: string; kind: WalletKind }
+  | { status: 'none' } // no verified address and no remembered choice
+  | { status: 'linked'; address: string } // verified address, nothing remembered on this device
+  | {
+      status: 'last-used' // remembered here, not reconnected: "Last used: <wallet>, <address>"
+      address: string
+      walletId: string
+      walletName: string
+    }
+  | { status: 'restoring'; address: string; walletName: string }
+  | {
+      status: 'connected'
+      address: string
+      walletName: string
+      kind: WalletKind
+    }
+  | { status: 'signing'; address: string; walletName: string; kind: WalletKind }
 
 export type WalletKind = 'extension' | 'walletconnect' | 'injected' | 'passkey'
 ```
@@ -220,7 +238,9 @@ provides it. `FakePaymentsProvider` (P0) provides the fake.
 ```ts
 export type WalletLink = {
   wallet: WalletView
+  /** Opens the picker (the reader's action); the only path that may prompt. */
   connect(): Promise<boolean>
+  /** Disconnect: forgets this reader's remembered choice and ends a WalletConnect session. */
   forget(): void
 }
 export type DevicesController = {
