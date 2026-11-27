@@ -1,20 +1,23 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useConvexAuth } from 'convex/react'
-import { runSignOutCleanups } from './signOut'
+import { browserStorage } from '@/lib/wallet/remembered-wallet'
+import { markSignedIn, settleSignedOut } from './signOut/session'
 
 /**
- * Runs the sign-out cleanups (shell/signOut) when this browser goes from
- * signed in to signed out. Renders nothing.
+ * Keeps sign-out whole (shell/signOut/session.ts): while signed in it keeps
+ * the "signed in here" marker; signed out, on this load or after a change,
+ * it removes wallet records and, if the marker is there, runs the cleanups.
+ * Renders nothing.
  */
 export function SignOutWatch() {
   const { isAuthenticated, isLoading } = useConvexAuth()
-  const was = useRef<boolean | null>(null)
   useEffect(() => {
     if (isLoading) return
-    if (was.current === true && !isAuthenticated) void runSignOutCleanups()
-    was.current = isAuthenticated
+    const storage = browserStorage()
+    if (isAuthenticated) markSignedIn(storage)
+    else void settleSignedOut(storage)
   }, [isAuthenticated, isLoading])
   return null
 }
