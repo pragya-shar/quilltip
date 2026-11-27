@@ -35,7 +35,11 @@ export const sheetStack = {
       listeners.delete(listener)
     }
   },
-  /** Opens a sheet on top. A sheet already open is not opened twice. */
+  /**
+   * Opens a sheet on top: the Pocket, a sheet registered by loaded code, or
+   * one declared in shell/sheets (loaded now). A sheet already open is not
+   * opened twice.
+   */
   open(id: SheetId, props?: unknown) {
     if (entries.some((entry) => entry.id === id && entry.open)) return
     entries = [...entries, { key: nextKey++, id, open: true, props }]

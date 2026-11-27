@@ -75,6 +75,11 @@ export const FORBIDDEN_FIRST_LOAD_MODULES: {
     pattern: /\[project\]\/components\/pocket\//,
   },
   {
+    // Sheets declared in shell/sheets load when they open.
+    label: 'a lazily loaded sheet (components/<area>/sheets)',
+    pattern: /\[project\]\/components\/[^/]+\/sheets\//,
+  },
+  {
     label: 'v2 payment code (lib/stellar/v2: bindings, wallet kit)',
     pattern: /\[project\]\/lib\/stellar\/v2\//,
   },
