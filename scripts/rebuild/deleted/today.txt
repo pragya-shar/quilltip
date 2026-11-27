@@ -64,3 +64,4 @@ public/landing/hero-mobile-proof.svg
 public/landing/hero-mobile-proof.webp
 components/today/readLimit.ts
 components/today/TodayUnreachable.tsx
+scripts/today/slow-backend.ts

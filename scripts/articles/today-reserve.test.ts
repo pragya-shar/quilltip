@@ -5,6 +5,7 @@ import {
   reservation,
   reserveScript,
 } from '../../components/today/rowsMemory'
+import { PRE_PAINT_SCRIPT } from '../../shell/prePaint'
 import { currentPlace } from '../../components/today/resume'
 import { parsePlaces } from '../../components/today/readingPlace'
 
@@ -23,19 +24,30 @@ function storage(items: Record<string, string>): Storage {
   }
 }
 
-/** Runs the inline script and returns what it reserved. */
-function runScript(items: Record<string, string>) {
-  const attrs = new Set<string>()
-  const document = {
-    documentElement: { setAttribute: (name: string) => attrs.add(name) },
+/**
+ * Runs the shell's pre-paint script, then Today's, as the page does, and
+ * returns what Today reserved and whether the shell marked a session.
+ */
+function runScripts(items: Record<string, string>) {
+  const attrs = new Map<string, string>()
+  const root = {
+    dataset: {} as Record<string, string>,
+    setAttribute: (name: string, value: string) => attrs.set(name, value),
+    getAttribute: (name: string) => attrs.get(name) ?? null,
   }
+  const document = { documentElement: root }
+  const store = storage(items)
+  new Function('localStorage', 'document', PRE_PAINT_SCRIPT)(store, document)
   new Function('localStorage', 'document', reserveScript(READING_PLACE_KEY))(
-    storage(items),
+    store,
     document
   )
   return {
-    place: attrs.has('data-today-place'),
-    draft: attrs.has('data-today-draft'),
+    sessionHeld: attrs.get('data-session') === 'held',
+    reserved: {
+      place: attrs.has('data-today-place'),
+      draft: attrs.has('data-today-draft'),
+    },
   }
 }
 
@@ -84,15 +96,17 @@ const cases: [string, Record<string, string>][] = [
 
 describe('the pre-paint script reserves what the rows island will show', () => {
   test.each(cases)('%s', (_, items) => {
+    const { sessionHeld, reserved } = runScripts(items)
     const expected = reservation(
+      sessionHeld,
       storage(items),
       currentPlace(parsePlaces(items[READING_PLACE_KEY] ?? null)) !== null
     )
-    expect(runScript(items)).toEqual(expected)
+    expect(reserved).toEqual(expected)
   })
 
   test('the cases cover both rows reserved and not', () => {
-    const results = cases.map(([, items]) => runScript(items))
+    const results = cases.map(([, items]) => runScripts(items).reserved)
     expect(results.some((r) => r.place)).toBe(true)
     expect(results.some((r) => r.draft)).toBe(true)
     expect(results.some((r) => !r.place && !r.draft)).toBe(true)

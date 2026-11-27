@@ -10,6 +10,7 @@ import {
   RESERVE_ATTR,
   reservation,
   reserve,
+  sessionHeld,
   writeRowsMemory,
   type RowKind,
   type RowsMemory,
@@ -45,7 +46,11 @@ export function ResumeRows() {
   useBeforePaint(() => {
     let wanted: RowsMemory = { place: false, draft: false }
     try {
-      wanted = reservation(localStorage, currentPlace(readPlaces()) !== null)
+      wanted = reservation(
+        sessionHeld(document.documentElement),
+        localStorage,
+        currentPlace(readPlaces()) !== null
+      )
     } catch {
       // Storage blocked: only what the inline script reserved.
     }

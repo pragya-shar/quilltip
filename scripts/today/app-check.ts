@@ -9,14 +9,13 @@
 //   NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3299 bun run build
 //   bun scripts/today/app-check.ts
 //
-// The slow-backend and failure checks need a backend that can be slowed and
-// made to fail (`POST /__delay?ms=`, `POST /__fail?on=`). The stand-in this
-// script starts has both (scripts/today/slow-backend.ts); when the runner's
-// backend has neither, those checks are skipped and the log says so.
+// The time-limit checks slow the backend and make it fail through the
+// fixture backend's controls (`POST /__delay?ms=`, `POST /__fail?on=`,
+// scripts/perf/fixture-backend.ts), and set both back when they end.
 //
 // The spec is e2e/today-app.spec.ts.
 import { spawn } from 'child_process'
-import { startSlowBackend } from './slow-backend'
+import { startFixtureBackend } from '../perf/fixture-backend'
 import { startProductionApp } from '../perf/production-app'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -80,15 +79,14 @@ async function main(): Promise<number> {
     ? process.env.NEXT_PUBLIC_CONVEX_URL!
     : `http://127.0.0.1:${CONVEX_PORT}`
   const appUrl = given ?? `http://127.0.0.1:${APP_PORT}`
-  const backend = given ? null : startSlowBackend(CONVEX_PORT)
+  const backend = given ? null : startFixtureBackend(CONVEX_PORT)
   const app = given ? undefined : await startProductionApp(APP_PORT, appUrl)
   try {
-    const controls = await hasControls(backendUrl)
-    if (controls) await failureIsNotStored(appUrl, backendUrl)
-    else
-      console.warn(
-        'The backend has no delay or failure controls: the failure and slow-backend checks are skipped.'
+    if (!(await hasControls(backendUrl)))
+      throw new Error(
+        `The backend at ${backendUrl} has no /__delay or /__fail control (scripts/perf/fixture-backend.ts)`
       )
+    await failureIsNotStored(appUrl, backendUrl)
     return await run(
       'bunx',
       ['playwright', 'test', '--config', 'e2e/fixtures/today/app.config.ts'],
@@ -96,11 +94,16 @@ async function main(): Promise<number> {
         ...process.env,
         PLAYWRIGHT_BASE_URL: appUrl,
         TODAY_APP_CHECK: '1',
-        ...(controls ? { TODAY_BACKEND_URL: backendUrl } : {}),
+        TODAY_BACKEND_URL: backendUrl,
         QUILLTIP_E2E_FIXTURES: '1',
       }
     )
   } finally {
+    // The runner's next check meets the backend as it was.
+    await fetch(`${backendUrl}/__delay?ms=0`, { method: 'POST' }).catch(
+      () => {}
+    )
+    await fetch(`${backendUrl}/__fail?on=0`, { method: 'POST' }).catch(() => {})
     app?.kill()
     backend?.closeAllConnections()
     backend?.close()

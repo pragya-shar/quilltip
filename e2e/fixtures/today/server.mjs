@@ -29,6 +29,9 @@ const plugins = [
   },
 ]
 const define = { 'process.env.NODE_ENV': '"production"' }
+// The shell's own pre-paint script, in the head as the root layout puts it:
+// it marks a held session on <html>, which Today's rows read.
+const { PRE_PAINT_SCRIPT } = await import(path.join(root, 'shell/prePaint.ts'))
 
 const out = await mkdtemp(path.join(os.tmpdir(), 'today-fixture-'))
 const server = await Bun.build({
@@ -60,7 +63,7 @@ const cssName = [...outputs.keys()].find((n) => n.endsWith('.css'))
 
 const page = (search) => {
   const { html } = render(search)
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"><title>Quilltip</title><link rel="stylesheet" href="/${cssName}"></head><body><div id="root">${html}</div><script type="module" src="/${jsName}"></script></body></html>`
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"><title>Quilltip</title><script>${PRE_PAINT_SCRIPT}</script><link rel="stylesheet" href="/${cssName}"></head><body><div id="root">${html}</div><script type="module" src="/${jsName}"></script></body></html>`
 }
 
 Bun.serve({
