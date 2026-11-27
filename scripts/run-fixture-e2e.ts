@@ -31,6 +31,15 @@ const FIXTURES = [
     },
   },
   {
+    server: 'e2e/fixtures/payments/server.mjs',
+    port: 4180,
+    spec: 'e2e/payment-states.spec.ts',
+    env: {
+      PAYMENT_FIXTURES: '1',
+      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4180',
+    },
+  },
+  {
     server: 'e2e/fixtures/wallet/server.mjs',
     port: 4177,
     spec: 'e2e/wallet-(states|verification).spec.ts',
