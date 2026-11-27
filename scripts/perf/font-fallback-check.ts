@@ -8,17 +8,20 @@
 // the web font arrives. When that face is missing, or its values do not match
 // the web font, lines re-wrap at the swap and everything below them moves.
 // For each route, engine and width, this loads the page twice, once with every
-// font request blocked and once with the fonts loaded, and compares the
-// layout boxes of the text blocks:
+// font request blocked and once with the fonts loaded, and compares them:
 // - every fallback family a text block names must exist as a font face;
+// - for each font (family, weight, style), the text set in it must take the
+//   same width in both runs, within MAX_WIDTH_DIFFERENCE. The width is the
+//   sum of each element's line pieces over the page, so it does not depend on
+//   where lines break. This is what the faces control: a face matched to the
+//   wrong file is 8 to 17 percent off, a matched one at most 5 percent;
 // - no heading (h1 to h3) on the page may change its height, that is its
-//   number of lines;
-// - on the first screen and a half, which a reader sees while the fonts load,
-//   the 90th percentile of the text blocks' vertical movement must stay
-//   within MAX_P90_MOVE_PX. Further down, a long paragraph in a fallback face
-//   can still take one line more or less; that moves nothing in view.
-// Positions are layout positions (offsetTop), so transforms and animations do
-// not count. See docs/performance/page-load.md.
+//   number of lines.
+// It also reports how far text in view moves (90th percentile, layout
+// positions, so transforms and animations do not count), without gating it:
+// a line that is already almost full can take one more line in a face that is
+// 1 percent wider, which no face values can rule out for every text. See
+// docs/performance/page-load.md.
 
 import {
   chromium,
@@ -40,12 +43,21 @@ const ENGINE_NAMES = (process.env.PERF_FONT_ENGINES ?? 'chromium webkit')
   .split(/[\s,]+/)
   .filter(Boolean)
 
-const ROUTES = [
+// The four measured routes, and /guide, which uses Landing Syne at 500 and
+// Wallet Syne (the 600 file at every weight). PERF_FONT_ROUTES adds paths,
+// for example `/support /terms`, to look at other pages without gating them
+// in CI.
+const ROUTES: { name: string; path: string }[] = [
   { name: 'landing', path: '/' },
   { name: 'login', path: '/login' },
   { name: 'articles', path: '/articles' },
   { name: 'article', path: FIXTURE_ARTICLE_PATH },
-] as const
+  { name: 'guide', path: '/guide' },
+  ...(process.env.PERF_FONT_ROUTES ?? '')
+    .split(/[\s,]+/)
+    .filter(Boolean)
+    .map((extra) => ({ name: extra, path: extra })),
+]
 
 const VIEWPORTS = [
   { width: 375, height: 812 },
@@ -54,9 +66,16 @@ const VIEWPORTS = [
 
 /** A heading taller or shorter by more than this has changed its lines. */
 const HEADING_TOLERANCE_PX = 2
-/** Ninetieth-percentile vertical movement of text blocks at the swap. */
-const MAX_P90_MOVE_PX = 4
-/** The part of the page, in viewport heights, where movement counts. */
+/**
+ * The largest allowed width difference of a font's text, as a fraction. On
+ * the fixture build, matched faces measure 0.985 to 1.051 over 13 routes in
+ * three engines; a face matched to the wrong file measures 0.879 to 0.891 or
+ * 1.148 to 1.168, and the earlier bold values 1.076 to 1.111 in WebKit.
+ */
+const MAX_WIDTH_DIFFERENCE = 0.07
+/** A font with fewer characters than this on the page is not compared. */
+const MIN_FONT_CHARS = 30
+/** The part of the page, in viewport heights, where movement is reported. */
 const FIRST_SCREENS = 1.5
 
 const TEXT_BLOCKS = 'h1, h2, h3, h4, p, li, blockquote, dt, dd, figcaption'
@@ -70,8 +89,18 @@ type Block = {
   weight: string
 }
 
+/** An element's own text: the summed width of its line pieces. */
+type TextRun = {
+  key: string
+  width: number
+  chars: number
+  family: string
+  font: string
+}
+
 type Snapshot = {
   blocks: Block[]
+  runs: TextRun[]
   pageHeight: number
   /** Font faces by family, with their weight descriptors. */
   faces: Record<string, string[]>
@@ -134,6 +163,37 @@ async function snapshot(
           weight: style.fontWeight,
         })
       }
+      // Every element's own text nodes, measured as the sum of the widths of
+      // their line pieces, so a different line break changes little.
+      const runs = []
+      const seenRun = new Map<string, number>()
+      const range = document.createRange()
+      for (const element of document.querySelectorAll<HTMLElement>('body *')) {
+        if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|svg)$/i.test(element.tagName))
+          continue
+        let width = 0
+        let text = ''
+        for (const node of element.childNodes) {
+          if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim())
+            continue
+          text += node.textContent
+          range.selectNodeContents(node)
+          for (const rect of range.getClientRects()) width += rect.width
+        }
+        text = text.replace(/\s+/g, ' ').trim()
+        if (!text || width === 0) continue
+        const base = `${element.tagName.toLowerCase()}:${text.slice(0, 60)}`
+        const count = seenRun.get(base) ?? 0
+        seenRun.set(base, count + 1)
+        const style = getComputedStyle(element)
+        runs.push({
+          key: `${base}#${count}`,
+          width,
+          chars: text.length,
+          family: style.fontFamily,
+          font: `${style.fontFamily.split(',')[0]} ${style.fontWeight} ${style.fontStyle}`,
+        })
+      }
       const faces: Record<string, string[]> = {}
       const fallbackFaces: string[] = []
       let fontsLoaded = 0
@@ -150,6 +210,7 @@ async function snapshot(
       }
       return {
         blocks,
+        runs,
         pageHeight: document.documentElement.scrollHeight,
         faces,
         fontsLoaded,
@@ -228,16 +289,40 @@ function compare(
   })
   const p90 = percentile(moves, 0.9)
   const max = Math.max(0, ...moves)
+
+  // Widths of text set in a fallback stack (a face this app defines), summed
+  // per font across the page: one string's letters can make it a few percent
+  // wider or narrower, while a face matched to the wrong file is off for
+  // every text in that font.
+  const loadedRuns = new Map(loaded.runs.map((run) => [run.key, run]))
+  const fonts = new Map<
+    string,
+    { blocked: number; loaded: number; chars: number }
+  >()
+  for (const run of blocked.runs) {
+    const other = loadedRuns.get(run.key)
+    if (!other || !/ Fallback['"]?(,|$)/.test(run.family)) continue
+    const sums = fonts.get(other.font) ?? { blocked: 0, loaded: 0, chars: 0 }
+    sums.blocked += run.width
+    sums.loaded += other.width
+    sums.chars += other.chars
+    fonts.set(other.font, sums)
+  }
+  const ratios = [...fonts]
+    .filter(([, sums]) => sums.chars >= MIN_FONT_CHARS)
+    .map(([font, sums]) => ({ font, ratio: sums.blocked / sums.loaded }))
+    .sort((a, b) => Math.abs(b.ratio - 1) - Math.abs(a.ratio - 1))
   console.log(
-    `${label.padEnd(30)} blocks in view ${String(moves.length).padStart(3)}  move p90 ${p90} px  max ${max} px  page ${blocked.pageHeight - loaded.pageHeight} px  headings re-wrapped ${rewrapped.length}`
+    `${label.padEnd(30)} fonts ${String(ratios.length).padStart(2)}  worst ${ratios[0] ? `${ratios[0].ratio.toFixed(3)} (${ratios[0].font})` : '-'}  in view: move p90 ${p90} px  max ${max} px  headings re-wrapped ${rewrapped.length}`
   )
   if (firstMoved) console.log(`  first block that moves: ${firstMoved.key}`)
   for (const heading of rewrapped)
     failures.push(`${label}: heading changes lines at the swap: ${heading}`)
-  if (p90 > MAX_P90_MOVE_PX)
-    failures.push(
-      `${label}: text moves ${p90} px at the 90th percentile when the fonts arrive > ${MAX_P90_MOVE_PX}`
-    )
+  for (const { font, ratio } of ratios)
+    if (Math.abs(ratio - 1) > MAX_WIDTH_DIFFERENCE)
+      failures.push(
+        `${label}: text in ${font} is ${ratio.toFixed(3)} times as wide in its fallback face`
+      )
   if (failures.length > 0)
     console.log(
       `  fallback faces, fonts blocked: ${blocked.fallbackFaces.join('; ')}`

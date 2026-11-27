@@ -511,6 +511,15 @@ from those; they were not measured separately.
      Roman. They have the same advance widths, so the same values hold on
      systems that have only them, such as most Linux systems. WebKit on Linux
      resolves only the regular ones (see below).
+   - Each fallback face matches the file its family draws at that weight.
+     Syne has three files (400, 600, 700). `Landing Syne` and the sign-in
+     pages' `Account Syne` have one face per file, so 500 draws the 400 file:
+     they use `Syne Fallback`. `QuillTip Display`, `Reader`, `Reading Room`,
+     `Library`, `Writing` and `Wallet Syne`, and the account pages'
+     `Account Syne`, draw the 600 file at every weight: they use
+     `Syne 600 Fallback`. Before this split, the `/guide` wallet button
+     (`Landing Syne` 500) was 311 px in the fallback against 275 px in Syne
+     and took two lines until the font arrived.
    - `bun run perf:font-fallbacks` checks this. See
      [Font fallback check](#font-fallback-check).
 2. **`/articles` sends card data, not article bodies.** The first list in
@@ -698,34 +707,58 @@ regressions, not as the measured result.
 ### Font fallback check
 
 `bun run perf:font-fallbacks` (`scripts/perf/font-fallback-check.ts`) uses the
-same build and fixture backend as `perf:budget`. For each route, in Chromium
-and WebKit, at 375 and 1440 px, it loads the page twice: once with every font
-request blocked, so text stays in the fallback faces, and once with the web
-fonts loaded. It compares the layout boxes of the text blocks (headings,
-paragraphs, list items) and fails when:
+same build and fixture backend as `perf:budget`. For `/`, `/login`,
+`/articles`, the article page and `/guide`, in Chromium and WebKit, at 375 and
+1440 px, it loads the page twice: once with every font request blocked, so
+text stays in the fallback faces, and once with the web fonts loaded. It
+fails when:
 
-1. a text block names a fallback family (`... Fallback`) that has no font face
-   for its weight;
-2. a heading (`h1` to `h3`) anywhere on the page changes its height, that is
-   its number of lines;
-3. on the first 1.5 screens, the 90th percentile of the text blocks' vertical
-   movement is over 4 px.
+1. a text element names a fallback family (`... Fallback`) that has no font
+   face for its weight;
+2. for a font (family, weight and style) set in a fallback stack, the page's
+   text in that font is more than 7% wider or narrower in the fallback face.
+   Each element's width is the sum of its line pieces, so it does not depend
+   on where lines break, and fonts with fewer than 30 characters on the page
+   are skipped;
+3. a heading (`h1` to `h3`) anywhere on the page changes its height, that is
+   its number of lines.
 
-Positions are layout positions (`offsetTop`), so transforms and animations do
-not count. Further down a page, a long paragraph can still take one line more
-or less in its fallback face (one paragraph of the fixture article at 375 px,
-1370 px from the top); that moves nothing in view and is not gated.
+Rule 2 is what the faces control. On the fixture build, over 13 routes in
+three engines, matched faces measured 0.985 to 1.051. A face matched to the
+wrong file measured 0.879 to 0.891 (`Wallet` and `Reading Room Syne` with the
+shared fallback) or 1.148 to 1.168 (`Landing Syne` 500 with the 600-file
+values), and the earlier bold values measured 1.076 to 1.111 in WebKit. The
+landing headline in `Landing Literata` italic is split into single letters
+and has fewer than 30 characters per font, so it is skipped.
 
-Results on the fixture build: no heading changes lines and the movement in
-view is 0 px on every route, width and engine (Firefox, run locally: at most
-2 px). Deliberate breaks fail:
+The check also reports how far text in view (the first 1.5 screens) moves at
+the swap, without gating it. A line that is already almost full can take one
+more line in a face that is 1% wider, and no face values rule that out for
+every text. On `/guide` at 375 px, one paragraph's text is 663 px wide in
+Work Sans and 669 px in its fallback, in a 335 px column: two lines in Work
+Sans, three in the fallback, so the text below moves 26 px. All Work Sans 400
+text on that page is 1.02 times as wide in its fallback.
 
+Results on the fixture build, five gated routes, Chromium, WebKit and Firefox:
+the check passes, no heading changes lines, and the worst font measures 0.993
+to 1.027. Text in view moves 0 px everywhere (Firefox: at most 2 px) except
+`/guide` at 375 px (26 px, the paragraph above). The same build with
+`PERF_FONT_ROUTES="/support /terms /contact /privacy /register /welcome
+/wallet/practice /library"` also passes. `/support` and `/contact` at 1440 px,
+`/terms` and `/wallet/practice` at 375 px still move 26 to 56 px at the swap,
+with every font within 5.1%; those are not gated.
+
+Deliberate breaks, each failing the check:
+
+- `Syne 600 Fallback` stacks sent back to `Syne Fallback`: `Wallet Syne` and
+  `Reading Room Syne` 400 at 0.879 to 0.891, in Chromium and WebKit.
+- The `Syne Fallback` 500 face with the 600-file values: `Landing Syne` 500 at
+  1.148 to 1.168 on `/` and `/guide`.
 - Bold faces with the earlier values and `local('Arial')`: WebKit fails on
-  `/articles`, where three card headings change lines (90 px with the
-  fallback, 60 px with Syne). Chromium passes, as before the fix.
-- No fallback faces (the `@import` removed): every route fails in both
-  engines on the missing faces, and every route but `/login` also on 6 to
-  52 px of movement in view.
+  `/` and `/guide`, bold Syne, DM Sans and Work Sans at 1.076 to 1.111.
+  Chromium passes, as before the fix.
+- No fallback faces (the `@import` removed): 88 missing faces and 38 fonts
+  off by 8 to 25% (0.883 to 1.253), across both engines.
 
 CI runs it as the **Font Fallbacks** job on a macOS runner, which has Arial
 and Times New Roman, as Safari readers do. On the Linux runner it failed for
