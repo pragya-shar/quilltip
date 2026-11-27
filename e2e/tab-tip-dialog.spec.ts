@@ -737,6 +737,29 @@ test.describe('the clock with the dialog open', () => {
     await page.waitForTimeout(300)
     expect((await backend(page)).calls).not.toContain('prepareTip')
   })
+
+  test('a price stale at the press, before the page timer runs, sends nothing', async ({
+    page,
+  }) => {
+    const start = Date.now()
+    await page.clock.install({ time: start })
+    await open(page, 'tip-ready')
+    await patchTipLimits(page, { priceFetchedAt: start })
+    const dialog = await openDialog(page, 'article')
+    const send = tabSection(dialog).getByRole('button', {
+      name: /^Send \$\d+\.\d\d from your tab$/,
+    })
+    await expect(send).not.toHaveAttribute('aria-disabled', 'true')
+    // The clock passes the price's age without running timers, as in a
+    // throttled background tab: only the check at the press can see it.
+    await page.clock.setSystemTime(start + 30 * 60 * 1000 + 5_000)
+    await send.click()
+    await expect(
+      tabSection(dialog).getByText('No XLM price right now', { exact: true })
+    ).toBeVisible()
+    await expect(send).toHaveAttribute('aria-disabled', 'true')
+    expect((await backend(page)).calls).not.toContain('prepareTip')
+  })
 })
 
 test.describe('presets, headings and refusals', () => {
