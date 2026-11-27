@@ -48,6 +48,7 @@ Avoid launching a duplicate backend or stopping another chat's server.
 | Deployment               | Type | Use                                                       |
 | ------------------------ | ---- | --------------------------------------------------------- |
 | `efficient-tern-39`      | dev  | v2 integration and operational testing on Stellar testnet |
+| `tacit-salmon-216`       | dev  | v3 integration on Stellar testnet (contract set `v3`)     |
 | `upbeat-mockingbird-579` | —    | Serves the live site. Guarded tools refuse it by default. |
 
 `efficient-tern-39` (`https://efficient-tern-39.convex.cloud`) is the shared
@@ -61,9 +62,13 @@ NEXT_PUBLIC_CONVEX_URL=https://efficient-tern-39.convex.cloud
 QUILLTIP_NETWORK_GUARD_OPT_IN=testnet
 ```
 
-Data on this deployment is disposable test data. Pushing functions to it with
+`tacit-salmon-216` (`https://tacit-salmon-216.convex.cloud`) runs the `v3`
+contract set (`docs/contracts/v3-testnet-deployment.md`) for v3 work. Target it
+the same way, with its own name.
+
+Data on these deployments is disposable test data. Pushing functions to one with
 `bun run dev:backend` (add `--once` for a single push) updates the shared
-integration backend, so coordinate before pushing schema changes.
+shared backend, so coordinate before pushing schema changes.
 
 ## Testnet guard
 
