@@ -647,18 +647,20 @@ their own `loading.tsx` (`dashboard`, `write`, `drafts`, `library`,
 
 What each public page waits for on the server before its first byte:
 
-| Page                 | Waits for                                                  |
-| -------------------- | ---------------------------------------------------------- |
-| `/`                  | nothing (the page does not fetch)                          |
-| `/articles`          | the first page of the article list                         |
-| `/{username}`        | the proxy's route check, the writer, the writer's articles |
-| `/{username}/{slug}` | the proxy's route check, the article (cached briefly)      |
+| Page                 | Waits for                                                              |
+| -------------------- | ---------------------------------------------------------------------- |
+| `/`                  | nothing (the page does not fetch)                                      |
+| `/articles`          | the first page of the article list (cached 60 s)                       |
+| `/{username}`        | the proxy's route check, then the writer and their articles (together) |
+| `/{username}/{slug}` | the proxy's route check (reused 60 s), then the article (cached 60 s)  |
 
 Costs:
 
-- On `/articles`, the first byte waits for the list query.
-- A client-side navigation into a public page no longer shows "Loading page…";
-  the current page stays until the next one arrives. Navigations into the
+- The first byte waits for these reads; on a cache miss that is one backend
+  round trip on `/articles` and an article, and two on a writer's page.
+- A client-side navigation into a public page, or into a small or auth page,
+  no longer shows "Loading page…": the current page stays, with no sign that
+  the press worked, until the next page arrives. Navigations into the
   signed-in sections show it as before.
 
 `bun run perf:no-script-reading` (`scripts/perf/no-script-reading.ts`) checks
@@ -670,11 +672,17 @@ scripts blocked:
 - the article shows its title as a heading and its prose;
 - the writer's page shows the writer and the article;
 - a draft or unknown article and an unknown writer answer 404 without article
-  text.
+  text;
+- with scripts on, `/dashboard` sends a signed-out reader to `/login`.
 
 The routes and texts are in one object (`READING`), and the assertions use
 roles and text only. The check runs in the Page-load Budget CI job, and fails
 with JavaScript off on a build that has the root `app/loading.tsx`.
+
+`scripts/perf/first-link.ts` measures the time to reading on a slow phone
+profile, for comparing builds on a quiet machine: TTFB, and the time until the
+first reading link (`/`, `/articles`, a writer) or the first paragraph of prose
+(an article) is on screen, with scripts delayed, blocked or off.
 
 ## Regression check
 
