@@ -638,7 +638,14 @@ test('an activity row is a link or a button, never both', async ({ page }) => {
     expect(kind.links + kind.buttons).toBeLessThanOrEqual(1)
   expect(kinds.some((k) => k.links === 1)).toBe(true)
   expect(kinds.some((k) => k.buttons === 1)).toBe(true)
-  const receipt = page.getByRole('button', { name: 'Tomás Reyes' })
+  // A row's control is named by `name`, or by `label` when it has one.
+  await expect(
+    page.getByRole('button', {
+      name: 'A reader, plus 98 cents, open receipt',
+      exact: true,
+    })
+  ).toHaveText('A reader')
+  const receipt = page.getByRole('button', { name: 'Tomás Reyes', exact: true })
   await receipt.focus()
   await page.keyboard.press('Enter')
   await expect(
