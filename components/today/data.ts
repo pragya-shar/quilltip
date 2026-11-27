@@ -8,7 +8,7 @@ const MINUTE_MS = 60_000
 
 /**
  * Seconds the answer for a reader with no skip list may be reused. The
- * opening holds for a UTC day (D22); this short reuse bounds how long an
+ * opening changes once per UTC day; this short reuse bounds how long an
  * unpublished article can stay on Today (60 s) and spares the backend a
  * round trip on most requests. A newly published article joins the
  * candidates on the next UTC day. Only answers are stored: a failed read
@@ -26,7 +26,7 @@ const cachedOpening = unstable_cache(
 )
 
 /**
- * Today's opening for this moment, within the public read limit (D21).
+ * Today's opening for this moment, within the public read limit (1.5 s).
  * Without a skip list the answer comes from the cache above; with one (a
  * returning reader, already validated by `skipList`) the read goes to the
  * backend directly, so no cookie value can create cache entries. Worst case

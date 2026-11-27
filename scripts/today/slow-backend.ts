@@ -3,7 +3,7 @@
 // holds every later query answer for N ms, and `POST /__fail?on=1` makes
 // every later query fail (`on=0` restores it). Today's production check uses it
 // to show that `/` answers within the public read limit when the backend is
-// slow (D21). No backend and no secrets.
+// slow. No backend and no secrets.
 
 import { createHash } from 'crypto'
 import { createServer, type Server } from 'http'

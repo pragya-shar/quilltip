@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 // Today (`/`) on a production build against the fixture backend
 // (scripts/perf/fixture-backend.ts), started by scripts/today/app-check.ts.
-// Projects named *-no-script run with JavaScript off (D19); the others with
+// Projects named *-no-script run with JavaScript off; the others with
 // it on. The fixture suite (e2e/today.spec.ts) covers the rows.
 
 test.skip(
@@ -222,7 +222,7 @@ test('a skip cookie changes the opening in the server HTML', async ({
   expect(junk).toContain(TODAY.heading)
 })
 
-// D21: a public page never waits without a limit. A skip list is read from
+// A public page never waits without a limit. A skip list is read from
 // the backend directly (never from the cache), so a reader who finished an
 // article that is not in the catalogue makes a real read here.
 test.describe('a slow backend', () => {

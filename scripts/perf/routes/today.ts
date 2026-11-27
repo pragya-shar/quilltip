@@ -1,8 +1,8 @@
 import type { PerfRoutes } from './types'
 
 /**
- * Today (`/`), which replaced the landing page: the rebuild plan's public
- * route budget (4.1): at most 150 KB of first-load JavaScript, CLS at most
+ * Today (`/`), which replaced the landing page, held to the budget for a
+ * public route: at most 150 KB of first-load JavaScript, CLS at most
  * 0.05 (both profiles) and a median phone LCP of at most 2.0 s, gated. The
  * fixture suite (e2e/today.spec.ts) holds the rows to zero layout shift.
  */

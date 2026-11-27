@@ -60,7 +60,7 @@ export function ResumeRows() {
     setReserved(next)
   }, [])
 
-  // Your place belongs to this browser, signed in or not (design N4).
+  // Your place belongs to this browser, signed in or not.
   const place = reading.places ? currentPlace(reading.places) : undefined
   const draft =
     reading.auth === 'signed-in'

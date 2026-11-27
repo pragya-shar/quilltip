@@ -11,11 +11,11 @@
  * opening equally often, with or without tips.
  */
 
-/** One UTC day (D22): the place is called Today, and its opening is the
+/** One UTC day: the place is called Today, and its opening is the
  * same for everyone that day. */
 export const WINDOW_MS = 24 * 60 * 60 * 1000
 
-/** Reading speed for "N min left" (D22). */
+/** Reading speed for "N min left". */
 export const WORDS_PER_MINUTE = 230
 
 /**
@@ -30,7 +30,7 @@ export const CANDIDATE_PAGES = 8
  * the two cookies, at most 20 ids each. */
 export const EXCLUDE_LIMIT = 40
 
-/** "More to read" after the opening: a list of 12 that ends (design N4). */
+/** "More to read" after the opening: a list of 12 that ends. */
 export const MORE_LIMIT = 12
 
 /** An article needs at least this many body paragraphs to open Today. */
@@ -114,7 +114,7 @@ export function bodyParagraphs(content: unknown): string[] {
 }
 
 /**
- * Minutes left to read (D22): the words still ahead, at 230 a minute,
+ * Minutes left to read: the words still ahead, at 230 a minute,
  * rounded up; 0 when none are left. A pure function of the article's length
  * and the reader's position: the opening passes the words after the shown
  * paragraphs, and a server-side reading position can pass the words after

@@ -2,7 +2,7 @@ import type { ReadingPlace } from './readingPlace'
 
 /**
  * The article "Your place" opens: the newest one started, not finished, with
- * a title to show. Any stored entry counts as opened (D22); the row offers
+ * a title to show. Any stored entry counts as opened; the row offers
  * the newest unfinished one.
  */
 export function currentPlace(places: ReadingPlace[]): ReadingPlace | null {

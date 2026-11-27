@@ -22,7 +22,7 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv) {
 }
 
 /**
- * A failed read is never stored (D21): the first request to `/` meets a
+ * A failed read is never stored: the first request to `/` meets a
  * failing backend and shows the unreachable state; once the backend answers
  * again, the next request in the same minute shows the opening. Runs before
  * anything else asks for `/`, so the cache is empty for this minute.

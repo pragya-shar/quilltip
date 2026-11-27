@@ -16,7 +16,7 @@ const DESCRIPTION =
   'Read writing you can tip, down to the sentence. Today opens on an article already underway.'
 
 // Static, so nothing about the page's head waits or streams. When the read
-// does not answer, the view adds its own robots noindex tag (D21).
+// does not answer in time, the view adds its own robots noindex tag.
 export const metadata: Metadata = {
   title: { absolute: SITE_NAME },
   description: DESCRIPTION,
@@ -32,9 +32,9 @@ export const metadata: Metadata = {
 }
 
 /**
- * Today (`/`): an article already underway, in the first response (D19,
- * D20). No loading.tsx and no Suspense above it: the page waits for the
- * opening for at most the public read limit (D21), then renders the
+ * Today (`/`): an article already underway, in the first response, readable
+ * with no script. No loading.tsx and no Suspense above it: the page waits for the
+ * opening for at most the public read limit (1.5 s), then renders the
  * unreachable state, and streams nothing that only a script reveals.
  */
 export default async function TodayPage({
@@ -43,7 +43,7 @@ export default async function TodayPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const [cookieStore, headerList] = await Promise.all([cookies(), headers()])
-  // Articles this browser opened or finished (D22), validated: ids only.
+  // Articles this browser opened or finished, validated: ids only.
   const skip = skipList(
     cookieStore.get(FINISHED_COOKIE)?.value,
     cookieStore.get(OPENED_COOKIE)?.value

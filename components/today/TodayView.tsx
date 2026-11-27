@@ -75,7 +75,7 @@ export function TodayView({
       {result && result.more.length > 0 ? (
         <MoreToday items={result.more} />
       ) : null}
-      {/* Seam for package F3b: the finite mix of articles and paid lines,
+      {/* Seam for later work: the finite mix of articles and paid lines,
           the Following row and the way into /lines (the "Top lines" row)
           come here, after passage identity and counts exist. Until then
           nothing here leads anywhere. The page stays finite: it ends. */}

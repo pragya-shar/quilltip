@@ -1,7 +1,7 @@
 import { FINISHED_COOKIE } from './readingPlace'
 
 /**
- * The server's skip list (D22): articles this browser opened or finished,
+ * The server's skip list: articles this browser opened or finished,
  * from two cookies the article view writes, each a list of article ids,
  * newest first, each URI-encoded, comma-separated. Today only reads them, on
  * the server. With no script neither is written, so nothing is skipped.

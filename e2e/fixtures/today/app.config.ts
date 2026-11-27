@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
 // Today on a production build, started by scripts/today/app-check.ts: with
-// JavaScript off (D19) and on, in Chromium and WebKit, at 390.
+// JavaScript off and on, in Chromium and WebKit, at 390.
 const phone = { width: 390, height: 844 }
 
 export default defineConfig({
