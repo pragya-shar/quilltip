@@ -8,21 +8,21 @@ import { Notice } from '@/system/components/Notice'
 import { PendingIcon, WithdrawIcon } from '@/system/icons'
 import { sheetStack } from '@/shell/sheetStack'
 import { warmSheet } from '@/shell/sheets/preload'
-import { usePocketSource } from './source'
+import { usePocketSource } from '@/lib/pocket/source'
+import type { EarningsView } from '@/lib/pocket/types'
 import { tipsCount } from './copy'
 import { WITHDRAW_SHEET } from './sheetIds'
-import type { EarningsView } from './types'
 
 const positive = (money: { cents: number } | null | undefined) =>
   (money?.cents ?? 0) > 0
 
 /**
- * A writer's money, three figures kept apart: ready to withdraw
- * (arrived, collectable now), on its way (accepted, not arrived) and paid to
- * your wallet (collected). Each is the sum of the shares its rows show, net
- * of the 2.5%, said once. Slow and failed tips are said in
- * words beside them; nothing here adds figures up. Withdraw appears only
- * once the money layer can withdraw.
+ * A writer's money, three figures kept apart: what has arrived (collectable
+ * once withdrawing exists), what is on its way (accepted, not arrived) and
+ * what was paid to your wallet. Each is the sum of the shares its rows
+ * show, net of the 2.5%, said once. Slow, held and incomplete tips are told
+ * by their own rows. Withdraw appears only once the money layer can
+ * withdraw; until then the first figure is called "Arrived".
  */
 export function EarningsSection({
   earnings,
@@ -64,17 +64,24 @@ export function EarningsSection({
         </p>
       </section>
     )
-  const onHold = ready && positive(earnings.onHold) ? earnings.onHold : null
-  const notPaid = ready && positive(earnings.notPaid) ? earnings.notPaid : null
   const available = ready ? earnings.available : null
   return (
-    <section className="qt-pocket__earn" aria-labelledby="pocket-earnings">
+    <section
+      className="qt-pocket__earn"
+      aria-labelledby="pocket-earnings"
+      aria-busy={status === 'loading' || undefined}
+    >
       {heading}
+      {status === 'unavailable' ? (
+        <Notice tone="failure">
+          Your earnings cannot be shown right now. Nothing you earned is lost.
+        </Notice>
+      ) : null}
       <MoneyFigure
         value={available}
         status={status}
         size="xl"
-        label="Ready to withdraw"
+        label={withdraw ? 'Ready to withdraw' : 'Arrived'}
         unavailableText="Not available right now"
       />
       <div className="qt-pocket__pair">
@@ -113,18 +120,15 @@ export function EarningsSection({
         </Button>
       ) : ready && !withdraw ? (
         <p className="qt-pocket__plain">
-          Withdrawing arrives in a later update. Your earnings stay here, ready.
-        </p>
-      ) : ready && pendingCount > 0 ? (
-        <p className="qt-pocket__fine">
-          Nothing to withdraw yet. Tips on their way move here when they arrive,
-          usually within a minute.
+          You can withdraw in a later update. Until then, what has arrived stays
+          here.
         </p>
       ) : null}
       {[available, earnings.pending, earnings.collected].some(
         (figure) => ready && figure?.converted === true
       ) ? (
-        // Only when the money layer marks a figure as converted at today's price.
+        // Only when the money layer marks a figure as converted at today's
+        // price.
         <p className="qt-pocket__fine">
           Held in Lumens. Figures move with the price; each tip below shows its
           dollars at the time.
@@ -133,36 +137,6 @@ export function EarningsSection({
       <p className="qt-pocket__fine">
         These are your share. You keep 97.5% of every tip.
       </p>
-      {ready && earnings.lagging ? (
-        <Notice tone="pending">
-          Some tips are taking longer than usual. They stay On its way until
-          they arrive. If one cannot complete, it shows here and the reader
-          keeps the money.
-        </Notice>
-      ) : null}
-      {onHold ? (
-        <Notice tone="pending">
-          <MoneyFigure value={onHold} size="s" /> is on hold
-          {counts && counts.onHold > 0
-            ? ` (${tipsCount(counts.onHold)})`
-            : ''}:{' '}
-          {counts && counts.onHold > 1
-            ? 'the readers’ balances were short when they were paid out. They arrive if the readers add money.'
-            : 'the reader’s balance was short when it was paid out. It arrives if they add money.'}
-        </Notice>
-      ) : null}
-      {notPaid ? (
-        <Notice tone="failure">
-          <MoneyFigure value={notPaid} size="s" /> did not complete
-          {counts && counts.notPaid > 0
-            ? ` (${tipsCount(counts.notPaid)})`
-            : ''}
-          .{' '}
-          {counts && counts.notPaid > 1
-            ? 'The readers kept that money.'
-            : 'The reader kept that money.'}
-        </Notice>
-      ) : null}
     </section>
   )
 }

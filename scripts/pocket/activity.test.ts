@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { activityLists } from '@/components/pocket/activityModel'
 import { rowWords, tipsCount } from '@/components/pocket/copy'
-import type { ActivityItem, ActivityView } from '@/components/pocket/types'
+import type { ActivityItem, ActivityView } from '@/lib/pocket/types'
 
 const m = (cents: number) => ({
   cents,

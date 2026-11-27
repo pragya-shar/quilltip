@@ -405,7 +405,7 @@ async function saveSignedInState(options: CliOptions) {
       (url) => !/^\/(login|register)\b/.test(url.pathname),
       { timeout: 10 * 60_000 }
     )
-    await page.goto(new URL('/dashboard/stats', options.baseUrl).toString())
+    await page.goto(new URL('/dashboard', options.baseUrl).toString())
     await page.waitForURL((url) => url.pathname.startsWith('/dashboard/'), {
       timeout: 60_000,
     })
@@ -592,7 +592,7 @@ async function run(options: CliOptions): Promise<void> {
     if (signedIn) {
       targets.push({
         name: 'dashboard',
-        path: '/dashboard/stats',
+        path: '/dashboard',
         signedIn: true,
         contentSelector: '.account-stats h1',
       })

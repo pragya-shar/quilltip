@@ -6,8 +6,8 @@ import { TestnetNote } from '@/system/components/TestnetNote'
 import { TextLink } from '@/system/components/TextLink'
 import type { SheetBodyProps } from '@/shell/sheets/types'
 import { MoneyActPanel } from '../MoneyActPanel'
-import { usePocketSource } from '../source'
-import type { Money } from '../types'
+import { usePocketSource } from '@/lib/pocket/source'
+import type { Money } from '@/lib/pocket/types'
 
 export type AddMoneyProps = {
   /** The tip this person could not afford, when the tip bar opened it. */

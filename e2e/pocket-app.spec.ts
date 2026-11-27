@@ -2,8 +2,7 @@ import { expect, test } from '@playwright/test'
 
 // /pocket on a production build with JavaScript off: the server's own
 // response explains itself and links to sign in, with no money and no
-// placeholder that never fills; and the legacy dashboard paths that only
-// forwarded to the stats page answer 308 to the balance.
+// placeholder that never fills.
 
 test.skip(
   !process.env.NO_SCRIPT_CHECK,
@@ -38,12 +37,3 @@ test('with no script, /pocket shows its title, the explanation and Sign in', asy
   await expect(page.locator('.qt-pocket-page__live')).toBeHidden()
   expect(await page.locator('main').innerText()).not.toMatch(/\$\s?\d/)
 })
-
-for (const from of ['/dashboard', '/dashboard/earnings'])
-  test(`${from} answers 308 to the balance`, async ({ request }) => {
-    const response = await request.get(from, { maxRedirects: 0 })
-    expect(response.status()).toBe(308)
-    expect(new URL(response.headers()['location']!, 'http://x').pathname).toBe(
-      '/pocket'
-    )
-  })

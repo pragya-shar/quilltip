@@ -1,8 +1,8 @@
 import { defineConfig, devices } from '@playwright/test'
 
 // The balance page against a production build, with JavaScript off, in
-// Chromium and WebKit: what the server sends before any script, and the
-// legacy dashboard paths it answers. Run by scripts/app-checks/run.ts
+// Chromium and WebKit: what the server sends before any script. Run by
+// scripts/app-checks/run.ts
 // (the pocket package's entry).
 const phone = { width: 390, height: 844 }
 

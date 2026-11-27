@@ -24,7 +24,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <p className="account-muted" role="status">
             Loading…
           </p>
-        ) : pathname === '/dashboard/stats' ? (
+        ) : pathname === '/dashboard/stats' ||
+          pathname === '/dashboard/earnings' ? (
           <DashboardStatsSkeleton />
         ) : (
           <DashboardWalletSkeleton />

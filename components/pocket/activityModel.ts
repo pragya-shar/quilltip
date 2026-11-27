@@ -1,4 +1,4 @@
-import type { ActivityView } from './types'
+import type { ActivityView } from '@/lib/pocket/types'
 
 /** One labelled list of the Pocket's activity, paged by the server. */
 export type ActivityList = {

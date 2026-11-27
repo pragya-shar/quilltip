@@ -6,7 +6,7 @@ import { TestnetNote } from '@/system/components/TestnetNote'
 import { TextLink } from '@/system/components/TextLink'
 import type { SheetBodyProps } from '@/shell/sheets/types'
 import { MoneyActPanel } from '../MoneyActPanel'
-import { usePocketSource } from '../source'
+import { usePocketSource } from '@/lib/pocket/source'
 
 /**
  * Withdraw a writer's earnings: exactly what is ready to withdraw, never

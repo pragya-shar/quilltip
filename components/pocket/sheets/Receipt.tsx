@@ -3,37 +3,44 @@
 import '../pocket.css'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { TextLink } from '@/system/components/TextLink'
+import { sheetStack } from '@/shell/sheetStack'
 import type { SheetBodyProps } from '@/shell/sheets/types'
+import { usePocketSource } from '@/lib/pocket/source'
+import type { ActivityItem } from '@/lib/pocket/types'
 import { recordHref, rowWords, whenLong } from '../copy'
 import { ReceiptFact as Fact } from '../ReceiptFact'
-import { usePocketSource } from '../source'
-import type { ActivityItem } from '../types'
+import { rowAmount } from '../rowAmount'
 
 export type ReceiptProps = { item: ActivityItem }
 
 /**
  * One tip's receipt, over the balance (declared in shell/sheets/pocket.ts,
- * loaded when it first opens). The figure is what the row showed: the tip
- * as sent, or your share of a tip to you. The exact share and Quilltip's fee
- * are stated once, below. A tip received never names the reader.
+ * loaded when it first opens). The figure is what the row showed. The
+ * exact share and Quilltip's fee are stated once, below, and only once the
+ * tip is accepted. A tip received never names the reader.
  */
-export default function ReceiptBody({ props }: SheetBodyProps<ReceiptProps>) {
+export default function ReceiptBody({
+  props,
+  close,
+}: SheetBodyProps<ReceiptProps>) {
   const { format } = usePocketSource()
   const item = props.item
   const reader = item.role === 'reader'
   const words = rowWords(item)
-  const exact = format.exactCents
   // What arrived and what did not, in this side's terms: the tip for the
   // reader, the share for the writer. Written by the money layer.
   const paid = reader ? item.paid : item.paidNet
   const unpaid = reader ? item.unpaid : item.unpaidNet
   const rest =
     item.status === 'not-paid' && paid.cents > 0 && unpaid ? unpaid : null
+  // A tip the server has not accepted has no share or fee yet.
+  const accepted = item.status !== 'sending'
+  const token = item.exact ? (reader ? item.exact.gross : item.exact.net) : null
   return (
     <div className="qt-pocket__receipt">
       <div className="qt-pocket__slip">
         <MoneyFigure
-          value={reader ? item.amount : item.net}
+          value={rowAmount(item)}
           size="l"
           tone={words.status === 'failed' ? 'muted' : 'default'}
           label={
@@ -51,8 +58,9 @@ export default function ReceiptBody({ props }: SheetBodyProps<ReceiptProps>) {
           </Fact>
           {rest ? (
             <Fact label={reader ? 'Paid so far' : 'Arrived so far'}>
-              {exact(paid.cents)} {reader ? 'reached the writer' : 'arrived'};{' '}
-              {exact(rest.cents)}{' '}
+              {format.money(paid.cents)}{' '}
+              {reader ? 'reached the writer' : 'arrived'};{' '}
+              {format.money(rest.cents)}{' '}
               {item.reason === 'shortfall'
                 ? 'is waiting'
                 : reader
@@ -60,22 +68,21 @@ export default function ReceiptBody({ props }: SheetBodyProps<ReceiptProps>) {
                   : 'did not complete'}
             </Fact>
           ) : null}
+          {rest ? <Fact label="Tip as sent">{item.amount.display}</Fact> : null}
           <Fact label="When">{whenLong(item.at)}</Fact>
           <Fact label={reader ? 'From' : 'To'}>
             {reader ? 'Your balance' : 'Your earnings'}
           </Fact>
-          {words.status === 'failed' ? null : (
+          {accepted && words.status !== 'failed' ? (
             <Fact label={reader ? 'Writer’s share' : 'Your share'}>
               {item.fee
-                ? `${exact(item.net.cents)}, after Quilltip’s ${exact(item.fee.cents)}`
+                ? `${format.money(item.net.cents)}, after Quilltip’s ${format.money(item.fee.cents)}`
                 : '97.5%, after Quilltip’s 2.5%'}
             </Fact>
-          )}
-          {item.exact ? (
+          ) : null}
+          {token ? (
             <Fact label="Exact amount">
-              <span className="qt-pocket__token">
-                {format.token(item.exact.gross)}
-              </span>
+              <span className="qt-pocket__token">{format.token(token)}</span>
             </Fact>
           ) : null}
           {item.txHash ? (
@@ -89,7 +96,18 @@ export default function ReceiptBody({ props }: SheetBodyProps<ReceiptProps>) {
       </div>
       <p className="qt-pocket__fine">{words.long}</p>
       {item.article.href ? (
-        <p className="qt-pocket__article">
+        // Leaving for the article closes this receipt and the balance under
+        // it, so nothing stays open over the next page.
+         
+        <p
+          className="qt-pocket__article"
+          onClickCapture={(event) => {
+            if ((event.target as HTMLElement).closest('a')) {
+              close()
+              sheetStack.close('pocket')
+            }
+          }}
+        >
           {item.article.title}{' '}
           <TextLink href={item.article.href} variant="standalone">
             Read more

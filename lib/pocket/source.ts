@@ -4,6 +4,13 @@ import { createContext, useContext } from 'react'
 import type { ActivityView, BalanceView, EarningsView } from './types'
 
 /**
+ * Where the balance reads money from: one seam, so the live money layer and
+ * a fixture are interchangeable. This file holds no component code, so the
+ * shell can mount a live provider without loading the balance's screens in
+ * a page's first load.
+ */
+
+/**
  * A money act started from a sheet: Add money, Withdraw. The sheet renders
  * its phases and moves focus to its status and result; the money layer owns
  * what happens. Null while the act does not exist in the backend: the sheet
@@ -26,17 +33,15 @@ export type MoneyAct = {
   reset(): void
 }
 
-/**
- * Where the Pocket reads money from: one seam, so the live money layer and a
- * fixture are interchangeable. The live source reads `hooks/payments` once
- * pull request 561 is merged; until then every view is unavailable.
- */
 export type PocketSource = {
-  /** The money layer's own formatters, for the receipt and the exact
-   * amount: `formatExactCents` ("9.75¢", never floored) and
-   * `formatTokenAmount` ("2.8571428 XLM") from `lib/payments/money`. */
+  /** False until the live money layer is connected in this build: the
+   * balance then says so and points to the pages that work. */
+  wired: boolean
+  /** The money layer's own formatters: `money` writes exact dollars (to six
+   * decimals when there are fractions of a cent, as `formatMoney` does);
+   * `token` writes a base-unit amount ("2.8571428 XLM"). */
   format: {
-    exactCents(cents: number): string
+    money(cents: number): string
     token(baseUnits: string): string
   }
   useBalance(): BalanceView
@@ -80,11 +85,10 @@ const unavailableActivity: ActivityView = {
   loadMore: noop,
 }
 
-/** Until the money layer is wired: payments cannot answer. */
+/** Until the money layer is connected: nothing to read. */
 export const unwiredSource: PocketSource = {
-  // Nothing is shown before the money layer is wired, so nothing is
-  // formatted either.
-  format: { exactCents: () => '', token: () => '' },
+  wired: false,
+  format: { money: () => '', token: () => '' },
   useBalance: () => unavailableBalance,
   useEarnings: () => unavailableEarnings,
   useActivity: () => unavailableActivity,

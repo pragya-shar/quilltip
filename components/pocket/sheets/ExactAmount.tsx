@@ -4,7 +4,7 @@ import '../pocket.css'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { TestnetNote } from '@/system/components/TestnetNote'
 import type { SheetBodyProps } from '@/shell/sheets/types'
-import { usePocketSource } from '../source'
+import { usePocketSource } from '@/lib/pocket/source'
 
 /**
  * The exact amount behind Ready to tip: the token amount the

@@ -1,5 +1,5 @@
 import type { ActivityStatus } from '@/system/components/ActivityRow'
-import type { ActivityItem } from './types'
+import type { ActivityItem } from '@/lib/pocket/types'
 
 /**
  * The Pocket's words. Second person, plain, no jargon. A tip is final once

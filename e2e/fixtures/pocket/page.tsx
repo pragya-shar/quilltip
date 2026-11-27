@@ -15,8 +15,13 @@ import {
   type MoneyAct,
   type MoneyActPhase,
   type PocketSource,
-} from '../../../components/pocket/source'
-import type { ActivityItem, Money } from '../../../components/pocket/types'
+} from '../../../lib/pocket/source'
+import type {
+  ActivityItem,
+  ActivityView,
+  EarningsView,
+  Money,
+} from '../../../lib/pocket/types'
 import {
   SCENARIOS,
   elsewhereTip,
@@ -38,6 +43,10 @@ import { TodayStandIn } from './TodayStandIn'
 //   ?auth=      signed-in (default), signed-out, loading
 //   ?act=       add, add-fail, withdraw: a stand-in money act, to drive the
 //               sheets' phases and focus (no such act ships yet)
+//   ?paged      lists come in pages of two ("Show more")
+//   ?earnings=, ?earnings-later=  loading or unavailable, from the start
+//               or after a first answer
+//   ?writer-converted, ?no-price, ?unwired  see below
 // Tips "sent elsewhere" (/elsewhere) are kept in localStorage as the
 // fixture's server, so they survive a reload the way the server's do.
 
@@ -126,18 +135,77 @@ function useFakeAct(
   }
 }
 
+/**
+ * `?paged`: each list comes from the server in pages of two. Pressing "Show
+ * more" sets `loadingMore` (and `canLoadMore` false, as the money layer
+ * does; never both true) until the next page arrives.
+ */
+function usePaged(view: ActivityView): ActivityView {
+  const [shown, setShown] = useState(2)
+  const [loading, setLoading] = useState(false)
+  useEffect(() => {
+    if (!loading) return
+    const id = window.setTimeout(() => {
+      setShown((n) => n + 2)
+      setLoading(false)
+    }, 500)
+    return () => window.clearTimeout(id)
+  }, [loading])
+  if (!params.has('paged') || view.status !== 'ready') return view
+  return {
+    ...view,
+    items: view.items.slice(0, shown),
+    canLoadMore: !loading && view.items.length > shown,
+    loadingMore: loading,
+    loadMore: () => setLoading(true),
+  }
+}
+
+/**
+ * `?earnings=loading|unavailable`: earnings in that state from the start.
+ * `?earnings-later=loading|unavailable`: earnings answer first, then fall
+ * into that state, as when figures reload or the server stops answering.
+ */
+function useEarningsState(view: EarningsView): EarningsView {
+  const later = params.get('earnings-later')
+  const [fallen, setFallen] = useState(false)
+  useEffect(() => {
+    if (!later) return
+    const id = window.setTimeout(() => setFallen(true), 400)
+    return () => window.clearTimeout(id)
+  }, [later])
+  const state = params.get('earnings') ?? (fallen ? later : null)
+  if (state === 'loading' || state === 'unavailable')
+    return {
+      ...view,
+      status: state,
+      pending: null,
+      available: null,
+      collected: null,
+      total: null,
+      onHold: null,
+      notPaid: null,
+      counts: null,
+      exact: null,
+      isWriter: undefined,
+    }
+  return view
+}
+
 const source: PocketSource = {
-  format: { exactCents, token: tokenAmount },
+  wired: !params.has('unwired'),
+  format: { money: exactCents, token: tokenAmount },
   useBalance: () => views.balance,
-  useEarnings: () => views.earnings,
+  useEarnings: () => useEarningsState(views.earnings),
   useActivity: (side) => {
     const server = useSyncExternalStore(subscribeServer, readServer)
     const base = side === 'reader' ? views.reader : views.writer
-    return useMemo(() => {
+    const merged = useMemo(() => {
       if (side !== 'reader' || base.status !== 'ready') return base
       const extra = JSON.parse(server) as ActivityItem[]
       return { ...base, items: [...extra, ...base.items] }
     }, [base, server, side])
+    return usePaged(merged)
   },
   useAddMoney: () => {
     const act = useFakeAct(

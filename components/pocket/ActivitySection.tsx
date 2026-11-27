@@ -1,12 +1,9 @@
 'use client'
 
-import { Button } from '@/system/components/Button'
 import { Heading } from '@/system/components/Heading'
 import { Skeleton } from '@/system/components/Skeleton'
-import { warmSheet } from '@/shell/sheets/preload'
 import type { PocketActivity } from './activityModel'
-import { PocketActivityRow } from './PocketActivityRow'
-import { RECEIPT_SHEET } from './sheetIds'
+import { PocketActivityList } from './PocketActivityList'
 import { useNow } from './useNow'
 
 /**
@@ -53,56 +50,14 @@ export function ActivitySection({
       ) : activity.status === 'empty' ? (
         <p className="qt-pocket__plain">Your tips show up here.</p>
       ) : (
-        activity.lists.map((list) => {
-          const id = `pocket-activity-${list.role}`
-          return (
-            <section
-              key={list.role}
-              className="qt-pocket__list"
-              aria-labelledby={id}
-            >
-              {listLevel === 3 ? (
-                <h3 id={id} className="qt-pocket__list-title">
-                  {list.title}
-                </h3>
-              ) : (
-                <h4 id={id} className="qt-pocket__list-title">
-                  {list.title}
-                </h4>
-              )}
-              {list.view.status === 'unavailable' ? (
-                <p className="qt-pocket__plain">
-                  These cannot be shown right now.
-                </p>
-              ) : (
-                <ul
-                  className="qt-pocket__rows"
-                  data-role={list.role}
-                  {...warmSheet(RECEIPT_SHEET)}
-                >
-                  {list.view.items.map((item) => (
-                    <li
-                      key={item.id}
-                      data-request={item.requestId ?? undefined}
-                    >
-                      <PocketActivityRow item={item} now={now} />
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {list.view.canLoadMore ? (
-                <Button
-                  variant="secondary"
-                  block
-                  loading={list.view.loadingMore === true}
-                  onClick={list.view.loadMore}
-                >
-                  Show more
-                </Button>
-              ) : null}
-            </section>
-          )
-        })
+        activity.lists.map((list) => (
+          <PocketActivityList
+            key={list.role}
+            list={list}
+            level={listLevel}
+            now={now}
+          />
+        ))
       )}
     </section>
   )

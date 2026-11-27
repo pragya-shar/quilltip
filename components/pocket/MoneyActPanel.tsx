@@ -6,7 +6,7 @@ import { Icon } from '@/system/components/Icon'
 import { Spinner } from '@/system/components/Spinner'
 import { DoneIcon, FailIcon } from '@/system/icons'
 import { focusDestination } from '@/system/inputModality'
-import type { MoneyAct } from './source'
+import type { MoneyAct } from '@/lib/pocket/source'
 
 /**
  * The working part of a money sheet. With no act (the backend does not have

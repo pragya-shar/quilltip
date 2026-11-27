@@ -91,6 +91,15 @@
     border-block-start: 1px solid var(--qt-line);
     min-width: 0;
   }
+  /* Held while it is not yet known whether this person writes. */
+  .qt-pocket__earn-placeholder {
+    display: flex;
+    height: 9rem;
+  }
+  .qt-pocket__end {
+    padding-block: var(--qt-space-3);
+    border-radius: var(--qt-radius-tag);
+  }
   .qt-pocket__pair {
     display: flex;
     flex-wrap: wrap;

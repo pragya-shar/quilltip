@@ -157,9 +157,10 @@ type Expect = {
 }
 
 const A_READER = 'A reader'
-// Money text: figures stored at tip time
-// exact to six decimals; the reader's converted balance "≈" with two
-// decimals (the fixture writes it as the money layer will).
+// Money text: figures stored at tip time exact to six decimals; the
+// reader's converted balance two decimals, marked "≈" by the figure from
+// its flag (the fixture writes it as the money layer will).
+const NO_EARNINGS_YET = 'No earnings yet. Tips on your writing show up here'
 const SCENARIOS: Record<string, Expect> = {
   ready: {
     spend: '≈$2.54',
@@ -168,20 +169,29 @@ const SCENARIOS: Record<string, Expect> = {
     texts: [
       'Held in Lumens. The dollar figure moves with the price.',
       'New accounts get $5 of testnet practice money.',
-      'Withdrawing arrives in a later update.',
+      'You can withdraw in a later update. Until then, what has arrived stays here.',
       'These are your share. You keep 97.5% of every tip.',
       'Quilltip runs on Stellar testnet. Tips are practice money.',
     ],
     // No "Pocket" on screen; "≈" only on the converted balance, and no
     // earnings line about prices while their figures are not converted.
-    absent: [/Pocket/, /≈.*≈/, /Figures move with the price/],
+    absent: [
+      /Pocket/,
+      /≈.*≈/,
+      /Figures move with the price/,
+      /Ready to withdraw/,
+    ],
   },
   available: {
     spend: '≈$2.54',
     earnings: { withdraw: '$0.6825', onWay: '$0.00' },
     rows: 6,
   },
-  sending: { spend: '≈$2.44', earnings: null, rows: 1, texts: ['Sending'] },
+  sending: {
+    spend: '≈$2.44',
+    rows: 1,
+    texts: ['Sending', NO_EARNINGS_YET],
+  },
   sent: {
     spend: '≈$2.44',
     earnings: {
@@ -205,21 +215,17 @@ const SCENARIOS: Record<string, Expect> = {
   lagging: {
     earnings: { withdraw: '$0.00', onWay: '$0.0975' },
     rows: 2,
-    texts: [
-      'On its way, slower than usual',
-      'Some tips are taking longer than usual',
-    ],
+    texts: ['On its way, slower than usual'],
   },
   failed: {
     spend: '≈$2.54',
-    earnings: { withdraw: '$0.00', onWay: '$0.00' },
     rows: 4,
+    // Held and incomplete tips are told by their rows, with no notice.
     texts: [
       'Did not complete. You were not charged.',
       'On hold until you add money',
-      /is on hold \(1 tip\)/,
-      /did not complete \(1 tip\)\. The reader kept that money\./,
     ],
+    absent: [/The reader kept that money/],
   },
   'partly-paid': {
     earnings: { withdraw: '$0.195', onWay: '$0.00' },
@@ -229,11 +235,10 @@ const SCENARIOS: Record<string, Expect> = {
   },
   empty: {
     spend: '≈$2.54',
-    earnings: null,
     rows: 0,
-    texts: ['Your tips show up here.'],
+    texts: ['Your tips show up here.', NO_EARNINGS_YET],
   },
-  none: { spend: '$0.00', earnings: null, rows: 0 },
+  none: { spend: '$0.00', rows: 0, absent: [/≈/, /Held in Lumens/] },
   offline: {
     spend: '≈$2.54',
     rows: 6,
@@ -302,9 +307,7 @@ test.describe('every money scenario', () => {
           root.getByRole('heading', { name: 'Your earnings' })
         ).toHaveCount(0)
       else if (want.earnings) {
-        await expect(digits(root, 'Ready to withdraw')).toHaveText(
-          want.earnings.withdraw
-        )
+        await expect(digits(root, 'Arrived')).toHaveText(want.earnings.withdraw)
         await expect(digits(root, 'On its way')).toHaveText(want.earnings.onWay)
         if (want.earnings.onWayLabel)
           await expect(
@@ -389,7 +392,7 @@ test.describe('every money scenario', () => {
   }) => {
     await page.goto('/pocket?scenario=ready&role=writer&writer-converted')
     const root = page.locator('.qt-pocket')
-    await expect(digits(root, 'Ready to withdraw')).toHaveText('≈$0.68')
+    await expect(digits(root, 'Arrived')).toHaveText('≈$0.68')
     await expect(digits(root, 'Paid to your wallet')).toHaveText('≈$0.00')
     await expect(root).toContainText(
       'Held in Lumens. Figures move with the price; each tip below shows its dollars at the time.'
@@ -406,7 +409,7 @@ test.describe('every money scenario', () => {
     await page.goto('/pocket?scenario=lagging&role=writer')
     const root = page.locator('.qt-pocket')
     await expect(digits(root, 'On its way')).toHaveText('$0.0975')
-    await expect(digits(root, 'Ready to withdraw')).toHaveText('$0.00')
+    await expect(digits(root, 'Arrived')).toHaveText('$0.00')
   })
 
   test('the converted figure opens the exact token amount', async ({
@@ -607,6 +610,135 @@ test.describe('receipts and money sheets', () => {
     await expect
       .poll(async () => (await focused(page)).text)
       .toBe('$0.6825 sent to your wallet')
+  })
+})
+
+test.describe('review cases', () => {
+  test('Show more stays while the next page loads, then says the list ended', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=ready&paged')
+    const list = page.locator('section.qt-pocket__list', {
+      has: page.getByRole('heading', { name: 'Your tips' }),
+    })
+    await expect(list.locator('li')).toHaveCount(2)
+    const more = list.getByRole('button', { name: 'Show more' })
+    await more.focus()
+    await page.keyboard.press('Enter')
+    // Still there, busy, while the page loads; focus stays on it.
+    await expect(more).toHaveAttribute('aria-busy', 'true')
+    await expect(more).toBeFocused()
+    await expect(list.locator('li')).toHaveCount(3)
+    await expect(more).toHaveCount(0)
+    const end = list.getByText('That is all of them.')
+    await expect(end).toBeVisible()
+    await expect(end).toBeFocused()
+  })
+
+  test('a sending tip’s receipt states no share or fee yet', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=sending')
+    await press(page.getByRole('button', { name: 'Theo Marsh' }))
+    const receipt = page.getByRole('dialog', { name: 'Receipt' })
+    await expect(receipt).toContainText('Sending')
+    await expect(receipt).not.toContainText('share')
+    await expect(receipt).not.toContainText('Quilltip’s')
+  })
+
+  test('a writer’s receipt shows the share and its own token amount', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=ready&role=writer')
+    await press(page.getByRole('button', { name: 'A reader' }).first())
+    const receipt = page.getByRole('dialog', { name: 'Receipt' })
+    await expect(receipt.locator('.qt-money__digits').first()).toHaveText(
+      '$0.0975'
+    )
+    await expect(receipt).toContainText('$0.0975, after Quilltip’s $0.0025')
+    await expect(receipt).toContainText('0.7657388 XLM')
+    await expect(receipt).not.toContainText('0.7853732 XLM')
+  })
+
+  test('a tip paid in part shows what was paid on both sides', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=partly-paid')
+    await expect(
+      page.locator('[data-role="reader"] .qt-money__digits').first()
+    ).toHaveText('−$0.10')
+    await expect(
+      page.locator('[data-role="writer"] .qt-money__digits').first()
+    ).toHaveText('+$0.0975')
+  })
+
+  test('while earnings load, space is held with no heading or figure', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=ready&earnings=loading')
+    await expect(page.locator('.qt-pocket__earn-placeholder')).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Your earnings' })
+    ).toHaveCount(0)
+  })
+
+  test('a known writer keeps the earnings section through an outage', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=ready&earnings-later=unavailable')
+    const earn = page.locator('.qt-pocket__earn')
+    await expect(
+      earn.getByRole('heading', { name: 'Your earnings' })
+    ).toBeVisible()
+    await expect(earn).toContainText(
+      'Your earnings cannot be shown right now. Nothing you earned is lost.'
+    )
+    await expect(
+      earn.getByRole('heading', { name: 'Your earnings' })
+    ).toBeVisible()
+    expect(await earn.textContent()).not.toMatch(/\$\s?\d/)
+  })
+
+  test('awkward values lay out as the money layer writes them', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=awkward')
+    const root = page.locator('.qt-pocket')
+    await expect(digits(root, 'Ready to tip')).toHaveText('≈$1,234.56')
+    const tipToYou = page.locator('[data-role="writer"] li').first()
+    await expect(tipToYou.locator('.qt-money__digits')).toHaveText('+$0.04875')
+    await expect(tipToYou).toContainText('from a $0.05 tip')
+    expect(await root.textContent()).not.toContain('<$0.01')
+  })
+
+  test('a dust balance reads $0.00 with the exact amount one tap away', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=dust')
+    const root = page.locator('.qt-pocket')
+    await expect(digits(root, 'Ready to tip')).toHaveText('≈$0.00')
+    expect(await root.textContent()).not.toContain('<$0.01')
+    await press(page.getByRole('button', { name: /Show the exact amount/ }))
+    await expect(
+      page
+        .getByRole('dialog', { name: 'Exact amount' })
+        .locator('.qt-pocket__token-figure')
+    ).toHaveText('0.0000003 XLM')
+  })
+
+  test('before the money layer is connected, it says so and links to what works', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?unwired')
+    const root = page.locator('.qt-pocket')
+    await expect(root).toContainText('The balance is not connected yet')
+    await expect(
+      root.getByRole('link', { name: 'your balance' })
+    ).toHaveAttribute('href', '/dashboard/tab')
+    await expect(
+      root.getByRole('link', { name: 'your earnings' })
+    ).toHaveAttribute('href', '/dashboard/stats')
+    expect(await root.textContent()).not.toMatch(/\$\s?\d/)
   })
 })
 

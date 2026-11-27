@@ -8,8 +8,8 @@ import { AddIcon, PendingIcon } from '@/system/icons'
 import { sheetStack } from '@/shell/sheetStack'
 import { warmSheet } from '@/shell/sheets/preload'
 import { ADD_MONEY_SHEET, EXACT_AMOUNT_SHEET } from './sheetIds'
-import { usePocketSource } from './source'
-import type { BalanceView } from './types'
+import { usePocketSource } from '@/lib/pocket/source'
+import type { BalanceView } from '@/lib/pocket/types'
 
 /**
  * What the person can tip with now: one figure, exactly as the money layer

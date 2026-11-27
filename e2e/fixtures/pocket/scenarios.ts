@@ -18,7 +18,7 @@ import type {
   BalanceView,
   EarningsView,
   Money,
-} from '../../../components/pocket/types'
+} from '../../../lib/pocket/types'
 
 export const SCENARIOS = [
   'ready',
@@ -34,6 +34,9 @@ export const SCENARIOS = [
   'unavailable',
   'offline',
   'none',
+  // Fixture extras: awkward values the screen must lay out.
+  'awkward',
+  'dust',
 ] as const
 export type Scenario = (typeof SCENARIOS)[number]
 export type Role = 'both' | 'reader' | 'writer'
@@ -111,7 +114,8 @@ function item(
     article: { title: 'Leave It Overnight', href: '/theo/leave-it-overnight' },
     passage: 'Leave it overnight.',
     amount: money(cents),
-    net: money(share(cents)),
+    // The layer has no share or fee for a tip it has not accepted.
+    net: money(status === 'sending' ? 0 : share(cents)),
     paid: money(paidCents),
     paidNet: money(share(paidCents)),
     status,
@@ -127,7 +131,7 @@ function item(
             gross: baseUnits(cents),
             net: baseUnits(share(cents)),
           },
-    fee: money(cents - share(cents)),
+    fee: money(status === 'sending' ? 0 : cents - share(cents)),
     unpaid: money(notPaid ? cents - paidCents : 0),
     unpaidNet: money(notPaid ? share(cents) - share(paidCents) : 0),
     ...over,
@@ -306,15 +310,32 @@ export function scenario(name: Scenario, now: number): FixtureViews {
     }
     case 'empty':
       return views({ reader: [], writer: [] })
+    case 'awkward': {
+      // A large converted balance, and a writer's share with five decimals
+      // (5¢ tip, 4.875¢ share).
+      const rows = both([[5, 'on-chain']], now)
+      return views(rows, {
+        available: converted(123_456),
+        exact: { token: 'XLM', available: baseUnits(123_456) },
+      })
+    }
+    case 'dust':
+      // Held tokens worth less than a cent: the converted figure reads
+      // "$0.00"; the exact token amount is one tap away.
+      return views(both([], now), {
+        available: converted(0.0004),
+        exact: { token: 'XLM', available: '3' },
+      })
     case 'none':
       return views(
         { reader: [], writer: [] },
         {
           status: 'none',
-          available: money(0),
           pending: money(0),
           exact: null,
           price: null,
+          // The layer writes no balance as an exact zero, not a conversion.
+          available: { ...money(0), converted: false },
         }
       )
     case 'loading':

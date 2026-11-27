@@ -6,14 +6,16 @@ import { Icon } from '@/system/components/Icon'
 import { TipIcon } from '@/system/icons'
 import { sheetStack } from '@/shell/sheetStack'
 import { rowWords, whenShort } from './copy'
+import { rowAmount } from './rowAmount'
 import { RECEIPT_SHEET } from './sheetIds'
-import type { ActivityItem } from './types'
+import type { ActivityItem } from '@/lib/pocket/types'
 
 /**
  * One money movement; the whole row opens its receipt as a sheet. A tip you
  * sent shows the tip as sent ("−$1.00"); a tip to you shows your share and
- * the tip it came from ("+$0.0975", "from a $0.10 tip"), so the rows add up
- * to the figures above them. A tip received never names the reader.
+ * the tip it came from ("+$0.0975", "from a $0.10 tip"). A tip paid only in
+ * part shows what was paid, so the rows agree with the figures above them.
+ * A tip received never names the reader.
  */
 export function PocketActivityRow({
   item,
@@ -37,7 +39,7 @@ export function PocketActivityRow({
       }
       name={reader ? item.counterparty.name : 'A reader'}
       about={item.passage ?? item.article.title}
-      amount={reader ? item.amount : item.net}
+      amount={rowAmount(item)}
       direction={reader ? 'out' : 'in'}
       status={words.status}
       statusText={words.short}

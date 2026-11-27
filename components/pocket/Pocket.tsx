@@ -5,30 +5,38 @@ import { Button } from '@/system/components/Button'
 import { EmptyState } from '@/system/components/EmptyState'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { Notice } from '@/system/components/Notice'
+import { Skeleton } from '@/system/components/Skeleton'
 import { TestnetNote } from '@/system/components/TestnetNote'
+import { TextLink } from '@/system/components/TextLink'
 import { BalanceIcon } from '@/system/icons'
 import { useBalanceReading } from '@/shell/balance'
 import { POCKET } from '@/shell/navigation'
 import { openSignIn } from '@/shell/signIn'
-import { activityLists, type PocketActivity } from './activityModel'
+import { usePocketSource } from '@/lib/pocket/source'
+import type { EarningsView } from '@/lib/pocket/types'
+import { activityLists } from './activityModel'
 import { ActivitySection } from './ActivitySection'
 import { ago } from './copy'
 import { EarningsSection } from './EarningsSection'
-import { usePocketSource } from './source'
 import { SpendableSection } from './SpendableSection'
 import { useNow } from './useNow'
-import type { EarningsView } from './types'
 
-/** Whether to show a writer's figures: the money layer's signal (`isWriter`
- * or status `none`); without one yet, any tip received or money collected. */
-function writes(earnings: EarningsView): boolean {
+/**
+ * Whether this person writes, as far as the money layer has said: its
+ * explicit signal when present, otherwise an answered earnings view; null
+ * while nothing has answered.
+ */
+function writerSignal(earnings: EarningsView): boolean | null {
   if (earnings.isWriter !== undefined) return earnings.isWriter
   if (earnings.status === 'none') return false
-  if (earnings.status !== 'ready') return false
-  const c = earnings.counts
-  const tips = c ? c.pending + c.onHold + c.notPaid + c.settled : 0
-  return tips > 0 || (earnings.collected?.cents ?? 0) > 0
+  if (earnings.status === 'ready') return true
+  return null
 }
+
+/** The last answer, kept through a reload of the figures or an outage, so a
+ * writer never sees a reader's sheet while earnings load or fail. Forgotten
+ * on sign-out. */
+let lastKnownWriter: boolean | null = null
 
 /**
  * The balance: what you can tip with, a writer's earnings kept apart, and
@@ -46,7 +54,8 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
   const now = useNow()
   const signedOut =
     reading.auth === 'signed-out' || balance.status === 'signed-out'
-  if (signedOut)
+  if (signedOut) {
+    lastKnownWriter = null
     return (
       <div className="qt-pocket">
         <EmptyState
@@ -70,6 +79,7 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
         <TestnetNote />
       </div>
     )
+  }
   // Until auth is known, nobody is known to be signed in: a neutral
   // placeholder in the shape of the shell's, with no labels or words that
   // belong to a signed-in person.
@@ -84,11 +94,25 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
         <MoneyFigure value={null} status="loading" size="xl" />
       </div>
     )
-  const isWriter = writes(earnings)
-  const activity: PocketActivity = activityLists(reader, writer)
+  if (!source.wired)
+    return (
+      <div className="qt-pocket" data-wired="false">
+        <Notice tone="info" title="The balance is not connected yet">
+          This build does not show your money here yet. Your balance and your
+          tips are safe, and these pages show them today:{' '}
+          <TextLink href="/dashboard/tab">your balance</TextLink> and{' '}
+          <TextLink href="/dashboard/stats">your earnings</TextLink>.
+        </Notice>
+        <TestnetNote />
+      </div>
+    )
+  const signal = writerSignal(earnings)
+  if (signal !== null) lastKnownWriter = signal
+  const isWriter = signal ?? lastKnownWriter
+  const activity = activityLists(reader, writer)
   const down =
     balance.status === 'unavailable' &&
-    earnings.status !== 'ready' &&
+    earnings.status === 'unavailable' &&
     activity.status === 'unavailable'
   const asOf = balance.asOf ?? null
   return (
@@ -106,9 +130,19 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
           Tipping waits until you are back online.
         </Notice>
       ) : null}
-      <SpendableSection balance={balance} compact={isWriter} />
-      {isWriter ? (
+      <SpendableSection balance={balance} compact={isWriter === true} />
+      {isWriter === true ? (
         <EarningsSection earnings={earnings} headingLevel={headingLevel} />
+      ) : isWriter === null && earnings.status === 'loading' ? (
+        // Not yet known whether this person writes: space held at a fixed
+        // height, with no heading or figures that could be wrong.
+        <div
+          className="qt-pocket__earn-placeholder"
+          aria-busy="true"
+          aria-label="Loading"
+        >
+          <Skeleton shape="block" height="100%" />
+        </div>
       ) : null}
       <ActivitySection activity={activity} headingLevel={headingLevel} />
       <TestnetNote>
