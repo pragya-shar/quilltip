@@ -5319,6 +5319,101 @@ describe('spendable balance across settler records and indexed events', () => {
     })
   })
 
+  it('a late balance with more later debits than one update may read applies nothing, until a reconciliation (#576)', async () => {
+    vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', '50')
+    const { t, s } = await opened(BigInt(30) * CENT, [])
+    const events = Array.from({ length: 60 }, (_, i) =>
+      otherSettled(i, LEDGER + 10 + i)
+    )
+    await ingestAll(t, events)
+    const debited = BigInt(30) * CENT - GROSS * BigInt(60)
+    expect(await balanceOf(t)).toBe(debited)
+    // A top-up from before all of them arrives late: 61 rows would need
+    // reading, above the limit of 50. Nothing is applied.
+    const late = ev.deposited(READER, CENT, BigInt(31) * CENT, {
+      ledger: LEDGER + 5,
+    })
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await ingest(t, late)
+    expect(await balanceOf(t)).toBe(debited)
+    expect((await account(t)).reconcileRequired).toMatchObject({
+      eventId: late.id,
+      ledger: LEDGER + 5,
+    })
+    expect(
+      errors.mock.calls.some(([line]) =>
+        String(line).includes('CHAIN_TAB_RECONCILE_REQUIRED')
+      )
+    ).toBe(true)
+    // The indexer is not stuck on it, and a re-dispatch applies no part.
+    const stored = await t.run(async (ctx) =>
+      (await ctx.db.query('chainEvents').collect()).find(
+        (e) => e.eventId === late.id
+      )
+    )
+    expect(stored?.handled).toBe('done')
+    await redispatchEvents(t, [late.id])
+    expect(await balanceOf(t)).toBe(debited)
+    // No tab tip until the balance is known again.
+    expect(await errorCode(tip(t, s, { cents: 1 }))).toBe(
+      'TAB_RECONCILE_PENDING'
+    )
+    expect(
+      await t.query(internal.chain.tabReconcile.listReconcileRequired, {})
+    ).toMatchObject([{ readerAddress: READER, eventId: late.id }])
+    // The reconciliation sets the contract's balance and clears the mark.
+    const truth = BigInt(31) * CENT - GROSS * BigInt(60)
+    expect(
+      await reconcileAt(t, {
+        ledger: LEDGER + 100,
+        balance: truth,
+        paid: new Map(),
+      })
+    ).toMatchObject({ status: 'applied' })
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: truth.toString(),
+    })
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+    expect(await debitRows(t)).toBe(0)
+    await redispatchEvents(t)
+    expect(await balanceOf(t)).toBe(truth)
+    expect(await errorCode(tip(t, s, { cents: 1 }))).toBe('no error')
+  })
+
+  it('a newer absolute balance replaces one that could not be applied (#576)', async () => {
+    vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', '50')
+    const { t } = await opened(BigInt(30) * CENT, [])
+    await ingestAll(
+      t,
+      Array.from({ length: 60 }, (_, i) => otherSettled(i, LEDGER + 10 + i))
+    )
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await ingest(
+      t,
+      ev.deposited(READER, CENT, BigInt(31) * CENT, { ledger: LEDGER + 5 })
+    )
+    expect((await account(t)).reconcileRequired).toBeDefined()
+    const truth = BigInt(32) * CENT - GROSS * BigInt(60)
+    await ingest(t, ev.deposited(READER, CENT, truth, { ledger: LEDGER + 200 }))
+    expect(await balanceOf(t)).toBe(truth)
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+  })
+
+  it('at the read limit, a late balance still applies in full (#576)', async () => {
+    vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', '50')
+    const { t } = await opened(BigInt(30) * CENT, [])
+    await ingestAll(
+      t,
+      Array.from({ length: 50 }, (_, i) => otherSettled(i, LEDGER + 10 + i))
+    )
+    await ingest(
+      t,
+      ev.deposited(READER, CENT, BigInt(31) * CENT, { ledger: LEDGER + 5 })
+    )
+    expect(await balanceOf(t)).toBe(BigInt(31) * CENT - GROSS * BigInt(50))
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+  })
+
   it('long runs: thousands of settlements between rare balances, delivered out of order, re-dispatched and replayed (#576)', async () => {
     for (const seedNo of [11, 12, 13, 14]) {
       const rand = prng(seedNo)

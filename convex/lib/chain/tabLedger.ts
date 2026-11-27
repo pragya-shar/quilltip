@@ -65,6 +65,20 @@ export const TAB_PREPARE_TTL_MS = 300_000
 export const TAB_PRICE_MAX_AGE_MS = 30 * 60 * 1000
 export const DEFAULT_TAB_DAILY_LIMIT = BigInt(200_000_000)
 export const DEFAULT_TAB_TIP_MAX = BigInt(50_000_000)
+/**
+ * Most debit rows one absolute balance may read (`debitsAfter`). Far below
+ * Convex's per-transaction read limit, which also has to cover the rest of
+ * an indexer page. `TAB_DEBIT_SCAN_LIMIT` lowers it for tests.
+ */
+export const DEFAULT_DEBIT_SCAN_LIMIT = 1000
+
+function debitScanLimit(): number {
+  const value = Number(process.env.TAB_DEBIT_SCAN_LIMIT)
+  return Number.isInteger(value) && value > 0
+    ? Math.min(value, DEFAULT_DEBIT_SCAN_LIMIT)
+    : DEFAULT_DEBIT_SCAN_LIMIT
+}
+
 /** Covered debit rows deleted per absolute balance (`pruneBalanceDebits`). */
 export const DEBIT_PRUNE_BATCH = 500
 /** Covered debit rows deleted with each new debit, so a backlog drains. */
@@ -336,6 +350,12 @@ export async function checkTabTip(
     tabError(
       account.status === 'CLOSING' ? 'TAB_CLOSING' : 'TAB_CLOSED',
       'This tab is closing and accepts no new tips.'
+    )
+  }
+  if (account.reconcileRequired) {
+    tabError(
+      'TAB_RECONCILE_PENDING',
+      'The tab balance is being checked against Stellar. Tip from your wallet for now.'
     )
   }
   // The voucher binds the Tab contract. The reader's balance lives in the
@@ -1573,24 +1593,27 @@ export async function recordBalanceDebit(
 /**
  * The debits applied after `eventId` that an absolute balance from that
  * event does not include: rows after it, and legacy `settledSinceBalance`
- * entries after it.
+ * entries after it. Null when there are more rows than one transaction may
+ * read (`DEFAULT_DEBIT_SCAN_LIMIT`): the caller then applies no balance at
+ * all, never a partial one.
  */
 export async function debitsAfter(
   ctx: MutationCtx,
   account: Pick<Doc<'tabAccounts'>, '_id' | 'settledSinceBalance'>,
   eventId: string
-): Promise<bigint> {
-  let sum = account.settledSinceBalance
-    .filter((s) => s.eventId > eventId)
-    .reduce((total, s) => total + big(s.gross), ZERO)
-  for await (const row of ctx.db
+): Promise<bigint | null> {
+  const limit = debitScanLimit()
+  const rows = await ctx.db
     .query('tabBalanceDebits')
     .withIndex('by_account_event', (q) =>
       q.eq('tabAccountId', account._id).gt('eventId', eventId)
-    )) {
-    sum += big(row.gross)
-  }
-  return sum
+    )
+    .take(limit + 1)
+  if (rows.length > limit) return null
+  return [
+    ...account.settledSinceBalance.filter((s) => s.eventId > eventId),
+    ...rows,
+  ].reduce((total, s) => total + big(s.gross), ZERO)
 }
 
 /**

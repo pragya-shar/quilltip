@@ -230,6 +230,15 @@ export const tabTables = {
     settledSinceBalance: v.array(
       v.object({ eventId: v.string(), gross: v.string() })
     ),
+    /**
+     * Set when an absolute balance arrived after more debits than one
+     * transaction may read (`debitsAfter`): its balance was not applied, and
+     * the account accepts no tab tip until a newer absolute balance or a
+     * reconciliation against the contract sets the balance.
+     */
+    reconcileRequired: v.optional(
+      v.object({ eventId: v.string(), ledger: v.number(), since: v.number() })
+    ),
     /** RPC id of the newest event that set `status`. */
     statusEventId: v.optional(v.string()),
     /** Keys the client announced before registering them on chain. */
@@ -246,7 +255,8 @@ export const tabTables = {
     .index('by_user', ['userId'])
     .index('by_reader', ['readerAddress'])
     .index('by_status', ['status'])
-    .index('by_unindexed_since', ['settledUnindexedSince']),
+    .index('by_unindexed_since', ['settledUnindexedSince'])
+    .index('by_reconcile_required', ['reconcileRequired.since']),
 
   tabSessionKeys: defineTable({
     network: chainNetworkValidator,

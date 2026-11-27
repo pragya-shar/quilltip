@@ -134,17 +134,55 @@ async function absoluteBalance(
   account: Doc<'tabAccounts'>,
   event: IndexedEvent,
   balance: bigint
-): Promise<Partial<Doc<'tabAccounts'>> | null> {
+): Promise<
+  | { applied: true; patch: Partial<Doc<'tabAccounts'>> }
+  | { applied: false; patch: Partial<Doc<'tabAccounts'>> | null }
+> {
   const eventId = event.doc.eventId
-  if (account.balanceEventId && account.balanceEventId >= eventId) return null
+  if (account.balanceEventId && account.balanceEventId >= eventId) {
+    return { applied: false, patch: null }
+  }
   const debits = await debitsAfter(ctx, account, eventId)
+  if (debits === null) {
+    // Too many later debits to read in one transaction. Apply nothing:
+    // the account waits for a newer absolute balance or a reconciliation
+    // against the contract, and takes no tab tip meanwhile.
+    console.error(
+      JSON.stringify({
+        code: 'CHAIN_TAB_RECONCILE_REQUIRED',
+        tabAccountId: String(account._id),
+        eventId,
+        ledger: event.doc.ledger,
+      })
+    )
+    return {
+      applied: false,
+      patch: account.reconcileRequired
+        ? null
+        : {
+            reconcileRequired: {
+              eventId,
+              ledger: event.doc.ledger,
+              since: event.now,
+            },
+          },
+    }
+  }
   return {
-    balanceEventId: eventId,
-    balanceLedger: event.doc.ledger,
-    settledSinceBalance: account.settledSinceBalance.filter(
-      (s) => s.eventId > eventId
-    ),
-    confirmedBalance: (balance - debits).toString(),
+    applied: true,
+    patch: {
+      balanceEventId: eventId,
+      balanceLedger: event.doc.ledger,
+      settledSinceBalance: account.settledSinceBalance.filter(
+        (s) => s.eventId > eventId
+      ),
+      confirmedBalance: (balance - debits).toString(),
+      // A newer balance than the one that could not be applied replaces it.
+      ...(account.reconcileRequired &&
+      account.reconcileRequired.eventId < eventId
+        ? { reconcileRequired: undefined }
+        : {}),
+    },
   }
 }
 
@@ -161,8 +199,8 @@ async function applyAbsolute(
   status: Partial<Doc<'tabAccounts'>>
 ): Promise<void> {
   const absolute = await absoluteBalance(ctx, account, event, balance)
-  await patchAccount(ctx, account, event.now, absolute, status)
-  if (absolute) {
+  await patchAccount(ctx, account, event.now, absolute.patch, status)
+  if (absolute.applied) {
     await pruneBalanceDebits(ctx, account._id, event.doc.eventId)
     await releaseIncludedReserves(ctx, account._id, {
       now: event.now,

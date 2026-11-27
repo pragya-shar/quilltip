@@ -443,6 +443,11 @@ export const TAB_REFUSAL_COPY = {
     title: 'This tip took too long',
     detail: 'This tip was not accepted. Send it again.',
   },
+  checking: {
+    title: 'Your tab balance is being checked',
+    detail:
+      'Quick tips are paused until it matches Stellar again. Tip from your wallet for now.',
+  },
   duplicate: {
     title: 'This tip was already sent',
     detail: 'Your tab already counts it.',
