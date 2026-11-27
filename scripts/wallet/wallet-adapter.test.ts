@@ -984,6 +984,33 @@ describe('the kit’s storage keys after a clear (#607)', () => {
     expect(walletKeys(mem)).toEqual([])
   })
 
+  test('a reader who connects while the kit is still loading keeps the connection and the record', async () => {
+    const mem = memory()
+    const fake = kitWritingTo(mem)
+    let finishImport: () => void = () => {}
+    const imported = new Promise<void>((resolve) => {
+      finishImport = resolve
+    })
+    const wallet = createWalletAdapter({
+      loadKit: async () => {
+        await imported
+        kitEffect(mem)
+        return fake.bundle
+      },
+      networkPassphrase: TESTNET,
+      storage: mem.storage,
+    })
+    wallet.setRemembering('reader-1')
+    const connecting = wallet.connect({ walletId: 'varial' })
+    finishImport()
+    await expect(connecting).resolves.toMatchObject({ address: ADDRESS })
+    expect(wallet.getConnection()?.address).toBe(ADDRESS)
+    // Connected: the reader's record is kept, and the kit's own keys may stay.
+    expect(mem.store.get(KEY)).toBe(
+      JSON.stringify({ walletId: 'varial', address: ADDRESS })
+    )
+  })
+
   test('disconnect with nothing connected: the kit’s reset write is removed', async () => {
     const mem = memory()
     const fake = kitWritingTo(mem)
