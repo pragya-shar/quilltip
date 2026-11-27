@@ -5,7 +5,7 @@
  * plus `none`: a signed-in account the server confirmed is empty. Here the
  * fixture plays the money layer, so it writes the display text and the
  * exact formatters: figures stored at tip time exact to six decimals, the
- * reader's converted balance "≈" with two decimals. The Pocket itself never
+ * reader's converted balance with two decimals and its flag. The Pocket itself never
  * formats money. Replaced by
  * `fakeRuntime` when 561 merges.
  *
@@ -64,13 +64,14 @@ export function exactCents(cents: number) {
   return `$${whole.toLocaleString('en-US')}.${fraction}`
 }
 const money = (cents: number): Money => ({ cents, display: exactCents(cents) })
-/** The reader's balance, converted at today's price: "≈", two
+/** The reader's balance, converted at today's price: the flag (the system
+ * figure adds the approximate mark), two
  * decimals, floored once at the figure. */
 function converted(cents: number): Money {
   const whole = Math.floor(cents + 1e-9)
   const dollars = Math.floor(whole / 100).toLocaleString('en-US')
   const rest = String(whole % 100).padStart(2, '0')
-  return { cents, display: `≈ $${dollars}.${rest}`, converted: true }
+  return { cents, display: `$${dollars}.${rest}`, converted: true }
 }
 const share = (cents: number) => Math.round(cents * 0.975 * 10_000) / 10_000
 const baseUnits = (cents: number) =>

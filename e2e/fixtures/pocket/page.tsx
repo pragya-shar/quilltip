@@ -71,12 +71,13 @@ export function sendElsewhere() {
 
 const NOW = Date.now()
 // `?writer-converted`: the money layer marks the writer's figures as
-// converted at today's price, written "≈" with two decimals.
+// converted at today's price: two decimals and the flag; the figure adds
+// the approximate mark.
 const base = forRole(scenario(name, NOW), role)
 const approx = (figure: Money | null): Money | null =>
   figure && {
     cents: figure.cents,
-    display: `≈ $${(Math.floor(figure.cents + 1e-9) / 100).toFixed(2)}`,
+    display: `$${(Math.floor(figure.cents + 1e-9) / 100).toFixed(2)}`,
     converted: true,
   }
 // `?no-price`: the money layer has no price for the figure.

@@ -41,11 +41,8 @@ export function PocketActivityRow({
       direction={reader ? 'out' : 'in'}
       status={words.status}
       statusText={words.short}
-      time={
-        reader
-          ? whenShort(item.at, now)
-          : `from a ${item.amount.display} tip · ${whenShort(item.at, now)}`
-      }
+      detail={reader ? undefined : `from a ${item.amount.display} tip`}
+      time={whenShort(item.at, now)}
       onPress={() => sheetStack.open(RECEIPT_SHEET, { item })}
     />
   )

@@ -18,13 +18,13 @@
 /** Integer US cents (running figures may carry 1/10,000 of a cent). */
 export type Cents = number
 
-/** An amount in dollars and its display text ("$4.20", "≈ $2.54"). */
+/** An amount in dollars and its display text ("$4.20", "$0.0975"). */
 export type Money = {
   cents: Cents
   display: string
   /** Accepted for 561: a dollar figure converted from the token at
    * today's price (the reader's Ready to tip while the balance is held in
-   * XLM). It is written with "≈" and two decimals. Figures stored at tip
+   * XLM). Two decimals; the money figure adds the approximate mark from this flag. Figures stored at tip
    * time are exact and never converted. */
   converted?: boolean
 }
