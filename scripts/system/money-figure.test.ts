@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { figureParts, figureState, spokenDollars } from '@/system/money/figure'
 
-// The money figure lays out the money layer's display text (design N2):
+// The money figure lays out the money layer's display text:
 // exact, two decimals, up to six with fractions of a cent, "≈" only for a
 // converted figure, "$0.00" below the sixth decimal, never "<$0.01".
 
@@ -106,7 +106,7 @@ describe('figureState', () => {
   })
 })
 
-describe('a converted figure (D24)', () => {
+describe('a converted figure', () => {
   it('takes the approximate mark from the flag, not from the text', () => {
     const state = figureState({
       cents: 1840,

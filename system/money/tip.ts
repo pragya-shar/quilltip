@@ -1,14 +1,13 @@
 import type { MoneyValue } from './figure'
 
 /**
- * The tip control's phases (design N1). Structurally the same as `TipPhase`
+ * The tip control's phases. Structurally the same as `TipPhase`
  * in lib/payments/types.ts, so a surface passes `useTip(...).state` straight
  * in. Sent only after the server accepted; there is no Undo. "Refused" is
  * `failed` (the server said no) or `needs-funds` (checked before sending);
  * "unavailable" is the control's `unavailable` prop.
  *
- * `other` is the slot for a phase the money layer adds. The hold (N1 phase
- * 6) uses it: `{ phase: 'other', words: 'Sending', amount, busy: true }`
+ * `other` is the slot for a phase the money layer adds. The hold uses it: `{ phase: 'other', words: 'Sending', amount, busy: true }`
  * with the control's `hold` prop.
  */
 export type TipControlPhase =
@@ -27,7 +26,7 @@ export function firstName(name: string): string {
 
 /**
  * The words on the tip button for a phase, and the amount apart from them:
- * the words may be cut with an ellipsis, the amount never is (N1 table).
+ * the words may be cut with an ellipsis, the amount never is.
  */
 export function tipButtonParts(
   state: TipControlPhase,
@@ -76,7 +75,7 @@ export function tipNote(state: TipControlPhase): string | null {
     : null
 }
 
-/** Said once when the reader cancels a hold (N1). */
+/** Said once when the reader cancels a hold. */
 export const HOLD_CANCELLED = 'Cancelled. Nothing was sent.'
 
 /**

@@ -6,7 +6,7 @@ import { BalanceIcon } from '@/system/icons'
 import { figureState, spokenDollars } from '@/system/money/figure'
 import { useBalanceReading } from './balance'
 import { POCKET } from './navigation'
-import { preloadPocket } from './pocket/loadPocket'
+import { warmPocket } from './pocket/loadPocket'
 import { openSignIn } from './signIn'
 import { sheetStack } from './sheetStack'
 import { useSheets } from './useSheets'
@@ -22,7 +22,7 @@ import { useSheets } from './useSheets'
  *   <html>), it shows "Balance" instead, so a signed-in person never sees
  *   "Sign in" flash;
  * - signed out: "Sign in";
- * - signed in: the amount ("≈ $18.40" when it is a conversion, D24), or
+ * - signed in: the amount ("≈ $18.40" when it is a conversion), or
  *   "Balance" while it loads or when payments cannot answer.
  * A screen reader hears "Balance, about 18 dollars 40. Open balance".
  */
@@ -51,8 +51,8 @@ export function BalanceItem({ className }: { className: string }) {
       aria-label={label}
       aria-haspopup={signedOut || unknown ? undefined : 'dialog'}
       aria-expanded={signedOut || unknown ? undefined : open}
-      onPointerEnter={signedOut ? undefined : preloadPocket}
-      onFocus={signedOut ? undefined : preloadPocket}
+      onPointerEnter={signedOut ? undefined : warmPocket}
+      onFocus={signedOut ? undefined : warmPocket}
       onClick={(event) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
           return

@@ -2,7 +2,7 @@
  * How the money figure lays out a dollar amount. Pure: no React, no DOM.
  *
  * The money layer (lib/payments) owns every amount and its display text
- * (design N2): exact, with two decimals and up to six when the amount has
+ *: exact, with two decimals and up to six when the amount has
  * fractions of a cent ("$1.95", "$0.0975", "$2.925"); "≈" only before a
  * figure converted at today's price (wallet holdings, the token picker,
  * figures held in a token); an amount below the sixth decimal reads "$0.00"
@@ -19,7 +19,7 @@
 /**
  * The shape the money layer hands the UI (lib/payments/types.ts `Money`).
  * `converted`: the figure is a conversion at today's price (the reader's
- * balance held in XLM, D24): written with the approximate mark, two
+ * balance held in XLM): written with the approximate mark, two
  * decimals, and heard as "about". Amounts fixed at tip time are exact and
  * never converted. The money layer sets the flag and writes `display`
  * without the mark; the figure adds it from the flag.
@@ -51,7 +51,7 @@ export function figureParts(display: string): FigureParts | null {
   const whole = match[2] ?? ''
   const fraction = match[3] ?? ''
   if (whole.length > 1 && whole.startsWith('0')) return null
-  // Exact amounts drop trailing zeros after the second decimal (N2).
+  // Exact amounts drop trailing zeros after the second decimal.
   if (fraction.length > 3 && fraction.endsWith('0')) return null
   const amount = `$${whole}${fraction}`
   return {

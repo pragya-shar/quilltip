@@ -3,7 +3,7 @@
  * Components read these names and never a raw value; a design change
  * replaces values here and touches no component.
  *
- * Values: the design hand-over (M3, decision D23), adopted whole. Names
+ * Values: the design hand-over, adopted whole. Names
  * marked NEW came with it. The cents tokens and the forced-colors block are
  * the foundation's. Contrast of every text and control pair is checked in
  * both themes by e2e/system-gallery.spec.ts.

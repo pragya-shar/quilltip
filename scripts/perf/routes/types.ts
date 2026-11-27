@@ -1,6 +1,6 @@
 /**
  * The routes a package puts under the performance checks. Budgets follow
- * the rebuild plan (4.1): public routes at most 150 KB gzip of first-load
+ * the plan's public-route limits: public routes at most 150 KB gzip of first-load
  * JavaScript, signed-in routes at most 170 KB.
  */
 /** One route of the page-load check. Sizes are compressed KB. */
@@ -12,7 +12,7 @@ export type PageLoadBudget = {
    * 4.1). Without it the check's general limit (0.1) applies. */
   cls?: number
   /** Gated median LCP on the phone profile (Moto G Power, 412 x 823,
-   * throttled), in ms. Public routes: 2000 (plan 4.1). Without it LCP is
+   * throttled), in ms. Public routes: 2000. Without it LCP is
    * reported, not gated. The desktop profile is never gated. */
   lcpMobileMs?: number
 }
@@ -26,7 +26,12 @@ export type PageLoadRoute = {
 export type PerfRoutes = {
   /** First-load JavaScript (scripts/perf/first-load.ts). `route` is the
    * route as Next.js names it: '/[username]/[slug]', '/shelf'. */
-  firstLoad?: readonly { route: string; budgetKb: number }[]
+  firstLoad?: readonly {
+    route: string
+    budgetKb: number
+    /** public: at most 150 KB; signed-in: at most 170 KB. */
+    access: 'public' | 'signed-in'
+  }[]
   /** Page-load budget (scripts/perf/page-load-budget.ts). `path` is a real
    * URL on the fixture backend. */
   pageLoad?: readonly PageLoadRoute[]

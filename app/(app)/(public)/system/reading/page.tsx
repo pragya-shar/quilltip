@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 }
 
 /**
- * A public reading page built the required way (D19), on sample text: the
+ * A public reading page built the required way, on sample text: the
  * article is server HTML in the first response, links are plain links, and
  * the tip control is an island beside the text. The no-script suite runs
  * against it until the real article page lands.

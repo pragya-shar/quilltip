@@ -89,7 +89,7 @@ export function ReadingSection() {
           </Prose>
         </div>
       </Specimen>
-      <Specimen name="Could not reach (D21)">
+      <Specimen name="Could not reach">
         <ReadingUnavailable
           what="This article"
           retryHref="/system/reading"

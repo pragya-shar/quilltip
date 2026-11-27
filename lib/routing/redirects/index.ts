@@ -1,5 +1,5 @@
 /**
- * Every legacy path that ends in a redirect (rebuild plan 5.3), read by
+ * Every legacy path that ends in a redirect, read by
  * proxy.ts. Each package owns one file here and edits only that file; this
  * index lists the files once. Rules (tested in
  * scripts/rebuild/redirects.test.ts): `from` is an exact path and appears

@@ -29,13 +29,16 @@ describe('measured routes from scripts/perf/routes', () => {
     ])
   })
 
-  it('gives each first-load route a budget within the plan (170 KB at most)', () => {
+  it('gives each first-load route a budget within its limit', () => {
     const routes = SURFACE_FIRST_LOAD.map((e) => e.route)
     expect(new Set(routes).size).toBe(routes.length)
     for (const entry of SURFACE_FIRST_LOAD) {
       expect(entry.route).toMatch(/^\//)
       expect(entry.budgetKb).toBeGreaterThan(0)
-      expect(entry.budgetKb).toBeLessThanOrEqual(170)
+      // Public routes at most 150 KB; signed-in routes at most 170 KB.
+      expect(entry.budgetKb, entry.route).toBeLessThanOrEqual(
+        entry.access === 'public' ? 150 : 170
+      )
       expect(FIRST_LOAD_ROUTES).toContain(entry.route)
       expect(FIRST_LOAD_BUDGET_KB[entry.route]).toBe(entry.budgetKb)
     }

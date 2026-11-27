@@ -5,7 +5,7 @@ import { Icon } from './Icon'
 import { LineOverlay } from './LineOverlay'
 
 /**
- * The states of a line (design N5). Each has a cue that does not rest on
+ * The states of a line. Each has a cue that does not rest on
  * colour (marker on paper is 1.1:1):
  * - `others-top`: tipped by other readers, one of the top two lines of the
  *   page: soft fill, and the tip count after the line in marker-ink.

@@ -27,7 +27,7 @@ type MoneyFigureProps = {
 }
 
 /**
- * A dollar amount, exactly as the money layer wrote it (N2): "$18.40",
+ * A dollar amount, exactly as the money layer wrote it: "$18.40",
  * "$0.0975", or "≈ $17.28" for a converted figure. At the serif sizes the
  * cents, and any further digits, draw raised and smaller. Figures are tabular,
  * so a changing amount never shifts its neighbours. Until the server

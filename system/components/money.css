@@ -350,7 +350,7 @@
     }
   }
 
-  /* Passage marks (design N5). The fill never carries meaning alone:
+  /* Passage marks. The fill never carries meaning alone:
    * every state has a cue in shape or words. */
   .qt-mark {
     --qt-mark-fill: transparent;
@@ -508,7 +508,7 @@
     cursor: not-allowed;
   }
 
-  /* The hold (N1 phase 6): the status, the projected balance under it, and
+  /* The hold (the hold before sending): the status, the projected balance under it, and
    * a band that fills across the pill over --qt-dur-hold, linear, restarted
    * by +$1. The words carry the meaning; the band is the countdown. */
   .qt-tip__button {

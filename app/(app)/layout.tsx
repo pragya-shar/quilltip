@@ -37,7 +37,7 @@ export const viewport: Viewport = {
  * design system's CSS and the reading face, and composes its own providers.
  * No loading.tsx or Suspense sits above page content in this group's root
  * or public segment: reading arrives in the first response and works with
- * no script (D19). Loading boundaries belong in app/(app)/(signed-in)/.
+ * no script. Loading boundaries belong in app/(app)/(signed-in)/.
  */
 export default async function AppRootLayout({
   children,

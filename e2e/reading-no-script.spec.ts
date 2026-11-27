@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-// Public reading in the application shell works with no script (D19): the
+// Public reading in the application shell works with no script: the
 // article is in the first response, visible, with plain links. Runs against
 // a production build (scripts/app-checks/run.ts) with JavaScript
 // turned off, in Chromium and WebKit. Add each public route of the shell

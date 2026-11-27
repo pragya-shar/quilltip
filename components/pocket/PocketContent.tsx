@@ -18,6 +18,15 @@ import { useBalanceReading } from '@/shell/balance'
  */
 export function PocketContent() {
   const reading = useBalanceReading()
+  if (reading.auth === 'loading') {
+    // Who is here is not known yet: a neutral placeholder, no signed-in
+    // words and no sign-in prompt.
+    return (
+      <div className="qt-pocket" aria-busy="true">
+        <MoneyFigure value={null} status="loading" size="xl" />
+      </div>
+    )
+  }
   if (reading.auth === 'signed-out') {
     return (
       <div className="qt-pocket">
@@ -38,7 +47,7 @@ export function PocketContent() {
     <div className="qt-pocket">
       <MoneyFigure
         value={reading.available}
-        status={reading.auth === 'loading' ? 'loading' : reading.status}
+        status={reading.status}
         size="xl"
         label="Ready to tip"
       />

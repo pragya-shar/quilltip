@@ -16,7 +16,7 @@ import { Icon } from './Icon'
 import { Spinner } from './Spinner'
 
 /**
- * The hold before sending (N1 phase 6), as the money layer's controller
+ * The hold before sending (the hold before sending), as the money layer's controller
  * describes it. The control draws it; it keeps no timer of its own.
  */
 export type TipHold = {
@@ -76,7 +76,7 @@ function focusLost(root: HTMLElement | null): boolean {
 }
 
 /**
- * The main action (design N1): a labelled button that states the amount
+ * The main action: a labelled button that states the amount
  * ("Tip Tomás $1", "Tip this line $1"), with a visible amount button that
  * works by tap and by keyboard; choosing an amount never sends. While a tip
  * is held or sending, the button becomes a status and focus moves to it;

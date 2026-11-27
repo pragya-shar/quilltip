@@ -10,7 +10,7 @@ type ReadingUnavailableProps = {
 }
 
 /**
- * A public page whose bounded server read failed or ran out of time (D21).
+ * A public page whose bounded server read failed or ran out of time.
  * It reads with no script: a plain message and a plain link that loads the
  * page again. The page still answers 200, so it asks search engines not to
  * index it; the route sends `Cache-Control: no-store` (dynamic pages already

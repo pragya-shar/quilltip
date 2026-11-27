@@ -5,7 +5,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 type Rect = { top: number; left: number; width: number; height: number }
 
 /**
- * What a passage mark draws outside its text (design N5): the margin tick of
+ * What a passage mark draws outside its text: the margin tick of
  * a chosen line or of your place, and the hold's band, one bar per wrapped
  * line, filled left to right in turn over the hold. It measures the mark's
  * line boxes against the reading column (`.qt-prose`, positioned) and

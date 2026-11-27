@@ -564,7 +564,7 @@ test('reduced motion: overlays and the tip control change without travel', async
       0,
       ...document
         .getAnimations()
-        // The hold's countdown and band keep their length (N6).
+        // The hold's countdown and band keep their length.
         .filter(
           (a) =>
             !['qt-hold-fill', 'qt-band'].includes(
