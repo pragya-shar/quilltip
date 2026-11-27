@@ -148,11 +148,21 @@ test('legacy guide reaches public wallet help and installation preserves the tas
     })
     await expect(dialog).toBeVisible()
     for (const [name, href] of [
-      ['Varial Formerly Freighter Open site', 'https://varialwallet.com'],
-      ['xBull Open site', 'https://xbull.app'],
-      ['LOBSTR Open site', 'https://lobstr.co'],
       [
-        'Albedo Web wallet; needs an HTTPS page Open site',
+        'Varial Formerly Freighter. Browser extension Open site',
+        'https://varialwallet.com',
+      ],
+      ['xBull Browser extension Open site', 'https://xbull.app'],
+      ['Rabet Browser extension Open site', 'https://rabet.io'],
+      ['Hana Browser extension Open site', 'https://hanawallet.io'],
+      ['Scopuly Browser extension Open site', 'https://extension.scopuly.com'],
+      ["D'CENT Browser extension Open site", 'https://dcentwallet.com'],
+      [
+        'xBull Web wallet; opens in a new window Open site',
+        'https://wallet.xbull.app',
+      ],
+      [
+        'Albedo Web wallet; opens in a new window Open site',
         'https://albedo.link',
       ],
     ] as const) {

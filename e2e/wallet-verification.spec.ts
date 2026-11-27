@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page } from './helpers/consoleGuard'
 import {
   installVarialEmulator,
   type VarialMode,
@@ -24,6 +24,14 @@ async function open(page: Page, query: string, mode: VarialMode = 'connected') {
   await page.addInitScript(installVarialEmulator, { mode, address: UNUSED })
   await page.goto(`/?view=verify&${query}`)
   return page.getByRole('region', { name: 'Receiving wallet' })
+}
+
+async function openDashboard(page: Page, query: string) {
+  await page.addInitScript(installVarialEmulator, {
+    mode: 'connected' as const,
+    address: UNUSED,
+  })
+  await page.goto(`/?view=dashboard&${query}`)
 }
 
 async function chooseVarial(page: Page) {
@@ -165,3 +173,35 @@ for (const width of [375, 768, 1440]) {
     expect(box!.height).toBeGreaterThanOrEqual(44)
   })
 }
+
+test('dashboard: verifying the address logs no errors and saves it once (#512)', async ({
+  page,
+}) => {
+  await openDashboard(page, 'link=unverified')
+  const dashboard = page.getByRole('region', { name: 'Dashboard wallet' })
+  await expect(dashboard).toContainText('Your receiving address is saved.')
+  await dashboard.getByText('Manage receiving address').click()
+  await dashboard
+    .getByRole('button', { name: /verify/i })
+    .first()
+    .click()
+  await chooseVarial(page)
+  await expect(
+    dashboard.getByText('Verified', { exact: true }).first()
+  ).toBeVisible()
+  expect(await proofs(page)).toEqual(['message'])
+  // The console guard fails this test on any "Maximum update depth" error.
+  await page.waitForTimeout(500)
+})
+
+test('dashboard: a verified address loads with the wallet disconnected and no errors (#512)', async ({
+  page,
+}) => {
+  await openDashboard(page, 'link=verified')
+  const dashboard = page.getByRole('region', { name: 'Dashboard wallet' })
+  await expect(dashboard).toContainText('Not connected')
+  await expect(dashboard).toContainText(
+    'Your receiving address is saved. You can receive tips while disconnected.'
+  )
+  await page.waitForTimeout(1500)
+})
