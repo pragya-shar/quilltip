@@ -34,7 +34,7 @@ const pocket = (page: Page) =>
 
 const balanceItem = (page: Page) => page.locator('[data-balance]:visible')
 
-/** What the person sees in a figure: "≈$2.54". */
+/** What the person sees in a figure: "$2.5466". */
 const digits = (root: Locator, label: string) =>
   root
     .locator('.qt-money', {
@@ -132,7 +132,7 @@ test.describe('over what the person is doing', () => {
     expect(panel!.x).toBeGreaterThanOrEqual(main!.x + main!.width - 1)
     // The page stays usable beside it.
     await expect(page.locator('#p-1')).toBeVisible()
-    await expect(digits(pocket(page), 'Ready to tip')).toHaveText('≈$2.54')
+    await expect(digits(pocket(page), 'Ready to tip')).toHaveText('$2.5466')
   })
 
   test('/pocket is a page with the same content', async ({ page }) => {
@@ -141,7 +141,7 @@ test.describe('over what the person is doing', () => {
       page.getByRole('heading', { level: 1, name: 'Balance' })
     ).toBeVisible()
     await expect(digits(page.locator('.qt-pocket'), 'Ready to tip')).toHaveText(
-      '≈$2.54'
+      '$2.5466'
     )
     await expect(page.locator('noscript')).toHaveCount(1)
   })
@@ -157,45 +157,49 @@ type Expect = {
 }
 
 const A_READER = 'A reader'
+// Money text per design N2: exact, up to six decimals, no "≈" (the
+// fixture writes it as the money layer will).
 const SCENARIOS: Record<string, Expect> = {
   ready: {
-    spend: '≈$2.54',
-    earnings: { withdraw: '$0.68', onWay: '$0.00' },
+    spend: '$2.5466',
+    earnings: { withdraw: '$0.6825', onWay: '$0.00' },
     rows: 6,
-    texts: ['An estimate at today’s price.', 'Testnet. Practice money only.'],
+    texts: [
+      'New accounts get $5 of testnet practice money.',
+      'Withdrawing arrives in a later update.',
+      'These are your share. You keep 97.5% of every tip.',
+      'Quilltip runs on Stellar testnet. Tips are practice money.',
+    ],
+    absent: [/≈/, /Pocket/],
   },
   available: {
-    spend: '≈$2.54',
-    earnings: { withdraw: '$0.68', onWay: '$0.00' },
+    spend: '$2.5466',
+    earnings: { withdraw: '$0.6825', onWay: '$0.00' },
     rows: 6,
   },
-  sending: { spend: '≈$2.44', earnings: null, rows: 1, texts: ['Sending'] },
+  sending: { spend: '$2.4466', earnings: null, rows: 1, texts: ['Sending'] },
   sent: {
-    spend: '≈$2.44',
+    spend: '$2.4466',
     earnings: {
       withdraw: '$0.00',
-      onWay: '$0.09',
+      onWay: '$0.0975',
       onWayLabel: 'On its way, 1 tip',
     },
     rows: 2,
-    texts: [
-      'in tips on its way to writers',
-      'On its way',
-      'Nothing to withdraw yet. Tips on their way',
-    ],
+    texts: ['in tips on its way to writers', 'On its way'],
   },
   pending: {
-    spend: '≈$2.54',
+    spend: '$2.5466',
     earnings: {
-      withdraw: '$0.09',
-      onWay: '$0.48',
+      withdraw: '$0.0975',
+      onWay: '$0.4875',
       onWayLabel: 'On its way, 1 tip',
     },
     rows: 4,
     texts: ['in tips on its way to writers'],
   },
   lagging: {
-    earnings: { withdraw: '$0.00', onWay: '$0.09' },
+    earnings: { withdraw: '$0.00', onWay: '$0.0975' },
     rows: 2,
     texts: [
       'On its way, slower than usual',
@@ -203,7 +207,7 @@ const SCENARIOS: Record<string, Expect> = {
     ],
   },
   failed: {
-    spend: '≈$2.54',
+    spend: '$2.5466',
     earnings: { withdraw: '$0.00', onWay: '$0.00' },
     rows: 4,
     texts: [
@@ -214,20 +218,20 @@ const SCENARIOS: Record<string, Expect> = {
     ],
   },
   'partly-paid': {
-    earnings: { withdraw: '$0.19', onWay: '$0.00' },
+    earnings: { withdraw: '$0.195', onWay: '$0.00' },
     rows: 4,
     texts: ['Paid in part, the rest is waiting', /^Paid in part$/m],
     absent: [/not charged/],
   },
   empty: {
-    spend: '≈$2.54',
+    spend: '$2.5466',
     earnings: null,
     rows: 0,
     texts: ['Your tips show up here.'],
   },
   none: { spend: '$0.00', earnings: null, rows: 0 },
   offline: {
-    spend: '≈$2.54',
+    spend: '$2.5466',
     rows: 6,
     texts: ['Offline. These figures are from 2 minutes ago.'],
   },
@@ -266,9 +270,7 @@ test.describe('every money scenario', () => {
               hasText: want.earnings.onWayLabel,
             })
           ).toHaveCount(1)
-        await expect(
-          root.locator('.qt-pocket__collected .qt-money__digits')
-        ).toHaveText('$0.00')
+        await expect(digits(root, 'Paid to your wallet')).toHaveText('$0.00')
       }
       if (want.rows !== undefined)
         await expect(root.locator('.qt-pocket__rows > li')).toHaveCount(
@@ -279,6 +281,13 @@ test.describe('every money scenario', () => {
         if (typeof t === 'string') expect(text).toContain(t)
         else expect(await root.innerText()).toMatch(t)
       for (const t of want.absent ?? []) expect(text).not.toMatch(t)
+      // The first release offers no control that does nothing (design N3).
+      await expect(root.getByRole('button', { name: /Add money/ })).toHaveCount(
+        0
+      )
+      await expect(root.getByRole('button', { name: /^Withdraw/ })).toHaveCount(
+        0
+      )
       if (want.noFigures) {
         // No dollar figure of any kind while loading or unavailable.
         expect(await root.textContent()).not.toMatch(/\$\s?\d/)
@@ -288,25 +297,32 @@ test.describe('every money scenario', () => {
     })
   }
 
-  test('a received tip names no one', async ({ page }) => {
+  test('a tip to you shows your share and the tip it came from', async ({
+    page,
+  }) => {
     await page.goto('/pocket?scenario=ready&role=writer')
     const rows = page.locator('.qt-pocket__rows > li')
     await expect(rows).toHaveCount(3)
     for (const row of await rows.all())
       await expect(row).toContainText(A_READER)
+    await expect(rows.first().locator('.qt-money__digits')).toHaveText(
+      '+$0.0975'
+    )
+    await expect(rows.first()).toContainText('from a $0.10 tip')
     await expect(page.locator('.qt-pocket__rows')).not.toContainText(
       'Theo Marsh'
     )
   })
 
-  test('sent and received are two labelled lists, received first for a writer', async ({
-    page,
-  }) => {
+  test('Your tips and Tips to you are two labelled lists', async ({ page }) => {
     await page.goto('/pocket?scenario=ready')
     const titles = page.locator('.qt-pocket__list-title')
-    await expect(titles).toHaveText(['Tips you received', 'Tips you sent'])
-    await expect(page.locator('[data-role="writer"] > li')).toHaveCount(3)
+    await expect(titles).toHaveText(['Your tips', 'Tips to you'])
     await expect(page.locator('[data-role="reader"] > li')).toHaveCount(3)
+    await expect(page.locator('[data-role="writer"] > li')).toHaveCount(3)
+    await expect(
+      page.locator('[data-role="reader"] .qt-money__digits').first()
+    ).toHaveText('−$0.10')
   })
 
   test('a writer with nothing yet sees one plain line', async ({ page }) => {
@@ -331,9 +347,8 @@ test.describe('every money scenario', () => {
   }) => {
     await page.goto('/pocket?scenario=lagging&role=writer')
     const root = page.locator('.qt-pocket')
-    await expect(digits(root, 'On its way')).toHaveText('$0.09')
+    await expect(digits(root, 'On its way')).toHaveText('$0.0975')
     await expect(digits(root, 'Ready to withdraw')).toHaveText('$0.00')
-    await expect(root.getByRole('button', { name: 'Withdraw' })).toHaveCount(0)
   })
 
   test('the exact token amount is one tap away', async ({ page }) => {
@@ -368,6 +383,17 @@ test.describe('every money scenario', () => {
   })
 })
 
+/** Opens Add money the way the tip bar does: a tip the balance cannot cover. */
+async function openAddMoney(page: Page) {
+  const tip = page.locator('[data-fixture="needs-funds"]')
+  await tip.focus()
+  await press(tip)
+  const sheet = page.getByRole('dialog', { name: 'Add money to tip $1.00' })
+  await expect(sheet).toBeVisible()
+  await settled(page)
+  return sheet
+}
+
 test.describe('receipts and money sheets', () => {
   test('a row opens its receipt as a sheet; the split is stated once', async ({
     page,
@@ -387,7 +413,7 @@ test.describe('receipts and money sheets', () => {
       '$0.10'
     )
     await expect(
-      receipt.getByText('9.75¢, after Quilltip’s 0.25¢')
+      receipt.getByText('$0.0975, after Quilltip’s $0.0025')
     ).toHaveCount(1)
     await expect(receipt.getByRole('link', { name: /^View/ })).toHaveAttribute(
       'href',
@@ -406,22 +432,23 @@ test.describe('receipts and money sheets', () => {
     await press(page.getByRole('button', { name: 'Theo Marsh' }).first())
     const receipt = page.getByRole('dialog', { name: 'Receipt' })
     await expect(receipt).toContainText(
-      '10¢ reached the writer; 15¢ is waiting'
+      '$0.10 reached the writer; $0.15 is waiting'
     )
     await expect(receipt).not.toContainText('not charged')
   })
 
-  test('Add money says what will be possible and offers no fake action', async ({
+  test('Add money from a tip says what will be possible and offers no fake action', async ({
     page,
   }) => {
-    await page.goto('/?scenario=ready')
-    await openFromBar(page)
-    const add = pocket(page).getByRole('button', { name: 'Add money' })
-    await add.focus()
-    await press(add)
-    const sheet = page.getByRole('dialog', { name: 'Add money' })
-    await expect(sheet).toBeVisible()
-    await expect.poll(async () => (await focused(page)).text).toBe('Add money')
+    await page.goto('/article?scenario=ready')
+    const sheet = await openAddMoney(page)
+    expect(new URL(page.url()).pathname).toBe('/article')
+    await expect
+      .poll(async () => (await focused(page)).text)
+      .toBe('Add money to tip $1.00')
+    await expect(sheet).toContainText(
+      'Nothing is sent until you tap Tip again.'
+    )
     await expect(
       sheet.getByRole('button', { name: /practice money/ })
     ).toHaveCount(0)
@@ -429,11 +456,15 @@ test.describe('receipts and money sheets', () => {
     await expect(
       sheet.getByRole('link', { name: 'add money on the current balance page' })
     ).toHaveAttribute('href', '/dashboard/tab')
-    await expect(sheet.getByText('Testnet. Practice money only.')).toHaveCount(
-      1
-    )
     await page.keyboard.press('Escape')
-    await expect.poll(async () => (await focused(page)).text).toBe('Add money')
+    await expect
+      .poll(
+        async () =>
+          await page.evaluate(() =>
+            document.activeElement?.getAttribute('data-fixture')
+          )
+      )
+      .toBe('needs-funds')
   })
 
   test('a money act moves focus to its status, then its result', async ({
@@ -471,20 +502,18 @@ test.describe('receipts and money sheets', () => {
     ).toBeVisible()
   })
 
-  test('Withdraw shows only what is ready, with no fake action', async ({
+  test('Withdraw appears with its act and moves the exact figure', async ({
     page,
   }) => {
-    await page.goto('/pocket?scenario=ready&role=writer')
-    await press(page.getByRole('button', { name: 'Withdraw' }))
+    await page.goto('/pocket?scenario=ready&role=writer&act=withdraw')
+    await press(page.getByRole('button', { name: 'Withdraw $0.6825' }))
     const sheet = page.getByRole('dialog', { name: 'Withdraw' })
-    await expect(sheet.locator('.qt-money__digits')).toHaveText('$0.68')
+    await expect(sheet.locator('.qt-money__digits')).toHaveText('$0.6825')
     await expect(sheet).toContainText('Tips on their way are not included.')
-    await expect(sheet.getByRole('button', { name: 'Withdraw' })).toHaveCount(0)
-    await expect(
-      sheet.getByRole('link', {
-        name: 'collect it on the current earnings page',
-      })
-    ).toHaveAttribute('href', '/dashboard/stats')
+    await press(sheet.getByRole('button', { name: 'Withdraw $0.6825' }))
+    await expect
+      .poll(async () => (await focused(page)).text)
+      .toBe('$0.6825 sent to your wallet')
   })
 })
 
@@ -536,12 +565,8 @@ test.describe('focus, contrast and fit', () => {
       await expect(page.getByRole('dialog', { name: 'Receipt' })).toBeVisible()
       await settled(page)
       expect(await auditTextContrast(page), 'receipt').toEqual([])
-      await page.keyboard.press('Escape')
-      await press(page.getByRole('button', { name: 'Add money' }))
-      await expect(
-        page.getByRole('dialog', { name: 'Add money' })
-      ).toBeVisible()
-      await settled(page)
+      await page.goto('/article?scenario=ready')
+      await openAddMoney(page)
       expect(await auditTextContrast(page), 'add money').toEqual([])
       expect(await auditControlContrast(page), 'add money').toEqual([])
     })

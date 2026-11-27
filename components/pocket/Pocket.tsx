@@ -74,7 +74,7 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
   const isWriter = !authLoading && writes(earnings)
   const activity: PocketActivity = authLoading
     ? { status: 'loading', lists: [] }
-    : activityLists(reader, writer, isWriter)
+    : activityLists(reader, writer)
   const down =
     !authLoading &&
     balance.status === 'unavailable' &&
@@ -100,12 +100,14 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
         balance={balance}
         authLoading={authLoading}
         compact={isWriter}
-        quietAdd={isWriter && (earnings.available?.cents ?? 0) > 0}
       />
       {isWriter ? (
         <EarningsSection earnings={earnings} headingLevel={headingLevel} />
       ) : null}
       <ActivitySection activity={activity} headingLevel={headingLevel} />
+      <TestnetNote>
+        Quilltip runs on Stellar testnet. Tips are practice money.
+      </TestnetNote>
     </div>
   )
 }

@@ -73,7 +73,12 @@ export function sendElsewhere() {
 const NOW = Date.now()
 const views = forRole(scenario(name, NOW), role)
 
-function useFakeAct(label: string, ok: string, fail: boolean): MoneyAct {
+function useFakeAct(
+  label: string,
+  working: string,
+  ok: string,
+  fail: boolean
+): MoneyAct {
   const [state, setState] = useState<MoneyActPhase>({ phase: 'idle' })
   useEffect(() => {
     if (state.phase !== 'working') return
@@ -94,7 +99,7 @@ function useFakeAct(label: string, ok: string, fail: boolean): MoneyAct {
   return {
     label,
     state,
-    start: () => setState({ phase: 'working', status: 'Adding $5' }),
+    start: () => setState({ phase: 'working', status: working }),
     reset: () => setState({ phase: 'idle' }),
   }
 }
@@ -115,13 +120,19 @@ const source: PocketSource = {
   useAddMoney: () => {
     const act = useFakeAct(
       'Add $5 practice money',
+      'Adding $5',
       '$5 added to your balance',
       actKind === 'add-fail'
     )
     return actKind === 'add' || actKind === 'add-fail' ? act : null
   },
   useWithdraw: () => {
-    const act = useFakeAct('Withdraw', 'Sent to your wallet', false)
+    const act = useFakeAct(
+      'Withdraw $0.6825',
+      'Withdrawing $0.6825',
+      '$0.6825 sent to your wallet',
+      false
+    )
     return actKind === 'withdraw' ? act : null
   },
 }

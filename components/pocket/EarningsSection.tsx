@@ -7,6 +7,7 @@ import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { Notice } from '@/system/components/Notice'
 import { PendingIcon, WithdrawIcon } from '@/system/icons'
 import { sheetStack } from '@/shell/sheetStack'
+import { usePocketSource } from './source'
 import { tipsCount } from './copy'
 import { WITHDRAW_SHEET } from './sheetIds'
 import type { EarningsView } from './types'
@@ -17,8 +18,10 @@ const positive = (money: { cents: number } | null | undefined) =>
 /**
  * A writer's money, three figures kept apart (D10): ready to withdraw
  * (arrived, collectable now), on its way (accepted, not arrived) and paid to
- * your wallet (collected). Slow and failed tips are said in words beside
- * them; nothing here adds figures up.
+ * your wallet (collected). Each is the sum of the shares its rows show, net
+ * of the 2.5%, said once (design N2). Slow and failed tips are said in
+ * words beside them; nothing here adds figures up. Withdraw appears only
+ * once the money layer can withdraw (design N3).
  */
 export function EarningsSection({
   earnings,
@@ -27,6 +30,7 @@ export function EarningsSection({
   earnings: EarningsView
   headingLevel: 2 | 3
 }) {
+  const withdraw = usePocketSource().useWithdraw()
   const status =
     earnings.status === 'ready'
       ? 'ready'
@@ -65,14 +69,14 @@ export function EarningsSection({
   return (
     <section className="qt-pocket__earn" aria-labelledby="pocket-earnings">
       {heading}
+      <MoneyFigure
+        value={available}
+        status={status}
+        size="xl"
+        label="Ready to withdraw"
+        unavailableText="Not available right now"
+      />
       <div className="qt-pocket__pair">
-        <MoneyFigure
-          value={available}
-          status={status}
-          size="l"
-          label="Ready to withdraw"
-          unavailableText="Not available right now"
-        />
         <MoneyFigure
           value={ready ? earnings.pending : null}
           status={status}
@@ -87,17 +91,15 @@ export function EarningsSection({
           }
           unavailableText="Not available"
         />
-      </div>
-      <p className="qt-pocket__collected">
         <MoneyFigure
           value={ready ? earnings.collected : null}
           status={status}
-          size="s"
+          size="m"
+          label="Paid to your wallet"
           unavailableText="Not available"
         />
-        <span>paid to your wallet</span>
-      </p>
-      {available && positive(available) ? (
+      </div>
+      {withdraw && available && positive(available) ? (
         <Button
           variant="primary"
           size="l"
@@ -107,14 +109,19 @@ export function EarningsSection({
         >
           {`Withdraw ${available.display}`}
         </Button>
-      ) : ready ? (
+      ) : ready && !withdraw ? (
+        <p className="qt-pocket__plain">
+          Withdrawing arrives in a later update. Your earnings stay here, ready.
+        </p>
+      ) : ready && pendingCount > 0 ? (
         <p className="qt-pocket__fine">
-          {pendingCount > 0
-            ? 'Nothing to withdraw yet. Tips on their way move here when they arrive, usually within a minute.'
-            : 'Nothing to withdraw yet.'}
+          Nothing to withdraw yet. Tips on their way move here when they arrive,
+          usually within a minute.
         </p>
       ) : null}
-      <p className="qt-pocket__fine">You keep 97.5% of every tip.</p>
+      <p className="qt-pocket__fine">
+        These are your share. You keep 97.5% of every tip.
+      </p>
       {ready && earnings.lagging ? (
         <Notice tone="pending">
           Some tips are taking longer than usual. They stay On its way until

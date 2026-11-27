@@ -50,24 +50,22 @@ const view = (
 })
 
 describe('the Pocket activity: two labelled lists, never merged', () => {
-  it('shows each list that has rows, received first for a writer', () => {
+  it('shows each list that has rows: Your tips, then Tips to you', () => {
     const lists = activityLists(
       view([tip('reader', 'r1', 30)]),
-      view([tip('writer', 'w1', 20)]),
-      true
+      view([tip('writer', 'w1', 20)])
     )
     expect(lists.status).toBe('ready')
     expect(lists.lists.map((l) => l.title)).toEqual([
-      'Tips you received',
-      'Tips you sent',
+      'Your tips',
+      'Tips to you',
     ])
   })
 
   it('leaves out an empty list and keeps the server order', () => {
     const lists = activityLists(
       view([tip('reader', 'r2', 10), tip('reader', 'r1', 30)]),
-      view([]),
-      false
+      view([])
     )
     expect(lists.lists).toHaveLength(1)
     expect(lists.lists[0]!.view.items.map((i) => i.id)).toEqual(['r2', 'r1'])
@@ -75,20 +73,18 @@ describe('the Pocket activity: two labelled lists, never merged', () => {
 
   it('is loading until both answer, empty with no rows, unavailable when neither can answer', () => {
     expect(
-      activityLists(view([], { status: 'loading' }), view([]), false).status
+      activityLists(view([], { status: 'loading' }), view([])).status
     ).toBe('loading')
-    expect(activityLists(view([]), view([]), false).status).toBe('empty')
+    expect(activityLists(view([]), view([])).status).toBe('empty')
     expect(
       activityLists(
         view([], { status: 'unavailable' }),
-        view([], { status: 'unavailable' }),
-        false
+        view([], { status: 'unavailable' })
       ).status
     ).toBe('unavailable')
     const one = activityLists(
       view([tip('reader', 'r1', 1)]),
-      view([], { status: 'unavailable' }),
-      false
+      view([], { status: 'unavailable' })
     )
     expect(one.lists.map((l) => l.view.status)).toEqual([
       'ready',

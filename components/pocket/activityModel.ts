@@ -12,28 +12,26 @@ export type PocketActivity =
   | { status: 'loading' | 'unavailable' | 'empty'; lists: [] }
   | { status: 'ready'; lists: ActivityList[] }
 
-const TITLES = { reader: 'Tips you sent', writer: 'Tips you received' }
+const TITLES = { reader: 'Your tips', writer: 'Tips to you' }
 
 /**
  * The tips a person sent and the tips they received, as two labelled lists,
  * each newest first and paged by the server on its own. They are never
  * merged on the client: a merge across two paged lists can show a row ahead
  * of an older page that is not loaded yet. One server-ordered list replaces
- * this when the money layer has it. A writer sees what they received first.
+ * this when the money layer has it (design N3: "Your tips", then "Tips to
+ * you").
  */
 export function activityLists(
   reader: ActivityView,
-  writer: ActivityView,
-  writerFirst: boolean
+  writer: ActivityView
 ): PocketActivity {
   const both = [reader, writer]
   if (both.some((view) => view.status === 'loading'))
     return { status: 'loading', lists: [] }
   if (both.every((view) => view.status === 'unavailable'))
     return { status: 'unavailable', lists: [] }
-  const order: ActivityList['role'][] = writerFirst
-    ? ['writer', 'reader']
-    : ['reader', 'writer']
+  const order: ActivityList['role'][] = ['reader', 'writer']
   const lists: ActivityList[] = []
   for (const role of order) {
     const view = role === 'reader' ? reader : writer

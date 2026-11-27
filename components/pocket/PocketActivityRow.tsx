@@ -10,10 +10,10 @@ import { RECEIPT_SHEET } from './sheetIds'
 import type { ActivityItem } from './types'
 
 /**
- * One money movement; the whole row opens its receipt as a sheet. The
- * amount is the tip as the reader sent it, on both sides; the writer's
- * share and the fee are on the receipt. A tip received names no one (D4):
- * it is from "A reader".
+ * One money movement; the whole row opens its receipt as a sheet. A tip you
+ * sent shows the tip as sent ("−$1.00"); a tip to you shows your share and
+ * the tip it came from ("+$0.0975", "from a $0.10 tip"), so the rows add up
+ * to the figures above them (design N2). A tip received names no one (D4).
  */
 export function PocketActivityRow({
   item,
@@ -37,11 +37,15 @@ export function PocketActivityRow({
       }
       name={reader ? item.counterparty.name : 'A reader'}
       about={item.passage ?? item.article.title}
-      amount={item.amount}
+      amount={reader ? item.amount : item.net}
       direction={reader ? 'out' : 'in'}
       status={words.status}
       statusText={words.short}
-      time={whenShort(item.at, now)}
+      time={
+        reader
+          ? whenShort(item.at, now)
+          : `from a ${item.amount.display} tip · ${whenShort(item.at, now)}`
+      }
       onPress={() => sheetStack.open(RECEIPT_SHEET, { item })}
     />
   )

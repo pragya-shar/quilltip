@@ -13,9 +13,9 @@ import type { ActivityItem } from './types'
 export type ReceiptProps = { item: ActivityItem }
 
 /**
- * One tip's receipt, over the Pocket. The figure is the tip as sent; the
- * writer's exact share and Quilltip's fee are stated once, below. A tip
- * received names no one (D4).
+ * One tip's receipt, over the balance. The figure is what the row showed:
+ * the tip as sent, or your share of a tip to you. The exact share and
+ * Quilltip's fee are stated once, below. A tip received names no one (D4).
  */
 export function ReceiptSheet({
   open,
@@ -38,13 +38,13 @@ export function ReceiptSheet({
       <div className="qt-pocket__receipt">
         <div className="qt-pocket__slip">
           <MoneyFigure
-            value={item.amount}
+            value={reader ? item.amount : item.net}
             size="m"
             tone={words.status === 'failed' ? 'muted' : 'default'}
             label={
               reader
                 ? `to ${item.counterparty.name} for ${item.passage ? 'this line' : 'the article'}`
-                : `from a reader for ${item.passage ? 'this line' : 'your article'}`
+                : `your share of a ${item.amount.display} tip from a reader, for ${item.passage ? 'this line' : 'your article'}`
             }
           />
           {item.passage ? (

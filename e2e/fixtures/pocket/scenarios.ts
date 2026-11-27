@@ -4,7 +4,8 @@
  * names and the same figures (50¢, 10¢ and 10¢ tips; 97.5% to the writer),
  * plus `none`: a signed-in account the server confirmed is empty. Here the
  * fixture plays the money layer, so it writes the display text and the
- * exact formatters; the Pocket itself never formats money. Replaced by
+ * exact formatters, in design N2's money text (exact, no "≈"); the Pocket
+ * itself never formats money. Replaced by
  * `fakeRuntime` when 561 merges.
  *
  * `role` shows one side only: a person who only reads (the money layer says
@@ -48,26 +49,23 @@ const PRICE = 12.7328 // cents per XLM in the real run
 const STROOPS = 10_000_000
 const noop = () => {}
 
-function floorCents(cents: number) {
-  const whole = Math.max(0, Math.floor(cents + 1e-9))
-  const dollars = Math.floor(whole / 100).toLocaleString('en-US')
-  return `$${dollars}.${String(whole % 100).padStart(2, '0')}`
+/**
+ * Money text as design N2 writes it, the fixture standing in for the money
+ * layer: exact, two decimals, up to six when there are fractions of a cent
+ * ("$0.0975"), trailing zeros after the second dropped, never rounded.
+ */
+export function exactCents(cents: number) {
+  const millionths = Math.round(Math.max(0, cents) * 10_000)
+  const whole = Math.floor(millionths / 1_000_000)
+  let fraction = String(millionths % 1_000_000).padStart(6, '0')
+  while (fraction.length > 2 && fraction.endsWith('0'))
+    fraction = fraction.slice(0, -1)
+  return `$${whole.toLocaleString('en-US')}.${fraction}`
 }
-const money = (cents: number): Money => ({ cents, display: floorCents(cents) })
-const approx = (cents: number): Money => ({
-  cents,
-  display: `≈ ${floorCents(cents)}`,
-})
+const money = (cents: number): Money => ({ cents, display: exactCents(cents) })
 const share = (cents: number) => Math.round(cents * 0.975 * 10_000) / 10_000
 const baseUnits = (cents: number) =>
   String(Math.floor((cents * STROOPS) / PRICE))
-
-/** The money layer's exact formatter, as the fixture's stand-in: "9.75¢"
- * below a dollar, never floored. */
-export function exactCents(cents: number) {
-  const rounded = Math.round(cents * 10_000) / 10_000
-  return cents < 100 ? `${rounded}¢` : `$${rounded / 100}`
-}
 
 /** The money layer's token formatter: "0.7853732 XLM". */
 export function tokenAmount(base: string) {
@@ -139,7 +137,7 @@ function sum(items: ActivityItem[], pick: (i: ActivityItem) => number) {
 
 const readyBalance = (over: Partial<BalanceView> = {}): BalanceView => ({
   status: 'ready',
-  available: approx(254.66),
+  available: money(254.66),
   pending: money(0),
   device: 'ready',
   settlement: { enabled: true, expectedWithinMs: 80_000 },
@@ -240,12 +238,12 @@ export function scenario(name: Scenario, now: number): FixtureViews {
       return views(settled)
     case 'sending':
       return views(both([[10, 'sending']], now), {
-        available: approx(244.66),
+        available: money(244.66),
         exact: lower,
       })
     case 'sent':
       return views(both([[10, 'sent']], now), {
-        available: approx(244.66),
+        available: money(244.66),
         pending: money(10),
         exact: lower,
       })
