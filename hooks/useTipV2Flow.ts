@@ -142,7 +142,7 @@ export function useTipV2Flow(options: UseTipV2FlowOptions) {
     now > (record.maxTime + SLOW_AFTER_SECONDS) * 1000 &&
     state.step === null
 
-  const run = useCallback(
+  const runOnce = useCallback(
     async ({ request, prepare }: TipRunRequest) => {
       const runtime = runtimeOrNull()
       const requestId = newRequestId()
@@ -286,6 +286,25 @@ export function useTipV2Flow(options: UseTipV2FlowOptions) {
       }
     },
     [key, recordSendFailed, recordSubmitted]
+  )
+
+  /**
+   * Set from the first call until it returns. A second start in that time
+   * (two activations in one task) is ignored, so one request is prepared
+   * and signed once.
+   */
+  const inFlight = useRef(false)
+  const run = useCallback(
+    async (input: TipRunRequest) => {
+      if (inFlight.current) return
+      inFlight.current = true
+      try {
+        await runOnce(input)
+      } finally {
+        inFlight.current = false
+      }
+    },
+    [runOnce]
   )
 
   /** Back to the form; the stored submission is forgotten. */

@@ -160,27 +160,34 @@ export function TipBasketPanel({ onBusyChange, onClose }: TipBasketPanelProps) {
 
   /** The progress view appears because the reader pressed send or retry. */
   const userStarted = useRef(false)
+  /** Set until the run returns, so two activations in one task pay once. */
+  const payStarted = useRef(false)
   const pay = () => {
-    if (blocked || gate.kind !== 'ready') return
+    if (blocked || gate.kind !== 'ready' || payStarted.current) return
+    payStarted.current = true
     userStarted.current = true
     if (flowCondition) flow.dismiss()
     const toSend = store.getSnapshot().items
-    void flow.run({
-      request: toSend.map((item) => ({
-        articleId: item.articleId,
-        articleKey: item.articleKey,
-        highlight: item.highlight
-          ? {
-              articleSlug: item.articleSlug,
-              text: item.highlight.text,
-              startOffset: item.highlight.startOffset,
-              endOffset: item.highlight.endOffset,
-            }
-          : null,
-      })),
-      prepare: (requestId) =>
-        prepareBatch({ requestId, items: batchRequest(toSend) }),
-    })
+    void flow
+      .run({
+        request: toSend.map((item) => ({
+          articleId: item.articleId,
+          articleKey: item.articleKey,
+          highlight: item.highlight
+            ? {
+                articleSlug: item.articleSlug,
+                text: item.highlight.text,
+                startOffset: item.highlight.startOffset,
+                endOffset: item.highlight.endOffset,
+              }
+            : null,
+        })),
+        prepare: (requestId) =>
+          prepareBatch({ requestId, items: batchRequest(toSend) }),
+      })
+      .finally(() => {
+        payStarted.current = false
+      })
   }
 
   const finish = (paid: boolean) => {

@@ -166,12 +166,18 @@ const STATES: State[] = [
       await dialog.getByRole('button', { name: 'Connect wallet' }).click()
       return dialog
     },
-    check: async (dialog) => {
+    check: async (dialog, page) => {
+      // With no extension, the picker offers the web wallets and the
+      // install links (#532); the tip dialog waits behind it.
+      const picker = page.getByRole('dialog', { name: 'Choose a wallet' })
       await expect(
-        dialog.locator('.pay-panel-title', {
-          hasText: 'No Stellar wallet found',
-        })
+        picker.getByRole('region', { name: 'No install needed' })
       ).toBeVisible()
+      await expect(picker.getByRole('button', { name: /^xBull/ })).toBeVisible()
+      await expect(
+        picker.getByRole('link', { name: /Get Varial/ })
+      ).toBeVisible()
+      await expect(dialog).toHaveAttribute('data-state', 'open')
     },
   },
   {
@@ -503,9 +509,15 @@ const STATES: State[] = [
         dialog.getByText('Don’t see the request? Open your wallet extension.')
       ).toBeVisible()
       await expect(dialog).toHaveAttribute('aria-busy', 'true')
-      // A wallet step is running: Escape does not close the dialog.
-      await dialog.page().keyboard.press('Escape')
-      await expect(dialog).toBeVisible()
+      // A wallet step is running: neither Escape nor a click outside closes
+      // the dialog. Each check waits past the close animation (200 ms).
+      const page = dialog.page()
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(500)
+      await expect(dialog).toHaveAttribute('data-state', 'open')
+      await page.mouse.click(4, 4)
+      await page.waitForTimeout(500)
+      await expect(dialog).toHaveAttribute('data-state', 'open')
     },
   },
   {
@@ -826,6 +838,32 @@ const STATES: State[] = [
     },
   },
   {
+    id: 'basket-confirmed',
+    query: 'basket=2',
+    run: async (page) => {
+      await page.getByRole('button', { name: /Tip basket/ }).click()
+      const sheet = page.getByRole('dialog', { name: 'Tip basket' })
+      await connect(sheet)
+      await sheet.getByRole('button', { name: /^Send 2 tips/ }).click()
+      return sheet
+    },
+    check: async (sheet, page) => {
+      await expect(
+        sheet.getByRole('heading', { name: /Tips confirmed/ })
+      ).toBeVisible()
+      // $1.00 + $1.25 at $0.25 is 9 XLM gross. The fee is
+      // floor(90,000,000 × 250 / 10,000) stroops: 0.225 XLM, so the writers
+      // get 8.775 XLM. Both figures come from the chain totals.
+      const line = (label: string) =>
+        sheet.locator('.pay-amount-breakdown > div', {
+          has: page.getByText(label, { exact: true }),
+        })
+      await expect(line('To the writers')).toContainText('8.775')
+      await expect(line('Platform fee')).toContainText('0.225')
+      await expectTestnetLabel(sheet)
+    },
+  },
+  {
     id: 'basket-confirmed-one-in-review',
     query: 'basket=3&result=batch-review',
     run: async (page) => {
@@ -1070,6 +1108,86 @@ test.describe('keyboard, focus and announcements', () => {
     await expect(page.getByRole('dialog', { name: 'Tip basket' })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(basket).toBeFocused()
+  })
+})
+
+const basketKeys = (page: Page) =>
+  page.evaluate(() =>
+    Object.keys(localStorage).filter((key) =>
+      key.startsWith('quilltip:tip-basket:v2:')
+    )
+  )
+
+test.describe('one payment per activation', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  test('two activations of Send tip in one task prepare and sign once', async ({
+    page,
+  }) => {
+    await open(page)
+    const dialog = await openArticleTip(page)
+    await connect(dialog)
+    // Both clicks run before React renders again, as some assistive tools
+    // and test drivers fire them.
+    await dialog
+      .getByRole('button', { name: 'Send tip' })
+      .evaluate((button: HTMLButtonElement) => {
+        button.click()
+        button.click()
+      })
+    await expect(
+      dialog.getByRole('heading', { name: 'Tip confirmed' })
+    ).toBeVisible()
+    const entry = await log(page)
+    expect(entry.prepared).toHaveLength(1)
+    expect(entry.signed).toHaveLength(1)
+    expect(entry.sent).toHaveLength(1)
+    expect(entry.submitted).toHaveLength(1)
+  })
+
+  test('two activations of the basket payment in one task pay once', async ({
+    page,
+  }) => {
+    await open(page, 'basket=2')
+    await page.getByRole('button', { name: /Tip basket/ }).click()
+    const sheet = page.getByRole('dialog', { name: 'Tip basket' })
+    await connect(sheet)
+    await sheet
+      .getByRole('button', { name: /^Send 2 tips/ })
+      .evaluate((button: HTMLButtonElement) => {
+        button.click()
+        button.click()
+      })
+    await expect(
+      sheet.getByRole('heading', { name: /Tips confirmed/ })
+    ).toBeVisible()
+    const entry = await log(page)
+    expect(entry.prepared).toHaveLength(1)
+    expect(entry.signed).toHaveLength(1)
+    expect(entry.sent).toHaveLength(1)
+  })
+
+  test('tips sent under review leave the basket on Done', async ({ page }) => {
+    await open(page, 'basket=3&result=batch-review')
+    await page.getByRole('button', { name: /Tip basket/ }).click()
+    const sheet = page.getByRole('dialog', { name: 'Tip basket' })
+    await connect(sheet)
+    await sheet.getByRole('button', { name: /^Send 3 tips/ }).click()
+    await expect(
+      sheet.getByRole('heading', { name: 'Sent, but under review' })
+    ).toBeVisible()
+    expect(await basketKeys(page)).toHaveLength(1)
+    await sheet.getByRole('button', { name: 'Done' }).click()
+    // Money may have moved, so none of the three can be sent again.
+    await expect(page.getByRole('button', { name: /Tip basket/ })).toHaveCount(
+      0
+    )
+    expect(await basketKeys(page)).toEqual([])
+    await page.reload()
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Tip basket/ })).toHaveCount(
+      0
+    )
   })
 })
 
