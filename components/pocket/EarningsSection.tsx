@@ -125,7 +125,9 @@ export function EarningsSection({
       {onHold ? (
         <Notice tone="pending">
           <MoneyFigure value={onHold} size="s" /> is on hold
-          {counts && counts.onHold > 0 ? ` (${tipsCount(counts.onHold)})` : ''}:{' '}
+          {counts && counts.onHold > 0
+            ? ` (${tipsCount(counts.onHold)})`
+            : ''}:{' '}
           {counts && counts.onHold > 1
             ? 'the readers’ balances were short when they were paid out. They arrive if the readers add money.'
             : 'the reader’s balance was short when it was paid out. It arrives if they add money.'}
