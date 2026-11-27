@@ -59,6 +59,14 @@ async function open(
   return errors
 }
 
+/**
+ * The key that moves focus to the next button or link. Safari's Tab, with
+ * default settings, reaches only text fields and a few other controls;
+ * Option+Tab reaches buttons and links too.
+ */
+const nextKey = (browserName: string) =>
+  browserName === 'webkit' ? 'Alt+Tab' : 'Tab'
+
 const tipDialog = (page: Page) =>
   page.getByRole('dialog', { name: /Tip this (article|passage)/ })
 
@@ -113,9 +121,30 @@ async function shot(page: Page, id: string, width: number) {
   })
 }
 
+/**
+ * Text the reader sees. The payment kit repeats each notice and result as
+ * "title. detail" in a visually hidden live region, filled a moment later,
+ * so a plain text query matches one element or two depending on timing.
+ */
+const seen = (scope: Locator, text: string | RegExp) =>
+  scope.getByText(text).and(scope.page().locator(':not(.sr-only)'))
+
+/** A refusal: the panel the reader sees, announced once in its region. */
+async function expectRefusal(scope: Locator, title: string, detail: string) {
+  const notice = scope.locator('.pay-notice[data-state="refused"]')
+  const panel = notice.locator('.pay-panel')
+  await expect(panel.locator('.pay-panel-title')).toHaveText(title)
+  const note = panel.locator('.pay-panel-detail')
+  await expect(note).toHaveText(detail)
+  await expect(note).toBeVisible()
+  // A visually hidden detail (1 px, clipped) also counts as visible.
+  expect((await note.boundingBox())!.height).toBeGreaterThan(8)
+  await expect(notice.getByRole('status')).toHaveText(`${title}. ${detail}`)
+}
+
 /** Every visible amount and transaction link in the dialog carries the label. */
 async function expectTestnetLabel(scope: Locator) {
-  await expect(scope.getByText('Stellar testnet').first()).toBeVisible()
+  await expect(seen(scope, 'Stellar testnet').first()).toBeVisible()
 }
 
 type State = {
@@ -303,14 +332,11 @@ const STATES: State[] = [
       return dialog
     },
     check: async (dialog) => {
-      await expect(
-        dialog.locator('.pay-panel-title', {
-          hasText: 'This tip is below the minimum',
-        })
-      ).toBeVisible()
-      await expect(
-        dialog.getByText(/smallest tip right now is \$0\.03/)
-      ).toBeVisible()
+      await expectRefusal(
+        dialog,
+        'This tip is below the minimum',
+        'The smallest tip right now is $0.03. Choose a larger amount. Nothing was paid.'
+      )
     },
   },
   {
@@ -342,12 +368,11 @@ const STATES: State[] = [
       return dialog
     },
     check: async (dialog) => {
-      await expect(
-        dialog.locator('.pay-panel-title', {
-          hasText: 'Too many tips in a short time',
-        })
-      ).toBeVisible()
-      await expect(dialog.getByText(/Wait 42 seconds/)).toBeVisible()
+      await expectRefusal(
+        dialog,
+        'Too many tips in a short time',
+        'Wait 42 seconds, then try again. Nothing was paid.'
+      )
     },
   },
   {
@@ -580,9 +605,7 @@ const STATES: State[] = [
       await expect(
         dialog.getByRole('heading', { name: 'Request declined in your wallet' })
       ).toBeVisible()
-      await expect(
-        dialog.getByText('Nothing was signed or sent.')
-      ).toBeVisible()
+      await expect(seen(dialog, 'Nothing was signed or sent.')).toBeVisible()
       await expect(
         dialog.getByRole('button', { name: 'Try again' })
       ).toBeVisible()
@@ -806,7 +829,7 @@ const STATES: State[] = [
         dialog.locator('.pay-progress-sentence', { hasText: /Still checking/ })
       ).toBeVisible()
       await expect(
-        dialog.getByText(/cannot be charged twice/).first()
+        seen(dialog, /cannot be charged twice/).first()
       ).toBeVisible()
       await expect(
         dialog.getByRole('button', { name: 'Try again' })
@@ -974,21 +997,26 @@ for (const width of WIDTHS) {
 test.describe('keyboard, focus and announcements', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('a tip runs from the keyboard alone', async ({ page }) => {
+  test('a tip runs from the keyboard alone', async ({ page, browserName }) => {
+    const next = nextKey(browserName)
     await open(page)
     const trigger = page.getByRole('button', { name: 'Tip article' })
     await trigger.focus()
     await page.keyboard.press('Enter')
     const dialog = tipDialog(page)
     await expect(dialog).toBeVisible()
-    // Choose $2 with Tab and Space.
+    // Choose $2 with Tab and Space. The dialog opens on Close, its last
+    // control; the dialog's focus trap wraps Tab (not Option+Tab) from there
+    // to the first control.
     const two = dialog.getByRole('button', { name: '$2' })
+    await expect(two).toBeVisible()
+    await page.keyboard.press('Tab')
     for (
       let i = 0;
       i < 8 && !(await two.evaluate((el) => el === document.activeElement));
       i++
     ) {
-      await page.keyboard.press('Tab')
+      await page.keyboard.press(next)
     }
     await page.keyboard.press('Space')
     await expect(two).toHaveAttribute('aria-pressed', 'true')
@@ -1000,12 +1028,14 @@ test.describe('keyboard, focus and announcements', () => {
       .getByRole('dialog', { name: 'Choose a wallet' })
       .getByRole('button', { name: /^Varial/ })
     await expect(varial).toBeVisible()
+    // The picker also opens on Close, its last control.
+    await page.keyboard.press('Tab')
     for (
       let i = 0;
       i < 8 && !(await varial.evaluate((el) => el === document.activeElement));
       i++
     ) {
-      await page.keyboard.press('Tab')
+      await page.keyboard.press(next)
     }
     await page.keyboard.press('Enter')
     // The gate hands focus to the action it was guarding.
@@ -1021,7 +1051,7 @@ test.describe('keyboard, focus and announcements', () => {
       i < 4 && !(await link.evaluate((el) => el === document.activeElement));
       i++
     ) {
-      await page.keyboard.press('Tab')
+      await page.keyboard.press(next)
     }
     await expect(link).toBeFocused()
     // Done closes the dialog and returns focus to the trigger.
@@ -1103,15 +1133,39 @@ test.describe('keyboard, focus and announcements', () => {
     await expect(dialog.locator('.pay-progress [role="alert"]')).toHaveText('')
   })
 
-  test('the basket button is in the tab order after the tip button', async ({
+  test('a control the reader moves to keeps focus when the result arrives', async ({
     page,
   }) => {
+    await open(page, 'delay=2500')
+    const dialog = await openArticleTip(page)
+    await sendTip(page, dialog)
+    await expect(
+      dialog.getByRole('heading', { name: 'Payment progress' })
+    ).toBeFocused()
+    const close = dialog.getByRole('button', { name: 'Close' })
+    await close.focus()
+    await expect(
+      dialog.getByRole('heading', { name: 'Tip confirmed' })
+    ).toBeVisible()
+    await expect(close).toBeFocused()
+    // Focus stayed on Close, so the polite region reads the result once.
+    await expect(dialog.locator('.pay-progress [role="status"]')).toHaveText(
+      /^Tip confirmed\. /
+    )
+    await expect(dialog.locator('.pay-progress [role="alert"]')).toHaveText('')
+  })
+
+  test('the basket button is in the tab order after the tip button', async ({
+    page,
+    browserName,
+  }) => {
+    const next = nextKey(browserName)
     await open(page, 'basket=2')
     const trigger = page.getByRole('button', { name: 'Tip article' })
     const basket = page.getByRole('button', { name: 'Tip basket, 2 tips' })
     await expect(basket).toBeVisible()
     await trigger.focus()
-    await page.keyboard.press('Tab')
+    await page.keyboard.press(next)
     await expect(basket).toBeFocused()
     const box = await basket.boundingBox()
     expect(box!.height).toBeGreaterThanOrEqual(44)
@@ -1447,13 +1501,12 @@ test.describe('the wallet account before signing (#547)', () => {
       dialog.getByRole('heading', { name: /^Switch your wallet to G/ })
     ).toBeVisible()
     await expect(
-      dialog
-        .getByText(
-          /the address linked to your Quilltip account\. Your wallet is on GCS5…DUAR\./
-        )
-        .first()
+      seen(
+        dialog,
+        /the address linked to your Quilltip account\. Your wallet is on GCS5…DUAR\./
+      ).first()
     ).toBeVisible()
-    await expect(dialog.getByText(/Nothing was signed\./).first()).toBeVisible()
+    await expect(seen(dialog, /Nothing was signed\./).first()).toBeVisible()
     expect((await log(page)).signed).toEqual([])
   })
 })
