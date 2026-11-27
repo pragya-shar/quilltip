@@ -663,6 +663,22 @@ Costs:
   the press worked, until the next page arrives. Navigations into the
   signed-in sections show it as before.
 
+Each of these reads has a time limit of 1.5 s, the same as the proxy's route
+check (`lib/seo/publicReadTimeout.ts`). A read that runs out of time, or fails,
+counts as unreachable, and the page shows a fallback that reads without
+scripts: the site header, "… could not be loaded right now." and a plain "Try
+again" link to the same URL. With scripts, the live query keeps trying and
+replaces the fallback. The worst-case first byte is 1.5 s on `/articles`, 3 s
+on a writer or article page (route check, then the page's reads), and 4.5 s for
+a missing writer or article whose moved-handle lookup also runs out. A timeout
+is never cached; a read that finishes after its page gave up still fills the
+cache for the next reader.
+
+The fallback answers 200, because a page cannot set its own status once it
+renders. It carries `<meta name="robots" content="noindex">`, and dynamic
+pages send `Cache-Control: no-store`, so neither search engines nor caches keep
+it. An existing article never answers 404 because the backend was slow.
+
 `bun run perf:no-script-reading` (`scripts/perf/no-script-reading.ts`) checks
 this in Chromium and WebKit, with JavaScript off and with `/_next/static`
 scripts blocked:
@@ -671,9 +687,18 @@ scripts blocked:
 - the list links to an article by its title, and following the link opens it;
 - the article shows its title as a heading and its prose;
 - the writer's page shows the writer and the article;
-- a draft or unknown article and an unknown writer answer 404 without article
-  text;
-- with scripts on, `/dashboard` sends a signed-out reader to `/login`.
+- an unknown article and an unknown writer answer 404 without article text;
+- with scripts on, `/dashboard` sends a signed-out reader to `/login`;
+- `/reset-password`, `/login` and `/register` each show a form field;
+- an unpublished article of the fixture writer answers 404, and no public list
+  names it.
+
+`bun run perf:slow-backend-reading` (`scripts/perf/slow-backend-reading.ts`)
+checks `/articles`, a writer's page and an article with the fixture backend
+silent, slower than the limit, and failing: the first byte and the whole page
+arrive within the bound, the page answers 200 with `noindex` and `no-store`,
+and with JavaScript off, in Chromium and WebKit, it shows the fallback. Then,
+with the backend answering again, each page shows its content.
 
 The routes and texts are in one object (`READING`), and the assertions use
 roles and text only. The check runs in the Page-load Budget CI job, and fails
