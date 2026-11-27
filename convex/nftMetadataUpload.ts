@@ -5,6 +5,7 @@ import { v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import { buildNftMetadataPayload } from './lib/nftMetadata'
+import { requireV1PreparesEnabled } from './lib/v1Prepares'
 
 export const uploadNftMetadataForMint = action({
   args: {
@@ -12,6 +13,8 @@ export const uploadNftMetadataForMint = action({
     xlmPrice: v.number(),
   },
   handler: async (ctx, args) => {
+    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
+    requireV1PreparesEnabled()
     const userId = await getAuthUserId(ctx)
     if (!userId) {
       throw new Error('Not authenticated')
