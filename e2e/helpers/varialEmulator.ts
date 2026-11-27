@@ -24,6 +24,8 @@ export type VarialMode =
    * the address read without a prompt is empty.
    */
   | 'locked-prompt'
+  /** Connected, but the address read without a prompt answers after 1.5 s (freighter-api gives up at 2 s). */
+  | 'slow-read'
 
 export type VarialEmulatorOptions = { mode: VarialMode; address: string }
 
@@ -85,6 +87,10 @@ export function installVarialEmulator({
         return reply({ publicKey: mode === 'locked' ? '' : accountAddress() })
       case 'REQUEST_PUBLIC_KEY':
         if (mode === 'locked-prompt') return reply({ publicKey: '' })
+        if (mode === 'slow-read') {
+          setTimeout(() => reply({ publicKey: accountAddress() }), 1_500)
+          return
+        }
         return reply({ publicKey: mode === 'locked' ? '' : accountAddress() })
       case 'REQUEST_NETWORK_DETAILS':
         return reply({
