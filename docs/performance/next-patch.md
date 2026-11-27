@@ -15,10 +15,19 @@ a slow connection they share bandwidth with the stylesheet and fonts.
 On the four routes, the patched runtime does this instead:
 
 1. It lists the root chunks in the URL of one small, same-origin loader,
-   `public/hydrate-after-paint.js`.
+   `public/hydrate-after-paint.js`, and writes that loader in `<head>`
+   without `async`. The loader runs before the body is parsed, so before the
+   first paint: a press made the moment the page appears is already held
+   (below). It is 2.3 KB gzip and waits for the stylesheets before it,
+   which the first paint waits for anyway.
 2. It writes every other chunk script inert, as
    `<script type="text/plain" data-hydrate-after-paint="…">`, with the same
    nonce.
+3. Next.js also requires a bootstrap script. That is the same loader under
+   another URL (`&b=1`), async, at the end of the shell; when it runs, the
+   loader has already run and it returns at once. It must be another URL:
+   with the same one, React merges the two and writes only the late async
+   tag.
 
 The loader adds all of them as real async scripts, in the same order, at
 the earliest of these events:
@@ -47,24 +56,50 @@ There is no inline script, and the content security policy is unchanged:
 `script-src 'self' 'nonce-…'` already allows the loader and the chunks it
 adds.
 
+## Registration, and a checkout without the patch
+
+The patched runtime acts only in a server whose own code turned it on.
+`instrumentation.ts` sets a registration on `globalThis` when the server
+starts (Node.js runtime only), and the runtime checks it on every page.
+
+- A checkout without the patch has no `instrumentation.ts` registration. If
+  the runtimes in `node_modules` stayed patched after a branch switch, that
+  checkout's pages keep Next.js's script tags and hydrate as usual.
+  (Before this registration, they never hydrated: their HTML pointed at a
+  loader file that branch does not have.)
+- The patch script writes each patched runtime to a new file and renames it
+  over the installed one. With bun's hardlink install backend (the default
+  on Linux), `node_modules` and bun's shared download cache share one file;
+  the rename gives `node_modules` a new file and leaves the cached one
+  unchanged, so a reinstall restores Next.js's own runtime.
+- A runtime patched by the earlier version of this patch (which edited the
+  file in place) is refused with instructions:
+  `rm -rf node_modules/next`, `bun pm cache rm`, `bun install`.
+
 ## Switching it off
 
-- Run time: `QUILLTIP_HYDRATE_AFTER_PAINT=false` restores Next.js's output on
-  every page that renders on demand. Prerendered pages keep what the build
-  wrote, so set the variable for the build too.
+- Run time: `QUILLTIP_HYDRATE_AFTER_PAINT=false` when the server starts.
+  `instrumentation.ts` then does not register, which is exactly the state of
+  a checkout without the patch: every page keeps Next.js's output.
+  Prerendered pages keep what the build wrote, so set the variable for the
+  build too.
 - Permanently: see [Removing the patch](#removing-the-patch).
 
 ## Checks
 
-| Check                                                      | Where                                                   |
-| ---------------------------------------------------------- | ------------------------------------------------------- |
-| The edits match the runtime exactly once, per route, SRI   | `scripts/next/next-patch.test.ts` (`test:unit`)         |
-| The installed Next.js is 16.4.6 and takes the patch        | `scripts/next/next-patch.test.ts`                       |
-| The development runtimes are unpatched                     | `scripts/next/next-patch.test.ts`                       |
-| Both production runtimes are patched; loader bytes counted | `perf:first-load` (`scripts/perf/first-load-budget.ts`) |
-| Server HTML: one loader, no chunk script before the paint  | `perf:budget` (`scripts/perf/chunk-loading.ts`)         |
-| `/support` keeps Next.js's script loading                  | `perf:budget`                                           |
-| Hydration, menus, forms, navigation in three browsers      | `e2e/hydrate-after-paint.spec.ts`                       |
+| Check                                                       | Where                                                   |
+| ----------------------------------------------------------- | ------------------------------------------------------- |
+| The edits match the runtime exactly once, per route, SRI    | `scripts/next/next-patch.test.ts` (`test:unit`)         |
+| The installed Next.js is 16.4.6 and takes the patch         | `scripts/next/next-patch.test.ts`                       |
+| The development runtimes are unpatched                      | `scripts/next/next-patch.test.ts`                       |
+| Both production runtimes are patched; loader bytes counted  | `perf:first-load` (`scripts/perf/first-load-budget.ts`) |
+| Server HTML: one blocking loader in `<head>`, one late copy | `perf:budget` (`scripts/perf/chunk-loading.ts`)         |
+| Server HTML: no chunk script before the paint               | `perf:budget`                                           |
+| `/support` keeps Next.js's script loading                   | `perf:budget`                                           |
+| Without the registration, a patched runtime keeps Next.js   | `scripts/next/next-patch.test.ts`, `perf:stale-runtime` |
+| The patch leaves a hardlinked (cached) runtime unchanged    | `scripts/next/next-patch.test.ts`                       |
+| A press the moment the page appears is held (slow loader)   | `e2e/hydrate-after-paint.spec.ts`                       |
+| Hydration, menus, forms, navigation in three browsers       | `e2e/hydrate-after-paint.spec.ts`                       |
 
 Run the browser suite against a production build:
 
@@ -97,14 +132,17 @@ carried forward or removed.
 ## Removing the patch
 
 1. Delete `patches/next@16.4.6.ts`, `public/hydrate-after-paint.js`,
-   `scripts/next/` and `e2e/hydrate-after-paint.spec.ts`.
+   `instrumentation.ts`, `scripts/next/` and
+   `e2e/hydrate-after-paint.spec.ts`, and the `perf:stale-runtime` script
+   and its CI step.
 2. Remove `bun patches/next@16.4.6.ts &&` from `build` and `build:check` in
    `package.json` and from `buildCommand` in `vercel.json`.
 3. Remove the patch checks from `scripts/perf/first-load-budget.ts` and
    `scripts/perf/page-load-budget.ts` (and `scripts/perf/chunk-loading.ts`
    if nothing else uses it).
-4. Reinstall Next.js (`rm -rf node_modules/next && bun install`), because the
-   patch edits the installed runtimes in place.
+4. Reinstall Next.js (`rm -rf node_modules/next && bun install`) to restore
+   its own runtimes in `node_modules`. Without `instrumentation.ts`, a
+   patched runtime already behaves like Next.js's, so this only tidies up.
 5. Measure again: without the patch, simulated mobile LCP is above 2 s on
    every route (see page-load.md).
 
