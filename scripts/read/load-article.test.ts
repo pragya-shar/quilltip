@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { loadArticle } from '@/components/read/loadArticle'
+import { READ_NEXT_LIMIT_MS, readNextBudget } from '@/components/read/readNext'
 import { READ_LIMIT_MS, withinReadLimit } from '@/shell/public/boundedRead'
 
 const never = <T>() => new Promise<T>(() => {})
@@ -68,7 +69,7 @@ describe('the article read has a time limit', () => {
     expect(moved.value).toEqual({ kind: 'moved', to: '/tomas-r/ledger' })
   })
 
-  it('a silent moved-handle lookup is unreachable, within two limits', async () => {
+  it('a silent moved-handle lookup is unreachable, within the one limit', async () => {
     const { value, ms } = await timed(
       loadArticle('tomas', 'ledger', {
         article: () => after(READ_LIMIT_MS - 100, null),
@@ -76,7 +77,13 @@ describe('the article read has a time limit', () => {
       })
     )
     expect(value).toEqual({ kind: 'unreachable' })
-    expect(ms).toBeLessThanOrEqual(2 * READ_LIMIT_MS + 50)
+    expect(ms).toBeLessThanOrEqual(READ_LIMIT_MS + 50)
+  })
+
+  it('Read next gets what the article read left, at most its own limit', () => {
+    expect(readNextBudget(0)).toBe(READ_NEXT_LIMIT_MS)
+    expect(readNextBudget(READ_LIMIT_MS - 100)).toBe(100)
+    expect(readNextBudget(READ_LIMIT_MS + 10)).toBe(0)
   })
 
   it('a read that fails after the limit leaves nothing unhandled', async () => {

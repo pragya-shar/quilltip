@@ -6,7 +6,7 @@ import { ReadingUnavailable } from '@/system/components/ReadingUnavailable'
 import { retryHrefFor } from '@/shell/public/boundedRead'
 import { PushedHeader } from '@/shell/PushedHeader'
 import { PushedScreen } from '@/shell/PushedScreen'
-import { readNextFor } from '@/components/read/readNext'
+import { readNextBudget, readNextFor } from '@/components/read/readNext'
 import { toReadArticle } from '@/components/read/readModel'
 import { getPublishedArticle, movedPublicPath } from '@/lib/seo/publicContent'
 import {
@@ -87,9 +87,10 @@ export async function generateMetadata({
  * handle redirects to the current one. Every read that gates the first
  * byte has a time limit, so a public page never waits without end: a backend that does not answer in time gives
  * the unreachable state (200, noindex, no-store), never a 404 and never a
- * blank tab. Worst-case first byte: 3.4 s for an article (the proxy's route
- * check, the article, Read next), 4.5 s for a missing one (the route check,
- * the article, the moved-handle lookup).
+ * blank tab. The page's reads share one limit (1.5 s): the article, then
+ * Read next or the moved-handle lookup in what is left. The proxy's route
+ * check runs before the page with a limit of its own, so the worst-case
+ * first byte is the two together, 3 s.
  */
 export default async function ArticlePage({
   params,
@@ -97,6 +98,7 @@ export default async function ArticlePage({
 }: ArticlePageProps) {
   const { username, slug } = await params
   const query = await searchParams
+  const startedAt = Date.now()
   const load = await loadArticle(username, slug, reads(query))
   // Temporary: writers can switch back to an earlier handle.
   if (load.kind === 'moved') redirect(load.to)
@@ -130,7 +132,10 @@ export default async function ArticlePage({
         </div>
       </PushedScreen>
     )
-  const readNext = await readNextFor(article._id)
+  const readNext = await readNextFor(
+    article._id,
+    readNextBudget(Date.now() - startedAt)
+  )
   return (
     <ArticleView
       article={toReadArticle(article)}

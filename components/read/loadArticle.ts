@@ -18,9 +18,10 @@ export type ArticleReads<A> = {
 }
 
 /**
- * Loads the article for the first response, with every read bounded,
- * so the page never waits without end. Worst-case time here: one limit for a found article, two for a
- * missing one (the moved-handle lookup runs after it).
+ * Loads the article for the first response under one time limit for all
+ * of its reads, so the page never waits longer than that limit: the
+ * moved-handle lookup, which runs only for a missing article, gets what is
+ * left of it.
  */
 export async function loadArticle<A>(
   username: string,
@@ -28,6 +29,7 @@ export async function loadArticle<A>(
   reads: ArticleReads<A>,
   limitMs: number = READ_LIMIT_MS
 ): Promise<ArticleLoad<A>> {
+  const deadline = Date.now() + limitMs
   let article: A | null | undefined
   try {
     article = await withinReadLimit(reads.article(username, slug), limitMs)
@@ -37,7 +39,9 @@ export async function loadArticle<A>(
   if (article === undefined) return { kind: 'unreachable' }
   if (article !== null) return { kind: 'found', article }
   try {
-    const to = await withinReadLimit(reads.moved(username, slug), limitMs)
+    const left = deadline - Date.now()
+    if (left <= 0) return { kind: 'unreachable' }
+    const to = await withinReadLimit(reads.moved(username, slug), left)
     return to ? { kind: 'moved', to } : { kind: 'missing' }
   } catch {
     return { kind: 'unreachable' }
