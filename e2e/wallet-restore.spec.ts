@@ -170,18 +170,10 @@ test('wrong network: restored with the network shown, and refused before any sig
   await expect(account(page)).toContainText(/public/i)
 
   await page.getByRole('button', { name: 'Tip article', exact: true }).click()
-  const dialog = page.getByRole('dialog')
-  await dialog.getByRole('button', { name: '1 test XLM' }).click()
-  await dialog
-    .getByRole('button', { name: 'Choose wallet', exact: true })
-    .click()
-  // The dialog blocks the review: no signing request can be made.
-  await expect(dialog.getByRole('alert')).toHaveText(
-    'Switch your wallet to Stellar testnet to review this tip.'
-  )
-  await expect(
-    dialog.getByRole('button', { name: 'Review in wallet' })
-  ).toHaveCount(0)
+  const dialog = page.getByRole('dialog', { name: 'Tip this article' })
+  // The dialog blocks the send: no signing request can be made.
+  await expect(dialog.getByText('Switch your wallet to Testnet')).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Send tip' })).toHaveCount(0)
   expect(
     (await requests(page)).filter((type) => PROMPTS.includes(type))
   ).toEqual([])
