@@ -9,8 +9,10 @@ import {
   lineBlockOf,
   passagePlacement,
   rangeAt,
+  sentenceAtLine,
   textNodes,
 } from '@/hooks/read/passageOffsets'
+import { FINISHED_AT, savePlace } from '@/hooks/read/readingPlace'
 import { READING_LINE } from '@/hooks/read/readingPosition'
 import { useArticleView } from '@/hooks/read/useArticleView'
 import {
@@ -126,7 +128,26 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
         : { top: rect.top - origin.top, height: rect.height, kind: 'place' }
     )
   }, [])
-  useReadingPosition(article.id, { body, onRestored })
+  // Today's "Your place" reads this: the sentence, the share read, and
+  // whether the reader reached the end.
+  const onSave = useCallback(
+    (position: { ratio: number }) => {
+      const root = body()
+      savePlace({
+        articleId: article.id,
+        href: article.href,
+        title: article.title,
+        sentence: root
+          ? sentenceAtLine(root, window.innerHeight * READING_LINE)
+          : '',
+        percent: position.ratio,
+        updatedAt: Date.now(),
+        finished: position.ratio >= FINISHED_AT,
+      })
+    },
+    [article.href, article.id, article.title]
+  )
+  useReadingPosition(article.id, { body, onRestored, onSave })
 
   // The text never waits for this: a note only if the article moved on.
   const status = useArticleView(article.writer.username, article.slug, {

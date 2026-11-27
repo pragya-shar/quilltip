@@ -1,0 +1,24 @@
+/* The unreachable state (ReadingUnavailable), for any public surface. */
+@layer surfaces {
+  .qt-unavailable {
+    display: grid;
+    justify-items: start;
+    gap: var(--qt-space-3);
+    margin-block: var(--qt-space-10);
+  }
+  .qt-unavailable__body {
+    color: var(--qt-ink-2);
+  }
+  .qt-unavailable__retry {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--qt-control-h);
+    padding-inline: var(--qt-space-5);
+    border-radius: var(--qt-radius-pill);
+    background: var(--qt-action-bg);
+    color: var(--qt-action-ink);
+    font-family: var(--qt-font-ui);
+    font-weight: var(--qt-weight-ui-strong);
+    text-decoration: none;
+  }
+}

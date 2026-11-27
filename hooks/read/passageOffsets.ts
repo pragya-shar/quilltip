@@ -6,7 +6,7 @@
  * Image captions are an attribute in the document, not text, so they are
  * skipped.
  */
-import { snapToSentences } from './sentences'
+import { sentenceSpans, snapToSentences } from './sentences'
 
 /** Rendered text that is not part of the document's text. */
 export const SKIP_SELECTOR = 'figcaption, [data-read-skip]'
@@ -192,6 +192,31 @@ export function choosePassage(
     startContainerPath: `text.${startOffset}`,
     endContainerPath: `text.${endOffset}`,
   }
+}
+
+/**
+ * The sentence at a line `y` px down the viewport: the first sentence of a
+ * paragraph or list item whose last line is at or below it. Empty when no
+ * line is there.
+ */
+export function sentenceAtLine(root: Element, y: number): string {
+  const seen = new Set<Element>()
+  for (const node of textNodes(root)) {
+    const block = lineBlockOf(root, node)
+    if (!block || seen.has(block)) continue
+    seen.add(block)
+    if (block.getBoundingClientRect().bottom < y) continue
+    const { start, text } = blockText(root, block)
+    for (const span of sentenceSpans(text)) {
+      const rect = rangeAt(
+        root,
+        start + span.start,
+        start + span.end
+      ).getBoundingClientRect()
+      if (rect.bottom >= y) return text.slice(span.start, span.end)
+    }
+  }
+  return ''
 }
 
 /** The caret under a point, in engines with either API. */

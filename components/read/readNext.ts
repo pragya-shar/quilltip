@@ -1,18 +1,22 @@
 import { fetchQuery } from 'convex/nextjs'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
+import { READ_NEXT_LIMIT_MS, withinReadLimit } from './readLimit'
 import type { ReadNextItem } from './readModel'
 
 /**
- * Read next, on the server, so the links are in the first response. A
- * failure leaves the list out; the article never waits on it to fail
- * loudly.
+ * Read next, on the server, so the links are in the first response. It has
+ * a short limit of its own (D21); a late or failed read leaves the list
+ * out, and the article is never held for it.
  */
 export async function readNextFor(articleId: string): Promise<ReadNextItem[]> {
   try {
-    const items = await fetchQuery(api.articles.getReadNextArticles, {
-      articleId: articleId as Id<'articles'>,
-    })
+    const items = await withinReadLimit(
+      fetchQuery(api.articles.getReadNextArticles, {
+        articleId: articleId as Id<'articles'>,
+      }),
+      READ_NEXT_LIMIT_MS
+    )
     return items.map((item) => ({
       id: item.id,
       title: item.title,

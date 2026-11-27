@@ -55,8 +55,10 @@ export function signInHref(returnTo: string) {
   return `/login?next=${encodeURIComponent(returnTo)}`
 }
 
-function openAddMoney(amount: Money | null) {
-  if (sheetFor('add-money')) sheetStack.open('add-money', { amount })
+/** The Pocket's add-money sheet (`ADD_MONEY_SHEET`), with the tip it is
+ * for; the balance until the Pocket has registered it. */
+function openAddMoney(need: Money | null) {
+  if (sheetFor('add-money')) sheetStack.open('add-money', need ? { need } : {})
   else sheetStack.open('pocket')
 }
 

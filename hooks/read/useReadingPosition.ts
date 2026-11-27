@@ -24,6 +24,8 @@ type Options = {
   body: () => HTMLElement | null
   /** Called once the reader is back at their place. */
   onRestored?: () => void
+  /** Called with each place saved, for stores beside this one. */
+  onSave?: (position: ReadingPosition) => void
 }
 
 /**
@@ -35,7 +37,10 @@ type Options = {
  * scroll key. Nothing is chosen: `onRestored` is where the view shows its
  * quiet margin tick.
  */
-export function useReadingPosition(id: string, { body, onRestored }: Options) {
+export function useReadingPosition(
+  id: string,
+  { body, onRestored, onSave }: Options
+) {
   useEffect(() => {
     const path = location.pathname
     const navigation = performance.getEntriesByType('navigation')[0] as
@@ -58,7 +63,10 @@ export function useReadingPosition(id: string, { body, onRestored }: Options) {
     const root = body()
 
     const save = () => {
-      if (pending) saveReadingProgress(pending)
+      if (pending) {
+        saveReadingProgress(pending)
+        onSave?.(pending)
+      }
       pending = undefined
     }
 
@@ -158,7 +166,7 @@ export function useReadingPosition(id: string, { body, onRestored }: Options) {
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('pagehide', save)
     }
-    // `body` and `onRestored` are read once per article.
+    // `body`, `onRestored` and `onSave` are read once per article.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 }

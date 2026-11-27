@@ -88,6 +88,8 @@ async function server(page: Page) {
   }
 }
 
+const TITLE_FOR_PLACE = TITLE
+
 const tipButton = (page: Page) =>
   page.locator('.qt-read__dock').getByRole('button', { name: /^Tip/ })
 const chosenTick = (page: Page) =>
@@ -439,6 +441,18 @@ test('the reader comes back to their place, with a tick and nothing chosen', asy
   await page.waitForTimeout(400)
   const before = await page.evaluate(() => window.scrollY)
   expect(before).toBeGreaterThan(400)
+  // Today's "Your place" reads the sentence and the share read from here.
+  const [saved] = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('quilltip:reading-position:v2') ?? '[]')
+  )
+  expect(saved).toMatchObject({
+    href: '/tomas/what-the-ledger-kept',
+    title: TITLE_FOR_PLACE,
+    finished: false,
+  })
+  expect(saved.sentence.length).toBeGreaterThan(5)
+  expect(saved.percent).toBeGreaterThan(0.1)
+  expect(saved.percent).toBeLessThan(0.95)
   await page.reload()
   await expect(
     page.getByRole('heading', { level: 1, name: TITLE })
@@ -495,4 +509,28 @@ test('every control on the tip bar is at least 44 by 44', async ({ page }) => {
     expect(size.w, `${size.name}`).toBeGreaterThanOrEqual(44)
     expect(size.h, `${size.name}`).toBeGreaterThanOrEqual(44)
   }
+})
+
+test('reaching the end marks the article finished for Today', async ({
+  page,
+}) => {
+  await open(page)
+  await pointAt(page, LINES.late)
+  await page.evaluate(() =>
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' })
+  )
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          JSON.parse(
+            localStorage.getItem('quilltip:reading-position:v2') ?? '[]'
+          )[0]?.finished
+      )
+    )
+    .toBe(true)
+  const cookies = await page.context().cookies()
+  expect(cookies.find((c) => c.name === 'qt_finished')?.value).toBe(
+    'readfixturearticle00000000000001'
+  )
 })

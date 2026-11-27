@@ -113,3 +113,12 @@ describe('choosing a line', () => {
     expect(chosen.text).toBe('Two pesos to the boy. A peso for the bus.')
   })
 })
+
+describe('the sentence at a line', () => {
+  it('is the first sentence at or below the line', async () => {
+    const { sentenceAtLine } = await import('@/hooks/read/passageOffsets')
+    // happy-dom gives every box zero size: the first line block's first
+    // sentence is at or below any line at 0.
+    expect(sentenceAtLine(root, 0)).toBe('She kept a ledger.')
+  })
+})
