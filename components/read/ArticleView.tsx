@@ -88,13 +88,21 @@ export function ArticleView({
               aria-hidden="true"
             />
             {bodyHtml ? (
+              // The system's Prose, as a plain element: the body is HTML.
               <div
                 id={READ_BODY_ID}
                 className="qt-prose qt-read__prose"
+                data-variant="read"
+                data-lead-in=""
                 dangerouslySetInnerHTML={{ __html: bodyHtml }}
               />
             ) : (
-              <div id={READ_BODY_ID} className="qt-prose qt-read__prose">
+              <div
+                id={READ_BODY_ID}
+                className="qt-prose qt-read__prose"
+                data-variant="read"
+                data-lead-in=""
+              >
                 {fallbackParagraphs.map((text, index) => (
                   <p key={index}>{text}</p>
                 ))}

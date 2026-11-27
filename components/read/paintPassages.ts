@@ -83,18 +83,25 @@ const element = (
 }
 
 /**
- * A tipped line: the system's full marker mark, then a ✓ in marker-ink and
- * "You tipped this line" for screen readers. Marker on paper is 1.1:1, so
- * the fill never carries the meaning alone. The ✓ is skipped by the text
- * offsets (`data-read-skip`), so passages chosen later still line up.
+ * The system's mark (`PassageMark`), as plain elements over server text.
+ * A tipped line says "You tipped this line" through its check's words
+ * (read in every engine), not `aria-description`.
+ */
+const passageMark = (state: 'mine' | 'kept' | 'chosen') => () =>
+  element('mark', 'qt-mark', { 'data-state': state })
+
+/**
+ * A tipped line: the system's `mine` mark (full marker), then its check in
+ * marker-ink, and "You tipped this line" for screen readers. Marker on
+ * paper is 1.1:1, so the fill never carries the meaning alone. The check is
+ * skipped by the text offsets (`data-read-skip`), so lines chosen later
+ * still line up.
  */
 function markTipped(range: Range): HTMLElement[] {
-  const marks = wrap(range, () =>
-    element('mark', 'qt-mark', { 'data-heat': '3', 'data-mine': '' })
-  )
+  const marks = wrap(range, passageMark('mine'))
   const last = marks.at(-1)
   if (!last) return marks
-  const check = element('span', 'qt-read__mine', { 'data-read-skip': '' })
+  const check = element('span', 'qt-mark__check', { 'data-read-skip': '' })
   check.dataset.readCheck = ''
   const glyph = document.createElement('span')
   glyph.setAttribute('aria-hidden', 'true')
@@ -139,11 +146,9 @@ export function paintPassages(
   const selection = window.getSelection()
   if (!selection || selection.isCollapsed) {
     for (const span of lines.kept)
-      added.push(...wrap(toRange(span), () => element('mark', 'qt-read__kept')))
+      added.push(...wrap(toRange(span), passageMark('kept')))
     if (lines.chosen)
-      added.push(
-        ...wrap(toRange(lines.chosen), () => element('mark', 'qt-read__chosen'))
-      )
+      added.push(...wrap(toRange(lines.chosen), passageMark('chosen')))
   }
   return () => unwrap(added.reverse())
 }

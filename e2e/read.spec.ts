@@ -114,7 +114,7 @@ test('the article reads in full with its title, byline and end', async ({
   // Signed in with a balance: the caption states it once, with testnet.
   await expect(page.locator('.qt-read__wallet')).toContainText('$18.40')
   await expect(page.locator('.qt-read__wallet')).toContainText('Testnet')
-  await expect(tipButton(page)).toHaveAccessibleName('Tip $1')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
 })
 
 test('a tap on a line chooses that sentence, for free, and a second tap lets it go', async ({
@@ -131,13 +131,13 @@ test('a tap on a line chooses that sentence, for free, and a second tap lets it 
     }
     return css.highlights
       ? css.highlights.has('qt-read-chosen')
-      : document.querySelector('mark.qt-read__chosen') !== null
+      : document.querySelector('mark.qt-mark[data-state="chosen"]') !== null
   })
   expect(painted).toBe(true)
   expect((await server(page)).requests).toBe(0)
 
   await tapLine(page, 'person next to')
-  await expect(tipButton(page)).toHaveAccessibleName('Tip $1')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
   await expect(chosenTick(page)).toHaveCount(0)
 })
 
@@ -146,7 +146,7 @@ test('Clear lets the chosen line go', async ({ page }) => {
   await tapLine(page, 'boy who carried')
   await expect(tipButton(page)).toHaveAccessibleName('Tip this line $1')
   await press(page, page.getByRole('button', { name: 'Clear the line' }))
-  await expect(tipButton(page)).toHaveAccessibleName('Tip $1')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
 })
 
 test('a tip on a line is sent once, keeps the line in view, and has a receipt', async ({
@@ -190,7 +190,8 @@ test('a tip on a line is sent once, keeps the line in view, and has a receipt', 
           dockTop: dock.top,
           // Tipped by you: the full marker and a ✓ with words (N5).
           tipped:
-            node.parentElement?.matches('mark.qt-mark[data-mine]') === true &&
+            node.parentElement?.matches('mark.qt-mark[data-state="mine"]') ===
+              true &&
             (node.parentElement.nextElementSibling?.textContent ?? '').includes(
               'You tipped this line'
             ),
@@ -226,7 +227,7 @@ test('a tip on a line is sent once, keeps the line in view, and has a receipt', 
 
   // Back to idle after Sent, with nothing chosen (N1). A later line still
   // gets its own offsets: the ✓ is not part of the text.
-  await expect(tipButton(page)).toHaveAccessibleName('Tip $1')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
   await tapLine(page, 'rarely remembers')
   await expect(tipButton(page)).toHaveAccessibleName('Tip this line $1')
   await press(page, tipButton(page))
@@ -262,7 +263,7 @@ test('the tip bar works by keyboard: amount, then tip', async ({ page }) => {
   expect((await server(page)).requests).toBe(0)
   await page.keyboard.press(tabKey(page))
   await expect(tipButton(page)).toBeFocused()
-  await expect(tipButton(page)).toHaveAccessibleName('Tip $2')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $2')
   await page.keyboard.press('Enter')
   await expect(page.locator('.qt-read__dock .qt-tip__button')).toContainText(
     'Sent'
@@ -349,7 +350,7 @@ test('a finger drag across the text scrolls and never pays', async ({
   await send('touchEnd')
   await page.waitForTimeout(500)
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(before)
-  await expect(tipButton(page)).toHaveAccessibleName('Tip $1')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
   expect((await server(page)).requests).toBe(0)
 })
 
@@ -392,7 +393,7 @@ test('a tip interrupted by a reload is accepted exactly once', async ({
   expect(after.requests).toBe(2)
   expect(after.accepted).toHaveLength(1)
   expect(after.accepted[0]!.target.passage?.text).toBe(LINES.bus)
-  await expect(tipButton(page)).toHaveAccessibleName('Tip $1')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
 })
 
 test('signed out, the tip opens sign-in with the intent and sends nothing', async ({
@@ -453,7 +454,7 @@ test('Keep is a toggle that saves the chosen line privately, never a tip', async
       }
       return css.highlights
         ? (css.highlights.get('qt-read-kept')?.size ?? 0) > 0
-        : document.querySelector('mark.qt-read__kept') !== null
+        : document.querySelector('mark.qt-mark[data-state="kept"]') !== null
     })
   expect(await keptDrawn()).toBe(true)
   await expect(page.getByText('Kept on your Shelf.')).toHaveCount(0)
@@ -520,7 +521,7 @@ test('the reader comes back to their place, with a tick and nothing chosen', asy
     .toBeGreaterThan(before - 120)
   expect(await page.evaluate(() => window.scrollY)).toBeLessThan(before + 120)
   await expect(page.locator('.qt-read__tick[data-kind="place"]')).toHaveCount(1)
-  await expect(tipButton(page)).toHaveAccessibleName('Tip $1')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
 })
 
 test('an article edited since the page was rendered says so, quietly', async ({
@@ -607,7 +608,7 @@ test('a link into the article lands on its paragraph or sentence, with nothing c
       )
     )
     .toBeLessThan(120)
-  await expect(tipButton(page)).toHaveAccessibleName('Tip $1')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
 
   // Sentence 1 of paragraph 1, brought into view by the view.
   await page.evaluate(() =>

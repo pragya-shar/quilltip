@@ -204,6 +204,9 @@ export function TipBar({
         : null
     control = (
       <TipControl
+        // No `hold` until the money layer's controller holds a tip (N1):
+        // the tip sends at once, as the slice does.
+        onNotNow={tip.reset}
         state={state}
         amount={tip.amount}
         amounts={tip.amounts}

@@ -29,7 +29,7 @@ export default function Receipt({
       {props.line ? (
         <Prose variant="line" className="qt-receipt__line">
           <p>
-            <PassageMark heat={3}>{props.line}</PassageMark>
+            <PassageMark state="mine">{props.line}</PassageMark>
           </p>
         </Prose>
       ) : null}
