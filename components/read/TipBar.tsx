@@ -9,6 +9,7 @@ import { TestnetNote } from '@/system/components/TestnetNote'
 import { TipControl } from '@/system/components/TipControl'
 import { TipIcon } from '@/system/icons'
 import { useBalanceReading } from '@/shell/balance'
+import { Dock } from '@/shell/Dock'
 import { sheetFor } from '@/shell/sheetRegistry'
 import { sheetStack } from '@/shell/sheetStack'
 import { openSignIn } from '@/shell/signIn'
@@ -214,6 +215,7 @@ export function TipBar({
         onTip={() => void tip.tip()}
         onAddMoney={() => openAddMoney(tip.amount)}
         recipient={article.writer.name}
+        recipientFirstName={article.writer.firstName}
         target={passage ? 'passage' : 'article'}
         onClearTarget={passage ? onClear : undefined}
         unavailable={words}
@@ -224,11 +226,9 @@ export function TipBar({
   const showsMoney = !signedOut && balance.auth === 'signed-in'
 
   return (
-    <div
-      className="qt-read__dock"
-      data-chosen={passage ? '' : undefined}
-      data-phase={state.phase}
-    >
+    // The shell's dock: it reports its height, so toasts sit above the
+    // bar and never cover a control the reader needs next.
+    <Dock className="qt-read__dock">
       {passage && !busy ? (
         <div className="qt-read__line-actions">
           <KeepButton
@@ -260,6 +260,6 @@ export function TipBar({
         ) : null}
         <div className="qt-read__control">{control}</div>
       </div>
-    </div>
+    </Dock>
   )
 }

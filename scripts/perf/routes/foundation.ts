@@ -14,7 +14,13 @@ export const routes: PerfRoutes = {
       name: 'shell reading',
       path: '/system/reading',
       // CLS and LCP: the plan's public-route limits (4.1).
-      budget: { htmlKb: 44, cssKb: 28, fontKb: 125, cls: 0.05, lcpMs: 2000 },
+      budget: {
+        htmlKb: 44,
+        cssKb: 28,
+        fontKb: 125,
+        cls: 0.05,
+        lcpMobileMs: 2000,
+      },
     },
   ],
   // Literata and its next/font fallback.

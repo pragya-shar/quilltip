@@ -29,6 +29,11 @@ const readings: Record<string, BalanceReading> = {
     available: { cents: 1840, display: '$18.40' },
     status: 'ready',
   },
+  converted: {
+    auth: 'signed-in',
+    available: { cents: 1840, display: '$18.40', converted: true },
+    status: 'ready',
+  },
   loading: { auth: 'signed-in', available: null, status: 'loading' },
   unavailable: { auth: 'signed-in', available: null, status: 'unavailable' },
   'signed-out': { auth: 'signed-out', available: null, status: 'unavailable' },

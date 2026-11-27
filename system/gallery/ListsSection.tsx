@@ -60,6 +60,7 @@ export function ListsSection() {
           <ActivityRow
             lead={<Avatar name="A reader" decorative />}
             name="A reader"
+            detail="from a $1 tip"
             about="When she died we read it aloud"
             amount={money.received}
             direction="in"

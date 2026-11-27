@@ -11,9 +11,10 @@ export type PageLoadBudget = {
   /** Gated CLS for this route (both profiles). Public routes: 0.05 (plan
    * 4.1). Without it the check's general limit (0.1) applies. */
   cls?: number
-  /** Gated median LCP on the phone profile, in ms. Public routes: 2000
-   * (plan 4.1). Without it LCP is reported, not gated. */
-  lcpMs?: number
+  /** Gated median LCP on the phone profile (Moto G Power, 412 x 823,
+   * throttled), in ms. Public routes: 2000 (plan 4.1). Without it LCP is
+   * reported, not gated. The desktop profile is never gated. */
+  lcpMobileMs?: number
 }
 
 export type PageLoadRoute = {

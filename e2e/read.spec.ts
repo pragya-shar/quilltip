@@ -641,3 +641,40 @@ test('opening an article records it for Today in qt_opened', async ({
     )
     .toBe('readfixturearticle00000000000001')
 })
+
+test('the confirmation toast sits above the tip bar and never takes its presses', async ({
+  page,
+}) => {
+  await open(page)
+  await tapLine(page, 'person next to')
+  await press(page, tipButton(page))
+  const toast = page.getByText('You tipped Tomás')
+  await expect(toast).toBeVisible()
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
+  // A new line chosen while the toast still shows: Keep and the tip
+  // button are not under it.
+  await tapLine(page, 'rarely remembers')
+  await expect(toast).toBeVisible()
+  for (const control of [
+    page.locator('.qt-read__dock .qt-keep'),
+    tipButton(page),
+  ]) {
+    const box = (await control.boundingBox())!
+    const hit = await page.evaluate(
+      ([x, y]) => {
+        const el = document.elementFromPoint(x!, y!)
+        return el?.closest('.qt-read__dock') !== null
+      },
+      [box.x + box.width / 2, box.y + box.height / 2]
+    )
+    expect(hit).toBe(true)
+  }
+  // The dock grew with the line's row; the toast moves up with it.
+  await expect
+    .poll(async () => {
+      const toastBox = (await page.locator('.qt-toast').first().boundingBox())!
+      const dockBox = (await page.locator('.qt-read__dock').boundingBox())!
+      return toastBox.y + toastBox.height <= dockBox.y + 1
+    })
+    .toBe(true)
+})

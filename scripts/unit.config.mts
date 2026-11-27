@@ -37,6 +37,8 @@ export default defineConfig({
       'scripts/rebuild/*.test.ts',
       // The reading view: sentence snapping, passage offsets, the place.
       'scripts/read/*.test.ts',
+      // Production-build checks, one file per package.
+      'scripts/app-checks/*.test.ts',
     ],
   },
 })

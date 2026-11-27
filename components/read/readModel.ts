@@ -1,3 +1,5 @@
+import { firstName } from '@/system/money/tip'
+
 /**
  * What the reading view shows of a published article: plain data the server
  * page passes to the view, and the islands need no backend to read it.
@@ -71,7 +73,7 @@ export function toReadArticle(
     href: `/${username}/${article.slug}`,
     writer: {
       name,
-      firstName: name.split(/\s+/)[0] || name,
+      firstName: firstName(name) || name,
       username,
       href: `/${username}`,
       avatar: article.author.avatar ?? null,
