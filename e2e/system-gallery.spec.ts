@@ -412,6 +412,25 @@ test('an activity row is a link or a button, never both', async ({ page }) => {
   ).toBeVisible()
 })
 
+test('Keep toggles by key and by touch, and says its state', async ({
+  page,
+}) => {
+  await open(page)
+  const keep = page.getByRole('button', { name: 'Keep this line' }).first()
+  await expect(keep).toHaveAttribute('aria-pressed', 'false')
+  await press(page, keep)
+  await expect(keep).toHaveAttribute('aria-pressed', 'true')
+  await keep.focus()
+  await page.keyboard.press('Space')
+  await expect(keep).toHaveAttribute('aria-pressed', 'false')
+  const labelled = page.getByRole('button', { name: 'Kept' })
+  await expect(labelled).toHaveAttribute('aria-pressed', 'true')
+  await press(page, labelled)
+  await expect(
+    page.getByRole('button', { name: 'Keep', exact: true }).first()
+  ).toHaveAttribute('aria-pressed', 'false')
+})
+
 test('tabs move with arrow keys', async ({ page }) => {
   await open(page)
   const feed = page.getByRole('tablist', { name: 'Feed' })

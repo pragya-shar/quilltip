@@ -3,6 +3,7 @@
 import { Button } from '../components/Button'
 import { IconButton } from '../components/IconButton'
 import { TextLink } from '../components/TextLink'
+import { KeepDemo } from './KeepDemo'
 import { AddIcon, ShareIcon, WithdrawIcon } from '../icons'
 import { GallerySection } from './GallerySection'
 import { Specimen } from './Specimen'
@@ -54,6 +55,9 @@ export function ActionsSection() {
           <IconButton icon={ShareIcon} label="Sharing" loading />
           <IconButton icon={ShareIcon} label="Share (disabled)" disabled />
         </div>
+      </Specimen>
+      <Specimen name="Keep (live): keep, kept, saving, disabled">
+        <KeepDemo />
       </Specimen>
       <Specimen name="Links">
         <p className="qt-gallery__text">

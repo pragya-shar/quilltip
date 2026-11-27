@@ -61,3 +61,25 @@ for (const page of READING) {
     }
   })
 }
+
+test('/system/unreachable: a late read answers with the unreachable state', async ({
+  page,
+  request,
+}) => {
+  const response = await request.get('/system/unreachable?line=3')
+  expect(response.status()).toBe(200)
+  const html = await response.text()
+  expect(html).toContain('could not be loaded right now.')
+  expect(html).toMatch(/<meta name="robots" content="noindex/)
+  await page.goto('/system/unreachable?line=3')
+  await expect(
+    page.getByRole('heading', {
+      level: 1,
+      name: 'This article could not be loaded right now.',
+    })
+  ).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Try again' })).toHaveAttribute(
+    'href',
+    '/system/unreachable?line=3'
+  )
+})

@@ -23,6 +23,7 @@ import { gzipSync } from 'zlib'
 import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
 import { SURFACE_PAGE_LOAD } from './routes'
+import type { PageLoadRoute } from './routes/types'
 import { startProductionApp } from './production-app'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -44,7 +45,7 @@ const OUTPUT = process.env.PERF_OUTPUT ?? 'perf-budget-results.json'
  * - `fontKb`: compressed fonts the page requests, the larger of mobile and
  *   desktop. The smallest face is 12 KB.
  */
-const ROUTES = [
+const ROUTES: readonly PageLoadRoute[] = [
   {
     name: 'login',
     path: '/login',
@@ -59,7 +60,7 @@ const ROUTES = [
   },
   // The rebuilt routes, one file per package (scripts/perf/routes).
   ...SURFACE_PAGE_LOAD,
-] as const
+]
 
 type DeviceName = 'mobile' | 'desktop'
 
@@ -222,7 +223,7 @@ async function throttle(page: Page, device: DeviceName) {
 
 async function measure(
   browser: Browser,
-  route: (typeof ROUTES)[number],
+  route: PageLoadRoute,
   device: DeviceName,
   refs: HtmlRefs
 ): Promise<Run> {
@@ -383,8 +384,19 @@ async function main() {
           failures.push(
             `${label}: ${summary.fontKb} KB of fonts > ${route.budget.fontKb}`
           )
-        if (summary.cls > BUDGETS.cls)
-          failures.push(`${label}: CLS ${summary.cls} > ${BUDGETS.cls}`)
+        const clsLimit = route.budget.cls ?? BUDGETS.cls
+        if (summary.cls > clsLimit)
+          failures.push(`${label}: CLS ${summary.cls} > ${clsLimit}`)
+        // A route's own LCP limit gates the phone profile (plan 4.1).
+        const lcpLimit = route.budget.lcpMs
+        if (
+          lcpLimit !== undefined &&
+          device === 'mobile' &&
+          summary.lcpMs > lcpLimit
+        )
+          failures.push(
+            `${label}: median LCP ${summary.lcpMs} ms > ${lcpLimit} ms`
+          )
         if (!summary.lcpInServerHtml)
           failures.push(
             `${label}: LCP element is not in the server HTML in most runs:\n    ${summary.lcpElements.join('\n    ')}`
