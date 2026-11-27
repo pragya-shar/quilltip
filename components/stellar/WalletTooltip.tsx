@@ -17,7 +17,7 @@ const concepts: Record<string, string> = {
   testnet:
     'Testnet is a practice environment with free tokens. No real money is involved — perfect for trying things out.',
   wallet:
-    'A crypto wallet is a browser extension (like Freighter) that lets you hold and send digital currency securely.',
+    'A crypto wallet is a browser extension (like Varial, formerly Freighter) that lets you hold and send digital currency securely.',
   'tip-fee': `${WRITER_FEE_PHRASE} — typically within seconds.`,
   highlight:
     'Highlight a passage you love, then tip it directly. The author sees exactly which words earned the tip.',

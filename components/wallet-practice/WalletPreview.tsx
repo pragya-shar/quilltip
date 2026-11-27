@@ -92,8 +92,8 @@ export function WalletPreview({
   }, [sheet])
   const recovery = {
     missing: [
-      'Freighter isn’t available.',
-      'In the app, install and unlock Freighter in this browser. You can continue here with a demo wallet.',
+      'Varial isn’t available.',
+      'In the app, install and unlock Varial in this browser. You can continue here with a demo wallet.',
       'Use demo wallet',
     ],
     declined: [
@@ -103,7 +103,7 @@ export function WalletPreview({
     ],
     network: [
       'Switch to Stellar testnet.',
-      'This demo uses test XLM. In Freighter, check the network before approving.',
+      'This demo uses test XLM. In Varial, check the network before approving.',
       'Use demo testnet',
     ],
     funds: [
@@ -417,7 +417,7 @@ export function WalletPreview({
                     <h4>Your approval comes first.</h4>
                     <p>{amount} test XLM to sample writer Maya Sen.</p>
                     <small>
-                      In Freighter, this is a separate transaction approval.
+                      In Varial, this is a separate transaction approval.
                       Connecting alone never sends a tip.
                     </small>
                     <button className="button primary" onClick={approve}>
@@ -490,7 +490,7 @@ export function WalletPreview({
                 }}
               >
                 <option value="normal">Normal connection</option>
-                <option value="missing">Freighter missing</option>
+                <option value="missing">Varial missing</option>
                 <option value="declined">Connection declined</option>
                 <option value="network">Wrong network</option>
                 <option value="funds">Insufficient test funds</option>
