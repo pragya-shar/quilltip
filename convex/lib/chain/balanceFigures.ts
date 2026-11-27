@@ -50,7 +50,7 @@ import type { TabReceiptStatus } from './schema'
 
 const ZERO = BigInt(0)
 
-type Bucket = 'pending' | 'settled' | 'onHold' | 'notPaid'
+export type Bucket = 'pending' | 'settled' | 'onHold' | 'notPaid'
 
 export function bucketOf(status: TabReceiptStatus): Bucket {
   switch (status) {
@@ -68,12 +68,12 @@ export function bucketOf(status: TabReceiptStatus): Bucket {
 }
 
 /** Settled figures belong to the lifetime totals; these are the others. */
-const CENTS_FIELD = {
+export const CENTS_FIELD = {
   pending: 'tabPendingCents',
   onHold: 'tabOnHoldCents',
   notPaid: 'tabNotPaidCents',
 } as const
-const COUNT_FIELD = {
+export const COUNT_FIELD = {
   pending: 'tabPendingCount',
   onHold: 'tabOnHoldCount',
   notPaid: 'tabNotPaidCount',
@@ -148,7 +148,7 @@ export function unpaidCents(
  * pending; nothing once settled (the lifetime totals count the paid net);
  * and on hold or not paid, its share minus the share of what was paid.
  */
-function bucketCents(
+export function bucketCents(
   bucket: Bucket,
   amountCents: number,
   net: bigint,

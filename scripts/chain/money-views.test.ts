@@ -29,6 +29,7 @@ import {
   receiptShareCents,
 } from '../../convex/lib/moneyViews'
 import { SETTLE_REQUEST_LEASE } from '../../convex/lib/chain/settleSchedule'
+import { RECOUNT_PAGE } from '../../convex/lib/chain/balanceRecount'
 import { RECENT_REQUESTS } from '../../convex/balance'
 import {
   ACCEPTOR_PUBLIC,
@@ -752,9 +753,11 @@ describe('totals at any history length and across collects', () => {
    * receipts accepted before the running figures existed, then brought in
    * by the backfill: the totals must be exact, with no cap.
    */
-  async function longHistory(t: T, s: Seeded) {
-    const KEYS = 20
-    const PER_PAIR = 250
+  async function longHistory(
+    t: T,
+    s: Seeded,
+    { keys: KEYS = 20, perPair: PER_PAIR = 250 } = {}
+  ) {
     await ingest(t, ev.deposited(READER, BigInt(990) * XLM, BigInt(1000) * XLM))
     for (let k = 1; k < KEYS; k++) await ingest(t, ev.keyRegistered(READER, k))
     // One real tip gives a tip row to point the rows at.
@@ -939,6 +942,85 @@ describe('totals at any history length and across collects', () => {
       cursor = p.continueCursor
     }
     expect(seen.size).toBe((h.keys - 1) * h.perPair + 1)
+  }, 120_000)
+
+  it('pages a reader and a writer with many receipts, one mutation at a time, with settlements between pages', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // Two pairs of 150 tips and the anchor: more than one page on each side.
+    const h = await longHistory(t, s, { keys: 3, perPair: 150 })
+    expect((h.keys - 1) * h.perPair + 1).toBeGreaterThan(RECOUNT_PAGE)
+    const rows = await receipts(t)
+    const shareOf = (k: number) =>
+      rows
+        .filter((r) => r.keyId === k)
+        .reduce((sum, r) => sum + receiptShareCents(r, r.amountCents!), 0)
+    const settle = (k: number) => {
+      const pair = rows.filter((r) => r.keyId === k)
+      const cumulative = BigInt(pair[pair.length - 1]!.cumulativeAfter)
+      return ingest(
+        t,
+        ev.tabSettled({
+          keyId: k,
+          cumulative,
+          paidAfter: cumulative,
+          gross: cumulative,
+        })
+      )
+    }
+    const marked = () =>
+      t.run(
+        async (ctx) =>
+          (await ctx.db.query('tabReceipts').collect()).filter(
+            (r) => r.moneyAppliedStatus !== undefined
+          ).length
+      )
+    const reservedMarked = () =>
+      t.run(
+        async (ctx) =>
+          (await ctx.db.query('tabReceipts').collect()).filter(
+            (r) => r.moneyReservedCents !== undefined
+          ).length
+      )
+    // One scheduled mutation at a time, until `done` (bounded).
+    const stepUntil = async (done: () => Promise<boolean>) => {
+      for (let i = 0; !(await done()); i++) {
+        if (i > 20) throw new Error('the backfill made no progress')
+        vi.runOnlyPendingTimers()
+        await t.finishInProgressScheduledFunctions()
+      }
+    }
+
+    await t.mutation(internal.balanceBackfill.start, {})
+    // The reader's first page of receipts, then a settlement of pair 2.
+    await stepUntil(async () => (await reservedMarked()) > 1)
+    // One page, plus the anchor tip that acceptance marked.
+    expect(await reservedMarked()).toBe(RECOUNT_PAGE + 1)
+    await settle(2)
+    // The writer's first page, then a settlement of pair 1.
+    await stepUntil(async () => (await marked()) > 1 + h.perPair)
+    expect(await marked()).toBeLessThan(rows.length)
+    await settle(1)
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+
+    const anchorShare = tabShareCents(1, BigInt(97_500), BigInt(100_000))
+    const once = await views(t, s)
+    // Only the anchor tip is still on its way, on both sides.
+    expect(once.session.pendingCents).toBe(1)
+    expect(once.earnings.pendingCount).toBe(1)
+    expectCents(once.earnings.pendingCents, anchorShare)
+    expect(once.earnings.settledCount).toBe(2 * h.perPair)
+    expectCents(once.earnings.availableCents, shareOf(1) + shareOf(2))
+    expect(
+      (await receipts(t)).every((r) => r.moneyAppliedStatus === r.status)
+    ).toBe(true)
+
+    // Again, start to end: the same figures.
+    await t.mutation(internal.balanceBackfill.start, {})
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+    const twice = await views(t, s)
+    expect(twice.earnings).toEqual(once.earnings)
+    expect(twice.session.pendingCents).toBe(once.session.pendingCents)
   }, 120_000)
 
   async function settleTwo(t: T, s: Seeded) {
