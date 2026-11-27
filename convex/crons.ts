@@ -95,7 +95,8 @@ crons.interval(
 crons.interval(
   'settle due tab vouchers',
   { minutes: 10 },
-  internal.tabSettler.settleDue
+  internal.tabSettler.settleDue,
+  {}
 )
 
 // Payments v2: credit CONFIRMED and MISMATCH direct and batch tips to
