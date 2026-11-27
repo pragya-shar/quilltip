@@ -286,6 +286,7 @@ test.describe('keyboard', () => {
       'gate-disconnected-ended': 'Connect again',
       'gate-wrong-network': 'Check again',
       'gate-unverified': 'Confirm wallet',
+      'gate-other-account': 'Connect again',
     }
     for (const [id, name] of Object.entries(actions)) {
       await open(page, id)
@@ -710,6 +711,29 @@ test.describe('details', () => {
       'title',
       'GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI'
     )
+  })
+
+  test('another account: asks to switch to the linked address, links to wallet settings, and never offers to link the other account (#582)', async ({
+    page,
+  }) => {
+    await open(page, 'gate-other-account')
+    const panel = page.locator('.pay-panel')
+    await expect(
+      panel.getByText('Switch your wallet to GCS5…DUAR', { exact: true })
+    ).toBeVisible()
+    await expect(panel.locator('.pay-panel-detail p')).toHaveText(
+      'This is signed by GCS5…DUAR, the address linked to your Quilltip account. Your wallet is on GBZX…MADI. Switch accounts in your wallet, then connect again. Nothing was signed.'
+    )
+    await expect(
+      panel.getByRole('link', {
+        name: 'Change the linked address in wallet settings',
+      })
+    ).toHaveAttribute('href', '#wallet')
+    await expect(panel.getByRole('button')).toHaveText(['Connect again'])
+    await expect(
+      panel.getByText(/Confirm wallet|link .* to your account/)
+    ).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Send tip' })).toHaveCount(0)
   })
 
   test('under review gives a reference and help', async ({ page }) => {

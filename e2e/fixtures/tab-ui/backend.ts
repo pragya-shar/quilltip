@@ -52,6 +52,7 @@ export type GateKind =
   | 'locked'
   | 'wrong-network'
   | 'unverified'
+  | 'other-account'
 
 /** How the stand-in wallet and RPC answer the next `send`. */
 export type SendBehaviour =

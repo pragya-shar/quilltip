@@ -41,6 +41,7 @@ const EXPECT: Record<string, string | RegExp> = {
   'home-disconnected': 'Free to tip',
   'home-locked': 'Free to tip',
   'home-wrong-network': 'Free to tip',
+  'home-other-account': 'Switch your wallet to',
   'home-v2-disabled': 'Tabs are not available on this site yet',
   'home-paused': 'Payments are paused',
   'home-settlement-delayed': 'Settlement is taking longer than usual',
@@ -409,6 +410,52 @@ for (const [id, cause, step] of TIP_KEY_STEPS) {
     )
   })
 }
+
+test('another account in the wallet: switch to the linked address, the balance unchanged, no link step (#582)', async ({
+  page,
+}) => {
+  await open(page, 'home-open')
+  const figures = page.locator('.tab-figures')
+  await expect(figures).toBeVisible()
+  const balance = (await figures.textContent()) ?? ''
+
+  const errors = await open(page, 'home-other-account')
+  await expect(figures).toHaveText(balance)
+  const panel = page.locator('.pay-panel[data-state="other-account"]')
+  await expect(panel).toBeVisible()
+  await expect(panel).toContainText(/^Switch your wallet to G[A-Z2-7]{3}…/)
+  await expect(panel).toContainText(
+    'the address linked to your Quilltip account. Your wallet is on GBZX…MADI.'
+  )
+  await expect(
+    panel.getByRole('button', { name: 'Connect again' })
+  ).toBeVisible()
+  await expect(
+    panel.getByRole('link', {
+      name: 'Change the linked address in wallet settings',
+    })
+  ).toHaveAttribute('href', '#verify')
+  // No link step for the other account, anywhere on the page.
+  await expect(
+    page.getByRole('button', { name: 'Confirm wallet' })
+  ).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Confirm wallet' })).toHaveCount(
+    0
+  )
+  await expect(page.getByText(/to link .* to your account/)).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test('no verified linked address: the link step stays (#582)', async ({
+  page,
+}) => {
+  await open(page, 'home-unverified')
+  await expect(page.getByText('Confirm this wallet is yours')).toBeVisible()
+  await expect(
+    page.getByRole('link', { name: 'Confirm wallet' })
+  ).toHaveAttribute('href', '#verify')
+  await expect(page.locator('[data-state="other-account"]')).toHaveCount(0)
+})
 
 test('an unreachable Stellar RPC never shows an expired key as ready', async ({
   page,
