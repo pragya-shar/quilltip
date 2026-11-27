@@ -25,6 +25,7 @@ import {
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
 import { verifiedStellarAddress } from './lib/walletVerification'
 import { readChainEnv } from './lib/chain/env'
+import { tabShareCents } from './lib/chain/tabLedger'
 import { requireV1PreparesEnabled } from './lib/v1Prepares'
 import { getMonthKey, roundCents, writerShareCents } from './lib/authorEarnings'
 import {
@@ -860,11 +861,16 @@ function writerShareStroops(tip: {
 //   table; `complete` is false beyond that).
 // - `earnedBaseUnits`: v2 earnings per token contract ID, from the recorded
 //   on-chain net amounts (`authorEarnings`, section 6.2).
-// - `earnedStroops`: what the stats show as earned XLM: the v1 writer share
-//   plus the v2 earnings in native XLM (`TOKEN_CONTRACT_ID`), so it agrees
-//   with `estimatedUsd`, which also counts both.
-// - `estimatedUsd` and `tipCount`: v1 rows plus the v2 figures in
-//   `authorEarnings`.
+// - `earnedStroops`, `estimatedUsd` and `tipCount` cover the same tips (#552):
+//   verified v1 tips, confirmed v2 wallet tips, and tab tips settled on
+//   chain. A tab tip accepted but not settled is in none of them.
+//   - XLM: the v1 writer share, the wallet part of `earnedBaseUnits` in
+//     native XLM (`TOKEN_CONTRACT_ID`; the tab pairs' paid amounts taken
+//     out), and the net of the settled tab rows.
+//   - USD and count: v1 rows, the wallet figures `v2EarnedCents` and
+//     `v2TipCount`, and the writer's settled tab rows (`channel: 'tab'` with
+//     `earningsAppliedAt`, set when the receipt settles). A tab tip pays one
+//     writer, so these rows are exact, and nothing needs a backfill.
 // The network is returned so the UI can label testnet amounts as having no
 // real value.
 export const getMyEarningsSummary = query({
@@ -915,6 +921,25 @@ export const getMyEarningsSummary = query({
         cents += writerShareCents(tip.amountCents, tip.expectedAmountStroops)
       }
     }
+    // Settled tab tips: the wallet figures below do not include them.
+    const tabRows = [
+      ...articleTips.slice(0, AGGREGATE_LIMIT),
+      ...passageTips.slice(0, AGGREGATE_LIMIT),
+    ].filter((tip) => tip.channel === 'tab')
+    let tabTips = 0
+    let tabCents = 0
+    let tabSettledNet = BigInt(0)
+    for (const tip of tabRows) {
+      if (tip.earningsAppliedAt === undefined) continue
+      const net = BigInt(tip.netBaseUnits ?? '0')
+      tabTips += 1
+      tabSettledNet += net
+      tabCents += tabShareCents(
+        tip.amountCents,
+        net,
+        BigInt(tip.grossBaseUnits ?? '0')
+      )
+    }
     const v2TipCount = earnings?.v2TipCount ?? 0
     const v2Cents = earnings?.v2EarnedCents ?? 0
     let xlmToken: string | null = null
@@ -923,15 +948,39 @@ export const getMyEarningsSummary = query({
     } catch {
       // Not a v2 deployment: v1 rows only.
     }
-    const v2Xlm = xlmToken
+    let v2Xlm = xlmToken
       ? BigInt(earnings?.earnedBaseUnits?.[xlmToken] ?? '0')
       : BigInt(0)
+    if (xlmToken && tabRows.length > 0) {
+      // `earnedBaseUnits` holds each tab pair's paid amount, which can run
+      // ahead of its settled receipts (a short settlement). Count the
+      // settled receipts instead, like the USD figure and the count.
+      let tabPairsEarned = BigInt(0)
+      const writers = new Set(
+        tabRows.flatMap((tip) =>
+          tip.expectedAuthorAddress ? [tip.expectedAuthorAddress] : []
+        )
+      )
+      for (const writerAddress of writers) {
+        const pairs = await ctx.db
+          .query('tabVouchers')
+          .withIndex('by_writer', (q) => q.eq('writerAddress', writerAddress))
+          .take(AGGREGATE_LIMIT)
+        for (const pair of pairs) {
+          if (pair.authorId === userId && pair.tokenContractId === xlmToken) {
+            tabPairsEarned += BigInt(pair.earnedNet)
+          }
+        }
+      }
+      const wallet = v2Xlm - tabPairsEarned
+      v2Xlm = (wallet > BigInt(0) ? wallet : BigInt(0)) + tabSettledNet
+    }
     return {
       network: getStellarNetwork(),
-      tipCount: v1Tips.length + v2TipCount,
+      tipCount: v1Tips.length + v2TipCount + tabTips,
       writerShareStroops: stroops.toString(),
       earnedStroops: (stroops + v2Xlm).toString(),
-      estimatedUsd: roundCents(cents + v2Cents) / 100,
+      estimatedUsd: roundCents(cents + v2Cents + tabCents) / 100,
       earnedBaseUnits: earnings?.earnedBaseUnits ?? {},
       v2TipCount,
       complete,
