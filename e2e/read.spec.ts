@@ -398,10 +398,12 @@ test('a tip interrupted by a reload is accepted exactly once', async ({
 test('signed out, the tip opens sign-in with the intent and sends nothing', async ({
   page,
 }) => {
-  await open(page, '&pay=signed-out')
-  // The public default amount shows before sign-in, never a bare "Tip".
+  // The default amount from public bounds shows before sign-in, never a
+  // bare "Tip" and never an assumed "$1". A low cap (today's testnet,
+  // about 64¢) offers 10¢, 25¢ and 50¢: the default is the smallest.
+  await open(page, '&pay=signed-out&offer=low')
   const link = page.locator('.qt-read__dock').getByRole('link', {
-    name: 'Tip Tomás $1',
+    name: 'Tip Tomás $0.10',
     exact: true,
   })
   await expect(link).toHaveAttribute(
@@ -410,11 +412,19 @@ test('signed out, the tip opens sign-in with the intent and sends nothing', asyn
   )
   await expect(page.locator('.qt-read__wallet')).toHaveCount(0)
 
-  await open(page, '&pay=signed-out&signin=sheet')
+  // A high cap offers $1 and up: the default is $1.
+  await open(page, '&pay=signed-out&offer=high')
+  await expect(
+    page
+      .locator('.qt-read__dock')
+      .getByRole('link', { name: 'Tip Tomás $1', exact: true })
+  ).toBeVisible()
+
+  await open(page, '&pay=signed-out&offer=low&signin=sheet')
   await tapLine(page, 'person next to')
   const line = page
     .locator('.qt-read__dock')
-    .getByRole('link', { name: 'Tip this line $1', exact: true })
+    .getByRole('link', { name: 'Tip this line $0.10', exact: true })
   await press(page, line)
   await expect(
     page.getByRole('dialog', { name: 'Sign in to Quilltip' })

@@ -100,22 +100,53 @@ export type ReadPaymentsRuntime = {
   useTip(target: TipTarget, meta: TipMeta): TipController
 }
 
-/**
- * A stand-in for the money layer's signed-out offer until pull request 561
- * provides it: replace it with the money layer's figures. The reading view
- * never formats or computes these itself.
+/*
+ * STAND-IN until pull request 561 provides the signed-out offer: the whole
+ * block below goes, replaced by the money layer's figures. It follows the
+ * money layer's ladder rule (`TIP_LADDER`, `tipChoices`, `defaultChoice` in
+ * lib/payments/views.ts) so the stand-in never offers what the backend
+ * could not send. The reading view itself never formats or computes money.
  */
-const FAKE_SIGNED_OUT_OFFER: SignedOutOffer = {
-  signedOut: true,
-  amount: { cents: 100, display: '$1' },
-  amounts: [
-    { cents: 100, display: '$1' },
-    { cents: 200, display: '$2' },
-    { cents: 300, display: '$3' },
-    { cents: 500, display: '$5' },
-    { cents: 1000, display: '$10' },
-  ],
+const STAND_IN_LADDER = [10, 25, 50, 100, 200, 300, 500] as const
+const STAND_IN_CHOICES = 4
+const STAND_IN_DEFAULT = 100
+
+/** "$1" for whole dollars (button labels), else "$0.25". */
+const standInMoney = (cents: Cents): Money => ({
+  cents,
+  display:
+    cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`,
+})
+
+/**
+ * The offer a signed-out visitor sees from public bounds only: the ladder's
+ * round amounts within the minimum and the per-tip cap, the largest four,
+ * ascending; $1 by default when offered, else the smallest. Null when none
+ * fits.
+ */
+export function signedOutOfferFor(bounds: {
+  minCents: number
+  perTipCents: number
+}): SignedOutOffer | null {
+  const fits = STAND_IN_LADDER.filter(
+    (c) => c >= bounds.minCents && c <= bounds.perTipCents
+  ).slice(-STAND_IN_CHOICES)
+  if (fits.length === 0) return null
+  const amount = fits.includes(STAND_IN_DEFAULT)
+    ? STAND_IN_DEFAULT
+    : (fits[0] as number)
+  return {
+    signedOut: true,
+    amount: standInMoney(amount),
+    amounts: fits.map(standInMoney),
+  }
 }
+
+/** Today's testnet bounds: a 10¢ minimum and a cap of about 64¢. */
+const STAND_IN_SIGNED_OUT_OFFER = signedOutOfferFor({
+  minCents: 10,
+  perTipCents: 64,
+})
 
 const absentTip: TipController = {
   state: { phase: 'idle' },
@@ -129,7 +160,7 @@ const absentTip: TipController = {
   warming: false,
   queued: false,
   unavailable: 'absent',
-  signedOut: FAKE_SIGNED_OUT_OFFER,
+  signedOut: STAND_IN_SIGNED_OUT_OFFER,
 }
 const absentBalance: BalanceView = {
   status: 'unavailable',

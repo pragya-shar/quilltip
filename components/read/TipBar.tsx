@@ -141,6 +141,8 @@ export function TipBar({
     kind: 'tip' as const,
     articleId: article.id,
     href: article.href,
+    // A ceiling, not an order: on return the money layer checks it
+    // against the reader's own ladder and never raises it (D15).
     amount: offer?.amount ?? null,
     passage: passage
       ? {

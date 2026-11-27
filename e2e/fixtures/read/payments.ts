@@ -5,14 +5,15 @@
 // and resent unchanged after a reload, and the server accepts a request id
 // once. It is written for the suite, not copied from the money layer.
 import { useSyncExternalStore } from 'react'
-import type {
-  BalanceView,
-  Money,
-  ReadPaymentsRuntime,
-  TipController,
-  TipPhase,
-  TipTarget,
-  UnavailableReason,
+import {
+  signedOutOfferFor,
+  type BalanceView,
+  type Money,
+  type ReadPaymentsRuntime,
+  type TipController,
+  type TipPhase,
+  type TipTarget,
+  type UnavailableReason,
 } from '../../../hooks/read/payments'
 import type { BalanceReading } from '../../../shell/balance'
 
@@ -30,6 +31,14 @@ export type Scenario =
 const params = new URLSearchParams(location.search)
 export const scenario = (params.get('pay') ?? 'ready') as Scenario
 const run = params.get('run') ?? 'default'
+/**
+ * The per-tip cap a signed-out visitor's offer is cut to: `low` is today's
+ * testnet (about 64¢: 10¢, 25¢, 50¢), `high` a cap of $10 ($1 and up).
+ */
+const OFFER_CAPS = { low: 64, high: 1000 } as const
+const offerCap =
+  OFFER_CAPS[(params.get('offer') ?? 'low') as keyof typeof OFFER_CAPS] ??
+  OFFER_CAPS.low
 const OUTBOX = `read-fixture:outbox:${run}`
 
 const money = (cents: number): Money => ({
@@ -156,7 +165,7 @@ function controller(target: TipTarget): TipController {
     // The public default for a signed-out visitor (minimum, cap, price).
     signedOut:
       scenario === 'signed-out'
-        ? { signedOut: true, amount: money(100), amounts: AMOUNTS }
+        ? signedOutOfferFor({ minCents: 10, perTipCents: offerCap })
         : null,
   }
 }
