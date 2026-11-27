@@ -6,6 +6,7 @@ import {
   getPublicProfileArticles,
   movedPublicPath,
 } from '@/lib/seo/publicContent'
+import { retryHrefFor } from '@/components/articles/ReadingUnavailable'
 import { parseProfilePage } from '@/lib/profile/profileArticles'
 import { parseProfileTab } from '@/lib/profile/profileTab'
 import {
@@ -85,11 +86,19 @@ export default async function ProfilePage({
     notFound()
   }
   const initialArticles = profile ? articles : undefined
+  // Out of time or unreachable: the writer, or their articles on this tab.
+  const unavailable =
+    profile === undefined || (onArticlesTab && initialArticles === undefined)
   return (
     <ProfilePageClient
       username={username}
       initialProfile={profile}
       initialArticles={initialArticles}
+      unavailableRetryHref={
+        unavailable
+          ? retryHrefFor(`/${encodeURIComponent(username)}`, query)
+          : undefined
+      }
     />
   )
 }

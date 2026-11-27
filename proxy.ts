@@ -7,8 +7,9 @@ import {
   createNonce,
   NONCE_HEADER,
 } from '@/lib/security/contentSecurityPolicy'
+import { PUBLIC_READ_TIMEOUT_MS } from '@/lib/seo/publicReadTimeout'
 
-const ROUTE_CHECK_TIMEOUT_MS = 1500
+const ROUTE_CHECK_TIMEOUT_MS = PUBLIC_READ_TIMEOUT_MS
 
 // A writer page's name and article titles repaint when these typefaces arrive,
 // which sets the largest paint on slow phones. The stylesheet only reveals them
