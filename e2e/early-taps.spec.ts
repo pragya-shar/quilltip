@@ -116,6 +116,38 @@ test.describe('sign-in before the page scripts run', () => {
     }
   })
 
+  test('a held submit survives React rendering the page again', async ({
+    page,
+  }) => {
+    const sent = await recordConvexMessages(page)
+    const release = await holdPageScripts(page)
+    await page.goto('/login', { waitUntil: 'domcontentloaded' })
+    await page.getByLabel('Email', { exact: true }).fill(EMAIL)
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
+    const submit = page.locator('form[data-early-submit] button[type="submit"]')
+    await submit.click()
+    await expect(submit).toHaveText('One moment…', {
+      timeout: 1000,
+      useInnerText: true,
+    })
+    // React renders the page again when the server HTML does not match, as
+    // it sometimes does under load. Taking the held form out forces that.
+    await page
+      .locator('form[data-early-submit]')
+      .evaluate((form) => form.remove())
+
+    release()
+    await expect
+      .poll(() => signInMessages(sent).length, { timeout: 15_000 })
+      .toBe(1)
+    expect(signInMessages(sent)[0]).toContain(EMAIL)
+    await expect(
+      page.locator('form[data-early-submit] button[type="submit"]')
+    ).toHaveText('One moment…', { useInnerText: true })
+    await page.waitForTimeout(1500)
+    expect(signInMessages(sent)).toHaveLength(1)
+  })
+
   test('a submit with empty fields shows the same errors once the scripts run', async ({
     page,
   }) => {
@@ -262,6 +294,32 @@ test.describe('mobile menu before the page scripts run', () => {
     )
     await dialog.getByRole('button', { name: 'Close', exact: true }).tap()
     await expect(dialog).toBeHidden()
+  })
+
+  test('a menu opened before the scripts stays open when React renders the page again', async ({
+    page,
+  }) => {
+    await recordConvexMessages(page)
+    const release = await holdPageScripts(page)
+    await page.goto(MENU_PAGE, { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Open navigation menu' }).tap()
+    const dialog = page.getByRole('dialog', { name: 'Find your way' })
+    await expect(dialog).toBeVisible({ timeout: 1000 })
+    // Taking the open sheet out of the server HTML makes React render the
+    // page again, as it sometimes does under load.
+    await page
+      .locator('dialog.app-mobile-menu')
+      .evaluate((menu) => menu.remove())
+
+    release()
+    await expect(page.locator('.app-menu-trigger')).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    await expect(dialog).toBeVisible()
+    expect(await dialog.evaluate((element) => element.matches(':modal'))).toBe(
+      true
+    )
   })
 
   test('the close button and the backdrop close the menu before the scripts run', async ({

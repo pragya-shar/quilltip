@@ -11,6 +11,7 @@ import { AuthActionsSkeleton } from './AuthActionsSkeleton'
 import { AccountNavigationMenu } from './AccountNavigationMenu'
 import { AppMobileMenu } from './AppMobileMenu'
 import { isProtectedPath } from '@/lib/navigation/protectedRoutes'
+import { takeEarlyMenuOpen } from '@/lib/navigation/earlyMenu'
 import {
   getAccountNavigationLinks,
   PRIMARY_NAVIGATION_LINKS,
@@ -53,8 +54,10 @@ export default function AppNavigation() {
   }
 
   useEffect(() => {
-    if (menuRef.current?.matches(':popover-open')) openMenu()
-    // Runs once, when the scripts take over.
+    // Runs once, when the scripts take over. A menu the reader opened before
+    // then stays open, also when React rendered the page again.
+    const openedEarly = takeEarlyMenuOpen()
+    if (openedEarly || menuRef.current?.matches(':popover-open')) openMenu()
   }, [])
 
   useEffect(() => {

@@ -1,9 +1,29 @@
 /**
  * Before the page scripts run, the mobile menu is a popover
- * (components/layout/AppMobileMenu.tsx). Unlike the modal dialog the scripts
- * open, a popover lets Tab move on to the page behind the sheet. This inline
- * script closes it when focus leaves it, so focus never lands on a link the
- * sheet covers. Once the scripts run, the menu opens as a modal dialog and
- * this never applies.
+ * (components/layout/AppMobileMenu.tsx). This inline script does two things
+ * until the scripts take over:
+ *
+ * - Unlike the modal dialog the scripts open, a popover lets Tab move on to
+ *   the page behind the sheet. The script closes it when focus leaves it, so
+ *   focus never lands on a link the sheet covers.
+ * - It records whether the reader left the menu open (EARLY_MENU_PROPERTY).
+ *   React sometimes renders the page again in the browser instead of
+ *   attaching to the server HTML, which removes the open popover; the menu
+ *   then opens again as the modal dialog.
  */
-export const EARLY_MENU_SCRIPT = `document.addEventListener("focusin",function(e){try{var m=document.querySelector(".app-mobile-menu:popover-open"),t=e.target;if(m&&t instanceof Element&&!m.contains(t)&&!t.closest("[popovertarget]"))m.hidePopover()}catch(x){}},true)`
+
+/** `open` or `closed` before the scripts run, `done` after. */
+export const EARLY_MENU_PROPERTY = '__earlyMenu'
+
+export const EARLY_MENU_SCRIPT = `(function(){var p="${EARLY_MENU_PROPERTY}";document.addEventListener("focusin",function(e){try{var m=document.querySelector(".app-mobile-menu:popover-open"),t=e.target;if(m&&t instanceof Element&&!m.contains(t)&&!t.closest("[popovertarget]"))m.hidePopover()}catch(x){}},true);document.addEventListener("toggle",function(e){var t=e.target;if(self[p]!=="done"&&t instanceof Element&&t.classList.contains("app-mobile-menu"))self[p]=e.newState},true)})()`
+
+/**
+ * Called once when the scripts take over: whether the reader left the menu
+ * open before then. Later toggles are not recorded.
+ */
+export function takeEarlyMenuOpen(): boolean {
+  const store = window as unknown as Record<string, string | undefined>
+  const state = store[EARLY_MENU_PROPERTY]
+  store[EARLY_MENU_PROPERTY] = 'done'
+  return state === 'open'
+}
