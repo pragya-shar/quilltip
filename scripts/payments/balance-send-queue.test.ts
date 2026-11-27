@@ -395,3 +395,94 @@ describe('jobs bound to one reader', () => {
     expect(server.submits).toEqual([])
   })
 })
+
+describe('the queue survives what the job does not catch', () => {
+  it('runs the next tip after a job throws outside its signer', async () => {
+    const server = fakeServer()
+    const signer = signerFor(
+      A,
+      accepting(server, A, () => A)
+    )
+    const store = memoryStore()
+    const real = createOutbox(store)
+    let failNextList = false
+    // Storage throws once, inside the job but before the signer runs.
+    const outbox = {
+      ...real,
+      list: (userId: string) => {
+        if (failNextList) {
+          failNextList = false
+          throw new Error('storage unavailable')
+        }
+        return real.list(userId)
+      },
+    }
+    const queue = createSendQueue(A, {
+      context: () => ({ binding: A, signer, keyId: 0 }),
+      outbox,
+      convex: {
+        prepareTip: async () => {
+          throw new Error('unused')
+        },
+        submitTip: async () => {
+          throw new Error('unused')
+        },
+      },
+      newRequestId: () => `fresh-${++seq}`,
+      report: () => {},
+    })
+    const first = entry(A)
+    const second = entry(A)
+    real.put(first)
+    real.put(second)
+    failNextList = true
+    queue.enqueue(first)
+    queue.enqueue(second)
+    await queue.idle().catch(() => {})
+    expect(signer.calls).toEqual([second.requestId])
+    expect(server.accepted.get(second.requestId)).toBe(1)
+  })
+})
+
+describe('a job is bound to its user, not only to its address', () => {
+  it("never runs reader A's tip for another user signed in on the same address", async () => {
+    const C: QueueBinding = { userId: 'user-c', readerAddress: A.readerAddress }
+    const server = fakeServer()
+    const signerC = signerFor(
+      C,
+      accepting(server, C, () => C)
+    )
+    const { outbox, ctx, make } = setup(A, null)
+    let mutations = 0
+    const queue = createSendQueue(A, {
+      context: () => ctx.current,
+      outbox,
+      convex: {
+        prepareTip: async () => {
+          mutations += 1
+          throw new Error('must not be called')
+        },
+        submitTip: async () => {
+          mutations += 1
+          throw new Error('must not be called')
+        },
+      },
+      newRequestId: () => `fresh-${++seq}`,
+      report: () => {},
+    })
+    void make
+    const tip = entry(A)
+    outbox.put(tip)
+    // User C signed in on the same reader address before the job ran.
+    ctx.current = { binding: C, signer: signerC, keyId: 0 }
+    expect(queue.enqueue(tip)).toBe(true)
+    await queue.idle()
+    expect(signerC.calls).toEqual([])
+    expect(mutations).toBe(0)
+    expect(server.submits).toEqual([])
+    // A's entry stays, untouched, for A's return.
+    expect(outbox.list(A.userId).map((e) => e.requestId)).toEqual([
+      tip.requestId,
+    ])
+  })
+})
