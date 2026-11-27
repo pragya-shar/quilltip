@@ -79,6 +79,8 @@ const approx = (figure: Money | null): Money | null =>
     display: `≈ $${(Math.floor(figure.cents + 1e-9) / 100).toFixed(2)}`,
     converted: true,
   }
+// `?no-price`: the money layer has no price for the figure.
+if (params.has('no-price')) base.balance = { ...base.balance, price: null }
 const views =
   params.has('writer-converted') && base.earnings.status === 'ready'
     ? {

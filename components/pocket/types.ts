@@ -52,6 +52,9 @@ export type BalanceView = {
   exact?: { token: 'XLM'; available: string } | null
   /** Accepted for 561: when the server last answered (for stale figures). */
   asOf?: number | null
+  /** Asked of 561 (interface ask 10): the price the converted figure used,
+   * dollars per token; null when not converted or unknown. */
+  price?: { perToken: Money; asOf: number } | null
 }
 
 export type ActivityItem = {

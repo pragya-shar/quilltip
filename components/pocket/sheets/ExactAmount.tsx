@@ -15,6 +15,7 @@ export default function ExactAmountBody(_: SheetBodyProps<unknown>) {
   const source = usePocketSource()
   const balance = source.useBalance()
   const exact = balance.exact ?? null
+  const price = balance.price ?? null
   const available =
     balance.status === 'ready' || balance.status === 'closing'
       ? balance.available
@@ -34,10 +35,12 @@ export default function ExactAmountBody(_: SheetBodyProps<unknown>) {
       </p>
       <p className="qt-pocket__plain">
         Your balance is held in Lumens.
-        {available ? (
+        {available && price ? (
+          // Screen 40f's sentence, only with the price the figure used.
           <>
             {' '}
-            At today&rsquo;s price it is worth{' '}
+            At today&rsquo;s price of{' '}
+            <MoneyFigure value={price.perToken} size="s" /> it is worth{' '}
             <MoneyFigure value={available} size="s" />; the dollar figure moves
             with the price.
           </>

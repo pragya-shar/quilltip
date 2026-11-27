@@ -385,6 +385,9 @@ test.describe('every money scenario', () => {
       /^[\d,]+\.\d+ XLM$/
     )
     await expect(sheet).toContainText('Your balance is held in Lumens.')
+    await expect(sheet).toContainText(
+      'At today’s price of $0.127328'
+    )
     await expect(sheet).toContainText('Tips are sent in dollars.')
     await page.keyboard.press('Escape')
     await expect
@@ -394,6 +397,14 @@ test.describe('every money scenario', () => {
         )
       )
       .toBe(true)
+  })
+
+  test('without a price, the exact amount names none', async ({ page }) => {
+    await page.goto('/pocket?scenario=ready&no-price')
+    await press(page.getByRole('button', { name: /Show the exact amount/ }))
+    const sheet = page.getByRole('dialog', { name: 'Exact amount' })
+    await expect(sheet).toContainText('Its dollar figure moves with the price.')
+    await expect(sheet).not.toContainText('At today’s price')
   })
 
   test('an exact balance is not a button and says nothing about prices', async ({

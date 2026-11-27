@@ -152,6 +152,7 @@ const readyBalance = (over: Partial<BalanceView> = {}): BalanceView => ({
   online: true,
   network: 'testnet',
   exact: { token: 'XLM', available: baseUnits(254.66) },
+  price: { perToken: money(PRICE), asOf: 0 },
   ...over,
 })
 
@@ -306,7 +307,13 @@ export function scenario(name: Scenario, now: number): FixtureViews {
     case 'none':
       return views(
         { reader: [], writer: [] },
-        { status: 'none', available: money(0), pending: money(0), exact: null }
+        {
+          status: 'none',
+          available: money(0),
+          pending: money(0),
+          exact: null,
+          price: null,
+        }
       )
     case 'loading':
       return {
