@@ -29,7 +29,14 @@ export const CORE = 'CAFCGOIM6SKVBWCPFQODN22MY5HUJEJMW5AOMNGAOVZ4QBLJJ5RLOOMS'
 export const TOKEN = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'
 const AUTHOR = 'GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI'
 const COAUTHOR = 'GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR'
-const PRICE = 0.25
+/**
+ * XLM in US dollars. The tab UI fixture's dialog page (`/dialog`) prices it
+ * at $0.10 like its tab backend; `?price=` sets another.
+ */
+const PRICE = Number(
+  new URLSearchParams(location.search).get('price') ??
+    (location.pathname === '/dialog' ? 0.1 : 0.25)
+)
 
 /** Fixture articles: the page's article, a second one, and one with splits. */
 export const ARTICLES = {

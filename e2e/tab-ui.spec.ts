@@ -248,6 +248,8 @@ test('the spec lists an expectation for every reader and writer state', () => {
   const driven = [...SCENARIOS.keys()].filter(
     (id) =>
       !id.startsWith('op-') &&
+      // The tip dialog states run in e2e/tab-tip-dialog.spec.ts.
+      !id.startsWith('dialog-') &&
       !/^tip-(accepted|shortfall|unpaid|rejected|void|lost-response|stale|over-balance|key-limit|daily-limit|receipt-cap|above-max|two-tabs)$/.test(
         id
       ) &&

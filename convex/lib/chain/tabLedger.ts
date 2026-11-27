@@ -488,6 +488,96 @@ export function centsToStroops(amountCents: number, priceUsd: number): bigint {
   return BigInt(Math.floor((amountCents * STROOPS_PER_XLM) / (priceUsd * 100)))
 }
 
+/** The largest US cent amount `centsToStroops` accepts at this price. */
+const MAX_TIP_CENTS = 1_000_000
+
+/**
+ * The largest whole-cent tip whose base units at `priceUsd` stay within
+ * `maxBaseUnits` (the same rounding as `centsToStroops`), or 0 when even one
+ * cent is above it. The tip dialog offers no amount above this.
+ */
+export function maxCentsWithin(maxBaseUnits: bigint, priceUsd: number): number {
+  if (!(priceUsd > 0) || !Number.isFinite(priceUsd)) return 0
+  const fits = (c: number) =>
+    BigInt(Math.floor((c * STROOPS_PER_XLM) / (priceUsd * 100))) <= maxBaseUnits
+  if (!fits(1)) return 0
+  if (fits(MAX_TIP_CENTS)) return MAX_TIP_CENTS
+  // `centsToStroops` never decreases as cents grow: search the boundary.
+  let low = 1
+  let high = MAX_TIP_CENTS
+  while (high - low > 1) {
+    const mid = Math.floor((low + high) / 2)
+    if (fits(mid)) low = mid
+    else high = mid
+  }
+  return low
+}
+
+/**
+ * The tab tip limits a reader's next quick tip is checked against, as raw
+ * values: nothing here depends on the time, because a subscribed query does
+ * not re-run as time passes. The client applies the UTC day and the price's
+ * age with its own clock (`lib/tab-ui/tip-limits.ts`) and explains an amount
+ * above a limit before it prepares anything.
+ */
+export type TabTipLimitsView = {
+  /** Base units; `TAB_TIP_MAX`. */
+  tipMax: string
+  /** Base units; `TAB_DAILY_LIMIT`. */
+  dailyLimit: string
+  /** Base units accepted on `acceptedDay` (UTC `YYYY-MM-DD`). */
+  acceptedToday: string
+  acceptedDay: string
+  /** Base units; the chain minimum, or null before the config is loaded. */
+  minTip: string | null
+  /** The cached price prepare converts with, or null when there is none. */
+  priceUsd: number | null
+  /** When that price was fetched; prepare refuses it after `priceMaxAgeMs`. */
+  priceFetchedAt: number | null
+  priceMaxAgeMs: number
+  /** The largest whole-cent tip within `tipMax` at `priceUsd`. */
+  tipMaxCents: number | null
+}
+
+export async function tabTipLimitsView(
+  ctx: QueryCtx,
+  args: {
+    network: ChainEnv['network']
+    chainEpoch: string
+    account: Pick<Doc<'tabAccounts'>, 'acceptedDay' | 'acceptedToday'>
+    env?: EnvLike
+  }
+): Promise<TabTipLimitsView | null> {
+  let limits: TabLimits
+  try {
+    limits = tabLimits(args.env)
+  } catch {
+    return null
+  }
+  const config = await ctx.db
+    .query('chainConfig')
+    .withIndex('by_network', (q) => q.eq('network', args.network))
+    .first()
+  const minTip =
+    config && config.chainEpoch === args.chainEpoch && config.minTip
+      ? config.minTip
+      : null
+  const price = await ctx.db.query('xlmPriceCache').first()
+  const usable =
+    !!price && price.priceUsd > 0 && Number.isFinite(price.priceUsd)
+  return {
+    tipMax: limits.tipMax.toString(),
+    dailyLimit: limits.dailyLimit.toString(),
+    acceptedToday: args.account.acceptedToday,
+    acceptedDay: args.account.acceptedDay,
+    minTip,
+    priceUsd: usable ? price.priceUsd : null,
+    priceFetchedAt: usable ? price.fetchedAt : null,
+    priceMaxAgeMs: TAB_PRICE_MAX_AGE_MS,
+    tipMaxCents: usable ? maxCentsWithin(limits.tipMax, price.priceUsd) : null,
+  }
+}
+
 type TipRow = Doc<'tips'> | Doc<'highlightTips'>
 
 function expectedReceipt(row: TipRow): StoredReceipt {

@@ -43,16 +43,63 @@ const css = await postcss([tailwind({ base: root })]).process(
   "@import './app/globals.css';",
   { from: path.join(root, 'tab-ui-fixture.css') }
 )
-const outputs = new Map(
-  await Promise.all(
-    result.outputs.map(async (output) => [
+// The tip dialog page (/dialog, issue #546): the real tip dialogs, with
+// the v2 tip fixture standing in for Convex, auth and Stellar RPC, and this
+// fixture's services for the dialog's tab section.
+const tipsRuntime = path.join(root, 'e2e/fixtures/tips-v2/runtime.ts')
+const dialogBuild = await Bun.build({
+  entrypoints: [path.join(import.meta.dirname, 'dialog.tsx')],
+  target: 'browser',
+  define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' },
+  plugins: [
+    {
+      name: 'tip-dialog-collaborators',
+      setup(build) {
+        build.onResolve(
+          { filter: /^\/(landing|account|prototype\/writing)\/fonts\// },
+          (args) => ({ path: args.path, external: true })
+        )
+        build.onResolve({ filter: /^next\/navigation$/ }, () => ({
+          path: path.join(root, 'e2e/fixtures/wallet/navigation.ts'),
+        }))
+        build.onResolve({ filter: /^next\/link$/ }, () => ({
+          path: path.join(root, 'e2e/fixtures/nft/link.tsx'),
+        }))
+        build.onResolve(
+          { filter: /^@\/hooks\/tab\/useLiveTabServices$/ },
+          () => ({
+            path: path.join(import.meta.dirname, 'live-services.ts'),
+          })
+        )
+        build.onResolve(
+          {
+            filter:
+              /^(convex\/react|next\/dynamic|@\/(convex\/_generated\/api|components\/providers\/AuthContext|lib\/stellar\/client|lib\/stellar\/v2\/chain-runtime))$/,
+          },
+          () => ({ path: tipsRuntime })
+        )
+      },
+    },
+  ],
+})
+if (!dialogBuild.success) throw new AggregateError(dialogBuild.logs)
+
+const named = async (outputs) =>
+  Promise.all(
+    outputs.map(async (output) => [
       path.basename(output.path),
       await output.text(),
     ])
   )
-)
-const jsName = [...outputs.keys()].find((name) => name.endsWith('.js'))
-const cssName = [...outputs.keys()].find((name) => name.endsWith('.css'))
+const pageOutputs = await named(result.outputs)
+const dialogOutputs = await named(dialogBuild.outputs)
+const outputs = new Map([...pageOutputs, ...dialogOutputs])
+const pick = (list, ext) =>
+  list.map(([name]) => name).find((name) => name.endsWith(ext))
+const jsName = pick(pageOutputs, '.js')
+const cssName = pick(pageOutputs, '.css')
+const dialogJs = pick(dialogOutputs, '.js')
+const dialogCss = pick(dialogOutputs, '.css')
 
 /** One stand-in backend per session; pages of a session share it. */
 const sessions = new Map()
@@ -113,7 +160,7 @@ async function api(url, request) {
       const ledger = state.clock.sequence
       const day = 17_280
       const options = {
-        ready: {},
+        ready: { limit: state.keySpendLimit },
         stopped: {},
         renew: { validUntil: ledger + 2 * day + 100 },
         expired: { validUntil: ledger + 100 },
@@ -192,7 +239,11 @@ Bun.serve({
   async fetch(request) {
     const url = new URL(request.url)
     if (url.pathname.startsWith('/api/')) return api(url, request)
-    if (url.pathname.startsWith('/landing/fonts/'))
+    if (
+      url.pathname.startsWith('/landing/fonts/') ||
+      url.pathname.startsWith('/account/fonts/') ||
+      url.pathname.startsWith('/prototype/writing/fonts/')
+    )
       return new Response(
         await readFile(path.join(root, 'public', url.pathname)),
         { headers: { 'Content-Type': 'font/woff2' } }
@@ -208,6 +259,11 @@ Bun.serve({
             : 'text/javascript',
         },
       })
+    if (url.pathname === '/dialog')
+      return new Response(
+        `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Tip dialog fixtures</title><link rel="stylesheet" href="/base.css">${dialogCss ? `<link rel="stylesheet" href="/${dialogCss}">` : ''}</head><body><div id="root"></div><script type="module" src="/${dialogJs}"></script></body></html>`,
+        { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+      )
     return new Response(
       `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Tab UI fixtures</title><link rel="stylesheet" href="/base.css">${cssName ? `<link rel="stylesheet" href="/${cssName}">` : ''}</head><body><div id="root"></div><script type="module" src="/${jsName}"></script></body></html>`,
       { headers: { 'Content-Type': 'text/html; charset=utf-8' } }

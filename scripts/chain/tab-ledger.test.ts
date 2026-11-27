@@ -28,6 +28,7 @@ import {
   type StoredReceipt,
 } from '../../convex/lib/chain/voucher'
 import { hexToBytes, bytesToHex } from '../../convex/lib/chain/ids'
+import { checkTabTipAmount, tabTipLimitsAt } from '../../lib/tab-ui/tip-limits'
 import { signEd25519 } from '../../lib/stellar/v2/tab/encoding'
 import {
   commitAcceptedTip,
@@ -941,6 +942,108 @@ describe('concurrency', () => {
       'TAB_OVER_BALANCE'
     )
     expect((await account(t)).outstanding).toBe('1000000')
+  })
+})
+
+describe('tip limits in getMyTab (#546)', () => {
+  it('gives the raw limits prepare checks, the same at any time', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    await ingest(t, ev.deposited(READER, BigInt(100) * XLM, BigInt(100) * XLM))
+    await ingest(t, ev.keyRegistered(READER, 0, VALID_UNTIL, BigInt(50) * XLM))
+    const reader = as(t, s.readerId)
+    const limits = (await reader.query(api.tabs.getMyTab, {}))!.tipLimits!
+    expect(limits).toEqual({
+      tipMax: '50000000',
+      dailyLimit: '200000000',
+      acceptedToday: '0',
+      acceptedDay: '2026-12-02',
+      minTip: '100000',
+      priceUsd: 1,
+      priceFetchedAt: T0,
+      priceMaxAgeMs: 30 * 60 * 1000,
+      // $1 per XLM: 500 cents is 5 XLM, the default maximum.
+      tipMaxCents: 500,
+    })
+    // The client's check and prepare agree at the maximum.
+    const check = (cents: number, now: number, l = limits) =>
+      checkTabTipAmount({ cents, limits: l, free: '1000000000', now })
+    expect(check(500, T0)).toMatchObject({ ok: true })
+    expect(check(501, T0)).toMatchObject({ reason: 'above-max' })
+    expect(await errorCode(prepare(t, s, { cents: 501 }))).toBe(
+      'TAB_ABOVE_TIP_MAX'
+    )
+    await tip(t, s, { cents: 500 })
+    const after = (await reader.query(api.tabs.getMyTab, {}))!.tipLimits!
+    expect(after).toMatchObject({
+      acceptedToday: '50000000',
+      acceptedDay: '2026-12-02',
+    })
+    // Nothing in the query depends on the time: a subscription left open
+    // across midnight keeps these values, and the client applies the day.
+    vi.setSystemTime(T0 + 24 * 3600 * 1000)
+    expect((await reader.query(api.tabs.getMyTab, {}))!.tipLimits).toEqual(
+      after
+    )
+    const nextDay = T0 + 24 * 3600 * 1000
+    expect(
+      tabTipLimitsAt(
+        { ...after, priceFetchedAt: nextDay },
+        nextDay
+      ).dailyLeft.toString()
+    ).toBe('200000000')
+  })
+
+  it('gives the price with its age, so the client and prepare agree it is stale', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    await ingest(t, ev.deposited(READER, BigInt(10) * XLM, BigInt(10) * XLM))
+    await ingest(t, ev.keyRegistered(READER, 0, VALID_UNTIL, BigInt(50) * XLM))
+    const stale = T0 + 30 * 60 * 1000 + 1
+    vi.setSystemTime(stale)
+    const limits = (await as(t, s.readerId).query(api.tabs.getMyTab, {}))!
+      .tipLimits!
+    expect(limits).toMatchObject({ priceUsd: 1, priceFetchedAt: T0 })
+    expect(tabTipLimitsAt(limits, stale)).toMatchObject({
+      priceUsd: null,
+      tipMaxCents: null,
+    })
+    expect(await errorCode(prepare(t, s, { cents: 10 }))).toBe(
+      'TAB_PRICE_UNAVAILABLE'
+    )
+    // One millisecond earlier both still use it.
+    expect(tabTipLimitsAt(limits, stale - 1).priceUsd).toBe(1)
+  })
+
+  it('follows TAB_TIP_MAX and a price that does not divide evenly', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    process.env.TAB_TIP_MAX = '25000000'
+    try {
+      await ingest(
+        t,
+        ev.deposited(READER, BigInt(100) * XLM, BigInt(100) * XLM)
+      )
+      await ingest(
+        t,
+        ev.keyRegistered(READER, 0, VALID_UNTIL, BigInt(50) * XLM)
+      )
+      await t.run(async (ctx) => {
+        const p = await ctx.db.query('xlmPriceCache').first()
+        await ctx.db.patch(p!._id, { priceUsd: 0.1337 })
+      })
+      const limits = (await as(t, s.readerId).query(api.tabs.getMyTab, {}))!
+        .tipLimits!
+      expect(limits.tipMax).toBe('25000000')
+      // 33 cents is 2.4682124 XLM; 34 cents would be 2.5430067 XLM.
+      expect(limits.tipMaxCents).toBe(33)
+      await tip(t, s, { cents: 33 })
+      expect(await errorCode(prepare(t, s, { cents: 34 }))).toBe(
+        'TAB_ABOVE_TIP_MAX'
+      )
+    } finally {
+      delete process.env.TAB_TIP_MAX
+    }
   })
 })
 
