@@ -1,6 +1,14 @@
+import { existsSync, readdirSync, statSync } from 'node:fs'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  FIRST_LOAD_ENTRIES,
+  FONT_FALLBACK_ROUTES,
+  NO_SCRIPT_ROUTES,
+  PAGE_LOAD_ROUTES,
   PERF_ROUTE_PACKAGES,
+  legacyPageDeleted,
+  UNMEASURED,
   SURFACE_FIRST_LOAD,
   SURFACE_FONT_FALLBACK,
   SURFACE_PAGE_LOAD,
@@ -11,6 +19,25 @@ import {
   forbiddenModules,
 } from './first-load'
 import { FIRST_LOAD_CEILING_KB, FIRST_LOAD_TARGET_KB } from './routes/types'
+import {
+  LEGACY_FIRST_LOAD,
+  LEGACY_FONT_FALLBACK,
+  LEGACY_PAGE_LOAD,
+} from './routes/legacy'
+
+const root = path.resolve(__dirname, '../..')
+
+/** Next.js route names of the pages under a directory: groups dropped. */
+function pageRoutes(dir: string, prefix = ''): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const full = path.join(dir, name)
+    if (statSync(full).isDirectory()) {
+      const segment = /^\(.*\)$/.test(name) ? '' : `/${name}`
+      return pageRoutes(full, `${prefix}${segment}`)
+    }
+    return name === 'page.tsx' ? [prefix || '/'] : []
+  })
+}
 
 describe('measured routes from scripts/perf/routes', () => {
   it('has one file per package', () => {
@@ -77,5 +104,72 @@ describe('the balance code in a first load', () => {
   it('a lazily loaded sheet is refused everywhere', () => {
     const sheet = '[project]/components/pocket/sheets/AddMoney.tsx'
     expect(forbiddenModules([sheet], '/pocket')).toHaveLength(1)
+  })
+})
+
+describe('the legacy lists, replaced without editing them', () => {
+  it('measures each route and path once', () => {
+    const routes = FIRST_LOAD_ENTRIES.map((e) => e.route)
+    expect(new Set(routes).size).toBe(routes.length)
+    for (const list of [PAGE_LOAD_ROUTES, FONT_FALLBACK_ROUTES]) {
+      const paths = list.map((e) => e.path)
+      expect(new Set(paths).size).toBe(paths.length)
+      const names = list.map((e) => e.name)
+      expect(new Set(names).size).toBe(names.length)
+    }
+  })
+
+  it('names a page that exists or is listed as deleted for each legacy entry', () => {
+    for (const entry of [
+      ...LEGACY_FIRST_LOAD,
+      ...LEGACY_PAGE_LOAD,
+      ...LEGACY_FONT_FALLBACK,
+    ])
+      expect(
+        existsSync(path.join(root, entry.page)) ||
+          legacyPageDeleted(entry.page),
+        entry.page
+      ).toBe(true)
+  })
+
+  it('drops a legacy entry whose page is listed as deleted', () => {
+    const page = 'app/(legacy)/articles/page.tsx'
+    expect(legacyPageDeleted(page, ['app/(legacy)/articles'])).toBe(true)
+    expect(legacyPageDeleted(page, [page])).toBe(true)
+    expect(legacyPageDeleted(page, ['app/(legacy)/article'])).toBe(false)
+  })
+
+  it('keeps the legacy entries no package replaced', () => {
+    for (const entry of LEGACY_FIRST_LOAD)
+      if (
+        !legacyPageDeleted(entry.page) &&
+        !SURFACE_FIRST_LOAD.some((own) => own.route === entry.route)
+      )
+        expect(FIRST_LOAD_ROUTES).toContain(entry.route)
+  })
+})
+
+describe('every public route of the shell', () => {
+  const publicRoutes = pageRoutes(path.join(root, 'app/(app)/(public)'))
+  const unmeasured = new Map(UNMEASURED.map((e) => [e.route, e.reason]))
+
+  it('has a first-load budget and a no-script check, or says why not', () => {
+    const missing = publicRoutes.filter(
+      (route) =>
+        !unmeasured.has(route) &&
+        !(FIRST_LOAD_ROUTES.includes(route) && NO_SCRIPT_ROUTES.has(route))
+    )
+    expect(missing).toEqual([])
+    for (const [route, reason] of unmeasured) {
+      expect(publicRoutes, `unmeasured ${route}`).toContain(route)
+      expect(reason.length, route).toBeGreaterThan(20)
+    }
+  })
+
+  it('budgets public routes as public', () => {
+    for (const route of publicRoutes) {
+      const entry = SURFACE_FIRST_LOAD.find((e) => e.route === route)
+      if (entry) expect(entry.access, route).toBe('public')
+    }
   })
 })

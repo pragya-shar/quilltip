@@ -3,8 +3,9 @@ import { expect, test } from '@playwright/test'
 // Public reading in the application shell works with no script: the
 // article is in the first response, visible, with plain links. Runs against
 // a production build (scripts/app-checks/run.ts) with JavaScript
-// turned off, in Chromium and WebKit. Add each public route of the shell
-// here as it lands; the gallery is exempt.
+// turned off, in Chromium and WebKit. The foundation's public routes; a
+// surface checks its own in its production-build check and lists the route
+// in `noScript` (scripts/perf/routes/<package>.ts).
 
 test.skip(
   !process.env.NO_SCRIPT_CHECK,

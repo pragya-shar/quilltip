@@ -20,9 +20,8 @@ import { chromium, type Browser, type Page } from '@playwright/test'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
 import { gzipSync } from 'zlib'
-import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
-import { SURFACE_PAGE_LOAD } from './routes'
+import { PAGE_LOAD_ROUTES } from './routes'
 import type { PageLoadRoute } from './routes/types'
 import { startProductionApp } from './production-app'
 
@@ -45,34 +44,9 @@ const OUTPUT = process.env.PERF_OUTPUT ?? 'perf-budget-results.json'
  * - `fontKb`: compressed fonts the page requests, the larger of mobile and
  *   desktop. The smallest face is 12 KB.
  */
-const ROUTES: readonly PageLoadRoute[] = [
-  {
-    name: 'landing',
-    path: '/',
-    // Measured: HTML 38 KB, stylesheets 39 KB, fonts 169 KB (ten faces).
-    budget: { htmlKb: 42, cssKb: 41, fontKb: 172 },
-  },
-  {
-    name: 'login',
-    path: '/login',
-    // Measured: HTML 30 KB, stylesheets 29 KB, fonts 39 KB.
-    budget: { htmlKb: 34, cssKb: 31, fontKb: 42 },
-  },
-  {
-    name: 'articles',
-    path: '/articles',
-    // Measured: HTML 44 KB, stylesheets 29 KB, fonts 79 KB.
-    budget: { htmlKb: 48, cssKb: 31, fontKb: 82 },
-  },
-  {
-    name: 'article',
-    path: FIXTURE_ARTICLE_PATH,
-    // Measured: HTML 40 KB, stylesheets 26 KB, fonts 98 KB.
-    budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
-  },
-  // The rebuilt routes, one file per package (scripts/perf/routes).
-  ...SURFACE_PAGE_LOAD,
-]
+// The legacy routes not yet replaced and every package's
+// (scripts/perf/routes).
+const ROUTES: readonly PageLoadRoute[] = PAGE_LOAD_ROUTES
 
 type DeviceName = 'mobile' | 'desktop'
 
