@@ -2046,6 +2046,106 @@ describe('writer earnings summary with tab tips (#552)', () => {
     expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(250))
   }, 60_000)
 
+  /** `n` other pairs of the writer's address, unpaid, with keys from `from`. */
+  async function otherPairs(t: T, s: Seeded, from: number, n: number) {
+    await t.run(async (ctx) => {
+      const account = (await ctx.db.query('tabAccounts').first())!
+      const now = Date.now()
+      for (let i = 0; i < n; i += 1) {
+        await ctx.db.insert('tabVouchers', {
+          network: 'TESTNET',
+          chainEpoch: EPOCH,
+          tabAccountId: account._id,
+          tabContractId: TAB,
+          tokenContractId: TOKEN,
+          readerAddress: READER,
+          keyId: 1000 + from + i,
+          writerAddress: WRITER,
+          authorId: s.authorId,
+          cumulative: '0',
+          receiptsRoot: '00'.repeat(32),
+          leafHashes: [],
+          signature: '00'.repeat(64),
+          acceptance: { acceptor: ACCEPTOR_PUBLIC, signature: '00'.repeat(64) },
+          seq: 0,
+          paidOnChain: '0',
+          unsettled: false,
+          state: 'UNPAID',
+          settleQueue: 'done',
+          earnedNet: '0',
+          pendingNet: '0',
+          acceptedAt: now,
+          updatedAt: now,
+        })
+      }
+    })
+  }
+
+  it('a pair paid mid-page during the pairs phase counts once', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // The tipped pair is the fourth of 254: inside the first page of 200,
+    // neither its first nor its last row, and the phase goes on after it.
+    await otherPairs(t, s, 0, 3)
+    await tip(t, s, { cents: 10 })
+    await otherPairs(t, s, 3, 250)
+    await forgetTotals(t, s.authorId)
+    const id = (await earningsRow(t, s.authorId))!._id
+    const step = () =>
+      t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    // `tips`, `highlightTips`, then the first page of pairs.
+    for (let i = 0; i < 3; i += 1) expect(await step()).toBe('more')
+    const r = (await earningsRow(t, s.authorId))!.lifetimeRebuild!
+    expect(r).toMatchObject({ phase: 'pairs', writerIndex: 0 })
+    expect(r.cursor).toBeTypeOf('string')
+    const byWriter = (
+      await t.run(async (ctx) => ctx.db.query('tabVouchers').collect())
+    ).sort((a, b) => a._creationTime - b._creationTime)
+    const tipped = byWriter.findIndex((v) => v.keyId === 0)
+    expect(tipped).toBe(3)
+    expect(r.lastCreationTime).toBe(byWriter[199]!._creationTime)
+    // The pair the step has read is paid now.
+    await settleAll(t, BigInt(1_000_000))
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(1))
+    expect(
+      (await earningsRow(t, s.authorId))!.walletEarnedBaseUnits?.[TOKEN] ?? '0'
+    ).toBe('0')
+  }, 60_000)
+
+  for (const table of ['tips', 'highlightTips'] as const) {
+    it(`a tab tip paid mid-page during the ${table} phase counts once`, async () => {
+      const t = convexTest(schema, modules)
+      const s = await seed(t)
+      // The tab row is the fourth of 254 rows of the table: inside the first
+      // page of 200, neither its first nor its last row.
+      await walletRowsBulk(t, s, 3, table)
+      await tip(t, s, {
+        cents: 10,
+        ...(table === 'highlightTips' ? { highlight: HIGHLIGHT } : {}),
+      })
+      await walletRowsBulk(t, s, 250, table)
+      await forgetTotals(t, s.authorId)
+      const id = (await earningsRow(t, s.authorId))!._id
+      const step = () =>
+        t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+      // For passage rows the article phase comes first, empty here.
+      const steps = table === 'tips' ? 1 : 2
+      for (let i = 0; i < steps; i += 1) expect(await step()).toBe('more')
+      const r = (await earningsRow(t, s.authorId))!.lifetimeRebuild!
+      expect(r.phase).toBe(table)
+      const rows = (
+        await t.run(async (ctx) => ctx.db.query(table).collect())
+      ).filter((row) => row.authorId === s.authorId)
+      expect(rows.findIndex((row) => row.channel === 'tab')).toBe(3)
+      expect(r.lastCreationTime).toBe(rows[199]!._creationTime)
+      // The tab row the step has read is paid now.
+      await settleAll(t, BigInt(1_000_000))
+      await rebuildAll(t)
+      expect(await summary(t, s)).toMatchObject(lifetime(254))
+    }, 60_000)
+  }
+
   it('a credit to the last row a rebuild step read counts once', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
