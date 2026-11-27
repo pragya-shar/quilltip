@@ -17,8 +17,9 @@ export const RULES: ReadonlyArray<{ pattern: RegExp; to: string }> = [
   { pattern: /QuillTip/g, to: 'Quilltip' },
   { pattern: /Quill Tip/g, to: 'Quilltip' },
   // The wordmark draws the Q as the logo and writes the rest as text, which
-  // may sit on its own line: `<svg>…</svg><span>uillTip</span>`.
-  { pattern: /(?<!Q)uillTip/g, to: 'uilltip' },
+  // may sit on its own line: `<svg>…</svg><span>uillTip</span>`. A preceding
+  // `q` is a camelCase identifier such as `quillTipLogo`, not the wordmark.
+  { pattern: /(?<![Qq])uillTip/g, to: 'uilltip' },
 ]
 
 /**

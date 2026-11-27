@@ -60,6 +60,11 @@ describe('applySpelling', () => {
     expect(full.changed).toHaveLength(1)
   })
 
+  it('leaves a camelCase identifier that starts with quillTip alone', () => {
+    const input = 'const quillTipLogo = quillTip'
+    expect(applySpelling('a.ts', input, []).changed).toEqual([])
+  })
+
   it('rewrites wordmark text formatted onto its own line', () => {
     const input = '<span aria-hidden="true">\n  uillTip\n</span>\n'
     expect(applySpelling('a.tsx', input, []).text).toBe(
@@ -318,6 +323,16 @@ describe('the repository', () => {
       LOST_DATA_HINT
     ).toEqual([])
     expect(result.ok).toBe(true)
+  })
+
+  // An entry without a path keeps its text in every file, so each one is a
+  // visible change to this list.
+  it('keeps text in every file only for these entries', () => {
+    const everywhere = loadAllowlist(repoRoot)
+      .filter((e) => e.path === undefined)
+      .map((e) => `${e.class}: ${e.match}`)
+      .sort()
+    expect(everywhere).toEqual(['D: pragya-shar/QuillTip'])
   })
 
   // A new exclusion of a whole path is a visible change to this list.
