@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import { declaredSheet } from './sheets'
 
 /**
  * Sheets a surface adds to the shell's stack: the money acts (Add money,
@@ -26,6 +27,13 @@ export function registerSheet<P>(
   component: ComponentType<SheetComponentProps<P>>
 ) {
   if (id === 'pocket') throw new Error('"pocket" is the shell\'s own sheet')
+  const existing = registry.get(id)
+  if (existing && existing !== component)
+    throw new Error(`A sheet "${id}" is already registered`)
+  if (declaredSheet(id))
+    throw new Error(
+      `"${id}" is declared in shell/sheets; register it there only`
+    )
   registry.set(id, component as ComponentType<SheetComponentProps<never>>)
 }
 

@@ -4,10 +4,10 @@ import type { PerfRoutes } from './types'
 export const routes: PerfRoutes = {
   // The shell on a public reading page: its providers, navigation and design
   // system, with no legacy code.
-  firstLoad: [{ route: '/system/reading', budgetKb: 150 }],
+  firstLoad: [{ route: '/system/reading', budgetKb: 150, access: 'public' }],
   // HTML and CSS held to the legacy article page's budget. Fonts: Literata
   // roman (60 KB, preloaded) and italic (62 KB, the sample has italics),
-  // the design's reading face with optical sizing (N6, D23); the legacy
+  // the design's reading face with optical sizing; the legacy
   // article's 101 KB carried two smaller faces.
   pageLoad: [
     {

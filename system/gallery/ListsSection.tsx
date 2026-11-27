@@ -60,6 +60,8 @@ export function ListsSection() {
           <ActivityRow
             lead={<Avatar name="A reader" decorative />}
             name="A reader"
+            label="A reader, plus 98 cents, open receipt"
+            onPress={() => showToast({ title: 'Receipt opens here' })}
             detail="from a $1 tip"
             about="When she died we read it aloud"
             amount={money.received}

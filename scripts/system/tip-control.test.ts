@@ -32,6 +32,9 @@ describe('tip button words', () => {
       'Tip this line $3'
     )
     expect(
+      tipButtonLabel({ phase: 'holding', amount: three }, three, 'article')
+    ).toBe('Sending $3')
+    expect(
       tipButtonLabel({ phase: 'sending', amount: three }, three, 'article')
     ).toBe('Sending $3')
     expect(
@@ -82,8 +85,24 @@ describe('another amount', () => {
     expect(centsFromInput(' 10 ')).toBe(1000)
   })
 
+  it('reads a decimal comma', () => {
+    expect(centsFromInput('2,5')).toBe(250)
+    expect(centsFromInput('2,50')).toBe(250)
+    expect(centsFromInput('$2,50')).toBe(250)
+  })
+
   it('refuses anything else, and zero', () => {
-    for (const text of ['', 'abc', '0', '0.00', '-1', '2.505', '1,000', '1e3'])
+    for (const text of [
+      '',
+      'abc',
+      '0',
+      '0.00',
+      '-1',
+      '2.505',
+      '1,000',
+      '2,505',
+      '1e3',
+    ])
       expect(centsFromInput(text), text).toBeNull()
   })
 })

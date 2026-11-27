@@ -1,6 +1,6 @@
 /**
  * The icon vocabulary: Hugeicons stroke-rounded (the free set), one icon per
- * meaning, following the design's map (DESIGN-ZERO 3.2). Surfaces use these
+ * meaning, following the design's map. Surfaces use these
  * names, not raw imports, so a meaning keeps one icon everywhere. Add a
  * meaning here before using a new icon.
  */

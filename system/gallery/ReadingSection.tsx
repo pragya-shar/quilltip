@@ -11,6 +11,8 @@ import { BalanceIcon } from '../icons'
 import { GallerySection } from './GallerySection'
 import { Specimen } from './Specimen'
 
+const STEADY_STATES = ['chosen', 'holding', 'mine'] as const
+
 /** Reading typography, passage marks, skeletons and empty states. */
 export function ReadingSection() {
   return (
@@ -80,6 +82,22 @@ export function ReadingSection() {
           </Prose>
         </article>
       </Specimen>
+      <Specimen name="A line changing state keeps every line break" wide>
+        <div className="qt-gallery__steady">
+          {STEADY_STATES.map((state) => (
+            <Prose key={state}>
+              <p data-steady={state}>
+                She wrote down{' '}
+                <PassageMark state={state}>
+                  every coin she gave away, and to whom, and why it mattered to
+                  her that week
+                </PassageMark>{' '}
+                and then she closed the drawer.
+              </p>
+            </Prose>
+          ))}
+        </div>
+      </Specimen>
       <Specimen name="Right to left">
         <div dir="rtl" lang="ar">
           <Prose variant="line">
@@ -89,7 +107,7 @@ export function ReadingSection() {
           </Prose>
         </div>
       </Specimen>
-      <Specimen name="Could not reach (D21)">
+      <Specimen name="Could not reach">
         <ReadingUnavailable
           what="This article"
           retryHref="/system/reading"

@@ -387,7 +387,7 @@ async function main() {
         const clsLimit = route.budget.cls ?? BUDGETS.cls
         if (summary.cls > clsLimit)
           failures.push(`${label}: CLS ${summary.cls} > ${clsLimit}`)
-        // A route's own LCP limit gates the phone profile (plan 4.1).
+        // A route's own LCP limit gates the phone profile.
         const lcpLimit = route.budget.lcpMobileMs
         if (
           lcpLimit !== undefined &&

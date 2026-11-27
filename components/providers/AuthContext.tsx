@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useConvexAuth } from 'convex/react'
 import { Value } from 'convex/values'
-import { useCurrentUser } from '@/hooks/convex'
+import { useCurrentUser } from '@/hooks/convex/useUsers'
 import type { CurrentUser } from '@/types/convex'
 
 export type User = CurrentUser

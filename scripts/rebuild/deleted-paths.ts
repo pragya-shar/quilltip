@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 
 /**
- * The paths the rebuild deleted (rule R6: a merge never brings one back).
+ * The paths the rebuild deleted (a merge never brings one back).
  * Each package owns one file in scripts/rebuild/deleted/ and appends the
  * files and directories it deleted; this reads them all.
  */

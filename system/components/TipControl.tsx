@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { cx } from '../cx'
 import { focusDestination, watchInputModality } from '../inputModality'
 import { AmountIcon, CloseIcon, DoneIcon, TipIcon } from '../icons'
@@ -14,14 +14,17 @@ import {
 import { AmountTray } from './AmountTray'
 import { Icon } from './Icon'
 import { Spinner } from './Spinner'
+import { TipProjected } from './TipProjected'
 
 /**
- * The hold before sending (N1 phase 6), as the money layer's controller
- * describes it. The control draws it; it keeps no timer of its own.
+ * The hold before sending (the `holding` phase), as the money layer's
+ * controller describes it. The control draws it; it keeps no timer of its
+ * own.
  */
 export type TipHold = {
-  /** The balance now and after this tip: "$18.40 → $17.40". */
-  projected?: string
+  /** The balance now and after this tip, drawn "≈ $18.40 → ≈ $17.40" and
+   * heard "about 18 dollars 40, then about 17 dollars 40". */
+  projected?: { before: MoneyValue; after: MoneyValue }
   /** Ends the hold with nothing sent (Cancel, Escape). */
   onCancel: () => void
   /** Adds $1 and restarts the hold. */
@@ -65,6 +68,14 @@ export type TipControlProps = {
   className?: string
 }
 
+/** A held key repeats its keydown; Enter on a button clicks each time. */
+function refuseRepeat(event: KeyboardEvent<HTMLElement>) {
+  if (event.repeat) event.preventDefault()
+}
+
+/** How long a press waits for the phase to change before another counts. */
+const PRESS_LATCH_MS = 1000
+
 /** Focus is lost when it sits on the body, or on a box around the control. */
 function focusLost(root: HTMLElement | null): boolean {
   const active = document.activeElement
@@ -76,7 +87,7 @@ function focusLost(root: HTMLElement | null): boolean {
 }
 
 /**
- * The main action (design N1): a labelled button that states the amount
+ * The main action: a labelled button that states the amount
  * ("Tip Tomás $1", "Tip this line $1"), with a visible amount button that
  * works by tap and by keyboard; choosing an amount never sends. While a tip
  * is held or sending, the button becomes a status and focus moves to it;
@@ -85,7 +96,8 @@ function focusLost(root: HTMLElement | null): boolean {
  * on click), and each change is read once, by focus. The one live
  * announcement is "Cancelled. Nothing was sent.", which has no element to
  * focus. No swipe, no long press, no Undo; the hold's timing belongs to the
- * money layer.
+ * money layer. A held key or a double press asks for one tip: a repeated
+ * key is refused, and a press waits for the phase to change.
  */
 export function TipControl({
   state,
@@ -114,8 +126,10 @@ export function TipControl({
   const status = useRef<HTMLDivElement>(null)
   const note = useRef<HTMLParagraphElement>(null)
   const previous = useRef(state.phase)
-  const holding = Boolean(hold) && state.phase === 'other'
+  const latch = useRef<number | null>(null)
+  const holding = state.phase === 'holding'
   const busy =
+    holding ||
     state.phase === 'sending' ||
     state.phase === 'sent' ||
     (state.phase === 'other' && state.busy)
@@ -135,6 +149,7 @@ export function TipControl({
     const before = previous.current
     previous.current = state.phase
     if (before === state.phase) return
+    releaseLatch()
     if (busy) {
       setCancelled(false)
       focusDestination(status.current)
@@ -149,17 +164,19 @@ export function TipControl({
   useEffect(() => {
     if (busy) setTrayOpen(false)
   }, [busy])
+  useEffect(() => () => releaseLatch(), [])
 
   // Escape ends a hold while focus is in the control (the hold puts it on
   // the status); elsewhere Escape belongs to whatever has focus.
   const holdRef = useRef(hold)
+  const hasHold = Boolean(hold)
   useEffect(() => {
     holdRef.current = hold
   })
   useEffect(() => {
-    if (!holding) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
+    if (!holding || !hasHold) return
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat) return
       if (!root.current?.contains(document.activeElement)) return
       event.preventDefault()
       setCancelled(true)
@@ -167,19 +184,27 @@ export function TipControl({
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [holding])
+  }, [holding, hasHold])
 
+  function releaseLatch() {
+    if (latch.current !== null) window.clearTimeout(latch.current)
+    latch.current = null
+  }
+
+  // One tip per press: a second press before the phase moves is ignored.
   const press = () => {
-    if (busy || inert) return
+    if (busy || inert || latch.current !== null) return
     setCancelled(false)
     if (state.phase === 'needs-funds') {
       onAddMoney?.()
       return
     }
     if (!amount) {
+      // Nothing to send: the tray opens to choose one.
       setTrayOpen(true)
       return
     }
+    latch.current = window.setTimeout(releaseLatch, PRESS_LATCH_MS)
     onTip()
   }
 
@@ -190,9 +215,9 @@ export function TipControl({
 
   const face = (
     <>
-      {holding ? (
+      {holding && hold ? (
         <span
-          key={hold?.restartKey ?? 0}
+          key={hold.restartKey ?? 0}
           className="qt-tip__countdown"
           aria-hidden="true"
         />
@@ -221,9 +246,7 @@ export function TipControl({
       className={cx('qt-tip', className)}
       role="group"
       aria-label={`Tip ${recipient}`}
-      data-phase={
-        unavailable ? 'unavailable' : holding ? 'holding' : state.phase
-      }
+      data-phase={unavailable ? 'unavailable' : state.phase}
       data-target={target}
       onBlur={(event) => {
         // Focus left the control and its tray: the tray closes.
@@ -248,14 +271,15 @@ export function TipControl({
         />
       ) : null}
       <div className="qt-tip__bar">
-        {holding ? (
+        {holding && hold ? (
           <button
             type="button"
             className="qt-tip__round"
             data-variant="plain"
+            onKeyDown={refuseRepeat}
             onClick={() => {
               setCancelled(true)
-              hold?.onCancel()
+              hold.onCancel()
             }}
           >
             Cancel
@@ -302,13 +326,15 @@ export function TipControl({
             {face}
             {holding ? (
               <span className="qt-visually-hidden">
-                {` to ${recipient}. Cancel stops it.`}
+                {hold
+                  ? ` to ${recipient}. Cancel stops it.`
+                  : ` to ${recipient}`}
               </span>
             ) : state.phase === 'sent' ? (
               <span className="qt-visually-hidden"> to {recipient}</span>
             ) : null}
             {holding && hold?.projected ? (
-              <span className="qt-tip__projected">{hold.projected}</span>
+              <TipProjected {...hold.projected} />
             ) : null}
           </div>
         ) : (
@@ -318,12 +344,13 @@ export function TipControl({
             className="qt-tip__button"
             aria-disabled={inert || undefined}
             aria-describedby={noteText ? noteId : undefined}
+            onKeyDown={refuseRepeat}
             onClick={press}
           >
             {face}
           </button>
         )}
-        {holding ? (
+        {holding && hold ? (
           <button
             type="button"
             className="qt-tip__round"
@@ -334,6 +361,7 @@ export function TipControl({
                 : 'Add $1'
             }
             aria-disabled={hold?.addOneBlocked ? true : undefined}
+            onKeyDown={refuseRepeat}
             onClick={() => {
               if (!hold?.addOneBlocked) hold?.onAddOne()
             }}
@@ -346,6 +374,7 @@ export function TipControl({
             type="button"
             className="qt-tip__round"
             data-variant="plain"
+            onKeyDown={refuseRepeat}
             onClick={onNotNow}
           >
             Not now

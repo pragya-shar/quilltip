@@ -286,4 +286,10 @@
     font-weight: var(--qt-weight-ui-strong);
     font-variant-numeric: tabular-nums;
   }
+
+  .qt-gallery__steady {
+    display: grid;
+    gap: var(--qt-space-4);
+    max-width: 20rem;
+  }
 }

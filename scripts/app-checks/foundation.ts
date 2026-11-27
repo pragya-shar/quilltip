@@ -3,7 +3,7 @@ import type { AppCheck } from './types'
 /** The shell's own production-build checks. */
 export const checks: readonly AppCheck[] = [
   {
-    // Public reading with JavaScript off (D19), Chromium and WebKit.
+    // Public reading with JavaScript off, Chromium and WebKit.
     name: 'reading without scripts',
     command: [
       'bunx',

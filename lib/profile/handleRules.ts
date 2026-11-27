@@ -16,7 +16,7 @@ const RESERVED_HANDLES = new Set([
   'root',
   'staff',
   'system',
-  // Paths of the application's structure (D20), reserved before they ship.
+  // Paths of the application's structure, reserved before they ship.
   'lines',
   'pocket',
   'search',

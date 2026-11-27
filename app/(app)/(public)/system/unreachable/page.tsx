@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 }
 
 /**
- * The D21 pattern on a read that never answers: the page gives up after a
+ * The unreachable-state pattern on a read that never answers: the page gives up after a
  * short limit and answers with the unreachable state, in the first response
  * and with no script. Checked by e2e/reading-no-script.spec.ts.
  */

@@ -7,7 +7,7 @@ import {
 } from '@/shell/public/boundedRead'
 
 describe('withinReadLimit', () => {
-  it('uses the public read limit of D21', () => {
+  it('uses the public read limit', () => {
     expect(READ_LIMIT_MS).toBe(1500)
   })
 

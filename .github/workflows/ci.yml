@@ -238,7 +238,7 @@ jobs:
           NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
 
   # Checks that need a production build: public reading with JavaScript off
-  # (D19), crossing into the shell, and each package's own (one file per
+  #, crossing into the shell, and each package's own (one file per
   # package in scripts/app-checks), in Chromium and WebKit.
   no-script:
     name: Production build checks

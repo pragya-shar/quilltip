@@ -86,7 +86,7 @@
     font-weight: var(--qt-weight-ui-strong);
   }
 
-  /* Reading (design N5) */
+  /* Reading */
   .qt-prose {
     /* The column positions what marks draw in its margin (LineOverlay). */
     position: relative;

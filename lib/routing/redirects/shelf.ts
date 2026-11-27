@@ -1,4 +1,4 @@
 import type { Redirect } from './types'
 
-/** The shelf package's redirects (rebuild plan 5.3). Owned by that package. */
+/** The shelf package's redirects. Owned by that package. */
 export const redirects: readonly Redirect[] = []

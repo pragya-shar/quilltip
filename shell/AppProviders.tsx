@@ -16,7 +16,7 @@ const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
  * The application's providers: Convex with auth, the one auth state, and
  * the balance source the bar and the Pocket read.
  * They render their children on the server as they are; nothing here waits
- * or suspends, so content is in the first response (D19).
+ * or suspends, so content is in the first response.
  */
 export function AppProviders({ children }: { children: ReactNode }) {
   return (

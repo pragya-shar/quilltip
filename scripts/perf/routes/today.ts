@@ -7,7 +7,7 @@ import type { PerfRoutes } from './types'
  * fixture suite (e2e/today.spec.ts) holds the rows to zero layout shift.
  */
 export const routes: PerfRoutes = {
-  firstLoad: [{ route: '/', budgetKb: 150 }],
+  firstLoad: [{ route: '/', access: 'public', budgetKb: 150 }],
   pageLoad: [
     {
       name: 'today',
