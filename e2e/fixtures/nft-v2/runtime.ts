@@ -354,10 +354,30 @@ function initial(): Store {
         record: v2Row(WALLET),
       }
     case 'owner-paused':
+      // `getMintProgress` reports the cached NFT pause on minted articles.
       return {
         ...base,
         progress: mintedProgress(WALLET, { paused: true }),
         record: v2Row(WALLET),
+      }
+    case 'former-owner':
+      // The author minted it and transferred it to @ada.
+      return {
+        ...base,
+        progress: mintedProgress(ADA),
+        record: v2Row(ADA),
+        eligibility: eligibility('MINTED', { tokenId: TOKEN_ID }),
+      }
+    case 'author-minted-indexing':
+      // On chain, no submission open here, no indexed row yet.
+      return {
+        ...base,
+        progress: progress({
+          total: '512500000',
+          remaining: '0',
+          reached: true,
+        }),
+        eligibility: eligibility('MINTED', { tokenId: TOKEN_ID }),
       }
     case 'owner-v1-record':
       return {
@@ -558,6 +578,8 @@ export function useAction(ref: unknown) {
 let counter = 0
 const RECIPIENT_USERS: Record<string, string | null> = {
   ada: ADA,
+  // The owner's own account: the server refuses it as SELF_TRANSFER.
+  writer: WALLET,
   [LONG_USER]: ADA,
   nowallet: null,
 }

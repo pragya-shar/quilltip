@@ -187,6 +187,11 @@ type Scene = {
   act?: (page: Page) => Promise<void>
   /** Text that proves the state is showing. */
   expect: string | RegExp
+  /**
+   * Also run at 1440. Most states share one panel layout, so 375 carries
+   * the checks; 1440 runs for the layouts that differ (all with screenshots).
+   */
+  wide?: true
 }
 
 const toReview = async (page: Page, recipient: string) => {
@@ -216,7 +221,12 @@ const openV1Actions = async (page: Page) => {
 }
 
 const SCENES: Scene[] = [
-  { id: 'v2-disabled', query: 'state=v2-disabled', expect: 'NFT Status' },
+  {
+    id: 'v2-disabled',
+    query: 'state=v2-disabled',
+    expect: 'NFT Status',
+    wide: true,
+  },
   {
     id: 'v2-disabled-v1-paused-author',
     query: 'state=v2-disabled-unminted&v1paused=1',
@@ -233,6 +243,7 @@ const SCENES: Scene[] = [
     id: 'reader-below',
     query: 'state=reader-below',
     expect: /18\.75 XLM of 50 XLM tipped/,
+    wide: true,
   },
   {
     id: 'reader-unknown-threshold',
@@ -243,6 +254,7 @@ const SCENES: Scene[] = [
     id: 'reader-reached',
     query: 'state=reader-reached',
     expect: 'This article has reached the mint threshold.',
+    wide: true,
   },
   {
     id: 'reader-not-registered',
@@ -258,6 +270,7 @@ const SCENES: Scene[] = [
     id: 'minted-outside',
     query: 'state=minted-outside',
     expect: 'A wallet outside Quilltip',
+    wide: true,
   },
   { id: 'not-owner', query: 'state=not-owner', expect: '@writer' },
   {
@@ -274,11 +287,13 @@ const SCENES: Scene[] = [
     id: 'author-below',
     query: 'state=author-below',
     expect: 'Minting unlocks at',
+    wide: true,
   },
   {
     id: 'author-at-threshold',
     query: 'state=author-eligible',
     expect: 'Mint article NFT',
+    wide: true,
   },
   {
     id: 'author-v1-record',
@@ -288,7 +303,8 @@ const SCENES: Scene[] = [
   {
     id: 'author-paused',
     query: 'state=author-paused',
-    expect: 'Payments are paused',
+    expect: 'Minting is paused',
+    wide: true,
   },
   {
     id: 'author-no-wallet-link',
@@ -324,16 +340,21 @@ const SCENES: Scene[] = [
   {
     id: 'owner-paused',
     query: 'state=owner-paused',
-    expect: 'Payments are paused',
+    expect: 'NFT transfers are paused',
+    wide: true,
+  },
+  {
+    id: 'former-owner',
+    query: 'state=former-owner',
+    expect: '@ada',
+    wide: true,
+  },
+  {
+    id: 'author-minted-indexing',
+    query: 'state=author-minted-indexing',
+    expect: /token and its owner show here in a moment/,
   },
   // Wallet states, reached by starting the mint.
-  {
-    id: 'wallet-none',
-    query: 'state=author-eligible',
-    mode: 'missing',
-    act: mint,
-    expect: 'No Stellar wallet found',
-  },
   {
     id: 'wallet-locked',
     query: 'state=author-eligible',
@@ -408,7 +429,7 @@ const SCENES: Scene[] = [
     id: 'mint-paused-contract',
     query: 'state=author-eligible&server=paused',
     act: mint,
-    expect: 'Payments are paused',
+    expect: 'Minting is paused',
   },
   {
     id: 'mint-below-on-chain',
@@ -427,6 +448,7 @@ const SCENES: Scene[] = [
     query: 'state=author-eligible&confirm=mismatch',
     act: mint,
     expect: 'Sent, but under review',
+    wide: true,
   },
   {
     id: 'mint-confirmed-updating',
@@ -439,6 +461,7 @@ const SCENES: Scene[] = [
     query: 'state=author-eligible',
     act: mint,
     expect: 'Article NFT minted',
+    wide: true,
   },
   {
     id: 'mint-refused-already',
@@ -452,6 +475,7 @@ const SCENES: Scene[] = [
     query: 'state=owner',
     act: async (page) => void (await openTransfer(page)),
     expect: 'Review transfer',
+    wide: true,
   },
   {
     id: 'transfer-invalid-length',
@@ -464,6 +488,7 @@ const SCENES: Scene[] = [
     query: 'state=owner',
     act: typeRecipient(ADA.slice(0, 55) + (ADA.endsWith('I') ? 'J' : 'I')),
     expect: /valid Stellar address/,
+    wide: true,
   },
   {
     id: 'transfer-invalid-own',
@@ -518,16 +543,28 @@ const SCENES: Scene[] = [
     expect: /no confirmed wallet/,
   },
   {
+    id: 'transfer-refused-paused',
+    query: 'state=owner&server=prepare-error:PAUSED',
+    act: async (page) => {
+      const d = await openTransfer(page)
+      await d.getByLabel('Recipient').fill('@ada')
+      await d.getByRole('button', { name: 'Review transfer' }).click()
+    },
+    expect: 'NFT transfers are paused',
+  },
+  {
     id: 'transfer-review-user',
     query: 'state=owner',
     act: (page) => toReview(page, '@ada'),
     expect: 'Quilltip account @ada',
+    wide: true,
   },
   {
     id: 'transfer-review-contract',
     query: 'state=owner',
     act: (page) => toReview(page, OTHER_CONTRACT),
     expect: /This is a contract address/,
+    wide: true,
   },
   {
     id: 'transfer-pending',
@@ -548,6 +585,7 @@ const SCENES: Scene[] = [
       await chooseVarialIfAsked(page)
     },
     expect: 'NFT transferred',
+    wide: true,
   },
   {
     id: 'transfer-resumed',
@@ -561,13 +599,17 @@ const SCENES: Scene[] = [
   },
 ]
 
-for (const width of [375, 768, 1440] as const) {
+// 375 runs every state. 768 is for the screenshots only, and 1440 runs
+// only the layouts that differ there, unless screenshots are being taken.
+const WIDTHS = SHOTS ? ([375, 768, 1440] as const) : ([375, 1440] as const)
+
+for (const width of WIDTHS) {
+  const scenes =
+    width === 375 || SHOTS ? SCENES : SCENES.filter((scene) => scene.wide)
   test.describe(`at ${width}px`, () => {
     test.use({ viewport: { width, height: 900 } })
-    for (const scene of SCENES) {
+    for (const scene of scenes) {
       test(`${scene.id}`, async ({ page }) => {
-        // 768 is for the screenshots only.
-        test.skip(width === 768 && !SHOTS, 'Screenshots only')
         const errors = await open(page, scene.query, scene.mode)
         await scene.act?.(page)
         await expect(page.getByText(scene.expect).first()).toBeVisible({
@@ -754,6 +796,32 @@ test.describe('mint', () => {
     })
   })
 
+  test('no wallet extension: the picker offers web wallets, and closing it is not an error', async ({
+    page,
+  }) => {
+    await open(page, 'state=author-eligible', 'missing')
+    await panel(page).getByRole('button', { name: 'Mint article NFT' }).click()
+    const picker = page.getByRole('dialog', { name: 'Choose a wallet' })
+    await expect(
+      picker
+        .getByRole('region', { name: 'No install needed' })
+        .getByRole('button', { name: /^xBull/ })
+    ).toBeVisible()
+    await expect(
+      picker
+        .getByRole('region', { name: 'Not installed' })
+        .getByRole('link', { name: /^Varial/ })
+    ).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(picker).toBeHidden()
+    // Back to the mint action, with no error.
+    await expect(
+      panel(page).getByRole('button', { name: 'Mint article NFT' })
+    ).toBeVisible()
+    await expect(panel(page).getByRole('alert')).toHaveCount(0)
+    expect((await log(page)).signed).toEqual([])
+  })
+
   test('readers cause no live eligibility read', async ({ page }) => {
     await open(page, 'state=reader-below')
     await expect(
@@ -880,6 +948,59 @@ test.describe('transfer', () => {
     ).toHaveCount(0)
   })
 
+  test('shows the secret-key warning as the key is typed, before blur', async ({
+    page,
+  }) => {
+    await open(page, 'state=owner')
+    const dialog = await openTransfer(page)
+    const field = dialog.getByLabel('Recipient')
+    await field.fill(Keypair.random().secret())
+    await expect(field).toBeFocused()
+    await expect(dialog.getByRole('alert')).toContainText('secret key')
+    await expect(field).toHaveAttribute('aria-invalid', 'true')
+    expect((await log(page)).prepared).toHaveLength(0)
+  })
+
+  test('a username that is the owner’s own account shows the refusal on the field', async ({
+    page,
+  }) => {
+    await open(page, 'state=owner')
+    const dialog = await openTransfer(page)
+    const field = dialog.getByLabel('Recipient')
+    await field.fill('@writer')
+    await dialog.getByRole('button', { name: 'Review transfer' }).click()
+    await expect(dialog.getByRole('alert')).toContainText(
+      'This NFT is already in that wallet'
+    )
+    await expect(field).toHaveAttribute('aria-invalid', 'true')
+    await expect(field).toBeFocused()
+    await expect(
+      dialog.getByRole('heading', { name: 'Check the recipient' })
+    ).toHaveCount(0)
+  })
+
+  test('offers no transfer while the NFT contract is paused', async ({
+    page,
+  }) => {
+    await open(page, 'state=owner-paused')
+    await expect(
+      panel(page).getByText('NFT transfers are paused')
+    ).toBeVisible()
+    await expect(panel(page).getByText('Payments are paused')).toHaveCount(0)
+    await expect(
+      panel(page).getByRole('button', { name: 'Transfer NFT' })
+    ).toHaveCount(0)
+  })
+
+  test('the former owner sees the new owner and no action', async ({
+    page,
+  }) => {
+    await open(page, 'state=former-owner')
+    await expect(panel(page).getByText('@ada')).toBeVisible()
+    await expect(panel(page).getByText('You', { exact: true })).toHaveCount(0)
+    await expect(panel(page).getByRole('button')).toHaveCount(0)
+  })
+
   test('works with the keyboard alone, with focus where it belongs', async ({
     page,
   }) => {
@@ -907,6 +1028,29 @@ test.describe('transfer', () => {
     await page.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
     await expect(trigger).toBeFocused()
+  })
+})
+
+test.describe('on a touch screen', () => {
+  test.use({
+    viewport: { width: 375, height: 812 },
+    hasTouch: true,
+    isMobile: true,
+  })
+
+  test('the dialog takes focus without opening the keyboard', async ({
+    page,
+  }) => {
+    await open(page, 'state=owner')
+    expect(
+      await page.evaluate(() => matchMedia('(pointer: coarse)').matches)
+    ).toBe(true)
+    await panel(page).getByRole('button', { name: 'Transfer NFT' }).tap()
+    const dialog = page.getByRole('dialog', { name: 'Transfer this NFT' })
+    await expect(
+      dialog.getByRole('heading', { name: 'Transfer this NFT' })
+    ).toBeFocused()
+    await expect(dialog.getByLabel('Recipient')).not.toBeFocused()
   })
 })
 
