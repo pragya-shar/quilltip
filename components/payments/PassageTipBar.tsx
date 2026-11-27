@@ -61,6 +61,8 @@ export function PassageTipBar({
       role="region"
       aria-label="Tip this passage"
       data-testid="passage-tip-bar"
+      // A press on the bar is not a press on the article: it keeps the passage.
+      data-article-overlay=""
     >
       <div className="qt-tipbar-inner">
         <p

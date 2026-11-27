@@ -3,7 +3,7 @@
 import '@/components/highlights/highlights.css'
 import type { TipXlmPreset } from '@/lib/constants'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -47,6 +47,8 @@ interface HighlightPopoverProps {
   } | null
   onHighlightTipResumeOpened?: () => void
   onSignInToSave: () => void
+  /** True while the balance tip bar keeps the chosen passage open. */
+  onKeepPassage?: (keep: boolean) => void
 }
 
 export function HighlightPopover({
@@ -68,6 +70,7 @@ export function HighlightPopover({
   resumeHighlightTip,
   onHighlightTipResumeOpened,
   onSignInToSave,
+  onKeepPassage,
 }: HighlightPopoverProps) {
   const { isAuthenticated } = useAuth()
   const walletConnectionActive = useSuspendDialogModalForWallet()
@@ -148,6 +151,12 @@ export function HighlightPopover({
       setIsSaving(false)
     }
   }
+
+  // Keep the passage while the bar shows, so a tap on it does not close it.
+  useEffect(() => {
+    onKeepPassage?.(fromBalance)
+    return () => onKeepPassage?.(false)
+  }, [fromBalance, onKeepPassage])
 
   useHighlightPanelDismiss(
     onClose,
