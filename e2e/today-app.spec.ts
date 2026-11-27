@@ -75,13 +75,21 @@ test.describe('with no script', () => {
     )
   })
 
-  test('no row space is reserved', async ({ page }) => {
+  test('no row space is reserved and none is left visible', async ({
+    page,
+  }) => {
     await page.goto(TODAY.path)
     expect(
       await page
         .locator('html[data-today-place], html[data-today-draft]')
         .count()
     ).toBe(0)
+    const heights = await page
+      .locator('.qt-today__slot')
+      .evaluateAll((slots) =>
+        slots.map((s) => s.getBoundingClientRect().height)
+      )
+    expect(heights).toEqual([0, 0])
   })
 })
 
@@ -132,6 +140,12 @@ test.describe('with script', () => {
     const scripts = html.match(/<script\b[^>]*>/g) ?? []
     expect(scripts.length).toBeGreaterThan(0)
     for (const tag of scripts) expect(tag).toContain(`nonce="${nonce}"`)
+    // Today's own inline script (the row reservation) is one of them: it runs
+    // under the page's nonce, with no hash exception and no looser policy.
+    expect(html).toMatch(
+      new RegExp(`<script nonce="${nonce}">try\\{var s=localStorage`)
+    )
+    expect(policy).not.toContain('sha256-')
     await page.waitForTimeout(1000)
     expect(
       await page.evaluate(

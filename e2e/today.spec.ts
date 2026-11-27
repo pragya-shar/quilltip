@@ -114,11 +114,9 @@ test.describe('first visit, signed out', () => {
     await expect(
       page.getByText('Writing you can tip, down to the sentence.')
     ).toBeVisible()
-    // The first words in small capitals, and the time left beside Read more.
-    await expect(opening.locator('.qt-today__lead')).toHaveCSS(
-      'font-variant-caps',
-      'all-small-caps'
-    )
+    // The first line in small capitals (Prose's lead-in), and the time left
+    // beside Read more.
+    await expect(opening.locator('.qt-prose[data-lead-in]')).toHaveCount(1)
     await expect(opening.getByText(/^\d+ min left$/)).toBeVisible()
     // The balance item says Sign in; no rows, nothing reserved.
     await expect(
@@ -376,4 +374,19 @@ test('offline: a note over the top edge, and the text stays where it is', async 
   expect(await titleTop(page)).toBe(before)
   await context.setOffline(false)
   await expect(page.getByText('Offline. Reading still works.')).toHaveCount(0)
+})
+
+test('stored text goes into the page as text, never as markup', async ({
+  page,
+}) => {
+  const markup = '<img src=x onerror="window.__ran=1">Kitchen'
+  await seed(page, {
+    places: [{ ...PLACE, title: markup, sentence: markup }],
+  })
+  await page.goto('/')
+  await expect(place(page)).toContainText(markup)
+  expect(await page.locator('.qt-today__resume img').count()).toBe(0)
+  expect(await page.evaluate(() => (window as { __ran?: number }).__ran)).toBe(
+    undefined
+  )
 })

@@ -175,11 +175,6 @@
     color: var(--qt-ink-2);
     font-variant-numeric: tabular-nums;
   }
-  /* The first words of the opening, in small capitals. */
-  .qt-today__lead {
-    font-variant-caps: all-small-caps;
-    letter-spacing: 0.06em;
-  }
 
   /* More today: a short list that ends. */
   .qt-today__more {

@@ -11,32 +11,15 @@ const PUBLISHED = new Intl.DateTimeFormat('en', {
   timeZone: 'UTC',
 })
 
-/** The first words set in small capitals: about four words, whole. */
-const LEAD_IN_CHARS = 28
-
-function splitLeadIn(paragraph: string): [string, string] {
-  const words = paragraph.split(' ')
-  let lead = ''
-  let count = 0
-  for (const word of words) {
-    if (count > 0 && (lead + ' ' + word).length > LEAD_IN_CHARS) break
-    lead = count === 0 ? word : `${lead} ${word}`
-    count++
-  }
-  return [lead, paragraph.slice(lead.length)]
-}
-
 /**
  * The opening: an article already underway. Title, byline, its first
- * paragraphs in the reading face (the first words in small capitals, the
- * last lines fading into Read more when the article goes on), Read more as a plain
- * link and the time left. Server HTML; nothing here needs a script, and
+ * paragraphs in the reading face (the first line in small capitals, the
+ * last lines fading into Read more when the article goes on), Read more as
+ * a plain link and the time left. Server HTML; nothing here needs a script, and
  * nothing moves or covers it.
  */
 export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
   const writerHref = `/${encodeURIComponent(article.author.username)}`
-  const [first = '', ...rest] = article.paragraphs
-  const [lead, after] = splitLeadIn(first)
   return (
     <article className="qt-today__opening" aria-labelledby="today-title">
       <Heading level={1} variant="display" id="today-title">
@@ -62,18 +45,9 @@ export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
         className="qt-today__text"
         data-continues={article.continues ? '' : undefined}
       >
-        <Prose className="qt-today__prose">
-          {[first, ...rest].map((text, index) => (
-            <p key={index}>
-              {index === 0 ? (
-                <>
-                  <span className="qt-today__lead">{lead}</span>
-                  {after}
-                </>
-              ) : (
-                text
-              )}
-            </p>
+        <Prose className="qt-today__prose" leadIn>
+          {article.paragraphs.map((text, index) => (
+            <p key={index}>{text}</p>
           ))}
         </Prose>
       </div>
