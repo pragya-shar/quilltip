@@ -17,7 +17,7 @@ import {
 } from './backend'
 import { FIXTURE_WRITER } from './constants'
 
-export type View = 'home' | 'tip' | 'collect'
+export type View = 'home' | 'tip' | 'collect' | 'stats'
 
 export type DeviceSetup =
   | 'none'
@@ -44,6 +44,18 @@ export type Scenario = {
   seed(state: FixtureState): void
   /** A quick tip target with co-author splits. */
   splits?: boolean
+  /**
+   * The writer's stats panel (#552), with what `tips.getMyEarningsSummary`
+   * returns for the writer (convex-test checks the summary itself).
+   */
+  stats?: {
+    tipCount: number
+    earnedStroops: string
+    estimatedUsd: number
+    complete?: boolean
+    updating?: boolean
+    source?: 'lifetime' | 'previous'
+  }
 }
 
 const DAY = 17_280
@@ -963,6 +975,51 @@ const S: Scenario[] = [
       })
       s.claimable = '120370369287037037'
     },
+  },
+  {
+    // The integration writer: six wallet tips and three settled tab tips.
+    id: 'stats-wallet-and-tab',
+    title: 'Stats: wallet and settled tab tips',
+    view: 'stats',
+    device: 'none',
+    stats: {
+      tipCount: 9,
+      earnedStroops: '1145760615',
+      estimatedUsd: 14.86875,
+    },
+    seed: (s) => writer(s),
+  },
+  {
+    // The integration writer while its row is rebuilt: the figures as they
+    // were computed before the lifetime totals, with a note.
+    id: 'stats-updating',
+    title: 'Stats: totals being rebuilt',
+    view: 'stats',
+    device: 'none',
+    stats: {
+      tipCount: 6,
+      earnedStroops: '1145760615',
+      estimatedUsd: 13.65,
+      updating: true,
+      source: 'previous',
+    },
+    seed: (s) => writer(s),
+  },
+  {
+    // No earnings row and more v1 tips than one read: every figure is a
+    // lower bound over the same tips.
+    id: 'stats-lower-bound',
+    title: 'Stats: lower bounds',
+    view: 'stats',
+    device: 'none',
+    stats: {
+      tipCount: 2001,
+      earnedStroops: '19509750000',
+      estimatedUsd: 195.0975,
+      complete: false,
+      source: 'previous',
+    },
+    seed: (s) => writer(s),
   },
   {
     id: 'collect-ready',

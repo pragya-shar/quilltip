@@ -19,7 +19,11 @@
  * - Message signing is optional: without `stellar_signMessage` the module
  *   says it is unsupported and the address proof signs a transaction.
  * - A session ended on the phone, or expired, ends the connection here
- *   (`onSessionEnded`); a live session is reused instead of a new QR code.
+ *   (`onSessionEnded`).
+ * - A live session is reused instead of a new QR code only when it is the
+ *   reader's remembered wallet (`rememberedAccount`, #562). Other sessions
+ *   left in the sign client's storage (another reader's, before a sign-out)
+ *   are closed before a new pairing.
  *
  * Errors keep the kit's `{ code, message }` shape; `wallet-errors.ts` maps
  * them (`WALLET_ERROR_RULES.wallet_connect`).
@@ -99,6 +103,11 @@ export type WalletConnectModuleOptions = {
   pairing: { show(pairing: Pairing, cancel: () => void): void; clear(): void }
   /** The wallet ended the session (deleted on the phone, or expired). */
   onSessionEnded?: () => void
+  /**
+   * The account of the reader's remembered WalletConnect wallet, or null.
+   * Only a session for this account is reused.
+   */
+  rememberedAccount?: () => string | null
   now?: () => number
 }
 
@@ -159,13 +168,18 @@ export class WalletConnectModule implements ModuleInterface {
     return this.client
   }
 
-  /** A live testnet session from an earlier pairing, if one is left. */
+  /**
+   * The remembered account's live testnet session from an earlier pairing,
+   * if one is left.
+   */
   private restorable(client: WcSignClient): WcSession | null {
+    const account = this.options.rememberedAccount?.() ?? null
+    if (!account) return null
     const cutoff = this.now() / 1000 + MIN_SESSION_LEFT_S
     return (
       client.session
         .getAll()
-        .filter((s) => s.expiry > cutoff && testnetAccount(s))
+        .filter((s) => s.expiry > cutoff && testnetAccount(s) === account)
         .sort((a, b) => b.expiry - a.expiry)[0] ?? null
     )
   }
@@ -174,6 +188,10 @@ export class WalletConnectModule implements ModuleInterface {
     const client = await this.signClient()
     let session = this.restorable(client)
     if (!session) {
+      // Sessions this reader did not choose are not reused: close them.
+      for (const left of client.session.getAll()) {
+        await this.close(client, left.topic)
+      }
       const { uri, approval } = await client.connect({
         requiredNamespaces: {
           stellar: {
