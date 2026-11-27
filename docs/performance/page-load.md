@@ -213,10 +213,14 @@ First-load JavaScript (gzip, `bun run perf:first-load`):
 
 | Route       |   Before |    After |
 | ----------- | -------: | -------: |
-| `/`         | 245.4 KB | 199.0 KB |
-| `/login`    | 199.2 KB | 189.5 KB |
-| `/articles` | 247.6 KB | 203.2 KB |
-| Article     | 262.9 KB | 206.6 KB |
+| `/`         | 245.4 KB | 208.7 KB |
+| `/login`    | 199.2 KB | 199.2 KB |
+| `/articles` | 247.6 KB | 213.8 KB |
+| Article     | 262.9 KB | 216.7 KB |
+
+The Lighthouse runs above were taken with the toaster loaded on demand
+(about 9.7 KB less per route). It went back into the first load after review
+(below), so these sizes include it.
 
 The simulated mobile profile still misses LCP on all four routes; the next
 section gives the cause. Applied throttling meets LCP on `/`, `/login` and
@@ -261,9 +265,12 @@ shows. Screenshots before and after at 375, 768 and 1440 px, signed in and
 signed out, with and without reduced motion, are pixel-identical apart from
 animation timing.
 
-- **Toasts:** the toaster mounts after hydration (`next/dynamic`). Sonner keeps
-  toasts raised before it mounts and shows them when it does. About 9 KB from
-  every route.
+- **Toasts (reverted):** loading the toaster on demand saved about 9.7 KB per
+  route, and Sonner showed toasts raised before it mounted. But its live
+  region was then created in the same moment as such a toast, which screen
+  readers may not announce, and that could not be checked with a screen
+  reader here. The toaster stays in the first load; a test checks that a
+  saved profile's toast appears in the `aria-live` region.
 - **Site header:** the mobile navigation sheet (Radix dialog, focus trap,
   scroll lock) loads after the page has loaded and the browser is idle, on
   hover or focus of the menu button, or on the first press. The button is a
@@ -352,13 +359,21 @@ connections the local server allows. The global stylesheet finished at about
 
 ### What changed
 
-- **Body images load lazily.** The server-rendered article body marks every
-  image after the first two top-level blocks `loading="lazy"` and
-  `decoding="async"` (`lib/tiptap/markBodyImagesLazy.ts`). An image in the
-  opening blocks may be on the first screen, or be the largest paint, so it
-  stays eager. Images keep their `width` and `height`, so their space is
-  reserved: scrolling to them after load shifts nothing (CLS 0.000 at 375 and
-  1440 px). Article applied LCP: 2083 to 1770 ms.
+- **Body images load lazily.** The server-rendered article body marks
+  images `loading="lazy"` and `decoding="async"`
+  (`lib/tiptap/markBodyImagesLazy.ts`), except in the first two top-level
+  blocks and in the block that holds the first image. Those may be on the
+  first screen or be the largest paint (in an article without a cover, the
+  first image often is, even after a heading and a paragraph), so they stay
+  eager. Article applied LCP: 2083 to 1770 ms.
+  - Only images with a stored `width` and `height` reserve their space. The
+    writing desk stores them only after a writer resizes an image, so other
+    images reserve none, lazy or eager, as before this change. On the seeded
+    article, whose images have sizes, scrolling after load shifted nothing
+    (CLS 0.000 at 375 and 1440 px).
+  - Lazy marking covers the server HTML only. The client body that replaces
+    it after load renders every image eagerly, as before, so the gain is in
+    the first seconds of the load.
 - **The highlight stylesheet left the root layout.** `highlights.css` was
   render-blocking on every page (3.5 KB gzip), and none of its rules apply at
   first paint on these four routes. It now lives in
@@ -630,11 +645,10 @@ secrets:
 
    | Gate                                         | Budget | Heaviest route |
    | -------------------------------------------- | -----: | -------------: |
-   | Scripts referenced by the server HTML        | 230 KB |         206 KB |
+   | Scripts referenced by the server HTML        | 230 KB |         216 KB |
    | Stylesheets referenced by the server HTML    |  45 KB |          38 KB |
    | Fonts the page requests                      | 190 KB |         169 KB |
    | Render-blocking stylesheets                  |      4 |              3 |
-   | Chunk scripts loaded before the first paint  |      0 |              0 |
    | CLS (median of 3)                            |    0.1 |          0.016 |
    | LCP element in the server HTML (2 of 3 runs) |    yes |            yes |
    | LCP image URL in the server HTML (2 of 3)    |    yes |            yes |
@@ -693,14 +707,16 @@ after the build. It runs `next experimental-analyze --output`, then for `/`,
 
    | Route                | Budget | Measured |
    | -------------------- | -----: | -------: |
-   | `/`                  | 210 KB | 199.0 KB |
-   | `/login`             | 200 KB | 189.5 KB |
-   | `/articles`          | 215 KB | 203.2 KB |
-   | `/[username]/[slug]` | 218 KB | 206.6 KB |
+   | `/`                  | 211 KB | 208.7 KB |
+   | `/login`             | 202 KB | 199.2 KB |
+   | `/articles`          | 216 KB | 213.8 KB |
+   | `/[username]/[slug]` | 219 KB | 216.7 KB |
 
-   Each budget is the measured size plus 5 to 6 percent: room for ordinary
-   changes, not for a new library. A static import of the Stellar SDK,
-   Wallets Kit or contract bindings would add tens of kilobytes or more.
+   Each budget is the measured size plus about 2 KB (CI measures about
+   0.2 KB more than a local build), so removing a lazy boundary (the mobile
+   menu, the account menu) or a few KB of growth fails; raise a budget in the
+   change that needs it. A size failure lists the route's ten largest
+   first-load modules.
 
 2. Lists the source modules in the route's first load from the analyzer's
    data (the bootstrap and render chunk groups; on-demand chunks are left
@@ -714,8 +730,9 @@ after the build. It runs `next experimental-analyze --output`, then for `/`,
 
 The module rule matters even when the budget passes: a deliberate test that
 imported `isValidStellarAccountId` (which uses `StrKey` from the SDK) into the
-landing demo added only 9 KB after tree-shaking (208.1 KB, under the 210 KB
-budget), and the check failed on the four SDK modules it pulled in. Payment
+landing demo added only 9 KB after tree-shaking (208.1 KB, under the budget
+of 210 KB at the time), and the check failed on the four SDK modules it pulled
+in. Payment
 code belongs behind `import()`, `next/dynamic` or `React.lazy`, loaded on the
 reader's action.
 

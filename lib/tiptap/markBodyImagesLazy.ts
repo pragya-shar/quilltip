@@ -9,8 +9,16 @@ export const EAGER_OPENING_BLOCKS = 2
 
 const IMAGE_NODES = new Set(['resizableImage', 'image'])
 
+function isImage(node: JSONContent): boolean {
+  return node.type !== undefined && IMAGE_NODES.has(node.type)
+}
+
+function hasImage(node: JSONContent): boolean {
+  return isImage(node) || (node.content?.some(hasImage) ?? false)
+}
+
 function markLazy(node: JSONContent): JSONContent {
-  if (node.type && IMAGE_NODES.has(node.type)) {
+  if (isImage(node)) {
     return { ...node, attrs: { ...node.attrs, loading: 'lazy' } }
   }
   if (!node.content) return node
@@ -18,16 +26,22 @@ function markLazy(node: JSONContent): JSONContent {
 }
 
 /**
- * Returns a copy of the document in which every image after the opening
- * blocks loads lazily. Below-the-fold images otherwise download with the page
- * and share a slow connection with its stylesheet and fonts.
+ * Returns a copy of the document in which images load lazily, except in the
+ * opening blocks and in the block that holds the first image. Below-the-fold
+ * images otherwise download with the page and share a slow connection with
+ * its stylesheet and fonts. The first image stays eager wherever it is: in an
+ * article without a cover it is often the largest paint (for example after a
+ * heading and one short paragraph).
  */
 export function markBodyImagesLazy(doc: JSONContent): JSONContent {
   if (!doc.content) return doc
+  const firstImageBlock = doc.content.findIndex(hasImage)
   return {
     ...doc,
     content: doc.content.map((block, index) =>
-      index < EAGER_OPENING_BLOCKS ? block : markLazy(block)
+      index < EAGER_OPENING_BLOCKS || index === firstImageBlock
+        ? block
+        : markLazy(block)
     ),
   }
 }
