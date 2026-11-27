@@ -107,9 +107,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Keep unscoped UI and portal defaults on the current shared palette. */
+/* Keep unscoped UI and portal defaults on the current shared palette.
+   `.ui-light` resolves these again from its own light --ui-* tokens. */
 :root,
-.dark {
+.dark,
+.ui-light {
   --surface: var(--ui-surface);
   --text: var(--ui-foreground);
   --background: var(--ui-surface);
@@ -149,7 +151,8 @@
   --collectible-foreground: var(--ui-collectible-foreground);
 }
 
-:root {
+:root,
+.ui-light {
   --radius: 0.625rem;
 
   /* Card tokens */

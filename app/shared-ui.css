@@ -20,8 +20,12 @@
 }
 
 /* Current application palette, shared by root defaults, chrome and portals.
-   Page-specific palettes can still override their scoped semantic tokens. */
-:root {
+   Page-specific palettes can still override their scoped semantic tokens.
+   `.ui-light` marks a surface that stays light in dark appearance (the
+   dashboard and its dialogs): it takes this palette again, so everything on
+   it, the payment kit included, reads light tokens. */
+:root,
+.ui-light {
   --ui-font: 'QuillTip UI', sans-serif;
   --ui-surface: #faf5ec;
   --ui-foreground: #390c18;

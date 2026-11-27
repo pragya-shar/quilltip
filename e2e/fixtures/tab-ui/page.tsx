@@ -1,6 +1,7 @@
 /**
- * Tab UI fixture page: `/?state=<id>[&session=<id>]`. It renders the real
- * tab screens with stand-in services. Before rendering it puts this
+ * Tab UI fixture page: `/?state=<id>[&session=<id>][&theme=dark]`. It renders
+ * the real tab screens with stand-in services, on the dashboard surface;
+ * `theme=dark` sets the site's dark appearance around it. Before rendering it puts this
  * browser's key store into the scenario's state with the real tab library.
  */
 import { StrictMode } from 'react'
@@ -23,6 +24,8 @@ import { SCENARIOS, type DeviceSetup } from './scenarios'
 import { createFixtureServices } from './services'
 
 const params = new URLSearchParams(location.search)
+if (params.get('theme') === 'dark')
+  document.documentElement.classList.add('dark')
 const stateId = params.get('state') ?? 'home-no-tab'
 let session = params.get('session')
 const fresh = !session
@@ -100,7 +103,7 @@ function Fixture() {
   const view = scenario?.view ?? 'home'
   return (
     <TabServicesContext.Provider value={services}>
-      <div className="account-surface" style={{ minHeight: 'auto' }}>
+      <div className="account-surface ui-light" style={{ minHeight: 'auto' }}>
         <main
           className="account-folio"
           style={{ minHeight: 'auto', margin: 0 }}
