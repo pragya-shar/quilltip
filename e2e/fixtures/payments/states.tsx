@@ -693,6 +693,11 @@ export const STATES: FixtureState[] = [
     'dialog'
   ),
   notice(
+    'notice-tips-paused',
+    <PaymentNotice kind="tips-unavailable" reason="paused" />,
+    'dialog'
+  ),
+  notice(
     'notice-tips-splits',
     <PaymentNotice
       kind="tips-unavailable"

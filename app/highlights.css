@@ -421,6 +421,13 @@ mark[data-note]:hover::before {
     serif;
   color: #694652;
 }
+/* The paused note (TipsUnavailableNote) in place of the tip action: the
+   slip's own ink, not the page's muted colour, which is light in dark mode. */
+.passage-slip .reader-tips-unavailable {
+  max-width: none;
+  padding-inline: 21px;
+  color: #694652;
+}
 .slip-shared {
   margin: 0 0 20px;
   font-size: 14px;

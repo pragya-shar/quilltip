@@ -74,6 +74,15 @@ assertClientNetwork({
   convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
 })
 
+// The v2 Article NFT has its own variable. If both name the same contract,
+// the v1 NFT code stays unconfigured instead of calling the v2 contract.
+const V1_NFT_CONTRACT_ID = process.env.NEXT_PUBLIC_NFT_CONTRACT_ID || ''
+const v1NftContractId =
+  V1_NFT_CONTRACT_ID &&
+  V1_NFT_CONTRACT_ID === process.env.NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID?.trim()
+    ? ''
+    : V1_NFT_CONTRACT_ID
+
 export const STELLAR_CONFIG = {
   // Network configuration (see lib/stellar/network.ts)
   NETWORK: STELLAR_NETWORK_CONFIG.network,
@@ -85,7 +94,7 @@ export const STELLAR_CONFIG = {
   // Contract addresses (2 contracts - Unified Tipping + NFT)
   // TIPPING_CONTRACT_ID handles BOTH article AND highlight tipping
   TIPPING_CONTRACT_ID: process.env.NEXT_PUBLIC_TIPPING_CONTRACT_ID || '',
-  NFT_CONTRACT_ID: process.env.NEXT_PUBLIC_NFT_CONTRACT_ID || '',
+  NFT_CONTRACT_ID: v1NftContractId,
 
   // Platform settings
   PLATFORM_ADDRESS: process.env.NEXT_PUBLIC_PLATFORM_ADDRESS || '',
