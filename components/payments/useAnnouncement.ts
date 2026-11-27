@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 /** Long enough for assistive technology to register an empty live region. */
-const SETTLE_MS = 120
+export const SETTLE_MS = 120
 
 /**
  * Text for a live region that is mounted empty. Only changes after mount

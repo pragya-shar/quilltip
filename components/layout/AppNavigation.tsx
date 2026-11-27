@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Menu } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
@@ -9,33 +9,44 @@ import { LandingWordmark } from '@/components/landing/LandingWordmark'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { AuthActionsSkeleton } from './AuthActionsSkeleton'
 import { AccountNavigationMenu } from './AccountNavigationMenu'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
 import { isProtectedPath } from '@/lib/navigation/protectedRoutes'
+import { afterLoadWhenIdle } from '@/lib/scheduling/afterLoadWhenIdle'
 import {
   getAccountNavigationLinks,
   PRIMARY_NAVIGATION_LINKS,
-  SUPPORT_PATH,
 } from '@/lib/navigation/siteNavigation'
-import { UserAvatar } from '@/components/ui/user-avatar'
+
+// The small-screen sheet (Radix dialog) is not part of the first load. It is
+// fetched when the browser is idle after load if the menu button is shown, or
+// on hover, focus or the first press, whichever comes first.
+const loadMobileMenu = () => import('./AppMobileMenu')
+const preloadMobileMenu = () => {
+  void loadMobileMenu()
+}
+const AppMobileMenu = lazy(() =>
+  loadMobileMenu().then((mod) => ({ default: mod.AppMobileMenu }))
+)
 
 export default function AppNavigation() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuPath, setMenuPath] = useState(pathname)
+  const [menuRequested, setMenuRequested] = useState(false)
+  const menuTriggerRef = useRef<HTMLButtonElement>(null)
+  const sheetOpen = menuOpen && menuPath === pathname
+
+  useEffect(() => {
+    // Only screens that show the menu button fetch the sheet ahead of time,
+    // and only after the page has loaded, so it never competes with it.
+    if (!menuTriggerRef.current?.offsetParent) return
+    return afterLoadWhenIdle(preloadMobileMenu)
+  }, [])
   const authPending =
     isLoading || (!isAuthenticated && isProtectedPath(pathname))
   const accountLinks = getAccountNavigationLinks(user?.username)
   const currentPage = (href: string) =>
     pathname === href ? ('page' as const) : undefined
-  const closeMenu = () => setMenuOpen(false)
-  const displayName = user?.name?.trim() || user?.username || 'Your account'
 
   return (
     <header className="app-site-header site-chrome">
@@ -66,105 +77,38 @@ export default function AppNavigation() {
           )}
           <ThemeToggle />
         </nav>
-        <Sheet
-          open={menuOpen && menuPath === pathname}
-          onOpenChange={(open) => {
+        <button
+          ref={menuTriggerRef}
+          type="button"
+          className="app-menu-trigger"
+          aria-label="Open navigation menu"
+          aria-haspopup="dialog"
+          aria-expanded={sheetOpen}
+          data-state={sheetOpen ? 'open' : 'closed'}
+          onPointerEnter={preloadMobileMenu}
+          onFocus={preloadMobileMenu}
+          onClick={() => {
+            setMenuRequested(true)
             setMenuPath(pathname)
-            setMenuOpen(open)
+            setMenuOpen(true)
           }}
         >
-          <SheetTrigger asChild>
-            <button
-              type="button"
-              className="app-menu-trigger"
-              aria-label="Open navigation menu"
-            >
-              <Menu size={22} aria-hidden />
-              <span>Menu</span>
-            </button>
-          </SheetTrigger>
-          <SheetContent side="right" className="app-mobile-menu site-chrome">
-            <SheetTitle>Find your way</SheetTitle>
-            <SheetDescription>
-              Reading, writing, and your account.
-            </SheetDescription>
-            <LandingWordmark onClick={closeMenu} />
-            <nav aria-label="Mobile navigation">
-              {PRIMARY_NAVIGATION_LINKS.map(({ href, label }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  aria-current={currentPage(href)}
-                  onClick={closeMenu}
-                >
-                  {label}
-                </Link>
-              ))}
-              {authPending ? (
-                <AuthActionsSkeleton />
-              ) : isAuthenticated ? (
-                <div className="app-mobile-account">
-                  <p className="app-mobile-identity">
-                    <UserAvatar
-                      src={user?.avatar}
-                      alt=""
-                      name={displayName}
-                      className="app-account-avatar"
-                      fallbackClassName="app-account-avatar-fallback"
-                    />
-                    <span>
-                      <strong>{displayName}</strong>
-                      {user?.username && <small>@{user.username}</small>}
-                    </span>
-                  </p>
-                  {accountLinks.map(({ href, label }) => (
-                    <Link
-                      key={label}
-                      href={href}
-                      aria-current={currentPage(href)}
-                      onClick={closeMenu}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      closeMenu()
-                      void signOut()
-                    }}
-                  >
-                    Sign out
-                  </button>
-                </div>
-              ) : (
-                <div className="app-mobile-account">
-                  <Link href="/login" onClick={closeMenu}>
-                    Log in
-                  </Link>
-                  <Link
-                    href="/register"
-                    className="app-nav-action"
-                    onClick={closeMenu}
-                  >
-                    Sign up <span aria-hidden>↗</span>
-                  </Link>
-                  <Link
-                    href={SUPPORT_PATH}
-                    aria-current={currentPage(SUPPORT_PATH)}
-                    onClick={closeMenu}
-                  >
-                    Help &amp; support
-                  </Link>
-                </div>
-              )}
-            </nav>
-            <div className="app-menu-theme">
-              <span>Appearance</span>
-              <ThemeToggle />
-            </div>
-          </SheetContent>
-        </Sheet>
+          <Menu size={22} aria-hidden />
+          <span>Menu</span>
+        </button>
+        {menuRequested && (
+          <Suspense fallback={null}>
+            <AppMobileMenu
+              open={sheetOpen}
+              onOpenChange={(open) => {
+                setMenuPath(pathname)
+                setMenuOpen(open)
+              }}
+              pathname={pathname}
+              triggerRef={menuTriggerRef}
+            />
+          </Suspense>
+        )}
       </div>
     </header>
   )

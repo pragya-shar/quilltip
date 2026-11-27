@@ -374,8 +374,12 @@ export type WalletGateState =
   | { kind: 'signed-out' }
   /** No Stellar wallet is installed in this browser. */
   | { kind: 'no-wallet' }
-  /** A wallet exists but this site is not connected to it. */
-  | { kind: 'disconnected' }
+  /**
+   * A wallet exists but this site is not connected to it. `ended` is true
+   * when the wallet itself closed the connection (for example a
+   * WalletConnect session that closed or expired).
+   */
+  | { kind: 'disconnected'; ended?: boolean }
   | { kind: 'locked' }
   /** `walletNetwork` is a human label such as "Mainnet". */
   | { kind: 'wrong-network'; walletNetwork?: string }
