@@ -1,5 +1,5 @@
 /**
- * Per-wallet behaviour (#511): the error mapping for each wallet QuillTip
+ * Per-wallet behaviour (#511): the error mapping for each wallet Quilltip
  * offers, how each one is listed, blocked pop-ups, the Soroban capability
  * gate, and the signature check for wallets that cannot report a network.
  *

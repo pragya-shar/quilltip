@@ -88,7 +88,7 @@ export function WalletConnectButton({
     }
   }
 
-  // A wallet that cannot report its network signs for QuillTip's, so show
+  // A wallet that cannot report its network signs for Quilltip's, so show
   // that one.
   const shownNetwork = network ? network.toLowerCase() : networkLabelLowercase()
   const openInExplorer = (address: string) => {

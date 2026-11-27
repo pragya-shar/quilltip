@@ -6,7 +6,7 @@
  *   (xBull, LOBSTR, Rabet, Hana, Albedo), the adapter cannot refuse a wrong
  *   network before signing. It checks the signature after: a signature by
  *   the connected key that does not verify over the transaction hash for
- *   QuillTip's passphrase was made for another network.
+ *   Quilltip's passphrase was made for another network.
  * - `describeEnvelope`: whether an envelope calls a Soroban contract.
  */
 import {

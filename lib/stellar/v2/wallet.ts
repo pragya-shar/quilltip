@@ -21,7 +21,7 @@
  * extension, Albedo) open their own window: a blocked window fails with
  * `popup-blocked` at once instead of waiting for the timeout. Wallets that
  * cannot report their network get their signature checked against
- * QuillTip's passphrase instead (`verifySignature`).
+ * Quilltip's passphrase instead (`verifySignature`).
  *
  * WalletConnect (mobile wallets) is not supported yet: see `wallet-kit.ts`.
  * The adapter handles a `wallet_connect` module generically, but the app
@@ -124,7 +124,7 @@ export type WalletPage = {
   popupHost?: { open: (...args: never[]) => unknown } | null
 }
 
-/** Result of checking a signed envelope against QuillTip's network. */
+/** Result of checking a signed envelope against Quilltip's network. */
 export type SignatureCheck = 'ok' | 'wrong-network' | 'wrong-account'
 
 /** The static `StellarWalletsKit` surface the adapter uses. */
@@ -565,7 +565,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
 
   /**
    * For a wallet that cannot report its network: the signature must be the
-   * connected address's, for QuillTip's passphrase.
+   * connected address's, for Quilltip's passphrase.
    */
   async function assertSignedForNetwork(
     current: WalletConnection,

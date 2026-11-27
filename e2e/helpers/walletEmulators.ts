@@ -1,5 +1,5 @@
 /**
- * Fake Stellar wallet providers for Playwright, one per wallet QuillTip
+ * Fake Stellar wallet providers for Playwright, one per wallet Quilltip
  * offers besides Varial (see `varialEmulator.ts`). Each installs the object
  * the wallet's browser extension injects, with the methods and return shapes
  * its Wallets Kit 2.8 module calls (`docs/wallets.md`), so the real kit
