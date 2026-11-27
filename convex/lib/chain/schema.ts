@@ -418,6 +418,43 @@ export const tabTables = {
   }).index('by_status', ['status']),
 
   /**
+   * Each `Claimed` event applied to a writer's collected earnings
+   * (`authorEarnings.collectedBaseUnits`), kept for good. The RPC event id
+   * is the ledger, transaction, operation and event index, so a restore, a
+   * backfill or rebuilt `chainEvents` rows give the same id; ids restart
+   * after a testnet reset, hence the epoch. An event with a record is not
+   * applied again.
+   */
+  tabClaims: defineTable({
+    network: chainNetworkValidator,
+    chainEpoch: v.string(),
+    /** RPC id of the `Claimed` event. */
+    eventId: v.string(),
+    txHash: v.string(),
+    ledger: v.number(),
+    recipient: v.string(),
+    userId: v.id('users'),
+    token: v.string(),
+    amount: v.string(),
+    /** `seeded`: recorded for an event applied before this table existed. */
+    source: v.union(v.literal('applied'), v.literal('seeded')),
+    createdAt: v.number(),
+  })
+    .index('by_epoch_event', ['chainEpoch', 'eventId'])
+    .index('by_user_token', ['userId', 'token']),
+
+  /** Corrections of `collectedBaseUnits` from the `tabClaims` records. */
+  tabClaimCorrections: defineTable({
+    userId: v.id('users'),
+    token: v.string(),
+    before: v.string(),
+    after: v.string(),
+    claims: v.number(),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index('by_user', ['userId', 'createdAt']),
+
+  /**
    * Settlement reserves released without their `TabSettled` event: by a
    * later absolute balance (`balance_event`) or by an operator
    * reconciliation against the contract (`reconcile`). One row per release.

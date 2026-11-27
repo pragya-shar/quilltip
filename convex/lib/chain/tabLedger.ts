@@ -1118,6 +1118,49 @@ function addToRecord(
   return { ...record, [token]: (current + delta).toString() }
 }
 
+/**
+ * Records a `Claimed` event as applied, or returns false when its record
+ * exists (the event was applied before). The caller adds the amount to
+ * collected earnings only when this returns true.
+ */
+export async function recordClaim(
+  ctx: MutationCtx,
+  args: {
+    doc: Pick<
+      Doc<'chainEvents'>,
+      'network' | 'chainEpoch' | 'eventId' | 'txHash' | 'ledger'
+    >
+    recipient: string
+    userId: Id<'users'>
+    token: string
+    amount: bigint
+    source: Doc<'tabClaims'>['source']
+    now: number
+  }
+): Promise<boolean> {
+  const existing = await ctx.db
+    .query('tabClaims')
+    .withIndex('by_epoch_event', (q) =>
+      q.eq('chainEpoch', args.doc.chainEpoch).eq('eventId', args.doc.eventId)
+    )
+    .first()
+  if (existing) return false
+  await ctx.db.insert('tabClaims', {
+    network: args.doc.network,
+    chainEpoch: args.doc.chainEpoch,
+    eventId: args.doc.eventId,
+    txHash: args.doc.txHash,
+    ledger: args.doc.ledger,
+    recipient: args.recipient,
+    userId: args.userId,
+    token: args.token,
+    amount: args.amount.toString(),
+    source: args.source,
+    createdAt: args.now,
+  })
+  return true
+}
+
 /** Adds base-unit deltas to a user's `authorEarnings` row. */
 export async function adjustBaseUnitEarnings(
   ctx: MutationCtx,
