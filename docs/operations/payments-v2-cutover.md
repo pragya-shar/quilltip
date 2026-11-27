@@ -22,10 +22,15 @@ Tracking issue: #451.
 
 Start the window only when each line is true. Section 1 has the detail.
 
-1. The open payment fixes are merged into the release commit, and the checks
-   in section 1.3 pass on it.
+1. The open payment and sign-up fixes are merged, and the release tag is on a
+   commit that contains each of them: #583 and #565 (merged), and #572, #577
+   and the fix for #584 once they merge. The checks in section 1.3 pass on
+   that commit.
 2. The owner has decided the backend push method, and the push uses a deploy
-   key whose `--dry-run` output names the live deployment (section 5.0.2).
+   key whose `--dry-run` output names the live deployment (section 5.0.2). On
+   the tagged commit, `npx tsc -p convex/tsconfig.json --noEmit` exits 0, and
+   the dry run completes: it is the final check that the functions build for
+   the target.
 3. A stage 0 snapshot of the live deployment can be taken, and the restore
    procedure in section 6.2 has been read.
 4. The TTL extension of the new contract set (stage 3, step 2) is planned in
@@ -129,6 +134,7 @@ Run on a clean checkout of the release commit. Record the output.
 ```bash
 bun install --frozen-lockfile
 bun run check
+npx tsc -p convex/tsconfig.json --noEmit
 bun run test:e2e:fixtures
 bun run test:e2e:csp
 bun run test:local-network
@@ -137,6 +143,11 @@ git grep -nE 'NEXT_PUBLIC_TIPPING_CONTRACT_ID|TIPPING_CONTRACT_ID' -- app compon
 ```
 
 - `bun run check` and both Playwright commands pass.
+- `npx tsc -p convex/tsconfig.json --noEmit` exits 0. It checks the functions
+  with the configuration Convex uses to build them (`convex/tsconfig.json`).
+  `bun run typecheck`, part of `bun run check`, runs it too since #583; it is
+  listed here because a function that passes the root configuration can still
+  fail this one, and the push then stops.
 - The local network suites pass against a Stellar Quickstart standalone
   network (`QUILLTIP_NETWORK_GUARD_OPT_IN=local`).
 - The last command prints nothing: no page, component or v2 module reads a
@@ -336,25 +347,26 @@ Set by the owner, in this order. Secrets go in the Convex dashboard
 (**Settings → Environment Variables**), never on a command line or in a file
 in the repository.
 
-| Order | Variable                                                                      | Value                                                          | Stage | Effect when set                                                                            |
-| ----- | ----------------------------------------------------------------------------- | -------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------ |
-| 1     | `STELLAR_NETWORK`                                                             | `TESTNET`                                                      | check | Already set. Every v2 path calls `assertBackendTestnet()` and refuses anything else.       |
-| 2     | `STELLAR_RPC_URL`, `NETWORK_PASSPHRASE`                                       | Optional. Testnet RPC URL; `Test SDF Network ; September 2015` | 3     | The guard refuses mainnet values. Defaults are the public testnet values.                  |
-| 3     | `CHAIN_V2_ENABLED`                                                            | `false`                                                        | 3     | Set it explicitly to `false` before any other v2 value.                                    |
-| 4     | `CHAIN_V1_PREPARES_ENABLED`                                                   | `true`                                                         | 3     | Explicit current state.                                                                    |
-| 5     | `CHAIN_EPOCH`                                                                 | For example `testnet-2026-12-15`                               | 3     | Every new chain row carries it. Change it only with a new contract set.                    |
-| 6     | `CORE_CONTRACT_ID`, `TAB_CONTRACT_ID`, `NFT_CONTRACT_ID`, `TOKEN_CONTRACT_ID` | The `live` set, from `docs/contracts/v2-testnet-deployment.md` | 3     | The hourly `refresh chain config` cron starts caching the contract views.                  |
-| 7     | `INDEXER_START_LEDGER`                                                        | The `live` set's Core deploy ledger                            | 3     | With `CORE_CONTRACT_ID`, the indexer starts on the next minute.                            |
-| 8     | `OPS_USER_IDS`                                                                | Operator Convex user IDs                                       | 3     | `/ops/chain` shows the status to those users.                                              |
-| 9     | `TAB_ACCEPTOR_SECRET`                                                         | The `live` set's acceptor seed                                 | 3     | Read only when `SETTLEMENT_ENABLED=true`.                                                  |
-| 10    | `TAB_SETTLER_SECRET`                                                          | The `live` set's settler secret                                | 3     | Read only when `SETTLEMENT_ENABLED=true` and `TAB_CONTRACT_ID` are set.                    |
-| 11    | `TAB_DAILY_LIMIT`, `TAB_TIP_MAX`                                              | Optional. Defaults `200000000`, `50000000`                     | 3     |                                                                                            |
-| 12    | `SETTLEMENT_ENABLED`                                                          | `true`                                                         | 3     | The settler cron runs and tab tips can be accepted. Nothing is due until a tab tip exists. |
-| 13    | `INTERNAL_ACCOUNT_EMAIL_DOMAINS`                                              | Optional. Staff email domains                                  | 3     | New accounts on those domains are flagged as internal. Not a payment setting.              |
-| 14    | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY`                                       | Unchanged                                                      | —     | See section 3.3.                                                                           |
-| 15    | `CHAIN_V1_PREPARES_ENABLED`                                                   | `false`                                                        | 5     | New v1 records are refused. Submits and verification continue.                             |
-| 16    | `CHAIN_V2_ENABLED`                                                            | `true`                                                         | 6     | v2 prepare functions accept new records.                                                   |
-| 17    | `RECONCILE_TIPS_ENABLED`, `TIPPING_CONTRACT_ID`, `HORIZON_URL`                | Unchanged                                                      | —     | v1 verification needs them until the v1 code is removed (section 8).                       |
+| Order | Variable                                                                      | Value                                                          | Stage | Effect when set                                                                             |
+| ----- | ----------------------------------------------------------------------------- | -------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------- |
+| 1     | `STELLAR_NETWORK`                                                             | `TESTNET`                                                      | check | Already set. Every v2 path calls `assertBackendTestnet()` and refuses anything else.        |
+| 2     | `STELLAR_RPC_URL`, `NETWORK_PASSPHRASE`                                       | Optional. Testnet RPC URL; `Test SDF Network ; September 2015` | 3     | The guard refuses mainnet values. Defaults are the public testnet values.                   |
+| 3     | `CHAIN_V2_ENABLED`                                                            | `false`                                                        | 3     | Set it explicitly to `false` before any other v2 value.                                     |
+| 4     | `CHAIN_V1_PREPARES_ENABLED`                                                   | `true`                                                         | 3     | Explicit current state.                                                                     |
+| 5     | `CHAIN_EPOCH`                                                                 | For example `testnet-2026-12-15`                               | 3     | Every new chain row carries it. Change it only with a new contract set.                     |
+| 6     | `CORE_CONTRACT_ID`, `TAB_CONTRACT_ID`, `NFT_CONTRACT_ID`, `TOKEN_CONTRACT_ID` | The `live` set, from `docs/contracts/v2-testnet-deployment.md` | 3     | The hourly `refresh chain config` cron starts caching the contract views.                   |
+| 7     | `INDEXER_START_LEDGER`                                                        | The `live` set's Core deploy ledger                            | 3     | With `CORE_CONTRACT_ID`, the indexer starts on the next minute.                             |
+| 8     | `OPS_USER_IDS`                                                                | Operator Convex user IDs                                       | 3     | `/ops/chain` shows the status to those users.                                               |
+| 9     | `TAB_ACCEPTOR_SECRET`                                                         | The `live` set's acceptor seed                                 | 3     | Read only when `SETTLEMENT_ENABLED=true`.                                                   |
+| 10    | `TAB_SETTLER_SECRET`                                                          | The `live` set's settler secret                                | 3     | Read only when `SETTLEMENT_ENABLED=true` and `TAB_CONTRACT_ID` are set.                     |
+| 11    | `TAB_DAILY_LIMIT`, `TAB_TIP_MAX`                                              | Optional. Defaults `200000000`, `50000000`                     | 3     |                                                                                             |
+| 12    | `SETTLEMENT_ENABLED`                                                          | `true`                                                         | 3     | The settler cron runs and tab tips can be accepted. Nothing is due until a tab tip exists.  |
+| 13    | `INTERNAL_ACCOUNT_EMAIL_DOMAINS`                                              | Optional. Staff email domains                                  | 3     | New accounts on those domains are flagged as internal. Not a payment setting.               |
+| 14    | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY`                                       | Unchanged                                                      | —     | See section 3.3.                                                                            |
+| 15    | `CHAIN_V1_PREPARES_ENABLED`                                                   | `false`                                                        | 5     | New v1 records are refused. Submits and verification continue.                              |
+| 16    | `CHAIN_V2_ENABLED`                                                            | `true`                                                         | 6     | v2 prepare functions accept new records.                                                    |
+| 17    | `RECONCILE_TIPS_ENABLED`, `TIPPING_CONTRACT_ID`, `HORIZON_URL`                | Unchanged                                                      | —     | v1 verification needs them until the v1 code is removed (section 8).                        |
+| 18    | `EARNINGS_TOTALS_REBUILD_ENABLED`                                             | `true`, and left on                                            | 5A    | The writers' lifetime totals are rebuilt by a cron every minute. Unset or `false`: nothing. |
 
 Variables 9 to 12 are read only after the network guard passes. Never put a
 secret in `.env.example`, a commit, a PR or a log.
@@ -476,17 +488,18 @@ The times below were measured in a rehearsal of every stage on a disposable
 local Convex backend with a new testnet contract set and a small data set.
 Live data is larger, so the snapshot, push and backfill steps can take longer.
 
-| Stage | Work                                                  | Measured                                                                                           |
-| ----- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| 0     | Tag, snapshot export                                  | Snapshot 2 s                                                                                       |
-| 1     | `--dry-run`, push, cron check, maintenance dry runs   | Dry run 19 s, push 32 s, cron check 2 min                                                          |
-| 2     | Site deploy and checks                                | Checks about 5 min, plus the Vercel build                                                          |
-| 3     | Contract set, TTL extension, variables, indexer check | Deploy 861 s, extension 28 s, variables 8 s, indexer `OK` within 70 s; config refresh up to 1 hour |
-| 4     | Contract version backfill                             | 8 s                                                                                                |
-| 5     | Freeze, 15-minute wait, drain                         | 15 min 17 s                                                                                        |
-| 6     | Backfill again, switch on v2, section 7.1             | Registration indexed in 17 s, direct tip confirmed in 35 s; about 15 min for the full 7.1 list     |
-| —     | Rollback B, if needed                                 | 54 s                                                                                               |
-| —     | Snapshot restore (section 6.2), if needed             | About 10 min with the deployment paused (small data set)                                           |
+| Stage | Work                                                  | Measured                                                                                               |
+| ----- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| 0     | Tag, snapshot export                                  | Snapshot 2 s                                                                                           |
+| 1     | `--dry-run`, push, cron check, maintenance dry runs   | Dry run 19 s, push 32 s, cron check 2 min                                                              |
+| 2     | Site deploy and checks                                | Checks about 5 min, plus the Vercel build                                                              |
+| 3     | Contract set, TTL extension, variables, indexer check | Deploy 861 s, extension 28 s, variables 8 s, indexer `OK` within 70 s; config refresh up to 1 hour     |
+| 4     | Contract version backfill                             | 8 s                                                                                                    |
+| 5     | Freeze, 15-minute wait, drain                         | 15 min 17 s                                                                                            |
+| 5A    | Lifetime totals: dry run, switch, progress            | Dry run 1 s; rebuild at the next cron tick (36 s for 3 rows); about ⌈N/20⌉ min for N rows              |
+| 6     | Backfill again, switch on v2, section 7.1             | Registration indexed in 17 s, direct tip confirmed in 35 s; about 15 min for the full 7.1 list         |
+| —     | Rollback B, if needed                                 | 54 s                                                                                                   |
+| —     | Snapshot restore (section 6.2), if needed             | Paused 4 min 26 s and 5 min 31 s in two runs; pause to reopened payments 8 to 10 min (small data sets) |
 
 Plan about 1 hour 15 minutes from stage 0 to the end of stage 6, plus the
 owner's own checks. Stage 3, steps 1 and 2 (deploy and extend the contract
@@ -517,8 +530,11 @@ anything is pushed.
    ```bash
    unset CONVEX_DEPLOYMENT CONVEX_SELF_HOSTED_URL CONVEX_SELF_HOSTED_ADMIN_KEY
    read -rs CONVEX_DEPLOY_KEY && export CONVEX_DEPLOY_KEY
+   npx tsc -p convex/tsconfig.json --noEmit
    bunx convex deploy --dry-run
    ```
+
+   The `tsc` command must exit 0 before the dry run.
 
 3. Read the dry-run output. It starts with `Deploying code to deployment:`,
    then a line with the deployment type and name, then the deployment URL.
@@ -527,7 +543,12 @@ anything is pushed.
    deployment, stop and get the right key. For the release commit the dry run
    also lists new indexes, ends with `Would have deployed Convex functions`
    and prints `Change the server's version for Node.js actions:`; that line
-   is expected.
+   is expected. The dry run output is the final check that the functions
+   build for the target: the dry run type-checks the functions with
+   `convex/tsconfig.json` and, on an error, prints the file, line and error
+   (for example `convex/earningsTotalsBackfill.ts:67:24 - error TS2550`),
+   then the line ``TypeScript typecheck via `tsc` failed.``, and exits 1
+   with nothing pushed. Do not push with `--typecheck=disable`.
 4. Push with the same shell: `bunx convex deploy`.
 
 Do not push with only a CLI login and `CONVEX_DEPLOYMENT` set:
@@ -784,6 +805,95 @@ owner, the NFT actions tab shows "NFT actions are paused for a short time
 while payments are updated." instead of the mint and transfer buttons.
 **Rollback:** set `CHAIN_V1_PREPARES_ENABLED=true`. No data step.
 
+### Stage 5A. Rebuild the writers' lifetime totals
+
+The release adds lifetime totals to each `authorEarnings` row (#567):
+`v1TipCount`, `v1EarnedCents`, `v1ShareStroops`, `v1UnpricedTipCount`,
+`tabTipCount`, `tabEarnedCents`, `tabSettledBaseUnits` and
+`walletEarnedBaseUnits`, marked complete by `lifetimeTotalsAt`. A row is
+rebuilt from its history: the writer's `tips` and `highlightTips`, then the
+tab pairs (`tabVouchers`) of the writer's addresses, counting each tab tip by
+the net its receipt has been paid on chain. The rebuild writes only
+`authorEarnings` (`convex/earningsTotalsBackfill.ts`).
+
+Run this stage after the stage 5 drain, so that every v1 tip has its final
+state, and after any `authorEarningsBackfill:run` apply from stage 1, step 5
+has completed. Finish it before stage 6. The two jobs write different fields:
+`authorEarningsBackfill:run` rewrites the earlier cent totals, which the
+rebuild does not read, so the code itself does not need this order; it keeps
+both sets of figures from the same final rows.
+
+1. Dry run, page by page, with no writes:
+
+   ```bash
+   bunx convex run earningsTotalsBackfill:dryRun '{}'
+   bunx convex run earningsTotalsBackfill:dryRun '{"cursor":"<continueCursor>"}'
+   ```
+
+   Repeat with each `continueCursor` until `"isDone": true`. A page holds 20
+   rows (`limit` sets up to 50). For each writer it shows `shown` (the figures
+   the stats screen shows now), `rebuilt` (the figures after the rebuild) and
+   `changedFields`. Review the differences and record them. A row that the
+   release code created after stage 1 starts with lifetime totals and shows
+   `"source": "lifetime"` with no changed field. A writer with settled tab
+   tips can show more tips and dollars after the rebuild: the figures shown
+   before it include tab tips in the XLM amount, but not in the tip count or
+   the dollar estimate.
+
+2. Set `EARNINGS_TOTALS_REBUILD_ENABLED=true`. The cron
+   `rebuild lifetime earnings totals` runs `earningsTotalsBackfill:run` every
+   minute. A run advances the 20 rows that have waited longest, by up to 10
+   steps each; a step reads one page of up to 200 rows. With the switch unset
+   or any value other than `true`, a run returns before it reads anything.
+3. Poll the progress:
+
+   ```bash
+   bunx convex run earningsTotalsBackfill:progress
+   ```
+
+   The rebuild is finished when `rebuilt` equals `total`, `waiting` is 0, and
+   `inProgress` and `failed` are empty. Do not use `complete` as the finished
+   signal: it only says that the progress scan read every row (it stops at
+   10,000 `authorEarnings` rows and 10,000 settled tip rows).
+   `settledTabRowsWithoutApplied` counts settled tab tips without
+   `earningsAppliedAt`; the rebuild still counts them from their receipts.
+
+A row whose history fits in 10 steps finishes in its first turn, so N rows
+take about ⌈N/20⌉ minutes; a longer history takes more turns without holding
+up the rows behind it. Measured: on a deployment with one row, the row took 3
+steps and was rebuilt at the next cron tick, with all 22 earlier fields
+unchanged; in a rehearsal on a local backend with three writers (v1, wallet and
+tab tips; wallet and tab tips; v1 tips only), each row took 3 steps, the
+rebuild finished 36 s after the switch was set (22 s after a `reset`
+restart), no earlier field and no other table changed, and the dry run took
+1 s.
+
+Leave the switch on. It is needed for a new row of a user who already has v1
+tips, for every row after `earningsTotalsBackfill:reset`, and for a retried
+row. With nothing waiting, a run costs one indexed query a minute.
+
+**Failed rows.** A step that fails records `lifetimeRebuildError` and
+`lifetimeRebuildFailedAt` on its row, and the run goes on with the other
+rows. `progress.failed` lists each failed row's id, user, error and time. The
+queue skips a failed row until `earningsTotalsBackfill:retryFailed` puts it
+back (`'{"id":"<row id>"}'` for one row, `'{}'` for every failed row); it then
+resumes from its saved position.
+
+**What readers see.** The previous frontend reads only the earlier fields, so
+it shows the same figures as before, for every row. The release frontend
+shows the earlier figures for a row until it is rebuilt, and its lifetime
+figures after that.
+
+**Check:** the progress reports finished as above, and a second dry run shows
+`"source": "lifetime"` and an empty `changedFields` for every writer.
+**Rollback:** set `EARNINGS_TOTALS_REBUILD_ENABLED=false`. Each row in
+progress keeps its saved position and resumes when the switch is on again.
+The lifetime fields are optional and additive; no earlier field changes. To
+return the rows to the shape before #567 (for a rollback of the functions),
+run `earningsTotalsBackfill:reset '{"mode":"remove"}'`, which unsets every
+lifetime field. `'{"mode":"restart"}'` keeps the fields and rebuilds every
+row again.
+
 ### Stage 6. Switch on v2
 
 1. Run the stage 4 backfill again for the three tables (dry run, apply, dry
@@ -998,15 +1108,29 @@ writers with such tips. So:
   not `7`): the import reads an integer as `int64` and refuses it for a
   number field. Correcting the row in the dashboard after the import avoids
   this.
+- The lifetime fields (stage 5A) are not corrected by hand: step 6 rebuilds
+  them for every row with `earningsTotalsBackfill:reset` and the rebuild.
+  The rebuild takes the wallet part of a writer's figures from
+  `earnedBaseUnits` (less the `earnedNet` of the writer's tab pairs), so it
+  runs after the corrections above and after any
+  `authorEarningsBackfill:run`.
 
 If `chainEvents` or `chainCursor` was damaged, leave both out and rebuild
 them with a replay in step 6. The replay applies every event again. Most
 handlers ignore an effect they already applied, but `Claimed` adds its amount
 to `collectedBaseUnits` each time: with `authorEarnings` from the second
-export, correct those fields by hand afterwards. A replay from `INDEXER_START_LEDGER` needs every
-event since that ledger within the RPC retention (about 7 days); older events
-come from an archive RPC or a hosted indexer through
-`chain/indexer:ingestBackfill`.
+export, correct those fields by hand afterwards. A replay from
+`INDEXER_START_LEDGER` needs every event since that ledger within the RPC
+retention (about 7 days); older events come from an archive RPC or a hosted
+indexer through `chain/indexer:ingestBackfill`.
+
+Until the fix for #584 is in the release, do not set a stored `claimed` event
+in `chainEvents` back to `pending`, and do not ingest again `claimed` events
+whose rows were left out, except in the replay above with the correction that
+follows it. Each run adds the claimed amount to `collectedBaseUnits` again. In
+a rehearsal, re-running every stored event doubled both writers' collected
+amounts and changed nothing else. The lifetime rebuild does not compute
+`collectedBaseUnits`, so it does not repair this.
 
 Keep the release code deployed: the stage 0 data fits the release schema.
 Going back to `main`'s code is a separate decision (section 2.2): `main`'s
@@ -1054,6 +1178,20 @@ bunx convex run chain/indexer:replayFrom '{"fromLedger": <INDEXER_START_LEDGER>}
 The replay links each event to the restored rows. Then correct
 `collectedBaseUnits` if step 4 says so.
 
+Then rebuild the writers' lifetime totals from the restored rows. The
+restored rows carry the totals of the stage 0 snapshot or the second export,
+which do not match the restored history:
+
+```bash
+bunx convex run earningsTotalsBackfill:reset '{"mode":"restart"}'
+bunx convex run earningsTotalsBackfill:progress
+```
+
+`EARNINGS_TOTALS_REBUILD_ENABLED` is not in the snapshot; it stays as it was
+on the deployment, `true` after stage 5A. Poll the progress until it reports
+finished (stage 5A). Until a row is rebuilt, the stats screen shows its
+earlier figures.
+
 #### Step 7. Reopen payments
 
 Set `CHAIN_V2_ENABLED=true` (and `CHAIN_V1_PREPARES_ENABLED` as it was before
@@ -1075,11 +1213,14 @@ the incident) only when all of these are true:
    `orphan` means a restored row is missing. (The `/ops/chain` counts stop
    at 100.)
 3. `authorEarnings` equals the second export, apart from the corrections
-   recorded in step 4.
+   recorded in step 4 and the lifetime fields rebuilt in step 6.
+   `earningsTotalsBackfill:progress` reports the rebuild finished: `rebuilt`
+   equals `total`, `waiting` 0, `inProgress` and `failed` empty.
 4. The rows left out in step 4 are reviewed and recorded in the incident
    record.
 5. A comparison of a new export with the second export shows the expected
-   differences only: the damaged tables and the left-out rows; `chainConfig`
+   differences only: the damaged tables and the left-out rows; the lifetime
+   fields of `authorEarnings` (`lifetimeTotalsAt` and the totals); `chainConfig`
    and `chainLeases`, which step 4 left out and the deployment rebuilt; the
    events indexed after the resume, with their effect on the rows they
    apply to (`chainEvents`, `chainCursor`, and for example `tabAccounts` and
@@ -1186,13 +1327,14 @@ the variables are gone.
 
 ## 9. Maintenance schedule
 
-| Task                                 | When                                                                                           | Command or place                                                                         |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| TTL report and extension, `live` set | Twice a week (for example Monday and Thursday), and within 3 days of any deploy or role change | `bun run contracts:extend-v2 --set live --keys-dir <dir> --submit`                       |
-| TTL report, `integration` set        | Same                                                                                           | `--set integration`                                                                      |
-| Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3) |
-| Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                |
-| Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                 |
-| Live deployment snapshot             | Weekly during the hold, and before each removal PR is deployed                                 | Convex dashboard snapshot export                                                         |
-| Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                           |
-| Removal PRs                          | After the hold of one release                                                                  | Section 8                                                                                |
+| Task                                 | When                                                                                           | Command or place                                                                             |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| TTL report and extension, `live` set | Twice a week (for example Monday and Thursday), and within 3 days of any deploy or role change | `bun run contracts:extend-v2 --set live --keys-dir <dir> --submit`                           |
+| TTL report, `integration` set        | Same                                                                                           | `--set integration`                                                                          |
+| Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3)     |
+| Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                    |
+| Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                     |
+| Live deployment snapshot             | Weekly during the hold, and before each removal PR is deployed                                 | Convex dashboard snapshot export                                                             |
+| Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                               |
+| Removal PRs                          | After the hold of one release                                                                  | Section 8                                                                                    |
+| Writers' lifetime totals             | After a restore or an `earningsTotalsBackfill:reset`, and when `progress.failed` lists a row   | `bunx convex run earningsTotalsBackfill:progress`; `retryFailed` for a failed row (stage 5A) |
