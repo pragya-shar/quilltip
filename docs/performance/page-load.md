@@ -919,7 +919,10 @@ loads its scripts.
   `requestSubmit()`, through the same validation, Convex Auth call, errors and
   `returnTo` handling as a later press. Nothing is stored; the password stays
   in the field and goes only over the Convex connection, as before. A hold
-  ends after 20 s without sending if the scripts never run. `/waitlist` only
+  ends after 20 s without sending if the scripts never run. When React renders
+  the page again in the browser instead of attaching to the server HTML (it
+  sometimes does under CPU load, on `overhaul/v2` too), the new form takes over
+  the held submit and the values. `/waitlist` only
   gained `method="post"`: the waitlist refuses forms sent faster than
   `WAITLIST_MIN_FILL_MS`, so a held submit would be dropped there.
 - **Mobile menu.** The sheet is a native `<dialog>` in the server HTML. Before
@@ -928,10 +931,12 @@ loads its scripts.
   closes the popover when focus leaves it (`lib/navigation/earlyMenu.ts`). An
   inline script in `<head>` instead changes when Chrome runs the page's
   chunks: first paint about 0.9 s earlier and React about 0.9 s later on this
-  profile, the same trade-off as #538. Once the scripts run, the
-  button opens it with `showModal()` (focus moves in, the page is inert,
+  profile, the same trade-off as #538. Once the scripts run, the button opens
+  it with `showModal()` (focus moves in, the page is inert,
   Escape closes it and focus returns to the button), and a popover the reader
-  opened earlier becomes the modal dialog in the same frame. The sheet's
+  opened earlier becomes the modal dialog in the same frame (also when React
+  renders the page again: the inline script records that the menu was open).
+  The sheet's
   slide uses CSS transitions (`translate` and backdrop `opacity`, 200 ms in,
   150 ms out) and none under reduced motion.
 
