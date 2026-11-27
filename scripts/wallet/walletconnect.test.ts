@@ -1,5 +1,5 @@
 /**
- * QuillTip's WalletConnect module (#511) against a fake sign client: pairing,
+ * Quilltip's WalletConnect module (#511) against a fake sign client: pairing,
  * session restore and expiry, wrong chain, missing methods, refusals,
  * timeouts and disconnects from either side, and how each maps to the app's
  * wallet states.
@@ -102,7 +102,7 @@ function moduleFor(fake: ReturnType<typeof fakeClient>) {
   const walletModule = new WalletConnectModule({
     projectId: '0123456789abcdef0123456789abcdef',
     metadata: {
-      name: 'QuillTip',
+      name: 'Quilltip',
       description: 'd',
       url: 'https://example.test',
       icons: [],

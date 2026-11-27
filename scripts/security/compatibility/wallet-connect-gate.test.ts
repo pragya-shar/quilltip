@@ -59,7 +59,7 @@ it('leaves WalletConnect out without a project ID', async () => {
   expect(imported).toEqual({ kitModule: 0, appKit: 0, signClient: 0 })
 })
 
-it('adds QuillTip’s WalletConnect module with a project ID, without loading the sign client yet', async () => {
+it('adds Quilltip’s WalletConnect module with a project ID, without loading the sign client yet', async () => {
   expect(await loadIds(FORMAT_ONLY_ID)).toEqual([
     ...BROWSER_WALLETS,
     'wallet_connect',

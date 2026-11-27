@@ -1,5 +1,5 @@
 /**
- * QuillTip's WalletConnect module for Stellar Wallets Kit 2.x: mobile wallets
+ * Quilltip's WalletConnect module for Stellar Wallets Kit 2.x: mobile wallets
  * (Varial, LOBSTR, Scopuly and others) pair by QR code or deep link and sign
  * on the phone.
  *
@@ -8,7 +8,7 @@
  * zod code (its embedded email and social login) runs on the app's zod 4
  * override with one known difference, and the module opens a relay
  * connection as soon as it is constructed. This module never loads AppKit,
- * connects to the relay only when a reader chooses it, and shows QuillTip's
+ * connects to the relay only when a reader chooses it, and shows Quilltip's
  * own pairing step (`walletconnect-pairing.ts`). See docs/wallets.md.
  *
  * Rules:

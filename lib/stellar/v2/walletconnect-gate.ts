@@ -6,7 +6,7 @@
  * wallet refuses to load in the browser.
  *
  * The ID is public configuration, set per deployment and in `.env.local`;
- * it is never committed. QuillTip's WalletConnect module
+ * it is never committed. Quilltip's WalletConnect module
  * (`walletconnect-module.ts`) talks to `@walletconnect/sign-client` directly
  * and never loads Reown AppKit, the only code that uses zod
  * (docs/wallets.md, "WalletConnect").

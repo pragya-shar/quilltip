@@ -11,7 +11,7 @@
  *
  * WalletConnect (mobile wallets) is added when
  * NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID is set (`walletconnect-gate.ts`). It
- * is QuillTip's own module on `@walletconnect/sign-client`
+ * is Quilltip's own module on `@walletconnect/sign-client`
  * (`walletconnect-module.ts`), not the kit's, so Reown AppKit is never
  * loaded; the sign client loads only when a reader chooses a mobile wallet.
  */
@@ -57,7 +57,7 @@ export const QUILLTIP_WALLET_THEME: SwkAppTheme = {
 export { WALLETCONNECT_INVALID_MESSAGE } from './walletconnect-gate'
 
 /**
- * What wallets show about QuillTip when pairing. The URL is the page's own
+ * What wallets show about Quilltip when pairing. The URL is the page's own
  * origin: WalletConnect's Verify API compares it with the origin the request
  * came from, and the Reown project allows production, previews and local
  * development.

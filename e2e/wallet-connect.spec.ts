@@ -4,7 +4,7 @@ import { test, expect, type Page } from './helpers/consoleGuard'
 
 /**
  * WalletConnect (mobile wallets) through the real wallet runtime, Wallets
- * Kit, QuillTip's WalletConnect module, picker, tip dialog and address proof.
+ * Kit, Quilltip's WalletConnect module, picker, tip dialog and address proof.
  * `?wc=1` serves the fixture built with a format-only project ID and a fake
  * sign client that plays the relay and the phone
  * (e2e/fixtures/wallet/fake-sign-client.ts). Nothing reaches a network.

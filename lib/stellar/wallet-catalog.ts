@@ -307,7 +307,7 @@ export const BROWSER_WALLETS = OFFERED_WALLETS.filter(
 )
 
 /**
- * Phone wallet apps that connect to QuillTip over WalletConnect on Stellar
+ * Phone wallet apps that connect to Quilltip over WalletConnect on Stellar
  * (the kit's featured WalletConnect wallets). Each must be set to testnet.
  */
 export const WALLETCONNECT_APPS = [

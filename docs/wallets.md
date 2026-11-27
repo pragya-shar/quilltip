@@ -124,7 +124,7 @@ hexadecimal characters stops the build, the dev server and the wallet
 
 ### Dependency decision
 
-QuillTip does **not** use the kit's WalletConnect module. It has its own
+Quilltip does **not** use the kit's WalletConnect module. It has its own
 module, `lib/stellar/v2/walletconnect-module.ts`, on
 `@walletconnect/sign-client` 2.23.0 (the version the kit uses).
 
@@ -136,7 +136,7 @@ module, `lib/stellar/v2/walletconnect-module.ts`, on
   an object whose `z.any()` field is absent, and zod 3 accepted it (3 of 2,586
   generated inputs differ; `scripts/security/compatibility/reown-zod.test.ts`).
   AppKit's only zod code is its embedded email and social login. The sign
-  client has no zod. With QuillTip's module, AppKit is never loaded, so no
+  client has no zod. With Quilltip's module, AppKit is never loaded, so no
   zod-dependent code runs; the override stays only for the audit, because
   the kit still installs AppKit.
 - **Size.** The sign client adds about 141 KB gzipped, loaded only when a
@@ -144,9 +144,9 @@ module, `lib/stellar/v2/walletconnect-module.ts`, on
   567 KB.
 - **Connections.** The kit's module starts the sign client and AppKit when it
   is constructed, which opens a relay connection whenever the picker lists
-  wallets. QuillTip's module connects only when a reader chooses it, with
+  wallets. Quilltip's module connects only when a reader chooses it, with
   WalletConnect telemetry off.
-- **Pairing step.** QuillTip draws its own: a QR code on a computer, an
+- **Pairing step.** Quilltip draws its own: a QR code on a computer, an
   "Open in your wallet app" link on a phone, a copy button, and a way back.
 
 ### Behaviour
@@ -160,7 +160,7 @@ module, `lib/stellar/v2/walletconnect-module.ts`, on
 | The reader goes back or closes the picker        | Not an error; the pairing stops                        |
 | A live session from earlier                      | Reused without a new code                              |
 | The phone ends the session, or it expires        | The app disconnects; a later request is `disconnected` |
-| Disconnect in QuillTip                           | The session is ended on the phone too                  |
+| Disconnect in Quilltip                           | The session is ended on the phone too                  |
 | A request refused on the phone (5000, 4001)      | `rejected`                                             |
 | "Please switch to … in Varial Settings"; 5100    | `wrong-network`                                        |
 | A signature made for mainnet                     | `wrong-network`, nothing sent                          |

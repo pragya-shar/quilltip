@@ -51,7 +51,7 @@ export const WALLET_FRAME_ORIGINS = ['https://albedo.link']
 export const WALLET_IMAGE_ORIGINS = ['https://stellar.creit.tech']
 
 /**
- * WalletConnect, only when a project ID is configured. QuillTip's module
+ * WalletConnect, only when a project ID is configured. Quilltip's module
  * uses `@walletconnect/sign-client` 2.23 with telemetry off, so the page
  * talks to two services:
  * - the relay, over a WebSocket (`relayUrl`, the client's default);

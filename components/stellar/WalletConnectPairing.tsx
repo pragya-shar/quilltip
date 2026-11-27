@@ -68,7 +68,7 @@ export function WalletConnectPairing({
   const code = (
     <QrCode
       value={pairing.uri}
-      label="QR code that connects a phone wallet to QuillTip"
+      label="QR code that connects a phone wallet to Quilltip"
     />
   )
 

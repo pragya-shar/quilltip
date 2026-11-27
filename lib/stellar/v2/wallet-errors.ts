@@ -128,7 +128,7 @@ export const WALLET_ERROR_RULES: Readonly<
   scopuly: [
     { kind: 'no-wallet', pattern: /scopuly provider is not available/ },
   ],
-  // QuillTip's WalletConnect module and the wallet on the phone. Codes are
+  // Quilltip's WalletConnect module and the wallet on the phone. Codes are
   // WalletConnect's (5000 user rejected, 5100 unsupported chains, 5101
   // unsupported methods) and EIP-1193's 4001.
   wallet_connect: [
