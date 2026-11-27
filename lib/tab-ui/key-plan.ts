@@ -66,6 +66,11 @@ export type DeviceKeyView =
   | { kind: 'stopped'; keyId: number }
   /** IndexedDB is blocked or missing, so no key can be held here. */
   | { kind: 'storage-unavailable' }
+  /**
+   * This browser holds an active key, but the latest ledger could not be
+   * read from Stellar RPC, so its expiry cannot be checked.
+   */
+  | { kind: 'unchecked'; keyId: number }
 
 /**
  * The device key view from `getMyTab().keys`, this browser's keys and the
@@ -75,17 +80,21 @@ export type DeviceKeyView =
 export function deviceKeyView(input: {
   serverKeys: ServerSessionKey[]
   localKeys: LocalSessionKeyInfo[] | null
-  currentLedger: number
+  /** Null when the latest ledger could not be read. */
+  currentLedger: number | null
   seenKeyIds: readonly number[]
 }): DeviceKeyView {
   if (input.localKeys === null) return { kind: 'storage-unavailable' }
   const { status, keyId } = tabKeyState({
     serverKeys: input.serverKeys,
     localKeys: input.localKeys,
-    currentLedger: input.currentLedger,
+    // Without a ledger no key reads as expired: "ready" becomes unchecked.
+    currentLedger: input.currentLedger ?? 0,
   })
   switch (status) {
     case 'ready': {
+      if (input.currentLedger === null)
+        return { kind: 'unchecked', keyId: keyId! }
       const key = input.serverKeys.find((k) => k.keyId === keyId)!
       return {
         kind: 'ready',
@@ -117,6 +126,13 @@ export function canQuickTip(
   view: DeviceKeyView
 ): view is Extract<DeviceKeyView, { kind: 'ready' }> {
   return view.kind === 'ready'
+}
+
+/** The on-chain key ids this browser holds, whatever their state. */
+export function localKeyIds(
+  localKeys: LocalSessionKeyInfo[] | null | undefined
+): number[] {
+  return (localKeys ?? []).flatMap((k) => k.keyIds)
 }
 
 /** The pending key to reuse after a failed or cancelled wallet step. */

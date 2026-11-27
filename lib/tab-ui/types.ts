@@ -28,6 +28,10 @@ export type MyTabEarnings = NonNullable<
 export type ChainConfigView = FunctionReturnType<
   typeof api.chain.config.getChainConfig
 >
+/** Whether this deployment settles tab tips (`tabActivity.getTabSettlement`). */
+export type TabSettlementView = FunctionReturnType<
+  typeof api.tabActivity.getTabSettlement
+>
 
 /** What every `tabs.prepare*` operation returns. */
 export type OperationContext = {
@@ -115,6 +119,8 @@ export type TabServices = {
   useMyTabTips(): MyTabTips | null | undefined
   useMyTabEarnings(): MyTabEarnings | null | undefined
   useChainConfig(): ChainConfigView | undefined
+  /** Needs no tab: read before a reader opens or tops up one. */
+  useTabSettlement(): TabSettlementView | undefined
   useWalletAccess(): WalletAccess
 
   // Convex mutations (convex/tabs.ts). They throw `ConvexError` refusals.

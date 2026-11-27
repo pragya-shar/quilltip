@@ -102,6 +102,7 @@ function makeServices(world: World, store: SessionKeyStore): TabServices {
             paused: {},
           }) as never
       ),
+    useTabSettlement: () => ({ settlementEnabled: true }),
     useWalletAccess: () => ({ gate: { kind: 'ready' }, address: READER }),
     prepareOpen: async () => (refusal(), context),
     prepareDeposit: async () => (refusal(), context),

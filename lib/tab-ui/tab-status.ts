@@ -7,7 +7,13 @@
 import { estimateLedgerTime, formatDay } from '@/lib/payments/format'
 import { isSettlementDelayed } from '@/lib/payments/ui-state'
 import { DAY_LEDGERS } from '@/lib/stellar/v2/tab'
-import type { ChainConfigView, LedgerClock, MyTab, MyTabTips } from './types'
+import type {
+  ChainConfigView,
+  LedgerClock,
+  MyTab,
+  MyTabTips,
+  TabSettlementView,
+} from './types'
 
 /** `WITHDRAW_DELAY` of the Tab contract (03-tab-contract.md, section 3.1). */
 export const WITHDRAW_DELAY_LEDGERS = 3 * DAY_LEDGERS
@@ -91,14 +97,19 @@ export function tabBalances(tab: MyTab): TabBalances {
 
 export type SettlementHealth =
   | { kind: 'ok' }
-  /** `SETTLEMENT_ENABLED` is off: accepted tips wait, new ones are refused. */
-  | { kind: 'off' }
+  /**
+   * `SETTLEMENT_ENABLED` is off: Convex accepts no quick tip, and tips
+   * already accepted wait (`waiting`) until it is back on.
+   */
+  | { kind: 'off'; waiting: boolean }
   /** Late by the settler's own rules (03, sections 3.7 and 3.8). */
   | { kind: 'delayed' }
 
 /**
- * Settlement health from the receipt activity. Normal settlement (a tip
- * younger than the due time plus two settler runs) is never "delayed".
+ * Settlement health. `settlement` (`getTabSettlement`, no tab needed) says
+ * whether it is on; the receipt activity says whether tips wait and whether
+ * they are late. Normal settlement (a tip younger than the due time plus two
+ * settler runs) is never "delayed".
  */
 export function settlementHealth(
   activity:
@@ -108,12 +119,13 @@ export function settlementHealth(
       >
     | null
     | undefined,
-  now: number
+  now: number,
+  settlement?: TabSettlementView
 ): SettlementHealth {
+  const enabled = settlement?.settlementEnabled ?? activity?.settlementEnabled
+  const waiting = !!activity && activity.oldestUnsettledAt !== null
+  if (enabled === false) return { kind: 'off', waiting }
   if (!activity) return { kind: 'ok' }
-  const waiting = activity.oldestUnsettledAt !== null
-  if (!activity.settlementEnabled)
-    return waiting ? { kind: 'off' } : { kind: 'ok' }
   if (
     isSettlementDelayed(activity.oldestUnsettledAt, now) ||
     (waiting && activity.settleWindowEndsSoon)

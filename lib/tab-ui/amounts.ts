@@ -136,6 +136,44 @@ export function maxDeposit(input: {
   return bounds.reduce((a, b) => minBig(a, b)).toString()
 }
 
+export type DepositRange =
+  /** What the form accepts. */
+  | { kind: 'range'; min: string; max: string }
+  /** The wallet can spend less than the Tab contract's minimum deposit. */
+  | { kind: 'wallet-short'; min: string; spendable: string }
+  /** The tab has less room under `max_balance` than the minimum deposit. */
+  | { kind: 'tab-full'; min: string; room: string }
+
+/**
+ * The deposit bounds the form states before the wallet prompt, or null while
+ * the Tab contract's limits are unknown. When no amount can pass, it says
+ * why instead of an empty range.
+ */
+export function depositRange(input: {
+  tabBalance: string
+  limits: { minDeposit: string; maxBalance: string } | null
+  spendable: string | null
+}): DepositRange | null {
+  if (!input.limits) return null
+  const min = BigInt(input.limits.minDeposit)
+  const room = BigInt(input.limits.maxBalance) - BigInt(input.tabBalance)
+  if (room < min) {
+    return {
+      kind: 'tab-full',
+      min: min.toString(),
+      room: (room > ZERO ? room : ZERO).toString(),
+    }
+  }
+  if (input.spendable !== null && BigInt(input.spendable) < min) {
+    return {
+      kind: 'wallet-short',
+      min: min.toString(),
+      spendable: input.spendable,
+    }
+  }
+  return { kind: 'range', min: min.toString(), max: maxDeposit(input)! }
+}
+
 /** `a + b` on base-unit strings. */
 export function addUnits(a: string, b: string): string {
   return (BigInt(a) + BigInt(b)).toString()

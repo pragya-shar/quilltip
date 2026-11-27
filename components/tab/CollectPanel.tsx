@@ -114,11 +114,11 @@ export function CollectPanel() {
   return (
     <section className="tab-section" aria-labelledby="collect-title">
       {heading}
-      {!earnings.settlementEnabled && isPositive(earnings.pendingNet) ? (
+      {!earnings.settlementEnabled && !nothingYet ? (
         <PaymentNotice
           kind="refused"
           copy={{
-            title: TAB_SETTLEMENT.offTitle,
+            title: TAB_SETTLEMENT.offWriterTitle,
             detail: TAB_SETTLEMENT.offWriter,
           }}
         />
@@ -173,6 +173,14 @@ export function CollectPanel() {
           </dl>
           <p className="tab-subtle">{COLLECT.feeExplainer}</p>
           <TestnetLabel />
+          {earnings.shortfallPairs > 0 ? (
+            <p className="tab-subtle">
+              {COLLECT.shortfall(
+                earnings.shortfallPairs,
+                formatXlm(earnings.shortfallNet)
+              )}
+            </p>
+          ) : null}
           {earnings.unpaidPairs > 0 ? (
             <p className="tab-subtle">{COLLECT.unpaid(earnings.unpaidPairs)}</p>
           ) : null}

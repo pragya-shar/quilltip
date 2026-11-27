@@ -11,12 +11,7 @@ const base: AvailabilityInput = {
   access: { gate: { kind: 'ready' }, address: 'GREADER' },
   device: { kind: 'ready', keyId: 4, renewSoon: false },
   tab,
-  activity: {
-    settlementEnabled: true,
-    oldestUnsettledAt: null,
-    settleWindowEndsSoon: false,
-    tips: [],
-  },
+  settlement: { settlementEnabled: true },
   recipientCount: 1,
 }
 
@@ -61,12 +56,18 @@ describe('tabTipAvailability', () => {
     expect(
       tabTipAvailability({ ...base, status: { kind: 'unavailable' } }).kind
     ).toBe('unavailable')
+    const off = { ...base, settlement: { settlementEnabled: false } }
+    expect(tabTipAvailability(off).kind).toBe('settlement-off')
+    // Off is stated before a reader has a tab, too.
     expect(
-      tabTipAvailability({
-        ...base,
-        activity: { ...base.activity!, settlementEnabled: false },
-      }).kind
+      tabTipAvailability({ ...off, status: { kind: 'none' }, tab: null }).kind
     ).toBe('settlement-off')
+    expect(tabTipAvailability({ ...base, settlement: undefined }).kind).toBe(
+      'loading'
+    )
+    expect(
+      tabTipAvailability({ ...base, device: { kind: 'unchecked', keyId: 4 } })
+    ).toEqual({ kind: 'key', device: { kind: 'unchecked', keyId: 4 } })
     expect(
       tabTipAvailability({ ...base, status: { kind: 'none' }, tab: null }).kind
     ).toBe('tab-none')

@@ -25,7 +25,9 @@ export function useDeviceKey(
   tab: MyTab | null | undefined,
   clock: LedgerClock | null,
   /** The verified address, used when there is no tab yet. */
-  address: string | null
+  address: string | null,
+  /** Stellar RPC could not be reached for the latest ledger. */
+  clockFailed = false
 ): DeviceKey {
   const config = services.config()
   const reader = tab?.readerAddress ?? address
@@ -92,13 +94,15 @@ export function useDeviceKey(
 
   const view = useMemo<DeviceKeyView | undefined>(() => {
     if (tab === undefined || !scope || localKeys === undefined) return undefined
+    // Until the first ledger read settles, expiry is not known yet.
+    if (!clock && !clockFailed && (tab?.keys.length ?? 0) > 0) return undefined
     return deviceKeyView({
       serverKeys: tab?.keys ?? [],
       localKeys,
-      currentLedger: clock?.sequence ?? 0,
+      currentLedger: clock?.sequence ?? null,
       seenKeyIds: seenKeyIds(scope.tabContractId, scope.readerAddress),
     })
-  }, [tab, scope, localKeys, clock?.sequence])
+  }, [tab, scope, localKeys, clock?.sequence, clockFailed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return { view, scope, localKeys, refresh }
 }

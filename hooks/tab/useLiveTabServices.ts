@@ -132,6 +132,7 @@ export function useLiveTabServices(): TabServices {
       useMyTabTips: () => useQuery(api.tabActivity.getMyTabTips, {}),
       useMyTabEarnings: () => useQuery(api.tabActivity.getMyTabEarnings, {}),
       useChainConfig: () => useQuery(api.chain.config.getChainConfig, {}),
+      useTabSettlement: () => useQuery(api.tabActivity.getTabSettlement, {}),
       useWalletAccess: useLiveWalletAccess,
 
       prepareOpen: (args) => prepareOpen(args),

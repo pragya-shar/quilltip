@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addUnits,
   checkDeposit,
+  depositRange,
   isPositive,
   maxDeposit,
   parseXlm,
@@ -73,6 +74,8 @@ describe('checkDeposit', () => {
       room: xlm(5),
     })
     expect(checkDeposit({ ...base, amount: xlm(5) })).toBeNull()
+    // Exactly the minimum deposit passes; one stroop below it does not.
+    expect(checkDeposit({ ...base, amount: xlm(1) })).toBeNull()
     expect(checkDeposit({ ...base, tabBalance: '0', amount: xlm(51) })).toEqual(
       { kind: 'above-spendable', spendable: xlm(50) }
     )
@@ -94,6 +97,32 @@ describe('checkDeposit', () => {
     expect(maxDeposit({ tabBalance: '0', limits: null, spendable: null })).toBe(
       null
     )
+  })
+})
+
+describe('depositRange', () => {
+  const limits = { minDeposit: xlm(1), maxBalance: xlm(1000) }
+  it('states the range the form accepts', () => {
+    expect(
+      depositRange({ tabBalance: xlm(990), limits, spendable: xlm(50) })
+    ).toEqual({ kind: 'range', min: xlm(1), max: xlm(10) })
+    expect(
+      depositRange({ tabBalance: '0', limits: null, spendable: null })
+    ).toBe(null)
+  })
+  it('says why when no amount can pass, never an inverted range', () => {
+    expect(
+      depositRange({ tabBalance: '0', limits, spendable: '5000000' })
+    ).toEqual({ kind: 'wallet-short', min: xlm(1), spendable: '5000000' })
+    expect(
+      depositRange({ tabBalance: '0', limits, spendable: xlm(1) })
+    ).toMatchObject({ kind: 'range', max: xlm(1) })
+    expect(
+      depositRange({ tabBalance: '9995000000', limits, spendable: xlm(50) })
+    ).toEqual({ kind: 'tab-full', min: xlm(1), room: '5000000' })
+    expect(
+      depositRange({ tabBalance: xlm(1001), limits, spendable: null })
+    ).toEqual({ kind: 'tab-full', min: xlm(1), room: '0' })
   })
 })
 

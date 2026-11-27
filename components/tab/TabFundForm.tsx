@@ -8,10 +8,11 @@ import { formatXlm } from '@/lib/payments/format'
 import {
   addUnits,
   checkDeposit,
-  maxDeposit,
+  depositRange,
   parseXlm,
   xlm,
   type DepositProblem,
+  type DepositRange,
 } from '@/lib/tab-ui/amounts'
 import type { TabLimits, WalletFunds } from '@/lib/tab-ui/types'
 
@@ -42,6 +43,23 @@ function problemText(problem: DepositProblem): string {
       return copy.aboveCap(formatXlm(problem.room))
     case 'above-spendable':
       return copy.aboveSpendable(formatXlm(problem.spendable))
+  }
+}
+
+function rangeText(range: DepositRange): string {
+  switch (range.kind) {
+    case 'range':
+      return TAB_FUND_FORM.range(formatXlm(range.min), formatXlm(range.max))
+    case 'wallet-short':
+      return TAB_FUND_FORM.walletShort(
+        formatXlm(range.spendable),
+        formatXlm(range.min)
+      )
+    case 'tab-full':
+      return TAB_FUND_FORM.tabFull(
+        range.room === '0' ? null : formatXlm(range.room),
+        formatXlm(range.min)
+      )
   }
 }
 
@@ -111,11 +129,13 @@ export function TabFundForm({
   })
   // Validate late: show a problem once submitted, then follow the input.
   const visible = shown ? problem : null
-  const max = maxDeposit({
+  const range = depositRange({
     tabBalance,
     limits: limits ?? null,
     spendable: funds?.spendable ?? null,
   })
+  // No amount can pass: say why and offer no submit.
+  const blocked = range !== null && range.kind !== 'range'
   const label = amount && amount !== '0' ? formatXlm(amount) : null
   const title =
     mode === 'open' ? TAB_FUND_FORM.openHeading : TAB_FUND_FORM.topUpHeading
@@ -128,6 +148,7 @@ export function TabFundForm({
       noValidate
       onSubmit={(event) => {
         event.preventDefault()
+        if (blocked) return
         if (problem) {
           setShown(problem)
           inputRef.current?.focus()
@@ -178,15 +199,11 @@ export function TabFundForm({
             XLM
           </span>
         </div>
-        <p id={`${id}-range`} className="tab-subtle">
-          {limits
-            ? max !== null
-              ? TAB_FUND_FORM.range(
-                  formatXlm(limits.minDeposit),
-                  formatXlm(max)
-                )
-              : TAB_FUND_FORM.rangeMin(formatXlm(limits.minDeposit))
-            : null}
+        <p
+          id={`${id}-range`}
+          className={blocked ? 'tab-field-blocked' : 'tab-subtle'}
+        >
+          {range ? rangeText(range) : null}
         </p>
         {visible ? (
           <p id={`${id}-error`} className="tab-field-error">
@@ -212,15 +229,17 @@ export function TabFundForm({
         <TestnetLabel />
       </div>
       <div className="tab-actions">
-        <button type="submit" className="tab-primary">
-          {label
-            ? mode === 'open'
-              ? TAB_FUND_FORM.submitOpen(label)
-              : TAB_FUND_FORM.submitTopUp(label)
-            : mode === 'open'
-              ? TAB_ACTIONS.open
-              : TAB_ACTIONS.topUp}
-        </button>
+        {blocked ? null : (
+          <button type="submit" className="tab-primary">
+            {label
+              ? mode === 'open'
+                ? TAB_FUND_FORM.submitOpen(label)
+                : TAB_FUND_FORM.submitTopUp(label)
+              : mode === 'open'
+                ? TAB_ACTIONS.open
+                : TAB_ACTIONS.topUp}
+          </button>
+        )}
         <button type="button" className="tab-secondary" onClick={onCancel}>
           {TAB_ACTIONS.cancel}
         </button>

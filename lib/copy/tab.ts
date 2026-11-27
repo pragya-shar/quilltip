@@ -12,7 +12,6 @@ export const TAB_PAGE = {
   unavailableTitle: 'Tabs are not available on this site yet',
   unavailableDetail:
     'This Quilltip deployment has not turned on tips on Stellar. Nothing was sent.',
-  gateHeading: 'Before you open a tab',
 } as const
 
 export const TAB_BALANCE = {
@@ -40,7 +39,6 @@ export const TAB_ACTIONS = {
   cancel: 'Cancel',
   setUpKey: 'Set up quick tips',
   renew: 'Renew quick tips',
-  revoke: 'Revoke',
   closeTab: 'Close tab',
   confirmClose: 'Close tab and start the wait',
   keepOpen: 'Keep my tab open',
@@ -53,7 +51,13 @@ export const TAB_FUND_FORM = {
   amountLabel: 'Amount in XLM',
   presetsLabel: 'Suggested amounts',
   range: (min: string, max: string) => `Between ${min} and ${max}.`,
-  rangeMin: (min: string) => `At least ${min}.`,
+  walletShort: (spendable: string, min: string) =>
+    `Your wallet can spend ${spendable}, less than the smallest deposit of ${min}. Add test XLM to your wallet, then try again.`,
+  /** `room` is null when the tab is at its limit. */
+  tabFull: (room: string | null, min: string) =>
+    room === null
+      ? 'Your tab is at its limit, so it can’t take more.'
+      : `Your tab can take ${room} more, less than the smallest deposit of ${min}.`,
   spendable: (spendable: string, balance: string, reserve: string) =>
     `Your wallet can spend ${spendable}. Stellar keeps ${reserve} of its ${balance} balance in reserve, and the network fee comes on top.`,
   spendableUnknown:
@@ -99,10 +103,14 @@ export const TAB_KEYS = {
   revokedTitle: 'Quick tips are off for this device',
   revokedDetail:
     'You revoked its key. Tips you already sent still settle. Set up quick tips again to keep tipping from your tab.',
+  otherDeviceTitle: 'Quick tips are set up on another device',
   otherDeviceDetail:
     'Your tab has a quick-tip key on another device or browser. Set up quick tips here too, with one wallet approval.',
-  limit: (limit: string, until: string) =>
-    `Up to ${limit} until around ${until}.`,
+  uncheckedTitle: 'Quick tips can’t be checked right now',
+  uncheckedDetail:
+    'Quilltip could not reach Stellar testnet to check this device’s key, so quick tips wait. Try again in a minute, or tip from your wallet.',
+  paused:
+    'Setting up quick tips is paused while Quilltip accepts none. You can still revoke a key.',
   none: 'No quick-tip keys yet.',
 } as const
 
@@ -113,7 +121,6 @@ export const TAB_HISTORY = {
   to: (name: string) => `To ${name}`,
   readMore: 'Read more',
   accepted: 'Settles within about 6 hours',
-  viewSettlement: 'View the settlement',
 } as const
 
 export const TAB_CLOSE = {
@@ -131,37 +138,44 @@ export const TAB_CLOSE = {
   unlocks: (date: string | null) =>
     date ? `Unlocks around ${date}` : 'Unlocks after about 3 days',
   ready: 'Ready to withdraw',
-  withdraw: (amount: string) => `Withdraw ${amount}`,
   nothingLeft: 'Nothing is left to withdraw.',
 } as const
 
 export const TAB_SETTLEMENT = {
-  offTitle: 'Settlement is switched off',
-  offReader:
-    'Quilltip is not settling tab tips right now. Tips you sent are recorded and stay counted against your tab until they settle. New quick tips are paused.',
+  offTitle: 'Quick tips are paused on Stellar testnet',
+  /** No tab, or a closed one: nothing to open while quick tips are off. */
+  offNoTab:
+    'Quilltip is not accepting tips from tabs right now, so opening a tab is paused too. You can still tip any article from your wallet.',
+  /** An open or closing tab. */
+  offTab:
+    'Quilltip is not accepting tips from tabs right now, so you can’t tip from your tab or add funds to it. You can still tip from your wallet, and you can close your tab and withdraw what is left.',
+  offWaiting:
+    'Tips you already sent from your tab are recorded. They stay counted against your balance and settle when quick tips are back.',
+  offWriterTitle: 'Tab settlement is paused on Stellar testnet',
   offWriter:
-    'Quilltip is not settling tab tips right now. Tips readers sent you are recorded and settle once it is back on.',
+    'Quilltip is not settling tab tips right now. Tips readers already sent you are recorded and settle once it is back on. What is ready to collect stays yours to collect.',
 } as const
 
 export const TAB_TIP = {
   heading: 'Tip from your tab',
   noPrompt:
     'No wallet prompt. It settles on Stellar testnet within about 6 hours.',
-  free: (amount: string) => `${amount} free in your tab`,
+  /** After the amount: "12.5 XLM free in your tab". */
+  freeSuffix: 'free in your tab',
   amountLabel: 'Tip amount',
   send: (amount: string) => `Tip ${amount} from tab`,
   sending: 'Sending…',
   another: 'Send another',
   unavailable: 'Quick tips are unavailable right now',
   settlementOff:
-    'Quilltip is not settling tab tips at the moment, so it accepts none. Tip from your wallet instead. Nothing was paid.',
+    'Quilltip is not accepting tips from tabs on Stellar testnet right now. Tip from your wallet instead.',
   unconfirmedTitle: 'We could not confirm this tip',
   unconfirmedDetail:
     'The connection dropped after it was sent. It may have been accepted: check your tab before sending it again.',
   unreachableTitle: 'Quilltip could not be reached',
   unreachableDetail: 'Check your connection and try again. Nothing was paid.',
   stoppedTitle: 'This tip was not signed',
-  checkTab: 'Check your tab',
+  tipFromWallet: 'Tip from wallet',
 } as const
 
 export const COLLECT = {
@@ -184,6 +198,10 @@ export const COLLECT = {
     n === 1
       ? 'One reader’s tab closed or its key ran out before some tips settled, so those tips will not be paid.'
       : `${n} readers’ tabs closed or their keys ran out before some tips settled, so those tips will not be paid.`,
+  shortfall: (n: number, amount: string) =>
+    n === 1
+      ? `${amount} of what is waiting is from one reader whose tab ran short. It settles after that reader adds funds to their tab.`
+      : `${amount} of what is waiting is from ${n} readers whose tabs ran short. It settles after they add funds to their tabs.`,
   feeExplainer:
     'The fee and your share are from the settlement events on chain.',
 } as const

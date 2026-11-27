@@ -19,18 +19,20 @@ export function useReaderTab(services: TabServices) {
   const tab = services.useMyTab()
   const activity = services.useMyTabTips()
   const chainConfig = services.useChainConfig()
+  const tabSettlement = services.useTabSettlement()
   const { clock, failed: clockFailed } = useLedgerClock(services)
-  const device = useDeviceKey(services, tab, clock, access.address)
+  const device = useDeviceKey(services, tab, clock, access.address, clockFailed)
   return {
     access,
     tab,
     activity,
     chainConfig,
+    tabSettlement,
     clock,
     clockFailed,
     device,
     status: tabStatusView({ tab, chainConfig, clock }),
-    settlement: settlementHealth(activity, services.now()),
+    settlement: settlementHealth(activity, services.now(), tabSettlement),
     paused: tabPaused(chainConfig),
   }
 }

@@ -4,12 +4,14 @@ import { useId, useState } from 'react'
 import {
   PaymentNotice,
   TestnetLabel,
+  type NoticeAction,
   TransactionProgress,
   WalletGate,
   XlmAmount,
 } from '@/components/payments'
+import { NoticeActionButton } from '@/components/payments/NoticeActionButton'
 import { useTabTip, type TabTipTarget } from '@/hooks/tab/useTabTip'
-import { TAB_ACTIONS, TAB_PAGE, TAB_TIP } from '@/lib/copy/tab'
+import { TAB_ACTIONS, TAB_KEYS, TAB_PAGE, TAB_TIP } from '@/lib/copy/tab'
 import { formatUsd } from '@/lib/copy/network-status'
 
 export type TabTipActionProps = TabTipTarget & {
@@ -46,7 +48,7 @@ export function TabTipAction({
   const cents = amountCents ?? picked
   const { availability, state, outcome, progress, refusal } = tip
   const walletAction = onTipFromWallet
-    ? { onClick: onTipFromWallet, label: 'Tip from wallet' }
+    ? { onClick: onTipFromWallet, label: TAB_TIP.tipFromWallet }
     : undefined
   const manage = { href: manageHref, label: TAB_ACTIONS.manage }
 
@@ -78,10 +80,23 @@ export function TabTipAction({
         )
       case 'settlement-off':
         return (
-          <PaymentNotice
-            kind="refused"
-            copy={{ title: TAB_TIP.unavailable, detail: TAB_TIP.settlementOff }}
-          />
+          <>
+            <PaymentNotice
+              kind="refused"
+              copy={{
+                title: TAB_TIP.unavailable,
+                detail: TAB_TIP.settlementOff,
+              }}
+            />
+            {walletAction ? (
+              <div className="tab-actions">
+                <NoticeActionButton
+                  action={walletAction}
+                  label={walletAction.label}
+                />
+              </div>
+            ) : null}
+          </>
         )
       case 'gate':
         return (
@@ -99,12 +114,72 @@ export function TabTipAction({
       case 'tab-closing':
         return <PaymentNotice kind="tab-closing" action={walletAction} />
       case 'key': {
+        // Each key state with its own cause and next step.
         const d = availability.device
-        if (d.kind === 'gone')
-          return <PaymentNotice kind="session-key-missing" action={manage} />
-        if (d.kind === 'expired')
-          return <PaymentNotice kind="session-key-expired" action={manage} />
-        return <PaymentNotice kind="session-key-none" action={manage} />
+        const notice = (
+          title: string,
+          detail: string,
+          action: NoticeAction | undefined
+        ) => (
+          <>
+            <PaymentNotice kind="refused" copy={{ title, detail }} />
+            {action?.label ? (
+              <div className="tab-actions">
+                <NoticeActionButton action={action} label={action.label} />
+              </div>
+            ) : null}
+          </>
+        )
+        switch (d.kind) {
+          case 'gone':
+            return <PaymentNotice kind="session-key-missing" action={manage} />
+          case 'expired':
+            return <PaymentNotice kind="session-key-expired" action={manage} />
+          case 'none':
+            return (
+              <PaymentNotice
+                kind="session-key-none"
+                action={{ ...manage, label: TAB_ACTIONS.setUpKey }}
+              />
+            )
+          case 'other-device':
+            return notice(
+              TAB_KEYS.otherDeviceTitle,
+              TAB_KEYS.otherDeviceDetail,
+              {
+                ...manage,
+                label: TAB_ACTIONS.setUpKey,
+              }
+            )
+          case 'pending':
+            return notice(TAB_KEYS.pendingTitle, TAB_KEYS.pendingDetail, {
+              ...manage,
+              label: TAB_KEYS.pendingAction,
+            })
+          case 'revoked':
+            return notice(TAB_KEYS.revokedTitle, TAB_KEYS.revokedDetail, {
+              ...manage,
+              label: TAB_ACTIONS.setUpKey,
+            })
+          case 'stopped':
+            return notice(TAB_KEYS.stoppedTitle, TAB_KEYS.stoppedDetail, {
+              ...manage,
+              label: TAB_ACTIONS.setUpKey,
+            })
+          case 'storage-unavailable':
+            // No key can live in this browser: the wallet is the way.
+            return notice(
+              TAB_KEYS.storageTitle,
+              TAB_KEYS.storageDetail,
+              walletAction
+            )
+          case 'unchecked':
+            return notice(
+              TAB_KEYS.uncheckedTitle,
+              TAB_KEYS.uncheckedDetail,
+              walletAction
+            )
+        }
       }
       case 'ready':
         return null
@@ -124,7 +199,7 @@ export function TabTipAction({
         </h3>
         {ready ? (
           <span className="tab-subtle">
-            <XlmAmount amount={availability.free} /> free in your tab
+            <XlmAmount amount={availability.free} /> {TAB_TIP.freeSuffix}
           </span>
         ) : null}
       </div>

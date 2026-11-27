@@ -97,6 +97,15 @@ describe('tabStatusView', () => {
         clock,
       })
     ).toMatchObject({ kind: 'closing', ready: true })
+    // Ready at the unlock ledger itself, not one ledger before it.
+    const at = (unlock: number) =>
+      tabStatusView({
+        tab: tab({ status: 'CLOSING', withdrawUnlockLedger: unlock }),
+        chainConfig: config(),
+        clock,
+      })
+    expect(at(clock.sequence)).toMatchObject({ ready: true })
+    expect(at(clock.sequence + 1)).toMatchObject({ ready: false })
     expect(
       tabStatusView({
         tab: tab({ status: 'CLOSING', withdrawUnlockLedger: 999 }),
@@ -153,12 +162,29 @@ describe('settlementHealth', () => {
       )
     ).toEqual({ kind: 'ok' })
   })
-  it('reports settlement off only while tips wait', () => {
+  it('reports settlement off whenever it is off, with or without a tab', () => {
     const off = { settlementEnabled: false, settleWindowEndsSoon: false }
     expect(
       settlementHealth({ ...off, oldestUnsettledAt: now - hour }, now)
-    ).toEqual({ kind: 'off' })
+    ).toEqual({ kind: 'off', waiting: true })
     expect(settlementHealth({ ...off, oldestUnsettledAt: null }, now)).toEqual({
+      kind: 'off',
+      waiting: false,
+    })
+    // No tab, so no activity: the flag alone decides.
+    expect(settlementHealth(null, now, { settlementEnabled: false })).toEqual({
+      kind: 'off',
+      waiting: false,
+    })
+    // The flag wins over a stale activity value.
+    expect(
+      settlementHealth(
+        { ...off, settlementEnabled: true, oldestUnsettledAt: null },
+        now,
+        { settlementEnabled: false }
+      )
+    ).toEqual({ kind: 'off', waiting: false })
+    expect(settlementHealth(null, now, { settlementEnabled: true })).toEqual({
       kind: 'ok',
     })
   })

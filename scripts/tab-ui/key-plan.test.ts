@@ -3,6 +3,7 @@ import {
   DEFAULT_KEY_LIFETIME_LEDGERS,
   deviceKeyView,
   keyPlan,
+  localKeyIds,
   pendingLocalKey,
 } from '../../lib/tab-ui/key-plan'
 import { DAY_LEDGERS, type LocalSessionKeyInfo } from '../../lib/stellar/v2/tab'
@@ -111,6 +112,37 @@ describe('deviceKeyView', () => {
     expect(deviceKeyView({ ...base, serverKeys: [], localKeys: null })).toEqual(
       { kind: 'storage-unavailable' }
     )
+  })
+  it('cannot call an expired key ready when the ledger is unknown', () => {
+    const expired = {
+      ...base,
+      serverKeys: [server(1, 'aa', { validUntil: LEDGER + 100 })],
+      localKeys: [local('aa', [1])],
+    }
+    expect(deviceKeyView(expired)).toEqual({ kind: 'expired', keyId: 1 })
+    expect(deviceKeyView({ ...expired, currentLedger: null })).toEqual({
+      kind: 'unchecked',
+      keyId: 1,
+    })
+    // States that do not depend on the ledger read the same without one.
+    expect(
+      deviceKeyView({
+        ...base,
+        currentLedger: null,
+        serverKeys: [server(1, 'aa', { revoked: true })],
+        localKeys: [local('aa', [1])],
+      })
+    ).toEqual({ kind: 'revoked', keyId: 1 })
+  })
+  it('lists every key id this browser holds, in any state', () => {
+    expect(
+      localKeyIds([
+        local('aa', [1]),
+        local('bb', [2], { unusable: { reason: 'ledger_mismatch', at: 1 } }),
+        local('cc', []),
+      ])
+    ).toEqual([1, 2])
+    expect(localKeyIds(null)).toEqual([])
   })
   it('prefers a ready key over a newer key held elsewhere', () => {
     expect(

@@ -267,6 +267,13 @@
   color: #8f1427;
   font-size: 14px;
 }
+/* No amount can pass (wallet short, tab at its limit): stated, not an error. */
+.tab-field-blocked {
+  color: var(--tab-ink);
+  font-size: 15px;
+  line-height: 1.5;
+  max-width: 60ch;
+}
 .tab-statement {
   display: grid;
   gap: 6px;
@@ -308,7 +315,8 @@
 .tab-tip-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
+  align-items: center;
+  gap: 0 14px;
   color: var(--tab-muted);
   font-size: 14px;
 }
@@ -459,8 +467,11 @@
   }
 }
 
-/* An inline link inside a row's metadata line (WCAG 2.5.8 inline exception). */
+/* A link in a row's metadata line, with a 44px hit area like the controls. */
 .tab-inline-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--tab-wine);
   text-decoration: underline;
   text-underline-offset: 4px;

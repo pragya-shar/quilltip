@@ -41,7 +41,7 @@ function availabilityOf(
     access: reader.access,
     device: reader.device.view,
     tab: reader.tab,
-    activity: reader.activity,
+    settlement: reader.tabSettlement,
     recipientCount: target.recipientCount,
   })
 }

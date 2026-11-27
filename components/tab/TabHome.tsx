@@ -14,6 +14,7 @@ import {
   TAB_PAGE,
   TAB_SETTLEMENT,
 } from '@/lib/copy/tab'
+import { localKeyIds } from '@/lib/tab-ui/key-plan'
 import { tabBalances } from '@/lib/tab-ui/tab-status'
 import { TabBalance } from './TabBalance'
 import { TabCloseSection } from './TabCloseSection'
@@ -31,8 +32,19 @@ import { TabTipHistory } from './TabTipHistory'
 export function TabHome() {
   const services = useTabServices()
   const reader = useReaderTab(services)
-  const { access, tab, status, device, clock, activity, paused, settlement } =
-    reader
+  const {
+    access,
+    tab,
+    status,
+    device,
+    clock,
+    activity,
+    paused,
+    settlement,
+    tabSettlement,
+  } = reader
+  // Convex accepts no quick tips: opening, topping up and keys wait too.
+  const quickTipsOff = settlement.kind === 'off'
   const op = useTabOperation({
     surface: 'reader',
     services,
@@ -75,7 +87,8 @@ export function TabHome() {
   }
   if (
     access.gate.kind === 'checking' ||
-    (access.address && status.kind === 'loading')
+    (access.address &&
+      (status.kind === 'loading' || tabSettlement === undefined))
   ) {
     return <TabSkeleton />
   }
@@ -123,7 +136,12 @@ export function TabHome() {
           kind="refused"
           copy={{
             title: TAB_SETTLEMENT.offTitle,
-            detail: TAB_SETTLEMENT.offReader,
+            detail:
+              !tab || status.kind === 'none' || status.kind === 'closed'
+                ? TAB_SETTLEMENT.offNoTab
+                : settlement.waiting
+                  ? `${TAB_SETTLEMENT.offTab} ${TAB_SETTLEMENT.offWaiting}`
+                  : TAB_SETTLEMENT.offTab,
           }}
         />
       ) : settlement.kind === 'delayed' ? (
@@ -155,7 +173,7 @@ export function TabHome() {
             <p>{closed ? TAB_EMPTY.closedDetail : TAB_EMPTY.detail}</p>
           </header>
           {progress}
-          {!running && !paused
+          {!running && !paused && !quickTipsOff
             ? gate(
                 form === 'open' ? (
                   <TabFundForm
@@ -192,7 +210,7 @@ export function TabHome() {
       <div className="tab-section">
         <TabBalance balances={balances} />
         {progress}
-        {!running && !paused
+        {!running && !paused && !quickTipsOff
           ? gate(
               form === 'top-up' ? (
                 <TabFundForm
@@ -222,8 +240,10 @@ export function TabHome() {
         <TabDeviceKeys
           tab={tab}
           device={device.view}
+          localKeyIds={localKeyIds(device.localKeys)}
           clock={clock}
           paused={paused}
+          quickTipsOff={quickTipsOff}
           busy={busy || running}
           onNewKey={() => start({ flow: 'tab-new-key' })}
           onRevoke={(keyId) => start({ flow: 'tab-revoke-key', keyId })}

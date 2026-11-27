@@ -6,7 +6,7 @@
 import type { WalletGateState } from '@/lib/payments/ui-state'
 import type { DeviceKeyView } from './key-plan'
 import type { TabStatusView } from './tab-status'
-import type { MyTab, MyTabTips, WalletAccess } from './types'
+import type { MyTab, TabSettlementView, WalletAccess } from './types'
 
 export type TabTipAvailability =
   | { kind: 'loading' }
@@ -28,7 +28,8 @@ export type AvailabilityInput = {
   access: Pick<WalletAccess, 'gate' | 'address'>
   device: DeviceKeyView | undefined
   tab: MyTab | null | undefined
-  activity: MyTabTips | null | undefined
+  /** `getTabSettlement`; undefined while it loads. */
+  settlement: TabSettlementView | undefined
   /** Recipients Core pays for the article; more than one means splits. */
   recipientCount?: number | null
 }
@@ -36,7 +37,7 @@ export type AvailabilityInput = {
 export function tabTipAvailability(
   input: AvailabilityInput
 ): TabTipAvailability {
-  const { status, access, device, tab, activity } = input
+  const { status, access, device, tab } = input
   if (typeof input.recipientCount === 'number' && input.recipientCount > 1) {
     return { kind: 'splits' }
   }
@@ -56,8 +57,9 @@ export function tabTipAvailability(
       },
     }
   }
-  if (status.kind === 'loading') return { kind: 'loading' }
-  if (activity && !activity.settlementEnabled) return { kind: 'settlement-off' }
+  if (status.kind === 'loading' || input.settlement === undefined)
+    return { kind: 'loading' }
+  if (!input.settlement.settlementEnabled) return { kind: 'settlement-off' }
   if (status.kind === 'none' || status.kind === 'closed' || !tab) {
     return { kind: 'tab-none' }
   }
