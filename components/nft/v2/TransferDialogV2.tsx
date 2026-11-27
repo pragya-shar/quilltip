@@ -1,6 +1,6 @@
 'use client'
 
-import { type RefObject } from 'react'
+import { useRef, type RefObject } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import {
 import { type RecipientInput } from '@/lib/stellar/v2/nft-calls'
 import type { NftFlowState, NftSubmissionStatusLike } from '@/lib/nft/v2-flow'
 import { NFT_COPY, TRANSFER_COPY } from '@/lib/copy/nft-v2'
+import { isTouch } from './isTouch'
 import { FlowView } from './NftFlowView'
 import { ReviewStep } from './ReviewStep'
 import { RecipientForm } from './RecipientForm'
@@ -54,6 +55,7 @@ export function TransferDialogV2({
   onBack,
   onDismiss,
 }: TransferDialogV2Props) {
+  const titleRef = useRef<HTMLHeadingElement>(null)
   const transferFlow =
     flow.kind === 'idle' ||
     (flow.kind === 'review'
@@ -81,11 +83,20 @@ export function TransferDialogV2({
             triggerRef.current.focus()
           }
         }}
-        // The form step focuses its own field; touch keeps the keyboard shut.
-        onOpenAutoFocus={(event) => event.preventDefault()}
+        // The form step focuses its own field. On touch that would open the
+        // keyboard, so focus moves to the title: inside the dialog, which
+        // hides the rest of the page from screen readers.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          if (isTouch()) titleRef.current?.focus()
+        }}
       >
         <DialogHeader className="nft-dialog-header">
-          <DialogTitle className="nft-dialog-title">
+          <DialogTitle
+            ref={titleRef}
+            tabIndex={-1}
+            className="nft-dialog-title nft-v2-dialog-title"
+          >
             {TRANSFER_COPY.dialogTitle}
           </DialogTitle>
           <DialogDescription className="nft-dialog-description">

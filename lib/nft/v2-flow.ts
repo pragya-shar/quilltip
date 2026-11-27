@@ -159,6 +159,8 @@ export type MintArea =
   | { kind: 'eligible' }
   | { kind: 'below' }
   | { kind: 'pending'; submissionId: string | null }
+  /** Minted on chain, no submission open here, the indexer has no row yet. */
+  | { kind: 'indexing' }
   | { kind: 'message'; state: string }
   | { kind: 'retry-later'; retryAfterMs: number | null }
 
@@ -322,7 +324,11 @@ export function deriveNftPanel(input: {
       break
     case 'MINTED':
       // On chain, not yet indexed: no owner is shown until the row exists.
-      mint = { kind: 'pending', submissionId: e.openSubmissionId }
+      // An open submission resumes here; otherwise (after "Done", or a mint
+      // from another device) a status line says the token is on its way.
+      mint = e.openSubmissionId
+        ? { kind: 'pending', submissionId: e.openSubmissionId }
+        : { kind: 'indexing' }
       break
     case 'NOT_REGISTERED':
       return { kind: 'not-registered', v1Record, audience: 'author' }
@@ -456,6 +462,9 @@ export function nftFlowReducer(
           failure: null,
           resumed: true,
         }
+      }
+      if (event.code === 'PAUSED') {
+        return { kind: 'notice', action: event.action, notice: 'paused' }
       }
       if (event.code === 'UNAUTHENTICATED') {
         return {

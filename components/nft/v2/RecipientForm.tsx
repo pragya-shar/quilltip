@@ -10,6 +10,7 @@ import {
   type RecipientInput,
 } from '@/lib/stellar/v2/nft-calls'
 import { TRANSFER_COPY } from '@/lib/copy/nft-v2'
+import { isTouch } from './isTouch'
 
 /** Problems shown as soon as they appear: the input is complete and wrong. */
 const SHOW_AT_ONCE = new Set<RecipientProblem>([
@@ -19,13 +20,6 @@ const SHOW_AT_ONCE = new Set<RecipientProblem>([
   'own',
   'platform',
 ])
-
-function isTouch(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    window.matchMedia?.('(pointer: coarse)').matches === true
-  )
-}
 
 export function RecipientForm({
   owner,

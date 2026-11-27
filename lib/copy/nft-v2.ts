@@ -26,6 +26,8 @@ export const NFT_COPY = {
   ownerOutside: 'A wallet outside Quilltip',
   viewToken: 'View the token on Stellar Expert',
   updatingOwner: 'Updating the owner',
+  mintedIndexing:
+    'Stellar testnet confirmed the mint. The token and its owner show here in a moment.',
   updatingOwnerDetail:
     'Stellar testnet confirmed it. The owner shown here updates in a moment.',
   transferAction: 'Transfer NFT',
@@ -60,7 +62,17 @@ export const ELIGIBILITY_COPY: Partial<Record<string, NftCopy>> = {
   PAUSED: {
     title: 'Minting is paused',
     detail:
-      'Quilltip has paused new mints and transfers on Stellar testnet. Your progress is kept.',
+      'Quilltip has paused article NFTs on Stellar testnet for now. Your progress toward the threshold is kept.',
+  },
+}
+
+/** The NFT contract is paused; tips can still be on. */
+export const NFT_PAUSED_COPY: Record<'mint' | 'transfer', NftCopy> = {
+  mint: ELIGIBILITY_COPY.PAUSED!,
+  transfer: {
+    title: 'NFT transfers are paused',
+    detail:
+      'Quilltip has paused article NFTs on Stellar testnet for now. The NFT stays in your wallet until transfers resume.',
   },
 }
 
@@ -129,6 +141,11 @@ export const PREPARE_REFUSALS: Record<string, NftCopy> = {
     title: 'A request for this NFT is still in progress',
     detail:
       'Its progress shows here. Wait for it to finish before starting another.',
+  },
+  /** Shown as the paused notice; kept here so every code has copy. */
+  PAUSED: {
+    title: 'Article NFTs are paused',
+    detail: 'Try again once they resume. Nothing was sent.',
   },
   RATE_LIMITED: {
     title: 'Too many requests in a row',

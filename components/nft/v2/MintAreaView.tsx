@@ -4,7 +4,12 @@ import { RotateCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PaymentNotice, WalletGate } from '@/components/payments'
 import type { MintArea } from '@/lib/nft/v2-flow'
-import { ELIGIBILITY_COPY, NFT_COPY, NFT_WALLET_PAGE } from '@/lib/copy/nft-v2'
+import {
+  ELIGIBILITY_COPY,
+  NFT_COPY,
+  NFT_PAUSED_COPY,
+  NFT_WALLET_PAGE,
+} from '@/lib/copy/nft-v2'
 
 export function MintAreaView({
   mint,
@@ -20,6 +25,12 @@ export function MintAreaView({
     case 'below':
     case 'pending':
       return null
+    case 'indexing':
+      return (
+        <p className="pay-inline-status nft-v2-indexing" role="status">
+          {NFT_COPY.mintedIndexing}
+        </p>
+      )
     case 'checking':
       return (
         <p className="pay-inline-status nft-v2-checking" role="status">
@@ -58,7 +69,7 @@ export function MintAreaView({
       )
     case 'message': {
       if (mint.state === 'PAUSED') {
-        return <PaymentNotice kind="paused" audience="writer" />
+        return <PaymentNotice kind="paused" copy={NFT_PAUSED_COPY.mint} />
       }
       const copy = ELIGIBILITY_COPY[mint.state]
       if (!copy) return null

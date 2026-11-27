@@ -13,6 +13,7 @@ import {
   type NftFlowState,
   type NftSubmissionStatusLike,
 } from '@/lib/nft/v2-flow'
+import { NFT_PAUSED_COPY } from '@/lib/copy/nft-v2'
 import type { ProgressSource } from '@/lib/payments/ui-state'
 import { useNow } from './useNow'
 
@@ -99,7 +100,11 @@ export function FlowView({
     return (
       <div className="nft-v2-flow">
         {flow.notice === 'paused' ? (
-          <PaymentNotice kind="paused" audience="writer" announce />
+          <PaymentNotice
+            kind="paused"
+            copy={NFT_PAUSED_COPY[flow.action]}
+            announce
+          />
         ) : (
           <PaymentNotice kind="insufficient-balance" source="wallet" announce />
         )}

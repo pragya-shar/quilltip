@@ -213,7 +213,7 @@ describe('deriveNftPanel', () => {
       ['WALLET_NOT_VERIFIED', 'message'],
       ['AUTHOR_ADDRESS_MISMATCH', 'message'],
       ['PAUSED', 'message'],
-      ['MINTED', 'pending'],
+      ['MINTED', 'indexing'],
       ['NOT_AUTHOR', 'none'],
       ['SIGNED_OUT', 'none'],
     ] as const) {
@@ -264,8 +264,24 @@ describe('deriveNftPanel', () => {
       viewer: author,
       eligibility: eligibility('MINTED', { tokenId: 3 }),
     })
-    expect(panel.kind).toBe('progress')
+    expect(panel).toMatchObject({
+      kind: 'progress',
+      mint: { kind: 'indexing' },
+    })
     expect(JSON.stringify(panel)).not.toContain(OWNER)
+    // With a submission still open here, the panel follows that record.
+    expect(
+      deriveNftPanel({
+        v2Enabled: true,
+        progress: progress({ reached: true }),
+        record: null,
+        viewer: author,
+        eligibility: eligibility('MINTED', {
+          tokenId: 3,
+          openSubmissionId: 'open-1',
+        }),
+      })
+    ).toMatchObject({ mint: { kind: 'pending', submissionId: 'open-1' } })
   })
 
   it('shows the minted token and lets only the owner transfer', () => {
@@ -503,6 +519,13 @@ describe('nftFlowReducer', () => {
       } else if (code === 'PENDING') {
         // No submission ID: plain refusal copy.
         expect(s).toMatchObject({ kind: 'refused', code })
+      } else if (code === 'PAUSED') {
+        // The server's cached pause: the same notice as a paused simulation.
+        expect(s).toEqual({
+          kind: 'notice',
+          action: 'transfer',
+          notice: 'paused',
+        })
       } else {
         expect(s).toMatchObject({ kind: 'refused', code })
         expect(PREPARE_REFUSALS[code], code).toBeDefined()

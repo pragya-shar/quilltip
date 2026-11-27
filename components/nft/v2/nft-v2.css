@@ -362,3 +362,8 @@
     color: var(--ui-foreground);
   }
 }
+
+/* Focus moves here on touch; the heading is not a control. */
+.nft-v2-dialog-title:focus {
+  outline: none;
+}

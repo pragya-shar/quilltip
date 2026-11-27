@@ -8,7 +8,7 @@ import {
   ShortAddress,
 } from '@/components/payments'
 import type { NftPanel } from '@/lib/nft/v2-flow'
-import { NFT_COPY } from '@/lib/copy/nft-v2'
+import { NFT_COPY, NFT_PAUSED_COPY } from '@/lib/copy/nft-v2'
 
 const EXPLORER_CONTRACT = 'https://stellar.expert/explorer/testnet/contract/'
 
@@ -85,7 +85,7 @@ export function MintedView({
         </Button>
       ) : null}
       {panel.transfer === 'paused' ? (
-        <PaymentNotice kind="paused" audience="writer" />
+        <PaymentNotice kind="paused" copy={NFT_PAUSED_COPY.transfer} />
       ) : null}
     </div>
   )
