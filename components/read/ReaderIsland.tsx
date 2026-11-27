@@ -6,14 +6,17 @@ import { createPortal } from 'react-dom'
 import { sheetStack } from '@/shell/sheetStack'
 import { showToast } from '@/system/toast'
 import { usePassageActions } from '@/hooks/passages/usePassageActions'
+import { parseReadAnchor, readAnchor } from '@/lib/tiptap/readAnchors'
+import { sentenceSpans } from '@/hooks/read/sentences'
 import {
+  blockText,
   lineBlockOf,
   passagePlacement,
   rangeAt,
   sentenceAtLine,
   textNodes,
 } from '@/hooks/read/passageOffsets'
-import { FINISHED_AT, savePlace } from '@/hooks/read/readingPlace'
+import { FINISHED_AT, markOpened, savePlace } from '@/hooks/read/readingPlace'
 import { READING_LINE } from '@/hooks/read/readingPosition'
 import { useArticleView } from '@/hooks/read/useArticleView'
 import {
@@ -90,6 +93,39 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   const { passage, clear, keep } = usePassageSelection(body, { onChoose })
   // Keep is a toggle: its pressed state confirms; only failures are said.
   const actions = usePassageActions({ quiet: true })
+
+  // Today's opening skips what this browser opened (D22, `qt_opened`).
+  useEffect(() => markOpened(article.id), [article.id])
+
+  // `#s-{p}-{k}`: the browser lands on paragraph p by itself (its id is in
+  // the server HTML, so this works with no script); here a later sentence
+  // k is brought into view too, and p again if the text arrived after the
+  // browser looked. Nothing is chosen.
+  useEffect(() => {
+    const goToSentence = () => {
+      const anchor = parseReadAnchor(location.hash)
+      const root = body()
+      if (!anchor || !root) return
+      const block = document.getElementById(readAnchor(anchor.paragraph))
+      if (!block || !root.contains(block)) return
+      if (anchor.sentence === 0) {
+        block.scrollIntoView({ block: 'start', behavior: 'instant' })
+        return
+      }
+      const { start, text } = blockText(root, block)
+      const span = sentenceSpans(text)[anchor.sentence]
+      if (!span) return
+      const rect = rangeAt(
+        root,
+        start + span.start,
+        start + span.end
+      ).getBoundingClientRect()
+      window.scrollBy({ top: rect.top - TOP_RESERVE_PX, behavior: 'instant' })
+    }
+    goToSentence()
+    window.addEventListener('hashchange', goToSentence)
+    return () => window.removeEventListener('hashchange', goToSentence)
+  }, [])
 
   // The margin layer is server HTML beside the body.
   useEffect(() => setMargin(document.getElementById(READ_MARGIN_ID)), [])

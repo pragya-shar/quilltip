@@ -154,8 +154,10 @@
     height: auto;
     border: 0;
   }
+  /* Anchored headings and paragraphs (#s-{p}-0) land clear of the top. */
   .qt-read__prose h2,
-  .qt-read__prose h3 {
+  .qt-read__prose h3,
+  .qt-read__prose > p[id] {
     scroll-margin-block-start: var(--qt-space-10);
   }
   .qt-read__prose ::selection {

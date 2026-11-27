@@ -592,3 +592,51 @@ test('reaching the end marks the article finished for Today', async ({
     'readfixturearticle00000000000001'
   )
 })
+
+test('a link into the article lands on its paragraph or sentence, with nothing chosen', async ({
+  page,
+}) => {
+  // Paragraph 9 by its id in the HTML (works with no script).
+  await open(page, '#s-9-0')
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Math.round(
+          document.getElementById('s-9-0')!.getBoundingClientRect().top
+        )
+      )
+    )
+    .toBeLessThan(120)
+  await expect(tipButton(page)).toHaveAccessibleName('Tip $1')
+
+  // Sentence 1 of paragraph 1, brought into view by the view.
+  await page.evaluate(() =>
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' })
+  )
+  await open(page, '#s-1-1')
+  const top = await page.evaluate((line) => {
+    const p = document.getElementById('s-1-0')!
+    const node = [...p.childNodes].find((n) => n.textContent!.includes(line))!
+    const at = node.textContent!.indexOf(line)
+    const range = document.createRange()
+    range.setStart(node, at)
+    range.setEnd(node, at + line.length)
+    return range.getBoundingClientRect().top
+  }, LINES.bus)
+  expect(top).toBeGreaterThanOrEqual(0)
+  expect(top).toBeLessThan(200)
+  await expect(chosenTick(page)).toHaveCount(0)
+})
+
+test('opening an article records it for Today in qt_opened', async ({
+  page,
+}) => {
+  await open(page)
+  await expect
+    .poll(
+      async () =>
+        (await page.context().cookies()).find((c) => c.name === 'qt_opened')
+          ?.value
+    )
+    .toBe('readfixturearticle00000000000001')
+})

@@ -90,3 +90,18 @@ test('the route sends a nonce policy and every script carries the nonce', async 
   ]
   expect(again).not.toContain(nonce!)
 })
+
+test('a paragraph anchor is in the HTML and lands with no script', async ({
+  page,
+  request,
+}) => {
+  const html = await (await request.get(FIXTURE_ARTICLE_PATH)).text()
+  expect(html).toContain('<p id="s-0-0">')
+  expect(html).toContain('<p id="s-12-0">')
+  await page.goto(`${FIXTURE_ARTICLE_PATH}#s-12-0`)
+  const top = await page.evaluate(
+    () => document.getElementById('s-12-0')!.getBoundingClientRect().top
+  )
+  expect(top).toBeGreaterThanOrEqual(0)
+  expect(top).toBeLessThan(120)
+})

@@ -116,3 +116,25 @@ describe('reading places for Today', () => {
     expect(finishedCookieValue(places)).toBe('c%20d,a')
   })
 })
+
+describe('the cookies for Today', () => {
+  it('reads ids from a cookie header, decoded, at most 20', async () => {
+    const { cookieIds } = await import('@/hooks/read/readingPlace')
+    const header = 'a=1; qt_opened=x%20y,b,%E0%A4; qt_finished=c'
+    expect(cookieIds(header, 'qt_opened')).toEqual(['x y', 'b'])
+    expect(cookieIds(header, 'qt_finished')).toEqual(['c'])
+    expect(cookieIds('', 'qt_opened')).toEqual([])
+    const many = Array.from({ length: 30 }, (_, i) => `id${i}`).join(',')
+    expect(cookieIds(`qt_opened=${many}`, 'qt_opened')).toHaveLength(20)
+  })
+
+  it('puts an opened id first, once, at most 20', async () => {
+    const { withOpened } = await import('@/hooks/read/readingPlace')
+    expect(withOpened(['a', 'b', 'c'], 'b')).toEqual(['b', 'a', 'c'])
+    const full = Array.from({ length: 20 }, (_, i) => `id${i}`)
+    const next = withOpened(full, 'new')
+    expect(next).toHaveLength(20)
+    expect(next[0]).toBe('new')
+    expect(next).not.toContain('id19')
+  })
+})
