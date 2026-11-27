@@ -223,7 +223,15 @@ export function dialogFocusHandlers(
         active === document.body ||
         !!recorded.dialog?.contains(active) ||
         active.matches(DIALOG)
-      if (!lost) {
+      // The opener is gone and focus already sits on the dialog that held
+      // it: the page replaced the opener (a refusal, say) while this dialog
+      // was closing. Leave focus there, as without this dialog.
+      const heldOpener =
+        !!active &&
+        active.matches(DIALOG) &&
+        !visible(recorded.element) &&
+        recorded.ancestors.includes(active as HTMLElement)
+      if (!lost || heldOpener) {
         event.preventDefault()
         return
       }
