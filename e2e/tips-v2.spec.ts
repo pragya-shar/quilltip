@@ -149,9 +149,19 @@ async function expectRefusal(scope: Locator, title: string, detail: string) {
   await expect(notice.getByRole('status')).toHaveText(`${title}. ${detail}`)
 }
 
-/** Every visible amount and transaction link in the dialog carries the label. */
+/**
+ * Every visible amount and transaction link in the dialog carries the label.
+ * The check reads the kit's label itself: other copy also says "Stellar
+ * testnet", and a visually hidden label (1 px, clipped) still counts as
+ * visible.
+ */
 async function expectTestnetLabel(scope: Locator) {
-  await expect(seen(scope, 'Stellar testnet').first()).toBeVisible()
+  const label = scope
+    .locator('.pay-network-name')
+    .filter({ visible: true })
+    .first()
+  await expect(label).toHaveText('Stellar testnet')
+  expect((await label.boundingBox())!.height).toBeGreaterThan(8)
 }
 
 type State = {
@@ -1236,6 +1246,49 @@ test.describe('dialog focus', () => {
     await expect(send).toHaveAccessibleDescription(/Tip amount\s*About 4 XLM/)
     await dialog.getByRole('button', { name: '$2' }).click()
     await expect(send).toHaveAccessibleDescription(/Tip amount\s*About 8 XLM/)
+  })
+
+  test('a refusal that arrives while the picker closes keeps its focus', async ({
+    page,
+  }) => {
+    await open(page, 'prepare=rate')
+    const dialog = await openArticleTip(page)
+    await dialog.getByRole('button', { name: 'Connect wallet' }).click()
+    const picker = page.getByRole('dialog', { name: 'Choose a wallet' })
+    await expect(picker.getByRole('button', { name: /^Varial/ })).toBeFocused()
+    // Choose the wallet and send in one step inside the page, so the refusal
+    // arrives while the picker is still running its exit animation.
+    const pickerOpenAtSend = await picker.evaluate(async (box) => {
+      box
+        .querySelector<HTMLButtonElement>('button[data-wallet-choice]')!
+        .click()
+      const send = await new Promise<HTMLButtonElement>((resolve) => {
+        const timer = setInterval(() => {
+          const button = [...document.querySelectorAll('button')].find(
+            (b) => b.textContent?.trim() === 'Send tip'
+          )
+          if (button) {
+            clearInterval(timer)
+            resolve(button)
+          }
+        }, 5)
+      })
+      const stillThere = box.isConnected
+      send.focus()
+      send.click()
+      return stillThere
+    })
+    expect(pickerOpenAtSend).toBe(true)
+    await expect(
+      dialog.locator('.pay-panel-title', {
+        hasText: 'Too many tips in a short time',
+      })
+    ).toBeVisible()
+    await expect(picker).toHaveCount(0)
+    // The refusal replaces the progress, and focus falls to the dialog, as
+    // it does without the picker. The picker's close leaves it there.
+    await page.waitForTimeout(400)
+    await expect(dialog).toBeFocused()
   })
 
   test('the passage dialog returns focus to the passage button', async ({
