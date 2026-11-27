@@ -126,7 +126,8 @@ export const BASKET_COPY = {
   }),
   duplicate: {
     title: 'Already in your basket',
-    detail: 'This tip is already there. Change it in the basket.',
+    detail:
+      'To change its amount, remove it from your basket, then add it again.',
   },
   unavailable: {
     title: 'This article can’t take tips right now',

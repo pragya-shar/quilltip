@@ -271,15 +271,6 @@ export class BasketStore {
     })
   }
 
-  setAmount(id: string, amountCents: number): void {
-    this.save({
-      ...this.state,
-      items: this.state.items.map((item) =>
-        item.id === id ? { ...item, amountCents } : item
-      ),
-    })
-  }
-
   clear(): void {
     this.save({ ...this.state, items: [] })
   }

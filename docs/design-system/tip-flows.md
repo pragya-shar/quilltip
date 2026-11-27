@@ -109,7 +109,7 @@ read from the account entry (balance minus the reserve).
   | ------------ | -------------------------------------- | ------------------------------------------------------------------------- |
   | 10 tips      | Your basket is full                    | One payment holds up to 10 tips. Send these first.                        |
   | 24 transfers | This tip doesn’t fit in one payment    | It needs {n} transfers and {left} are left of 24. Send your basket first. |
-  | Same tip     | Already in your basket                 | This tip is already there. Change it in the basket.                       |
+  | Same tip     | Already in your basket                 | To change its amount, remove it from your basket, then add it again.      |
   | Article      | This article can’t take tips right now | It can’t be added to your basket.                                         |
   | Paying       | Your basket is being paid              | Wait for the result, then add more tips.                                  |
 
