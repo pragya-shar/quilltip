@@ -4,6 +4,7 @@ import { v } from 'convex/values'
 import { authTables } from '@convex-dev/auth/server'
 import { nftChainFields, nftTransferChainFields } from './lib/chain/nftSchema'
 import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
+import { lifetimeTotalsFields } from './lib/lifetimeTotalsFields'
 
 export default defineSchema({
   ...authTables,
@@ -605,6 +606,11 @@ export default defineSchema({
     v2TipCount: v.optional(v.number()),
     v2EarnedCents: v.optional(v.number()),
 
+    // Lifetime totals per recipient for the writer's earnings summary
+    // (#552, convex/lib/lifetimeEarnings.ts), and the progress of a row's
+    // rebuild from its history (convex/earningsTotalsBackfill.ts).
+    ...lifetimeTotalsFields,
+
     // Top articles (denormalized)
     topArticles: v.optional(
       v.array(
@@ -620,7 +626,13 @@ export default defineSchema({
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_user', ['userId']),
+  })
+    .index('by_user', ['userId'])
+    .index('by_lifetime_totals', [
+      'lifetimeTotalsAt',
+      'lifetimeRebuildFailedAt',
+      'lifetimeRebuildTurnAt',
+    ]),
 
   // Article NFTs table
   articleNFTs: defineTable({

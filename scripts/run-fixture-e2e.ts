@@ -73,10 +73,9 @@ async function main(): Promise<number> {
     )
     let failed = 0
     for (const fixture of selected) {
-      const args =
-        'config' in fixture
-          ? ['x', 'playwright', 'test', '--config', fixture.config]
-          : ['x', 'playwright', 'test', fixture.spec]
+      const args = fixture.config
+        ? ['x', 'playwright', 'test', '--config', fixture.config]
+        : ['x', 'playwright', 'test', fixture.spec]
       const code = await run(process.execPath, args, {
         ...process.env,
         ...fixture.env,

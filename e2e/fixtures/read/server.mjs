@@ -1,5 +1,5 @@
 /* global Bun */
-// Run explicitly with Bun. Read suite fixture server (port 4189); it never
+// Run explicitly with Bun. Read suite fixture server (port 4210); it never
 // ships as an app route. It renders the fixture article's body with the
 // server renderer (lib/tiptap/renderReadingHtml), bundles the article view
 // inside the real application shell with next/link, next/navigation and
@@ -9,7 +9,7 @@
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
 
-const PORT = Number(process.env.READ_FIXTURE_PORT ?? 4189)
+const PORT = Number(process.env.READ_FIXTURE_PORT ?? 4210)
 const here = import.meta.dirname
 const root = path.resolve(here, '../../..')
 const system = path.join(root, 'e2e/fixtures/system')

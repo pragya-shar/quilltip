@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { FIXTURES, selectFixtures } from '../fixture-suites'
+import { FIXTURES, SURFACES_GROUP, selectFixtures } from '../fixture-suites'
+import { SURFACE_SUITES } from '../../e2e/suites'
 
 const workflow = readFileSync(
   path.join(__dirname, '../../.github/workflows/ci.yml'),
@@ -15,7 +16,13 @@ function shardSuites(): string[][] {
     workflow.indexOf('\n  contracts-integration:')
   )
   return [...job.matchAll(/^\s+suites: (.+)$/gm)].map((m) =>
-    m[1]!.split(',').map((name) => name.trim())
+    m[1]!
+      .replace(/^'|'$/g, '')
+      .split(',')
+      .map((name) => name.trim())
+      .flatMap((name) =>
+        name === SURFACES_GROUP ? SURFACE_SUITES.map((s) => s.name) : [name]
+      )
   )
 }
 
@@ -36,6 +43,36 @@ describe('fixture shards in CI', () => {
     )
     expect(required).toContain('if: always()')
     expect(workflow).toMatch(/e2e-fixtures:[\s\S]*?fail-fast: false/)
+  })
+})
+
+describe('suites from e2e/suites/', () => {
+  it('run in the one surfaces shard', () => {
+    expect(workflow).toContain(`suites: '${SURFACES_GROUP}'`)
+  })
+
+  it('keep names and ports unique across every suite', () => {
+    const names = FIXTURES.map((f) => f.name)
+    const ports = FIXTURES.map((f) => f.port)
+    expect(new Set(names).size).toBe(names.length)
+    expect(new Set(ports).size).toBe(ports.length)
+  })
+
+  it('are selected together by @surfaces, and none is an empty run', () => {
+    const extra = {
+      name: 'read-article',
+      server: 'e2e/fixtures/read/server.mjs',
+      port: 4200,
+      spec: 'e2e/read-article.spec.ts',
+      env: {},
+    }
+    expect(selectFixtures(['--suite', '@surfaces'], [extra])).toEqual([extra])
+    expect(selectFixtures(['--suite', '@surfaces'], [])).toEqual([])
+    expect(
+      selectFixtures(['--suite', 'recovery,@surfaces'], [extra]).map(
+        (f) => f.name
+      )
+    ).toEqual(['recovery', 'read-article'])
   })
 })
 

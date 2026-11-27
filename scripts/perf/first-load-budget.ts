@@ -43,6 +43,10 @@ function main(): number {
     const kb =
       chunks.reduce((sum, chunk) => sum + gzipBytes(chunk.contents), 0) / 1024
     const budget = FIRST_LOAD_BUDGET_KB[route]
+    if (budget === undefined) {
+      failures.push(`${route}: no first-load budget`)
+      continue
+    }
 
     const dataFile = analyzeDataPath(route)
     if (!existsSync(dataFile)) {

@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { Sheet } from '@/system/components/Sheet'
 import { firstPage } from './firstPage'
-import { PocketContent } from './pocket/PocketContent'
+import { PocketBody } from './pocket/PocketBody'
 import { PocketPanel } from './pocket/PocketPanel'
 import { sheetFor } from './sheetRegistry'
 import { sheetStack } from './sheetStack'
@@ -43,7 +43,7 @@ export function SheetHost() {
                 title="Balance"
                 hideTitle
               >
-                <PocketContent />
+                <PocketBody />
               </Sheet>
             )
           default: {

@@ -30,7 +30,7 @@
     "test:component-organization": "node --test scripts/eslint/one-component-per-file.test.mjs scripts/eslint/no-buffer-global.test.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p convex/tsconfig.json --noEmit",
     "test:e2e:fixtures": "bun scripts/run-fixture-e2e.ts",
     "test:e2e:csp": "bun scripts/security/csp-browser-check.ts",
     "eng-224:console-baseline": "node scripts/eng-224-console-baseline.mjs",

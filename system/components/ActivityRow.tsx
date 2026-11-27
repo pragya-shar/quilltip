@@ -8,7 +8,7 @@ import { MoneyFigure } from './MoneyFigure'
 
 export type ActivityStatus = 'sending' | 'pending' | 'done' | 'failed'
 
-type ActivityRowProps = {
+type ActivityRowBase = {
   /** An Avatar, or a round glyph for money added or withdrawn. */
   lead: ReactNode
   /** Who: "Tomás Reyes", "A reader", "AI reader", "Added money". */
@@ -25,12 +25,23 @@ type ActivityRowProps = {
   statusText?: string
   /** Marks a row that arrived this session. */
   isNew?: boolean
-  /** Opens the receipt. */
-  href?: string
-  /** One action beside the amount, such as Thank. Never inside the link. */
+  /** One action beside the amount, such as Thank. Never inside the row's
+   * own link or button. */
   action?: ReactNode
   className?: string
 }
+
+/**
+ * A row navigates (`href`: a page) or acts (`onPress`: a receipt sheet), or
+ * neither; never both. The whole row is the target, with the same states
+ * and keyboard behaviour either way.
+ */
+export type ActivityRowProps = ActivityRowBase &
+  (
+    | { href: string; onPress?: never }
+    | { onPress: () => void; href?: never }
+    | { href?: never; onPress?: never }
+  )
 
 const STATUS_TEXT: Record<ActivityStatus, string> = {
   sending: 'Sending',
@@ -55,18 +66,24 @@ export function ActivityRow({
   statusText,
   isNew,
   href,
+  onPress,
   action,
   className,
 }: ActivityRowProps) {
   const failed = status === 'failed'
   const words = statusText ?? STATUS_TEXT[status]
-  const title = href ? (
-    <Link className="qt-activity__link" href={href}>
-      {name}
-    </Link>
-  ) : (
-    name
-  )
+  const title =
+    href !== undefined ? (
+      <Link className="qt-activity__link" href={href}>
+        {name}
+      </Link>
+    ) : onPress ? (
+      <button type="button" className="qt-activity__link" onClick={onPress}>
+        {name}
+      </button>
+    ) : (
+      name
+    )
   return (
     <div className={cx('qt-activity', className)} data-status={status}>
       <span className="qt-activity__lead">{lead}</span>

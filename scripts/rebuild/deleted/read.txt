@@ -1,11 +1,6 @@
-# Paths deleted by the rebuild. A pull request that replaces a surface and
-# deletes its legacy files appends each deleted file or directory here, one
-# path per line, relative to the repository root. The check
-# (scripts/rebuild/deleted-paths.test.ts, part of `bun run check`) fails if
-# any listed path exists, so a merge cannot bring a deleted file back.
-# Lines starting with # are comments.
-
-# F1a Read: the legacy article route and what only it used (pull request 601).
+# Paths the read package deleted, one per line, relative to the
+# repository root (a file or a directory). Owned by that package.
+# scripts/rebuild/deleted-paths.test.ts fails if any of them exists again.
 app/(legacy)/[username]/[slug]
 components/articles/ArticleBodySkeleton.tsx
 components/articles/ArticleDetailsPanel.tsx
