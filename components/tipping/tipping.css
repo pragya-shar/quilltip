@@ -16,7 +16,7 @@
   --ui-accent: #f9f0e2;
   --ui-muted: #e9dac1;
   --ui-border: #ad8690;
-  --ui-input: #ad8690;
+  --ui-input: #8f6672; /* 3.5:1 on the dialog surface (WCAG 1.4.11) */
   --ui-ring: #660033;
   --ui-danger: #a52e36;
   --destructive: var(--ui-danger);
