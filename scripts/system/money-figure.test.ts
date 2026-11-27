@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { figureParts, figureState, spokenDollars } from '@/system/money/figure'
+import {
+  figureParts,
+  figureState,
+  spokenDollars,
+  spokenValue,
+} from '@/system/money/figure'
 
 // The money figure lays out the money layer's display text:
 // exact, two decimals, up to six with fractions of a cent, "≈" only for a
@@ -197,8 +202,35 @@ describe('spokenDollars', () => {
     expect(say('$18.40')).toBe('18 dollars 40')
     expect(say('$5')).toBe('5 dollars')
     expect(say('$5.00')).toBe('5 dollars')
-    expect(say('$1,234.05')).toBe('1234 dollars 05')
-    expect(say('$0.0975')).toBe('0.0975 dollars')
+    expect(say('$1,234.05')).toBe('1,234 dollars 5')
     expect(say('−$18.40', true)).toBe('minus about 18 dollars 40')
+  })
+
+  it('says cents under a dollar, and one dollar as one', () => {
+    const say = (display: string) => {
+      const parts = figureParts(display)
+      return parts ? spokenDollars(parts) : null
+    }
+    expect(say('$0.0975')).toBe('9.75 cents')
+    expect(say('$0.10')).toBe('10 cents')
+    expect(say('$0.01')).toBe('1 cent')
+    expect(say('$0.00')).toBe('0 cents')
+    expect(say('$0.04875')).toBe('4.875 cents')
+    expect(say('$1.95')).toBe('1 dollar 95')
+    expect(say('$1.00')).toBe('1 dollar')
+    expect(say('$2.50')).toBe('2 dollars 50')
+    expect(say('$2.925')).toBe('2 dollars 92.5')
+    expect(say('+$0.98')).toBe('plus 98 cents')
+  })
+
+  it("prefers the money layer's own words", () => {
+    expect(
+      spokenValue({ cents: 9.75, display: '$0.0975', spoken: '9.75 cents' })
+    ).toBe('9.75 cents')
+    expect(
+      spokenValue({ cents: 100, display: '−$1.00', spoken: '1 dollar' })
+    ).toBe('minus 1 dollar')
+    expect(spokenValue({ cents: 195, display: '$1.95' })).toBe('1 dollar 95')
+    expect(spokenValue({ cents: 0, display: '<$0.01' })).toBeNull()
   })
 })

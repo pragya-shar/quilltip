@@ -279,7 +279,10 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
   comes with `converted: true` on the value from the money layer: the
   figure writes "≈ $18.40" (two decimals) and a screen reader hears
   "about". A direction comes in the money layer's text ("−$1.00",
-  "+$1.95", "≈ −$1.00") and is heard as "minus" or "plus". "≈" and "→"
+  "+$1.95", "≈ −$1.00") and is heard as "minus" or "plus". A label that says an
+  amount in words uses `spokenValue(value)`: the money layer's `spoken`
+  when it gives one, else the same words the layer uses ("9.75 cents",
+  "1 dollar 95", "about 18 dollars 40"). "≈" and "→"
   are drawn in the platform face, which has both. The bar's balance item shows it in a fixed 86 px slot,
   with or without "≈". Everything fixed at tip time is exact and bare.
 - Amounts are exact: two decimals, and up to six when the amount has

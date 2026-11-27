@@ -3,7 +3,7 @@
 import { Icon } from '@/system/components/Icon'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { BalanceIcon } from '@/system/icons'
-import { figureState, spokenDollars } from '@/system/money/figure'
+import { figureState, spokenValue } from '@/system/money/figure'
 import { useBalanceReading } from './balance'
 import { POCKET } from './navigation'
 import { warmPocket } from './pocket/loadPocket'
@@ -36,10 +36,14 @@ export function BalanceItem({ className }: { className: string }) {
       ? figureState(reading.available)
       : null
   const parts = state?.kind === 'value' ? state.parts : null
+  const words =
+    parts && reading.auth === 'signed-in' && reading.available
+      ? spokenValue(reading.available)
+      : null
   const label = signedOut
     ? 'Sign in'
-    : parts
-      ? `Balance, ${spokenDollars(parts)}. Open balance`
+    : words
+      ? `Balance, ${words}. Open balance`
       : unknown
         ? undefined
         : 'Balance. Open balance'

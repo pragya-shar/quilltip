@@ -1,4 +1,4 @@
-import { figureState, spokenDollars, type MoneyValue } from '../money/figure'
+import { figureState, spokenValue, type MoneyValue } from '../money/figure'
 
 /** A projected figure, drawn and in words. */
 function projectedFigure(value: MoneyValue) {
@@ -7,7 +7,7 @@ function projectedFigure(value: MoneyValue) {
   const { approx, sign, symbol, whole, fraction } = state.parts
   return {
     drawn: `${approx ? '≈ ' : ''}${sign}${symbol}${whole}${fraction}`,
-    spoken: spokenDollars(state.parts),
+    spoken: spokenValue(value) ?? '',
   }
 }
 

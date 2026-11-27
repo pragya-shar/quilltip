@@ -23,12 +23,15 @@
  * balance held in XLM): written with the approximate mark, two
  * decimals, and heard as "about". Amounts fixed at tip time are exact and
  * never converted. The money layer sets the flag and writes `display`
- * without the mark; the figure adds it from the flag.
+ * without the mark; the figure adds it from the flag. `spoken`: the money
+ * layer's words for it ("9.75 cents", "about 18 dollars 40"), used when
+ * given.
  */
 export type MoneyValue = {
   readonly cents: number
   readonly display: string
   readonly converted?: boolean
+  readonly spoken?: string
 }
 
 export type FigureParts = {
@@ -107,17 +110,37 @@ export function figureState(
 }
 
 /**
- * A figure in words, for a label that is read aloud: "18 dollars 40",
- * "about 18 dollars 40", "5 dollars", "0.0975 dollars", "minus 1 dollars".
+ * A figure in words, for a label that is read aloud, as the money layer
+ * says it (`spokenMoney` in lib/payments/money.ts): under a dollar in
+ * cents ("9.75 cents", "10 cents", "1 cent"), from a dollar in dollars and
+ * cents ("1 dollar 95", "2 dollars 50", "5 dollars", "1,234 dollars 5");
+ * "about" for a conversion, "minus" or "plus" for a direction.
  */
 export function spokenDollars(parts: FigureParts): string {
-  const whole = parts.whole.replace(/,/g, '')
-  const cents = parts.fraction.slice(1)
+  const whole = Number(parts.whole.replace(/,/g, ''))
+  const digits = parts.fraction.slice(1)
+  // ".40" is 40 cents, ".0975" is 9.75, ".925" is 92.5.
+  const cents =
+    digits === ''
+      ? 0
+      : Number(`${digits.slice(0, 2).padEnd(2, '0')}.${digits.slice(2) || '0'}`)
   const words =
-    cents === '' || cents === '00'
-      ? `${whole} dollars`
-      : cents.length === 2
-        ? `${whole} dollars ${cents}`
-        : `${whole}.${cents} dollars`
+    whole === 0
+      ? `${cents} ${cents === 1 ? 'cent' : 'cents'}`
+      : `${whole.toLocaleString('en-US')} ${whole === 1 ? 'dollar' : 'dollars'}${cents ? ` ${cents}` : ''}`
   return spoken(parts.approx, parts.sign, words)
+}
+
+/**
+ * A money value in words: the money layer's own `spoken` when it gave one
+ * (with any direction from the text), else `spokenDollars`. Null for a
+ * value the figure cannot read.
+ */
+export function spokenValue(value: MoneyValue): string | null {
+  const state = figureState(value)
+  if (state.kind !== 'value') return null
+  if (!value.spoken) return spokenDollars(state.parts)
+  const { sign } = state.parts
+  const direction = sign === '−' ? 'minus ' : sign === '+' ? 'plus ' : ''
+  return `${direction}${value.spoken}`
 }
