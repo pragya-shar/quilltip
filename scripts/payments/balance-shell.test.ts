@@ -6,14 +6,58 @@
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Id } from '../../convex/_generated/dataModel'
-import { paymentsStore, shellController } from '../../lib/payments/store'
-import type { TipTarget } from '../../lib/payments/types'
+import { shellController, viewsOf } from '../../lib/payments/runtime'
+import { paymentsStore } from '../../lib/payments/store'
+import type { BalanceView, TipTarget } from '../../lib/payments/types'
 
 let detach: (() => void) | null = null
 afterEach(() => {
   detach?.()
   detach = null
   paymentsStore.setAuth('loading')
+  paymentsStore.set({ engine: 'idle' })
+})
+
+describe('the views before the engine writes them', () => {
+  const status = () => {
+    const v = viewsOf(paymentsStore.get())
+    return [
+      v.balance.status,
+      v.readerActivity.status,
+      v.writerActivity.status,
+      v.earnings.status,
+    ]
+  }
+
+  it('reads loading, then signed out, then unavailable after a failure', () => {
+    expect(status()).toEqual(['loading', 'loading', 'loading', 'loading'])
+    paymentsStore.setAuth('signed-out')
+    expect(status()).toEqual(['signed-out', 'loading', 'loading', 'signed-out'])
+    paymentsStore.setAuth('signed-in')
+    paymentsStore.fail()
+    expect(status()).toEqual([
+      'unavailable',
+      'unavailable',
+      'unavailable',
+      'unavailable',
+    ])
+  })
+
+  it('returns the same blank view on each read, for useSyncExternalStore', () => {
+    const s = paymentsStore.get()
+    expect(viewsOf(s).balance).toBe(viewsOf(s).balance)
+    expect(viewsOf(s).earnings).toBe(viewsOf(s).earnings)
+  })
+
+  it('shows nothing of one reader to the next', () => {
+    paymentsStore.setAuth('signed-in')
+    const ready = { status: 'ready' } as BalanceView
+    paymentsStore.set({ balance: ready })
+    expect(viewsOf(paymentsStore.get()).balance).toBe(ready)
+    paymentsStore.setAuth('signed-out')
+    expect(viewsOf(paymentsStore.get()).balance.status).toBe('signed-out')
+    expect(paymentsStore.get().tips).toEqual({})
+  })
 })
 
 describe('payments shell presence', () => {

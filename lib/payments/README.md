@@ -242,9 +242,11 @@ on the reader side, tips received on the writer side), `reader` (earnings
 ## Below the line (do not import from a UI)
 
 - `runtime.ts`: `PaymentsRuntimeContext` and `shellRuntime`, the default
-  runtime over `store.ts`.
+  runtime over `store.ts`, with the blank views and the controller a control
+  shows before the engine has written its own. It loads with the screens.
 - `store.ts`: the store the shell and engine share; the only payments code in
-  a first load. Counts mounted shells; queues taps made before the engine.
+  a first load, so it holds state only (a view the engine has not written is
+  `null`). Counts mounted shells; queues taps made before the engine.
 - `components/payments/PaymentsShell.tsx`: in the root layout; loads
   `PaymentsEngine` after first paint for a signed-in reader, inside its own
   boundary, and retries after a failure. Payments failing never takes the

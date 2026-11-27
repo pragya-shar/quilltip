@@ -1,12 +1,15 @@
 'use client'
 
 /**
- * The payments shell's store: the only payments code in a first load. The
- * root layout mounts `PaymentsShell`, which keeps this store in step with
- * the auth state and loads the engine (`components/payments/PaymentsEngine`)
- * with `import()` once the visitor is signed in, or shows tip intent. The
- * engine writes the views here; the hooks (`hooks/payments/*`) read them, so
- * a screen's hooks never change when the engine arrives.
+ * The payments shell's store: the only payments code in a first load, so it
+ * holds state and nothing else. The root layout mounts `PaymentsShell`, which
+ * keeps this store in step with the auth state and loads the engine
+ * (`components/payments/PaymentsEngine`) with `import()` once the visitor is
+ * signed in, or shows tip intent. The engine writes the views here; the hooks
+ * (`hooks/payments/*`, through `runtime.ts`, which loads with the screens)
+ * read them, so a screen's hooks never change when the engine arrives. A view
+ * the engine has not written is `null`; the runtime shows the blank view for
+ * the auth and engine state in its place.
  *
  * A tap before the engine is ready is queued per control and acted on once
  * when the engine is ready (`takeTap`), so it is never lost and never sent
@@ -17,13 +20,10 @@ import type {
   ActivityView,
   BalanceView,
   EarningsView,
-  Money,
   TipController,
   TipMeta,
   TipTarget,
 } from './types'
-
-const ONE: Money = { cents: 100, display: '$1.00' }
 
 export type EngineState = 'idle' | 'loading' | 'ready' | 'failed'
 export type AuthState = 'loading' | 'signed-out' | 'signed-in'
@@ -36,10 +36,11 @@ export type QueuedTap = TipRegistration & { cents: number; requestId: string }
 export type PaymentsState = {
   auth: AuthState
   engine: EngineState
-  balance: BalanceView
-  readerActivity: ActivityView
-  writerActivity: ActivityView
-  earnings: EarningsView
+  /** Written by the engine; `null` until it has written them. */
+  balance: BalanceView | null
+  readerActivity: ActivityView | null
+  writerActivity: ActivityView | null
+  earnings: EarningsView | null
   /** Controllers the engine computed, by control id. */
   tips: Record<string, TipController>
   /** Live controls and what they tip, for the engine. */
@@ -51,48 +52,21 @@ export type PaymentsState = {
   shells: number
 }
 
-const LOADING_BALANCE: BalanceView = {
-  status: 'loading',
-  available: null,
-  pending: null,
-  deviceReady: false,
-  device: 'loading',
-  limits: null,
-  amounts: [],
-  noAmountReason: null,
-  settlement: { enabled: false, expectedWithinMs: 0 },
-  online: true,
-  network: 'testnet',
-}
-const LOADING_ACTIVITY: ActivityView = {
-  status: 'loading',
-  items: [],
-  canLoadMore: false,
-  loadMore: () => {},
-}
-const LOADING_EARNINGS: EarningsView = {
-  status: 'loading',
-  pending: null,
-  available: null,
-  collected: null,
-  total: null,
-  onHold: null,
-  notPaid: null,
-  counts: null,
-  lagging: false,
-  exact: null,
+// Nothing of one reader is shown to the next, or after a failure.
+const CLEARED = {
+  balance: null,
+  readerActivity: null,
+  writerActivity: null,
+  earnings: null,
+  tips: {},
+  queuedTaps: {},
 }
 
 let state: PaymentsState = {
   auth: 'loading',
   engine: 'idle',
-  balance: LOADING_BALANCE,
-  readerActivity: LOADING_ACTIVITY,
-  writerActivity: LOADING_ACTIVITY,
-  earnings: LOADING_EARNINGS,
-  tips: {},
+  ...CLEARED,
   registrations: {},
-  queuedTaps: {},
   watches: { writer: 0, earnings: 0 },
   shells: 0,
 }
@@ -111,50 +85,6 @@ function wantPublic() {
     engineWanted?.()
 }
 
-/**
- * The controller a control shows before the engine computed one. With no
- * shell on the page nothing will answer, so the control says so at once
- * (`absent`) and a host keeps its other tip path instead of waiting.
- */
-export function shellController(id: string): TipController {
-  const absent = state.shells === 0
-  const signedOut = !absent && state.auth === 'signed-out'
-  const failed = !absent && state.engine === 'failed'
-  return {
-    state: { phase: 'idle' },
-    amount: ONE,
-    blocked: null,
-    amounts: [],
-    setAmount: () => {},
-    tip: async () => {
-      const reg = state.registrations[id]
-      if (absent || signedOut || failed || !reg || id in state.queuedTaps)
-        return
-      // Not lost: the engine sends it once, when ready, for what was pressed:
-      // this target and amount, under this request id.
-      set({
-        queuedTaps: {
-          ...state.queuedTaps,
-          [id]: { ...reg, cents: ONE.cents, requestId: crypto.randomUUID() },
-        },
-      })
-      engineWanted?.()
-    },
-    reset: () => {},
-    ready: absent || signedOut || failed,
-    warming: !absent && state.auth === 'signed-in' && !failed,
-    queued: id in state.queuedTaps,
-    signedOut: null,
-    unavailable: absent
-      ? 'absent'
-      : signedOut
-        ? 'signed-out'
-        : failed
-          ? 'not-loaded'
-          : null,
-  }
-}
-
 export const paymentsStore = {
   get: () => state,
   subscribe(listener: () => void) {
@@ -171,39 +101,12 @@ export const paymentsStore = {
   },
   setAuth(auth: AuthState) {
     if (auth === state.auth) return
-    // Nothing of one reader is shown to the next.
-    set({
-      auth,
-      balance:
-        auth === 'signed-out'
-          ? { ...LOADING_BALANCE, status: 'signed-out', device: 'unavailable' }
-          : LOADING_BALANCE,
-      readerActivity: LOADING_ACTIVITY,
-      writerActivity: LOADING_ACTIVITY,
-      earnings:
-        auth === 'signed-out'
-          ? { ...LOADING_EARNINGS, status: 'signed-out' }
-          : LOADING_EARNINGS,
-      tips: {},
-      queuedTaps: {},
-    })
+    set({ auth, ...CLEARED })
     wantPublic()
   },
   /** The engine failed: every view reads unavailable until it recovers. */
   fail() {
-    set({
-      engine: 'failed',
-      balance: {
-        ...LOADING_BALANCE,
-        status: 'unavailable',
-        device: 'unavailable',
-      },
-      readerActivity: { ...LOADING_ACTIVITY, status: 'unavailable' },
-      writerActivity: { ...LOADING_ACTIVITY, status: 'unavailable' },
-      earnings: { ...LOADING_EARNINGS, status: 'unavailable' },
-      tips: {},
-      queuedTaps: {},
-    })
+    set({ engine: 'failed', ...CLEARED })
   },
   /** The shell's loader, called on tip intent before sign-in is known. */
   onEngineWanted(load: () => void) {
@@ -222,6 +125,12 @@ export const paymentsStore = {
     const { [id]: _tip, ...tips } = state.tips
     const { [id]: _tap, ...queuedTaps } = state.queuedTaps
     set({ registrations: rest, tips, queuedTaps })
+  },
+  /** Queues a press once per control; the engine takes it when ready. */
+  queueTap(id: string, tap: QueuedTap) {
+    if (id in state.queuedTaps) return
+    set({ queuedTaps: { ...state.queuedTaps, [id]: tap } })
+    engineWanted?.()
   },
   /** Takes a queued tap once; the engine calls it when a control is ready. */
   takeTap(id: string): QueuedTap | undefined {
