@@ -1,5 +1,6 @@
-// Runs e2e/early-taps.spec.ts (presses made before the page scripts run) in
-// Chromium and WebKit against a local production build. It needs no
+// Runs e2e/early-taps.spec.ts (presses made before the page scripts run) and
+// e2e/server-forms.spec.ts (forms in the server HTML post) in Chromium and
+// WebKit against a local production build. It needs no
 // secrets: the public Convex queries are answered by the fixture stand-in
 // that the page-load budget also uses, and the spec answers the Convex
 // connection itself.
@@ -50,7 +51,14 @@ async function main(): Promise<number> {
   try {
     await waitForApp()
     // Warm the routes, so a cold start cannot race the first assertions.
-    for (const path of ['/login', '/register', '/reset-password', '/articles'])
+    for (const path of [
+      '/login',
+      '/register',
+      '/forgot-password',
+      '/reset-password',
+      '/waitlist',
+      '/articles',
+    ])
       await fetch(`${BASE_URL}${path}`).catch(() => {})
     return await run(
       'bunx',

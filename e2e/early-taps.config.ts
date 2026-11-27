@@ -1,14 +1,15 @@
 import { defineConfig, devices } from '@playwright/test'
 
 /**
- * `e2e/early-taps.spec.ts` in Chromium and WebKit, against a production build
- * served by `scripts/perf/early-taps-check.ts`.
+ * `e2e/early-taps.spec.ts` in Chromium and WebKit, and the server-HTML form
+ * check `e2e/server-forms.spec.ts`, against a production build served by
+ * `scripts/perf/early-taps-check.ts`.
  */
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3197'
 
 export default defineConfig({
   testDir: '.',
-  testMatch: 'early-taps.spec.ts',
+  testMatch: ['early-taps.spec.ts', 'server-forms.spec.ts'],
   globalSetup: './global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
