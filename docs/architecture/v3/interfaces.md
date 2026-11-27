@@ -61,7 +61,7 @@ export type TipPhase =
   | { phase: 'routed'; route: TipRoute; amount: Money }
   | { phase: 'device-setup'; step: 'approve' | 'confirming' }
   | { phase: 'sending'; requestId: string; amount: Money }
-  | { phase: 'undoable'; tipId: string; amount: Money; until: number }
+  | { phase: 'holding'; amount: Money; endsAt: number } // nothing sent yet; cancel() ends it
   | {
       phase: 'sent'
       tipId: string
@@ -69,7 +69,6 @@ export type TipPhase =
       via: 'balance' | 'wallet'
       settlement: SettlementState
     }
-  | { phase: 'undone'; amount: Money }
   | { phase: 'confirm-wallet'; amount: Money; address: string }
   | { phase: 'signing'; amount: Money }
   | { phase: 'submitted'; tipId: string; amount: Money }
@@ -227,11 +226,17 @@ export type TipController = {
   state: TipPhase
   /** Synchronous; recomputed when the session or the target changes. */
   quote(amountCents: Cents): TipRoute
-  /** The default amount when omitted. Runs the route `quote` returns. */
+  /**
+   * The labelled button's action (tap or keyboard). On the balance route it
+   * starts or extends the hold and resolves when the summed tip is accepted
+   * or refused; elsewhere it runs the route `quote` returns. The default
+   * amount when omitted.
+   */
   tip(amountCents?: Cents): Promise<TipResult>
   payFromWallet(): Promise<TipResult>
   addFundsAndTip(depositCents: Cents): Promise<TipResult>
-  undo(): Promise<boolean>
+  /** Ends a hold with nothing sent. No effect after the hold ended. */
+  cancel(): void
   reset(): void
 }
 ```
@@ -341,13 +346,11 @@ export const send = mutation({
     status: v.literal('ACCEPTED'),
     tipId: v.string(),
     receiptId: v.id('tabReceipts'),
-    undoUntil: v.number(),
     alreadyAccepted: v.boolean(),
   }),
   // Throws ConvexError { code: BALANCE_ERROR_CODES[number], message, data? }
 })
 
-export const undo = mutation({ args: { tipId: v.string() }, returns: v.object({ undone: v.boolean() }) })
 
 export const prepareDeposit = mutation({
   args: {
@@ -429,7 +432,7 @@ export const mine = query({   // earnings.mine
 | Function                                                                                    | Owner | File                                |
 | ------------------------------------------------------------------------------------------- | ----- | ----------------------------------- |
 | `signBalanceTip(args): Promise<SignedBalanceTip>`                                           | P5    | `lib/stellar/v2/tab/sign-tip.ts`    |
-| `commitAcceptedTip(accepted, deps)`, `commitUndo(tipId, deps)`                              | P5    | `lib/stellar/v2/tab/sign-tip.ts`    |
+| `commitAcceptedTip(accepted, deps)`                                                         | P5    | `lib/stellar/v2/tab/sign-tip.ts`    |
 | `createSessionKeyStore()` (v2, unchanged API)                                               | P5    | `lib/stellar/v2/tab/session-key.ts` |
 | `WalletProvider` interface and the `extension`, `walletconnect`, `injected` implementations | P6    | `lib/wallet/`                       |
 | `routeTip(input): TipRoute`                                                                 | P3    | `lib/payments/route.ts`             |

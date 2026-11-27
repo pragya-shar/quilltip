@@ -32,19 +32,17 @@ sees come from elsewhere:
 
 ## 2.2 Balance tips
 
-### Client (optimistic)
+### Client (no optimistic money)
 
-`useTip` calls `balance.send` through
-`useMutation(api.balance.send).withOptimisticUpdate(...)`. The update edits
-the local results of two queries, which every balance and activity view reads:
-
-- `balance.session`: `available[token] −= amount`, `availableCents −= amountCents`,
-  `acceptedTodayCents += amountCents`.
-- `activity.mine({ role: 'reader' })` first page: prepend an item with status
-  `sending` and the `requestId` as its id.
-
-Convex replaces both with the server results when the mutation commits, and
-drops them if it throws. No other client state holds a balance.
+The durable balance and the activity list change only when the server
+accepts. `useTip` holds its own display state ("Sending $3") on the control
+during the hold and while `balance.send` runs; `balance.session` and
+`activity.mine` are never edited optimistically. With one mutation the
+acceptance arrives about 100 to 300 ms after the hold ends, and Convex pushes
+the new `balance.session` and `activity.mine` results to every open session
+of the reader in the same update. A reload during `sending` shows the
+outbox entry as "Sending" until its resubmission is answered
+([section 1.9](01-tip-pipeline.md#19-idempotency)).
 
 ### Server (one mutation)
 
@@ -72,10 +70,12 @@ The reader's `available` must not change at settlement: `confirmedBalance`
 falls by the settled gross and `outstanding` by the same amount. v2 lowers
 `outstanding` from the settler's result at once but lowers
 `confirmedBalance` only when the indexer applies `TabSettled`, so
-`available` reads too high for one indexer cycle. v3's
-`applySettlementOutcomes` debits `confirmedBalance` in the same mutation,
-recorded in `settledSinceBalance` under the event id that the transaction
-result gives, so the indexer's later copy of the event is a no-op.
+`available` reads too high for one indexer cycle. v3 adds
+`tabAccounts.unindexedSettled`: `applySettlementOutcomes` adds each settled
+voucher's gross to it, and the `TabSettled` handler subtracts it once (the
+handler already runs once per event id) when the event's transaction hash
+matches a confirmed settlement record. `available = confirmedBalance −
+outstanding − reserved − unindexedSettled`, floored at zero.
 
 ### Not paid
 
@@ -188,7 +188,7 @@ writer's headline needs no base-unit arithmetic on the client:
 | Field (cents)   | Moves at                                                                   |
 | --------------- | -------------------------------------------------------------------------- |
 | `incomingCents` | wallet tip recorded (+), confirmed or failed (−)                           |
-| `pendingCents`  | balance tip accepted (+), settled, undone or not paid (−)                  |
+| `pendingCents`  | balance tip accepted (+), settled or not paid (−)                          |
 | `earnedCents`   | settled or confirmed (+)                                                   |
 | `paidOutCents`  | reached the writer's wallet (+): Core tips at once, balance tips at payout |
 
@@ -200,21 +200,21 @@ fields for audits.
 
 ## 2.7 Tests
 
-- Event ids: the id `applySettlementOutcomes` computes from a transaction
-  result (ledger, application order, operation and event index) equals the
-  id `getEvents` returns for the same event (fixture from the local network
-  suite); after both apply, `confirmedBalance` is debited once.
+- `unindexedSettled`: between a confirmed settlement result and its indexed
+  `TabSettled`, `available` does not rise; after the event (and after a
+  replay of it), `unindexedSettled` is back to zero and `available` is
+  unchanged.
 - `convex-test`: after `balance.send`, `balance.session`, `activity.mine`
   (both roles) and `earnings.mine` return the new figures in the same
   transaction's results; after `finishSettlement`, figures move between
   states and totals are unchanged; shortfall, unpaid and rejected paths
   restore the reader's balance and remove the writer's pending share;
-  undo removes both rows.
+  no client path edits `balance.session` or `activity.mine` before acceptance.
 - Wallet tips: `recordSubmitted` writes `sending` rows and `incomingCents`;
   confirmation credits once even when the cron also runs.
-- Optimistic update: a unit test of the updater against fixture query results
-  (balance falls, item prepended, rollback on throw).
+- Display state: `useTip` shows "Sending" during the hold and the send, and the
+  balance view changes only with the server result.
 - Verification cadence: an injected clock and RPC fake confirm at the first
   poll after the transaction's ledger.
 - Playwright against a local backend: two browser contexts (reader and
-  writer); the writer's total changes within 1 s of the reader's tap.
+  writer); the writer's total changes within 1 s of the reader's acceptance.

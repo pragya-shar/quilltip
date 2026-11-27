@@ -7,6 +7,17 @@ interface named here and in [interfaces](interfaces.md), never an edit.
 
 ## W1. Order
 
+**Slice first.** Before any package starts, the `tip-slice` build
+(branch `feat/balance-tip-journey`) implements one journey on the existing
+contracts and today's two-step accept: a signed-in reader with a funded
+balance tips a passage, reopens, and sees the tip once; the writer sees it
+once, with pending apart from available. Its spec is
+a separate slice specification. Its pull request is the first cut of
+P0, P3, P5 and P6, using the names of [interfaces](interfaces.md). When it
+lands, this document is revised so each package starts from that code, and
+the interfaces are corrected from the differences the slice records. The
+contract package (P1) starts after the slice's evidence is shown.
+
 ```text
 Wave 0   P0 interfaces and seams ─────────────────────────────┐ (lands first, about a day)
                                                               ▼
@@ -44,6 +55,9 @@ P0 to P7 use one Tab, for XLM. Further tokens are further Tab instances
    `git diff --check`.
 5. Testnet only. No Arweave uploads. No push to a cloud Convex deployment
    except P7's new integration deployment.
+6. No v3 transaction reaches a v2 contract. Every write goes to a contract
+   that v3 deployed (the v3 set or a package's own fresh deployment); v2
+   contracts may be read by simulation only.
 
 ## W2. Packages
 
@@ -120,11 +134,11 @@ P0 to P7 use one Tab, for XLM. Further tokens are further Tab instances
   `api.earnings.mine` (P5); `api.tipsV2.prepareDirectTip`,
   `prepareHighlightTip`, `recordSubmitted`, `recordSendFailed`,
   `getTipStatus` (P4, unchanged signatures); `signBalanceTip`,
-  `commitAcceptedTip`, `commitUndo` (P5); `setupDevice`, `Outbox`,
+  `commitAcceptedTip` (P5); `setupDevice`, `Outbox`,
   `WalletProvider` (P6); `lib/stellar/v2/tip-calls.ts` and `tx.ts` (read
   only).
 - **Tests:** [section 1.11](01-tip-pipeline.md#111-tests) for the routing and
-  pipeline; optimistic update tests of [2.7](02-instant-state.md#27-tests).
+  pipeline; the display-state tests of [2.7](02-instant-state.md#27-tests).
 - **Depends on:** P0. Integration with P5 and P6 at P7. **Size:** M.
 
 ### P4. Verification, indexer kick, wallet tips
@@ -152,7 +166,7 @@ P0 to P7 use one Tab, for XLM. Further tokens are further Tab instances
 
 ### P5. Balance ledger
 
-- **Goal.** The v3 ledger in Convex: one-mutation acceptance, undo, segments,
+- **Goal.** The v3 ledger in Convex: one-mutation acceptance, segments,
   cent limits, tokens on every row, user-keyed reads, activity, earnings
   cents, deposits and devices, the withdrawal attestation, the v3 Tab event
   handlers, and the client voucher library ([1.4 to 1.10](01-tip-pipeline.md#14-the-balance-route),
@@ -172,7 +186,7 @@ P0 to P7 use one Tab, for XLM. Further tokens are further Tab instances
 - **Interfaces provided:** I3 (`convex/balance.ts`, `activity.mine`,
   `earnings.mine`), `applySettlementOutcomes`, `writeActivity`,
   `updateActivity`, `adjustEarningsCents`, `signBalanceTip`,
-  `commitAcceptedTip`, `commitUndo`, `BALANCE_ERROR_CODES`.
+  `commitAcceptedTip`, `BALANCE_ERROR_CODES`.
 - **Interfaces used:** `requestSettlement` (P2), `scheduleVerification` (P4),
   `v3.json` vectors (P1).
 - **Tests:** [1.11](01-tip-pipeline.md#111-tests) server parts,
@@ -216,7 +230,7 @@ P0 to P7 use one Tab, for XLM. Further tokens are further Tab instances
   for v3 integration (not `efficient-tern-39`); set its env from the deploy
   evidence and every package's report; run the local network suite and the
   Playwright suite at 390 × 844 first, then 768 and 1440.
-- **Tests:** two readers and one writer on testnet: tap tip, undo, navigation
+- **Tests:** two readers and one writer on testnet: tip by button and keyboard, the hold and its cancel, navigation
   and reload without prompts, second device setup, add funds and queued tip,
   wallet tip, settlement within 60 s, writer's wallet balance rises by the
   net, a forced shortfall path on the local network.
@@ -297,8 +311,8 @@ listed so the coordinator can sequence them.
   R4.5).
 - **Goal:** a balance tip to an article with splits becomes one receipt per
   recipient (`floor(amount × bps / 10,000)`, the remainder to the first
-  recipient), signed together and accepted in one mutation; undo and
-  activity treat them as one tip.
+  recipient), signed together and accepted in one mutation; activity
+  treats them as one tip.
 - **Depends on:** P5, P3. **Size:** S.
 
 ## W3. The UI track

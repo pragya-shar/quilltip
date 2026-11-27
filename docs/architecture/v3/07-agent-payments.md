@@ -20,13 +20,13 @@ Package: A3 ([work packages](work-packages.md#later-waves)).
 
 ## 7.2 Decisions
 
-| #   | Decision                                                                                                                                                                                                    |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| M1  | **Agents pay through the Tab.** An agent is a Tab reader with its own address and key. Each read or tip is a voucher, accepted by the same Convex code as a human balance tip, settled by the same settler. |
-| M2  | The handshake uses MPP's headers with a Quilltip method, `method="quilltip-tab"`. A small published client signs vouchers. Generic MPP clients that know only `charge` are served by M5 once approved.      |
-| M3  | The endpoints are **Next.js route handlers** (`app/api/agent/**`); each calls one Convex function that does every check, so the rules live in one place.                                                    |
-| M4  | Writers choose per profile: `agentAccess` (`paid` or `off`, default `paid`) and `agentPriceCents` (default 1). Articles stay free for people.                                                               |
-| M5  | Standard MPP `charge` interop is designed (7.6) but not built until the owner decides between a short custodial hop with the fee, or a direct payment to the writer with no fee on that path.               |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | **Agents pay through the Tab.** An agent is a Tab reader with its own address and key. Each read or tip is a voucher, accepted by the same Convex code as a human balance tip, settled by the same settler.                                                                                                                                 |
+| M2  | The handshake uses the `402` / `Authorization: Payment` header shape with our own method, `method="quilltip-tab"`, and a small published client signs vouchers. Docs and UI call this **Quilltip agent payments**. We claim compatibility with standard MPP or x402 only after the flow passes with an independent client we did not write. |
+| M3  | The endpoints are **Next.js route handlers** (`app/api/agent/**`); each calls one Convex function that does every check, so the rules live in one place.                                                                                                                                                                                    |
+| M4  | Writers choose per profile: `agentAccess` (`paid` or `off`, default `paid`) and `agentPriceCents` (default 1). Articles stay free for people.                                                                                                                                                                                               |
+| M5  | No custodial hop. A standard MPP `charge` pays one address with one transfer, so the only path that keeps the platform out of custody is a payment straight to the writer, which carries no platform fee. It is designed (7.6) and not built.                                                                                               |
 
 ## 7.3 Agent accounts
 
@@ -133,32 +133,31 @@ of an accepted `requestId` returns the first receipt.
 
 ## 7.6 Standard MPP `charge` interop (designed, not built)
 
-When the owner approves the custodial hop:
+The path is noncustodial: no platform-held account receives an agent's
+payment, and no "treasury receives 100% then pays the writer" step exists.
+That leaves one design:
 
 1. `402` from `mppx.charge({ amount, description })` with
-   `recipient = AGENT_GATEWAY_ADDRESS`, network `stellar:testnet`, and the
-   token's contract as currency. The replay store is a Convex-backed adapter
-   (`mppChallenges`), never the in-memory store.
+   `recipient = the writer's payout address`, network `stellar:testnet`, and
+   the token's contract as currency. The replay store is a Convex-backed
+   adapter (`mppChallenges`), never the in-memory store.
 2. After the SDK confirms the transfer, `agents.recordCharge` stores it once
-   per challenge and transaction hash, and Convex verifies the hash.
-3. A forwarder (debounced 15 s, under a lease) sends `Core.tip_batch` from
-   the gateway account, one item per payment, with
-   `client_ref = sha256(challengeId)[0..16]`. Core applies the 97.5% / 2.5%
-   split on chain, and a retry cannot pay twice. The gateway holds a payment
-   for under a minute.
+   per challenge and transaction hash; Convex verifies the hash and credits
+   the writer's activity and earnings (`via: 'agent'`, in the wallet at once).
+3. No platform fee is taken on this path, so it changes the 97.5% / 2.5%
+   rule for these payments. It is built only if the owner accepts that
+   exception; otherwise standard clients are not served.
 
-The other option, `recipient = writer` with no platform fee, needs no
-forwarder: step 1 changes, and steps 2 and 3 go away. Build on a release of
-the MPP SDK that supports Stellar SDK 17.4; the 0.7.1 release pins an older
-SDK.
+Build it on a release of the MPP SDK that supports Stellar SDK 17.4; the
+0.7.1 release pins an older SDK.
 
 ## 7.7 Configuration
 
-| Name                                | Where  | Meaning                     |
-| ----------------------------------- | ------ | --------------------------- |
-| `AGENT_TIP_MAX_CENTS`               | Next   | Upper bound of an agent tip |
-| `AGENT_DEFAULT_PRICE_CENTS`         | Convex | Default per-read price (1)  |
-| `AGENT_GATEWAY_*`, `MPP_SECRET_KEY` | both   | Only with 7.6               |
+| Name                        | Where  | Meaning                     |
+| --------------------------- | ------ | --------------------------- |
+| `AGENT_TIP_MAX_CENTS`       | Next   | Upper bound of an agent tip |
+| `AGENT_DEFAULT_PRICE_CENTS` | Convex | Default per-read price (1)  |
+| `MPP_SECRET_KEY`            | Next   | Only with 7.6               |
 
 ## 7.8 Tests (A3)
 

@@ -157,11 +157,15 @@ One session key per device and account address.
 ## 4.7 Multi-device consistency
 
 All writes go through Convex mutations, so two devices of one reader see each
-other's tips through the same reactive queries. Two devices tipping the same
-writer at once conflict on the pair; `balance.send` serialises them and the
-second re-signs (`BALANCE_PAIR_CHANGED`, section 1.8). Each device's local
-ledger records only its own signatures; the v2 step-2 rule compares against
-the server's pair state, which includes the other device's receipts.
+other's tips through the same reactive queries. A pair is
+`(reader, keyId, writer)` and each device has its own key, so two devices
+tipping the same writer at once write two different pairs: both are
+accepted and both settle. The only shared pair is two browser tabs on one
+device (one key); `balance.send` serialises them, and the second re-signs
+(`BALANCE_PAIR_CHANGED`, section 1.8) after the v2 local ledger's re-read
+(`decideStepTwo`). Each reader still has one Tab balance, so the two devices
+draw on the same `available`, which `balance.send` checks inside the
+accepting mutation.
 
 ## 4.8 Tests
 

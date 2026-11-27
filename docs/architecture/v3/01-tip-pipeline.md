@@ -71,23 +71,30 @@ funds" and then sends the tip from the balance.
 One component tree owned by the UI track renders one state machine owned by
 the logic track (`useTip(target)`, [interfaces](interfaces.md#i2-headless-hooks)).
 
-- **Tap** on the tip control sends the reader's default amount
-  (`limits.defaultTipCents`, $1 until the reader changes it) when the route is
-  `balance` and the amount is at most `QUICK_TIP_MAX_CENTS` ($5). No sheet
-  opens; an inline confirmation with "Undo" shows for 5 seconds.
-- **Press and hold** (or the expand affordance) opens the sheet with amount
-  chips and a custom amount. One press on "Tip $X" sends.
+The tip control is a labelled button that states the amount ("Tip $1"),
+with a visible amount choice beside it (chips, plus "Other"). Both work with
+a tap and with the keyboard. A hold-and-slide gesture may be added by the UI
+track as a shortcut on top; no function exists only behind a gesture, and
+`TipController` has no gesture-only method. A tap on the article text never
+sends money.
+
+- Pressing "Tip $X" on the `balance` route starts the hold (section 1.7);
+  further presses during the hold add the amount again.
 - Any other route opens the sheet at the step the route needs.
+- The confirmation never covers or scrolls away the tipped passage.
+- A tip does nothing else: acceptance writes money state only. It never
+  follows the writer, subscribes the reader, or makes the reader's identity
+  public. Any public supporter surface is opt-in and outside the pipeline.
 
 ### State machine
 
 ```text
             ┌──────────── reroute (1.8) ─────────────┐
             ▼                                        │
-idle ──tip()──▶ routed ──balance──▶ sending ──ok──▶ undoable ──5 s──▶ sent
-                  │                    │                │
-                  │                    │                └─undo()─▶ undone
-                  │                    └─refused/err──▶ failed ──retry──▶ sending (same requestId)
+idle ──tip()──▶ routed ──balance──▶ holding ──hold ends──▶ sending ──ok──▶ sent
+                  │                    │   ▲  │                    │
+                  │                    │   └──┘ tip() adds         └─refused/err──▶ failed ──retry──▶ sending (same requestId)
+                  │                    └─cancel() or app closed──▶ idle (nothing sent)
                   │
                   ├─balance+setupDevice─▶ device-setup ──signed──▶ sending
                   │                            └─declined─▶ routed
@@ -103,17 +110,17 @@ idle ──tip()──▶ routed ──balance──▶ sending ──ok──�
 (`accepted → on-chain → in-wallet`, or `not-paid`). The sheet closes at
 `sent`; the activity list shows the rest ([document 2](02-instant-state.md)).
 
-| Phase            | Entry                              | Exit                                                            | Shown                                  |
-| ---------------- | ---------------------------------- | --------------------------------------------------------------- | -------------------------------------- |
-| `routed`         | `tip()` or an amount change        | route-specific                                                  | amount, route action                   |
-| `device-setup`   | route `balance` with `setupDevice` | wallet signed `Tab.register_key` and Convex verified it by hash | "Approve once to tip from this device" |
-| `sending`        | balance route                      | `balance.send` answered                                         | optimistic: balance already lower      |
-| `undoable`       | accepted                           | 5 s elapse, or `undo()`                                         | "Sent $1 · Undo"                       |
-| `confirm-wallet` | route `wallet`                     | the reader presses "Pay from wallet"                            | amount, wallet address (short)         |
-| `signing`        | press                              | the wallet answered                                             | "Approve in your wallet"               |
-| `submitted`      | `recordSubmitted` stored the hash  | `getTipStatus` final                                            | optimistic "Sent", confirming quietly  |
-| `funding`        | route `needs-funds` or "Add funds" | deposit confirmed (verified by hash) or cancelled               | deposit amount, then "Adding $10"      |
-| `failed`         | any refusal or error               | retry, reroute, or close                                        | one sentence and one action            |
+| Phase            | Entry                              | Exit                                                            | Shown                                                    |
+| ---------------- | ---------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------- |
+| `routed`         | `tip()` or an amount change        | route-specific                                                  | amount, route action                                     |
+| `device-setup`   | route `balance` with `setupDevice` | wallet signed `Tab.register_key` and Convex verified it by hash | "Approve once to tip from this device"                   |
+| `holding`        | "Tip $X" pressed, balance route    | 3 s after the last press (5 s ceiling), or `cancel()`           | "Sending $3" and Cancel; balance unchanged               |
+| `sending`        | the hold ended                     | `balance.send` answered                                         | "Sending $3"; balance unchanged until the server accepts |
+| `confirm-wallet` | route `wallet`                     | the reader presses "Pay from wallet"                            | amount, wallet address (short)                           |
+| `signing`        | press                              | the wallet answered                                             | "Approve in your wallet"                                 |
+| `submitted`      | `recordSubmitted` stored the hash  | `getTipStatus` final                                            | "Sending", confirming quietly                            |
+| `funding`        | route `needs-funds` or "Add funds" | deposit confirmed (verified by hash) or cancelled               | deposit amount, then "Adding $10"                        |
+| `failed`         | any refusal or error               | retry, reroute, or close                                        | one sentence and one action                              |
 
 ## 1.3 Limits
 
@@ -121,11 +128,11 @@ v2 limited a balance tip to 5 XLM and a day to 20 XLM (`TAB_TIP_MAX`,
 `TAB_DAILY_LIMIT`). v3 replaces both with limits in cents, checked at the
 acceptance price:
 
-| Setting (Convex env)      | Default | Rule                                                    |
-| ------------------------- | ------- | ------------------------------------------------------- |
-| `BALANCE_TIP_MAX_CENTS`   | 2000    | A balance tip is at most $20.                           |
-| `BALANCE_DAILY_MAX_CENTS` | 10000   | Balance tips accepted per UTC day are at most $100.     |
-| `QUICK_TIP_MAX_CENTS`     | 500     | A tap without the sheet sends at most $5 (client rule). |
+| Setting (Convex env)      | Default | Rule                                                        |
+| ------------------------- | ------- | ----------------------------------------------------------- |
+| `BALANCE_TIP_MAX_CENTS`   | 2000    | A balance tip is at most $20.                               |
+| `BALANCE_DAILY_MAX_CENTS` | 10000   | Balance tips accepted per UTC day are at most $100.         |
+| `QUICK_TIP_MAX_CENTS`     | 500     | Presses during one hold add up to at most $5 (client rule). |
 
 A tip above a limit is routed to the wallet (R6) or to funding, never refused
 for the limit alone. The limits bound the damage of a misused device key and
@@ -161,8 +168,9 @@ is already in reactive state:
 most `TAB_PRICE_MAX_AGE_MS` old. Otherwise `balance.send` throws
 `BALANCE_PRICE_CHANGED` with the current price; the client re-signs once.
 
-If the pair changed between step 1 and step 5 (another device tipped the same
-writer), `balance.send` throws `BALANCE_PAIR_CHANGED` with the new pair state;
+If the pair changed between step 1 and step 5 (another browser tab on the
+same device, which shares the key, tipped the same writer; two devices have
+separate keys and so separate pairs), `balance.send` throws `BALANCE_PAIR_CHANGED` with the new pair state;
 the client re-signs once with it. A second conflict surfaces as `failed` with
 a retry.
 
@@ -196,23 +204,29 @@ it. Removed with it: `tipsV2.prepareBatch`, `hooks/useTipBasket.ts`,
 `lib/tip/v2/basket.ts`, `lib/tip/v2/open-basket.ts` and the basket
 components ([document 8](08-removals.md)).
 
-## 1.7 Undo
+## 1.7 The hold
 
-A tap sends without a sheet, so a mistaken tap needs a way back.
+There is no reversal after acceptance: a writer never sees a tip that is
+then taken back, and vouchers stay monotonic. The way back from a mistaken
+press is a short hold before anything is sent.
 
-- `balance.undo({ tipId })` succeeds when the receipt is `ACCEPTED`, is the
-  latest receipt of its pair, is in no settlement, and was accepted at most
-  `UNDO_WINDOW_MS` (10 s, server side; the client shows 5 s) ago.
-- Undo restores the pair to the previous receipt's voucher (each receipt
-  stores the voucher signature, root and acceptance it was accepted with),
-  lowers `seq`, `cumulative`, the account's `outstanding`, the day's
-  `acceptedTodayCents` and the writer's pending earnings, and marks the
-  receipt `UNDONE` (new status). Both activity rows disappear.
-- The client's local ledger records the undo, so its next signature builds on
-  the restored cumulative (`commitUndo` in `lib/stellar/v2/tab`).
-- The settler never selects a pair whose latest receipt is younger than
-  `UNDO_WINDOW_MS` ([section 3.2](03-settlement.md#32-scheduling)). Because a
-  run is scheduled 15 s after the first acceptance, undo never delays a run.
+- The hold starts at the first press of "Tip $X" on the `balance` route and
+  ends `HOLD_MS` (3 s) after the last press, at most `HOLD_MAX_MS` (5 s) after
+  the first. Presses during the hold add their amount, up to
+  `QUICK_TIP_MAX_CENTS`. The control shows the running amount and Cancel; the
+  copy says "Sending $3", never "Tipped" or "Sent".
+- During the hold nothing is signed, nothing is written to the outbox and
+  nothing reaches the server. Closing the app, reloading, navigating away from
+  the article or `cancel()` ends the hold with nothing sent, and nothing shows
+  on reopen.
+- When the hold ends, one tip of the summed amount goes through the balance
+  route (one `requestId`). The balance and the activity list change only when
+  `balance.send` returns `ACCEPTED`; no optimistic update before acceptance.
+- After acceptance the tip is final. There is no Undo control and no
+  server-side reversal.
+- The wallet and funding routes have no hold: their own confirmation press
+  is the commitment.
+- Slice 1 ships without the hold: a press sends at once.
 
 ## 1.8 Failure cases
 
@@ -220,7 +234,7 @@ A tap sends without a sheet, so a mistaken tap needs a way back.
 | ---------------------------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------- |
 | Double tap                                     | (none: a lock in `useTip`)                   | One `requestId` in flight per target                                          |
 | Network loss after `balance.send` was sent     | unknown                                      | Outbox resubmits the same `requestId` and signature; same answer (idempotent) |
-| Pair changed (other device)                    | `BALANCE_PAIR_CHANGED` + pair state          | Re-sign once, then `failed`                                                   |
+| Pair changed (other browser tab)               | `BALANCE_PAIR_CHANGED` + pair state          | Re-sign once, then `failed`                                                   |
 | Price moved                                    | `BALANCE_PRICE_CHANGED` + price              | Re-sign once                                                                  |
 | Balance short (another device spent it)        | `BALANCE_OVER_AVAILABLE`                     | Reroute (R6 or R7) with the same amount; no new prompt without a press        |
 | Over a limit                                   | `BALANCE_TIP_MAX` or `BALANCE_DAILY_MAX`     | Reroute                                                                       |
@@ -235,7 +249,7 @@ the logic track exports the code list (`BALANCE_ERROR_CODES`).
 
 ## 1.9 Idempotency
 
-- `requestId` is a UUID made at the tap. One `requestId` is one tip attempt
+- `requestId` is a UUID made when the hold ends. One `requestId` is one tip attempt
   on one route. A reroute after a refusal makes a new `requestId`; a refused
   attempt has no effect, so this cannot double-pay.
 - `balance.send` is idempotent on `requestId`: the same request with the same
@@ -244,7 +258,7 @@ the logic track exports the code list (`BALANCE_ERROR_CODES`).
   `clientRef` is derived from `requestId`, so the v2 uniqueness index on
   `clientRef` also holds.
 - The client outbox (`IndexedDB quilltip-session`, store `outbox`) keeps each
-  attempt from the tap until the server answers. On load, the session runtime
+  attempt from signing (after the hold) until the server answers. On load, the session runtime
   resubmits balance attempts and resumes wallet attempts from `getTipStatus`.
   Entries older than 24 hours are dropped.
 - A tip started while signed out is kept in `sessionStorage`
@@ -253,10 +267,10 @@ the logic track exports the code list (`BALANCE_ERROR_CODES`).
 
 ## 1.10 Schema and API changes
 
-- New `convex/balance.ts`: `session`, `tipContext`, `send`, `undo`, deposit
+- New `convex/balance.ts`: `session`, `tipContext`, `send`, deposit
   and device functions ([interfaces](interfaces.md#i3-convex-functions)).
   `tabs.prepareTip` and `tabs.submitTip` are removed.
-- `tabReceipts.status` gains `UNDONE`; `tabReceipts.segment`,
+- `tabReceipts.segment`,
   `tabVouchers.segment` and a registry `token` id on `tabAccounts`, `tabVouchers` and `tabReceipts` (derived from the Tab instance) are added.
 - `tabAccounts.acceptedToday` (base units) becomes `acceptedTodayCents`.
 - `tips` and `highlightTips` keep `channel`; balance tips write `channel: 'tab'`
@@ -268,12 +282,16 @@ the logic track exports the code list (`BALANCE_ERROR_CODES`).
 - `routeTip`: a table test over every rule R1 to R7 and every balance
   condition, including stale session data.
 - `balance.send` in `convex-test`: acceptance, every refusal code, idempotent
-  repeat, conflicting repeat, pair change by a second device, price change,
-  segment roll at receipt 257, undo inside and outside the window, undo after
-  a later receipt.
+  repeat, conflicting repeat, pair change from a second browser tab, two
+  devices tipping one writer at once (two pairs, both accepted), price
+  change, segment roll at receipt 257.
 - Pipeline with injected deps (`lib/payments/tip.ts`): every state machine
-  edge; outbox resubmit after a simulated reload; reroute after each
+  edge; presses during a hold add up and send one request; cancel and a
+  simulated app close during the hold send nothing and leave no outbox entry;
+  outbox resubmit after a reload during `sending`; reroute after each
   refusal; no second request while one is in flight.
 - Contract-level: a voucher over a two-segment pair settles (root is opaque).
-- Playwright (fake session, phone viewport): tap sends and shows undo; hold
-  opens the sheet; every route renders its step.
+- Playwright (fake session, phone viewport): the labelled button and the
+  amount choice work by tap and by keyboard; the hold shows "Sending $X" and
+  Cancel; the balance changes only after acceptance; the tipped passage stays
+  visible; every route renders its step.

@@ -56,8 +56,8 @@ fixtures, `scripts/tab-ui/*.test.ts`, the basket and flow tests in
 - v2 epoch history: `activity.backfill` also writes rows for the previous
   epoch, marked with that epoch, so readers and writers keep their history
   after the v3 epoch starts.
-- `Core.tip_batch` in the contract (unused by the client; the MPP `charge`
-  forwarder of [section 7.6](07-agent-payments.md#76-standard-mpp-charge-interop-designed-not-built) would use it).
+- `Core.tip_batch` in the contract (no client calls it; removing it would be
+  a contract change with no gain).
 - The `syncV2TipEarnings` cron, as a backstop.
 - The v2 deploy set in `scripts/contracts/deploy-v2/config.ts`, for the
   record of the v2 testnet deployment.

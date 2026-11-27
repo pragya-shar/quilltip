@@ -15,7 +15,7 @@ vouchers) and replaces when it runs and what the transaction does.
 | Item               | v2                                            | v3                                                                                   |
 | ------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------ |
 | Trigger            | Cron, 10 min                                  | Scheduled from acceptance, 15 s debounce; cron every minute as backstop              |
-| Due rule           | 6 h age, 5 XLM, closing, window ending        | Every `ready` pair whose latest receipt is older than the undo window                |
+| Due rule           | 6 h age, 5 XLM, closing, window ending        | Every `ready` pair whose oldest unsettled receipt is at least 15 s old               |
 | Batch              | Up to 32 vouchers                             | Up to 32 vouchers, sized to the network's footprint limits                           |
 | Writer's payout    | `Tab.claim` by the writer                     | Paid in `Tab.settle` ([contracts C2](contracts.md#c2-tab)); `claim` only as fallback |
 | Indexer dependency | None for settlement (result applied directly) | Unchanged; the indexer is kicked after each settlement                               |
@@ -72,8 +72,9 @@ Rules:
    hour. Past the cap, the next run is scheduled at the start of the next
    hour and `TAB_SETTLER_RATE_CAPPED` is logged.
 
-A pair is due when it is `ready` and its latest receipt is older than
-`UNDO_WINDOW_MS` (10 s). Order: closing accounts first, then the
+A pair is due when it is `ready` and its oldest unsettled receipt is at
+least `SETTLE_DEBOUNCE_MS` (15 s) old; nothing waits longer than about 60 s
+under load. Acceptance is final, so no receipt is held back. Order: closing accounts first, then the
 soonest key window end, then the oldest unsettled receipt (v2 `orderDue`
 without the age and amount rules). The v2 constants `DUE_AGE_MS` and
 `DUE_AMOUNT` are removed.
@@ -211,7 +212,8 @@ export const kick = internalMutation({ args: {}, returns: v.null(), handler })
   progress (`rerun`); reschedules after a full batch; hourly cap.
 - Run with injected deps (v2 test harness): resource failure halves without
   rejection; payee failure moves the payee to `hold`; payout outcomes applied;
-  lease TTL respected; due rule excludes receipts inside the undo window.
+  lease TTL respected; the due rule takes a pair 15 s after its oldest
+  unsettled receipt.
 - Contract tests for `settle` with payouts and `hold` ([contracts C5](contracts.md#c5-tests)).
 - Local network suite: 40 vouchers from 40 readers to 10 writers settle in
   at most 3 runs and every writer's token balance rises by its net.

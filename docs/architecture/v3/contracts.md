@@ -73,7 +73,7 @@ pause, upgrade and roles.
    `acceptor ∈ acceptor_keys`, a valid signature over
    `WithdrawPayload { domain, contract, network_id, reader, amount, nonce, valid_until }`,
    `nonce == WithdrawNonce(reader)`,
-   `now ≤ valid_until ≤ now + MAX_WITHDRAW_ATTESTATION` (720 ledgers, 1 hour)
+   `now ≤ valid_until ≤ now + MAX_WITHDRAW_ATTESTATION` (120 ledgers, about 10 minutes)
    and `0 < amount ≤ balance`. It increments the nonce, lowers the balance,
    transfers, cancels a pending delayed withdrawal if the balance becomes
    zero, and publishes `WithdrawnNow { reader, amount, nonce }`. It works
@@ -141,3 +141,83 @@ Extend the v2 Rust suites (`contracts/tab/src/test/*`):
 - `props.rs`: the sum of balances, claimables and payouts equals deposits
   minus withdrawals.
 - Core: `set_token` accepts a 16th token and refuses a 17th.
+- Settler (P2): a payee that fails in simulation is found by bisection and
+  held; a payee that fails on chain leaves the batch `FAILED` with nothing
+  moved and is held for 24 h.
+
+## C6. Security review of the changes
+
+The coordinator's review asked for three things: every v2 invariant
+([07 Security](../v2/07-security-and-recovery.md)) that the changes touch,
+the payout failure mode, and what an acceptor key compromise now allows. The
+multi-token Tab of the first draft is not in the set (C1), so it touches no
+invariant.
+
+### Invariants touched
+
+| Invariant                        | Change that touches it            | How it still holds                                                                                                                                                                                                                                                        |
+| -------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I-10 Conservation                | Payout; `withdraw_now`            | A paid writer's net leaves the contract in the same call that settles it and is never added to `Claimable`; `withdraw_now` lowers the balance by exactly the amount it transfers. Token balance = Σ balances + Σ `Claimable` after every call. `props.rs` checks it (C5). |
+| I-12 Settlement cap              | None                              | The spend limit and `min(delta, balance, headroom)` are unchanged.                                                                                                                                                                                                        |
+| I-13 Fee and net destination     | Payout                            | Restated: `fee` (cumulative rule, I-31) to `Claimable(treasury)`; `gross − fee` to the writer, as a transfer when the writer is not in `hold`, else to `Claimable(writer)`. The amounts are unchanged; only the destination of the net changes.                           |
+| I-16 Delayed withdrawal          | `withdraw_now` adds a second exit | The delayed path is unchanged. New I-16b: `withdraw_now` pays at most the balance, only to the reader, only with the reader's auth and an unexpired acceptor attestation for this reader, amount and current nonce; each nonce succeeds once.                             |
+| I-14 Voucher binding             | None                              | Voucher payloads are unchanged. New I-14b: the withdraw payload binds its own domain, the network, the Tab contract, the reader, the amount, the nonce and the expiry, so no voucher or acceptance signature verifies as an attestation.                                  |
+| I-18 `settle_own`                | Pays the caller directly          | Still requires a valid acceptance from `acceptor_keys` and only for the calling writer; the payment goes only to the caller.                                                                                                                                              |
+| I-22 Acceptance                  | Convex side of `withdraw_now`     | The balance rule becomes `outstanding + reserved + unindexedSettled + amount ≤ confirmedBalance`, so an attested withdrawal can never take funds an accepted voucher needs.                                                                                               |
+| I-25 TTL                         | New `WithdrawNonce`               | Extended on every write like other persistent entries.                                                                                                                                                                                                                    |
+| I-27 Pause never blocks exits    | `withdraw_now`                    | Added to the list of calls pause never blocks.                                                                                                                                                                                                                            |
+| I-28 Accounts never removed      | `withdraw_now`                    | A zero balance keeps the entry; `WithdrawNonce` never decreases, including across `migrate`.                                                                                                                                                                              |
+| I-29 Session and `Paid` lifetime | 90 day keys                       | Entries still live until `valid_until + SETTLE_GRACE` (at most 97 days); P1 checks this is inside the network's maximum entry lifetime, or lowers `MAX_KEY_LIFETIME`.                                                                                                     |
+| I-11, I-15, I-17, I-31           | None                              | Unchanged code paths.                                                                                                                                                                                                                                                     |
+
+### A payout that fails inside `settle`
+
+A Soroban call is atomic: if one transfer to a writer fails, the whole
+`settle` call fails and nothing in it applies. That is why a failing payee
+cannot block the batch:
+
+1. **Before sending**, the settler simulates. A simulation that fails while
+   `hold` is empty is simulated again with every writer in `hold`. If that
+   passes, the run bisects the payee set (at most 5 more simulations for 32
+   writers, inside `MAX_SIMULATIONS`) and puts the failing writers in `hold`.
+   The batch settles; held writers are credited to `Claimable`.
+2. **Causes covered:** a classic account without a trustline for a credit
+   asset (`TrustlineMissingError`), a trustline the issuer deauthorised, and
+   a non-SAC token whose `transfer` refuses the recipient. A Stellar Asset
+   Contract transfer to a contract address calls no code in the recipient, so
+   a contract account cannot refuse a SAC payout.
+3. **If the state changes between simulation and inclusion** (the writer
+   removes the trustline in that window), the transaction fails on chain:
+   v2's rule applies, the settlement is `FAILED`, nothing moves, and the pairs
+   return to `ready`. The writer gets `payoutHoldUntil = now + 24 h`, so the
+   next run holds them without a failing attempt. One failed transaction per
+   such writer per day is the worst case.
+4. Held amounts stay claimable by the writer at any time (`claim`), and the
+   settler retries held writers hourly when simulation shows a payout would
+   succeed (03, section 3.5).
+
+### Acceptor key compromise
+
+Before (v2): the acceptor key only countersigns vouchers a reader also
+signed; it cannot move funds alone (v2 threat table, "Tab acceptor key").
+
+With `withdraw_now`:
+
+- **Still impossible:** taking anyone's funds. `withdraw_now` needs the
+  reader's own auth and pays only the reader. An attacker with the key and no
+  reader's cooperation gains nothing.
+- **Newly possible:** a reader who holds the leaked key, or colludes with
+  whoever does, can withdraw their whole balance at once while vouchers that
+  Convex accepted are not yet settled. Those vouchers then settle as
+  `SHORTFALL`, and the writers lose earnings the app already showed as
+  pending. In v2 the 3 day delay gave the settler time to settle first.
+- **Bound:** the reader's accepted and unsettled amount, which the fast
+  settler keeps to about the last 15 to 60 s of that reader's tips, and the
+  cent limits (at most $100 accepted per reader per day).
+- **Detection and response:** the indexer flags a `WithdrawnNow` without a
+  matching `withdrawReserved` (`TAB_UNRESERVED_WITHDRAWAL` alert). The
+  response is `set_acceptor` twice (the contract keeps the current and the
+  previous key, so two rotations remove the leaked one), which also stops
+  `settle_own` under the old key. Pause does not help, because exits are
+  never paused (I-27).
+- **Mainnet:** the acceptor key moves to a KMS, as v2 already requires.
