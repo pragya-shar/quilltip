@@ -261,13 +261,21 @@
   }
   .qt-sample__dock {
     position: sticky;
-    inset-block-end: calc(var(--qt-safe-bottom) + var(--qt-space-3));
+    inset-block-end: var(--qt-safe-bottom);
     z-index: var(--qt-z-sticky);
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
     gap: var(--qt-space-3);
     margin-block-start: var(--qt-space-8);
+    margin-inline: calc(-1 * var(--qt-gutter-read));
+    padding: var(--qt-space-8) var(--qt-gutter-read) var(--qt-space-2);
+    /* A paper fade, so the line under the dock stays readable. */
+    background: linear-gradient(to top, var(--qt-paper) 55%, transparent);
+    pointer-events: none;
+  }
+  .qt-sample__dock > * {
+    pointer-events: auto;
   }
   .qt-sample__count {
     display: inline-flex;
