@@ -20,7 +20,9 @@ export function statusCopy(item: ActivityItem): {
       return reader
         ? {
             label: 'Sent',
-            detail: 'Final. It is on its way to the writer.',
+            detail: item.lagging
+              ? 'Final. It is taking longer than usual to reach the writer.'
+              : 'Final. It is on its way to the writer.',
             tone: 'plain',
           }
         : {

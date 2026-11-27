@@ -28,7 +28,13 @@ export function ActivityRow({
     item.status === 'sending' ||
     (item.status === 'not-paid' && item.paid.cents === 0)
   return (
-    <li className="qt-row" data-status={item.status} data-testid="activity-row">
+    <li
+      className="qt-row"
+      data-status={item.status}
+      data-lagging={item.lagging || undefined}
+      data-request-id={item.requestId ?? undefined}
+      data-testid="activity-row"
+    >
       <button
         type="button"
         aria-expanded={open}
