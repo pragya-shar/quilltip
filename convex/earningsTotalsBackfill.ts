@@ -11,8 +11,8 @@ import {
   addLifetimeTotals,
   addUnits,
   emptyLifetimeTotals,
-  subtractUnits,
   tipRowTotals,
+  totalsFromHistory,
   type LifetimeRebuild,
 } from './lib/lifetimeEarnings'
 
@@ -25,8 +25,8 @@ import {
 // then the tab pairs (`tabVouchers.by_writer`) of every writer address on
 // their tab rows and their current address. An interrupted run resumes from
 // the stored cursor. Credits made meanwhile go into the rebuild's sums when
-// it has already read the row or pair they change (`creditTipRowTotals`,
-// `notePairEarned`), so a busy writer never restarts.
+// it has already read the row or pair they change (`creditV1TipTotals`,
+// `creditTabTipTotals`, `notePairEarned`), so a busy writer never restarts.
 //
 // The last step writes the v1 and tab totals, and the wallet part of
 // `earnedBaseUnits` (`walletEarnedBaseUnits`: `earnedBaseUnits` less the
@@ -159,11 +159,7 @@ export const rebuildStep = internalMutation({
         tabPairs = addUnits(tabPairs, units)
       }
       await ctx.db.patch(id, {
-        ...r.totals,
-        walletEarnedBaseUnits: subtractUnits(
-          row.earnedBaseUnits ?? {},
-          tabPairs
-        ),
+        ...totalsFromHistory(r.totals, tabPairs, row.earnedBaseUnits),
         lifetimeTotalsAt: now,
         lifetimeRebuild: undefined,
         lifetimeRebuildTurnAt: undefined,

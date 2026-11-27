@@ -39,8 +39,8 @@ import {
   emptyLifetimeTotals,
   lifetimeFigures,
   readLifetimeTotals,
-  subtractUnits,
   tipRowTotals,
+  totalsFromHistory,
   type LifetimeTotals,
 } from './lib/lifetimeEarnings'
 import {
@@ -926,13 +926,11 @@ export const getMyEarningsSummary = query({
       const history = await readEarningsHistory(ctx, userId)
       if (earnings) {
         if (!history.complete) return updating
-        totals = {
-          ...history.totals,
-          walletEarnedBaseUnits: subtractUnits(
-            earnings.earnedBaseUnits ?? {},
-            history.pairNet
-          ),
-        }
+        totals = totalsFromHistory(
+          history.totals,
+          history.pairNet,
+          earnings.earnedBaseUnits
+        )
       } else {
         totals = history.totals
         complete = history.complete
@@ -942,11 +940,11 @@ export const getMyEarningsSummary = query({
     return {
       ...stored,
       tipCount: figures.tipCount,
-      writerShareStroops: totals.v1ShareStroops,
+      writerShareStroops: figures.v1Stroops,
       earnedStroops: figures.stroops.toString(),
       // Cents carry four decimals; dollars six, without float noise.
       estimatedUsd: Math.round(figures.cents * 10_000) / 1_000_000,
-      unpricedTipCount: totals.v1UnpricedTipCount,
+      unpricedTipCount: figures.unpriced,
       complete,
       updating: false,
     }

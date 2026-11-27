@@ -10,7 +10,7 @@ import { internal } from './_generated/api'
 import type { Doc } from './_generated/dataModel'
 import { verifyTipTransaction } from './lib/horizon'
 import { creditAuthorEarnings, writerShareCents } from './lib/authorEarnings'
-import { creditTipRowTotals } from './lib/lifetimeEarnings'
+import { creditV1TipTotals } from './lib/lifetimeEarnings'
 import {
   normalizeStellarTransactionHash,
   stellarTransactionHashLookupValues,
@@ -462,7 +462,7 @@ export const confirmVerifiedHighlightTip = internalMutation({
     // The verified row, by the lifetime totals' rule (#552).
     const verified = await ctx.db.get(args.id)
     if (verified) {
-      await creditTipRowTotals(ctx, intent.authorId, 'highlightTips', verified)
+      await creditV1TipTotals(ctx, intent.authorId, 'highlightTips', verified)
     }
   },
 })

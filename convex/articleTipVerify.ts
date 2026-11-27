@@ -20,7 +20,7 @@ import {
 } from './lib/constants'
 import { resolveHorizonUrl } from './stellarVerify'
 import { creditAuthorEarnings, writerShareCents } from './lib/authorEarnings'
-import { creditTipRowTotals } from './lib/lifetimeEarnings'
+import { creditV1TipTotals } from './lib/lifetimeEarnings'
 
 export const getArticleTipForVerify = internalQuery({
   args: { tipId: v.id('tips') },
@@ -226,7 +226,7 @@ export const confirmVerifiedArticleTip = internalMutation({
     // The verified row, by the lifetime totals' rule (#552).
     const verified = await ctx.db.get(args.tipId)
     if (verified) {
-      await creditTipRowTotals(ctx, tip.authorId, 'tips', verified)
+      await creditV1TipTotals(ctx, tip.authorId, 'tips', verified)
     }
 
     const [tipper, author] = await Promise.all([

@@ -23,7 +23,7 @@ import {
   newRowTotalsFields,
   tabShareCents,
 } from '../authorEarnings'
-import { creditTipRowTotals, notePairEarned } from '../lifetimeEarnings'
+import { creditTabTipTotals, notePairEarned } from '../lifetimeEarnings'
 import {
   isStellarAddressVerified,
   verifiedStellarAddress,
@@ -1278,7 +1278,7 @@ async function setReceiptStatus(
     // The settled row, by the lifetime totals' rule (#552).
     const settled = (await ctx.db.get(row._id)) as TipRow | null
     if (settled) {
-      await creditTipRowTotals(
+      await creditTabTipTotals(
         ctx,
         receipt.authorId,
         ctx.db.normalizeId('tips', settled._id) ? 'tips' : 'highlightTips',

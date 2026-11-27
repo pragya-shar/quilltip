@@ -26,7 +26,10 @@
  * changes, so the rebuild never restarts and never counts a tip twice.
  *
  * `tipRowTotals` is the one rule for a tip row: live credits, the rebuild and
- * the summary query apply it.
+ * the summary query apply it. Live writers, one per group: `creditV1TipTotals`
+ * (v1 verification), `creditUser` in `v2Earnings.ts` (wallet) and
+ * `creditTabTipTotals` (tab settlement). The rebuild replaces the totals with
+ * the same rule applied to the history.
  */
 import type { Infer } from 'convex/values'
 import type { Doc, Id } from '../_generated/dataModel'
@@ -165,18 +168,47 @@ async function earningsRow(ctx: MutationCtx, userId: Id<'users'>) {
 }
 
 /**
- * Adds a verified v1 tip or a settled tab tip to its author's totals. Call it
- * in the mutation that credits the tip, after the row is updated and after
- * `creditAuthorEarnings`.
+ * The only live writer of the `tab*` totals: the tab settlement credit
+ * (`setReceiptStatus`, once per receipt, when it becomes `SETTLED` and its
+ * row gets `earningsAppliedAt`). Writes nothing for any other row.
  */
-export async function creditTipRowTotals(
+export async function creditTabTipTotals(
   ctx: MutationCtx,
   userId: Id<'users'>,
   table: TipTable,
   row: TipRow
 ): Promise<void> {
   const delta = tipRowTotals(row)
-  if (!delta) return
+  if (delta?.tabTipCount !== 1) return
+  await creditRowTotals(ctx, userId, table, row, delta)
+}
+
+/**
+ * The only live writer of the `v1*` totals: v1 verification
+ * (`articleTipVerify`, `stellarVerify`). Writes nothing for any other row.
+ */
+export async function creditV1TipTotals(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  table: TipTable,
+  row: TipRow
+): Promise<void> {
+  const delta = tipRowTotals(row)
+  if (delta?.v1TipCount !== 1) return
+  await creditRowTotals(ctx, userId, table, row, delta)
+}
+
+/**
+ * Adds one row's totals, after the row is updated and after
+ * `creditAuthorEarnings`, in the mutation that credits the tip.
+ */
+async function creditRowTotals(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  table: TipTable,
+  row: TipRow,
+  delta: Partial<LifetimeTotals>
+): Promise<void> {
   const earnings = await earningsRow(ctx, userId)
   if (!earnings) return
   const r = earnings.lifetimeRebuild
@@ -232,14 +264,22 @@ export async function notePairEarned(
 }
 
 /**
- * The three summary figures from totals. XLM counts native XLM only
- * (`TOKEN_CONTRACT_ID`); `xlmToken` is null before payments v2.
+ * The summary figures from totals. XLM counts native XLM only
+ * (`TOKEN_CONTRACT_ID`); `xlmToken` is null before payments v2. `v1Stroops`
+ * is the v1 part of the XLM; `unpriced` counts legacy v1 tips without a
+ * trusted USD amount.
  */
 export function lifetimeFigures(
   totals: LifetimeTotals,
   wallet: { v2EarnedCents?: number; v2TipCount?: number } | null,
   xlmToken: string | null
-): { stroops: bigint; cents: number; tipCount: number } {
+): {
+  stroops: bigint
+  cents: number
+  tipCount: number
+  v1Stroops: string
+  unpriced: number
+} {
   const units = (record: BaseUnits) =>
     xlmToken ? BigInt(record[xlmToken] ?? '0') : BigInt(0)
   return {
@@ -254,6 +294,24 @@ export function lifetimeFigures(
     ),
     tipCount:
       totals.v1TipCount + (wallet?.v2TipCount ?? 0) + totals.tabTipCount,
+    v1Stroops: totals.v1ShareStroops,
+    unpriced: totals.v1UnpricedTipCount,
+  }
+}
+
+/**
+ * Totals from a history read (`tipRowTotals` over the rows) and the earned
+ * net of the user's tab pairs: the wallet XLM is the rest of
+ * `earnedBaseUnits`. The rebuild's last step and the summary use it.
+ */
+export function totalsFromHistory(
+  rows: LifetimeTotals,
+  tabPairsNet: BaseUnits,
+  earnedBaseUnits: BaseUnits | undefined
+): LifetimeTotals {
+  return {
+    ...rows,
+    walletEarnedBaseUnits: subtractUnits(earnedBaseUnits ?? {}, tabPairsNet),
   }
 }
 

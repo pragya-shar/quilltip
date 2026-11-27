@@ -35,6 +35,10 @@ import {
   creditAuthorEarnings,
   writerShareCents,
 } from '../../convex/lib/authorEarnings'
+import {
+  creditTabTipTotals,
+  creditV1TipTotals,
+} from '../../convex/lib/lifetimeEarnings'
 import { checkTabTipAmount, tabTipLimitsAt } from '../../lib/tab-ui/tip-limits'
 import { signEd25519 } from '../../lib/stellar/v2/tab/encoding'
 import {
@@ -1769,6 +1773,86 @@ describe('writer earnings summary with tab tips (#552)', () => {
     await rebuildAll(t)
     expect(await summary(t, s)).toMatchObject(lifetime(3))
     expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(3))
+  })
+
+  it('the tab totals are credited once per settled receipt: replays and later events add nothing', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    const settled = ev.tabSettled({
+      cumulative: BigInt(1_000_000),
+      paidAfter: BigInt(1_000_000),
+      gross: BigInt(1_000_000),
+    })
+    const credited = async () => {
+      const row = (await earningsRow(t, s.authorId))!
+      return {
+        tabTipCount: row.tabTipCount,
+        tabEarnedCents: row.tabEarnedCents,
+        tabSettledBaseUnits: row.tabSettledBaseUnits,
+        tipCount: row.tipCount,
+        totalEarnedCents: row.totalEarnedCents,
+      }
+    }
+    await ingest(t, settled)
+    const once = await credited()
+    expect(once).toEqual({
+      tabTipCount: 1,
+      tabEarnedCents: 9.75,
+      tabSettledBaseUnits: { [TOKEN]: '975000' },
+      tipCount: 1,
+      totalEarnedCents: 9.75,
+    })
+    // The same event again (a replay or a retried mutation).
+    await ingest(t, settled)
+    // Another report of the same payment.
+    await settleAll(t, BigInt(1_000_000))
+    // Later events on the pair and the key: a settled receipt stays settled.
+    await ingest(t, ev.voucherSkipped(BigInt(1_000_000), 2))
+    await ingest(t, ev.keyRevoked(READER, 0, LEDGER + 10))
+    expect(await receiptStatuses(t)).toEqual(['SETTLED'])
+    expect(await credited()).toEqual(once)
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(1))
+  })
+
+  it('each credit writes only its own totals: a row of another kind changes nothing', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await v1Rows(t, s.authorId, s.articleId, 1)
+    await walletRows(t, s, 1)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    // The first receipt settles; the second stays accepted.
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(1_000_000),
+        gross: BigInt(1_000_000),
+      })
+    )
+    await rebuildAll(t)
+    const before = await earningsRow(t, s.authorId)
+    await t.run(async (ctx) => {
+      const rows = (await ctx.db.query('tips').collect()).filter(
+        (r) => r.authorId === s.authorId
+      )
+      const v1 = rows.find((r) => r.contractVersion === undefined)!
+      const wallet = rows.find((r) => r.channel === 'direct')!
+      const settledTab = rows.find(
+        (r) => r.channel === 'tab' && r.earningsAppliedAt !== undefined
+      )!
+      const acceptedTab = rows.find(
+        (r) => r.channel === 'tab' && r.earningsAppliedAt === undefined
+      )!
+      for (const row of [settledTab, acceptedTab, wallet]) {
+        await creditV1TipTotals(ctx, s.authorId, 'tips', row)
+      }
+      for (const row of [v1, acceptedTab, wallet]) {
+        await creditTabTipTotals(ctx, s.authorId, 'tips', row)
+      }
+    })
+    expect(await earningsRow(t, s.authorId)).toEqual(before)
   })
 
   it('the rebuild writes only authorEarnings, and running it again changes nothing', async () => {
