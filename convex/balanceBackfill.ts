@@ -1,70 +1,70 @@
 /**
- * Backfill of the running money figures (`lib/chain/balanceFigures.ts`) for
- * receipts and collects indexed before the figures existed. Idempotent:
- * each receipt moves its money only from `moneyAppliedStatus` to its status,
- * and collected cents follow only the part of `collectedBaseUnits` not yet
- * applied, so running it again, or alongside live traffic, changes nothing.
+ * Backfill of the running money figures (`lib/chain/balanceFigures.ts`):
+ * recounts every reader's reserved cents and every writer's figures from
+ * their receipts (`lib/chain/balanceRecount.ts`), then rebuilds the
+ * writer's collected bookkeeping from the settled totals. Each writer and
+ * each reader is recounted in one mutation, so live traffic during the run
+ * is safe, and running it again writes the same values.
  *
  *   npx convex run balanceBackfill:start
+ *
+ * It credits receipts settled before the figures existed and repairs a row
+ * where an earlier, incremental backfill held collects as "ahead" of settled
+ * money it had not credited.
  */
 import { v } from 'convex/values'
 import { internal } from './_generated/api'
 import { internalMutation } from './_generated/server'
-import { syncCollectedCents } from './lib/chain/balanceFigures'
 import { readChainEnv } from './lib/chain/env'
-import { syncReceiptMoneyFor } from './lib/chain/tabLedger'
+import { recountReader, recountWriter } from './lib/chain/balanceRecount'
 
-const PAGE = 200
+const PAGE = 50
 
 export const start = internalMutation({
   args: {},
   handler: async (ctx) => {
-    await ctx.scheduler.runAfter(0, internal.balanceBackfill.receipts, {
+    await ctx.scheduler.runAfter(0, internal.balanceBackfill.readers, {
       cursor: null,
     })
   },
 })
 
-/** One page of receipts, then the next page, then the collects. */
-export const receipts = internalMutation({
+/** One page of readers' accounts, then the next page, then the writers. */
+export const readers = internalMutation({
   args: { cursor: v.union(v.string(), v.null()) },
   handler: async (ctx, args) => {
     const now = Date.now()
     const page = await ctx.db
-      .query('tabReceipts')
+      .query('tabAccounts')
       .paginate({ cursor: args.cursor, numItems: PAGE })
-    for (const receipt of page.page)
-      await syncReceiptMoneyFor(ctx, receipt._id, now)
-    if (!page.isDone) {
-      await ctx.scheduler.runAfter(0, internal.balanceBackfill.receipts, {
-        cursor: page.continueCursor,
-      })
-    } else {
-      await ctx.scheduler.runAfter(0, internal.balanceBackfill.collected, {
-        cursor: null,
-      })
-    }
-    return { synced: page.page.length, isDone: page.isDone }
+    for (const account of page.page) await recountReader(ctx, account, now)
+    await ctx.scheduler.runAfter(
+      0,
+      page.isDone
+        ? internal.balanceBackfill.writers
+        : internal.balanceBackfill.readers,
+      { cursor: page.isDone ? null : page.continueCursor }
+    )
+    return { readers: page.page.length, isDone: page.isDone }
   },
 })
 
-/** One page of writers' collected amounts, then the next. */
-export const collected = internalMutation({
+/** One page of users; each with receipts as a writer is recounted. */
+export const writers = internalMutation({
   args: { cursor: v.union(v.string(), v.null()) },
   handler: async (ctx, args) => {
     const now = Date.now()
-    const token = readChainEnv().tokenContractId
+    const token = readChainEnv().tokenContractId ?? ''
     const page = await ctx.db
-      .query('authorEarnings')
+      .query('users')
       .paginate({ cursor: args.cursor, numItems: PAGE })
-    if (token)
-      for (const row of page.page)
-        await syncCollectedCents(ctx, row.userId, token, now)
-    if (!page.isDone) {
-      await ctx.scheduler.runAfter(0, internal.balanceBackfill.collected, {
+    let writers = 0
+    for (const user of page.page)
+      if (await recountWriter(ctx, user._id, token, now)) writers += 1
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(0, internal.balanceBackfill.writers, {
         cursor: page.continueCursor,
       })
-    }
-    return { synced: page.page.length, isDone: page.isDone }
+    return { writers, isDone: page.isDone }
   },
 })

@@ -129,7 +129,7 @@ function setBig(
 }
 
 /** The writer's `authorEarnings` row, created empty when missing. */
-async function earningsRow(
+export async function earningsRow(
   ctx: MutationCtx,
   userId: Id<'users'>,
   now: number

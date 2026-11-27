@@ -44,6 +44,7 @@ import type * as lib_authorEarnings from "../lib/authorEarnings.js";
 import type * as lib_chain_articleEvents from "../lib/chain/articleEvents.js";
 import type * as lib_chain_articleStore from "../lib/chain/articleStore.js";
 import type * as lib_chain_balanceFigures from "../lib/chain/balanceFigures.js";
+import type * as lib_chain_balanceRecount from "../lib/chain/balanceRecount.js";
 import type * as lib_chain_canonicalJson from "../lib/chain/canonicalJson.js";
 import type * as lib_chain_coreEventHandlers from "../lib/chain/coreEventHandlers.js";
 import type * as lib_chain_env from "../lib/chain/env.js";
@@ -167,6 +168,7 @@ declare const fullApi: ApiFromModules<{
   "lib/chain/articleEvents": typeof lib_chain_articleEvents;
   "lib/chain/articleStore": typeof lib_chain_articleStore;
   "lib/chain/balanceFigures": typeof lib_chain_balanceFigures;
+  "lib/chain/balanceRecount": typeof lib_chain_balanceRecount;
   "lib/chain/canonicalJson": typeof lib_chain_canonicalJson;
   "lib/chain/coreEventHandlers": typeof lib_chain_coreEventHandlers;
   "lib/chain/env": typeof lib_chain_env;
