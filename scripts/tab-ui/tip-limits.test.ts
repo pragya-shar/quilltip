@@ -184,26 +184,28 @@ describe('presets', () => {
   })
 
   it('property: every preset lies between the minimum and the maximum', () => {
+    // 105,000 cases; collected and asserted once, so the test stays fast.
+    const broken: string[] = []
     for (let min = 1; min <= 150; min += 1) {
       for (let max = 1; max <= 700; max += 1) {
-        const presets = tabTipPresets(base, max, min)
+        const list = tabTipPresets(base, max, min)
+        const at = `min ${min}, max ${max}: ${JSON.stringify(list)}`
         if (max < min) {
-          expect(presets).toBeNull()
+          if (list !== null) broken.push(at)
           continue
         }
-        expect(presets, `min ${min}, max ${max}`).not.toBeNull()
-        const list = presets!
-        expect(list.length).toBeGreaterThanOrEqual(1)
-        expect(list.length).toBeLessThanOrEqual(base.length)
-        expect(new Set(list).size).toBe(list.length)
-        expect([...list].sort((a, b) => a - b)).toEqual(list)
-        for (const cents of list) {
-          expect(cents, `min ${min}, max ${max}: ${list}`).toBeLessThanOrEqual(
-            max
-          )
-          expect(cents).toBeGreaterThanOrEqual(min)
+        if (
+          list === null ||
+          list.length < 1 ||
+          list.length > base.length ||
+          new Set(list).size !== list.length ||
+          list.some((c, k) => k > 0 && c <= list[k - 1]!) ||
+          list.some((c) => c > max || c < min)
+        ) {
+          broken.push(at)
         }
       }
     }
+    expect(broken).toEqual([])
   })
 })
