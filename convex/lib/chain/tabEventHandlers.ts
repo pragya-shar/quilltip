@@ -142,7 +142,15 @@ async function absoluteBalance(
   if (account.balanceEventId && account.balanceEventId >= eventId) {
     return { applied: false, patch: null }
   }
-  const debits = await debitsAfter(ctx, account, eventId)
+  // Older than a balance already waiting for a reconciliation: that one
+  // or the reconciliation sets the balance, so read nothing.
+  if (
+    account.reconcileRequired &&
+    eventId <= account.reconcileRequired.eventId
+  ) {
+    return { applied: false, patch: null }
+  }
+  const debits = await debitsAfter(ctx, account, eventId, event.budget)
   if (debits === null) {
     // Too many later debits to read in one transaction. Apply nothing:
     // the account waits for a newer absolute balance or a reconciliation
@@ -201,7 +209,13 @@ async function applyAbsolute(
   const absolute = await absoluteBalance(ctx, account, event, balance)
   await patchAccount(ctx, account, event.now, absolute.patch, status)
   if (absolute.applied) {
-    await pruneBalanceDebits(ctx, account._id, event.doc.eventId)
+    await pruneBalanceDebits(
+      ctx,
+      account._id,
+      event.doc.eventId,
+      undefined,
+      event.budget
+    )
     await releaseIncludedReserves(ctx, account._id, {
       now: event.now,
       eventId: event.doc.eventId,
@@ -225,7 +239,8 @@ async function balanceDebit(
       account,
       event.doc.eventId,
       gross,
-      event.now
+      event.now,
+      event.budget
     ))
   ) {
     return null

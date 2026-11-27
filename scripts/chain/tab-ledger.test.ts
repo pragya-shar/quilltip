@@ -5414,6 +5414,51 @@ describe('spendable balance across settler records and indexed events', () => {
     expect((await account(t)).reconcileRequired).toBeUndefined()
   })
 
+  it('one mutation shares its read budget across events, and a tab already marked reads no more (#576)', async () => {
+    vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', '50')
+    vi.stubEnv('TAB_DEBIT_READ_BUDGET', '80')
+    const { t } = await opened(BigInt(30) * CENT, [])
+    await ingestAll(
+      t,
+      Array.from({ length: 40 }, (_, i) => otherSettled(i, LEDGER + 10 + i))
+    )
+    const later = GROSS * BigInt(40)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    // Three late top-ups in one mutation, each with 40 later debits to read:
+    // the first two use the budget of 80, the third finds none left and
+    // applies nothing.
+    const d1 = ev.deposited(READER, CENT, BigInt(31) * CENT, {
+      ledger: LEDGER + 5,
+    })
+    const d2 = ev.deposited(READER, CENT, BigInt(32) * CENT, {
+      ledger: LEDGER + 6,
+    })
+    const d3 = ev.deposited(READER, CENT, BigInt(33) * CENT, {
+      ledger: LEDGER + 7,
+    })
+    await ingest(t, d1, d2, d3)
+    expect(await balanceOf(t)).toBe(BigInt(32) * CENT - later)
+    expect((await account(t)).reconcileRequired).toMatchObject({
+      eventId: d3.id,
+    })
+    // A top-up older than the marked one: no read, no change.
+    await ingest(
+      t,
+      ev.deposited(READER, CENT, BigInt(40) * CENT, { ledger: LEDGER + 6 })
+    )
+    expect(await balanceOf(t)).toBe(BigInt(32) * CENT - later)
+    expect((await account(t)).reconcileRequired?.eventId).toBe(d3.id)
+    // A newer balance clears the mark; a re-dispatch of everything in one
+    // mutation then reads within its budget and changes nothing.
+    const truth = BigInt(34) * CENT - later
+    await ingest(t, ev.deposited(READER, CENT, truth, { ledger: LEDGER + 100 }))
+    expect(await balanceOf(t)).toBe(truth)
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+    await redispatchEvents(t)
+    expect(await balanceOf(t)).toBe(truth)
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+  })
+
   it('long runs: thousands of settlements between rare balances, delivered out of order, re-dispatched and replayed (#576)', async () => {
     for (const seedNo of [11, 12, 13, 14]) {
       const rand = prng(seedNo)

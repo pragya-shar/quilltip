@@ -21,6 +21,7 @@ import type { RawRpcEvent } from './rpc'
 import { CORE_EVENT_HANDLERS } from './coreEventHandlers'
 import { NFT_EVENT_HANDLERS } from './nftEventHandlers'
 import { TAB_EVENT_HANDLERS } from './tabEventHandlers'
+import { newDebitBudget, type DebitBudget } from './tabLedger'
 
 /** About one hour of ledgers. Beyond this lag the cursor is `LAGGING`. */
 export const LAG_ALERT_LEDGERS = 720
@@ -42,6 +43,8 @@ export type IndexedEvent = {
   doc: Doc<'chainEvents'>
   role: ContractRole
   now: number
+  /** Shared by every event of one mutation (`newDebitBudget`). */
+  budget?: DebitBudget
 }
 
 /** `done`: applied. `orphan`: valid, but no app record. `pending`: retry later. */
@@ -106,12 +109,13 @@ async function dispatch(
   ctx: MutationCtx,
   doc: Doc<'chainEvents'>,
   role: ContractRole,
-  now: number
+  now: number,
+  budget: DebitBudget
 ): Promise<HandlerResult> {
   const handler = EVENT_HANDLERS[`${role}:${doc.type}`]
   if (!handler) return 'pending'
   try {
-    return await handler(ctx, { doc, role, now })
+    return await handler(ctx, { doc, role, now, budget })
   } catch (error) {
     // A handler bug must not block the cursor: the event is kept as `error`
     // for review and can be dispatched again after a fix.
@@ -151,6 +155,7 @@ export async function ingestEvents(
     now: number
   }
 ): Promise<IngestResult> {
+  const budget = newDebitBudget()
   const result: IngestResult = {
     stored: 0,
     duplicates: 0,
@@ -236,7 +241,7 @@ export async function ingestEvents(
     })
     result.stored++
     const doc = (await ctx.db.get(id))!
-    const handled = await dispatch(ctx, doc, role, args.now)
+    const handled = await dispatch(ctx, doc, role, args.now, budget)
     result.byResult[handled] = (result.byResult[handled] ?? 0) + 1
     if (handled !== 'pending')
       await ctx.db.patch(id, { handled: handledFor(handled) })
@@ -254,10 +259,11 @@ export async function redispatchPending(
     .withIndex('by_handled', (q) => q.eq('handled', 'pending'))
     .take(args.limit)
   let resolved = 0
+  const budget = newDebitBudget()
   for (const doc of pending) {
     const role = roleOf(doc.contractId, args.roles)
     if (!role) continue
-    const handled = await dispatch(ctx, doc, role, args.now)
+    const handled = await dispatch(ctx, doc, role, args.now, budget)
     if (handled !== 'pending') {
       await ctx.db.patch(doc._id, { handled: handledFor(handled) })
       resolved++

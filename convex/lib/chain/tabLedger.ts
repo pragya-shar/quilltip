@@ -79,6 +79,30 @@ function debitScanLimit(): number {
     : DEFAULT_DEBIT_SCAN_LIMIT
 }
 
+/**
+ * Debit rows one mutation may read and delete across all the events it
+ * dispatches (an indexer page holds up to 250). Convex caps a transaction
+ * at 32,000 documents read and 16,000 written; these leave room for every
+ * other read and write of the page. `TAB_DEBIT_READ_BUDGET` lowers the
+ * read budget for tests.
+ */
+export const DEFAULT_DEBIT_READ_BUDGET = 8000
+export const DEFAULT_DEBIT_DELETE_BUDGET = 2000
+
+export type DebitBudget = { reads: number; deletes: number }
+
+/** A fresh budget for one mutation. */
+export function newDebitBudget(): DebitBudget {
+  const value = Number(process.env.TAB_DEBIT_READ_BUDGET)
+  return {
+    reads:
+      Number.isInteger(value) && value >= 0
+        ? Math.min(value, DEFAULT_DEBIT_READ_BUDGET)
+        : DEFAULT_DEBIT_READ_BUDGET,
+    deletes: DEFAULT_DEBIT_DELETE_BUDGET,
+  }
+}
+
 /** Covered debit rows deleted per absolute balance (`pruneBalanceDebits`). */
 export const DEBIT_PRUNE_BATCH = 500
 /** Covered debit rows deleted with each new debit, so a backlog drains. */
@@ -1560,7 +1584,8 @@ export async function recordBalanceDebit(
   >,
   eventId: string,
   gross: bigint,
-  now: number
+  now: number,
+  budget: DebitBudget = newDebitBudget()
 ): Promise<boolean> {
   if (account.balanceEventId && eventId < account.balanceEventId) return false
   if (account.settledSinceBalance.some((s) => s.eventId === eventId)) {
@@ -1584,7 +1609,8 @@ export async function recordBalanceDebit(
       ctx,
       account._id,
       account.balanceEventId,
-      DEBIT_PRUNE_STEP
+      DEBIT_PRUNE_STEP,
+      budget
     )
   }
   return true
@@ -1600,15 +1626,18 @@ export async function recordBalanceDebit(
 export async function debitsAfter(
   ctx: MutationCtx,
   account: Pick<Doc<'tabAccounts'>, '_id' | 'settledSinceBalance'>,
-  eventId: string
+  eventId: string,
+  budget: DebitBudget = newDebitBudget()
 ): Promise<bigint | null> {
-  const limit = debitScanLimit()
+  // Per event, and what is left of the mutation's budget.
+  const limit = Math.max(0, Math.min(debitScanLimit(), budget.reads))
   const rows = await ctx.db
     .query('tabBalanceDebits')
     .withIndex('by_account_event', (q) =>
       q.eq('tabAccountId', account._id).gt('eventId', eventId)
     )
     .take(limit + 1)
+  budget.reads = Math.max(0, budget.reads - rows.length)
   if (rows.length > limit) return null
   return [
     ...account.settledSinceBalance.filter((s) => s.eventId > eventId),
@@ -1626,15 +1655,19 @@ export async function pruneBalanceDebits(
   ctx: MutationCtx,
   tabAccountId: Id<'tabAccounts'>,
   beforeEventId: string,
-  limit = DEBIT_PRUNE_BATCH
+  limit = DEBIT_PRUNE_BATCH,
+  budget: DebitBudget = newDebitBudget()
 ): Promise<number> {
+  const take = Math.max(0, Math.min(limit, budget.deletes))
+  if (take === 0) return 0
   const rows = await ctx.db
     .query('tabBalanceDebits')
     .withIndex('by_account_event', (q) =>
       q.eq('tabAccountId', tabAccountId).lt('eventId', beforeEventId)
     )
-    .take(limit)
+    .take(take)
   for (const row of rows) await ctx.db.delete(row._id)
+  budget.deletes -= rows.length
   return rows.length
 }
 
