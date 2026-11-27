@@ -401,6 +401,21 @@ export const STATES: FixtureState[] = [
     },
     { txHash: HASH, summary: { amount: '100000000' } }
   ),
+  // The flow knows why it failed (here, Stellar testnet refused the send),
+  // so its failure copy replaces the polling copy.
+  progress(
+    'result-tab-op-failed-busy',
+    'tab-top-up',
+    {
+      tabOperation: { flow: 'tab-top-up', before: '200000000' },
+      tab: OPEN_TAB,
+      poll: 'FAILED',
+    },
+    {
+      failure: BUSY.show.kind === 'failed' ? BUSY.show.failure : null,
+      summary: { amount: '100000000' },
+    }
+  ),
   progress(
     'result-tab-op-expired',
     'tab-top-up',
