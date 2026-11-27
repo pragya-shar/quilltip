@@ -11,8 +11,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { Buffer } from 'buffer'
 import { Address, xdr } from '@stellar/stellar-sdk'
 import schema from '../../convex/schema'
+import type { RawRpcEvent } from '../../convex/lib/chain/rpc'
 import { api, internal } from '../../convex/_generated/api'
-import type { Doc } from '../../convex/_generated/dataModel'
+import type { Doc, Id } from '../../convex/_generated/dataModel'
 import {
   DAY_LEDGERS,
   SETTLE_GRACE_LEDGERS,
@@ -75,6 +76,8 @@ import {
   voucherRow,
   type Prepared,
   type ScEntry,
+  type Seeded,
+  type T,
 } from './tab-kit'
 
 withTabEnv()
