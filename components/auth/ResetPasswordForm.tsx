@@ -13,6 +13,8 @@ import {
 import { getPasswordRuleStatuses } from '@/lib/validations/password-rules'
 import { AccountField } from './AccountField'
 import { AccountPasswordToggle } from './AccountPasswordToggle'
+import { AccountSubmitLabel } from './AccountSubmitLabel'
+import { useEarlySubmit } from './useEarlySubmit'
 import {
   PASSWORD_REQUIREMENTS_ID,
   PasswordRequirements,
@@ -25,6 +27,7 @@ type Errors = Partial<Record<Field, string>>
 export function ResetPasswordForm() {
   const { signIn, signOut } = useAuthActions()
   const formRef = useRef<HTMLFormElement>(null)
+  const earlySubmit = useEarlySubmit('reset-password', formRef)
   const doneHeading = useRef<HTMLHeadingElement>(null)
   const [values, setValues] = useState({
     email: '',
@@ -147,7 +150,14 @@ export function ResetPasswordForm() {
       .join(' ') || undefined
 
   return (
-    <form ref={formRef} noValidate onSubmit={onSubmit} aria-busy={submitting}>
+    // A submit before the page scripts run is held, then sent through
+    // onSubmit (useEarlySubmit).
+    <form
+      {...earlySubmit}
+      noValidate
+      onSubmit={onSubmit}
+      aria-busy={submitting}
+    >
       {formError && (
         <div
           ref={errorBanner}
@@ -235,13 +245,9 @@ export function ResetPasswordForm() {
         />
       </AccountField>
       <button className="account-primary" type="submit" disabled={submitting}>
-        {submitting ? (
-          'Updating…'
-        ) : (
-          <>
-            Set new password <ArrowRight size={20} />
-          </>
-        )}
+        <AccountSubmitLabel busy={submitting} busyLabel="Updating…">
+          Set new password <ArrowRight size={20} />
+        </AccountSubmitLabel>
       </button>
     </form>
   )
