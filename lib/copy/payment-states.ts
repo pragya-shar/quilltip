@@ -42,7 +42,13 @@ export type GateCopy = CopyBlock & { action: string | null }
 /** Titles, details and actions per gate state. */
 export function gateCopy(
   kind: Exclude<WalletGateKind, 'ready'>,
-  options: { walletNetwork?: string; address?: string; ended?: boolean } = {}
+  options: {
+    walletNetwork?: string
+    address?: string
+    /** The linked address, for `other-account` (shortened). */
+    linked?: string
+    ended?: boolean
+  } = {}
 ): GateCopy {
   switch (kind) {
     case 'checking':
@@ -90,6 +96,14 @@ export function gateCopy(
         title: 'Switch your wallet to Testnet',
         detail: `Your wallet is on ${have}. Switch it to Testnet, then check again. Nothing was sent.`,
         action: 'Check again',
+      }
+    }
+    case 'other-account': {
+      const linked = options.linked ?? 'your linked address'
+      return {
+        title: `Switch your wallet to ${linked}`,
+        detail: `This is signed by ${linked}, the address linked to your Quilltip account. Your wallet is on ${options.address ?? 'another account'}. Switch accounts in your wallet, then connect again. Nothing was signed.`,
+        action: 'Connect again',
       }
     }
     case 'unverified':
@@ -375,6 +389,15 @@ export const WRONG_ACCOUNT_BEFORE_SIGNING = (
 ): CopyBlock => ({
   title: `Switch your wallet to ${linked}`,
   detail: `This is signed by ${linked}, the address linked to your Quilltip account. Your wallet is on ${wallet}. Switch accounts in your wallet, then try again. Nothing was signed.`,
+})
+
+/**
+ * The wallet signed with another account than the linked address, found
+ * after it answered; nothing was sent (address shortened).
+ */
+export const WRONG_ACCOUNT_AFTER_SIGNING = (linked: string): CopyBlock => ({
+  title: 'Your wallet signed with another account',
+  detail: `Switch your wallet to ${linked}, the address linked to your Quilltip account, or reconnect. Nothing was sent.`,
 })
 
 export const WALLET_FAILURE_COPY = {
