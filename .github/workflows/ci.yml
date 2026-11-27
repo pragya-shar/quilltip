@@ -237,10 +237,11 @@ jobs:
           NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
           NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
 
-  # Public reading in the application shell works with JavaScript off
-  # (e2e/reading-no-script.spec.ts), in Chromium and WebKit.
+  # Checks that need a production build: public reading with JavaScript off
+  # (D19), crossing into the shell, and each package's own (one file per
+  # package in scripts/app-checks), in Chromium and WebKit.
   no-script:
-    name: Reading without scripts
+    name: Production build checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -272,8 +273,8 @@ jobs:
           NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
           NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
 
-      - name: Read the shell's public routes with no script
-        run: bun scripts/system/no-script-check.ts
+      - name: Run every production-build check
+        run: bun scripts/app-checks/run.ts
 
   audit:
     name: Dependency Audit
@@ -603,7 +604,7 @@ jobs:
           check_result "Page-load Budget" "$PERF_BUDGET_RESULT"
           check_result "Font Fallbacks" "$FONT_FALLBACKS_RESULT"
           check_result "Content Security Policy" "$CSP_RESULT"
-          check_result "Reading without scripts" "$NO_SCRIPT_RESULT"
+          check_result "Production build checks" "$NO_SCRIPT_RESULT"
           check_result "Dependency Audit" "$AUDIT_RESULT"
           check_result "Contracts" "$CONTRACTS_RESULT"
           check_result "Contracts (local network)" "$CONTRACTS_INTEGRATION_RESULT"

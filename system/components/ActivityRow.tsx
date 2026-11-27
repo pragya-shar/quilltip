@@ -23,6 +23,10 @@ type ActivityRowBase = {
   time: string
   /** Overrides the status words. Defaults follow the copy deck. */
   statusText?: string
+  /** A second fact under the name, apart from the time: "from a $2 tip",
+   * "A reader". With `detailIcon: 'pending'` it carries the clock. */
+  detail?: ReactNode
+  detailIcon?: 'pending'
   /** Marks a row that arrived this session. */
   isNew?: boolean
   /** One action beside the amount, such as Thank. Never inside the row's
@@ -64,6 +68,8 @@ export function ActivityRow({
   status,
   time,
   statusText,
+  detail,
+  detailIcon,
   isNew,
   href,
   onPress,
@@ -92,6 +98,14 @@ export function ActivityRow({
           {title}
           {isNew ? <span className="qt-activity__new">New</span> : null}
         </span>
+        {detail ? (
+          <span className="qt-activity__detail">
+            {detailIcon === 'pending' ? (
+              <Icon icon={PendingIcon} size={16} />
+            ) : null}
+            {detail}
+          </span>
+        ) : null}
         {about ? <span className="qt-activity__about">{about}</span> : null}
         {words ? (
           <span className="qt-activity__status">

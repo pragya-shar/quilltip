@@ -39,7 +39,7 @@ test('one navigation: three places and the balance, as real links', async ({
   await expect(shelf).toHaveAttribute('href', '/shelf')
   await expect(shelf).toHaveAttribute('aria-current', 'page')
   const balance = nav(page).getByRole('link', {
-    name: /^Balance, \$18\.40 ready to tip$/,
+    name: 'Balance, 18 dollars 40. Open balance',
   })
   await expect(balance).toHaveAttribute('href', '/pocket')
   await expect(balance).toContainText('$18.40')
@@ -146,6 +146,57 @@ test('a sheet whose code fails to load says so and tries again', async ({
   await press(sheet.getByRole('button', { name: 'Try again' }))
   await expect(sheet.getByText('Loaded on demand.')).toBeVisible()
 })
+
+test('a converted balance reads about, and every state keeps the slot width', async ({
+  page,
+}) => {
+  await page.goto('/shelf?balance=converted')
+  const item = nav(page).getByRole('link', {
+    name: 'Balance, about 18 dollars 40. Open balance',
+  })
+  await expect(item).toContainText('≈')
+  await expect(item).toContainText('$18')
+  const widths: number[] = []
+  for (const state of [
+    'converted',
+    'ready',
+    'loading',
+    'unavailable',
+    'signed-out',
+  ]) {
+    await page.goto(`/shelf?balance=${state}`)
+    const box = await nav(page).locator('.qt-balance-slot').boundingBox()
+    widths.push(Math.round(box!.width))
+  }
+  expect(new Set(widths).size).toBe(1)
+})
+
+for (const width of [360, 390]) {
+  test(`a toast never covers the docked tip bar (${width} px)`, async ({
+    page,
+  }) => {
+    test.skip(wide(), 'Phone widths')
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto('/reading')
+    const dock = page.locator('.qt-dock')
+    await press(dock.getByRole('button', { name: /^Tip Tomás/ }))
+    const toast = page
+      .locator('.qt-toast')
+      .filter({ hasText: 'You tipped Tomás' })
+    await expect(toast).toBeVisible()
+    const a = (await toast.boundingBox())!
+    const b = (await dock.boundingBox())!
+    const overlap =
+      a.x < b.x + b.width &&
+      b.x < a.x + a.width &&
+      a.y < b.y + b.height &&
+      b.y < a.y + a.height
+    expect(
+      overlap,
+      `toast ${JSON.stringify(a)} dock ${JSON.stringify(b)}`
+    ).toBe(false)
+  })
+}
 
 test('the Pocket page, for links and for no script', async ({ page }) => {
   await page.goto('/pocket')
