@@ -2,15 +2,20 @@
  * Passage identity: sentence snapping and a stable `passageId`, one module for
  * the browser, the Convex functions and a later backfill of passage counts.
  *
- * Every rule here is plain string code with a fixed list of exceptions. It
- * uses no `Intl.Segmenter`, no locale and no engine-specific behaviour, so the
- * same article gives the same sentences and the same ids in every browser, in
- * Node and in the Convex runtime (the Convex project targets ES2021).
+ * Every rule here is plain string code with fixed lists of characters and
+ * exceptions. It uses no `Intl.Segmenter` and no locale, so the same article
+ * gives the same sentences and ids in every browser, in Node and in the Convex
+ * runtime (the Convex project targets ES2021). One limit: the rule calls
+ * `toUpperCase`/`toLowerCase`, `\p{L}`/`\p{N}` and NFC, which follow each
+ * engine's Unicode tables, so a character added in a newer Unicode version
+ * than an engine knows may be read differently there. The guard is the shared
+ * vectors (`lib/passages/vectors/identity-v1.json`), run in real browser
+ * engines as well as here.
  *
  * Offsets are counted the way highlight offsets are counted today
  * (`convex/lib/tiptapContent.ts`): the characters of the TipTap text nodes in
- * document order, with nothing between blocks. A sentence never crosses a
- * block (paragraph, heading, list item, code block).
+ * document order, with nothing between blocks and nothing at a hard break. A
+ * sentence never crosses a block (paragraph, heading, list item, code block).
  *
  * Identity follows the text, not the position: a passage's id is a hash of
  * the article id and the passage's normalized text. A sentence that moves
@@ -21,20 +26,35 @@
  *
  * Scheme `quilltip-passage-v1` fixes, exactly:
  *
- * 1. The passage text: the text of its sentences (`Sentence.text`), joined by
- *    one U+0020 SPACE.
+ * 1. Sentence text (`Sentence.text`): the characters from the sentence's start
+ *    to its end offset, with one U+0020 inserted at each hard break (or other
+ *    non-text inline node) inside. A passage's text is its sentences' texts
+ *    joined by one U+0020.
  * 2. Normalisation (`normalizePassageText`), in this order: Unicode NFC
- *    (`String.prototype.normalize('NFC')`); every run of characters that
- *    JavaScript's `\s` matches (Unicode White_Space, including U+00A0,
- *    U+2028, U+2029 and U+FEFF) replaced by one U+0020; leading and trailing
- *    spaces removed. Nothing else: letter case is kept, and quotation marks,
- *    apostrophes, dashes and every other character are kept as written (a
- *    curly quote and a straight quote give different ids).
+ *    (`String.prototype.normalize('NFC')`); every run of whitespace replaced
+ *    by one U+0020, where whitespace is exactly U+0009 to U+000D, U+0020,
+ *    U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F,
+ *    U+3000 and U+FEFF (JavaScript's `\s`; U+0085 and U+200B are not in it
+ *    and are kept); leading and trailing spaces removed. Nothing else: letter
+ *    case is kept, and quotation marks, apostrophes, dashes and every other
+ *    character are kept as written (a curly quote and a straight quote give
+ *    different ids).
  * 3. The id: the first 28 lowercase hex characters of SHA-256 over the UTF-8
  *    bytes of `quilltip-passage-v1` + LF + article id + LF + normalised text.
  *    An ambiguous passage hashes `quilltip-passage-v1:at` + LF + article id +
  *    LF + `<sentenceStart>:<sentenceEnd>` + LF + normalised text.
- * 4. The sentence rule below (terminators, closers, exceptions).
+ * 4. The sentence rule (`sentencesOf`):
+ *    a. A sentence ends after a terminator run (`TERMINATORS`) and any closing
+ *       marks (`CLOSERS`) when whitespace, a hard break or the block end
+ *       follows; after a wide terminator (`WIDE_TERMINATORS`) it ends at once.
+ *    b. It does not end there when the next character after the whitespace is
+ *       a lower-case letter; or, for a full stop, when the word before it is in
+ *       `ABBREVIATIONS`, is in `NUMBER_ABBREVIATIONS` and a digit follows, is
+ *       one letter (an initial), is dotted letters ("U.S.", "a.m.") and no
+ *       capital letter follows, or is a number that opens the sentence.
+ *    c. A piece with no letter or digit joins the sentence before it in its
+ *       block (the one after it when it opens the block); a block with no
+ *       letter or digit at all is one sentence.
  *
  * Any change to 1 to 4 that can change a stored id needs a new scheme string;
  * ids stored under an old scheme keep meaning what that scheme said.
@@ -73,8 +93,10 @@ export type Sentence = {
   start: number
   /** Offset after the last character. */
   end: number
-  /** `text.slice(start, end)`. */
+  /** `text.slice(start, end)`, with one space at each hard break inside. */
   text: string
+  /** `normalizePassageText(text)`: the form ids and quotes are compared in. */
+  key: string
 }
 
 export type SentenceRange = {
@@ -155,24 +177,32 @@ export function canonicalText(content: unknown): CanonicalText {
 // Sentences
 
 /**
- * Characters that end a sentence when whitespace (or the block end) follows:
- * full stop, exclamation and question marks, ellipsis, interrobang, the
- * Devanagari danda and double danda, the Arabic question mark and the Arabic
- * (Urdu) full stop.
+ * Characters that end a sentence when whitespace, a hard break or the block
+ * end follows: full stop, exclamation and question marks, ellipsis,
+ * interrobang, the Devanagari danda (U+0964) and double danda (U+0965), the
+ * Arabic question mark (U+061F), the Arabic full stop (U+06D4), the Armenian
+ * full stop (U+0589) and the Greek question mark (U+037E).
  */
 const TERMINATORS = new Set([
   '.',
   '!',
   '?',
-  '\u2026',
-  '\u203D',
-  '\u0964',
-  '\u0965',
-  '\u061F',
-  '\u06D4',
+  '…',
+  '‽',
+  '।',
+  '॥',
+  '؟',
+  '۔',
+  '։',
+  ';',
 ])
-/** Full-width terminators end a sentence even with no space after them. */
-const WIDE_TERMINATORS = new Set(['。', '！', '？'])
+/**
+ * Terminators that end a sentence with no space after them: the ideographic
+ * full stop (U+3002), the full-width exclamation and question marks (U+FF01,
+ * U+FF1F), the full-width full stop (U+FF0E) and the half-width ideographic
+ * full stop (U+FF61).
+ */
+const WIDE_TERMINATORS = new Set(['。', '！', '？', '．', '｡'])
 /** Characters that may follow a terminator and still belong to its sentence. */
 const CLOSERS = new Set([
   '"',
@@ -192,8 +222,8 @@ const CLOSERS = new Set([
 const OPENERS = /^["'([{‘“«‹]+/
 
 /**
- * Words that a full stop follows without ending a sentence. Compared in lower
- * case, without the final stop. Single letters (initials) are handled apart.
+ * Words that a full stop follows without ending the sentence, whatever comes
+ * next (titles and Latin abbreviations). Lower case, without the final stop.
  */
 const ABBREVIATIONS = new Set([
   'mr',
@@ -207,6 +237,17 @@ const ABBREVIATIONS = new Set([
   'st',
   'mt',
   'vs',
+  'e.g',
+  'i.e',
+  'cf',
+  'approx',
+])
+
+/**
+ * Words that keep the sentence open only before a number ("no. 5", "fig. 3"),
+ * because they are also ordinary words at the end of a sentence.
+ */
+const NUMBER_ABBREVIATIONS = new Set([
   'no',
   'nos',
   'fig',
@@ -214,12 +255,14 @@ const ABBREVIATIONS = new Set([
   'vol',
   'pp',
   'ch',
-  'e.g',
-  'i.e',
-  'cf',
-  'approx',
+  'p',
 ])
 
+/**
+ * Whitespace: exactly the characters JavaScript's `\s` matches (U+0009 to
+ * U+000D, U+0020, U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F,
+ * U+205F, U+3000, U+FEFF). U+0085 and U+200B are not whitespace here.
+ */
 const WHITESPACE = /\s/
 
 function isWhitespace(ch: string | undefined): boolean {
@@ -230,6 +273,13 @@ function isWhitespace(ch: string | undefined): boolean {
 function isLowercaseLetter(ch: string): boolean {
   return ch !== ch.toUpperCase() && ch === ch.toLowerCase()
 }
+
+/** A cased letter in upper case. */
+function isUppercaseLetter(ch: string): boolean {
+  return ch !== ch.toLowerCase() && ch === ch.toUpperCase()
+}
+
+const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u
 
 /** The code point at `i` as a string (one or two UTF-16 units). */
 function codePointString(text: string, i: number): string {
@@ -255,27 +305,53 @@ function keepsSentenceOpen(
   if (text[stop] !== '.') return false
   const word = wordBefore(text, sentenceStart, stop)
   if (word.length === 0) return false
-  if (ABBREVIATIONS.has(word.toLowerCase())) return true
+  const lower = word.toLowerCase()
+  if (ABBREVIATIONS.has(lower)) return true
+  if (NUMBER_ABBREVIATIONS.has(lower)) return /^\p{N}/u.test(next)
   // An initial: one letter ("J. R. Tolkien").
   if (codePointString(word, 0).length === word.length && /\p{L}/u.test(word))
     return true
-  // Dotted single letters ("U.S.", "a.m.").
-  if (/^(?:\p{L}\.)+\p{L}$/u.test(word)) return true
+  // Dotted letters ("U.S.", "a.m."): open unless a capital letter follows.
+  if (/^(?:\p{L}\.)+\p{L}$/u.test(word)) return !isUppercaseLetter(next)
   // A list number that opens the sentence ("1. First").
   if (/^\d+$/.test(word) && text.slice(sentenceStart, stop) === word)
     return true
   return false
 }
 
-/** Splits one block into sentences, appended to `out`. */
-function blockSentences(
+/** Closers between the last terminator of the run at `i` and `j`. */
+function countClosers(text: string, i: number, j: number): number {
+  let n = 0
+  while (j - 1 - n > i && CLOSERS.has(text[j - 1 - n]!)) n++
+  return n
+}
+
+/** `text.slice(start, end)` with one space at each hard break inside. */
+function textWithBreaks(
   text: string,
-  block: CanonicalBlock,
-  out: Sentence[]
-): void {
+  gaps: number[],
+  start: number,
+  end: number
+): string {
+  let out = ''
+  let at = start
+  for (const gap of gaps) {
+    if (gap <= start || gap >= end) continue
+    out += `${text.slice(at, gap)} `
+    at = gap
+  }
+  return out + text.slice(at, end)
+}
+
+/** Splits one block into `[start, end)` pieces at sentence ends. */
+function blockPieces(
+  text: string,
+  block: CanonicalBlock
+): Array<[number, number]> {
   const gaps = new Set(block.gaps)
   const breakAt = (i: number) =>
     i >= block.end || gaps.has(i) || isWhitespace(text[i])
+  const pieces: Array<[number, number]> = []
   let i = block.start
   while (i < block.end && isWhitespace(text[i])) i++
   while (i < block.end) {
@@ -322,26 +398,62 @@ function blockSentences(
       end = block.end
       while (end > start && isWhitespace(text[end - 1])) end--
     }
-    if (end > start) {
-      out.push({ index: out.length, start, end, text: text.slice(start, end) })
-    }
+    if (end > start) pieces.push([start, end])
     i = end
     while (i < block.end && isWhitespace(text[i])) i++
   }
+  return pieces
 }
 
-/** Closers between the last terminator of the run at `i` and `j`. */
-function countClosers(text: string, i: number, j: number): number {
-  let n = 0
-  while (j - 1 - n > i && CLOSERS.has(text[j - 1 - n]!)) n++
-  return n
+/**
+ * A sentence needs a letter or a digit: a piece of punctuation only (". . .",
+ * "?!") joins the sentence before it in the block, or the one after it when it
+ * opens the block. A block with no letter or digit at all is one sentence.
+ */
+function mergePunctuation(
+  text: string,
+  pieces: Array<[number, number]>
+): Array<[number, number]> {
+  const hasWord = (p: [number, number]) =>
+    LETTER_OR_DIGIT.test(text.slice(p[0], p[1]))
+  if (!pieces.some(hasWord)) {
+    const first = pieces[0]
+    const last = pieces[pieces.length - 1]
+    return first && last ? [[first[0], last[1]]] : []
+  }
+  const out: Array<[number, number]> = []
+  let pending: number | null = null
+  for (const piece of pieces) {
+    if (!hasWord(piece)) {
+      const previous = out[out.length - 1]
+      if (previous) previous[1] = piece[1]
+      else pending ??= piece[0]
+      continue
+    }
+    out.push([pending ?? piece[0], piece[1]])
+    pending = null
+  }
+  return out
 }
 
 /** The article's sentences, in order, numbered from 0. */
 export function sentencesOf(canonical: CanonicalText): Sentence[] {
   const out: Sentence[] = []
-  for (const block of canonical.blocks)
-    blockSentences(canonical.text, block, out)
+  for (const block of canonical.blocks) {
+    for (const [start, end] of mergePunctuation(
+      canonical.text,
+      blockPieces(canonical.text, block)
+    )) {
+      const text = textWithBreaks(canonical.text, block.gaps, start, end)
+      out.push({
+        index: out.length,
+        start,
+        end,
+        text,
+        key: normalizePassageText(text),
+      })
+    }
+  }
   return out
 }
 
@@ -392,10 +504,35 @@ export function rangeOfSentences(
 
 /**
  * The text of an offset range as a reader sees it: within a block the
- * article's own characters, between blocks one space (the same join as a
- * highlight's stored `text`).
+ * article's own characters with one space at each hard break, between blocks
+ * one space (the same join as a highlight's stored `text`).
  */
 export function passageText(
+  canonical: CanonicalText,
+  startOffset: number,
+  endOffset: number
+): string {
+  const parts: string[] = []
+  for (const block of canonical.blocks) {
+    if (block.end <= startOffset || block.start >= endOffset) continue
+    parts.push(
+      textWithBreaks(
+        canonical.text,
+        block.gaps,
+        Math.max(block.start, startOffset),
+        Math.min(block.end, endOffset)
+      )
+    )
+  }
+  return parts.join(' ')
+}
+
+/**
+ * The text a highlight row stores for an offset range
+ * (`convex/lib/tiptapContent.ts`): the characters of the range, nothing at a
+ * hard break, one space between blocks. Only for comparing with such rows.
+ */
+export function highlightTextAt(
   canonical: CanonicalText,
   startOffset: number,
   endOffset: number
@@ -415,7 +552,8 @@ export function passageText(
 
 /**
  * The form a passage's text is compared and hashed in: Unicode NFC, every
- * whitespace run as one space, no space at either end.
+ * whitespace run (the set listed at `WHITESPACE`) as one U+0020, no space at
+ * either end.
  */
 export function normalizePassageText(text: string): string {
   return text.normalize('NFC').replace(/\s+/g, ' ').trim()
@@ -427,18 +565,18 @@ export function sentenceRangeText(
   from: number,
   to: number
 ): string {
-  return normalizePassageText(
-    sentences
-      .slice(from, to + 1)
-      .map((s) => s.text)
-      .join(' ')
-  )
+  return sentences
+    .slice(from, to + 1)
+    .map((s) => s.key)
+    .join(' ')
 }
 
 /**
  * Every sentence range whose normalized text equals `quote`, as
  * `[sentenceStart, sentenceEnd]` pairs. Word for word: a near match, or the
- * quote inside a longer sentence, is not a match.
+ * quote inside a longer sentence, is not a match. A range is tried only from
+ * a sentence the quote starts with, and grown only while the quote still
+ * starts with it, so the cost is about the article's length.
  */
 export function findPassage(
   sentences: Sentence[],
@@ -448,10 +586,19 @@ export function findPassage(
   if (!target) return []
   const found: Array<[number, number]> = []
   for (let from = 0; from < sentences.length; from++) {
-    for (let to = from; to < sentences.length; to++) {
-      const key = sentenceRangeText(sentences, from, to)
-      if (key === target) found.push([from, to])
-      if (key.length >= target.length) break
+    const head = sentences[from]!.key
+    if (head !== target && !target.startsWith(`${head} `)) continue
+    let joined = head
+    for (let to = from; ; ) {
+      if (joined === target) {
+        found.push([from, to])
+        break
+      }
+      to++
+      const next = sentences[to]
+      if (!next) break
+      joined = `${joined} ${next.key}`
+      if (joined !== target && !target.startsWith(`${joined} `)) break
     }
   }
   return found
@@ -553,7 +700,8 @@ export async function legacyPassageOf(
     return own
   const canonical = canonicalText(article.content)
   if (endOffset > canonical.text.length) return own
-  if (passageText(canonical, startOffset, endOffset) !== row.text) return own
+  if (highlightTextAt(canonical, startOffset, endOffset) !== row.text)
+    return own
   const sentences = sentencesOf(canonical)
   const identity = await identifyPassage(
     String(article._id),

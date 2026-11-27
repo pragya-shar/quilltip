@@ -15,6 +15,7 @@ import {
   identifyRange,
   legacyPassageOf,
   normalizePassageText,
+  highlightTextAt,
   passageText,
   rangeOfSentences,
   sentenceRange,
@@ -121,7 +122,7 @@ describe('shared vectors', () => {
         canonical.blocks.map((b) => c.text.slice(b.start, b.end)).join(' ')
       ).toBe(extractTextFromTiptapJson(c.content))
       for (const s of sentencesOf(canonical)) {
-        const text = passageText(canonical, s.start, s.end)
+        const text = highlightTextAt(canonical, s.start, s.end)
         expect(() =>
           resolveCanonicalHighlightPassage(c.content, {
             highlightText: text,
@@ -233,6 +234,80 @@ describe('no Intl.Segmenter', () => {
         sentencesOf(canonicalText(c.content)).map((s) => s.text)
       )
     ).toEqual(expected)
+  })
+})
+
+describe('rule details', () => {
+  const texts = (c: unknown) => sentencesOf(canonicalText(c)).map((s) => s.text)
+
+  test('a hard break is one space in the text, and no character in the offsets', () => {
+    const content = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'one' },
+            { type: 'hardBreak' },
+            { type: 'text', text: 'two.' },
+          ],
+        },
+      ],
+    }
+    const canonical = canonicalText(content)
+    expect(canonical.text).toBe('onetwo.')
+    expect(texts(content)).toEqual(['one two.'])
+    expect(passageText(canonical, 0, 7)).toBe('one two.')
+    expect(highlightTextAt(canonical, 0, 7)).toBe('onetwo.')
+  })
+
+  test('punctuation alone is never a sentence', () => {
+    expect(texts(para('. . . ? ! Then go.'))).toEqual(['. . . ? ! Then go.'])
+    expect(texts(para('Go. . . . ? ! Now.'))).toEqual(['Go. . . . ? !', 'Now.'])
+    expect(texts(para('?!'))).toEqual(['?!'])
+  })
+
+  test('the whitespace set is JavaScript \\s: U+0085 and U+200B are kept', () => {
+    expect(normalizePassageText('a\u0085b\u200Bc\u3000d\u205Fe')).toBe(
+      'a\u0085b\u200Bc d e'
+    )
+  })
+})
+
+describe('cost', () => {
+  test('10,000 sentences: snapping, finding and naming a passage stay fast', async () => {
+    const text = Array.from(
+      { length: 10_000 },
+      (_, i) => `Line ${i} is here.`
+    ).join(' ')
+    const canonical = canonicalText(para(text))
+    const started = Date.now()
+    const sentences = sentencesOf(canonical)
+    expect(sentences).toHaveLength(10_000)
+    expect(findPassage(sentences, 'Line 9999 is here.')).toEqual([[9999, 9999]])
+    expect(findPassage(sentences, 'Line 5 is here. Line 6 is here.')).toEqual([
+      [5, 6],
+    ])
+    const last = sentences[9999]!
+    const id = await identifyPassage(
+      ARTICLE,
+      canonical,
+      sentences,
+      last.start,
+      last.end
+    )
+    expect(id!.ambiguous).toBe(false)
+    // Linear work: well under a second even on a loaded machine.
+    expect(Date.now() - started).toBeLessThan(2_000)
+  })
+
+  test('10,000 identical sentences: finding them all is still bounded', () => {
+    const text = Array.from({ length: 10_000 }, () => 'Same line.').join(' ')
+    const sentences = sentencesOf(canonicalText(para(text)))
+    const started = Date.now()
+    expect(findPassage(sentences, 'Same line.')).toHaveLength(10_000)
+    expect(findPassage(sentences, 'Same line. Same line. Other.')).toEqual([])
+    expect(Date.now() - started).toBeLessThan(2_000)
   })
 })
 

@@ -10,8 +10,8 @@ export const passagesTables = {
     /** 8 characters from `SHARE_CODE_ALPHABET`. */
     code: v.string(),
     /**
-     * `canonical`: made without an account; the code is derived from the
-     * article and the passage (`canonicalCode`), one row per line.
+     * `canonical`: made without an account; one row per line, its code keyed
+     * from the article and the passage with a server secret (`canonicalCode`).
      * `personal`: made by a signed-in person; a random code per sharer.
      */
     kind: v.union(v.literal('canonical'), v.literal('personal')),
@@ -41,7 +41,6 @@ export const passagesTables = {
     clearedAt: v.optional(v.number()),
   })
     .index('by_code', ['code'])
-    .index('by_article_passage', ['articleId', 'passageId'])
     .index('by_article_passage_sharer', [
       'articleId',
       'passageId',

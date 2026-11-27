@@ -1,24 +1,26 @@
 /**
  * Passage share links: `/p/<code>`. A line the author removed or changed is
- * never shown again through a shared link, and a link to an unpublished or
- * deleted article cannot be told apart from a code that never existed.
+ * never shown again through a shared link, and a link whose line is gone, or
+ * whose article is unpublished or deleted, cannot be told apart from a code
+ * that never existed.
  *
  * - `create` snaps a passage to whole sentences on the server. A share made
- *   without an account gets the line's canonical code (derived from the
- *   article and the passage), so any number of signed-out people sharing one
- *   line make one row. A signed-in share gets a personal code per sharer.
- *   Both kinds of code can exist for the same line and resolve alike; neither
- *   says who shared, and `resolve` never returns the sharer.
+ *   without an account is one sentence and gets the line's canonical code,
+ *   keyed with a server secret, so any number of signed-out people sharing one
+ *   line make one row and nobody can compute which lines were shared. A
+ *   signed-in share gets a personal code per sharer. Both kinds can exist for
+ *   one line and resolve alike; neither says who shared. Signed-out and
+ *   signed-in sharing have separate budgets.
  * - `resolve` is called by the `/p/[code]` server component. It answers
- *   `exact`, `moved` or `changed`, and the same `null` for an unknown code and
- *   for an article that is unpublished or gone. It never returns the stored
- *   quote; a passage's text always comes from the current published article.
- *   It writes only when it finds a stale quote.
+ *   `exact` or `moved` with the line's current text, `changed` when the line
+ *   still exists but occurs more than once, and the same `null` for an unknown
+ *   code, a line that is gone, and an unpublished or deleted article. It never
+ *   returns the stored quote or the sharer.
  * - The stored quote exists only to find the sentence again. It is cleared
- *   (with the passage fields) once it no longer matches the published text:
- *   by `reconcileArticle`, which the article's publish, edit, unpublish and
- *   delete paths schedule; by `resolve`; and by `sweep`, the safety net for a
- *   path that missed its call.
+ *   (with the passage fields) once the line is gone or the article is not
+ *   public: by `reconcileArticle`, which the article's publish, edit, unpublish
+ *   and delete paths schedule; by `clearIfStale`, which `resolve` schedules;
+ *   and by `sweep`, the safety net for a path that missed its call.
  */
 import { ConvexError, v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -34,7 +36,6 @@ import {
   canonicalText,
   findPassage,
   identifyRange,
-  passageText,
   rangeOfSentences,
   sentenceRange,
   sentenceRangeText,
@@ -44,24 +45,31 @@ import {
 
 /** Longest quote a share stores; a longer passage cannot be shared. */
 export const MAX_SHARE_QUOTE = 500
+/** Articles with more sentences than this cannot be shared from. */
+export const MAX_SHAREABLE_SENTENCES = 10_000
 export const SHARE_CODE_LENGTH = 8
 /** 32 characters: a to z without l and o, and 2 to 9. */
 export const SHARE_CODE_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789'
-/** Labels the canonical code's hash input. */
+/** Labels the canonical code's keyed hash input. */
 export const CANONICAL_CODE_SCHEME = 'quilltip-share-v1'
 /**
- * Canonical codes tried for one line: generation 0 first; a generation whose
- * row was cleared, or whose code another row holds, is skipped.
+ * Convex deployment variable: the key of the canonical codes (at least 32
+ * characters). Without it, signed-out sharing is refused.
  */
+export const SHARE_CODE_SECRET_ENV = 'SHARE_CODE_SECRET'
+/** Canonical codes tried for one line before a random code is used. */
 export const CANONICAL_GENERATIONS = 16
 
 const HOUR_MS = 60 * 60 * 1000
-/** New personal codes per signed-in person per hour. */
+const DAY_MS = 24 * HOUR_MS
+/** Signed in: new codes per person per hour. */
 export const SHARES_PER_USER_PER_HOUR = 30
-/** New share rows per article per hour, both kinds. */
-export const SHARES_PER_ARTICLE_PER_HOUR = 200
-/** New share rows in all per hour: a bound on table growth. */
-export const SHARES_PER_HOUR = 10_000
+/** Signed in: new codes per article per hour, and in all per hour. */
+export const SIGNED_IN_SHARES_PER_ARTICLE_PER_HOUR = 200
+export const SIGNED_IN_SHARES_PER_HOUR = 10_000
+/** Signed out: new codes per article per day, and in all per day. */
+export const SIGNED_OUT_SHARES_PER_ARTICLE_PER_DAY = 500
+export const SIGNED_OUT_SHARES_PER_DAY = 50_000
 /** Rows one reconcile or sweep step reads. */
 export const RECONCILE_BATCH = 100
 /** Sweep steps chained from one cron run. */
@@ -96,6 +104,7 @@ const resolvedValidator = v.union(
         sentenceEnd: v.number(),
         startOffset: v.number(),
         endOffset: v.number(),
+        /** Normalized, at most `MAX_SHARE_QUOTE` characters. */
         text: v.string(),
       })
     ),
@@ -120,19 +129,38 @@ function randomCode(): string {
   return codeFromBytes(bytes)
 }
 
-/** Generation `n` of a line's canonical code. */
+/** The canonical-code key, or null when the deployment has none. */
+export function shareCodeSecret(): string | null {
+  const secret = process.env[SHARE_CODE_SECRET_ENV]?.trim()
+  return secret && secret.length >= 32 ? secret : null
+}
+
+/**
+ * Generation `n` of a line's canonical code: HMAC-SHA-256 keyed with the
+ * deployment's secret over the scheme, article id, passage id and generation.
+ */
 export async function canonicalCode(
+  secret: string,
   articleId: string,
   passageId: string,
   generation: number
 ): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    'SHA-256',
-    new TextEncoder().encode(
+  const encoder = new TextEncoder()
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret) as BufferSource,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  )
+  const mac = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    encoder.encode(
       `${CANONICAL_CODE_SCHEME}\n${articleId}\n${passageId}\n${generation}`
     ) as BufferSource
   )
-  return codeFromBytes(new Uint8Array(digest))
+  return codeFromBytes(new Uint8Array(mac))
 }
 
 async function clearShare(
@@ -155,12 +183,14 @@ async function clearShare(
 type Located =
   | { status: 'exact' | 'moved'; from: number; to: number }
   | { status: 'changed' }
+  | { status: 'gone' }
 
 /**
- * Where a share's quote is in the current text. `exact`: the same content
- * version and the quote still at its sentences. `moved`: the article changed
- * and the quote occurs exactly once. Anything else is `changed`: no match, a
- * near match, or more than one match.
+ * Where a share's quote is in the current text. `exact`: found exactly once
+ * at its stored sentences (or, at the same content version, at its stored
+ * sentences among several). `moved`: found exactly once elsewhere. `changed`:
+ * found more than once, so the line exists but cannot be told apart. `gone`:
+ * not found word for word (removed, edited, or only a near match).
  */
 function locate(
   share: Doc<'shares'>,
@@ -168,32 +198,29 @@ function locate(
   sentences: Sentence[]
 ): Located {
   const quote = share.quote
-  if (quote === null) return { status: 'changed' }
-  const version = article.contentVersion ?? null
-  const from = share.sentenceStart
-  const to = share.sentenceEnd
-  if (
-    version === share.contentVersion &&
-    from !== null &&
-    to !== null &&
-    to < sentences.length &&
-    sentenceRangeText(sentences, from, to) === quote
-  ) {
-    return { status: 'exact', from, to }
-  }
+  if (quote === null) return { status: 'gone' }
   const found = findPassage(sentences, quote)
-  const only = found.length === 1 ? found[0] : undefined
-  if (!only) return { status: 'changed' }
-  return { status: 'moved', from: only[0], to: only[1] }
+  const stored = (f: [number, number]) =>
+    f[0] === share.sentenceStart && f[1] === share.sentenceEnd
+  if (found.length === 1) {
+    const [from, to] = found[0]!
+    return { status: stored(found[0]!) ? 'exact' : 'moved', from, to }
+  }
+  if (found.length === 0) return { status: 'gone' }
+  const here = found.find(stored)
+  if (here && (article.contentVersion ?? null) === share.contentVersion) {
+    return { status: 'exact', from: here[0], to: here[1] }
+  }
+  return { status: 'changed' }
 }
 
 async function consumeLimits(
   ctx: MutationCtx,
-  limits: Array<{ key: string; limit: number }>,
+  limits: Array<{ key: string; limit: number; windowMs: number }>,
   now: number
 ): Promise<void> {
-  for (const { key, limit } of limits) {
-    const result = await consumeFixedWindow(ctx, key, limit, HOUR_MS, now)
+  for (const { key, limit, windowMs } of limits) {
+    const result = await consumeFixedWindow(ctx, key, limit, windowMs, now)
     if (!result.ok) {
       throw new ConvexError({
         code: 'RATE_LIMITED',
@@ -210,11 +237,21 @@ async function codeTaken(ctx: MutationCtx, code: string) {
     .first()
 }
 
+async function freeRandomCode(ctx: MutationCtx): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = randomCode()
+    if (!(await codeTaken(ctx, code))) return code
+  }
+  throw new ConvexError({ code: 'CODE_UNAVAILABLE' })
+}
+
 /**
  * Creates a share for a passage of a published article and returns its code.
- * Errors (`ConvexError` data): `NOT_FOUND` (missing or unpublished, alike),
- * `INVALID_PASSAGE`, `PASSAGE_TOO_LONG` (with `max`), `RATE_LIMITED` (with
- * `retryAfterMs`). A quote is never shortened to fit.
+ * Errors (`ConvexError` data `code`): `NOT_FOUND` (missing or unpublished,
+ * alike), `ARTICLE_TOO_LONG` (with `maxSentences`), `INVALID_PASSAGE`,
+ * `SINGLE_SENTENCE_ONLY` (signed out, more than one sentence),
+ * `PASSAGE_TOO_LONG` (with `max`), `SHARING_NOT_CONFIGURED` (signed out, no
+ * secret), `RATE_LIMITED` (with `retryAfterMs`). A quote is never shortened.
  */
 export const create = mutation({
   args: { articleId: v.id('articles'), passage: passageRefValidator },
@@ -226,12 +263,22 @@ export const create = mutation({
     }
     const canonical = canonicalText(article.content)
     const sentences = sentencesOf(canonical)
+    if (sentences.length > MAX_SHAREABLE_SENTENCES) {
+      throw new ConvexError({
+        code: 'ARTICLE_TOO_LONG',
+        maxSentences: MAX_SHAREABLE_SENTENCES,
+      })
+    }
     const range = sentenceRange(
       sentences,
       args.passage.startOffset,
       args.passage.endOffset
     )
     if (!range) throw new ConvexError({ code: 'INVALID_PASSAGE' })
+    const userId = await getAuthUserId(ctx)
+    if (!userId && range.sentenceEnd !== range.sentenceStart) {
+      throw new ConvexError({ code: 'SINGLE_SENTENCE_ONLY' })
+    }
     const quote = sentenceRangeText(
       sentences,
       range.sentenceStart,
@@ -247,14 +294,6 @@ export const create = mutation({
       range
     )
     const now = Date.now()
-    const userId = await getAuthUserId(ctx)
-    const growth = [
-      {
-        key: `shares:article:${article._id}`,
-        limit: SHARES_PER_ARTICLE_PER_HOUR,
-      },
-      { key: 'shares:all', limit: SHARES_PER_HOUR },
-    ]
     const row = {
       articleId: article._id,
       passageId,
@@ -280,16 +319,25 @@ export const create = mutation({
       await consumeLimits(
         ctx,
         [
-          { key: `shares:user:${userId}`, limit: SHARES_PER_USER_PER_HOUR },
-          ...growth,
+          {
+            key: `shares:user:${userId}`,
+            limit: SHARES_PER_USER_PER_HOUR,
+            windowMs: HOUR_MS,
+          },
+          {
+            key: `shares:signed-in:article:${article._id}`,
+            limit: SIGNED_IN_SHARES_PER_ARTICLE_PER_HOUR,
+            windowMs: HOUR_MS,
+          },
+          {
+            key: 'shares:signed-in:all',
+            limit: SIGNED_IN_SHARES_PER_HOUR,
+            windowMs: HOUR_MS,
+          },
         ],
         now
       )
-      let code = randomCode()
-      for (let attempt = 0; await codeTaken(ctx, code); attempt++) {
-        if (attempt >= 4) throw new Error('Could not allocate a share code')
-        code = randomCode()
-      }
+      const code = await freeRandomCode(ctx)
       await ctx.db.insert('shares', {
         ...row,
         code,
@@ -299,43 +347,64 @@ export const create = mutation({
       return { code }
     }
 
-    for (let generation = 0; generation < CANONICAL_GENERATIONS; generation++) {
-      const code = await canonicalCode(
+    // Signed out: one canonical row per line; an existing one costs no write.
+    const existing = await ctx.db
+      .query('shares')
+      .withIndex('by_article_passage_sharer', (q) =>
+        q
+          .eq('articleId', article._id)
+          .eq('passageId', passageId)
+          .eq('createdBy', undefined)
+      )
+      .first()
+    if (existing) return { code: existing.code }
+    const secret = shareCodeSecret()
+    if (!secret) throw new ConvexError({ code: 'SHARING_NOT_CONFIGURED' })
+    await consumeLimits(
+      ctx,
+      [
+        {
+          key: `shares:signed-out:article:${article._id}`,
+          limit: SIGNED_OUT_SHARES_PER_ARTICLE_PER_DAY,
+          windowMs: DAY_MS,
+        },
+        {
+          key: 'shares:signed-out:all',
+          limit: SIGNED_OUT_SHARES_PER_DAY,
+          windowMs: DAY_MS,
+        },
+      ],
+      now
+    )
+    let code: string | null = null
+    for (let n = 0; n < CANONICAL_GENERATIONS && code === null; n++) {
+      const candidate = await canonicalCode(
+        secret,
         String(article._id),
         passageId,
-        generation
+        n
       )
-      const holder = await codeTaken(ctx, code)
-      if (!holder) {
-        await consumeLimits(ctx, growth, now)
-        await ctx.db.insert('shares', { ...row, code, kind: 'canonical' })
-        return { code }
-      }
-      if (
-        holder.kind === 'canonical' &&
-        holder.articleId === article._id &&
-        holder.passageId === passageId
-      ) {
-        return { code }
-      }
-      // Cleared, or another line's code: the next generation.
+      // A generation held by a cleared row, or by another line, is skipped.
+      if (!(await codeTaken(ctx, candidate))) code = candidate
     }
-    throw new Error('Could not allocate a share code')
+    code ??= await freeRandomCode(ctx)
+    await ctx.db.insert('shares', { ...row, code, kind: 'canonical' })
+    return { code }
   },
 })
 
 /**
- * Resolves a share code for the `/p/[code]` server component. A mutation so
- * that a quote found stale is cleared in the same transaction; on every other
- * path it writes nothing. It returns nothing that the public page does not
- * show. Unknown, malformed, unpublished and deleted all do one share lookup
- * and one article read and return the same `null`.
+ * Resolves a share code for the `/p/[code]` server component. It returns
+ * nothing that the public page does not show, and the same `null` for an
+ * unknown or malformed code, a line that is gone, and an unpublished or
+ * deleted article. It writes nothing; for a line it finds gone it schedules
+ * `clearIfStale` (the hooks and the sweep clear shares of hidden articles).
  */
 export const resolve = mutation({
   args: { code: v.string() },
   returns: resolvedValidator,
   handler: async (ctx, args) => {
-    const code = args.code.trim().toLowerCase().slice(0, 64)
+    const code = args.code.slice(0, 64).trim().toLowerCase()
     const share = await ctx.db
       .query('shares')
       .withIndex('by_code', (q) => q.eq('code', code))
@@ -348,8 +417,17 @@ export const resolve = mutation({
           .withIndex('by_slug', (q) => q.eq('slug', ''))
           .first()
           .then(() => null)
-    if (!share || !isPublic(article)) {
-      if (share) await clearShare(ctx, share, Date.now())
+    if (!share || !isPublic(article)) return null
+
+    const canonical = canonicalText(article.content)
+    const sentences = sentencesOf(canonical)
+    const located = locate(share, article, sentences)
+    if (located.status === 'gone') {
+      if (share.quote !== null || share.passageId !== null) {
+        await ctx.scheduler.runAfter(0, internal.shares.clearIfStale, {
+          shareId: share._id,
+        })
+      }
       return null
     }
 
@@ -362,12 +440,7 @@ export const resolve = mutation({
       writerName: author?.name ?? article.authorName ?? username,
       href: `/${username}/${article.slug}`,
     }
-
-    const canonical = canonicalText(article.content)
-    const sentences = sentencesOf(canonical)
-    const located = locate(share, article, sentences)
     if (located.status === 'changed') {
-      await clearShare(ctx, share, Date.now())
       return { status: 'changed' as const, article: summary, passage: null }
     }
     const range = rangeOfSentences(sentences, located.from, located.to)!
@@ -386,17 +459,39 @@ export const resolve = mutation({
         sentenceEnd: range.sentenceEnd,
         startOffset: range.startOffset,
         endOffset: range.endOffset,
-        text: passageText(canonical, range.startOffset, range.endOffset),
+        text: sentenceRangeText(
+          sentences,
+          range.sentenceStart,
+          range.sentenceEnd
+        ).slice(0, MAX_SHARE_QUOTE),
       },
     }
   },
 })
 
+/** Clears one share when its line is gone or its article is not public. */
+export const clearIfStale = internalMutation({
+  args: { shareId: v.id('shares') },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const share = await ctx.db.get(args.shareId)
+    if (!share) return false
+    const article = await ctx.db.get(share.articleId)
+    if (
+      isPublic(article) &&
+      locate(share, article, sentencesOf(canonicalText(article.content)))
+        .status !== 'gone'
+    ) {
+      return false
+    }
+    return clearShare(ctx, share, Date.now())
+  },
+})
+
 /**
- * Clears every share of an article whose quote no longer matches its
- * published text (all of them when the article is unpublished or deleted),
- * and marks the others checked. Bounded batches; schedules itself until the
- * article's rows are done.
+ * Clears every share of an article whose line is gone (all of them when the
+ * article is unpublished or deleted), and marks the others checked. Bounded
+ * batches; schedules itself until the article's rows are done.
  */
 export const reconcileArticle = internalMutation({
   args: {
@@ -410,13 +505,15 @@ export const reconcileArticle = internalMutation({
     const sentences = live ? sentencesOf(canonicalText(live.content)) : []
     const page = await ctx.db
       .query('shares')
-      .withIndex('by_article_passage', (q) => q.eq('articleId', args.articleId))
+      .withIndex('by_article_passage_sharer', (q) =>
+        q.eq('articleId', args.articleId)
+      )
       .paginate({ numItems: RECONCILE_BATCH, cursor: args.cursor ?? null })
     const now = Date.now()
     let cleared = 0
     for (const share of page.page) {
       if (share.quote === null && share.passageId === null) continue
-      if (live && locate(share, live, sentences).status !== 'changed') {
+      if (live && locate(share, live, sentences).status !== 'gone') {
         if (share.checkedAt < now)
           await ctx.db.patch(share._id, { checkedAt: now })
         continue
@@ -478,7 +575,7 @@ export const sweep = internalMutation({
       rechecked++
       if (isPublic(article)) {
         entry.sentences ??= sentencesOf(canonicalText(article.content))
-        if (locate(share, article, entry.sentences).status !== 'changed') {
+        if (locate(share, article, entry.sentences).status !== 'gone') {
           await ctx.db.patch(share._id, { checkedAt: now })
           continue
         }
@@ -528,7 +625,7 @@ export async function scheduleShareReconcile(
 ): Promise<void> {
   const any = await ctx.db
     .query('shares')
-    .withIndex('by_article_passage', (q) => q.eq('articleId', articleId))
+    .withIndex('by_article_passage_sharer', (q) => q.eq('articleId', articleId))
     .first()
   if (!any) return
   await ctx.scheduler.runAfter(0, internal.shares.reconcileArticle, {

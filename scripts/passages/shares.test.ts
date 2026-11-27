@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 /**
  * Passage share links (`convex/shares.ts`): a removed or changed line is never
- * shown again through a shared link, a missing link is indistinguishable from
- * one to a removed article, and a stale quote is not kept.
+ * shown again through a shared link, a link whose line or article is gone is
+ * indistinguishable from an unknown code, and a stale quote is not kept.
  */
 import { convexTest } from 'convex-test'
 import { ConvexError } from 'convex/values'
@@ -11,11 +11,16 @@ import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import {
+  CANONICAL_GENERATIONS,
+  MAX_SHAREABLE_SENTENCES,
+  MAX_SHARE_QUOTE,
   RECONCILE_BATCH,
-  SHARES_PER_ARTICLE_PER_HOUR,
   SHARES_PER_USER_PER_HOUR,
   SHARE_CODE_ALPHABET,
   SHARE_CODE_LENGTH,
+  SHARE_CODE_SECRET_ENV,
+  SIGNED_IN_SHARES_PER_ARTICLE_PER_HOUR,
+  SIGNED_OUT_SHARES_PER_ARTICLE_PER_DAY,
   canonicalCode,
 } from '../../convex/shares'
 import crons from '../../convex/crons'
@@ -26,6 +31,7 @@ import {
 } from '../../lib/passages/sentences'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
+const SECRET = 'test-share-secret-0123456789abcdef'
 
 const doc = (...paragraphs: string[]) => ({
   type: 'doc',
@@ -40,13 +46,16 @@ const ORIGINAL = doc(
   'People read on the crossing. A man folds his newspaper into eighths.'
 )
 const SHARED = 'The tide decides the rest of the morning.'
-const TIDE_START = ORIGINAL.content[0]!.content[0]!.text.indexOf(SHARED)
+const TIDE_START = canonicalText(ORIGINAL).text.indexOf(SHARED)
+const PEOPLE_START = canonicalText(ORIGINAL).text.indexOf('People')
 
 beforeEach(() => {
   vi.useFakeTimers()
+  vi.stubEnv(SHARE_CODE_SECRET_ENV, SECRET)
 })
 afterEach(() => {
   vi.useRealTimers()
+  vi.unstubAllEnvs()
 })
 
 type Test = Awaited<ReturnType<typeof setup>>['t']
@@ -111,42 +120,51 @@ async function edit(t: Test, article: Id<'articles'>, content: unknown) {
     await ctx.db.patch(article, {
       content,
       contentVersion: (row.contentVersion ?? 0) + 1,
+      updatedAt: Date.now(),
     })
   })
 }
 
-async function errorCode(promise: Promise<unknown>) {
+async function errorData(promise: Promise<unknown>) {
   const error = await promise.then(
     () => null,
     (e: unknown) => e
   )
   expect(error).toBeInstanceOf(ConvexError)
-  return (error as ConvexError<{ code: string }>).data.code
+  return (error as ConvexError<Record<string, string | number>>).data
 }
+const errorCode = async (p: Promise<unknown>) => (await errorData(p)).code
 
-/** Every run of four or more consecutive words of `quote`. */
-function fourWordRuns(quote: string): string[] {
-  const words = quote.split(/\s+/).filter(Boolean)
-  const runs: string[] = []
-  for (let n = 4; n <= words.length; n++)
-    for (let i = 0; i + n <= words.length; i++)
-      runs.push(words.slice(i, i + n).join(' '))
-  return runs
-}
+type Client = { mutation: Test['mutation'] }
 
-function expectNoQuote(payload: unknown, quote: string) {
-  const json = JSON.stringify(payload) ?? 'null'
-  for (const run of fourWordRuns(quote)) expect(json).not.toContain(run)
-}
-
-async function shareTide(
-  client: { mutation: Test['mutation'] },
-  article: Id<'articles'>
+function shareAt(
+  client: Client,
+  article: Id<'articles'>,
+  start: number,
+  end = start
 ) {
   return client.mutation(api.shares.create, {
     articleId: article,
-    passage: { startOffset: TIDE_START + 4, endOffset: TIDE_START + 10 },
+    passage: { startOffset: start, endOffset: end },
   })
+}
+const shareTide = (client: Client, article: Id<'articles'>) =>
+  shareAt(client, article, TIDE_START + 4, TIDE_START + 10)
+
+async function snapshot(t: Test) {
+  return t.run(async (ctx) => ({
+    shares: await ctx.db.query('shares').collect(),
+    rateLimits: await ctx.db.query('rateLimits').collect(),
+    sweeps: await ctx.db.query('shareSweeps').collect(),
+    articles: await ctx.db.query('articles').collect(),
+    scheduled: await ctx.db.system.query('_scheduled_functions').collect(),
+  }))
+}
+
+async function fillBucket(t: Test, key: string, count: number) {
+  await t.run((ctx) =>
+    ctx.db.insert('rateLimits', { key, windowStart: Date.now(), count })
+  )
 }
 
 describe('create', () => {
@@ -155,7 +173,6 @@ describe('create', () => {
     const { code } = await shareTide(reader, ids.article)
     expect(code).toHaveLength(SHARE_CODE_LENGTH)
     expect([...code].every((ch) => SHARE_CODE_ALPHABET.includes(ch))).toBe(true)
-    const row = await shareRow(t, code)
     const canonical = canonicalText(ORIGINAL)
     const expected = await identifyPassage(
       ids.article,
@@ -164,7 +181,8 @@ describe('create', () => {
       TIDE_START,
       TIDE_START + 1
     )
-    expect(row).toMatchObject({
+    expect(await shareRow(t, code)).toMatchObject({
+      kind: 'personal',
       articleId: ids.article,
       passageId: expected!.passageId,
       sentenceStart: 1,
@@ -175,47 +193,71 @@ describe('create', () => {
     })
   })
 
-  test('one person sharing a line twice, by any selection, gets one personal code', async () => {
-    const { t, ids, reader } = await setup()
+  test('one person sharing a line twice, by any selection, gets one code', async () => {
+    const { reader, ids } = await setup()
     const a = await shareTide(reader, ids.article)
-    const b = await reader.mutation(api.shares.create, {
-      articleId: ids.article,
-      passage: { startOffset: TIDE_START + 20, endOffset: TIDE_START + 21 },
-    })
+    const b = await shareAt(
+      reader,
+      ids.article,
+      TIDE_START + 20,
+      TIDE_START + 21
+    )
     expect(b.code).toBe(a.code)
-    expect((await shareRow(t, a.code))!).toMatchObject({
-      kind: 'personal',
-      createdBy: ids.reader,
-    })
   })
 
-  test('signed-out shares of a line are one canonical row, derived from the article and passage', async () => {
+  test('signed out: one canonical row per line, keyed with the secret, no write when it exists', async () => {
     const { t, ids } = await setup()
     const a = await shareTide(t, ids.article)
-    const b = await t.mutation(api.shares.create, {
-      articleId: ids.article,
-      passage: { startOffset: TIDE_START, endOffset: TIDE_START },
-    })
-    expect(b.code).toBe(a.code)
     const row = (await shareRow(t, a.code))!
     expect(row.kind).toBe('canonical')
     expect(row.createdBy).toBeUndefined()
-    expect(a.code).toBe(await canonicalCode(ids.article, row.passageId!, 0))
-    expect(await t.run((ctx) => ctx.db.query('shares').collect())).toHaveLength(
-      1
+    expect(a.code).toBe(
+      await canonicalCode(SECRET, ids.article, row.passageId!, 0)
+    )
+    expect(a.code).not.toBe(
+      await canonicalCode(`${SECRET}-other`, ids.article, row.passageId!, 0)
+    )
+    const before = await snapshot(t)
+    expect(await shareAt(t, ids.article, TIDE_START)).toEqual(a)
+    expect(await snapshot(t)).toEqual(before)
+  })
+
+  test('signed out: a passage of more than one sentence is SINGLE_SENTENCE_ONLY', async () => {
+    const { t, ids, reader } = await setup()
+    expect(await errorCode(shareAt(t, ids.article, 2, TIDE_START + 4))).toBe(
+      'SINGLE_SENTENCE_ONLY'
+    )
+    // Signed in, the same range is shared.
+    expect(
+      (await shareAt(reader, ids.article, 2, TIDE_START + 4)).code
+    ).toHaveLength(SHARE_CODE_LENGTH)
+  })
+
+  test('signed out without a usable secret is SHARING_NOT_CONFIGURED; signed in still works', async () => {
+    const { t, ids, reader } = await setup()
+    vi.stubEnv(SHARE_CODE_SECRET_ENV, '')
+    expect(await errorCode(shareTide(t, ids.article))).toBe(
+      'SHARING_NOT_CONFIGURED'
+    )
+    vi.stubEnv(SHARE_CODE_SECRET_ENV, 'too-short')
+    expect(await errorCode(shareTide(t, ids.article))).toBe(
+      'SHARING_NOT_CONFIGURED'
+    )
+    expect((await shareTide(reader, ids.article)).code).toHaveLength(
+      SHARE_CODE_LENGTH
     )
   })
 
   test('canonical and personal codes for one line coexist, resolve alike and name no one', async () => {
     const { t, ids, reader, author } = await setup()
-    const canonical = await shareTide(t, ids.article)
-    const june = await shareTide(reader, ids.article)
-    const tomas = await shareTide(author, ids.article)
-    expect(new Set([canonical.code, june.code, tomas.code]).size).toBe(3)
+    const codes = [
+      await shareTide(t, ids.article),
+      await shareTide(reader, ids.article),
+      await shareTide(author, ids.article),
+    ].map((c) => c.code)
+    expect(new Set(codes).size).toBe(3)
     const answers = await Promise.all(
-      [canonical, june, tomas].map(({ code }) =>
-        t.mutation(api.shares.resolve, { code })
-      )
+      codes.map((code) => t.mutation(api.shares.resolve, { code }))
     )
     expect(answers[1]).toEqual(answers[0])
     expect(answers[2]).toEqual(answers[0])
@@ -240,114 +282,125 @@ describe('create', () => {
     expect(await errorCode(shareTide(reader, ids.article))).toBe('NOT_FOUND')
   })
 
-  test('a selection of whitespace or outside the text is INVALID_PASSAGE', async () => {
+  test('whitespace or outside the text is INVALID_PASSAGE', async () => {
     const { ids, reader } = await setup()
-    for (const passage of [
-      { startOffset: TIDE_START - 1, endOffset: TIDE_START },
-      { startOffset: 10_000, endOffset: 10_010 },
-      { startOffset: 5, endOffset: 1 },
-    ]) {
-      expect(
-        await errorCode(
-          reader.mutation(api.shares.create, {
-            articleId: ids.article,
-            passage,
-          })
-        )
-      ).toBe('INVALID_PASSAGE')
+    for (const [start, end] of [
+      [TIDE_START - 1, TIDE_START],
+      [10_000, 10_010],
+      [5, 1],
+    ] as const) {
+      expect(await errorCode(shareAt(reader, ids.article, start, end))).toBe(
+        'INVALID_PASSAGE'
+      )
     }
   })
 
-  test('a passage longer than 500 characters is PASSAGE_TOO_LONG', async () => {
+  test('a passage over 500 characters is PASSAGE_TOO_LONG, never shortened', async () => {
     const long = `${'word '.repeat(120).trim()}.`
     const { ids, reader } = await setup(doc(long))
-    expect(
-      await errorCode(
-        reader.mutation(api.shares.create, {
-          articleId: ids.article,
-          passage: { startOffset: 0, endOffset: 3 },
-        })
-      )
-    ).toBe('PASSAGE_TOO_LONG')
+    expect(await errorData(shareAt(reader, ids.article, 0, 3))).toEqual({
+      code: 'PASSAGE_TOO_LONG',
+      max: MAX_SHARE_QUOTE,
+    })
   })
 
-  test('new codes are rate limited per signed-in person; returning a code is not counted', async () => {
-    const sentences = Array.from(
+  test('an article beyond the sentence limit is ARTICLE_TOO_LONG', async () => {
+    const text = Array.from(
+      { length: MAX_SHAREABLE_SENTENCES + 1 },
+      (_, i) => `Line ${i}.`
+    ).join(' ')
+    const { ids, reader } = await setup(doc(text))
+    expect(await errorData(shareAt(reader, ids.article, 0))).toEqual({
+      code: 'ARTICLE_TOO_LONG',
+      maxSentences: MAX_SHAREABLE_SENTENCES,
+    })
+  })
+
+  test('signed in: new codes are limited per person; returning a code is not counted', async () => {
+    const lines = Array.from(
       { length: SHARES_PER_USER_PER_HOUR + 1 },
       (_, i) => `Line number ${i} is here.`
-    )
-    const { ids, reader } = await setup(doc(sentences.join(' ')))
-    const offsets = sentencesOf(canonicalText(doc(sentences.join(' '))))
+    ).join(' ')
+    const { ids, reader } = await setup(doc(lines))
+    const offsets = sentencesOf(canonicalText(doc(lines)))
     for (let i = 0; i < SHARES_PER_USER_PER_HOUR; i++) {
-      await reader.mutation(api.shares.create, {
-        articleId: ids.article,
-        passage: {
-          startOffset: offsets[i]!.start,
-          endOffset: offsets[i]!.start,
-        },
-      })
+      await shareAt(reader, ids.article, offsets[i]!.start)
     }
-    // An existing passage still answers.
-    await reader.mutation(api.shares.create, {
-      articleId: ids.article,
-      passage: { startOffset: offsets[0]!.start, endOffset: offsets[0]!.start },
-    })
-    const last = offsets[SHARES_PER_USER_PER_HOUR]!
+    await shareAt(reader, ids.article, offsets[0]!.start)
     expect(
       await errorCode(
-        reader.mutation(api.shares.create, {
-          articleId: ids.article,
-          passage: { startOffset: last.start, endOffset: last.start },
-        })
+        shareAt(reader, ids.article, offsets[SHARES_PER_USER_PER_HOUR]!.start)
       )
     ).toBe('RATE_LIMITED')
   })
 
-  test('signed-out sharing has no signed-out bucket: only the article and table limits apply', async () => {
-    const sentences = Array.from({ length: 3 }, (_, i) => `Line ${i} is here.`)
-    const content = doc(sentences.join(' '))
-    const { t, ids } = await setup(content)
-    const offsets = sentencesOf(canonicalText(content))
-    const first = await t.mutation(api.shares.create, {
-      articleId: ids.article,
-      passage: { startOffset: offsets[0]!.start, endOffset: offsets[0]!.start },
-    })
+  test('signed-out and signed-in sharing never spend each other’s budget', async () => {
+    const { t, ids, reader } = await setup()
+    await fillBucket(
+      t,
+      `shares:signed-out:article:${ids.article}`,
+      SIGNED_OUT_SHARES_PER_ARTICLE_PER_DAY
+    )
+    expect(await errorCode(shareTide(t, ids.article))).toBe('RATE_LIMITED')
+    expect((await shareTide(reader, ids.article)).code).toHaveLength(
+      SHARE_CODE_LENGTH
+    )
+
+    const other = await setup()
+    await fillBucket(
+      other.t,
+      `shares:signed-in:article:${other.ids.article}`,
+      SIGNED_IN_SHARES_PER_ARTICLE_PER_HOUR
+    )
+    expect(await errorCode(shareTide(other.reader, other.ids.article))).toBe(
+      'RATE_LIMITED'
+    )
+    expect((await shareTide(other.t, other.ids.article)).code).toHaveLength(
+      SHARE_CODE_LENGTH
+    )
+  })
+
+  test('signed out, with every canonical generation taken: a random code, found again next time', async () => {
+    const { t, ids } = await setup()
+    const canonical = canonicalText(ORIGINAL)
+    const id = await identifyPassage(
+      ids.article,
+      canonical,
+      sentencesOf(canonical),
+      TIDE_START,
+      TIDE_START
+    )
     await t.run(async (ctx) => {
-      const row = await ctx.db
-        .query('rateLimits')
-        .withIndex('by_key', (q) =>
-          q.eq('key', `shares:article:${ids.article}`)
-        )
-        .unique()
-      await ctx.db.patch(row!._id, { count: SHARES_PER_ARTICLE_PER_HOUR })
-    })
-    // A line already shared still answers with its code.
-    expect(
-      await t.mutation(api.shares.create, {
-        articleId: ids.article,
-        passage: {
-          startOffset: offsets[0]!.start,
-          endOffset: offsets[0]!.start,
-        },
-      })
-    ).toEqual(first)
-    // A new line waits for the article's window.
-    expect(
-      await errorCode(
-        t.mutation(api.shares.create, {
+      for (let n = 0; n < CANONICAL_GENERATIONS; n++) {
+        await ctx.db.insert('shares', {
+          code: await canonicalCode(SECRET, ids.article, id!.passageId, n),
+          kind: 'canonical',
           articleId: ids.article,
-          passage: {
-            startOffset: offsets[1]!.start,
-            endOffset: offsets[1]!.start,
-          },
+          passageId: null,
+          sentenceStart: null,
+          sentenceEnd: null,
+          quote: null,
+          contentVersion: 1,
+          createdAt: 1,
+          checkedAt: 1,
+          clearedAt: 1,
         })
-      )
-    ).toBe('RATE_LIMITED')
+      }
+    })
+    const { code } = await shareTide(t, ids.article)
+    expect(await shareRow(t, code)).toMatchObject({
+      kind: 'canonical',
+      quote: SHARED,
+    })
+    expect(await t.mutation(api.shares.resolve, { code })).toMatchObject({
+      status: 'exact',
+    })
+    expect(await shareTide(t, ids.article)).toEqual({ code })
   })
 })
 
 describe('resolve', () => {
-  test('exact: the stored range, the current text, no quote field', async () => {
+  test('exact: the stored range and the current text, nothing else', async () => {
     const { t, ids, reader } = await setup()
     const { code } = await shareTide(reader, ids.article)
     const result = await t.mutation(api.shares.resolve, { code })
@@ -372,15 +425,24 @@ describe('resolve', () => {
     expect(JSON.stringify(result)).not.toContain('quote')
   })
 
-  test('the article link uses the writer’s current handle', async () => {
+  test('exact after a version bump that left the line in place', async () => {
     const { t, ids, reader } = await setup()
     const { code } = await shareTide(reader, ids.article)
-    await t.run((ctx) => ctx.db.patch(ids.author, { username: 'tomas-r' }))
-    const result = await t.mutation(api.shares.resolve, { code })
-    expect(result!.article.href).toBe('/tomas-r/the-ferry-timetable')
+    await edit(
+      t,
+      ids.article,
+      doc(
+        'The ferry leaves at seven. The tide decides the rest of the morning.',
+        'People read on the crossing. A man folds his paper.'
+      )
+    )
+    expect(await t.mutation(api.shares.resolve, { code })).toMatchObject({
+      status: 'exact',
+      passage: { sentenceStart: 1, sentenceEnd: 1 },
+    })
   })
 
-  test('moved: an unchanged sentence in an edited article is found again, same passage id', async () => {
+  test('moved: an unchanged sentence elsewhere, same passage id', async () => {
     const { t, ids, reader } = await setup()
     const { code } = await shareTide(reader, ids.article)
     const passageId = (await shareRow(t, code))!.passageId
@@ -390,10 +452,8 @@ describe('resolve', () => {
       `${SHARED} A man folds his newspaper into eighths.`
     )
     await edit(t, ids.article, after)
-    const result = await t.mutation(api.shares.resolve, { code })
-    const canonical = canonicalText(after)
-    const start = canonical.text.indexOf(SHARED)
-    expect(result).toMatchObject({
+    const start = canonicalText(after).text.indexOf(SHARED)
+    expect(await t.mutation(api.shares.resolve, { code })).toMatchObject({
       status: 'moved',
       passage: {
         passageId,
@@ -404,8 +464,16 @@ describe('resolve', () => {
         text: SHARED,
       },
     })
-    // The quote still matches, so it is kept.
     expect((await shareRow(t, code))!.quote).toBe(SHARED)
+  })
+
+  test('the article link uses the writer’s current handle', async () => {
+    const { t, ids, reader } = await setup()
+    const { code } = await shareTide(reader, ids.article)
+    await t.run((ctx) => ctx.db.patch(ids.author, { username: 'tomas-r' }))
+    expect((await t.mutation(api.shares.resolve, { code }))!.article.href).toBe(
+      '/tomas-r/the-ferry-timetable'
+    )
   })
 
   test.each([
@@ -436,123 +504,102 @@ describe('resolve', () => {
         'The ferry leaves at seven, and the tide decides the rest of the morning.'
       ),
     },
-    {
-      name: 'the same sentence twice in the new text',
-      content: doc(
-        `The ferry leaves at seven. ${SHARED}`,
-        `People read on the crossing. ${SHARED}`
-      ),
-    },
   ])(
-    'changed ($name): no passage, no old words, the quote cleared',
+    'gone ($name): null, like an unknown code, and the quote is cleared',
     async ({ content }) => {
       const { t, ids, reader } = await setup()
       const { code } = await shareTide(reader, ids.article)
       await edit(t, ids.article, content)
-      const result = await t.mutation(api.shares.resolve, { code })
-      expect(result).toMatchObject({ status: 'changed', passage: null })
-      expect(result!.article.href).toBe('/tomas/the-ferry-timetable')
-      expectNoQuote(result, SHARED)
-      const row = (await shareRow(t, code))!
-      expect(row).toMatchObject({
+      const unknown = await t.mutation(api.shares.resolve, {
+        code: 'zzzzzzzz',
+      })
+      const answer = await t.mutation(api.shares.resolve, { code })
+      expect(answer).toBeNull()
+      expect(answer).toEqual(unknown)
+      await t.finishAllScheduledFunctions(vi.runAllTimers)
+      expect(await shareRow(t, code)).toMatchObject({
         quote: null,
         passageId: null,
         sentenceStart: null,
         sentenceEnd: null,
+        clearedAt: expect.any(Number),
       })
-      expect(row.clearedAt).toEqual(expect.any(Number))
-      // Still changed on the next visit, from the cleared row.
-      expect(await t.mutation(api.shares.resolve, { code })).toMatchObject({
-        status: 'changed',
-        passage: null,
-      })
+      expect(await t.mutation(api.shares.resolve, { code })).toBeNull()
     }
   )
 
-  test('an ambiguous line resolves exact at its version and changed after an edit', async () => {
-    const twice = doc(`${SHARED} One more line.`, `${SHARED} The end.`)
-    const { t, ids, reader } = await setup(twice)
-    const { code } = await reader.mutation(api.shares.create, {
-      articleId: ids.article,
-      passage: { startOffset: 1, endOffset: 2 },
-    })
-    expect(await t.mutation(api.shares.resolve, { code })).toMatchObject({
-      status: 'exact',
-      passage: { sentenceStart: 0, sentenceEnd: 0 },
-    })
+  test('changed: the line exists twice after an edit; no passage, quote kept', async () => {
+    const { t, ids, reader } = await setup()
+    const { code } = await shareTide(reader, ids.article)
     await edit(
       t,
       ids.article,
-      doc('A new opening.', `${SHARED} One more line.`, `${SHARED} The end.`)
+      doc(
+        `The ferry leaves at seven. ${SHARED}`,
+        `People read on the crossing. ${SHARED}`
+      )
     )
     expect(await t.mutation(api.shares.resolve, { code })).toMatchObject({
       status: 'changed',
       passage: null,
     })
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+    expect((await shareRow(t, code))!.quote).toBe(SHARED)
   })
 
-  test('unknown, malformed, unpublished and deleted all answer the same null', async () => {
-    const { t, ids, reader } = await setup()
-    const { code } = await shareTide(reader, ids.article)
-    const unknown = await t.mutation(api.shares.resolve, { code: 'zzzzzzzz' })
-    const malformed = await t.mutation(api.shares.resolve, {
-      code: 'not a code!',
-    })
-    await t.run((ctx) => ctx.db.patch(ids.article, { published: false }))
-    const unpublished = await t.mutation(api.shares.resolve, { code })
-    expect((await shareRow(t, code))!.quote).toBeNull()
-    await t.run((ctx) => ctx.db.delete(ids.article))
-    const deleted = await t.mutation(api.shares.resolve, { code })
-    for (const answer of [unknown, malformed, unpublished, deleted]) {
-      expect(answer).toBeNull()
-    }
-  })
-
-  test('a republish of the old text does not re-link a cleared share', async () => {
-    const { t, ids, reader } = await setup()
-    const { code } = await shareTide(reader, ids.article)
-    await t.run((ctx) => ctx.db.patch(ids.article, { published: false }))
-    expect(await t.mutation(api.shares.resolve, { code })).toBeNull()
-    await t.run((ctx) => ctx.db.patch(ids.article, { published: true }))
+  test('an ambiguous line is exact at its own version', async () => {
+    const twice = doc(`${SHARED} One more line.`, `${SHARED} The end.`)
+    const { t, ids, reader } = await setup(twice)
+    const { code } = await shareAt(reader, ids.article, 1, 2)
     expect(await t.mutation(api.shares.resolve, { code })).toMatchObject({
-      status: 'changed',
-      passage: null,
-    })
-    // Sharing the line again makes a new code; the old one stays changed.
-    const again = await shareTide(reader, ids.article)
-    expect(again.code).not.toBe(code)
-    expect(
-      await t.mutation(api.shares.resolve, { code: again.code })
-    ).toMatchObject({
       status: 'exact',
+      passage: { sentenceStart: 0, sentenceEnd: 0 },
     })
+  })
+
+  test('unknown, malformed, removed, unpublished and deleted all answer the same null', async () => {
+    const { t, ids, reader } = await setup()
+    const removed = await shareTide(reader, ids.article)
+    const hidden = await shareAt(reader, ids.article, PEOPLE_START)
+    await edit(
+      t,
+      ids.article,
+      doc(
+        'The ferry leaves at seven.',
+        'People read on the crossing. A man folds his newspaper into eighths.'
+      )
+    )
+    const answers = [
+      await t.mutation(api.shares.resolve, { code: 'zzzzzzzz' }),
+      await t.mutation(api.shares.resolve, { code: 'not a code!' }),
+      await t.mutation(api.shares.resolve, { code: 'x'.repeat(10_000) }),
+      await t.mutation(api.shares.resolve, { code: removed.code }),
+    ]
+    await t.run((ctx) => ctx.db.patch(ids.article, { published: false }))
+    answers.push(await t.mutation(api.shares.resolve, { code: hidden.code }))
+    await t.run((ctx) => ctx.db.delete(ids.article))
+    answers.push(await t.mutation(api.shares.resolve, { code: hidden.code }))
+    expect(answers).toEqual([null, null, null, null, null, null])
+  })
+
+  test('the returned text is normalized and capped', async () => {
+    const spaced = `Wide${' '.repeat(5_000)}spaces here.`
+    const { t, ids, reader } = await setup(doc(spaced))
+    const { code } = await shareAt(reader, ids.article, 0)
+    const result = await t.mutation(api.shares.resolve, { code })
+    expect(result!.passage!.text).toBe('Wide spaces here.')
   })
 })
 
 describe('resolve writes nothing on the normal path', () => {
-  async function snapshot(t: Test) {
-    return t.run(async (ctx) => ({
-      shares: await ctx.db.query('shares').collect(),
-      rateLimits: await ctx.db.query('rateLimits').collect(),
-      sweeps: await ctx.db.query('shareSweeps').collect(),
-      articles: await ctx.db.query('articles').collect(),
-      scheduled: await ctx.db.system.query('_scheduled_functions').collect(),
-    }))
-  }
-
-  test('a fresh share resolves exact with no write anywhere', async () => {
+  test('exact, moved, unknown, unpublished and deleted: no write anywhere', async () => {
     const { t, ids, reader } = await setup()
     const { code } = await shareTide(reader, ids.article)
-    const before = await snapshot(t)
-    expect(await t.mutation(api.shares.resolve, { code })).toMatchObject({
-      status: 'exact',
-    })
+    let before = await snapshot(t)
+    await t.mutation(api.shares.resolve, { code })
+    await t.mutation(api.shares.resolve, { code: 'zzzzzzzz' })
     expect(await snapshot(t)).toEqual(before)
-  })
 
-  test('a moved share and an unknown code also write nothing', async () => {
-    const { t, ids, reader } = await setup()
-    const { code } = await shareTide(reader, ids.article)
     await edit(
       t,
       ids.article,
@@ -561,46 +608,29 @@ describe('resolve writes nothing on the normal path', () => {
         ...ORIGINAL.content.map((p) => p.content[0]!.text)
       )
     )
-    const before = await snapshot(t)
+    before = await snapshot(t)
     expect(await t.mutation(api.shares.resolve, { code })).toMatchObject({
       status: 'moved',
     })
-    expect(
-      await t.mutation(api.shares.resolve, { code: 'zzzzzzzz' })
-    ).toBeNull()
     expect(await snapshot(t)).toEqual(before)
-  })
 
-  test('a signed-out share after a clear gets the next canonical code, not the old one', async () => {
-    const { t, ids } = await setup()
-    const old = await shareTide(t, ids.article)
     await t.run((ctx) => ctx.db.patch(ids.article, { published: false }))
-    expect(await t.mutation(api.shares.resolve, { code: old.code })).toBeNull()
-    await t.run((ctx) => ctx.db.patch(ids.article, { published: true }))
-    const again = await shareTide(t, ids.article)
-    const passageId = (await shareRow(t, again.code))!.passageId!
-    expect(again.code).toBe(await canonicalCode(ids.article, passageId, 1))
-    expect(again.code).not.toBe(old.code)
-    expect(
-      await t.mutation(api.shares.resolve, { code: old.code })
-    ).toMatchObject({
-      status: 'changed',
-      passage: null,
-    })
+    before = await snapshot(t)
+    expect(await t.mutation(api.shares.resolve, { code })).toBeNull()
+    expect(await snapshot(t)).toEqual(before)
+
+    await t.run((ctx) => ctx.db.delete(ids.article))
+    before = await snapshot(t)
+    expect(await t.mutation(api.shares.resolve, { code })).toBeNull()
+    expect(await snapshot(t)).toEqual(before)
   })
 })
 
 describe('reconcileArticle and the article paths', () => {
-  test('an edit clears quotes that no longer match and keeps the rest', async () => {
+  test('an edit clears quotes whose line is gone and keeps the rest', async () => {
     const { t, ids, reader } = await setup()
     const tide = await shareTide(reader, ids.article)
-    const people = await reader.mutation(api.shares.create, {
-      articleId: ids.article,
-      passage: {
-        startOffset: canonicalText(ORIGINAL).text.indexOf('People'),
-        endOffset: canonicalText(ORIGINAL).text.indexOf('People') + 3,
-      },
-    })
+    const people = await shareAt(reader, ids.article, PEOPLE_START)
     await edit(
       t,
       ids.article,
@@ -620,7 +650,7 @@ describe('reconcileArticle and the article paths', () => {
     const { code } = await shareTide(reader, ids.article)
     await t.mutation(internal.articles.setAllArticlesToDraft, {})
     await t.finishAllScheduledFunctions(vi.runAllTimers)
-    expect((await shareRow(t, code))!).toMatchObject({
+    expect(await shareRow(t, code)).toMatchObject({
       quote: null,
       passageId: null,
     })
@@ -658,34 +688,31 @@ describe('reconcileArticle and the article paths', () => {
         updatedAt: 1,
       })
     )
-    const code = 'abcdefgh'
     await t.run((ctx) =>
       ctx.db.insert('shares', {
-        code,
+        code: 'abcdefgh',
+        kind: 'canonical',
         articleId: draft,
         passageId: 'p',
         sentenceStart: 1,
         sentenceEnd: 1,
         quote: SHARED,
         contentVersion: null,
-        kind: 'canonical',
         createdAt: 1,
         checkedAt: 1,
       })
     )
     await author.mutation(api.articles.deleteArticle, { id: draft })
     await t.finishAllScheduledFunctions(vi.runAllTimers)
-    expect((await shareRow(t, code))!).toMatchObject({
+    expect(await shareRow(t, 'abcdefgh')).toMatchObject({
       quote: null,
       passageId: null,
     })
   })
 
-  test('a republish with new text clears the shares it no longer contains', async () => {
+  test('a republish with new text clears the shares whose line it lost', async () => {
     const { t, ids, author, reader } = await setup()
     const { code } = await shareTide(reader, ids.article)
-    // Simulate a writer change that reaches the publish path: the article is
-    // a draft again with the line rewritten, then published.
     await t.run((ctx) =>
       ctx.db.patch(ids.article, {
         published: false,
@@ -697,6 +724,27 @@ describe('reconcileArticle and the article paths', () => {
     expect((await shareRow(t, code))!.quote).toBeNull()
   })
 
+  test('a cleared share is not re-linked by a republish; sharing again makes a new code', async () => {
+    const { t, ids, reader } = await setup()
+    const old = await shareTide(reader, ids.article)
+    const anon = await shareTide(t, ids.article)
+    await t.mutation(internal.articles.setAllArticlesToDraft, {})
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+    await t.run((ctx) => ctx.db.patch(ids.article, { published: true }))
+    for (const { code } of [old, anon])
+      expect(await t.mutation(api.shares.resolve, { code })).toBeNull()
+    const again = await shareTide(reader, ids.article)
+    expect(again.code).not.toBe(old.code)
+    const anonAgain = await shareTide(t, ids.article)
+    const passageId = (await shareRow(t, anonAgain.code))!.passageId!
+    expect(anonAgain.code).toBe(
+      await canonicalCode(SECRET, ids.article, passageId, 1)
+    )
+    expect(
+      await t.mutation(api.shares.resolve, { code: anonAgain.code })
+    ).toMatchObject({ status: 'exact' })
+  })
+
   test('many shares are reconciled in bounded batches', async () => {
     const { t, ids } = await setup()
     const total = RECONCILE_BATCH * 2 + 5
@@ -704,31 +752,27 @@ describe('reconcileArticle and the article paths', () => {
       for (let i = 0; i < total; i++) {
         await ctx.db.insert('shares', {
           code: `c${String(i).padStart(7, '2')}`,
+          kind: 'canonical',
           articleId: ids.article,
           passageId: `p${i}`,
           sentenceStart: 1,
           sentenceEnd: 1,
           quote: `A line that is not in the article, number ${i}.`,
           contentVersion: 1,
-          kind: 'canonical',
           createdAt: 1,
           checkedAt: 1,
         })
       }
     })
-    const first = await t.mutation(internal.shares.reconcileArticle, {
-      articleId: ids.article,
-    })
-    expect(first).toEqual({ cleared: RECONCILE_BATCH, done: false })
+    expect(
+      await t.mutation(internal.shares.reconcileArticle, {
+        articleId: ids.article,
+      })
+    ).toEqual({ cleared: RECONCILE_BATCH, done: false })
     await t.finishAllScheduledFunctions(vi.runAllTimers)
-    const left = await t.run((ctx) =>
-      ctx.db
-        .query('shares')
-        .withIndex('by_article_passage', (q) => q.eq('articleId', ids.article))
-        .collect()
-    )
-    expect(left).toHaveLength(total)
-    expect(left.every((s) => s.quote === null)).toBe(true)
+    const rows = await t.run((ctx) => ctx.db.query('shares').collect())
+    expect(rows).toHaveLength(total)
+    expect(rows.every((s) => s.quote === null)).toBe(true)
   })
 })
 
@@ -738,7 +782,7 @@ describe('sweep', () => {
     expect(Object.keys(jobs)).toContain('sweep passage share quotes')
   })
 
-  test('with no shares it reads one page and writes nothing', async () => {
+  test('with no shares it writes nothing', async () => {
     const { t } = await setup()
     expect(await t.mutation(internal.shares.sweep, {})).toEqual({
       seen: 0,
@@ -763,64 +807,67 @@ describe('sweep', () => {
     expect(await shareRow(t, code)).toEqual(before)
   })
 
-  test('catches an edit that skipped the reconcile call', async () => {
+  test('catches an edit and an unpublish that skipped the reconcile call', async () => {
     const { t, ids, reader } = await setup()
     const tide = await shareTide(reader, ids.article)
-    const people = await reader.mutation(api.shares.create, {
-      articleId: ids.article,
-      passage: {
-        startOffset: canonicalText(ORIGINAL).text.indexOf('People'),
-        endOffset: canonicalText(ORIGINAL).text.indexOf('People') + 2,
-      },
-    })
-    // A content change with a later updatedAt and no hook.
-    await t.run(async (ctx) => {
-      await ctx.db.patch(ids.article, {
-        content: doc(
-          'The ferry leaves at seven.',
-          'People read on the crossing.'
-        ),
-        contentVersion: 2,
-        updatedAt: Date.now() + 1000,
-      })
-    })
-    vi.advanceTimersByTime(2000)
+    const people = await shareAt(reader, ids.article, PEOPLE_START)
+    vi.advanceTimersByTime(1000)
+    await edit(
+      t,
+      ids.article,
+      doc('The ferry leaves at seven.', 'People read on the crossing.')
+    )
     expect(await t.mutation(internal.shares.sweep, {})).toMatchObject({
       rechecked: 2,
       cleared: 1,
     })
     expect((await shareRow(t, tide.code))!.quote).toBeNull()
     const kept = (await shareRow(t, people.code))!
-    expect(kept.quote).toBe('People read on the crossing.')
-    // Re-checked once: the next run leaves it alone.
     expect(await t.mutation(internal.shares.sweep, {})).toMatchObject({
       rechecked: 0,
     })
     expect(await shareRow(t, people.code)).toEqual(kept)
-  })
-
-  test('catches an unpublish that skipped the reconcile call', async () => {
-    const { t, ids, reader } = await setup()
-    const { code } = await shareTide(reader, ids.article)
     await t.run((ctx) => ctx.db.patch(ids.article, { published: false }))
     await t.mutation(internal.shares.sweep, {})
-    expect((await shareRow(t, code))!.quote).toBeNull()
+    expect((await shareRow(t, people.code))!.quote).toBeNull()
   })
 
-  test('walks a large table in bounded steps and starts again after a pass', async () => {
+  test('a saved position that is no longer a valid cursor starts the pass again', async () => {
+    const { t, ids, reader } = await setup()
+    const { code } = await shareTide(reader, ids.article)
+    await t.run((ctx) =>
+      ctx.db.insert('shareSweeps', {
+        key: 'shares',
+        cursor: 'not-a-cursor',
+        lastRunAt: 1,
+      })
+    )
+    await t.run((ctx) => ctx.db.patch(ids.article, { published: false }))
+    expect(await t.mutation(internal.shares.sweep, {})).toMatchObject({
+      seen: 1,
+      cleared: 1,
+      done: true,
+    })
+    expect((await shareRow(t, code))!.quote).toBeNull()
+    expect(
+      await t.run((ctx) => ctx.db.query('shareSweeps').unique())
+    ).toMatchObject({ cursor: null })
+  })
+
+  test('walks a large table in bounded steps', async () => {
     const { t, ids } = await setup()
     const total = RECONCILE_BATCH * 2 + 5
     await t.run(async (ctx) => {
       for (let i = 0; i < total; i++) {
         await ctx.db.insert('shares', {
           code: `s${String(i).padStart(7, '2')}`,
+          kind: 'canonical',
           articleId: ids.article,
           passageId: `p${i}`,
           sentenceStart: 1,
           sentenceEnd: 1,
           quote: `A line that is not in the article, number ${i}.`,
           contentVersion: 1,
-          kind: 'canonical',
           createdAt: 1,
           checkedAt: 1,
         })
@@ -838,10 +885,8 @@ describe('sweep', () => {
     await t.finishAllScheduledFunctions(vi.runAllTimers)
     const rows = await t.run((ctx) => ctx.db.query('shares').collect())
     expect(rows.every((r) => r.quote === null)).toBe(true)
-    const state = await t.run((ctx) => ctx.db.query('shareSweeps').unique())
-    expect(state).toMatchObject({
-      cursor: null,
-      lastPassAt: expect.any(Number),
-    })
+    expect(
+      await t.run((ctx) => ctx.db.query('shareSweeps').unique())
+    ).toMatchObject({ cursor: null, lastPassAt: expect.any(Number) })
   })
 })
