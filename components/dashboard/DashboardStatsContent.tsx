@@ -24,6 +24,10 @@ export function DashboardStatsContent() {
     return <DashboardStatsSkeleton />
   }
 
+  // The lifetime totals once the row is rebuilt (#552), the previous figures
+  // until then.
+  const shown = earnings?.lifetime ?? earnings
+
   return (
     <div className="account-stats">
       <div className="account-heading">
@@ -33,15 +37,15 @@ export function DashboardStatsContent() {
 
       <CreatorStatsPanel
         articleCount={userStats?.articleCount ?? 0}
-        tipsReceivedCount={earnings?.tipCount ?? 0}
-        earnedStroops={earnings?.earnedStroops ?? '0'}
-        estimatedUsd={earnings?.estimatedUsd ?? 0}
+        tipsReceivedCount={shown?.tipCount ?? 0}
+        earnedStroops={shown?.earnedStroops ?? '0'}
+        estimatedUsd={shown?.estimatedUsd ?? 0}
         isTestnet={earnings?.network !== 'MAINNET'}
         nftsOwned={user?.nftsOwned ?? 0}
-        complete={earnings?.complete ?? true}
-        unpricedTipCount={earnings?.unpricedTipCount ?? 0}
+        complete={earnings?.lifetime ? true : (earnings?.complete ?? true)}
+        unpricedTipCount={shown?.unpricedTipCount ?? 0}
         updating={earnings?.updating ?? false}
-        source={earnings?.source ?? 'lifetime'}
+        source={earnings?.lifetime ? 'lifetime' : 'previous'}
       />
       <CollectPanelLoader />
     </div>

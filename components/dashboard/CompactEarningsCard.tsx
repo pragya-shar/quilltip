@@ -58,15 +58,18 @@ export function CompactEarningsCard({ user }: CompactEarningsCardProps) {
     )
   }
 
+  // The lifetime totals once the row is rebuilt (#552), the previous figures
+  // until then.
+  const shown = earnings?.lifetime ?? earnings
   return (
     <div className="rounded-[var(--card-radius)] border border-border bg-card p-[var(--card-padding)] shadow-[var(--card-shadow)]">
       <CompactEarningsFigures
-        earnedStroops={earnings?.earnedStroops ?? '0'}
-        estimatedUsd={earnings?.estimatedUsd ?? 0}
-        tipCount={earnings?.tipCount ?? 0}
+        earnedStroops={shown?.earnedStroops ?? '0'}
+        estimatedUsd={shown?.estimatedUsd ?? 0}
+        tipCount={shown?.tipCount ?? 0}
         isTestnet={earnings ? earnings.network !== 'MAINNET' : isTestnetValue()}
-        complete={earnings?.complete ?? true}
-        unpricedTipCount={earnings?.unpricedTipCount ?? 0}
+        complete={earnings?.lifetime ? true : (earnings?.complete ?? true)}
+        unpricedTipCount={shown?.unpricedTipCount ?? 0}
         updating={earnings?.updating ?? false}
       />
     </div>
