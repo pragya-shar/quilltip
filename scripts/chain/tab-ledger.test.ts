@@ -2210,6 +2210,45 @@ describe('writer earnings summary with tab tips (#552)', () => {
     })
   })
 
+  it('the dollars keep the tip quote when the price changes before the payment', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // Quoted at $1 per XLM: 10 and 25 cents are 0.1 and 0.25 XLM.
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    // The price doubles before the pair is paid.
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('xlmPriceCache').collect()) {
+        await ctx.db.patch(row._id, { priceUsd: 2, fetchedAt: Date.now() })
+      }
+    })
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(1_500_000),
+        gross: BigInt(1_500_000),
+      })
+    )
+    // 9.75 + 25 × 0.195 cents, from the quotes, not from $2 per XLM.
+    await expectTabTotals(t, s, { tips: 2, units: '1462500', cents: 14.625 })
+    await rebuiltEqualsLive(t, s.authorId)
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(3_500_000),
+        gross: BigInt(2_000_000),
+      })
+    )
+    await expectTabTotals(t, s, { tips: 2, units: '3412500', cents: 34.125 })
+    expect(await rebuiltEqualsLive(t, s.authorId)).toMatchObject({
+      tipCount: 2,
+      earnedStroops: '3412500',
+      estimatedUsd: 0.34125,
+    })
+  })
+
   it('a short settlement, then UNPAID: the net paid on chain stays in all three', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)

@@ -990,7 +990,6 @@ const S: Scenario[] = [
     seed: (s) => writer(s),
   },
   {
-    // The totals are being rebuilt: no figures, on either card.
     // The integration writer while its row is rebuilt: the figures as they
     // were computed before the lifetime totals, with a note.
     id: 'stats-updating',
