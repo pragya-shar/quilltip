@@ -227,6 +227,11 @@
     }
   }
 
+  /* Where the toast region sits while no modal is open; it adds no box. */
+  .qt-toasts-anchor {
+    display: contents;
+  }
+
   /* Toasts: always dark, above the phone navigation. */
   /* Toasts sit above whatever is docked at the foot of the screen: the
    * phone bar on a place, nothing on a pushed screen, a docked bar (the tip

@@ -687,6 +687,59 @@ test('tabs move with arrow keys', async ({ page }) => {
   await expect(page.getByRole('tabpanel')).toHaveText('Showing Following.')
 })
 
+test('a toast stays the same toast while a modal opens and closes', async ({
+  page,
+}) => {
+  await open(page)
+  await press(page, page.getByRole('button', { name: 'Sent', exact: true }))
+  const toast = page.locator('.qt-toast', { hasText: 'You tipped Tomás $3' })
+  await expect(toast).toBeVisible()
+  await toast.evaluate((el) => ((el as HTMLElement).dataset.seen = 'yes'))
+  await page.getByRole('button', { name: 'Open the sheet' }).focus()
+  await page.keyboard.press('Enter')
+  const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
+  await expect(sheet).toBeVisible()
+  // Moved into the modal, not drawn again.
+  await expect(sheet.locator('.qt-toast[data-seen="yes"]')).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
+  await expect(page.locator('.qt-toast[data-seen="yes"]')).toHaveCount(1)
+})
+
+test('a press just after a sheet closes reaches nothing under it', async ({
+  page,
+}) => {
+  await open(page)
+  const count = page.locator('[data-press-count]')
+  const tip = page
+    .getByRole('group', { name: 'Tip Lena Park' })
+    .getByRole('button', { name: 'Tip Lena $1' })
+  const opener = page.getByRole('button', { name: 'Open the sheet' })
+  const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
+
+  // A pointer press while the sheet closes is swallowed.
+  await press(page, opener)
+  await expect(sheet).toBeVisible()
+  await press(page, sheet.getByRole('button', { name: 'Close' }))
+  await press(page, tip)
+  await expect(sheet).toBeHidden()
+  await expect(count).toHaveAttribute('data-press-count', '0')
+  // A moment later, presses count again.
+  await page.waitForTimeout(500)
+  await press(page, tip)
+  await expect(count).toHaveAttribute('data-press-count', '1')
+
+  // A key press in the same moment is never swallowed.
+  await page.waitForTimeout(1100) // the tip control's own latch
+  await press(page, opener)
+  await expect(sheet).toBeVisible()
+  await press(page, sheet.getByRole('button', { name: 'Close' }))
+  await expect(sheet).toBeHidden()
+  await tip.focus()
+  await page.keyboard.press('Enter')
+  await expect(count).toHaveAttribute('data-press-count', '2')
+})
+
 test('a failure toast is announced as an alert, others politely', async ({
   page,
 }) => {

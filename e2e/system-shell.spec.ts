@@ -95,6 +95,22 @@ test('the balance opens the Pocket over the page and gives focus back', async ({
   await expect(item).toHaveAttribute('aria-expanded', 'false')
 })
 
+test('a change of path closes the sheets over the old page', async ({
+  page,
+}) => {
+  test.skip(wide(), 'On a desktop the balance is a panel, not a sheet')
+  await page.goto('/shelf')
+  await press(nav(page).getByRole('link', { name: /^Balance/ }))
+  const pocket = page.getByRole('dialog', { name: 'Balance' })
+  await expect(pocket).toBeVisible()
+  // A client navigation, as a link inside the sheet would make.
+  await page.evaluate(() => {
+    history.pushState({}, '', '/')
+    dispatchEvent(new PopStateEvent('popstate'))
+  })
+  await expect(pocket).toBeHidden()
+})
+
 test('while no amount is known, the item reads Balance, not a figure', async ({
   page,
 }) => {

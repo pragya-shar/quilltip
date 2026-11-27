@@ -26,8 +26,12 @@ export function SheetHost() {
   // A change of path after the first page is an in-app navigation.
   const pathname = usePathname()
   const firstPath = useRef(pathname)
+  const lastPath = useRef(pathname)
   useEffect(() => {
     if (pathname !== firstPath.current) firstPage.markNavigated()
+    // The place changed: sheets over the old one close.
+    if (pathname !== lastPath.current) sheetStack.closeAll()
+    lastPath.current = pathname
   }, [pathname])
   return (
     <>
