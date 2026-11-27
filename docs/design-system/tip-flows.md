@@ -72,13 +72,13 @@ paid.
 | `BELOW_MINIMUM`                                | This tip is below the minimum           | The smallest tip right now is {min}. Choose a larger amount. Nothing was paid.              |
 | `INVALID_AMOUNT`                               | Choose another amount                   | A tip is from $0.01 to $100.00. Nothing was paid.                                           |
 | `RATE_LIMITED`                                 | Too many tips in a short time           | Wait {n} seconds, then try again. Nothing was paid.                                         |
-| `PRICE_UNAVAILABLE`                            | No XLM price right now                  | QuillTip can’t convert this amount yet. Try again in a minute. Nothing was paid.            |
-| `CHAIN_V2_DISABLED`                            | Tips on Stellar testnet are not on here | This QuillTip site has not turned them on. Nothing was paid.                                |
+| `PRICE_UNAVAILABLE`                            | No XLM price right now                  | Quilltip can’t convert this amount yet. Try again in a minute. Nothing was paid.            |
+| `CHAIN_V2_DISABLED`                            | Tips on Stellar testnet are not on here | This Quilltip site has not turned them on. Nothing was paid.                                |
 | `CHAIN_CONFIG_MISSING`, `CHAIN_CONFIG_INVALID` | Tips are not set up on this site        | Try again later. Nothing was paid.                                                          |
 | `SELF_TIP`                                     | You can’t tip your own article          | Tips for this article come to you. Nothing was paid.                                        |
 | `HIGHLIGHT_INVALID`                            | This passage changed                    | Select the passage again, then tip it. Nothing was paid.                                    |
 | `BATCH_TOO_LARGE`                              | Too many tips for one payment           | One payment holds up to 10 tips and 24 transfers. Remove a tip, then pay. Nothing was paid. |
-| Other codes, or no answer                      | QuillTip could not prepare this tip     | Try again in a minute. Nothing was paid. (No answer: "QuillTip could not be reached".)      |
+| Other codes, or no answer                      | Quilltip could not prepare this tip     | Try again in a minute. Nothing was paid. (No answer: "Quilltip could not be reached".)      |
 
 The rest use kit states: `UNAUTHENTICATED`, `NO_WALLET` and
 `ADDRESS_UNVERIFIED` the wallet gate; `PAUSED` the paused notice;
@@ -90,7 +90,7 @@ configuration and the request (`checkPreparedTip`): network, Core, token,
 tipper address, item count and order, method, time bound, `article_id`,
 amount against the quote, `client_ref` uniqueness, and `highlight_id`
 recomputed from the passage. A mismatch is recorded as `wallet_rejected:
-client_check` and shown as "This request does not match QuillTip’s settings".
+client_check` and shown as "This request does not match Quilltip’s settings".
 A wallet on another account than the linked one shows "Switch your wallet to
 {address}".
 

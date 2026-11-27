@@ -16,6 +16,7 @@ import { Client as CoreClient } from './bindings/core'
 import { bytesToHex } from '../bytes'
 import { highlightId } from './ids'
 import type { ContractCall } from './tx'
+import { SITE_NAME } from '@/lib/seo/siteMetadata'
 
 /** The fields of the prepare response that the call and the checks use. */
 export type PreparedTipCall = Pick<
@@ -114,7 +115,7 @@ export function checkPreparedTip(
 ): void {
   if (prepared.networkPassphrase !== expected.networkPassphrase) {
     throw new TipCallError(
-      'QuillTip prepared this tip for another network. Nothing was signed.'
+      `${SITE_NAME} prepared this tip for another network. Nothing was signed.`
     )
   }
   if (
@@ -122,7 +123,7 @@ export function checkPreparedTip(
     prepared.contractId !== expected.coreContractId
   ) {
     throw new TipCallError(
-      'QuillTip prepared this tip for another contract. Nothing was signed.'
+      `${SITE_NAME} prepared this tip for another contract. Nothing was signed.`
     )
   }
   if (
@@ -130,7 +131,7 @@ export function checkPreparedTip(
     prepared.tokenContractId !== expected.tokenContractId
   ) {
     throw new TipCallError(
-      'QuillTip prepared this tip in another token. Nothing was signed.'
+      `${SITE_NAME} prepared this tip in another token. Nothing was signed.`
     )
   }
   if (!StrKey.isValidEd25519PublicKey(prepared.tipperAddress)) {

@@ -21,7 +21,7 @@ export type GateInput = {
     networkReported: boolean
     errorKind: WalletErrorKind | null
   }
-  /** The network passphrase QuillTip uses. */
+  /** The network passphrase Quilltip uses. */
   expectedPassphrase: string
   /** `getTipEligibility`, or undefined while it loads. */
   eligibility:

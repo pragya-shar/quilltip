@@ -647,7 +647,7 @@ export function useMutation(ref: unknown) {
     if (name === 'walletLink.createWalletChallenge') {
       return {
         challengeId: 'challenge-1',
-        message: 'QuillTip wallet check (fixture)',
+        message: 'Quilltip wallet check (fixture)',
         transactionXdr: '',
         expiresAt: Date.now() + 300_000,
       }

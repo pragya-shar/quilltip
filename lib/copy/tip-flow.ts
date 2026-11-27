@@ -5,6 +5,7 @@
  * docs/design-system/tip-flows.md.
  */
 import type { CopyBlock } from '@/lib/copy/payment-states'
+import { SITE_NAME } from '@/lib/seo/siteMetadata'
 
 export const TIP_DIALOG = {
   articleTitle: 'Tip this article',
@@ -54,12 +55,11 @@ export const PREPARE_REFUSAL_COPY = {
   }),
   noPrice: {
     title: 'No XLM price right now',
-    detail:
-      'QuillTip can’t convert this amount yet. Try again in a minute. Nothing was paid.',
+    detail: `${SITE_NAME} can’t convert this amount yet. Try again in a minute. Nothing was paid.`,
   },
   v2Disabled: {
     title: 'Tips on Stellar testnet are not on here',
-    detail: 'This QuillTip site has not turned them on. Nothing was paid.',
+    detail: `This ${SITE_NAME} site has not turned them on. Nothing was paid.`,
   },
   notConfigured: {
     title: 'Tips are not set up on this site',
@@ -83,15 +83,15 @@ export const PREPARE_REFUSAL_COPY = {
     detail: 'Add a tip first.',
   },
   generic: {
-    title: 'QuillTip could not prepare this tip',
+    title: `${SITE_NAME} could not prepare this tip`,
     detail: 'Try again in a minute. Nothing was paid.',
   },
   offline: {
-    title: 'QuillTip could not be reached',
+    title: `${SITE_NAME} could not be reached`,
     detail: 'Check your connection, then try again. Nothing was paid.',
   },
   checkFailed: (detail: string): CopyBlock => ({
-    title: 'This request does not match QuillTip’s settings',
+    title: `This request does not match ${SITE_NAME}’s settings`,
     detail,
   }),
   wrongAccount: (expected: string, actual: string): CopyBlock => ({
