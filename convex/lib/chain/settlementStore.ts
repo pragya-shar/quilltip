@@ -306,6 +306,7 @@ export async function finishSettlement(
           voucherId: voucher._id,
           paidAfter: BigInt(o.paidAfter),
           cumulative: BigInt(o.cumulative),
+          sourceLedger: result.ledger,
           now,
         })
       }
@@ -333,6 +334,8 @@ export async function finishSettlement(
         voucherId: voucher._id,
         paidAfter: BigInt(o.cumulative),
         cumulative: BigInt(o.cumulative),
+        // The writer's payment happened at or before this transaction.
+        sourceLedger: result.ledger,
         now,
       })
     }
