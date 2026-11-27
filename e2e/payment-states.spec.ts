@@ -138,7 +138,7 @@ test.describe('retry rule', () => {
       'resuming'
     )
     await expect(page.locator('.pay-inline-status')).toHaveText(
-      'Checking whether this payment went through. This can take up to 5 minutes.'
+      'Checking whether this payment went through. This can take several minutes. If it did not go through, you can try again when the check ends.'
     )
     await expect(page.locator('.pay-steps')).toHaveCount(0)
   })
