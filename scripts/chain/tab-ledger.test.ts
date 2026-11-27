@@ -2988,6 +2988,73 @@ describe('spendable balance across settler records and indexed events', () => {
     ).toMatchObject({ status: 'nothing_to_do' })
   })
 
+  it('an event that raises paid over a lost lower range bounds it by its own ledger (#573)', async () => {
+    const flagged = negatives()
+    const { t, s } = await opened(BigInt(30) * CENT, [10])
+    // Two settle_own payments by the writer, no settler record: 0.06 at
+    // L+1 (event lost) and 0.04 at L+2 (indexed). Chain: 0.20, nothing owed.
+    await ingest(
+      t,
+      ev.tabSettled(
+        {
+          cumulative: BigInt(10) * CENT,
+          paidAfter: BigInt(10) * CENT,
+          gross: BigInt(4) * CENT,
+        },
+        { ledger: LEDGER + 2 }
+      )
+    )
+    expect(await spendable(t, s)).toBe(BigInt(20) * CENT)
+    expect((await voucherRow(t)).paidLedger).toBe(LEDGER + 2)
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(25) * CENT, {
+        ledger: LEDGER + 3,
+      })
+    )
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: (BigInt(25) * CENT).toString(),
+      settledUnindexed: '0',
+    })
+    expect(await spendable(t, s)).toBe(BigInt(25) * CENT)
+    expect(flagged()).toEqual([])
+  })
+
+  it('a reserve of unknown age is bounded again by the next payment (#573)', async () => {
+    const { t, s } = await opened(BigInt(30) * CENT, [10])
+    const first = await beginSettlement(t)
+    await settlerRecord(t, first.settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    await t.run(async (ctx) => {
+      const pair = (await ctx.db.query('tabVouchers').first())!
+      await ctx.db.patch(pair._id, { paidLedger: undefined })
+    })
+    await tip(t, s, { cents: 5 })
+    const second = await beginSettlement(t)
+    await settlerRecord(
+      t,
+      second.settlementId,
+      [
+        {
+          kind: 'settled',
+          writer: WRITER,
+          cumulative: BigInt(15) * CENT,
+          paidAfter: BigInt(15) * CENT,
+          gross: BigInt(5) * CENT,
+        },
+      ],
+      LEDGER + 2
+    )
+    expect((await voucherRow(t)).paidLedger).toBe(LEDGER + 2)
+    // Both events lost; a later deposit includes both debits.
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(20) * CENT, {
+        ledger: LEDGER + 3,
+      })
+    )
+    expect(await spendable(t, s)).toBe(BigInt(20) * CENT)
+  })
+
   it('two pairs of one reader: the whole reader, or one pair when the balance allows (#573)', async () => {
     const flagged = negatives()
     const { t, s } = await opened(BigInt(30) * CENT, [10])

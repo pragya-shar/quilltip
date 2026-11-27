@@ -1679,17 +1679,15 @@ export async function applyPairSettlement(
   const rangesChanged =
     voucher.indexedPaid === undefined ||
     rangesTotal(newRanges) !== rangesTotal(oldRanges)
-  // A ledger at or after every payment in the gap. A new payment raises it;
-  // a gap of unknown age stays unknown.
+  // A ledger at or after every payment in the gap. The contract's paid
+  // amount only grows, so the ledger at which it reached `newPaid` bounds
+  // every payment in [0, newPaid]. Without a source ledger the gap's age is
+  // unknown and only a reconciliation releases it.
   const paidLedger =
     gapAfter === ZERO
       ? undefined
       : newPaid > oldPaid
-        ? gapBefore === ZERO
-          ? args.sourceLedger
-          : voucher.paidLedger === undefined || args.sourceLedger === undefined
-            ? undefined
-            : Math.max(voucher.paidLedger, args.sourceLedger)
+        ? args.sourceLedger
         : voucher.paidLedger
   if (newPaid > oldPaid || rangesChanged || paidLedger !== voucher.paidLedger) {
     await ctx.db.patch(voucher._id, {
