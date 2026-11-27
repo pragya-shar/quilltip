@@ -26,7 +26,7 @@ export const HOW_IT_WORKS_STEPS: HowItWorksStepCopy[] = [
     title: 'Tip',
     description: 'Connect a wallet and tip the passages that move you',
     detail:
-      'Install Freighter, fund with free testnet XLM, and send tips that settle in about 3 seconds.',
+      'Install Varial (formerly Freighter), fund with free testnet XLM, and send tips that settle in about 3 seconds.',
   },
   {
     title: 'Publish & earn',
@@ -43,7 +43,7 @@ export const TRUST_SECTION_SUBHEAD =
 
 export const TRUST_BULLETS = [
   'Tips move wallet-to-wallet on Stellar through audited Soroban contracts',
-  'Wallet apps like Freighter sign transactions locally on your device',
+  'Wallet apps like Varial sign transactions locally on your device',
   `${WRITER_FEE_PHRASE} — fees enforced on-chain`,
   'Published articles are stored on Arweave for long-term availability',
 ] as const
