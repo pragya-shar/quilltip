@@ -7,6 +7,7 @@ import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { Notice } from '@/system/components/Notice'
 import { PendingIcon, WithdrawIcon } from '@/system/icons'
 import { sheetStack } from '@/shell/sheetStack'
+import { warmSheet } from '@/shell/sheets/preload'
 import { usePocketSource } from './source'
 import { tipsCount } from './copy'
 import { WITHDRAW_SHEET } from './sheetIds'
@@ -80,7 +81,7 @@ export function EarningsSection({
         <MoneyFigure
           value={ready ? earnings.pending : null}
           status={status}
-          size="m"
+          size="pending"
           label={
             <span className="qt-pocket__with-icon">
               <Icon icon={PendingIcon} size={16} />
@@ -94,7 +95,7 @@ export function EarningsSection({
         <MoneyFigure
           value={ready ? earnings.collected : null}
           status={status}
-          size="m"
+          size="pending"
           label="Paid to your wallet"
           unavailableText="Not available"
         />
@@ -105,6 +106,7 @@ export function EarningsSection({
           size="l"
           icon={WithdrawIcon}
           block
+          {...warmSheet(WITHDRAW_SHEET)}
           onClick={() => sheetStack.open(WITHDRAW_SHEET)}
         >
           {`Withdraw ${available.display}`}

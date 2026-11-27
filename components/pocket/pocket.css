@@ -11,18 +11,11 @@
 
   /* Ready to tip */
   .qt-pocket__spend {
-    container-type: inline-size;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: var(--qt-space-3);
     min-width: 0;
-  }
-  /* A long balance ($100 and up) shrinks with its column instead of
-     overflowing it at 360 px. A short one keeps the size of the shell's
-     placeholder, so nothing moves when the content arrives. */
-  .qt-pocket__spend[data-long] .qt-money[data-size='xl'] .qt-money__figure {
-    font-size: min(var(--qt-money-xl), 21cqi);
   }
   .qt-pocket__spend > .qt-button {
     margin-block-start: var(--qt-space-2);
@@ -96,22 +89,10 @@
     min-width: 0;
   }
   .qt-pocket__pair {
-    container-type: inline-size;
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
     gap: var(--qt-space-4) var(--qt-space-8);
-  }
-  .qt-pocket__pair .qt-money[data-size='m'] .qt-money__figure {
-    font-size: min(var(--qt-money-m), 11cqi);
-  }
-  /* Ready to withdraw can carry six decimals ("$280.4075"): it shrinks with
-     the column rather than overflow at 360 px. */
-  .qt-pocket__earn {
-    container-type: inline-size;
-  }
-  .qt-pocket__earn > .qt-money[data-size='xl'] .qt-money__figure {
-    font-size: min(var(--qt-money-xl), 17cqi);
   }
   .qt-pocket__with-icon {
     display: inline-flex;

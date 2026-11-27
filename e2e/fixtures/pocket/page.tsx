@@ -10,7 +10,6 @@ import {
   type BalanceReading,
 } from '../../../shell/balance'
 import PocketRoute from '../../../app/(app)/(signed-in)/pocket/page'
-import { registerPocketSheets } from '../../../components/pocket/registerSheets'
 import {
   PocketSourceContext,
   type MoneyAct,
@@ -148,8 +147,6 @@ const reading: BalanceReading = {
         : 'unavailable',
 }
 const useFakeBalance = () => reading
-
-registerPocketSheets()
 
 const pages: Record<string, () => React.ReactNode> = {
   '/': () => <TodayStandIn />,

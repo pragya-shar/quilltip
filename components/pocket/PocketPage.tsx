@@ -1,9 +1,6 @@
 'use client'
 
 import { Pocket } from './Pocket'
-import { registerPocketSheets } from './registerSheets'
-
-registerPocketSheets()
 
 /**
  * The balance as a page's content: where a link to /pocket lands, and where

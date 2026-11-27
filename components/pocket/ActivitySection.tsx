@@ -3,8 +3,10 @@
 import { Button } from '@/system/components/Button'
 import { Heading } from '@/system/components/Heading'
 import { Skeleton } from '@/system/components/Skeleton'
+import { warmSheet } from '@/shell/sheets/preload'
 import type { PocketActivity } from './activityModel'
 import { PocketActivityRow } from './PocketActivityRow'
+import { RECEIPT_SHEET } from './sheetIds'
 import { useNow } from './useNow'
 
 /**
@@ -73,7 +75,11 @@ export function ActivitySection({
                   These cannot be shown right now.
                 </p>
               ) : (
-                <ul className="qt-pocket__rows" data-role={list.role}>
+                <ul
+                  className="qt-pocket__rows"
+                  data-role={list.role}
+                  {...warmSheet(RECEIPT_SHEET)}
+                >
                   {list.view.items.map((item) => (
                     <li
                       key={item.id}

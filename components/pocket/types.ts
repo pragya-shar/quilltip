@@ -19,7 +19,15 @@
 export type Cents = number
 
 /** An amount in dollars and its display text ("$4.20", "≈ $2.54"). */
-export type Money = { cents: Cents; display: string }
+export type Money = {
+  cents: Cents
+  display: string
+  /** Accepted for 561 (D24): a dollar figure converted from the token at
+   * today's price (the reader's Ready to tip while the balance is held in
+   * XLM). It is written with "≈" and two decimals. Figures stored at tip
+   * time are exact and never converted. */
+  converted?: boolean
+}
 
 export type NotPaidReason = 'shortfall' | 'expired' | 'rejected' | 'reset'
 

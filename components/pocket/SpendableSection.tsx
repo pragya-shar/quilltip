@@ -7,16 +7,10 @@ import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { Notice } from '@/system/components/Notice'
 import { AddIcon, PendingIcon } from '@/system/icons'
 import { sheetStack } from '@/shell/sheetStack'
+import { warmSheet } from '@/shell/sheets/preload'
 import { ADD_MONEY_SHEET } from './sheetIds'
 import { usePocketSource } from './source'
 import type { BalanceView } from './types'
-
-/** Whole-dollar digits in a display string ("$1,254.66" has four): a
- * figure that long shrinks to fit a 360 px column. Layout only. */
-function wholeDigits(display: string): number {
-  const whole = display.split('.')[0] ?? ''
-  return whole.replace(/\D/g, '').length
-}
 
 /**
  * What the person can tip with now: one figure, exactly as the money layer
@@ -47,20 +41,15 @@ export function SpendableSection({
         ? 'unavailable'
         : 'ready'
   const available = status === 'ready' ? balance.available : null
-  const estimate = available?.display.startsWith('≈') ?? false
+  const estimate =
+    available?.converted ?? available?.display.startsWith('≈') ?? false
   const exact = status === 'ready' ? balance.exact : null
   const outgoing =
     status === 'ready' && balance.pending && balance.pending.cents > 0
       ? balance.pending
       : null
   return (
-    <section
-      className="qt-pocket__spend"
-      aria-label="Ready to tip"
-      data-long={
-        available && wholeDigits(available.display) >= 3 ? '' : undefined
-      }
-    >
+    <section className="qt-pocket__spend" aria-label="Ready to tip">
       <MoneyFigure
         value={available}
         status={status}
@@ -111,6 +100,7 @@ export function SpendableSection({
         <Button
           variant={compact ? 'secondary' : 'primary'}
           icon={AddIcon}
+          {...warmSheet(ADD_MONEY_SHEET)}
           onClick={() => sheetStack.open(ADD_MONEY_SHEET)}
         >
           Add money

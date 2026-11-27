@@ -34,7 +34,7 @@ const pocket = (page: Page) =>
 
 const balanceItem = (page: Page) => page.locator('[data-balance]:visible')
 
-/** What the person sees in a figure: "$2.5466". */
+/** What the person sees in a figure: "≈$2.54". */
 const digits = (root: Locator, label: string) =>
   root
     .locator('.qt-money', {
@@ -132,7 +132,7 @@ test.describe('over what the person is doing', () => {
     expect(panel!.x).toBeGreaterThanOrEqual(main!.x + main!.width - 1)
     // The page stays usable beside it.
     await expect(page.locator('#p-1')).toBeVisible()
-    await expect(digits(pocket(page), 'Ready to tip')).toHaveText('$2.5466')
+    await expect(digits(pocket(page), 'Ready to tip')).toHaveText('≈$2.54')
   })
 
   test('/pocket is a page with the same content', async ({ page }) => {
@@ -141,7 +141,7 @@ test.describe('over what the person is doing', () => {
       page.getByRole('heading', { level: 1, name: 'Balance' })
     ).toBeVisible()
     await expect(digits(page.locator('.qt-pocket'), 'Ready to tip')).toHaveText(
-      '$2.5466'
+      '≈$2.54'
     )
     await expect(page.locator('noscript')).toHaveCount(1)
   })
@@ -157,29 +157,32 @@ type Expect = {
 }
 
 const A_READER = 'A reader'
-// Money text per design N2: exact, up to six decimals, no "≈" (the
-// fixture writes it as the money layer will).
+// Money text per design N2 as amended by D24: figures stored at tip time
+// exact to six decimals; the reader's converted balance "≈" with two
+// decimals (the fixture writes it as the money layer will).
 const SCENARIOS: Record<string, Expect> = {
   ready: {
-    spend: '$2.5466',
+    spend: '≈$2.54',
     earnings: { withdraw: '$0.6825', onWay: '$0.00' },
     rows: 6,
     texts: [
+      'An estimate at today’s price.',
       'New accounts get $5 of testnet practice money.',
       'Withdrawing arrives in a later update.',
       'These are your share. You keep 97.5% of every tip.',
       'Quilltip runs on Stellar testnet. Tips are practice money.',
     ],
-    absent: [/≈/, /Pocket/],
+    // No "Pocket" on screen; "≈" only on the converted balance.
+    absent: [/Pocket/, /≈.*≈/],
   },
   available: {
-    spend: '$2.5466',
+    spend: '≈$2.54',
     earnings: { withdraw: '$0.6825', onWay: '$0.00' },
     rows: 6,
   },
-  sending: { spend: '$2.4466', earnings: null, rows: 1, texts: ['Sending'] },
+  sending: { spend: '≈$2.44', earnings: null, rows: 1, texts: ['Sending'] },
   sent: {
-    spend: '$2.4466',
+    spend: '≈$2.44',
     earnings: {
       withdraw: '$0.00',
       onWay: '$0.0975',
@@ -189,7 +192,7 @@ const SCENARIOS: Record<string, Expect> = {
     texts: ['in tips on its way to writers', 'On its way'],
   },
   pending: {
-    spend: '$2.5466',
+    spend: '≈$2.54',
     earnings: {
       withdraw: '$0.0975',
       onWay: '$0.4875',
@@ -207,7 +210,7 @@ const SCENARIOS: Record<string, Expect> = {
     ],
   },
   failed: {
-    spend: '$2.5466',
+    spend: '≈$2.54',
     earnings: { withdraw: '$0.00', onWay: '$0.00' },
     rows: 4,
     texts: [
@@ -224,14 +227,14 @@ const SCENARIOS: Record<string, Expect> = {
     absent: [/not charged/],
   },
   empty: {
-    spend: '$2.5466',
+    spend: '≈$2.54',
     earnings: null,
     rows: 0,
     texts: ['Your tips show up here.'],
   },
   none: { spend: '$0.00', earnings: null, rows: 0 },
   offline: {
-    spend: '$2.5466',
+    spend: '≈$2.54',
     rows: 6,
     texts: ['Offline. These figures are from 2 minutes ago.'],
   },
@@ -452,9 +455,11 @@ test.describe('receipts and money sheets', () => {
     await expect(
       sheet.getByRole('button', { name: /practice money/ })
     ).toHaveCount(0)
-    await expect(sheet).toContainText('Soon you can add $5 of practice money')
+    await expect(sheet).toContainText('You cannot add money here yet.')
     await expect(
-      sheet.getByRole('link', { name: 'add money on the current balance page' })
+      sheet.getByRole('link', {
+        name: 'add testnet money on the current balance page',
+      })
     ).toHaveAttribute('href', '/dashboard/tab')
     await page.keyboard.press('Escape')
     await expect

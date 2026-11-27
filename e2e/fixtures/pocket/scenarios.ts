@@ -63,6 +63,14 @@ export function exactCents(cents: number) {
   return `$${whole.toLocaleString('en-US')}.${fraction}`
 }
 const money = (cents: number): Money => ({ cents, display: exactCents(cents) })
+/** The reader's balance, converted at today's price (D24): "≈", two
+ * decimals, floored once at the figure. */
+function converted(cents: number): Money {
+  const whole = Math.floor(cents + 1e-9)
+  const dollars = Math.floor(whole / 100).toLocaleString('en-US')
+  const rest = String(whole % 100).padStart(2, '0')
+  return { cents, display: `≈ $${dollars}.${rest}`, converted: true }
+}
 const share = (cents: number) => Math.round(cents * 0.975 * 10_000) / 10_000
 const baseUnits = (cents: number) =>
   String(Math.floor((cents * STROOPS) / PRICE))
@@ -137,7 +145,7 @@ function sum(items: ActivityItem[], pick: (i: ActivityItem) => number) {
 
 const readyBalance = (over: Partial<BalanceView> = {}): BalanceView => ({
   status: 'ready',
-  available: money(254.66),
+  available: converted(254.66),
   pending: money(0),
   device: 'ready',
   settlement: { enabled: true, expectedWithinMs: 80_000 },
@@ -238,12 +246,12 @@ export function scenario(name: Scenario, now: number): FixtureViews {
       return views(settled)
     case 'sending':
       return views(both([[10, 'sending']], now), {
-        available: money(244.66),
+        available: converted(244.66),
         exact: lower,
       })
     case 'sent':
       return views(both([[10, 'sent']], now), {
-        available: money(244.66),
+        available: converted(244.66),
         pending: money(10),
         exact: lower,
       })
