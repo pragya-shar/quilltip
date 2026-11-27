@@ -364,6 +364,10 @@ jobs:
           - shard: tab
             suites: tab
             browsers: chromium firefox webkit
+          # The tab screens: every state in Chromium, key paths in all three.
+          - shard: tab-ui
+            suites: tab-ui
+            browsers: chromium firefox webkit
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

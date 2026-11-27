@@ -152,6 +152,18 @@ async function main(argv: string[]) {
       ],
       { env }
     )
+    // The tab screens' calls, settlement and claim (convex-test, edge runtime).
+    run(
+      'bun',
+      [
+        'x',
+        'vitest',
+        'run',
+        '--config',
+        'scripts/integration/tab-ui.config.mts',
+      ],
+      { env }
+    )
   } finally {
     if (argv.includes('--stop'))
       spawnSync('docker', ['rm', '-f', CONTAINER], { stdio: 'inherit' })

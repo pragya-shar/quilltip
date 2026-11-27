@@ -279,6 +279,8 @@ export const tabTables = {
     updatedAt: v.number(),
   })
     .index('by_pair_seq', ['tabAccountId', 'keyId', 'writerAddress', 'seq'])
+    /** A reader's receipts by time, for the tab screens' recent tips. */
+    .index('by_account_accepted', ['tabAccountId', 'acceptedAt'])
     .index('by_status_created', ['status', 'createdAt'])
     .index('by_client_ref', ['clientRef']),
 

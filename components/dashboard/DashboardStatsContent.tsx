@@ -8,6 +8,7 @@ import {
 } from '@/hooks/convex'
 import { CreatorStatsPanel } from '@/components/dashboard/CreatorStatsPanel'
 import { DashboardStatsSkeleton } from '@/components/dashboard/DashboardStatsSkeleton'
+import { CollectPanelLoader } from '@/components/tab/CollectPanelLoader'
 
 export function DashboardStatsContent() {
   const { user: currentUser } = useAuth()
@@ -38,6 +39,7 @@ export function DashboardStatsContent() {
         isTestnet={earnings?.network !== 'MAINNET'}
         nftsOwned={user?.nftsOwned ?? 0}
       />
+      <CollectPanelLoader />
     </div>
   )
 }
