@@ -72,6 +72,8 @@ const confirmDelay = Number(params.get('confirmDelay') ?? 600)
 // usernames, the largest u32 token ID, a total far past the threshold);
 // `data=empty`: nothing tipped yet.
 const data = params.get('data') ?? 'demo'
+/** `v1paused=1`: v1 NFT actions are paused (`CHAIN_V1_PREPARES_ENABLED=false`). */
+const v1Paused = params.get('v1paused') === '1'
 const LONG_USER = 'bartholomew_fitzgera'
 const TOKEN_ID = data === 'worst' ? 4_294_967_295 : 7
 
@@ -178,6 +180,22 @@ const v1Row = {
   rarity: 'rare',
 }
 
+const v1Unminted = {
+  isMinted: false,
+  isEligible: true,
+  totalTips: 2500,
+  tipThreshold: 1000,
+  transferCount: 0,
+  rarity: 'common',
+}
+
+/** `nfts.getNFTByArticle` as #520 returns it: with `v1ActionsPaused`. */
+function nftRecord(record: unknown) {
+  return record && typeof record === 'object'
+    ? { ...record, v1ActionsPaused: v1Paused }
+    : record
+}
+
 function eligibility(stateName: string, extra: Record<string, unknown> = {}) {
   return {
     state: stateName,
@@ -240,6 +258,12 @@ function initial(): Store {
         ...base,
         config: { v2Enabled: false, paused: {} },
         record: v1Row,
+      }
+    case 'v2-disabled-unminted':
+      return {
+        ...base,
+        config: { v2Enabled: false, paused: {} },
+        record: v1Unminted,
       }
     case 'reader-below':
       return { ...base, progress: progress(below) }
@@ -496,7 +520,7 @@ export function useQuery(ref: unknown, args?: unknown) {
     case 'nftsV2.getMintProgress':
       return current.progress
     case 'nfts.getNFTByArticle':
-      return current.record
+      return nftRecord(current.record)
     case 'walletLink.getMyWalletLink':
       return viewerOf() === 'signed-out' ? null : current.walletLink
     case 'nftsV2.getNftSubmissionStatus': {
@@ -719,7 +743,7 @@ export function useMutation(ref: unknown) {
 // --- v1 stand-ins (the v1 panel when v2 is off) ----------------------------
 
 export function useNFTByArticle() {
-  return store.record
+  return nftRecord(store.record)
 }
 export const useWalletActivation = () => ({ activateWallet: () => {} })
 export const stellarClient = { getXLMPrice: async () => 0.2 }
