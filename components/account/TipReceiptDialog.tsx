@@ -7,7 +7,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import Link from 'next/link'
-import { RESULT_COPY, STATUS_LABEL } from '@/lib/copy/payment-states'
+import {
+  RESULT_COPY,
+  STATUS_LABEL,
+  TAB_TIP_RESULT,
+} from '@/lib/copy/payment-states'
+import { TAB_HISTORY } from '@/lib/copy/tab'
 
 /**
  * A row's status in words. v1 statuses keep their labels; v2 statuses use
@@ -29,6 +34,13 @@ export function tipStatusLabel(status: string, mismatchReason?: string) {
         ? STATUS_LABEL['sent-to-registered']
         : STATUS_LABEL['under-review'],
     EXPIRED: STATUS_LABEL.expired,
+    // Tab tip receipts (TAB_RECEIPT_STATUSES)
+    ACCEPTED: STATUS_LABEL.accepted,
+    SETTLED: STATUS_LABEL.settled,
+    SHORTFALL: STATUS_LABEL.shortfall,
+    UNPAID: STATUS_LABEL.unpaid,
+    REJECTED: STATUS_LABEL.rejected,
+    VOID_RESET: STATUS_LABEL['void-reset'],
   }
   return labels[status] ?? `Unrecognized status (${status})`
 }
@@ -47,11 +59,27 @@ export function tipGenerationLabel(
 
 /** What a receipt says about a row that is not a confirmed payment. */
 export function receiptStatusNote(
-  item: Pick<TipActivityItem, 'status' | 'mismatchReason'>
+  item: Pick<TipActivityItem, 'status' | 'mismatchReason'> & {
+    direction?: TipActivityItem['direction']
+  }
 ): string | null {
+  const audience = item.direction === 'received' ? 'writer' : 'reader'
   switch (item.status) {
     case 'CONFIRMED':
+    case 'SETTLED':
       return null
+    // Tab tip receipts: accepted without a wallet prompt, settled later.
+    case 'ACCEPTED':
+      return `Sent from a tab and not settled yet. ${TAB_HISTORY.accepted}.`
+    case 'SHORTFALL':
+      return RESULT_COPY.shortfall.detail
+    case 'UNPAID':
+    case 'REJECTED':
+      return TAB_TIP_RESULT[item.status === 'UNPAID' ? 'unpaid' : 'rejected'][
+        audience
+      ].detail
+    case 'VOID_RESET':
+      return RESULT_COPY['void-reset'].detail
     case 'PENDING':
     case 'CONFIRMING':
     case 'PREPARED':

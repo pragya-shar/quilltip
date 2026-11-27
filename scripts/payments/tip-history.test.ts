@@ -3,6 +3,10 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import {
+  CHAIN_RECORD_STATUSES,
+  TAB_RECEIPT_STATUSES,
+} from '../../convex/lib/chain/schema'
+import {
   receiptStatusNote,
   tipGenerationLabel,
   tipStatusLabel,
@@ -43,6 +47,59 @@ describe('tip status labels', () => {
       receiptStatusNote({ status: 'MISMATCH', mismatchReason: 'author' })
     ).toMatch(/registered for this article/)
     expect(receiptStatusNote({ status: 'EXPIRED' })).toMatch(/nothing was paid/)
+  })
+})
+
+describe('every status the backend writes has a label (#547)', () => {
+  const v1 = [
+    'PENDING',
+    'CONFIRMING',
+    'CONFIRMED',
+    'FAILED',
+    'FRAUDULENT',
+    'UNVERIFIED',
+  ]
+  it('v1, v2 chain records and tab tip receipts', () => {
+    for (const status of [
+      ...v1,
+      ...CHAIN_RECORD_STATUSES,
+      ...TAB_RECEIPT_STATUSES,
+    ]) {
+      expect(tipStatusLabel(status), status).not.toMatch(/Unrecognized/)
+    }
+  })
+
+  it('labels tab receipts as the payment kit does', () => {
+    expect(tipStatusLabel('ACCEPTED')).toBe('Settling')
+    expect(tipStatusLabel('SETTLED')).toBe('Settled')
+    expect(tipStatusLabel('SHORTFALL')).toBe('Waiting for balance')
+    expect(tipStatusLabel('UNPAID')).toBe('Not paid')
+    expect(tipStatusLabel('REJECTED')).toBe('Not settled')
+    expect(tipStatusLabel('VOID_RESET')).toBe('Cleared by reset')
+  })
+
+  it('explains tab receipts on the receipt, for the reader and the writer', () => {
+    expect(receiptStatusNote({ status: 'SETTLED' })).toBeNull()
+    expect(receiptStatusNote({ status: 'ACCEPTED' })).toMatch(
+      /not settled yet\. Settles at 5 XLM to this writer, or after 6 hours\./
+    )
+    expect(receiptStatusNote({ status: 'SHORTFALL' })).toMatch(/next top-up/)
+    expect(receiptStatusNote({ status: 'UNPAID', direction: 'sent' })).toMatch(
+      /back in your tab balance/
+    )
+    expect(
+      receiptStatusNote({ status: 'UNPAID', direction: 'received' })
+    ).toMatch(/will not be paid/)
+    expect(
+      receiptStatusNote({ status: 'REJECTED', direction: 'received' })
+    ).toMatch(/not paid to you/)
+    expect(receiptStatusNote({ status: 'VOID_RESET' })).toMatch(/reset/)
+    // None of them reads as an unknown record.
+    for (const status of TAB_RECEIPT_STATUSES) {
+      expect(receiptStatusNote({ status }) ?? '').not.toMatch(
+        /does not represent a confirmed payment/
+      )
+    }
   })
 })
 
