@@ -276,9 +276,15 @@ const STATES: State[] = [
     check: async (dialog, page) => {
       const input = dialog.getByLabel('Other amount')
       await expect(input).toHaveAttribute('aria-invalid', 'true')
-      await expect(
-        dialog.getByText('The smallest tip right now is $0.03.')
-      ).toBeVisible()
+      // Wait until the field points at its error and its hint, then check
+      // the note it points at, which is the one the reader sees and hears.
+      await expect(input).toHaveAttribute('aria-describedby', /^\S+ \S+$/)
+      const [noteId] = (await input.getAttribute('aria-describedby'))!.split(
+        ' '
+      )
+      const note = dialog.locator(`[id="${noteId}"]`)
+      await expect(note).toHaveText('The smallest tip right now is $0.03.')
+      await expect(note).toBeVisible()
       await expect(input).toBeFocused()
       expect((await log(page)).prepared).toEqual([])
     },
