@@ -463,7 +463,7 @@ Live data is larger, so the snapshot, push and backfill steps can take longer.
 | 5     | Freeze, 15-minute wait, drain, backfill again         | 15 min 17 s                                                                                        |
 | 6     | Switch on v2, section 7.1                             | Registration indexed in 17 s, direct tip confirmed in 35 s; about 15 min for the full 7.1 list     |
 | —     | Rollback B, if needed                                 | 54 s                                                                                               |
-| —     | Snapshot restore (section 6.2), if needed             | About 1 min, plus the Vercel rollback                                                              |
+| —     | Snapshot restore (section 6.2), if needed             | About 10 min with the deployment paused (small data set)                                           |
 
 Plan about 1 hour 15 minutes from stage 0 to the end of stage 6, plus the
 owner's own checks. Stage 3 can run before the window (its contract set is
@@ -522,7 +522,9 @@ window.
    repository: `bunx convex export --include-file-storage --path <file>.zip`
    (section 5.0.2 for the credential), or a dashboard backup. Record the
    live deployment's environment variable names and values in the owner's
-   password store: a snapshot does not contain them.
+   password store: a snapshot does not contain them. Record the latest testnet
+   ledger at the time of the snapshot (RPC `getLatestLedger`); a restore lists
+   payments from that ledger (section 6.2, step 3).
 
 **Check:** the tag points to the commit whose checks are recorded in 1.3, and
 the snapshot file opens (`unzip -l <file>.zip` lists one folder per table and
@@ -584,7 +586,20 @@ v2 crons do nothing without contract IDs. Do not push `main`'s previous schema
 
 **Check:**
 
-- `GET /api/health` reports the release commit and `TESTNET`.
+- `/api/health` answers with JSON from the release build. A status code
+  alone is not a check: before the release, the path returns the old site's
+  HTML page with status 200. Run:
+
+  ```bash
+  curl -fsS -H 'Accept: application/json' https://www.quilltip.me/api/health \
+    | jq -e --arg sha "<release sha>" '.status == "ok" and .backend == "ok"
+        and .network == "TESTNET" and .commit == $sha'
+  ```
+
+  The command must print `true` and exit 0. It fails on an HTML answer (`jq`
+  cannot parse it), a different commit, another network, or a backend that is
+  `unreachable` or `unconfigured`.
+
 - A signed-in user can open settings and verify a wallet (wallet challenge).
 - With `CHAIN_V2_ENABLED=false`, a v1 article tip to a verified author
   completes and appears in the tipper's history as v1.
@@ -783,59 +798,170 @@ Never roll back by pushing `main`'s earlier backend code (section 2.2).
 
 ### 6.2 Snapshot restore (last resort)
 
-The switches cover every planned rollback. Restore the stage 0 snapshot only
-if the live data itself must go back to its stage 0 state, for example after
-a defect that wrote wrong data. A restore discards every record written since
-stage 0, including real testnet tips, so the owner decides it.
+A restore is the last resort. The switches cover every planned rollback
+(section 6). After stage 2, fix forward is preferred: reverse the switches for
+a payment defect, and correct other defects in code. Restore only when data
+written by a defect cannot be corrected forward, and only with the owner's
+decision.
 
-What a snapshot holds: every table's documents with their IDs and creation
-times, and, when exported with `--include-file-storage`, the stored files.
-It does not hold the functions, the schema, the environment variables, or
-pending scheduled functions (Convex documentation, data import and export).
+Know what a restore costs, even when every step below succeeds:
 
-Procedure, with the credential from section 5.0.2, in a checkout of `main`'s
-previous release commit (the code that ran at stage 0):
+- **Payments cannot be reversed.** Every tip, deposit, settlement, claim,
+  mint and transfer after the snapshot stays on chain. The restore must bring
+  the database back into line with the chain (step 4), not the other way.
+- **The whole site is down while the deployment is paused** (steps 1 to 6).
+  Every page that reads Convex shows an error.
+- **Rows that the defect damaged are lost** where they were written after
+  stage 0 and cannot be re-derived. They come back at their stage 0 state.
+- **Some payment facts exist only in the database:** the app article for an
+  event (an event for an article that is not in the database is an
+  `orphan`), v1 intents, the reader's account for a v1 tip, the USD amount and
+  price quote at the time, and tip messages. They come from the second export
+  (step 2) or not at all.
+- **Not in any snapshot:** environment variables, the code, and scheduled
+  functions. Pending scheduled functions run when the deployment resumes.
 
-1. Stop new writes from the v2 code. Set the environment variables back to
-   their stage 0 values: remove `CHAIN_V2_ENABLED`,
-   `CHAIN_V1_PREPARES_ENABLED`, `CHAIN_EPOCH`, the four contract IDs,
-   `INDEXER_START_LEDGER`, `OPS_USER_IDS`, `SETTLEMENT_ENABLED`,
-   `TAB_ACCEPTOR_SECRET`, `TAB_SETTLER_SECRET` and the other variables set in
-   stage 3. Without this, the release crons keep writing chain rows between
-   the import and the code push.
-2. Import the snapshot over all data:
+Measured on a disposable local backend with a small data set (5 users,
+3 articles, 5 tips, 1 file): the deployment was paused for 4 min 26 s,
+including a 2-minute wait to observe scheduled functions. Each command took
+under 10 s; the full path, with checks, took about 10 minutes. A cloud
+deployment with live data takes longer; the owner confirms the path on a
+development deployment first (section 1.4).
 
-   ```bash
-   bunx convex import --replace-all -y <stage0-file>.zip
-   ```
+Use the credential from section 5.0.2 for every command.
 
-   `--replace-all` replaces every table in the snapshot and clears tables
-   that are in the deployed schema but not in the snapshot. Document IDs,
-   creation times and stored files come back as they were.
+#### Step 1. Stop every write
 
-3. Push `main`'s previous code: `bunx convex deploy --dry-run`, confirm the
-   target, then `bunx convex deploy`. This push succeeds only after step 2;
-   before it, the release rows fail `main`'s schema (section 2.2).
-4. Import the snapshot once more with the same command. Under `main`'s
-   schema this deletes the v2 tables (they are in neither the snapshot nor the
-   schema) and any row written between steps 2 and 3.
-5. In Vercel, roll the site back to the previous production deployment
-   (stage 2 rollback).
+Pause the deployment: Convex dashboard, **Settings → Pause deployment**. The
+deployment API offers the same call
+(`POST <deployment URL>/api/v1/pause_deployment`). While paused, the
+deployment refuses every function call: queries, mutations, actions, HTTP
+actions (including uploads), sign-up and sign-in, calls over an already open
+WebSocket connection, and `convex run`. Crons are skipped. Scheduled
+functions wait and run at resume. A maintenance page on the site alone is not
+enough: an open tab calls Convex directly.
 
-**Check:** export the restored deployment
-(`bunx convex export --include-file-storage --path <after>.zip`) and compare
-it with the stage 0 file: the same table list, and for each table the same
-row count, document IDs and content. Environment variable names match the
-list recorded at stage 0. The `_scheduled_functions` history from the
-release code stays (a snapshot does not replace it); confirm that no entry is
-`pending`, or cancel it in the dashboard before step 3.
+What still works while paused: `convex export`, `convex env set` and
+`env remove`, `convex import`, and `convex deploy`.
 
-Measured on a disposable local backend with a small data set: step 1
-13 s, step 2 4 s, step 3 24 s, step 4 10 s; about 1 minute in all, plus the
-Vercel rollback. Every table, ID, content hash and stored file matched the
-stage 0 file after step 4. A cloud deployment with live data takes longer;
-the owner confirms the procedure once on a development deployment before
-the window.
+**Check:** a query from outside is refused:
+
+```bash
+curl -s -X POST <deployment URL>/api/query -H 'content-type: application/json' \
+  -d '{"path":"chain/config:getChainConfig","args":{}}'
+```
+
+The answer contains `Cannot run functions while this deployment is paused.`
+
+#### Step 2. Second export
+
+```bash
+bunx convex export --include-file-storage --path <after-incident>.zip
+```
+
+Keep it beside the stage 0 snapshot, outside the repository. It is the only
+copy of the work done after stage 0. Record its size, the time and the latest
+testnet ledger (`getLatestLedger`).
+
+#### Step 3. List every payment since the snapshot
+
+From the ledger of the stage 0 snapshot to now:
+
+- **v2:** contract events of the Core, Tab and NFT contracts (RPC
+  `getEvents`, contract filter). The public RPC keeps about 7 days of events
+  (`oldestLedger` in the answer). Older ledgers need an archive RPC or a
+  hosted indexer; their events go in with `chain/indexer:ingestBackfill`.
+- **v1:** the v1 tipping contract emits no events of its own. List the native
+  XLM contract's `transfer` events to each writer's address, and keep the
+  transactions whose operation calls the v1 contract (`tip_article`,
+  `tip_highlight_direct`; Horizon `/transactions/<hash>/operations`).
+- **Before the snapshot:** check that each payment row in the stage 0
+  snapshot has its transaction on chain (Horizon `/transactions/<hash>`).
+
+The result is a list of transaction hashes that the restored rows must match.
+
+#### Step 4. Build the restore file
+
+Start from the stage 0 snapshot and decide per table, with the second export:
+
+| Table group                                                                                                                                        | Source in the restore file                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tables the defect damaged                                                                                                                          | Stage 0 snapshot. Re-apply rows from the second export only after review, one by one.                                                                                                                                                                                 |
+| Other non-payment tables (`users`, `articles`, `authAccounts`, `authSessions`, `authRefreshTokens`, `_storage`, uploads, highlights, and the rest) | Second export. This keeps new accounts, edited articles and drafts, uploaded files, profile changes and wallet verifications.                                                                                                                                         |
+| Payment tables (`tips`, `highlightTips`, `articleNFTs`, `nftTransfers`, `chainSubmissions`, `tab*`, `withdrawals`)                                 | A row from the second export only if its transaction hash is in the step 3 list. Otherwise the stage 0 row if it existed, else leave it out and list it for review. On `v2` rows remove `earningsAppliedAt` and `earningsSkipReason`, so earnings are credited again. |
+| `chainArticles`                                                                                                                                    | Second export (the indexer needs these rows to link events).                                                                                                                                                                                                          |
+| `authorEarnings`                                                                                                                                   | Stage 0 snapshot; rebuilt in step 6.                                                                                                                                                                                                                                  |
+| `chainEvents`, `chainCursor`, `chainLeases`, `chainConfig`                                                                                         | Left out; rebuilt in step 6.                                                                                                                                                                                                                                          |
+
+Rules for conflicts:
+
+- A row changed after stage 0 and not damaged: the second export wins.
+- An account created after stage 0 keeps its `users`, `authAccounts`,
+  `authSessions` and `authRefreshTokens` rows together, or loses all of them.
+  Never keep one without the others.
+- Write the restore file in the snapshot format: one folder per table with
+  `documents.jsonl` (and `generated_schema.jsonl`), `_storage` with its files,
+  and `_tables`.
+
+Keep the release code deployed: the stage 0 data fits the release schema.
+Going back to `main`'s code is a separate decision (section 2.2): `main`'s
+schema has no place for v2 rows, so they stay on chain until the release
+returns.
+
+#### Step 5. Import (still paused)
+
+```bash
+bunx convex env set CHAIN_V1_PREPARES_ENABLED false
+bunx convex env set CHAIN_V2_ENABLED false
+bunx convex import --replace-all -y <restore-file>.zip
+```
+
+`--replace-all` replaces every table in the file and clears tables in the
+schema that the file leaves out. Document IDs, creation times and files come
+back as written in the file. Push code now only if it changes
+(`bunx convex deploy --dry-run`, confirm, deploy).
+
+Before resuming, open the `_scheduled_functions` table and cancel each
+`pending` entry that must not run on the restored data.
+
+#### Step 6. Resume with payments frozen
+
+Resume the deployment (dashboard, or `POST <deployment URL>/api/v1/unpause_deployment`).
+Reading, writing and publishing work again; payments stay off. Then rebuild:
+
+```bash
+bunx convex run chain/config:refreshChainConfig
+bunx convex run chain/indexer:replayFrom '{"fromLedger": <INDEXER_START_LEDGER>}'
+bunx convex run chain/backfill:setContractVersionV1 '{"table":"tips","apply":true}'
+bunx convex run authorEarningsBackfill:run '{"dryRun":true}'
+bunx convex run authorEarningsBackfill:run '{"dryRun":false}'
+```
+
+Run the contract version backfill for `highlightTips` and `articleNFTs` too.
+The indexer replays from the ledger and links each event to the restored
+rows; stored events are skipped, and the handlers are idempotent. The
+`sync v2 tip earnings` cron credits the `v2` rows again within a minute.
+`authorEarningsBackfill:run` rebuilds each earnings row from the author's
+verified tips.
+
+#### Step 7. Reopen payments
+
+Set `CHAIN_V2_ENABLED=true` (and `CHAIN_V1_PREPARES_ENABLED` as it was before
+the incident) only when all of these are true:
+
+1. Every transaction hash from step 3 has a row (`tips`, `highlightTips` or
+   `chainSubmissions`), and every `v2` payment row's hash is in the step 3
+   list.
+2. `/ops/chain` shows status `OK`, a recent `lastRunAt`, and
+   `events.error: 0`, `orphan: 0` and `pending: 0` for the replayed range.
+3. `authorEarningsBackfill:run` with `{"dryRun": true}` reports
+   `changedRows: 0`.
+4. The rows left out in step 4 are reviewed and recorded in the incident
+   record.
+5. A comparison of a new export with the second export shows the expected
+   differences only: the damaged tables and the left-out rows.
+
+Then roll the site forward or back as needed, and remove the pause notice.
 
 ## 7. Post-cutover verification
 
