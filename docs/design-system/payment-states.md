@@ -196,8 +196,10 @@ testnet busy), pass that `failure`; its copy replaces the polling copy.
 | Wallet error kind                                   | Goes to                                                                                      |
 | --------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `no-wallet`, `locked`, `wrong-network`              | `WalletGate`                                                                                 |
+| `disconnected`                                      | `WalletGate` "Wallet disconnected" (`ended: true`): the wallet ended the connection.         |
 | `rejected`                                          | `declined`                                                                                   |
 | `timeout`, `wrong-account`, `unsupported`, `failed` | `failed` with the wallet copy below. Titles are fixed; the wallet's own text is never shown. |
+| `popup-blocked`                                     | `failed` with its own next step: allow pop-ups, then try again.                              |
 | `cancelled`                                         | Back to the start form. Closing the picker is not an error.                                  |
 
 ### Contract and send errors (`noticeFromContractFailure`, `failureFromContract`)
@@ -281,15 +283,16 @@ wallet prompt is open (`busy`), the button reads "Waiting for your wallet…",
 is `aria-disabled`, keeps focus, and its spinner takes the button's text
 colour.
 
-| State              | Title                         | Detail                                                                                                                                           | Action         | Tone    |
-| ------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ------- |
-| Checking           | Checking your wallet          | This takes a moment.                                                                                                                             | none (spinner) | inline  |
-| Signed out         | Sign in to continue           | Tips and tabs belong to your QuillTip account.                                                                                                   | Sign in        | neutral |
-| No wallet          | No Stellar wallet found       | Install a Stellar wallet such as Varial (formerly Freighter) or xBull in this browser, then try again.                                           | Set up wallet  | neutral |
-| Not connected      | Connect your wallet           | Connecting shares your address. It does not send a payment.                                                                                      | Connect wallet | neutral |
-| Locked wallet      | Your wallet is locked         | Unlock your wallet, then connect again.                                                                                                          | Connect again  | warning |
-| Wrong network      | Switch your wallet to Testnet | Your wallet is on {network}, for example: Your wallet is on Mainnet. Switch it to Testnet, then check again. Nothing was sent.                   | Check again    | warning |
-| Unverified address | Confirm this wallet is yours  | Sign a short message in your wallet to link it to your account. It sends nothing and costs nothing. ("it" becomes the short address when known.) | Confirm wallet | neutral |
+| State               | Title                         | Detail                                                                                                                                           | Action         | Tone    |
+| ------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ------- |
+| Checking            | Checking your wallet          | This takes a moment.                                                                                                                             | none (spinner) | inline  |
+| Signed out          | Sign in to continue           | Tips and tabs belong to your QuillTip account.                                                                                                   | Sign in        | neutral |
+| No wallet           | No Stellar wallet found       | Install a Stellar wallet such as Varial (formerly Freighter) or xBull in this browser, then try again.                                           | Set up wallet  | neutral |
+| Not connected       | Connect your wallet           | Connecting shares your address. It does not send a payment.                                                                                      | Connect wallet | neutral |
+| Wallet disconnected | Your wallet disconnected      | Your wallet ended the connection. Connect again to continue. Nothing was sent.                                                                   | Connect again  | neutral |
+| Locked wallet       | Your wallet is locked         | Unlock your wallet, then connect again.                                                                                                          | Connect again  | warning |
+| Wrong network       | Switch your wallet to Testnet | Your wallet is on {network}, for example: Your wallet is on Mainnet. Switch it to Testnet, then check again. Nothing was sent.                   | Check again    | warning |
+| Unverified address  | Confirm this wallet is yours  | Sign a short message in your wallet to link it to your account. It sends nothing and costs nothing. ("it" becomes the short address when known.) | Confirm wallet | neutral |
 
 Announced: "{title}. {detail}" through a polite live region that stays
 mounted, once per change. Addresses show as "GBZX…MADI", with the full address
@@ -390,7 +393,9 @@ Variants:
 
 ### Failure copy
 
-Wallet failures while signing, with fixed titles:
+Wallet failures while signing, with fixed titles. Every wallet error kind
+except `cancelled` has a row; a unit test fails to compile when a new kind
+has none.
 
 | Kind            | Title                                   | Detail                                                                               |
 | --------------- | --------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -398,6 +403,8 @@ Wallet failures while signing, with fixed titles:
 | `timeout`       | Your wallet did not respond             | Check for an open wallet window, close it, then try again. Nothing was sent.         |
 | `unsupported`   | This wallet cannot be used here         | Choose another wallet in the wallet list. Nothing was sent.                          |
 | `wrong-account` | Your wallet signed with another account | Switch back to the connected account in your wallet, or reconnect. Nothing was sent. |
+| `popup-blocked` | Your browser blocked the wallet window  | Allow pop-ups for this site in your browser, then try again. Nothing was sent.       |
+| `disconnected`  | Your wallet disconnected                | Your wallet ended the connection. Connect again, then try again. Nothing was sent.   |
 | `no-wallet`     | No Stellar wallet found                 | Install a Stellar wallet, then try again. Nothing was sent.                          |
 | `locked`        | Your wallet is locked                   | Unlock your wallet, then connect again. Nothing was sent.                            |
 | `wrong-network` | Switch your wallet to Testnet           | Switch it to Testnet, then try again. Nothing was sent.                              |

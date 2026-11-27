@@ -80,7 +80,10 @@ import {
   describeContractFailure,
   raisingContract,
 } from '../../lib/stellar/v2/errors'
-import { networkLabel } from '../../lib/stellar/v2/wallet-errors'
+import {
+  networkLabel,
+  type WalletErrorKind,
+} from '../../lib/stellar/v2/wallet-errors'
 
 const ROOT = path.join(__dirname, '../..')
 const ALL_PHASES = Object.keys(STATUS_LABEL) as PaymentPhase[]
@@ -493,7 +496,93 @@ describe('settlement delay', () => {
   })
 })
 
+/**
+ * Every wallet error kind. The type check below fails to compile when
+ * `WalletErrorKind` gains a kind that is not listed here, and the test
+ * below fails when a listed kind has no copy of its own.
+ */
+const WALLET_KINDS = [
+  'no-wallet',
+  'locked',
+  'wrong-network',
+  'rejected',
+  'timeout',
+  'cancelled',
+  'unsupported',
+  'popup-blocked',
+  'disconnected',
+  'wrong-account',
+  'failed',
+] as const satisfies readonly WalletErrorKind[]
+type UnlistedWalletKind = Exclude<
+  WalletErrorKind,
+  (typeof WALLET_KINDS)[number]
+>
+const everyWalletKindListed: [UnlistedWalletKind] extends [never]
+  ? true
+  : false = true
+
 describe('wallet failures', () => {
+  test('every wallet error kind has its own copy or state', () => {
+    expect(everyWalletKindListed).toBe(true)
+    for (const kind of WALLET_KINDS) {
+      const view = viewFromTxOutcome({
+        status: 'wallet_failed',
+        error: { kind },
+      }).show
+      if (kind === 'cancelled') {
+        expect(view).toEqual({ kind: 'cancelled' })
+        continue
+      }
+      // Its own entry, not the generic fallback (except for `failed`).
+      expect(Object.hasOwn(WALLET_FAILURE_COPY, kind), kind).toBe(true)
+      if (kind !== 'failed' && view.kind === 'failed') {
+        expect(view.failure, kind).not.toEqual(WALLET_FAILURE_COPY.failed)
+      }
+    }
+  })
+
+  test('a blocked pop-up stays in the progress view with its next step', () => {
+    expect(gateFromWalletError({ kind: 'popup-blocked' })).toBeNull()
+    expect(
+      viewFromTxOutcome({
+        status: 'wallet_failed',
+        error: { kind: 'popup-blocked' },
+      })
+    ).toEqual({
+      show: { kind: 'failed', failure: WALLET_FAILURE_COPY['popup-blocked'] },
+      record: { reason: 'wallet_rejected', detail: 'popup-blocked' },
+    })
+    expect(WALLET_FAILURE_COPY['popup-blocked'].detail).toMatch(
+      /^Allow pop-ups for this site/
+    )
+  })
+
+  test('a connection the wallet ended goes back to the gate to connect again', () => {
+    expect(gateFromWalletError({ kind: 'disconnected' })).toEqual({
+      kind: 'disconnected',
+      ended: true,
+    })
+    expect(
+      viewFromTxOutcome({
+        status: 'wallet_failed',
+        error: { kind: 'disconnected' },
+      })
+    ).toEqual({
+      show: { kind: 'gate', gate: { kind: 'disconnected', ended: true } },
+      record: { reason: 'wallet_rejected', detail: 'disconnected' },
+    })
+    const ended = gateCopy('disconnected', { ended: true })
+    expect(ended).toEqual({
+      title: 'Your wallet disconnected',
+      detail:
+        'Your wallet ended the connection. Connect again to continue. Nothing was sent.',
+      action: 'Connect again',
+    })
+    // A wallet that was never connected keeps the plain connect copy.
+    expect(gateCopy('disconnected').title).toBe('Connect your wallet')
+  })
+
   test('connection failures become gate states', () => {
     expect(gateFromWalletError({ kind: 'no-wallet' })).toEqual({
       kind: 'no-wallet',
@@ -902,6 +991,7 @@ describe('copy', () => {
       RESULT_COPY.declined,
       NOTICE_COPY.basketItemUnavailable,
       gateCopy('wrong-network', { walletNetwork: 'Mainnet' }),
+      gateCopy('disconnected', { ended: true }),
     ]
     const text = JSON.stringify(unverified)
     expect(text).not.toMatch(/\bpaid\b|\bcharged\b|was signed(?! or sent)/i)
@@ -979,6 +1069,7 @@ describe('copy', () => {
       add(gateCopy(kind))
     }
     add(gateCopy('wrong-network', { walletNetwork: 'Mainnet' }))
+    add(gateCopy('disconnected', { ended: true }))
     // Templates: the doc shows them with {placeholders}.
     const templates = [
       tabCloseConfirmed('{date}').detail,

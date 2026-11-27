@@ -44,7 +44,7 @@ export function WalletReverify() {
         // A verify button that started this connect runs its own proof right
         // after it; wait a turn and leave that one alone.
         setTimeout(() => {
-          if (walletProofInFlight()) return
+          if (walletProofInFlight(address)) return
           toast.info('Verify your receiving address', {
             description:
               'Approve the request in your wallet to keep receiving tips. Signing does not move funds.',

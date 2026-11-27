@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { STATES } from './fixtures/payments/states'
+import { SETTLE_MS } from '../components/payments/useAnnouncement'
 
 /**
  * The shared payment kit (components/payments) in every state, against the
@@ -87,12 +88,14 @@ const RETRYABLE = new Set([
   'result-failed',
   'result-declined',
   'result-failed-wallet',
+  'result-failed-popup',
   'result-failed-long',
   'result-failed-busy',
   'result-expired',
   'result-tab-op-failed',
   'result-tab-op-failed-busy',
   'result-tab-op-expired',
+  'result-tab-op-expired-with-failure',
 ])
 
 test.describe('retry rule', () => {
@@ -161,6 +164,57 @@ test.describe('retry rule', () => {
       'Stellar testnet reported this transaction as failed.'
     )
   })
+
+  test('an expired tab operation keeps its own copy when the flow passes a failure', async ({
+    page,
+  }) => {
+    await open(page, 'result-tab-op-expired-with-failure')
+    await expect(
+      page.getByRole('heading', { name: 'This request timed out' })
+    ).toBeVisible()
+    await expect(page.locator('.pay-panel-detail')).toContainText(
+      'Check your tab before you try again.'
+    )
+    // Neither the flow's failure nor the record copy, which speaks about
+    // payment from server data that a tab operation does not have.
+    await expect(page.locator('.pay-progress')).not.toContainText(
+      'Stellar testnet is busy'
+    )
+    await expect(page.locator('.pay-progress')).not.toContainText(
+      'nothing was paid'
+    )
+  })
+
+  test('a blocked wallet window says how to allow it, then offers a retry', async ({
+    page,
+  }) => {
+    await open(page, 'result-failed-popup')
+    await expect(
+      page.getByRole('heading', {
+        name: 'Your browser blocked the wallet window',
+      })
+    ).toBeVisible()
+    await expect(page.locator('.pay-panel-detail')).toContainText(
+      'Allow pop-ups for this site in your browser, then try again.'
+    )
+    await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
+  })
+
+  test('a connection the wallet ended asks to connect again', async ({
+    page,
+  }) => {
+    await open(page, 'gate-disconnected-ended')
+    await expect(page.locator('.pay-gate .pay-panel-title')).toHaveText(
+      'Your wallet disconnected'
+    )
+    await expect(page.locator('.pay-gate')).toContainText(
+      'Your wallet ended the connection. Connect again to continue.'
+    )
+    await page.getByRole('button', { name: 'Connect again' }).click()
+    expect(
+      await page.evaluate(() => (window as unknown as Calls).__calls)
+    ).toEqual(['connect'])
+  })
 })
 
 test.describe('testnet label', () => {
@@ -226,6 +280,7 @@ test.describe('keyboard', () => {
       'gate-signed-out': 'Sign in',
       'gate-no-wallet': 'Set up wallet',
       'gate-locked': 'Connect again',
+      'gate-disconnected-ended': 'Connect again',
       'gate-wrong-network': 'Check again',
       'gate-unverified': 'Confirm wallet',
     }
@@ -279,21 +334,6 @@ test.describe('live regions and focus', () => {
       phase
     )
   }
-
-  test('nothing is announced on page load', async ({ page }) => {
-    // Opens every state, so the time grows with the state list.
-    test.slow()
-    const loud: string[] = []
-    for (const state of STATES) {
-      await open(page, state.id)
-      await page.waitForTimeout(250)
-      for (const region of await page.locator('[aria-live]').all()) {
-        const text = (await region.textContent())?.trim()
-        if (text) loud.push(`${state.id}: ${text}`)
-      }
-    }
-    expect(loud).toEqual([])
-  })
 
   test('focus stays in the payment while it runs, then moves to the result', async ({
     page,
@@ -435,24 +475,6 @@ test.describe('live regions and focus', () => {
     }
   })
 
-  test('no state moves focus when it first renders', async ({ page }) => {
-    // Opens every state, so the time grows with the state list.
-    test.slow()
-    const moved: string[] = []
-    for (const state of STATES) {
-      await open(page, state.id)
-      await page.waitForTimeout(100)
-      const active = await page.evaluate(() => {
-        const node = document.activeElement
-        return !node || node === document.body
-          ? null
-          : `${node.tagName.toLowerCase()} ${node.textContent?.trim().slice(0, 40)}`
-      })
-      if (active) moved.push(`${state.id}: ${active}`)
-    }
-    expect(moved).toEqual([])
-  })
-
   test('the gate keeps focus across states and hands it to the content', async ({
     page,
   }) => {
@@ -502,6 +524,30 @@ test.describe('live regions and focus', () => {
     // The region existed, empty, before its text arrived.
     await expect(page.locator('.pay-notice [role="status"]')).toHaveCount(1)
   })
+})
+
+/**
+ * One test per state, so the time per test does not grow with the state
+ * list. The fixture marks the body once every effect of the first render has
+ * run, and a fake clock runs past the announcement delay, so no test waits a
+ * fixed time.
+ */
+test.describe('first render', () => {
+  for (const state of STATES) {
+    test(`${state.id} announces nothing and keeps focus on the page`, async ({
+      page,
+    }) => {
+      await page.clock.install()
+      await open(page, state.id)
+      await expect(page.locator('body[data-settled]')).toBeAttached()
+      // Any delayed first announcement (useAnnouncement) is due by now.
+      await page.clock.runFor(SETTLE_MS * 10)
+      for (const region of await page.locator('[aria-live]').all()) {
+        await expect(region).toHaveText('')
+      }
+      await expect(page.locator('body')).toBeFocused()
+    })
+  }
 })
 
 test.describe('touch targets', () => {
