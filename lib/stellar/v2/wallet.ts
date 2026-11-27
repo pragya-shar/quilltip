@@ -95,10 +95,16 @@ export type WalletEvent =
  * How the reader can use a wallet in this browser:
  * - `installed`: its extension answered.
  * - `web`: it opens its own window; nothing to install.
+ * - `mobile`: a wallet on the reader's phone, paired over WalletConnect.
  * - `not-installed`: an extension that did not answer.
  * - `unavailable`: it cannot work on this page (`unavailableReason` says why).
  */
-export type WalletAccess = 'installed' | 'web' | 'not-installed' | 'unavailable'
+export type WalletAccess =
+  | 'installed'
+  | 'web'
+  | 'mobile'
+  | 'not-installed'
+  | 'unavailable'
 
 export type WalletOption = Pick<
   ISupportedWallet,
@@ -465,7 +471,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
         kit.setWallet(id)
         ;({ address } = await withTimeout(
           guarded(id, () => kit.fetchAddress()),
-          connectTimeoutMs,
+          walletEntry(id)?.connectTimeoutMs ?? connectTimeoutMs,
           id
         ))
       } else {
@@ -496,6 +502,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
         ? 'installed'
         : 'web'
     }
+    if (entry?.kind === 'mobile') return kitAvailable ? 'mobile' : 'unavailable'
     if (entry && WINDOW_KINDS.has(entry.kind)) {
       return kitAvailable ? 'web' : 'unavailable'
     }
@@ -515,7 +522,8 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
       return {
         id,
         name: entry?.name ?? name,
-        isAvailable: access === 'installed' || access === 'web',
+        isAvailable:
+          access === 'installed' || access === 'web' || access === 'mobile',
         url: entry?.url ?? url,
         // Only icons `img-src` allows: the kit CDN, or a module's data: URL.
         icon: entry?.icon ?? (icon?.startsWith('data:') ? icon : undefined),
@@ -666,7 +674,9 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
           guarded(current.walletId, () =>
             kit.signTransaction(xdr, { address, networkPassphrase: expected })
           ),
-          opts.timeoutMs ?? signTimeoutMs,
+          opts.timeoutMs ??
+            walletEntry(current.walletId)?.signTimeoutMs ??
+            signTimeoutMs,
           current.walletId
         )
       } catch (error) {
@@ -715,7 +725,9 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
               networkPassphrase: expected,
             })
           ),
-          opts.timeoutMs ?? signTimeoutMs,
+          opts.timeoutMs ??
+            walletEntry(current.walletId)?.signTimeoutMs ??
+            signTimeoutMs,
           current.walletId
         )
       } catch (error) {
