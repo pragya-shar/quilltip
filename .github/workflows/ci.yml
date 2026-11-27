@@ -263,9 +263,12 @@ jobs:
       - name: Install Chromium and WebKit
         run: bunx playwright install --with-deps chromium webkit
 
+      # Vercel's chunk paths (/_next/static/immutable/), so the first-flush
+      # check in e2e/server-forms.spec.ts counts the bytes the site sends.
       - name: Build against the fixture backend
         run: bun run build
         env:
+          QUILLTIP_IMMUTABLE_ASSETS: '1'
           SKIP_ENV_VALIDATION: '1'
           NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
           NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'

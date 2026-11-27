@@ -164,3 +164,101 @@ test.describe('forms in the server HTML', () => {
     await expect(page.locator('#password')).toHaveValue('')
   })
 })
+
+test.describe('auth forms in the first flush', () => {
+  // React streams a boundary separately, behind the loading fallback, when the
+  // HTML flushed so far passes its chunk size (12,800 bytes). A browser
+  // without scripts then shows only the fallback, and WebKit shows nothing
+  // until the scripts run. Each auth form must be in the first flush.
+  for (const path of FORM_PAGES) {
+    test(`${path} shows its form without scripts`, async ({ page }) => {
+      await page.goto(path, { waitUntil: 'domcontentloaded' })
+      await expect(page.locator('form').first()).toBeVisible()
+      await expect(page.getByText('Loading page…')).toHaveCount(0)
+    })
+  }
+})
+
+test.describe('the inline hold blocked', () => {
+  test.use({ javaScriptEnabled: true })
+
+  // If the inline script that holds a submit does not run (here its nonce is
+  // wrong, so the policy blocks it) and the page scripts are not active yet,
+  // the browser submits natively. No field value may reach a URL.
+  const cases = [
+    {
+      path: '/login',
+      fields: {
+        '#email': 'blocked@example.invalid',
+        '#password': 'Blocked-hold-1234',
+      },
+    },
+    {
+      path: '/register',
+      fields: {
+        '#name': 'Blocked Hold',
+        '#email': 'blocked@example.invalid',
+        '#password': 'Blocked-hold-1234',
+      },
+    },
+    {
+      path: '/reset-password',
+      fields: {
+        '#reset-email': 'blocked@example.invalid',
+        '#reset-code': '12345678',
+        '#reset-password': 'Blocked-hold-1234',
+        '#reset-confirm': 'Blocked-hold-1234',
+      },
+    },
+    {
+      path: '/waitlist',
+      fields: { '#email': 'blocked@example.invalid' },
+    },
+  ]
+  for (const { path, fields } of cases) {
+    test(`${path} keeps every value out of URLs`, async ({
+      page,
+      browserName,
+    }) => {
+      test.skip(browserName !== 'chromium', 'Checked once, in Chromium')
+      const urls: string[] = []
+      page.on('request', (request) => urls.push(request.url()))
+      page.on('framenavigated', (frame) => urls.push(frame.url()))
+      await page.route(/\/_next\/static\/.+\.js(\?.*)?$/, () => {})
+      await page.route(
+        (url) => url.pathname === path,
+        async (route) => {
+          if (route.request().method() !== 'GET') return route.continue()
+          const response = await route.fetch()
+          const body = (await response.text()).replace(
+            /<script nonce="[^"]*">\(function\(\)\{var h="data-held-submit"/,
+            '<script nonce="wrong">(function(){var h="data-held-submit"'
+          )
+          await route.fulfill({ response, body })
+        }
+      )
+      await page.goto(path, { waitUntil: 'domcontentloaded' })
+      for (const [selector, value] of Object.entries(fields))
+        await page.locator(selector).fill(value)
+      const submitted = page.waitForRequest(
+        (request) =>
+          request.isNavigationRequest() && request.url().includes(path),
+        { timeout: 5000 }
+      )
+      await page.locator('form button[type="submit"]').click()
+      const request = await submitted
+      expect(request.method()).toBe('POST')
+      await page.waitForLoadState('domcontentloaded').catch(() => {})
+      for (const value of Object.values(fields)) {
+        const forms = [
+          value,
+          encodeURIComponent(value),
+          encodeURIComponent(value).replace(/%20/g, '+'),
+        ]
+        for (const url of [...urls, page.url()])
+          for (const form of forms)
+            expect(url, `${path}: a field value in ${url}`).not.toContain(form)
+      }
+    })
+  }
+})

@@ -202,15 +202,7 @@ test.describe('sign-in before the page scripts run', () => {
 
   test('a reset submit sends the values typed before the scripts ran', async ({
     page,
-    browserName,
   }) => {
-    // The reset page's HTML is large enough that React streams it after its
-    // loading fallback, which WebKit shows only once the scripts run (see
-    // MENU_PAGE). There is nothing to type into before then.
-    test.skip(
-      browserName === 'webkit',
-      'WebKit paints this page only after the scripts run'
-    )
     const sent = await recordConvexMessages(page)
     const release = await holdPageScripts(page)
     await page.goto('/reset-password', { waitUntil: 'domcontentloaded' })
