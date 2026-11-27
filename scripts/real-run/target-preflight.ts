@@ -20,7 +20,14 @@
  * 4. Chain: the Tab's `config()` simulates on testnet and pays in the token
  *    the backend names.
  *
- * Read-only: one page load, one Convex query, one simulation. No key is read.
+ * 5. Functions: every public function the payments screens call is on the
+ *    backend (`npx convex function-spec`), so a frontend never runs ahead of
+ *    its backend.
+ * The expected Core and Tab must be the v3 set recorded in
+ * `docs/contracts/v3-testnet-deployment.md`.
+ *
+ * Read-only: one page load, one Convex query, one simulation, one function
+ * list. No key is read.
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -67,6 +74,7 @@ export type PreflightReport = {
     tokenContractId: string | null
   } | null
   chain: { tabToken: string | null; minDeposit: string | null } | null
+  missingFunctions: string[]
 }
 
 function parseEnvFile(file: string): Record<string, string> {
@@ -93,18 +101,49 @@ export function expectedFrom(env: Record<string, string>): Expected {
   }
 }
 
-/** Core, Tab and NFT ids of the v2 testnet set, from its deployment record. */
-export function v2ContractIds(): string[] {
+/** Core, Tab and NFT ids of a testnet set, from its deployment record. */
+export function recordedContractIds(
+  set: 'v2' | 'v3'
+): Partial<Record<'core' | 'tab' | 'nft', string>> {
   const doc = readFileSync(
-    path.join(ROOT, 'docs/contracts/v2-testnet-deployment.md'),
+    path.join(ROOT, `docs/contracts/${set}-testnet-deployment.md`),
     'utf8'
   )
-  const ids = new Set<string>()
+  const ids: Partial<Record<'core' | 'tab' | 'nft', string>> = {}
   for (const line of doc.split('\n')) {
     const row = /^\|\s*(core|tab|nft)\s*\|.*?`(C[A-Z2-7]{55})`/.exec(line)
-    if (row) ids.add(row[2]!)
+    if (row) ids[row[1] as 'core' | 'tab' | 'nft'] = row[2]!
   }
-  return [...ids]
+  return ids
+}
+
+export function v2ContractIds(): string[] {
+  return Object.values(recordedContractIds('v2'))
+}
+
+/** Public functions the payments screens call; the backend must have them. */
+export const REQUIRED_FUNCTIONS = [
+  'balance.js:session',
+  'balance.js:tipContext',
+  'activity.js:mine',
+  'earnings.js:mine',
+  'tabs.js:prepareTip',
+  'tabs.js:submitTip',
+  'chain/config.js:getChainConfig',
+] as const
+
+/** The deployed function list, from the Convex CLI for `.env.local`'s target. */
+export function deployedFunctions(): string[] {
+  const out = Bun.spawnSync(['npx', 'convex', 'function-spec'], {
+    cwd: ROOT,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
+  if (out.exitCode !== 0) return []
+  const spec = JSON.parse(out.stdout.toString()) as {
+    functions: Array<{ identifier?: string }>
+  }
+  return spec.functions.flatMap((f) => (f.identifier ? [f.identifier] : []))
 }
 
 /** What `v2Config()` inlines: Next.js loads the same env files. */
@@ -142,6 +181,22 @@ export async function runTargetPreflight(options: {
   const forbiddenIds = v2ContractIds().filter(
     (id) => id !== expected.tabContractId && id !== expected.coreContractId
   )
+  // The expected ids must be the recorded v3 set, so they cannot drift.
+  const v3 = recordedContractIds('v3')
+  if (v3.tab !== expected.tabContractId)
+    failures.push(
+      `expected Tab ${expected.tabContractId} is not the recorded v3 Tab ${v3.tab}`
+    )
+  if (v3.core !== expected.coreContractId)
+    failures.push(
+      `expected Core ${expected.coreContractId} is not the recorded v3 Core ${v3.core}`
+    )
+
+  // Fail closed when the backend lacks a function the frontend calls.
+  const deployed = new Set(deployedFunctions())
+  const missingFunctions = REQUIRED_FUNCTIONS.filter((f) => !deployed.has(f))
+  if (missingFunctions.length)
+    failures.push(`backend lacks ${missingFunctions.join(', ')}`)
 
   // 2. Client configuration, as Next.js inlines it.
   const { config, convexUrl } = clientConfig()
@@ -295,6 +350,7 @@ export async function runTargetPreflight(options: {
     client,
     backend,
     chain,
+    missingFunctions,
   }
 }
 
