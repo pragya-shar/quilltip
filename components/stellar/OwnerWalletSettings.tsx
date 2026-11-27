@@ -107,7 +107,7 @@ export function OwnerWalletSettings({
           </div>
           <p>
             {walletAddress
-              ? isConnected
+              ? isConnected || isRestoring
                 ? 'Your receiving address is saved.'
                 : 'Your receiving address is saved. You can receive tips while disconnected.'
               : 'Connect to send tips. Save a receiving address to receive them.'}
