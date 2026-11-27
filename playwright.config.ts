@@ -19,5 +19,13 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    // PLAYWRIGHT_ALL_BROWSERS=1 adds Firefox and WebKit (used for the Next.js
+    // patch: docs/performance/next-patch.md).
+    ...(process.env.PLAYWRIGHT_ALL_BROWSERS === '1'
+      ? [
+          { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+          { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+        ]
+      : []),
   ],
 })

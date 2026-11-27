@@ -1,5 +1,5 @@
 {
-  "buildCommand": "next build",
+  "buildCommand": "bun patches/next@16.4.6.ts && next build",
   "outputDirectory": ".next",
   "framework": "nextjs",
   "installCommand": "bun install --frozen-lockfile",

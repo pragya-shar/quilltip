@@ -19,6 +19,12 @@ import { chromium, type Browser, type Page } from '@playwright/test'
 import { spawn, type ChildProcess } from 'child_process'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
+import {
+  chunkLoading,
+  defaultLoadingProblems,
+  deferredLoadingProblems,
+  type ChunkLoading,
+} from './chunk-loading'
 import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
 
@@ -34,6 +40,10 @@ const ROUTES = [
   { name: 'articles', path: '/articles' },
   { name: 'article', path: FIXTURE_ARTICLE_PATH },
 ] as const
+
+// A page outside the four routes, which must keep Next.js's script loading
+// (patches/next@16.4.6.ts changes only the routes above).
+const UNPATCHED_ROUTE = '/support'
 
 type DeviceName = 'mobile' | 'desktop'
 
@@ -100,6 +110,7 @@ type HtmlRefs = {
   html: string
   /** The server HTML's visible text: tags removed, entities decoded. */
   text: string
+  loading: ChunkLoading
 }
 
 type Run = {
@@ -165,12 +176,17 @@ async function htmlRefs(routePath: string): Promise<HtmlRefs> {
     const src = attribute(tag, 'src')
     if (src) scripts.add(new URL(src, BASE_URL).pathname)
   }
+  // The chunk loader (patches/next@16.4.6.ts) stands for the root chunks in
+  // its URL, and inert tags for the chunks it starts after the first paint.
+  const loading = chunkLoading(html, BASE_URL)
+  for (const chunk of [...loading.loaders.flat(), ...loading.inert])
+    scripts.add(chunk)
   for (const tag of html.match(/<link\b[^>]*>/g) ?? []) {
     const href = attribute(tag, 'href')
     if (href && /\srel="stylesheet"/.test(tag))
       stylesheets.add(new URL(href, BASE_URL).pathname)
   }
-  return { scripts, stylesheets, html, text: htmlText(html) }
+  return { scripts, stylesheets, html, text: htmlText(html), loading }
 }
 
 async function startApp(): Promise<ChildProcess | undefined> {
@@ -314,6 +330,9 @@ async function main() {
   const failures: string[] = []
   const report: Record<string, unknown>[] = []
   try {
+    const other = await htmlRefs(UNPATCHED_ROUTE)
+    for (const problem of defaultLoadingProblems(other.loading))
+      failures.push(`${UNPATCHED_ROUTE}: ${problem}`)
     for (const route of ROUTES) {
       const refs = await htmlRefs(route.path)
       const renderBlocking = refs.stylesheets.size
@@ -321,6 +340,10 @@ async function main() {
         failures.push(
           `${route.name}: ${renderBlocking} render-blocking stylesheets > ${BUDGETS.renderBlockingStylesheets}`
         )
+      // Chunk scripts start after the first paint on these routes
+      // (patches/next@16.4.6.ts); anything else means the patch did not apply.
+      for (const problem of deferredLoadingProblems(refs.loading))
+        failures.push(`${route.name}: ${problem}`)
       for (const device of ['mobile', 'desktop'] as const) {
         // One unmeasured load warms the server's route and data caches.
         await measure(browser, route, device, refs)
