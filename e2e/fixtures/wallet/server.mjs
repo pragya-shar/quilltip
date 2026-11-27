@@ -41,6 +41,13 @@ const result = await Bun.build({
   ],
 })
 if (!result.success) throw new AggregateError(result.logs)
+// The stand-in for xBull's web wallet; the spec serves it in xBull's window.
+const xbullWeb = await Bun.build({
+  entrypoints: [path.join(import.meta.dirname, 'xbull-web.ts')],
+  target: 'browser',
+})
+if (!xbullWeb.success) throw new AggregateError(xbullWeb.logs)
+const xbullWebJs = await xbullWeb.outputs[0].text()
 const css = await postcss([tailwind({ base: root })]).process(
   "@import './app/globals.css';",
   { from: path.join(root, 'wallet-fixture.css') }
@@ -68,6 +75,10 @@ Bun.serve({
         await readFile(path.join(root, 'public', url.pathname)),
         { headers: { 'Content-Type': 'font/woff2' } }
       )
+    if (url.pathname === '/fake/xbull-web.js')
+      return new Response(xbullWebJs, {
+        headers: { 'Content-Type': 'text/javascript' },
+      })
     if (url.pathname === '/base.css')
       return new Response(css.css, { headers: { 'Content-Type': 'text/css' } })
     const output = outputs.get(url.pathname.slice(1))

@@ -227,3 +227,72 @@
     animation: none;
   }
 }
+/* Wallet groups: in this browser, no install needed, not installed. */
+.wallet-install-dialog {
+  overscroll-behavior: contain;
+}
+.wallet-group {
+  display: grid;
+  gap: 6px;
+}
+.wallet-group-heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5e535a;
+  margin: 0;
+}
+.wallet-picker-option > span.wallet-row-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.wallet-row-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.wallet-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: #fffaf2;
+  box-shadow: 0 0 0 1px rgba(57, 12, 24, 0.12);
+}
+.wallet-icon-fallback {
+  display: grid;
+  place-items: center;
+  font:
+    400 17px/1 'Wallet Alegreya',
+    Georgia,
+    serif;
+  color: #790333;
+}
+/* "Connect" and "Waiting" take the same room, so the row does not shift. */
+button.wallet-picker-option > .wallet-install-destination {
+  min-width: 5.5em;
+  justify-content: flex-end;
+}
+.wallet-picker-unavailable {
+  cursor: default;
+}
+.wallet-picker-unavailable .wallet-icon {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+.wallet-picker-unavailable .wallet-install-destination {
+  color: #5e535a;
+}
+@media (max-width: 480px) {
+  .wallet-install-destination {
+    font-size: 12px;
+  }
+  .wallet-picker-option {
+    align-items: flex-start;
+  }
+  .wallet-picker-option > .wallet-install-destination {
+    padding-top: 8px;
+  }
+}

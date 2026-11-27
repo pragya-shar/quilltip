@@ -39,8 +39,9 @@ export const STELLAR_TESTNET_ORIGINS = [
 
 /**
  * Stellar Wallets Kit 2.x, with the modules in lib/stellar/v2/wallet-kit.ts.
- * Extension wallets (Varial, LOBSTR, Rabet, Hana) talk to the page through
- * `window` and `postMessage`, and xBull and Albedo sign in popups, so they
+ * Extension wallets (Varial, xBull, Rabet, Hana, Scopuly, D'CENT) talk to
+ * the page through `window` and `postMessage`, and xBull's web wallet and
+ * Albedo sign in popups, so they
  * need no connect entry. Albedo keeps an implicit-flow session in an iframe,
  * and the wallet picker shows icons from the kit's CDN. WalletConnect is
  * refused at build time (lib/stellar/v2/walletconnect-gate.ts), so its relay
