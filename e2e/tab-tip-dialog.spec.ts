@@ -752,8 +752,12 @@ test.describe('the clock with the dialog open', () => {
     await expect(send).not.toHaveAttribute('aria-disabled', 'true')
     // The clock passes the price's age without running timers, as in a
     // throttled background tab: only the check at the press can see it.
+    // Pause first, so the page's own timer cannot fire before the press on a
+    // slow runner, and press with a plain click event (Playwright's click
+    // waits on animation frames, which a paused clock holds).
+    await page.clock.pauseAt(start + 60_000)
     await page.clock.setSystemTime(start + 30 * 60 * 1000 + 5_000)
-    await send.click()
+    await send.dispatchEvent('click')
     await expect(
       tabSection(dialog).getByText('No XLM price right now', { exact: true })
     ).toBeVisible()
