@@ -118,6 +118,35 @@ test('signed out, a registered sign-in sheet opens over the page', async ({
   await expect(sheet).toBeHidden()
 })
 
+test('a declared sheet opens before its code has loaded, then fills in', async ({
+  page,
+}) => {
+  await page.goto('/sheets')
+  await press(page.getByRole('button', { name: 'Open the lazy sheet' }))
+  const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
+  await expect(sheet).toBeVisible()
+  await expect(
+    sheet.getByRole('heading', { name: 'Add money to tip $3' })
+  ).toBeFocused()
+  await expect(sheet.getByText('Loaded on demand for $3.')).toBeVisible()
+  await expect(sheet.locator('[aria-busy="true"]')).toHaveCount(0)
+  await press(sheet.getByRole('button', { name: 'Done' }))
+  await expect(sheet).toBeHidden()
+})
+
+test('a sheet whose code fails to load says so and tries again', async ({
+  page,
+}) => {
+  await page.goto('/sheets')
+  await press(
+    page.getByRole('button', { name: 'Open the sheet that fails once' })
+  )
+  const sheet = page.getByRole('dialog', { name: 'Withdraw' })
+  await expect(sheet.getByText('This did not load')).toBeVisible()
+  await press(sheet.getByRole('button', { name: 'Try again' }))
+  await expect(sheet.getByText('Loaded on demand.')).toBeVisible()
+})
+
 test('the Pocket page, for links and for no script', async ({ page }) => {
   await page.goto('/pocket')
   await expect(

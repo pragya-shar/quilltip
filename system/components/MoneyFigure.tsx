@@ -11,8 +11,10 @@ type MoneyFigureProps = {
   value: MoneyValue | null
   /** loading: not answered yet. unavailable: payments cannot answer now. */
   status?: FigureStatus
-  /** xl: the balance. l: earnings. m: a tip amount, a receipt. s: rows. */
-  size?: 'xl' | 'l' | 'm' | 's'
+  /** xl: Ready to tip, Ready to withdraw. l: the receipt, the withdraw
+   * sheet. m: Ready to tip beside earnings. pending: a figure beside another
+   * ("On its way"). s: rows. Sizes are tokens (--qt-money-*). */
+  size?: 'xl' | 'l' | 'm' | 'pending' | 's'
   /** in: money received (marker-ink). muted: did not go through (grey). */
   tone?: 'default' | 'in' | 'muted'
   /** Direction mark for activity rows. A sign never colours a figure red. */

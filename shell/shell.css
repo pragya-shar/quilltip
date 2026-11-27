@@ -344,6 +344,14 @@
     }
   }
 
+  /* A declared sheet while its body loads. */
+  .qt-sheet-loading {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-3);
+    padding-block: var(--qt-space-2) var(--qt-space-4);
+  }
+
   /* A place a surface has not built yet. */
   .qt-placeholder {
     padding-block-start: var(--qt-space-10);

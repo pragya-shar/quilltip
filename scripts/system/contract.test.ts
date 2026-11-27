@@ -51,6 +51,8 @@ describe('the contract for surface builders', () => {
       'useBalanceReading',
       'focusDestination',
       'useSwitchSetting',
+      'shell/sheets/<package>.ts',
+      'warmSheet',
       'lib/routing/redirects/<package>.ts',
       'scripts/rebuild/deleted/<package>.txt',
       'e2e/suites/<package>.ts',

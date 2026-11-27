@@ -57,6 +57,19 @@ export function MoneySection() {
       <Specimen name="Large amount">
         <MoneyFigure value={money.large} size="m" />
       </Specimen>
+      <Specimen name="Figure sizes" wide>
+        <div className="qt-gallery__row" style={{ alignItems: 'flex-end' }}>
+          <MoneyFigure value={money.balance} size="xl" label="xl, 52" />
+          <MoneyFigure value={money.earnings} size="l" label="l, 44" />
+          <MoneyFigure value={money.balance} size="m" label="m, 36" />
+          <MoneyFigure
+            value={{ cents: 3235, display: '$32.35' }}
+            size="pending"
+            label="pending, 26"
+          />
+          <MoneyFigure value={money.tipRow} size="s" label="s, 17" />
+        </div>
+      </Specimen>
       <Specimen name="Row sizes and tones">
         <div className="qt-gallery__stack">
           <MoneyFigure value={money.added} size="s" tone="in" sign="+" />

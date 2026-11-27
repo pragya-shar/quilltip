@@ -27,17 +27,22 @@
   .qt-money[data-size='m'] .qt-money__figure {
     font-size: var(--qt-money-m);
   }
+  .qt-money[data-size='pending'] .qt-money__figure {
+    font-size: var(--qt-money-pending);
+  }
   .qt-money[data-size='s'] .qt-money__figure {
     font-family: var(--qt-font-ui);
     font-size: var(--qt-money-s);
     font-weight: var(--qt-weight-ui-strong);
     letter-spacing: 0;
   }
-  /* Large figures draw cents at half size in the quieter ink. */
-  .qt-money:is([data-size='xl'], [data-size='l']) .qt-money__fraction {
-    font-size: 0.5em;
+  /* Serif figures draw cents raised, at half size, in the quieter ink. */
+  .qt-money:not([data-size='s']) .qt-money__fraction {
+    margin-inline-start: 0.05em;
+    font-size: var(--qt-money-cents-size);
     color: var(--qt-ink-3);
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
+    vertical-align: var(--qt-money-cents-raise);
   }
   .qt-money__approx,
   .qt-money__below {

@@ -24,6 +24,12 @@ const result = await Bun.build({
         build.onResolve({ filter: /^next\/navigation$/ }, () => ({
           path: path.join(here, 'navigation.ts'),
         }))
+        // The today package's sheet declarations, replaced by demo sheets.
+        build.onResolve({ filter: /^\.\/today$/ }, (args) =>
+          args.importer.endsWith(path.join('shell', 'sheets', 'index.ts'))
+            ? { path: path.join(here, 'demoSheets.ts') }
+            : undefined
+        )
         build.onResolve({ filter: /^next\/link$/ }, () => ({
           path: path.join(here, 'link.tsx'),
         }))
@@ -65,7 +71,9 @@ Bun.serve({
             : 'text/javascript',
         },
       })
-    if (['/', '/reading', '/shelf', '/pocket'].includes(url.pathname))
+    if (
+      ['/', '/reading', '/shelf', '/pocket', '/sheets'].includes(url.pathname)
+    )
       return new Response(html('Quilltip system fixture'), {
         headers: { 'Content-Type': 'text/html; charset=utf-8' },
       })

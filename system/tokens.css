@@ -101,10 +101,16 @@
   --qt-lh-ui-s: 1.35;
   --qt-text-ui-xs: 0.75rem; /* 12 the testnet line and legal text only */
   --qt-lh-ui-xs: 1.35;
-  --qt-money-xl: 5.75rem; /* 92 balance, serif 600 */
-  --qt-money-l: 4.5rem; /* 72 earnings */
-  --qt-money-m: 2.75rem; /* 44 tip amount, receipt */
-  --qt-money-s: 1.0625rem; /* 17 inline figures, rows */
+  /* Money figures (serif 600, tabular). Sizes from the design's prototype
+   * (design-zero tokens.qt.css). Cents are raised and half size at every
+   * serif size (--qt-money-cents-*). */
+  --qt-money-xl: 3.25rem; /* 52 Ready to tip; Ready to withdraw */
+  --qt-money-l: 2.75rem; /* 44 receipt slip, withdraw sheet */
+  --qt-money-m: 2.25rem; /* 36 Ready to tip when earnings are shown too */
+  --qt-money-pending: 1.625rem; /* 26 On its way, beside another figure */
+  --qt-money-s: 1.0625rem; /* 17 rows, inline figures (platform face) */
+  --qt-money-cents-size: 0.5em; /* cents relative to the figure */
+  --qt-money-cents-raise: 0.62em; /* cents baseline above the figure's */
   --qt-track-display: -0.022em;
   --qt-track-money: -0.04em;
   --qt-weight-ui: 500;
@@ -293,7 +299,6 @@
     --qt-text-display: 3rem; /* 48 */
     --qt-text-line: 1.5rem; /* 24 */
     --qt-text-read: 1.25rem; /* 20 */
-    --qt-money-xl: 6.5rem; /* 104 */
     --qt-gutter: 1.5rem;
   }
 }

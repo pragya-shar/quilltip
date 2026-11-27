@@ -7,6 +7,8 @@ import { firstPage } from './firstPage'
 import { PocketBody } from './pocket/PocketBody'
 import { PocketPanel } from './pocket/PocketPanel'
 import { sheetFor } from './sheetRegistry'
+import { declaredSheet } from './sheets'
+import { LazySheet } from './sheets/LazySheet'
 import { sheetStack } from './sheetStack'
 import { useSheets } from './useSheets'
 import { useWide } from './useWide'
@@ -47,10 +49,22 @@ export function SheetHost() {
               </Sheet>
             )
           default: {
+            // A sheet registered by loaded code, else one declared to load
+            // on demand (shell/sheets), else nothing.
             const Registered = sheetFor(entry.id)
-            return Registered ? (
-              <Registered
+            if (Registered)
+              return (
+                <Registered
+                  key={entry.key}
+                  open={entry.open}
+                  onClose={close}
+                  props={entry.props}
+                />
+              )
+            return declaredSheet(entry.id) ? (
+              <LazySheet
                 key={entry.key}
+                id={entry.id}
                 open={entry.open}
                 onClose={close}
                 props={entry.props}
