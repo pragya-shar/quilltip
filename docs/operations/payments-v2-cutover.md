@@ -953,7 +953,8 @@ documents in all):
 - Per writer: up to about 50 history rows took 3 steps; about 1,800 rows
   with 600 tab pairs took 9 steps; about 5,500 rows took 30 steps over 3
   runs and waited its turn between them.
-- The dry run over the 300 rows took 197 s.
+- The dry run over the 300 rows took 197 s, on a machine under heavy load
+  (load average 88 to 100).
 
 Leave the switch on. It is needed for a new row of a user who already has v1
 tips, for every row after `earningsTotalsBackfill:reset`, and for a retried
