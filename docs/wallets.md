@@ -29,7 +29,7 @@ transaction instead. Auth-entry signing is not used.
 run with the real wallet has been made yet. The manual checks in issue #493
 cover these.
 
-Checked with a real wallet so far (issue #512): Varial (Freighter extension)
+Checked with a real wallet so far (issue #512): Varial's extension
 in Chrome on testnet. The picker detects it, it shows the wrong-network state
 when the wallet is on Mainnet, connect and the address proof pass, and no
 content security policy violation appears.

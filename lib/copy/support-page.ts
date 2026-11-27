@@ -31,7 +31,7 @@ export const supportSections: InfoSection[] = [
     id: 'wallet',
     title: 'Wallet and tipping help',
     paragraphs: [
-      'If you are new to Stellar wallets or testnet XLM, start with our wallet setup help in wallet practice. It covers connecting Freighter, xBull, Albedo, or hot wallet, funding with test XLM, and sending your first practice tip.',
+      'If you are new to Stellar wallets or testnet XLM, start with our wallet setup help in wallet practice. It covers connecting Varial (formerly Freighter), xBull, Albedo, or hot wallet, funding with test XLM, and sending your first practice tip.',
     ],
     link: {
       label: 'Wallet setup and practice',
