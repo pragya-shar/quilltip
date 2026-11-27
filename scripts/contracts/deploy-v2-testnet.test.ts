@@ -34,6 +34,7 @@ import {
   CONVEX_ENV_NAMES,
   INTEGRATION_CONVEX_DEPLOYMENT,
   convexCliEnv,
+  convexDeploymentForSet,
   stepConvexEnv,
 } from './deploy-v2/convex-env'
 import * as keys from './deploy-v2/keys'
@@ -333,6 +334,18 @@ describe('the entry point', () => {
     )
   })
 
+  it('takes the base branch from the set unless --base-ref is given', () => {
+    expect(parseArgs(args).baseRef).toBe('origin/overhaul/v2')
+    const v3 = ['--set', 'v3', ...args.slice(2)]
+    expect(parseArgs(v3)).toMatchObject({
+      set: 'v3',
+      baseRef: 'origin/overhaul/v3',
+    })
+    expect(parseArgs([...v3, '--base-ref', 'origin/main']).baseRef).toBe(
+      'origin/main'
+    )
+  })
+
   it('refuses a key directory inside the repository', () => {
     expect(() => assertKeysDirOutsideRepo('scripts/contracts')).toThrow(
       /inside the repository/
@@ -448,7 +461,7 @@ describe('the evidence document', () => {
   })
 })
 
-describe('the integration Convex env step', () => {
+describe('the Convex env step', () => {
   const ctx = {
     net: resolveDeployNetwork(TESTNET_ENV),
     configDir: '/keys',
@@ -483,13 +496,29 @@ describe('the integration Convex env step', () => {
     ).toBe(`dev:${INTEGRATION_CONVEX_DEPLOYMENT}`)
   })
 
-  it('runs only for the integration set on testnet', async () => {
+  it('runs only on testnet, for a set with a Convex deployment', async () => {
     await expect(
       stepConvexEnv(ctx, { ...verified, set: 'live' }, () => {})
-    ).rejects.toThrow(/integration set on testnet/)
+    ).rejects.toThrow(/only on testnet, for the integration or v3 set/)
     await expect(
       stepConvexEnv(ctx, { ...verified, network: 'LOCAL' }, () => {})
-    ).rejects.toThrow(/integration set on testnet/)
+    ).rejects.toThrow(/only on testnet, for the integration or v3 set/)
+  })
+
+  it('targets the deployment of each set', async () => {
+    expect(convexDeploymentForSet('integration')).toBe(
+      INTEGRATION_CONVEX_DEPLOYMENT
+    )
+    expect(convexDeploymentForSet('v3')).toBe('tacit-salmon-216')
+    expect(convexDeploymentForSet('live')).toBeUndefined()
+    const run = vi.fn((_args: string[], _env: Record<string, unknown>) => ({
+      status: 0,
+      stdout: 'MAINNET',
+    }))
+    await expect(
+      stepConvexEnv(ctx, { ...verified, set: 'v3' }, () => {}, run)
+    ).rejects.toThrow(/tacit-salmon-216 does not report/)
+    expect(run.mock.calls[0]![1].CONVEX_DEPLOYMENT).toBe('dev:tacit-salmon-216')
   })
 
   it('sets nothing when the backend is not on testnet', async () => {

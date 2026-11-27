@@ -81,7 +81,7 @@ export function parseOpsArgs(argv: string[], spec: ArgSpec): ParsedArgs {
   }
   const set = values.get('set')
   if (!set || !(SETS as readonly string[]).includes(set))
-    throw new Error(`--set must be integration or live\n${spec.usage}`)
+    throw new Error(`--set must be one of ${SETS.join(', ')}\n${spec.usage}`)
   const keysDir = values.get('keys-dir')
   if (!keysDir) throw new Error(`--keys-dir is required\n${spec.usage}`)
   return {

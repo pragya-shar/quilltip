@@ -43,11 +43,11 @@ import {
 
 export const OPERATION = 'redeploy-v2-testnet'
 
-export const USAGE = `Usage: bun scripts/contracts/redeploy-v2-testnet.ts --set integration|live --keys-dir <dir> [options]
+export const USAGE = `Usage: bun scripts/contracts/redeploy-v2-testnet.ts --set integration|live|v3 --keys-dir <dir> [options]
 
   --submit              Redeploy (default: dry run)
   --evidence <path>     Passed to the deployment tool (default: its default)
-  --base-ref <ref>      A testnet commit must be on this ref (default: origin/overhaul/v2)
+  --base-ref <ref>      A testnet commit must be on this ref (default: the set's branch)
   --state-file <path>   Default: <keys-dir>/<set>/deploy-state.json`
 
 export function parseArgs(argv: string[]): ParsedArgs {
