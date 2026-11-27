@@ -767,10 +767,13 @@ after the build. It runs `next experimental-analyze --output`, then for `/`,
 
    | Route                | Budget | Measured |
    | -------------------- | -----: | -------: |
-   | `/`                  | 211 KB | 208.7 KB |
-   | `/login`             | 202 KB | 199.2 KB |
-   | `/articles`          | 216 KB | 213.8 KB |
-   | `/[username]/[slug]` | 219 KB | 216.7 KB |
+   | `/`                  | 214 KB | 211.5 KB |
+   | `/login`             | 204 KB | 202.0 KB |
+   | `/articles`          | 219 KB | 216.6 KB |
+   | `/[username]/[slug]` | 222 KB | 219.5 KB |
+
+   The sizes include the chunk loader of the Next.js patch
+   (`public/hydrate-after-paint.js`, 2.2 KB gzip), which every route loads.
 
    Each budget is the measured size plus about 2 KB (CI measures about
    0.2 KB more than a local build), so removing a lazy boundary (the mobile
