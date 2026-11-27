@@ -17,7 +17,7 @@ import {
 } from './backend'
 import { FIXTURE_WRITER } from './constants'
 
-export type View = 'home' | 'tip' | 'collect'
+export type View = 'home' | 'tip' | 'collect' | 'stats'
 
 export type DeviceSetup =
   | 'none'
@@ -44,6 +44,11 @@ export type Scenario = {
   seed(state: FixtureState): void
   /** A quick tip target with co-author splits. */
   splits?: boolean
+  /**
+   * The writer's stats panel (#552), with what `tips.getMyEarningsSummary`
+   * returns for the writer (convex-test checks the summary itself).
+   */
+  stats?: { tipCount: number; earnedStroops: string; estimatedUsd: number }
 }
 
 const DAY = 17_280
@@ -963,6 +968,19 @@ const S: Scenario[] = [
       })
       s.claimable = '120370369287037037'
     },
+  },
+  {
+    // The integration writer: six wallet tips and three settled tab tips.
+    id: 'stats-wallet-and-tab',
+    title: 'Stats: wallet and settled tab tips',
+    view: 'stats',
+    device: 'none',
+    stats: {
+      tipCount: 9,
+      earnedStroops: '1145760615',
+      estimatedUsd: 14.86875,
+    },
+    seed: (s) => writer(s),
   },
   {
     id: 'collect-ready',

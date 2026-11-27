@@ -783,6 +783,22 @@ describe('earnings access and mixed summary', () => {
     expect(own?.userId).toBe(s.authorId)
   })
 
+  it('wallet tips only: XLM, USD and count cover the same tips (#552)', async () => {
+    const t = newTest()
+    const s = await seed(t)
+    const { clientRefs } = await prepare(t, s, [articleItem(s, '1000000', 25)])
+    await applyEvent(t, clientRefs[0]!, BigInt(1_000_000))
+    await sync(t)
+    expect(
+      await asUser(t, s.authorId).query(api.tips.getMyEarningsSummary, {})
+    ).toMatchObject({
+      tipCount: 1,
+      // 97.5 % of 0.1 XLM, and of 25 cents.
+      earnedStroops: '975000',
+      estimatedUsd: 0.24375,
+    })
+  })
+
   it('the summary adds v1 rows and v2 earnings, labelled testnet', async () => {
     const t = newTest()
     const s = await seed(t)

@@ -27,6 +27,7 @@ const WIDTHS = SHOTS
 /** What each state shows first: a heading or notice title. */
 const EXPECT: Record<string, string | RegExp> = {
   'home-no-tab': 'You don’t have a tab yet',
+  'stats-wallet-and-tab': 'From wallets and settled tabs',
   'home-open': 'Free to tip',
   'home-worst': 'Free to tip',
   'collect-worst': 'Ready to collect',
@@ -590,6 +591,23 @@ test('while the tab is closing, the free balance is not offered for quick tips (
       exact: true,
     })
   ).toBeVisible()
+})
+
+test('the stats cover the same tips in XLM, dollars and count (#552)', async ({
+  page,
+}) => {
+  await open(page, 'stats-wallet-and-tab')
+  const stat = (label: string) =>
+    page.locator('.account-stat').filter({ hasText: label })
+  await expect(stat('Earned (testnet)')).toContainText('114.58 XLM')
+  // The testnet note stays beside the dollar figure.
+  await expect(stat('Earned (testnet)')).toContainText(
+    '≈ $14.87, testnet, no real value'
+  )
+  await expect(stat('Tips received')).toContainText('9')
+  await expect(stat('Tips received')).toContainText(
+    'From wallets and settled tabs'
+  )
 })
 
 test('keyboard only: the top-up form submits with Enter and focus follows the payment', async ({
