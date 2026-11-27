@@ -1,7 +1,14 @@
 'use client'
 
 import { useEffect, useRef, type ReactNode } from 'react'
-import { BadgeCheck, Globe, Lock, LogIn, Wallet } from 'lucide-react'
+import {
+  ArrowLeftRight,
+  BadgeCheck,
+  Globe,
+  Lock,
+  LogIn,
+  Wallet,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { GATE_BUSY, gateCopy } from '@/lib/copy/payment-states'
 import { shortAddress } from '@/lib/payments/format'
@@ -47,6 +54,7 @@ const ICON: Record<Blocked, ReactNode> = {
   locked: <Lock />,
   'wrong-network': <Globe />,
   unverified: <BadgeCheck />,
+  'other-account': <ArrowLeftRight />,
 }
 
 const TONE: Record<Blocked, PaymentTone> = {
@@ -56,6 +64,7 @@ const TONE: Record<Blocked, PaymentTone> = {
   locked: 'warning',
   'wrong-network': 'warning',
   unverified: 'neutral',
+  'other-account': 'warning',
 }
 
 /**
@@ -79,7 +88,10 @@ export function WalletGate({
   help,
   className,
 }: WalletGateProps) {
-  const address = state.kind === 'unverified' ? state.address : undefined
+  const address =
+    state.kind === 'unverified' || state.kind === 'other-account'
+      ? state.address
+      : undefined
   const copy =
     state.kind === 'ready'
       ? null
@@ -87,6 +99,10 @@ export function WalletGate({
           walletNetwork:
             state.kind === 'wrong-network' ? state.walletNetwork : undefined,
           address: address ? shortAddress(address) : undefined,
+          linked:
+            state.kind === 'other-account'
+              ? shortAddress(state.linked)
+              : undefined,
           ended: state.kind === 'disconnected' ? state.ended : undefined,
         })
 
@@ -150,6 +166,8 @@ export function WalletGate({
     locked: onConnect,
     'wrong-network': onRecheck ?? onConnect,
     unverified: onVerify,
+    // After switching accounts, connecting again reads the new account.
+    'other-account': onConnect,
   }[kind]
   const href = kind === 'unverified' && !onVerify ? verifyHref : undefined
   const label = busy ? GATE_BUSY : copy!.action
@@ -178,12 +196,28 @@ export function WalletGate({
     )
   }
 
+  // The linked address is changed in wallet settings, never from a payment
+  // step: linking another account here would hide a tab held under it.
+  const settings =
+    kind === 'other-account' && verifyHref ? (
+      <a className="pay-link" href={verifyHref} key="gate-settings">
+        Change the linked address in wallet settings
+      </a>
+    ) : null
+
   return frame(
     <PaymentPanel
       tone={TONE[kind]}
       icon={ICON[kind]}
       title={copy!.title}
-      actions={action}
+      actions={
+        action || settings ? (
+          <>
+            {action}
+            {settings}
+          </>
+        ) : null
+      }
       data-state={kind}
     >
       <p title={address}>{copy!.detail}</p>

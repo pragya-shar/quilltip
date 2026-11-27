@@ -42,6 +42,8 @@ export const HASH =
   '9f2c4b1e7a3d5c6b8e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d'
 export const ADDRESS =
   'GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI'
+/** The reader's verified linked address, when the wallet is on another. */
+export const LINKED = 'GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR'
 const WRITER = 'Ada Lovelace'
 
 /** Calls the fixture records, so the spec can assert what a button did. */
@@ -250,6 +252,23 @@ export const STATES: FixtureState[] = [
     walletNetwork: 'Mainnet',
   }),
   gate('gate-unverified', { kind: 'unverified', address: ADDRESS }),
+  // A verified linked address, and the wallet on another account (#582):
+  // switch accounts, with a link to wallet settings; no link step.
+  {
+    id: 'gate-other-account',
+    group: 'gate' as const,
+    surface: 'page' as const,
+    render: () => (
+      <WalletGate
+        state={{ kind: 'other-account', linked: LINKED, address: ADDRESS }}
+        onConnect={record('connect')}
+        onVerify={record('verify')}
+        verifyHref="#wallet"
+      >
+        {send}
+      </WalletGate>
+    ),
+  },
   // The tab pages link to the wallet page instead of verifying in place.
   {
     id: 'gate-unverified-link',
