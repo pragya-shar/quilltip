@@ -229,7 +229,9 @@ test.describe('testnet label', () => {
     for (const state of STATES) {
       await open(page, state.id)
       const root = page.locator('[aria-label="Fixture"]')
-      const text = await root.innerText()
+      // The settlement rule ("reach 5 XLM") is a threshold, not an amount
+      // that moved.
+      const text = (await root.innerText()).replace(/reach \d+ XLM/g, '')
       const hasAmount = /\d XLM/.test(text)
       const hasLink =
         (await root.locator('a[href*="stellar.expert"]').count()) > 0

@@ -270,7 +270,7 @@ export const RESULT_COPY: Record<
   accepted: {
     title: 'Tip sent from your tab',
     detail:
-      'It usually settles on Stellar testnet within about 6 hours. Your tab balance already counts it.',
+      'Quilltip settles it on Stellar testnet once your unsettled tips to this writer reach 5 XLM, or when the oldest is 6 hours old. Your tab balance already counts it.',
   },
   shortfall: {
     title: 'Waiting for the tab balance',
@@ -365,6 +365,18 @@ export const FAILURE_COPY = {
  * shown. Every wallet error kind except `cancelled` has an entry, so a new
  * kind does not compile until it has copy.
  */
+/**
+ * The wallet is on another account than the linked address that must sign,
+ * found before any signature was requested (addresses shortened).
+ */
+export const WRONG_ACCOUNT_BEFORE_SIGNING = (
+  linked: string,
+  wallet: string
+): CopyBlock => ({
+  title: `Switch your wallet to ${linked}`,
+  detail: `This is signed by ${linked}, the address linked to your Quilltip account. Your wallet is on ${wallet}. Switch accounts in your wallet, then try again. Nothing was signed.`,
+})
+
 export const WALLET_FAILURE_COPY = {
   rejected: RESULT_COPY.declined,
   timeout: {
