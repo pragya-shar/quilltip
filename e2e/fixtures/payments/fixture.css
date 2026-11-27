@@ -48,3 +48,17 @@ body {
   columns: 3 14rem;
   font-family: var(--ui-font);
 }
+
+/* The dashboard surface fills the fixture width, as it does in the app. */
+.pay-fixture-account {
+  justify-self: stretch;
+  min-height: auto;
+  padding: 16px 0;
+}
+.pay-fixture-account .account-folio {
+  display: grid;
+  gap: 16px;
+  min-height: auto;
+  margin: 0;
+  padding: 16px 24px 32px;
+}

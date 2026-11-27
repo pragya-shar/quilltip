@@ -1,4 +1,5 @@
 import { test, expect, type Page } from './helpers/consoleGuard'
+import { contrastScan, surfaceColours } from './helpers/lightSurface'
 import {
   installVarialEmulator,
   type VarialMode,
@@ -205,3 +206,37 @@ test('dashboard: a verified address loads with the wallet disconnected and no er
   )
   await page.waitForTimeout(1500)
 })
+
+// The dashboard sections stay light when the site is dark (#539): each
+// renders exactly as in light appearance, with no contrast violation.
+for (const [view, query, ready] of [
+  ['verify', 'link=unverified', 'Not verified'],
+  ['verify', 'link=verified', 'Verified'],
+  ['verify', 'link=none', 'No receiving address yet.'],
+  ['dashboard', 'link=unverified', /^Your receiving address is saved\./],
+  ['dashboard', 'link=verified', 'Not connected'],
+] as const) {
+  test(`${view} with ${query} looks the same in dark appearance`, async ({
+    page,
+  }) => {
+    const surface = '.account-surface'
+    await page.addInitScript(installVarialEmulator, {
+      mode: 'connected' as const,
+      address: UNUSED,
+    })
+    const show = async (theme: string) => {
+      await page.goto(`/?view=${view}&${query}${theme}`)
+      await expect(
+        page.locator(surface).getByText(ready, { exact: true }).first()
+      ).toBeVisible()
+      await page.waitForLoadState('networkidle')
+    }
+    await show('')
+    expect(await contrastScan(page, surface)).toEqual([])
+    const light = await surfaceColours(page, surface)
+    await show('&theme=dark')
+    await expect(page.locator('html.dark')).toBeAttached()
+    expect(await contrastScan(page, surface)).toEqual([])
+    expect(await surfaceColours(page, surface)).toEqual(light)
+  })
+}

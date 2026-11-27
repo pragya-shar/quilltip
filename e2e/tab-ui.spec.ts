@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 
 import { SCENARIOS } from './fixtures/tab-ui/scenarios'
+import { contrastScan, surfaceColours } from './helpers/lightSurface'
 
 /**
  * The tab screens (issue #449) in every state, against the fixture page on
@@ -204,6 +205,44 @@ for (const width of WIDTHS) {
     }
   })
 }
+
+// --- Dark appearance (#539) -------------------------------------------------
+// The dashboard surface stays light when the site is dark: every state must
+// render exactly as in light appearance, with no contrast violation.
+
+const SURFACE = '.account-surface'
+
+test.describe('states in dark appearance', () => {
+  test.use({ viewport: { width: 768, height: 900 } })
+  for (const [id, text] of Object.entries(EXPECT)) {
+    test(`${id} looks the same in dark appearance`, async ({
+      page,
+      browserName,
+    }) => {
+      test.skip(browserName !== 'chromium', 'Colours are checked in Chromium')
+      await open(page, id)
+      await expect(visibleText(page, text)).toBeVisible()
+      expect(await axe(page)).toEqual([])
+      const light = await surfaceColours(page, SURFACE)
+      await page.goto(`/?state=${id}&theme=dark`)
+      await expect(page.locator('html.dark')).toBeAttached()
+      await expect(visibleText(page, text)).toBeVisible()
+      expect(await axe(page)).toEqual([])
+      expect(await contrastScan(page, SURFACE)).toEqual([])
+      expect(await surfaceColours(page, SURFACE)).toEqual(light)
+      if (SHOTS) {
+        for (const w of [375, 768, 1440]) {
+          await page.setViewportSize({ width: w, height: 900 })
+          await page.screenshot({
+            path: path.join(SHOTS, `dark-${id}-${w}.png`),
+            fullPage: true,
+            animations: 'disabled',
+          })
+        }
+      }
+    })
+  }
+})
 
 test('the spec lists an expectation for every reader and writer state', () => {
   const driven = [...SCENARIOS.keys()].filter(

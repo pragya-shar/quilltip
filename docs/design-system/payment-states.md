@@ -684,12 +684,24 @@ apply on every surface, not only inside the tip dialog.
   words. Colour never carries meaning alone.
 - Inside the tip dialog, which is always light, the kit pins the light status
   colours so dark mode does not lower contrast.
+- The dashboard surface and its dialogs are also always light.
+  `app/shared-ui.css` and `app/globals.css` list `.account-surface` and
+  `.account-dialog` with the light `--ui-*` tokens and the aliases built on
+  them, so the kit and everything else on the dashboard look the same in
+  both appearances. A kit action that is a link keeps its button colours
+  there (`.pay-action` is left out of the dashboard link colour). A new
+  always-light surface takes the `ui-light` class.
 - `e2e/payment-states.spec.ts` checks every state at 375, 768 and 1440 px
   with axe (WCAG 2.2 AA tags), no horizontal overflow, the testnet label on
   every amount and link, keyboard order, focus while running and after a
   result, empty live regions on load, live-region text, reduced motion on the
   dialog and on a page surface, long amounts and errors, reflow at 640 px
   (200 % zoom of 1280) and 320 px, text-spacing overrides, and dark mode.
+  On the dashboard surface, every state must render with the same colours in
+  dark appearance as in light, and pass the contrast scan in both; a contrast
+  axe cannot decide also fails. `e2e/tab-ui.spec.ts` and
+  `e2e/wallet-verification.spec.ts` check the tab and wallet pages the same
+  way (`e2e/helpers/lightSurface.ts`).
 
 ## Using the kit in a flow
 
@@ -719,4 +731,4 @@ apply on every surface, not only inside the tip dialog.
 
 The fixture page shows each state by id:
 `http://127.0.0.1:4180/?state=result-failed`. Add `&theme=dark` for the dark
-palette.
+palette and `&surface=dashboard` to show the state on the dashboard surface.

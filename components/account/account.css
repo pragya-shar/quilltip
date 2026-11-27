@@ -10,6 +10,9 @@
   font-weight: 400 800;
   font-display: swap;
 }
+/* Always light. app/shared-ui.css and app/globals.css list both classes
+   with the light theme tokens, so the tokens inside stay light in dark
+   appearance. */
 .account-surface,
 .account-dialog {
   --account-paper: #faf5ec;
@@ -30,8 +33,10 @@
   background: var(--account-rose);
   padding-bottom: 16px;
 }
-.account-surface a,
-.account-dialog a {
+/* Text links. A payment kit action that is a link (`.pay-action`) keeps the
+   colours of its button variant. */
+.account-surface a:not(.pay-action),
+.account-dialog a:not(.pay-action) {
   color: var(--account-wine);
   text-underline-offset: 6px;
 }
