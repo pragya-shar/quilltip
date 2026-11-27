@@ -76,49 +76,60 @@ every error into `{ code, message }`):
 ### Restore after a page load
 
 While a reader is signed in, Quilltip remembers their last wallet choice
-(#562) in `localStorage` under `quilltip:wallet`: the wallet ID and the
-public address, nothing else (`lib/wallet/remembered-wallet.ts`). Where a
-wallet is used (the wallet page, the tab page, an open tip dialog, the NFT
-panel once opened), the wallet runtime reconnects that wallet if it still
-allows this site **without a prompt**. Reading an article loads no wallet
-code, so nothing is restored there.
+(#562) in `localStorage` under `quilltip:wallet:v1:<user ID>`: the wallet ID
+and the public address, nothing else (`lib/wallet/remembered-wallet.ts`).
+`readRememberedWallet(storage, userId)` is a small synchronous read with no
+wallet code, so a page can show the reader's last wallet without loading the
+kit.
 
-| Wallet        | Read used on load                                   | Restored | Why                                                                                                                       |
-| ------------- | --------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Varial        | Allowed-site check, then the address read           | Yes      | `getAddress({ skipRequestAccess: true })` skips `requestAccess`; an unallowed site gets an error, not a prompt            |
-| Mobile wallet | The remembered account's live session, from storage | Yes      | The sign client reads its stored sessions; no pairing step, QR code or phone request. No live session: stays disconnected |
-| xBull         | None                                                | No       | The extension's `connect` asks the reader, and the web wallet opens a window                                              |
-| Albedo        | None                                                | No       | Every request opens Albedo's window                                                                                       |
-| Rabet         | None                                                | No       | `rabet.connect()` is the only address read and prompts when the site is not allowed                                       |
-| Hana          | None                                                | No       | `getPublicKey()` is the only address read and prompts when the site is not connected                                      |
-| Scopuly       | None                                                | No       | Without the access request the module falls back to `getPublicKey()`, which can prompt                                    |
-| D'CENT        | None                                                | No       | Not checked against the extension that its read without the access request never prompts                                  |
+The restore is silent, or it does not happen. Where the wallet runtime is
+loaded (the wallet page, the tab page, an open tip dialog, the NFT panel once
+opened), it reconnects the remembered wallet only through a read that cannot
+prompt, and only when the wallet still reports the remembered address.
+Otherwise the wallet stays disconnected and the wallet controls show the
+remembered wallet as "Last used". The first prompt the reader sees is then
+one they started. Reading an article loads no wallet code, so nothing is
+restored there.
+
+| Wallet        | Read used on load                         | Restored | Why                                                                                                                                                               |
+| ------------- | ----------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Varial        | Allowed-site check, then the address read | Yes      | `getAddress({ skipRequestAccess: true })` skips `requestAccess`; an unallowed site gets an error, not a prompt                                                    |
+| Mobile wallet | None                                      | No       | Restoring would load the sign client and open a relay connection on every wallet page. The reader's Connect reuses the remembered account's session, with no code |
+| xBull         | None                                      | No       | The extension's `connect` asks the reader, and the web wallet opens a window                                                                                      |
+| Albedo        | None                                      | No       | Every request opens Albedo's window                                                                                                                               |
+| Rabet         | None                                      | No       | `rabet.connect()` is the only address read and prompts when the site is not allowed                                                                               |
+| Hana          | None                                      | No       | `getPublicKey()` is the only address read and prompts when the site is not connected                                                                              |
+| Scopuly       | None                                      | No       | Without the access request the module falls back to `getPublicKey()`, which can prompt                                                                            |
+| D'CENT        | None                                      | No       | Not checked against the extension that its read without the access request never prompts                                                                          |
 
 Rules:
 
 - **No prompt on load.** Only wallets with `silentRestore` in the catalog are
   asked, with a read that cannot open a window. A refused or unanswered read
-  (8 seconds) leaves the wallet disconnected.
+  (5 seconds), or another account than the remembered one, leaves the wallet
+  disconnected and shown as last used.
+- **Nothing waits on the restore.** It does not set the wallet's `isLoading`,
+  so the tab page's wallet gate and the tip flows do not wait for it. The
+  wallet controls show "Checking your wallet" while it runs.
 - **The record is a hint.** A record that is not exactly a wallet ID and an
   account ID, or names a wallet Quilltip does not offer, is removed and
-  nothing is selected. The address is read from the wallet again; the stored
-  one is not used to sign.
+  nothing is selected. The stored address is never used to sign.
 - **Checks before signing stay where they were.** A restored connection is an
   ordinary connection: `signTransaction` checks the network and the account
   before the wallet is asked. A wallet on another network is restored with
-  that network shown, and the payment UI blocks the review. A wallet on
-  another account than the saved one shows "This is not your saved address"
-  on the wallet page, and the signing check refuses it.
-- **Disconnect.** Disconnect forgets the choice and the kit's copy of it
-  (`@StellarWalletsKit/*` keys) and ends a WalletConnect session. Other open
-  tabs let go of the wallet when the record is removed.
-- **Sign-out.** Signing out forgets the choice and disconnects. The sign-in
-  pages also forget it whenever the browser is signed out, so the next
-  reader to sign in on this browser does not get the last reader's wallet. A
-  signed-out reader is not reconnected.
+  that network shown, and the payment UI blocks the review. After the reader
+  connects a wallet on another account than the saved one, the wallet page
+  shows "This is not your saved address", and the signing check refuses it.
+- **Disconnect.** Disconnect forgets the reader's choice and the kit's copy
+  of it (`@StellarWalletsKit/*` keys) and ends a WalletConnect session. Other
+  open tabs let go of the wallet when the record is removed.
+- **Sign-out.** Signing out, or another reader signing in, forgets the
+  previous reader's choice and disconnects. Sign-out leads to the sign-in
+  pages, which forget every reader's choice while the browser is signed out,
+  so this holds even when the wallet was not loaded on the page the reader
+  signed out from. A signed-out reader is not reconnected.
 - **Announcements.** A restore is not announced; the wallet controls show the
-  connected wallet. While the wallet is checked they say "Checking your
-  wallet".
+  connected wallet, or the last used one.
 
 ### Albedo over http
 
@@ -205,7 +216,7 @@ module, `lib/stellar/v2/walletconnect-module.ts`, on
 | The phone declines the pairing (5000)            | `rejected`                                             |
 | The pairing proposal expires (5 minutes)         | `timeout`                                              |
 | The reader goes back or closes the picker        | Not an error; the pairing stops                        |
-| A live session for the remembered wallet         | Restored on load, without a code or a phone request    |
+| A live session for the remembered wallet         | Reused on Connect, without a new code                  |
 | A session nobody chose (left before a sign-out)  | Closed before a new pairing                            |
 | The phone ends the session, or it expires        | The app disconnects; a later request is `disconnected` |
 | Disconnect in Quilltip                           | The session is ended on the phone too                  |
