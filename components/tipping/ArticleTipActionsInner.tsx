@@ -18,7 +18,7 @@ const TipButton = lazy(() =>
 export function ArticleTipActionsInner({
   articleTitle,
   articleId,
-  articleSlug: _articleSlug,
+  articleSlug,
   authorName,
   authorStellarAddress,
 }: ArticleTipActionsProps) {
@@ -41,6 +41,7 @@ export function ArticleTipActionsInner({
       <TipButton
         articleTitle={articleTitle}
         articleId={articleId}
+        articleSlug={articleSlug}
         authorName={authorName}
         authorStellarAddress={authorStellarAddress}
       />

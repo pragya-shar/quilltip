@@ -168,6 +168,169 @@ every route. The simulated mobile profile still misses LCP on all four. On
 and 29 KB of fonts before the first paint there (414 to 491 KB in total). The
 other routes moved within run-to-run variation.
 
+## Simulated mobile on `overhaul/v2` (#405, #428)
+
+Measured 2026-11-27. The targets are LCP under 2 s and CLS under 0.1 on `/`,
+`/login`, `/articles` and an article page.
+
+### Method
+
+- **Builds:** `next build` and `next start` (port 3104), local production
+  builds. Before: `overhaul/v2` at `fab8e06`. After: this change.
+- **Data:** a local Convex backend (anonymous local deployment) seeded through
+  the app's own sign-up, wallet-proof and publish mutations: three writers,
+  13 published articles with Unsplash covers, and a reader with three public
+  highlights. The article page is a 3,600-word article with eight headings and
+  two images, written from non-repeating text so that its HTML compresses like
+  real prose (98 KB raw, 28 KB gzip). An article built from repeated sentences
+  compressed to 10 KB, which understated the HTML cost.
+- **Tool:** Lighthouse 12.8.2, performance category, headless Chrome,
+  incognito, signed out. Five cold runs per route and profile; the tables show
+  the median.
+- **Profiles:** Lighthouse's default mobile profile (Moto G Power, 412 px
+  wide, simulated Slow 4G: 150 ms RTT, 1.6 Mbps, 4x CPU) is the stated method.
+  Desktop (`--preset=desktop`) is measured for CLS. "Applied" is the same
+  mobile profile with `--throttling-method=devtools`, which slows the real
+  load instead of modelling it.
+
+### Results
+
+LCP in ms. Bold marks a miss.
+
+| Route       | Simulated mobile, before | Simulated mobile, after | Applied, before | Applied, after | Desktop, before | Desktop, after |
+| ----------- | -----------------------: | ----------------------: | --------------: | -------------: | --------------: | -------------: |
+| `/`         |                 **3986** |                **3664** |            1801 |           1873 |             836 |            792 |
+| `/login`    |                 **2934** |                **2918** |            1601 |           1631 |             631 |            623 |
+| `/articles` |                 **3786** |                **3749** |            1860 |           1845 |             763 |            808 |
+| Article     |                 **3817** |                **3511** |        **2114** |       **2098** |             781 |            711 |
+
+CLS after, simulated mobile and desktop: `/` 0.002 and 0.004, `/login` 0.016
+and 0.000, `/articles` 0.005 and 0.003, article 0.000 and 0.001. All routes
+meet CLS < 0.1 before and after. Total blocking time on the article page fell
+from 183 ms to 31 ms (simulated mobile, repeated-text article).
+
+First-load JavaScript (gzip, `bun run perf:first-load`):
+
+| Route       |   Before |    After |
+| ----------- | -------: | -------: |
+| `/`         | 245.4 KB | 208.7 KB |
+| `/login`    | 199.2 KB | 199.2 KB |
+| `/articles` | 247.6 KB | 213.8 KB |
+| Article     | 262.9 KB | 216.7 KB |
+
+The Lighthouse runs above were taken with the toaster loaded on demand
+(about 9.7 KB less per route). It went back into the first load after review
+(below), so these sizes include it.
+
+The simulated mobile profile still misses LCP on all four routes; the next
+section gives the cause. Applied throttling meets LCP on `/`, `/login` and
+`/articles`; the article page misses by about 100 ms (see
+[Remaining](#remaining)).
+
+### Why simulated mobile LCP stays above 2 s
+
+On every route the LCP element is in the server HTML and the LCP phases are
+TTFB about 450 ms, no load delay, and a render delay of 2.5 to 3.5 s
+(`/articles`: the first cover image, about 240 ms load delay and 370 ms load
+time). The render delay is not work the page does before painting:
+
+1. Lighthouse's simulation records one unthrottled load, then replays every
+   request that finished before the observed LCP, and every script that ran
+   before it, on Slow 4G with a 4x CPU.
+2. On the unthrottled local load, Chrome evaluates the page's async scripts
+   before it presents the first frame: the first frame is presented at 80 to
+   120 ms, after all first-load chunks have run. So the simulation charges the
+   whole first load (about 200 KB of JavaScript, 30 to 45 KB of CSS and 44 to
+   142 KB of fonts) to LCP.
+3. Experiment: a proxy that delays only `.js` responses by 400 ms, so the same
+   page paints before any script runs, with the same bytes. Simulated mobile
+   LCP falls to 1512 ms (`/`), 1213 ms (`/login`), 1815 ms (`/articles`) and
+   2306 ms (article), median of 3. Scripts account for 1.7 to 2.2 s of the
+   simulated LCP.
+4. Under applied throttling, Chrome paints before most scripts run: on the
+   article page the first-load chunks start to evaluate after the first paint,
+   and LCP is set by the HTML, the render-blocking stylesheets and the
+   preloaded fonts.
+
+Next.js and React are about 170 KB of each route's first load and the Convex
+client about 30 KB (module sizes from `next experimental-analyze`). To meet
+2 s in the simulated profile without the ordering above, a route would need
+about 170 KB or less of all resources before its first paint. That is below
+the framework alone, so it is not reachable with small client changes.
+
+### What changed
+
+Each change removes code from the first load without changing what the page
+shows. Screenshots before and after at 375, 768 and 1440 px, signed in and
+signed out, with and without reduced motion, are pixel-identical apart from
+animation timing.
+
+- **Toasts (reverted):** loading the toaster on demand saved about 9.7 KB per
+  route, and Sonner showed toasts raised before it mounted. But its live
+  region was then created in the same moment as such a toast, which screen
+  readers may not announce, and that could not be checked with a screen
+  reader here. The toaster stays in the first load; a test checks that a
+  saved profile's toast appears in the `aria-live` region.
+- **Site header:** the mobile navigation sheet (Radix dialog, focus trap,
+  scroll lock) loads after the page has loaded and the browser is idle, on
+  hover or focus of the menu button, or on the first press. The button is a
+  plain button with `aria-haspopup="dialog"` and `aria-expanded`; focus returns
+  to it when the sheet closes. The signed-in account menu (Radix dropdown and
+  positioning) loads when a signed-in header renders; until then the same
+  trigger shows, and a press opens the menu as soon as it has loaded. About
+  35 KB from `/`, `/articles` and the article page.
+- **Landing tip preview:** the "Add a tip" dialog and its wallet help load
+  after the page has loaded, or on hover, focus or press. The opening intro is
+  unchanged (owner decision in #405).
+- **Article details panel:** the collapsed panel below the article (accordion,
+  highlight notes, date formatting) is still rendered on the server; its code
+  loads while the page hydrates instead of with the first scripts.
+- `afterLoadWhenIdle` (`lib/scheduling/`) is shared by these deferrals and the
+  highlight editor.
+
+Checked and left as they are:
+
+- **Fonts:** every face a route downloads is used in its first viewport.
+  Fewer faces would be a design change.
+- **Inlined CSS** (`experimental.inlineCss`): Next.js wrote the CSS into the
+  HTML three times; the login HTML grew from 9 KB to 96 KB gzip and simulated
+  LCP rose. Not used.
+- **Article HTML:** the body appears in the HTML as rendered HTML, as a string
+  for hydration, as the Tiptap document and as search text. Leaving out the
+  last two cut the raw HTML from 98 KB to 68 KB but the gzip size only from
+  27.9 KB to 27.2 KB, because gzip already deduplicates the copies. Not worth
+  the extra code.
+
+### Remaining
+
+- **Simulated mobile LCP, all four routes:** the measurement charges the
+  framework and app JavaScript that the unthrottled load runs before its first
+  frame (see above). The floor without scripts is 1.2 to 1.8 s on `/`,
+  `/login` and `/articles`. Getting under 2 s with scripts counted needs a
+  product decision: fewer typefaces on the landing page (ten faces, 142 KB
+  before first paint) and a smaller framework footprint.
+- **Article page, applied mobile (2098 ms) and the simulated floor
+  (2306 ms):** the 29 KB HTML, the 25 KB global stylesheet and three preloaded
+  fonts (60 KB) share Slow 4G bandwidth, so the global stylesheet finishes at
+  about 2.0 s and the first paint follows. The global stylesheet carries the
+  Tailwind utilities of the whole app. Splitting it per route, or not
+  preloading the interface and title fonts on article pages (which would make
+  them swap after the first paint), are the options; both are larger than this
+  change.
+- **`/` applied:** 1873 ms against 1801 ms before. In the new runs the Syne
+  font finishes before the global stylesheet instead of after it; the bytes on
+  the critical path are the same.
+
+### Signed in
+
+Article page, signed in as a reader with public highlights (a Chrome profile
+with a real session; the HTTP cache cleared before each run), median of 5:
+simulated mobile LCP 3815 ms before and 3513 ms after, desktop 778 and 701 ms.
+CLS is 0.049 on mobile before and after: the reader header moves once the
+signed-in reader's highlight rail appears. It is under the 0.1 target and not
+changed here. The account menu and the tip flow load after hydration, so
+signing in adds nothing to the first load.
+
 ## Regression check
 
 `bun run perf:budget` (`scripts/perf/page-load-budget.ts`) runs without
@@ -185,10 +348,10 @@ secrets:
 
    | Gate                                         | Budget | Heaviest route |
    | -------------------------------------------- | -----: | -------------: |
-   | Scripts referenced by the server HTML        | 280 KB |         261 KB |
-   | Stylesheets referenced by the server HTML    |  50 KB |          43 KB |
+   | Scripts referenced by the server HTML        | 230 KB |         216 KB |
+   | Stylesheets referenced by the server HTML    |  50 KB |          41 KB |
    | Fonts the page requests                      | 220 KB |         181 KB |
-   | Render-blocking stylesheets                  |      6 |              4 |
+   | Render-blocking stylesheets                  |      6 |              3 |
    | CLS (median of 3)                            |    0.1 |          0.016 |
    | LCP element in the server HTML (2 of 3 runs) |    yes |            yes |
    | LCP image URL in the server HTML (2 of 3)    |    yes |            yes |
@@ -206,6 +369,10 @@ secrets:
    after the first HTML (for example the highlight editor), without gating
    them. A median LCP over 2000 ms on mobile or 1000 ms on desktop adds a
    warning annotation to the CI run.
+
+The same CI job first runs `bun run perf:first-load`, which budgets each
+route's first-load JavaScript and refuses wallet, SDK and contract code there.
+See [First-load JavaScript](#first-load-javascript).
 
 ### Why LCP time is not gated
 
@@ -229,6 +396,48 @@ no longer renders.
 The fixture has no cover images and the stand-in never sends live data, so
 the timings are lower than the real-data runs above. Use the check for
 regressions, not as the measured result.
+
+## First-load JavaScript
+
+`bun run perf:first-load` (`scripts/perf/first-load.ts`,
+`scripts/perf/first-load-budget.ts`) runs in the **Page-load Budget** CI job
+after the build. It runs `next experimental-analyze --output`, then for `/`,
+`/login`, `/articles` and `/[username]/[slug]`:
+
+1. Sums the gzip size of the route's first-load chunks, as listed by
+   `next build` in `.next/diagnostics/route-bundle-stats.json`, and fails when
+   it is over the route's budget:
+
+   | Route                | Budget | Measured |
+   | -------------------- | -----: | -------: |
+   | `/`                  | 211 KB | 208.7 KB |
+   | `/login`             | 202 KB | 199.2 KB |
+   | `/articles`          | 216 KB | 213.8 KB |
+   | `/[username]/[slug]` | 219 KB | 216.7 KB |
+
+   Each budget is the measured size plus about 2 KB (CI measures about
+   0.2 KB more than a local build), so removing a lazy boundary (the mobile
+   menu, the account menu) or a few KB of growth fails; raise a budget in the
+   change that needs it. A size failure lists the route's ten largest
+   first-load modules.
+
+2. Lists the source modules in the route's first load from the analyzer's
+   data (the bootstrap and render chunk groups; on-demand chunks are left
+   out) and fails when any of these is present: `@stellar/*`,
+   `@creit.tech/*`, wallet connector packages, `idb`, `idb-keyval` or `dexie`,
+   `@ardrive/*` or `arweave`, `@tiptap/*` or `prosemirror-*`, or anything under
+   `lib/stellar/v2/`. It also fails when a first-load chunk contains
+   `indexedDB`. The analyzer compiles the app again; the check fails if its
+   first-load file count differs from the build's, or if its data format
+   changes.
+
+The module rule matters even when the budget passes: a deliberate test that
+imported `isValidStellarAccountId` (which uses `StrKey` from the SDK) into the
+landing demo added only 9 KB after tree-shaking (208.1 KB, under the budget
+of 210 KB at the time), and the check failed on the four SDK modules it pulled
+in. Payment
+code belongs behind `import()`, `next/dynamic` or `React.lazy`, loaded on the
+reader's action.
 
 ## Re-run
 

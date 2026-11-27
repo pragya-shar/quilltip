@@ -133,6 +133,20 @@ jobs:
           NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
           NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
 
+      # First-load JavaScript of /, /login, /articles and the article page:
+      # gzip budget per route, and no wallet, SDK, contract-binding,
+      # IndexedDB or editor code (scripts/perf/first-load.ts).
+      - name: Check first-load JavaScript
+        run: bun run perf:first-load
+        # The analyzer compiles the app again, with the build's settings.
+        env:
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
       - name: Check page-load budget
         run: bun run perf:budget
 
@@ -318,7 +332,9 @@ jobs:
   e2e-fixtures:
     name: Playwright (fixtures)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The suites run one after another on one worker: about 15 minutes with
+    # the tips v2 suite (#448), so allow room as suites grow.
+    timeout-minutes: 25
     permissions:
       contents: read
     needs: quality

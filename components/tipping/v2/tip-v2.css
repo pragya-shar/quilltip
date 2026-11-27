@@ -1,0 +1,381 @@
+/*
+ * Payments v2 tip flows (docs/design-system/tip-flows.md). Builds on
+ * ../tipping.css (the tip dialog) and components/payments/payments.css (the
+ * payment kit); colours come from the same --ui-* palette.
+ */
+
+/* The basket sheet sits outside .tip-dialog: give it the dialog's palette. */
+.tip-basket-sheet {
+  color-scheme: light;
+  --ui-surface: #eee3cf;
+  --ui-foreground: #3e202c;
+  --ui-muted-foreground: #694652;
+  --ui-primary: #660033;
+  --ui-primary-foreground: #fff2df;
+  --ui-accent: #f9f0e2;
+  --ui-muted: #e9dac1;
+  --ui-border: #ad8690;
+  --ui-input: #8f6672; /* 3.5:1 on the dialog surface (WCAG 1.4.11) */
+  --ui-ring: #660033;
+  --ui-danger: #a52e36;
+  --foreground: var(--ui-foreground);
+  --muted-foreground: var(--ui-muted-foreground);
+  --background: var(--ui-surface);
+  --border: var(--ui-border);
+  --primary: var(--ui-primary);
+  --primary-foreground: var(--ui-primary-foreground);
+  --ring: var(--ui-ring);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 28px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--ui-foreground);
+  background: linear-gradient(110deg, #f3e9d7, #e9dac1);
+  font: 400 15px/1.6 var(--ui-font);
+  overflow-wrap: anywhere;
+}
+.tip-basket-sheet[data-side='right'] {
+  width: min(26rem, 100vw);
+  max-width: 26rem;
+  border-left: 0;
+  /* The tip dialog's deckled paper edge, on the side that opens. */
+  clip-path: polygon(
+    1.5% 0,
+    100% 0,
+    100% 100%,
+    1.5% 100%,
+    0 94%,
+    1.5% 88%,
+    0 81%,
+    1.5% 74%,
+    0 67%,
+    1.5% 60%,
+    0 53%,
+    1.5% 46%,
+    0 39%,
+    1.5% 32%,
+    0 25%,
+    1.5% 19%,
+    0 12%,
+    1.5% 6%
+  );
+}
+.tip-basket-sheet[data-side='bottom'] {
+  max-height: 85dvh;
+  border-radius: 0;
+  border-top: 0;
+  padding-top: 32px;
+  clip-path: polygon(
+    0 8px,
+    6% 0,
+    12% 8px,
+    19% 0,
+    25% 8px,
+    32% 0,
+    39% 8px,
+    46% 0,
+    53% 8px,
+    60% 0,
+    67% 8px,
+    74% 0,
+    81% 8px,
+    88% 0,
+    94% 8px,
+    100% 0,
+    100% 100%,
+    0 100%
+  );
+}
+.tip-basket-sheet > button:first-of-type {
+  /* The sheet's close button: a 44 px target. */
+  display: grid;
+  place-items: center;
+  top: 8px;
+  right: auto;
+  inset-inline-end: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}
+.tip-basket-header {
+  padding-inline-end: 40px;
+  text-align: start;
+}
+.tip-basket-header h2 {
+  text-wrap: balance;
+  font:
+    400 34px/1.1 'Tip Alegreya',
+    Georgia,
+    serif;
+  letter-spacing: -0.02em;
+  color: var(--ui-primary);
+}
+.tip-basket-header p {
+  color: var(--ui-muted-foreground);
+  font-size: 14px;
+}
+.tip-basket-sheet :is(button, input, a):focus-visible,
+.tip-basket-button:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 3px;
+}
+
+/* The basket button: fixed, out of the article's way. */
+.tip-basket-dock {
+  position: fixed;
+  z-index: 60;
+  right: max(24px, env(safe-area-inset-right, 0px));
+  bottom: max(24px, env(safe-area-inset-bottom, 0px));
+}
+.tip-basket-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 8px 6px 18px;
+  border: 1px solid var(--ui-primary);
+  border-radius: 999px;
+  background: var(--ui-primary);
+  color: var(--ui-primary-foreground);
+  box-shadow: 0 6px 20px -8px rgb(62 32 44 / 0.45);
+  font: 500 15px/1.2 var(--ui-font);
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.tip-basket-button svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.tip-basket-button:active {
+  transform: scale(0.97);
+}
+.tip-basket-count {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ui-primary-foreground);
+  color: var(--ui-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tip-basket-button:hover {
+    background: color-mix(in srgb, var(--ui-primary) 88%, black);
+  }
+}
+@media (max-width: 767px) {
+  /* Keep the page's last lines and footer clear of the basket button. */
+  body:has(.tip-basket-dock) {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+  .tip-basket-dock {
+    left: 16px;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  .tip-basket-button {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .tip-basket-button > span:first-of-type {
+    flex: 1;
+    text-align: left;
+  }
+}
+
+/* The amount form. */
+.tip-v2-form {
+  display: grid;
+  gap: 16px;
+}
+.tip-v2-fieldset {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.tip-v2-fieldset legend {
+  margin-bottom: 10px;
+  padding: 0;
+  font-weight: 600;
+  font-size: 14px;
+}
+.tip-v2-dollar {
+  position: relative;
+}
+.tip-v2-dollar > span {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ui-muted-foreground);
+  pointer-events: none;
+}
+.tip-v2-dollar input {
+  padding-left: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.tip-v2-field-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--ui-danger);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.tip-v2-field-error svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+.tip-dialog .tip-input[aria-invalid='true'] {
+  border-color: var(--ui-danger);
+}
+.tip-v2-secondary {
+  border-radius: 999px;
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--ui-border);
+  background: var(--ui-accent);
+  color: var(--ui-primary);
+}
+.tip-v2-added {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  font-size: 14px;
+  color: var(--ui-foreground);
+}
+.tip-v2-added:empty {
+  display: none;
+}
+.tip-v2-link {
+  min-height: 44px;
+  padding: 0 4px;
+  color: var(--ui-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tip-v2-last {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 14px;
+}
+.tip-v2-loading {
+  display: grid;
+  gap: 12px;
+}
+
+/* The basket list. */
+.tip-basket-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--ui-border);
+}
+.tip-basket-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: start;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--ui-border);
+}
+.tip-basket-row-title {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.tip-basket-row-kind {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+}
+.tip-basket-row-passage {
+  margin: 2px 0 0;
+  color: var(--ui-muted-foreground);
+  font:
+    400 16px/1.45 'Tip Alegreya',
+    Georgia,
+    serif;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tip-basket-row-side {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.tip-basket-row-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.tip-basket-row-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--ui-danger);
+  font-size: 13px;
+}
+.tip-basket-remove {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 4px;
+  color: var(--ui-primary);
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.tip-basket-limits {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.tip-basket-empty {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+}
+.tip-basket-sheet .tip-primary {
+  border-radius: 999px;
+  width: 100%;
+}
+.tip-basket-sheet button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tip-basket-sheet,
+  .tip-basket-sheet *,
+  .tip-basket-button {
+    animation: none !important;
+    transition: none !important;
+  }
+}

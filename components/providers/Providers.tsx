@@ -10,6 +10,10 @@ import { WalletActivationProvider } from './WalletActivationContext'
 import { WalletProvider } from './WalletProvider'
 import { AuthSessionProvider } from './AuthContext'
 
+// The toaster stays in the first load (about 9.7 KB gzip). Loaded on demand,
+// a toast raised before it arrived was shown, but its live region was created
+// in the same moment as the toast, which screen readers may not announce
+// (review of #503).
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
 interface ProvidersProps {
