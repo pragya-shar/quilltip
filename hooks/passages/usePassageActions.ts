@@ -9,9 +9,10 @@ import { passageActions } from './passageActions'
 
 /**
  * Keep, remove (with Undo), restore, appreciate and note a line, over the
- * highlight mutations. Every outcome is said once, by a toast.
+ * highlight mutations. Every outcome is said once, by a toast; with
+ * `quiet`, failures only (the control's own state says the rest).
  */
-export function usePassageActions() {
+export function usePassageActions({ quiet = false }: { quiet?: boolean } = {}) {
   const create = useMutation(api.highlights.createHighlight)
   const remove = useMutation(api.highlights.deleteHighlight)
   const restore = useMutation(api.highlights.restoreHighlight)
@@ -28,8 +29,9 @@ export function usePassageActions() {
           appreciate,
           update,
         },
-        showToast
+        showToast,
+        { quiet }
       ),
-    [create, remove, restore, appreciate, update]
+    [create, remove, restore, appreciate, update, quiet]
   )
 }

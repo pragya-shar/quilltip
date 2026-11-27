@@ -1,4 +1,4 @@
-import { READ_LIMIT_MS, withinReadLimit } from './readLimit'
+import { READ_LIMIT_MS, withinReadLimit } from '@/shell/public/boundedRead'
 
 /** What the article route answers with. */
 export type ArticleLoad<A> =
@@ -42,17 +42,4 @@ export async function loadArticle<A>(
   } catch {
     return { kind: 'unreachable' }
   }
-}
-
-/** The page's path and query, for "Try again". */
-export function retryHrefFor(
-  path: string,
-  searchParams: Record<string, string | string[] | undefined>
-): string {
-  const query = new URLSearchParams()
-  for (const [key, value] of Object.entries(searchParams))
-    for (const item of Array.isArray(value) ? value : [value])
-      if (item !== undefined) query.append(key, item)
-  const search = query.toString()
-  return search ? `${path}?${search}` : path
 }

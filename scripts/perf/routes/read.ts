@@ -6,14 +6,14 @@ export const routes: PerfRoutes = {
   // The article view: the rebuild plan's target for public reading routes
   // (4.1). It replaces the legacy article page's 219 KB entry.
   firstLoad: [{ route: '/[username]/[slug]', budgetKb: 150 }],
-  // Byte budgets kept from the legacy article page until CI measures this
-  // one. The plan's CLS 0.05 and LCP 2.0 s for this route wait on a field
-  // for them in PerfRoutes (asked of the foundation).
+  // The plan's targets for public reading: CLS at most 0.05 (both
+  // profiles) and a median phone LCP of at most 2.0 s, both gated. Byte
+  // budgets kept from the legacy article page until CI measures this one.
   pageLoad: [
     {
       name: 'article',
       path: FIXTURE_ARTICLE_PATH,
-      budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
+      budget: { htmlKb: 44, cssKb: 28, fontKb: 101, cls: 0.05, lcpMs: 2000 },
     },
   ],
   // Source Serif 4 and its next/font fallback, on the real article.

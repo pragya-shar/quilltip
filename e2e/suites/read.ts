@@ -9,7 +9,7 @@ export const suites: readonly FixtureSuite[] = [
     // Chromium and WebKit (its own config).
     name: 'read',
     server: 'e2e/fixtures/read/server.mjs',
-    port: 4210,
+    port: 4220,
     spec: 'e2e/read.spec.ts',
     config: 'e2e/fixtures/read/playwright.config.ts',
     env: { READ_FIXTURES: '1' },

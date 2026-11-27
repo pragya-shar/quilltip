@@ -87,4 +87,26 @@ describe('passage actions', () => {
     expect(await actions.saveNote('h1', '  a note  ')).toBe(true)
     expect(m.update).toHaveBeenCalledWith({ id: 'h1', note: 'a note' })
   })
+
+  it('quiet: says failures only', async () => {
+    const notices: PassageNotice[] = []
+    const actions = passageActions(
+      {
+        create: async () => 'h1',
+        remove: async () => ({ success: true }),
+        restore: async () => 'h1',
+        appreciate: async () => {
+          throw new Error('no')
+        },
+        update: async () => 'h1',
+      },
+      (n) => notices.push(n),
+      { quiet: true }
+    )
+    expect(await actions.keep('a1', passage)).toBe('h1')
+    expect(await actions.remove('h1')).toBe(true)
+    expect(notices).toEqual([])
+    expect(await actions.appreciate('h1', true)).toBe(false)
+    expect(notices).toEqual([{ title: PASSAGE_COPY.failed, tone: 'failure' }])
+  })
 })

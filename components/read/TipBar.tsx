@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { Button } from '@/system/components/Button'
 import { Icon } from '@/system/components/Icon'
+import { KeepButton } from '@/system/components/KeepButton'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { TestnetNote } from '@/system/components/TestnetNote'
 import { TipControl } from '@/system/components/TipControl'
@@ -32,7 +33,11 @@ type TipBarProps = {
   article: ReadArticle
   passage: ChosenPassage | null
   onClear: () => void
-  onKeep: () => void
+  /** Whether the chosen line is kept, and a save is under way. */
+  kept: boolean
+  keepPending: boolean
+  /** Keeps the chosen line, or lets it go. */
+  onKeepChange: (keep: boolean) => void
   /** Once per accepted tip. */
   onSent: (tip: SentTip) => void
 }
@@ -79,7 +84,9 @@ export function TipBar({
   article,
   passage,
   onClear,
-  onKeep,
+  kept,
+  keepPending,
+  onKeepChange,
   onSent,
 }: TipBarProps) {
   const balance = useBalanceReading()
@@ -221,22 +228,18 @@ export function TipBar({
     >
       {passage && !busy ? (
         <div className="qt-read__line-actions">
-          {signedOut ? (
-            <a
-              className="qt-read__chip"
-              href={signInHref(article.href)}
-              onClick={(event) => {
-                if (openSignIn({ ...intent, kind: 'keep' }))
-                  event.preventDefault()
-              }}
-            >
-              Keep
-            </a>
-          ) : (
-            <button type="button" className="qt-read__chip" onClick={onKeep}>
-              Keep
-            </button>
-          )}
+          <KeepButton
+            kept={kept}
+            pending={keepPending}
+            showLabel
+            onChange={(next) => {
+              if (!signedOut) return onKeepChange(next)
+              // Signed out: sign in first, carrying the line; nothing is
+              // kept by signing in alone.
+              if (!openSignIn({ ...intent, kind: 'keep' }))
+                window.location.assign(signInHref(article.href))
+            }}
+          />
         </div>
       ) : null}
       <div className="qt-read__dock-row">

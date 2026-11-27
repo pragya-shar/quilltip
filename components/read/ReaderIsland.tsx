@@ -1,5 +1,6 @@
 'use client'
 
+import type { Id } from '@/convex/_generated/dataModel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { sheetStack } from '@/shell/sheetStack'
@@ -21,7 +22,8 @@ import {
 } from '@/hooks/read/usePassageSelection'
 import { useReadingPosition } from '@/hooks/read/useReadingPosition'
 import { paintPassages, type PaintedSpan } from './paintPassages'
-import { RECEIPT_SHEET, type ReceiptProps } from './ReceiptSheet'
+import { RECEIPT_SHEET, type ReceiptProps } from './receipt'
+import { preloadSheet } from '@/shell/sheets/loadSheet'
 import { READ_BODY_ID, READ_MARGIN_ID, type ReadArticle } from './readModel'
 import { TipBar, type SentTip } from './TipBar'
 
@@ -75,7 +77,9 @@ function blockAtReadingLine(root: HTMLElement): HTMLElement | null {
  */
 export function ReaderIsland({ article }: { article: ReadArticle }) {
   const [tipped, setTipped] = useState<PaintedSpan[]>([])
-  const [kept, setKept] = useState<PaintedSpan[]>([])
+  const [kept, setKept] = useState<(PaintedSpan & { id: Id<'highlights'> })[]>(
+    []
+  )
   const [tick, setTick] = useState<Tick | null>(null)
   const [margin, setMargin] = useState<HTMLElement | null>(null)
 
@@ -84,7 +88,8 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
     requestAnimationFrame(() => keepInView(chosen))
   }, [])
   const { passage, clear, keep } = usePassageSelection(body, { onChoose })
-  const actions = usePassageActions()
+  // Keep is a toggle: its pressed state confirms; only failures are said.
+  const actions = usePassageActions({ quiet: true })
 
   // The margin layer is server HTML beside the body.
   useEffect(() => setMargin(document.getElementById(READ_MARGIN_ID)), [])
@@ -190,6 +195,8 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
         line: span?.text ?? null,
       }
       clear()
+      // The receipt's code loads now, so it is there by the press.
+      void preloadSheet(RECEIPT_SHEET)?.catch(() => {})
       showToast({
         title: `You tipped ${article.writer.firstName}`,
         tone: 'done',
@@ -202,18 +209,47 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
     [article.title, article.writer.firstName, article.writer.name, clear]
   )
 
-  const onKeep = useCallback(() => {
-    void keep(async (chosen) => {
-      const id = await actions.keep(article.id, chosen)
-      // Kept: a marker-ink underline on this visit (N5).
-      if (id !== null)
-        setKept((list) => [
-          ...list,
-          { startOffset: chosen.startOffset, endOffset: chosen.endOffset },
-        ])
-      return id
-    })
-  }, [actions, article.id, keep])
+  // Keep is a toggle on the chosen line (KeepButton). A kept line keeps
+  // its highlight id, so letting it go removes that highlight.
+  const [keepPending, setKeepPending] = useState(false)
+  const keptHere = passage
+    ? kept.find(
+        (k) =>
+          k.startOffset === passage.startOffset &&
+          k.endOffset === passage.endOffset
+      )
+    : undefined
+  const onKeepChange = useCallback(
+    async (next: boolean) => {
+      setKeepPending(true)
+      try {
+        if (next) {
+          await keep(
+            async (chosen) => {
+              const id = await actions.keep(article.id, chosen)
+              if (id !== null)
+                setKept((list) => [
+                  ...list,
+                  {
+                    startOffset: chosen.startOffset,
+                    endOffset: chosen.endOffset,
+                    id,
+                  },
+                ])
+              return id
+            },
+            { clearAfter: false }
+          )
+        } else if (keptHere) {
+          if (await actions.remove(keptHere.id))
+            setKept((list) => list.filter((k) => k !== keptHere))
+        }
+      } finally {
+        setKeepPending(false)
+      }
+    },
+    [actions, article.id, keep, keptHere]
+  )
 
   return (
     <>
@@ -232,7 +268,9 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
         article={article}
         passage={passage}
         onClear={clear}
-        onKeep={onKeep}
+        kept={Boolean(keptHere)}
+        keepPending={keepPending}
+        onKeepChange={(next) => void onKeepChange(next)}
         onSent={onSent}
       />
     </>

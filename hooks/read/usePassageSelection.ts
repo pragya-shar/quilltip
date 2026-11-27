@@ -144,14 +144,20 @@ export function usePassageSelection(
     }
   }, [body, choose, enabled])
 
-  /** Saves the chosen line as the reader's own; clears it on success. */
+  /**
+   * Saves the chosen line as the reader's own. With `clearAfter`, the line
+   * is let go once saved; a Keep toggle leaves it chosen.
+   */
   const keep = useCallback(
-    async (save: (passage: Passage) => Promise<unknown>) => {
+    async (
+      save: (passage: Passage) => Promise<unknown>,
+      { clearAfter = true }: { clearAfter?: boolean } = {}
+    ) => {
       const chosen = current.current
       if (!chosen) return false
       const saved = await save(chosen)
       if (saved === null || saved === false) return false
-      clear()
+      if (clearAfter) clear()
       return true
     },
     [clear]

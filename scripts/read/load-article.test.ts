@@ -1,11 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
-import { loadArticle, retryHrefFor } from '@/components/read/loadArticle'
-import { READ_LIMIT_MS, withinReadLimit } from '@/components/read/readLimit'
-import { ReadingUnavailable } from '@/components/read/ReadingUnavailable'
-
-vi.mock('@/components/read/unavailable.css', () => ({}))
+import { loadArticle } from '@/components/read/loadArticle'
+import { READ_LIMIT_MS, withinReadLimit } from '@/shell/public/boundedRead'
 
 const never = <T>() => new Promise<T>(() => {})
 const after = <T>(ms: number, value: T) =>
@@ -92,29 +87,5 @@ describe('the article read has a time limit (D21)', () => {
       'longer than 100 ms'
     )
     await vi.advanceTimersByTimeAsync(400)
-  })
-})
-
-describe('the unreachable state', () => {
-  it('reads with no script: a message, Try again to the same URL, noindex', () => {
-    const html = renderToStaticMarkup(
-      createElement(ReadingUnavailable, {
-        what: 'This article',
-        retryHref: retryHrefFor('/tomas/ledger', {
-          ref: 'share',
-          x: ['1', '2'],
-        }),
-      })
-    )
-    expect(html).toContain('This article could not be loaded right now.')
-    expect(html).toContain(
-      '<a class="qt-unavailable__retry" href="/tomas/ledger?ref=share&amp;x=1&amp;x=2">Try again</a>'
-    )
-    expect(html).toContain('<meta name="robots" content="noindex"/>')
-    expect(html).toMatch(/<h1[^>]*>This article could not/)
-  })
-
-  it('Try again keeps a bare path bare', () => {
-    expect(retryHrefFor('/tomas/ledger', {})).toBe('/tomas/ledger')
   })
 })

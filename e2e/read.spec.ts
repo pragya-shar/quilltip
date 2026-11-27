@@ -432,30 +432,49 @@ test('signed out, the tip opens sign-in with the intent and sends nothing', asyn
   expect((await server(page)).requests).toBe(0)
 })
 
-test('Keep saves the chosen line privately, and not as a tip', async ({
+test('Keep is a toggle that saves the chosen line privately, never a tip', async ({
   page,
 }) => {
   await open(page)
   await tapLine(page, 'rarely remembers')
-  await press(page, page.getByRole('button', { name: 'Keep' }))
-  await expect(page.getByText('Kept on your Shelf.')).toBeVisible()
-  // Kept: a marker-ink underline on this visit (a highlight or a mark).
-  expect(
-    await page.evaluate(() => {
-      const css = CSS as unknown as { highlights?: Map<string, unknown> }
+  const keep = page.locator('.qt-read__dock').locator('.qt-keep')
+  await expect(keep).toHaveAttribute('aria-pressed', 'false')
+  await press(page, keep)
+  // Kept: pressed, labelled Kept, the line still chosen, and a marker-ink
+  // underline on this visit (a highlight or a mark). The toggle's state is
+  // the confirmation: no toast covers the bar.
+  await expect(keep).toHaveAttribute('aria-pressed', 'true')
+  await expect(keep).toContainText('Kept')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip this line $1')
+  const keptDrawn = () =>
+    page.evaluate(() => {
+      const css = CSS as unknown as {
+        highlights?: Map<string, { size: number }>
+      }
       return css.highlights
-        ? css.highlights.has('qt-read-kept')
+        ? (css.highlights.get('qt-read-kept')?.size ?? 0) > 0
         : document.querySelector('mark.qt-read__kept') !== null
     })
-  ).toBe(true)
-  const mutations = (await (
-    await page.request.get(`/api/mutations?run=${run}`)
-  ).json()) as { name: string; args: { text: string; isPublic: boolean } }[]
-  expect(mutations).toHaveLength(1)
-  expect(mutations[0]!.name).toBe('highlights:createHighlight')
-  expect(mutations[0]!.args.text).toBe(LINES.quote)
-  expect(mutations[0]!.args.isPublic).toBe(false)
-  await expect(tipButton(page)).toHaveAccessibleName('Tip $1')
+  expect(await keptDrawn()).toBe(true)
+  await expect(page.getByText('Kept on your Shelf.')).toHaveCount(0)
+  const mutations = async () =>
+    (await (await page.request.get(`/api/mutations?run=${run}`)).json()) as {
+      name: string
+      args: { text?: string; isPublic?: boolean; id?: string }
+    }[]
+  const [created] = await mutations()
+  expect(created!.name).toBe('highlights:createHighlight')
+  expect(created!.args.text).toBe(LINES.quote)
+  expect(created!.args.isPublic).toBe(false)
+
+  // A second press lets it go: the saved line is removed.
+  await press(page, keep)
+  await expect(keep).toHaveAttribute('aria-pressed', 'false')
+  expect((await mutations()).map((m) => [m.name, m.args.id])).toEqual([
+    ['highlights:createHighlight', undefined],
+    ['highlights:deleteHighlight', 'h1'],
+  ])
+  expect(await keptDrawn()).toBe(false)
   expect((await server(page)).requests).toBe(0)
 })
 

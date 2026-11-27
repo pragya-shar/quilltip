@@ -42,8 +42,20 @@ export const PASSAGE_COPY = {
 
 export function passageActions<Id>(
   m: PassageMutations<Id>,
-  notify: (notice: PassageNotice) => void
+  notify: (notice: PassageNotice) => void,
+  {
+    quiet = false,
+  }: {
+    /**
+     * Say failures only: for a control whose own state confirms the
+     * change (a Keep toggle shows Kept; pressing it again is the undo).
+     */
+    quiet?: boolean
+  } = {}
 ) {
+  const succeeded = (notice: PassageNotice) => {
+    if (!quiet) notify(notice)
+  }
   /** Runs a change; a failure is said once. A mutation may answer null. */
   const attempt = async <T>(
     change: () => Promise<T>
@@ -87,13 +99,13 @@ export function passageActions<Id>(
         })
       )
       if (!result.ok) return null
-      notify({ title: PASSAGE_COPY.kept, tone: 'done' })
+      succeeded({ title: PASSAGE_COPY.kept, tone: 'done' })
       return result.value
     },
     /** Removes a kept line, with an Undo that restores it. */
     remove: async (id: Id): Promise<boolean> => {
       if (!(await attempt(() => m.remove({ id }))).ok) return false
-      notify({
+      succeeded({
         title: PASSAGE_COPY.removed,
         tone: 'info',
         action: { label: PASSAGE_COPY.undo, onAction: () => void restore(id) },

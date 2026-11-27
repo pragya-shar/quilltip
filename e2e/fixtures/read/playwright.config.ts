@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// The article view (port 4210). Serve it first:
+// The article view (port 4220). Serve it first:
 //   bun e2e/fixtures/read/server.mjs
 // Phone (390, touch) and desktop (1440), in Chromium and WebKit. Input is
 // real: touch taps on touch contexts, keys on the keyboard, mouse drags on
@@ -18,7 +18,7 @@ export default defineConfig({
   workers: 2,
   reporter: 'list',
   timeout: 60_000,
-  use: { baseURL: 'http://127.0.0.1:4210', trace: 'on-first-retry' },
+  use: { baseURL: 'http://127.0.0.1:4220', trace: 'on-first-retry' },
   projects: [
     {
       name: 'chromium-390',

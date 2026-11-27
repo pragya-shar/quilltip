@@ -1,8 +1,11 @@
 import { fetchQuery } from 'convex/nextjs'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
-import { READ_NEXT_LIMIT_MS, withinReadLimit } from './readLimit'
+import { withinReadLimit } from '@/shell/public/boundedRead'
 import type { ReadNextItem } from './readModel'
+
+/** Read next is below the article: it never holds the page for long. */
+export const READ_NEXT_LIMIT_MS = 400
 
 /**
  * Read next, on the server, so the links are in the first response. It has

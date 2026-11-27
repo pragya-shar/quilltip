@@ -62,3 +62,7 @@ e2e/tips-v2.spec.ts
 hooks/useHighlightPanelDismiss.ts
 lib/highlight/resumePendingHighlightSelection.ts
 components/editor/extensions/HighlightExtension.ts
+components/read/ReadingUnavailable.tsx
+components/read/unavailable.css
+components/read/readLimit.ts
+components/read/ReceiptSheet.tsx
