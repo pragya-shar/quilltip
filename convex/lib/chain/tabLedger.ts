@@ -1524,6 +1524,170 @@ export function readerSpendable(
 }
 
 /**
+ * The account's `settledUnindexed` set to `value`, with the time it last
+ * rose above 0 (`settledUnindexedSince`) kept for the operations check.
+ */
+export function unindexedPatch(
+  account: Pick<
+    Doc<'tabAccounts'>,
+    'settledUnindexed' | 'settledUnindexedSince'
+  >,
+  value: bigint,
+  now: number
+): Pick<Doc<'tabAccounts'>, 'settledUnindexed' | 'settledUnindexedSince'> {
+  const before = big(account.settledUnindexed ?? '0')
+  return {
+    settledUnindexed: value.toString(),
+    settledUnindexedSince:
+      value === ZERO
+        ? undefined
+        : before === ZERO || account.settledUnindexedSince === undefined
+          ? now
+          : account.settledUnindexedSince,
+  }
+}
+
+/** The pair's paid amount not yet covered by indexed ranges. */
+export function pairUnindexed(
+  v: Pick<Doc<'tabVouchers'>, '_id' | 'indexedPaid' | 'paidOnChain'>
+): bigint {
+  return unindexedOf(v._id, big(v.paidOnChain), indexedRangesOf(v))
+}
+
+/**
+ * Marks `[0, paidOnChain]` of a pair as indexed without a balance debit and
+ * lowers the account's `settledUnindexed` by what that releases. Only for a
+ * gap whose debit `confirmedBalance` already includes: an absolute balance
+ * from a later ledger, or a balance read from the chain. Returns the amount
+ * released (0 when the pair has no gap).
+ */
+export async function releasePairReserve(
+  ctx: MutationCtx,
+  voucherId: Id<'tabVouchers'>,
+  now: number
+): Promise<bigint> {
+  const voucher = await ctx.db.get(voucherId)
+  if (!voucher) return ZERO
+  const gap = pairUnindexed(voucher)
+  if (gap === ZERO) return ZERO
+  const paid = big(voucher.paidOnChain)
+  await ctx.db.patch(voucher._id, {
+    indexedPaid: addPaidRange(indexedRangesOf(voucher), ZERO, paid),
+    paidLedger: undefined,
+    updatedAt: now,
+  })
+  const account = await ctx.db.get(voucher.tabAccountId)
+  if (account) {
+    const unindexed = flagNegative(
+      big(account.settledUnindexed ?? '0') - gap,
+      'account.settledUnindexed',
+      { tabAccountId: account._id, voucherId: voucher._id }
+    )
+    await ctx.db.patch(account._id, {
+      ...unindexedPatch(account, unindexed, now),
+      updatedAt: now,
+    })
+  }
+  return gap
+}
+
+/**
+ * Releases the reserve of each pair whose unindexed payments all happened
+ * before the account's absolute balance (`paidLedger < balanceLedger`): that
+ * balance already includes their debits, so a lost `TabSettled` no longer
+ * keeps spendable low. When the event arrives later, it is older than the
+ * applied balance (no debit) and its range is already indexed (no release),
+ * so nothing is counted twice. Pairs with an unknown `paidLedger`, and
+ * accounts without a `balanceLedger`, are left to a reconciliation.
+ */
+export async function releaseIncludedReserves(
+  ctx: MutationCtx,
+  tabAccountId: Id<'tabAccounts'>,
+  args: { now: number; eventId?: string; voucherId?: Id<'tabVouchers'> }
+): Promise<void> {
+  const account = await ctx.db.get(tabAccountId)
+  if (!account || account.balanceLedger === undefined) return
+  if (big(account.settledUnindexed ?? '0') === ZERO) return
+  const balanceLedger = account.balanceLedger
+  const vouchers = args.voucherId
+    ? [await ctx.db.get(args.voucherId)].filter(
+        (v): v is Doc<'tabVouchers'> => v !== null
+      )
+    : await ctx.db
+        .query('tabVouchers')
+        .withIndex('by_pair', (q) => q.eq('tabAccountId', tabAccountId))
+        .collect()
+  const released: Doc<'tabReserveReleases'>['pairs'] = []
+  for (const voucher of vouchers) {
+    if (voucher.paidLedger === undefined) continue
+    if (voucher.paidLedger >= balanceLedger) continue
+    const amount = await releasePairReserve(ctx, voucher._id, args.now)
+    if (amount === ZERO) continue
+    released.push({
+      voucherId: voucher._id,
+      keyId: voucher.keyId,
+      writerAddress: voucher.writerAddress,
+      paidBefore: voucher.paidOnChain,
+      paidAfter: voucher.paidOnChain,
+      released: amount.toString(),
+    })
+  }
+  if (released.length === 0) return
+  const after = (await ctx.db.get(tabAccountId))!
+  await recordReserveRelease(ctx, {
+    account,
+    after,
+    source: 'balance_event',
+    ledger: balanceLedger,
+    ...(args.eventId ? { eventId: args.eventId } : {}),
+    pairs: released,
+    now: args.now,
+  })
+}
+
+/** Stores and logs one reserve release (`tabReserveReleases`). */
+export async function recordReserveRelease(
+  ctx: MutationCtx,
+  args: {
+    account: Doc<'tabAccounts'>
+    after: Doc<'tabAccounts'>
+    source: Doc<'tabReserveReleases'>['source']
+    ledger: number
+    eventId?: string
+    pairs: Doc<'tabReserveReleases'>['pairs']
+    note?: string
+    now: number
+  }
+): Promise<void> {
+  const row = {
+    network: args.account.network,
+    chainEpoch: args.account.chainEpoch,
+    tabAccountId: args.account._id,
+    source: args.source,
+    ledger: args.ledger,
+    ...(args.eventId ? { eventId: args.eventId } : {}),
+    pairs: args.pairs,
+    balanceBefore: args.account.confirmedBalance,
+    balanceAfter: args.after.confirmedBalance,
+    settledUnindexedBefore: args.account.settledUnindexed ?? '0',
+    settledUnindexedAfter: args.after.settledUnindexed ?? '0',
+    spendableBefore: readerSpendable(args.account).toString(),
+    spendableAfter: readerSpendable(args.after).toString(),
+    ...(args.note ? { note: args.note } : {}),
+    createdAt: args.now,
+  }
+  await ctx.db.insert('tabReserveReleases', row)
+  console.info(
+    JSON.stringify({
+      code: 'CHAIN_TAB_RESERVE_RELEASED',
+      ...row,
+      pairs: row.pairs.map((p) => ({ ...p, voucherId: String(p.voucherId) })),
+      tabAccountId: String(row.tabAccountId),
+    })
+  )
+}
+
+/**
  * Applies a settled payment to a pair, from the settler's own transaction
  * result or from an indexed `TabSettled` event (`indexedGross` set): the
  * first to arrive raises `paidOnChain` (it only grows) and moves the paid
@@ -1531,6 +1695,11 @@ export function readerSpendable(
  * debits `confirmedBalance` and clears the same amount from
  * `settledUnindexed`, by paid range, so the order and repetition of the two
  * never change spendable (`confirmedBalance − outstanding − settledUnindexed`).
+ *
+ * `sourceLedger` is the ledger of the transaction or event that reports the
+ * payment, a ledger at or after the payment. It bounds the pair's unindexed
+ * gap (`paidLedger`), so a later absolute balance can release it
+ * (`releaseIncludedReserves`).
  */
 export async function applyPairSettlement(
   ctx: MutationCtx,
@@ -1542,6 +1711,8 @@ export async function applyPairSettlement(
     eventId?: string
     /** `TabSettled.gross`: the event's debit, `[paidAfter − gross, paidAfter]`. */
     indexedGross?: bigint
+    /** Ledger of the transaction or event that reports this payment. */
+    sourceLedger?: number
     now: number
   }
 ): Promise<void> {
@@ -1558,16 +1729,33 @@ export async function applyPairSettlement(
           args.paidAfter
         )
       : oldRanges
-  const unindexedDelta =
-    unindexedOf(voucher._id, newPaid, newRanges) -
-    unindexedOf(voucher._id, oldPaid, oldRanges)
+  const gapBefore = unindexedOf(voucher._id, oldPaid, oldRanges)
+  const gapAfter = unindexedOf(voucher._id, newPaid, newRanges)
+  const unindexedDelta = gapAfter - gapBefore
   const rangesChanged =
     voucher.indexedPaid === undefined ||
     rangesTotal(newRanges) !== rangesTotal(oldRanges)
-  if (newPaid > oldPaid || rangesChanged) {
+  // A ledger at or after every payment in the gap. The contract's paid
+  // amount only grows, so the ledger at which it reached `newPaid` bounds
+  // every payment in [0, newPaid]. Without a source ledger the gap's age is
+  // unknown and only a reconciliation releases it.
+  // A ledger of 0 or below is not a real ledger (an RPC answer without
+  // one): treat it as unknown rather than as older than every balance.
+  const sourceLedger =
+    args.sourceLedger !== undefined && args.sourceLedger > 0
+      ? args.sourceLedger
+      : undefined
+  const paidLedger =
+    gapAfter === ZERO
+      ? undefined
+      : newPaid > oldPaid
+        ? sourceLedger
+        : voucher.paidLedger
+  if (newPaid > oldPaid || rangesChanged || paidLedger !== voucher.paidLedger) {
     await ctx.db.patch(voucher._id, {
       ...(newPaid > oldPaid ? { paidOnChain: newPaid.toString() } : {}),
       indexedPaid: newRanges,
+      paidLedger,
       ...(args.eventId &&
       newPaid > oldPaid &&
       (!voucher.lastSettledEventId || voucher.lastSettledEventId < args.eventId)
@@ -1600,7 +1788,7 @@ export async function applyPairSettlement(
       )
       await ctx.db.patch(account._id, {
         outstanding: outstanding.toString(),
-        settledUnindexed: unindexed.toString(),
+        ...unindexedPatch(account, unindexed, args.now),
         updatedAt: args.now,
       })
     }
@@ -1622,6 +1810,14 @@ export async function applyPairSettlement(
     now: args.now,
   })
   await recomputePairEarnings(ctx, voucher._id, args.now)
+  // The settler's record of a payment can arrive after an absolute balance
+  // from a later ledger: that balance already includes the debit.
+  if (gapAfter > ZERO && paidLedger !== undefined) {
+    await releaseIncludedReserves(ctx, voucher.tabAccountId, {
+      now: args.now,
+      voucherId: voucher._id,
+    })
+  }
 }
 
 type ClosedState = 'UNPAID' | 'VOID_RESET' | 'REJECTED'
