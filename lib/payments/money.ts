@@ -72,13 +72,16 @@ export function formatMoney(cents: Cents, format: MoneyFormat = {}): string {
 }
 
 /**
- * The spoken form, for a screen reader: "18 dollars 40", "9.75 cents"; a
- * converted figure reads to the cent with "about" in place of "≈" ("about
- * 18 dollars 40").
+ * The spoken form, for a screen reader. Under one dollar it is said in
+ * cents, never as a decimal of a dollar ("9.75 cents", "50 cents"); from one
+ * dollar up, dollars then cents ("1 dollar", "2 dollars 50", "18 dollars
+ * 40"). A converted figure reads to the cent with "about" in place of "≈"
+ * ("about 18 dollars 40"); a signed one with "plus" or "minus" ("plus 9.75
+ * cents", "minus 1 dollar").
  */
 export function spokenMoney(
   cents: Cents,
-  format: Pick<MoneyFormat, 'converted'> = {}
+  format: Pick<MoneyFormat, 'converted' | 'sign'> = {}
 ): string {
   const value = format.converted
     ? Math.floor(Math.max(0, cents) + 1e-9)
@@ -89,7 +92,8 @@ export function spokenMoney(
     dollars === 0
       ? `${rest} ${rest === 1 ? 'cent' : 'cents'}`
       : `${dollars.toLocaleString('en-US')} ${dollars === 1 ? 'dollar' : 'dollars'}${rest ? ` ${rest}` : ''}`
-  return format.converted ? `about ${words}` : words
+  const sign = format.sign ? `${format.sign} ` : ''
+  return `${sign}${format.converted ? 'about ' : ''}${words}`
 }
 
 export function money(cents: Cents): Money {
