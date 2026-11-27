@@ -249,6 +249,19 @@ jobs:
       - name: Dependency audit
         run: cargo audit --deny warnings
 
+      # Prebuilt release binary, checksum-verified by the pinned action. No
+      # cache: the advisory database is fetched on every run.
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@893d6ee8d714b6c7dfe2bcd94e5759e9a7958a7e # v2.90.10
+        with:
+          tool: cargo-deny@0.20.2
+
+      # Policy in contracts/deny.toml. Any error fails the job.
+      - name: Dependency policy
+        run: |
+          cargo deny --locked check
+          cargo deny --locked --manifest-path tab/fuzz/Cargo.toml --config deny.toml check
+
       # The v1 tipping contract keeps its own lockfile and toolchain until cutover.
       - name: Build and test the v1 tipping contract
         working-directory: contracts/tipping

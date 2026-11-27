@@ -16,11 +16,16 @@ import {
 } from '@stellar/stellar-sdk'
 import { bytesToHex } from '../bytes'
 import { isWalletError, type WalletError } from './wallet-errors'
-import { describeContractFailure, type V2ErrorInfo } from './errors'
+import {
+  describeContractFailure,
+  raisingContract,
+  type KnownContracts,
+  type V2ErrorInfo,
+} from './errors'
 
 export type RpcLike = Pick<
   rpc.Server,
-  'getAccount' | 'prepareTransaction' | 'sendTransaction' | 'getTransaction'
+  'getAccount' | 'simulateTransaction' | 'sendTransaction' | 'getTransaction'
 >
 
 export type ContractCall = {
@@ -42,6 +47,12 @@ export type TxDeps = {
   sleep?: (ms: number) => Promise<void>
   /** Called as each step starts, for progress copy. */
   onStep?: (step: TxStep) => void
+  /**
+   * This deployment's contract IDs. A simulation error code is decoded only
+   * when the contract that raised it is one of them (token codes overlap
+   * Core codes); otherwise the failure is generic.
+   */
+  contracts?: KnownContracts
 }
 
 export type TxStep = 'simulating' | 'signing' | 'sending'
@@ -98,7 +109,19 @@ export async function sendContractCall(
   deps.onStep?.('simulating')
   try {
     const tx = await buildCall(deps.server, call)
-    prepared = (await deps.server.prepareTransaction(tx)) as Transaction
+    const simulation = await deps.server.simulateTransaction(tx)
+    if (rpc.Api.isSimulationError(simulation)) {
+      const detail = simulation.error
+      return {
+        status: 'simulation_failed',
+        error: describeContractFailure(detail, {
+          raisedBy: raisingContract(simulation.events ?? []),
+          contracts: deps.contracts ?? {},
+        }),
+        detail,
+      }
+    }
+    prepared = rpc.assembleTransaction(tx, simulation).build()
   } catch (error) {
     const detail = message(error)
     return {

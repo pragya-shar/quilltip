@@ -24,6 +24,7 @@ import {
 } from './lib/articleTipExpectation'
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
 import { verifiedStellarAddress } from './lib/walletVerification'
+import { requireV1PreparesEnabled } from './lib/v1Prepares'
 import { getMonthKey, roundCents, writerShareCents } from './lib/authorEarnings'
 import {
   AGGREGATE_LIMIT,
@@ -327,6 +328,8 @@ export const prepareArticleTip = mutation({
     }),
   }),
   handler: async (ctx, args) => {
+    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
+    requireV1PreparesEnabled()
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
