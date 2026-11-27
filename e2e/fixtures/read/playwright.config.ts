@@ -10,7 +10,7 @@ const desktop = { width: 1440, height: 900 }
 
 export default defineConfig({
   testDir: '../..',
-  testMatch: /read\.spec\.ts/,
+  testMatch: /read(-sentences)?\.spec\.ts/,
   globalSetup: '../../global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

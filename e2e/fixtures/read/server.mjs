@@ -57,6 +57,33 @@ const cssName = [...outputs.keys()].find((n) => n.endsWith('.css'))
 
 const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"><title>Quilltip read fixture</title><link rel="stylesheet" href="/${cssName}"></head><body><div id="root"></div><script>window.__READ_BODY__=${JSON.stringify(body)}</script><script type="module" src="/${jsName}"></script></body></html>`
 
+// The sentence vectors page (`/vectors`): each case, and the rendered HTML
+// of the cases with one block, for the view's path in the browser.
+const { canonicalText } = await import(
+  path.join(root, 'hooks/read/sentenceRule.ts')
+)
+const vectorFile = JSON.parse(
+  await readFile(
+    path.join(root, 'scripts/read/sentence-vectors-v1.json'),
+    'utf8'
+  )
+)
+const vectorCases = vectorFile.cases.map(({ name, content }) => ({
+  name,
+  content,
+  html:
+    canonicalText(content).blocks.length === 1
+      ? (renderReadingHtml(content).html ?? null)
+      : null,
+}))
+const vectorBuild = await Bun.build({
+  entrypoints: [path.join(here, 'vectors.ts')],
+  target: 'browser',
+})
+if (!vectorBuild.success) throw new AggregateError(vectorBuild.logs)
+const vectorJs = await vectorBuild.outputs[0].text()
+const vectorPage = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Sentence vectors</title></head><body><script>window.__VECTORS__=${JSON.stringify(vectorCases).replace(/</g, '\\u003c')}</script><script type="module" src="/vectors.js"></script></body></html>`
+
 const LEDGER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 533"><rect width="800" height="533" fill="#d9cfbf"/><rect x="120" y="90" width="560" height="360" fill="#f4efe6"/><path d="M400 90v360" stroke="#b9ad99" stroke-width="4"/></svg>`
 
 /** Per run: tip requests seen, accepted request ids, saved mutations. */
@@ -128,6 +155,14 @@ Bun.serve({
         ),
         { headers: { 'Content-Type': 'font/woff2' } }
       )
+    if (url.pathname === '/vectors')
+      return new Response(vectorPage, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      })
+    if (url.pathname === '/vectors.js')
+      return new Response(vectorJs, {
+        headers: { 'Content-Type': 'text/javascript' },
+      })
     const output = outputs.get(url.pathname.slice(1))
     if (output)
       return new Response(output, {
