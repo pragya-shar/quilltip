@@ -348,12 +348,20 @@ export const reconcile = internalMutation({
     // The contract's balance at L replaces the stored one, so nothing the
     // stored balance holds may come from after L: neither its absolute
     // balance nor a `TabSettled` debit applied on top of it (a read from a
-    // node that lags the indexer).
+    // node that lags the indexer). Debits are rows (`tabBalanceDebits`), or
+    // list entries on rows written before them.
+    const laterDebit = await ctx.db
+      .query('tabBalanceDebits')
+      .withIndex('by_account_event', (q) =>
+        q.eq('tabAccountId', account._id).gt('eventId', synthetic)
+      )
+      .first()
     if (
       (account.balanceLedger !== undefined && account.balanceLedger > L) ||
       (account.balanceEventId !== undefined &&
         account.balanceEventId > synthetic) ||
-      account.settledSinceBalance.some((s) => s.eventId > synthetic)
+      account.settledSinceBalance.some((s) => s.eventId > synthetic) ||
+      laterDebit !== null
     ) {
       return refuse(
         'STALE_READ',
