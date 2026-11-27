@@ -113,6 +113,16 @@ export const FIXTURES = [
     config: 'e2e/fixtures/system/playwright.config.ts',
     env: { SYSTEM_FIXTURES: '1' },
   },
+  {
+    // The balance (Pocket) on the application shell, on fixture money:
+    // phone and desktop in Chromium and WebKit, and /pocket with no script.
+    name: 'pocket',
+    server: 'e2e/fixtures/pocket/server.mjs',
+    port: 4186,
+    spec: 'e2e/pocket(-no-script)?.spec.ts',
+    config: 'e2e/fixtures/pocket/playwright.config.ts',
+    env: { POCKET_FIXTURES: '1' },
+  },
 ] as const satisfies readonly {
   name: string
   server: string

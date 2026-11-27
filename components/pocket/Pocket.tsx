@@ -72,9 +72,14 @@ export function Pocket({
         <TestnetNote />
       </div>
     )
-  const activity = mergeActivity(reader, writer)
-  const isWriter = writes(earnings)
+  // Until auth is known nothing has answered: everything holds its space.
+  const authLoading = reading.auth === 'loading'
+  const activity = authLoading
+    ? { ...mergeActivity(reader, writer), status: 'loading' as const }
+    : mergeActivity(reader, writer)
+  const isWriter = !authLoading && writes(earnings)
   const down =
+    !authLoading &&
     balance.status === 'unavailable' &&
     (earnings.status === 'unavailable' || earnings.status === 'signed-out') &&
     activity.status === 'unavailable'
@@ -85,7 +90,7 @@ export function Pocket({
           Your money is safe and nothing you sent is lost. Reading works as
           usual; try again in a moment.
         </Notice>
-      ) : !balance.online ? (
+      ) : !authLoading && !balance.online ? (
         <Notice tone="offline" title="You are offline">
           These are the last figures this device received. Tipping waits until
           you are back online.
@@ -93,7 +98,7 @@ export function Pocket({
       ) : null}
       <SpendableSection
         balance={balance}
-        authLoading={reading.auth === 'loading'}
+        authLoading={authLoading}
         quietAdd={isWriter && (earnings.available?.cents ?? 0) > 0}
       />
       {isWriter ? (

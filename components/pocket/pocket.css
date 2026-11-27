@@ -243,6 +243,13 @@
     overflow-wrap: anywhere;
   }
 
+  /* /pocket as a page */
+  .qt-pocket-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-6);
+  }
+
   /* /pocket with no script: the explanation, and no empty figures. */
   .qt-pocket-page__noscript {
     display: flex;

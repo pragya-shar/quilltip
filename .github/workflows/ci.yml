@@ -459,6 +459,11 @@ jobs:
           - shard: system
             suites: system
             browsers: chromium webkit
+          # The balance (Pocket): phone and desktop in Chromium and WebKit,
+          # and the page with no script.
+          - shard: pocket
+            suites: pocket
+            browsers: chromium webkit
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
