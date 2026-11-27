@@ -411,7 +411,7 @@ export async function checkTabTip(
   if (seq > MAX_RECEIPTS_PER_PAIR) {
     tabError('TAB_RECEIPT_CAP', 'Register a new session key to keep tipping.')
   }
-  if (big(account.outstanding) + args.amount > big(account.confirmedBalance)) {
+  if (reservedOf(account) + args.amount > big(account.confirmedBalance)) {
     tabError('TAB_OVER_BALANCE', 'The tab balance is too low. Top up first.')
   }
   if (big(key.acceptedTotal) + args.amount > big(key.spendLimit)) {
@@ -1368,11 +1368,76 @@ export function pairOutstanding(
   return owed > ZERO ? owed : ZERO
 }
 
+export type PaidRange = { from: string; to: string }
+
+/** Adds `[from, to]` to sorted, merged ranges; an overlap counts once. */
+export function addPaidRange(
+  ranges: readonly PaidRange[],
+  from: bigint,
+  to: bigint
+): PaidRange[] {
+  const spans = [
+    ...ranges.map((r) => [big(r.from), big(r.to)] as const),
+    ...(to > from ? [[from, to] as const] : []),
+  ].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+  const merged: Array<[bigint, bigint]> = []
+  for (const [a, b] of spans) {
+    const last = merged[merged.length - 1]
+    if (last && a <= last[1]) {
+      if (b > last[1]) last[1] = b
+    } else {
+      merged.push([a, b])
+    }
+  }
+  return merged.map(([a, b]) => ({ from: a.toString(), to: b.toString() }))
+}
+
+function rangesTotal(ranges: readonly PaidRange[]): bigint {
+  return ranges.reduce((sum, r) => sum + big(r.to) - big(r.from), ZERO)
+}
+
+/** The pair's indexed ranges; a row without them counts as fully indexed. */
+function indexedRangesOf(
+  v: Pick<Doc<'tabVouchers'>, 'indexedPaid' | 'paidOnChain'>
+): PaidRange[] {
+  if (v.indexedPaid) return v.indexedPaid
+  return big(v.paidOnChain) > ZERO ? [{ from: '0', to: v.paidOnChain }] : []
+}
+
+/** Paid per the settler's record, not yet debited by an indexed event. */
+function unindexedOf(paid: bigint, ranges: readonly PaidRange[]): bigint {
+  const rest = paid - rangesTotal(ranges)
+  return rest > ZERO ? rest : ZERO
+}
+
 /**
- * Applies a settled payment to a pair (from an indexed `TabSettled` event or
- * from the settler's own transaction result): `paidOnChain` only grows, and
- * the account's reservation and the key's spent amount follow the increase.
- * The account balance is debited by the event handler only, keyed by event.
+ * What the reader's balance must still cover: accepted and unsettled, plus
+ * settled amounts whose debit the indexer has not applied yet.
+ */
+export function reservedOf(
+  account: Pick<Doc<'tabAccounts'>, 'outstanding' | 'settledUnindexed'>
+): bigint {
+  return big(account.outstanding) + big(account.settledUnindexed ?? '0')
+}
+
+/** `confirmedBalance − reserved`: what new tab tips can use. */
+export function spendableOf(
+  account: Pick<
+    Doc<'tabAccounts'>,
+    'confirmedBalance' | 'outstanding' | 'settledUnindexed'
+  >
+): bigint {
+  return big(account.confirmedBalance) - reservedOf(account)
+}
+
+/**
+ * Applies a settled payment to a pair, from the settler's own transaction
+ * result or from an indexed `TabSettled` event (`indexedGross` set): the
+ * first to arrive raises `paidOnChain` (it only grows) and moves the paid
+ * amount from the account's `outstanding` to `settledUnindexed`. The event
+ * debits `confirmedBalance` and clears the same amount from
+ * `settledUnindexed`, by paid range, so the order and repetition of the two
+ * never change spendable (`confirmedBalance − outstanding − settledUnindexed`).
  */
 export async function applyPairSettlement(
   ctx: MutationCtx,
@@ -1382,6 +1447,8 @@ export async function applyPairSettlement(
     /** The voucher's cumulative amount on chain; above `paidAfter` is a shortfall. */
     cumulative: bigint
     eventId?: string
+    /** `TabSettled.gross`: the event's debit, `[paidAfter − gross, paidAfter]`. */
+    indexedGross?: bigint
     now: number
   }
 ): Promise<void> {
@@ -1389,28 +1456,53 @@ export async function applyPairSettlement(
   if (!voucher) return
   const oldPaid = big(voucher.paidOnChain)
   const newPaid = args.paidAfter > oldPaid ? args.paidAfter : oldPaid
-  if (newPaid > oldPaid) {
-    const owedBefore = pairOutstanding(voucher)
-    const owedAfter = pairOutstanding({
-      cumulative: voucher.cumulative,
-      paidOnChain: newPaid.toString(),
-    })
+  const oldRanges = indexedRangesOf(voucher)
+  const newRanges =
+    args.indexedGross !== undefined && args.indexedGross > ZERO
+      ? addPaidRange(
+          oldRanges,
+          args.paidAfter - args.indexedGross,
+          args.paidAfter
+        )
+      : oldRanges
+  const unindexedDelta =
+    unindexedOf(newPaid, newRanges) - unindexedOf(oldPaid, oldRanges)
+  const rangesChanged =
+    voucher.indexedPaid === undefined ||
+    rangesTotal(newRanges) !== rangesTotal(oldRanges)
+  if (newPaid > oldPaid || rangesChanged) {
     await ctx.db.patch(voucher._id, {
-      paidOnChain: newPaid.toString(),
+      ...(newPaid > oldPaid ? { paidOnChain: newPaid.toString() } : {}),
+      indexedPaid: newRanges,
       ...(args.eventId &&
+      newPaid > oldPaid &&
       (!voucher.lastSettledEventId || voucher.lastSettledEventId < args.eventId)
         ? { lastSettledEventId: args.eventId }
         : {}),
       updatedAt: args.now,
     })
-    const account = await ctx.db.get(voucher.tabAccountId)
-    if (account && voucher.state === 'ACTIVE') {
-      const outstanding = big(account.outstanding) - (owedBefore - owedAfter)
+  }
+  const account = await ctx.db.get(voucher.tabAccountId)
+  if (account) {
+    const owedDelta =
+      newPaid > oldPaid && voucher.state === 'ACTIVE'
+        ? pairOutstanding(voucher) -
+          pairOutstanding({
+            cumulative: voucher.cumulative,
+            paidOnChain: newPaid.toString(),
+          })
+        : ZERO
+    if (owedDelta !== ZERO || unindexedDelta !== ZERO) {
+      const outstanding = big(account.outstanding) - owedDelta
+      const unindexed = big(account.settledUnindexed ?? '0') + unindexedDelta
       await ctx.db.patch(account._id, {
         outstanding: (outstanding > ZERO ? outstanding : ZERO).toString(),
+        settledUnindexed: (unindexed > ZERO ? unindexed : ZERO).toString(),
         updatedAt: args.now,
       })
     }
+  }
+  if (newPaid > oldPaid) {
     const key = await tabKey(ctx, voucher.tabAccountId, voucher.keyId)
     if (key) {
       await ctx.db.patch(key._id, {

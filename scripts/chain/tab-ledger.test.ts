@@ -1779,3 +1779,489 @@ describe('tab screens read models (tabActivity)', () => {
     })
   })
 })
+
+// ---------------------------------------------------------------------------
+// Spendable balance across the settler's record and the indexed events.
+//
+// The settler records a confirmed settlement from its own transaction result;
+// the indexer applies the same `TabSettled` events later. Whichever arrives
+// first, and however often, the reader's spendable balance must never exceed
+// deposits minus accepted tips, and must equal it once both have arrived.
+
+describe('spendable balance across settler records and indexed events', () => {
+  /** 1 cent at the seeded $1 per XLM. */
+  const CENT = BigInt(100_000)
+
+  async function myTab(t: T, s: Seeded) {
+    const tab = await as(t, s.readerId).query(api.tabs.getMyTab, {})
+    if (!tab) throw new Error('no tab')
+    return tab
+  }
+
+  async function spendable(t: T, s: Seeded): Promise<bigint> {
+    return BigInt((await myTab(t, s)).available)
+  }
+
+  async function pairs(t: T) {
+    return t.run(async (ctx) => ctx.db.query('tabVouchers').collect())
+  }
+
+  /** `Tab.settle` as the settler starts it: the record, then the result. */
+  async function beginSettlement(t: T, voucherIds?: Id<'tabVouchers'>[]) {
+    const ready = (await pairs(t)).filter(
+      (v) =>
+        v.settleQueue === 'ready' &&
+        (voucherIds === undefined || voucherIds.includes(v._id))
+    )
+    const settlementId = await t.mutation(internal.tabSettlement.begin, {
+      voucherIds: ready.map((v) => v._id),
+      cumulatives: ready.map((v) => v.cumulative),
+      submitter: READER,
+      maxTime: Math.floor(Date.now() / 1000) + 300,
+    })
+    return { settlementId, vouchers: ready }
+  }
+
+  type Outcome =
+    | {
+        kind: 'settled'
+        writer: string
+        cumulative: bigint
+        paidAfter: bigint
+        gross: bigint
+      }
+    | { kind: 'skipped'; writer: string; cumulative: bigint; reason: number }
+
+  async function settlerRecord(
+    t: T,
+    settlementId: Id<'tabSettlements'>,
+    outcomes: Outcome[]
+  ) {
+    await t.mutation(internal.tabSettlement.finish, {
+      settlementId,
+      result: {
+        status: 'CONFIRMED',
+        txHash: 'cd'.repeat(32),
+        ledger: LEDGER + 1,
+        outcomes: outcomes.map((o) =>
+          o.kind === 'settled'
+            ? {
+                kind: 'settled' as const,
+                reader: READER,
+                writer: o.writer,
+                keyId: 0,
+                cumulative: o.cumulative.toString(),
+                paidAfter: o.paidAfter.toString(),
+                gross: o.gross.toString(),
+                fee: fee(o.gross).toString(),
+              }
+            : {
+                kind: 'skipped' as const,
+                reader: READER,
+                writer: o.writer,
+                keyId: 0,
+                cumulative: o.cumulative.toString(),
+                reason: o.reason,
+              }
+        ),
+      },
+    })
+  }
+
+  const fee = (x: bigint) => (x * BigInt(250)) / BigInt(10_000)
+
+  function settledEvent(o: Extract<Outcome, { kind: 'settled' }>) {
+    return ev.tabSettled({
+      writer: o.writer,
+      cumulative: o.cumulative,
+      paidAfter: o.paidAfter,
+      gross: o.gross,
+      fee: fee(o.gross),
+    })
+  }
+
+  async function accepts(
+    t: T,
+    s: Seeded,
+    cents: number,
+    articleId?: Id<'articles'>
+  ) {
+    try {
+      await tip(t, s, { cents, ...(articleId ? { articleId } : {}) })
+      return true
+    } catch (error) {
+      const code = await errorCode(Promise.reject(error))
+      if (code === 'TAB_OVER_BALANCE') return false
+      throw error
+    }
+  }
+
+  /** Opens a tab with `deposit` and accepts `cents` to WRITER. */
+  async function opened(deposit: bigint, cents: number[]) {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    await ingest(t, ev.deposited(READER, deposit, deposit))
+    await ingest(t, ev.keyRegistered(READER, 0))
+    for (const c of cents) await tip(t, s, { cents: c })
+    return { t, s }
+  }
+
+  it('settler record first: the free balance does not rise before the event', async () => {
+    // Deposit 0.15 XLM, accept 0.10 XLM: 0.05 XLM is free.
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+
+    const { settlementId } = await beginSettlement(t)
+    const paid: Outcome = {
+      kind: 'settled',
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    await settlerRecord(t, settlementId, [paid])
+    // Chain: balance 0.05 XLM, nothing owed. Still 0.05 XLM free.
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    expect(await accepts(t, s, 10)).toBe(false)
+    expect(await accepts(t, s, 5)).toBe(true)
+    expect(await spendable(t, s)).toBe(BigInt(0))
+
+    await ingest(t, settledEvent(paid as Extract<Outcome, { kind: 'settled' }>))
+    expect(await spendable(t, s)).toBe(BigInt(0))
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(5) * CENT).toString(),
+      outstanding: (BigInt(5) * CENT).toString(),
+    })
+  })
+
+  it('event first, then the settler record, then the event again', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const paid = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    const event = settledEvent(paid)
+    await ingest(t, event)
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    await settlerRecord(t, settlementId, [paid])
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    const replay = await ingest(t, event)
+    expect(replay.duplicates).toBe(1)
+    // The same event under a new id (a handler run twice) changes nothing.
+    await t.run(async (ctx) => {
+      const row = await ctx.db.query('chainEvents').order('desc').first()
+      await ctx.db.patch(row!._id, { handled: 'pending' })
+    })
+    await t.mutation(internal.chain.indexer.redispatch, {})
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(5) * CENT).toString(),
+      outstanding: '0',
+    })
+  })
+
+  it('a settlement that fails after its record changes nothing', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    await t.mutation(internal.tabSettlement.finish, {
+      settlementId,
+      result: { status: 'FAILED', reason: 'tx failed' },
+    })
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    expect(await accepts(t, s, 10)).toBe(false)
+  })
+
+  it('a partial settlement with a skipped voucher and a shortfall', async () => {
+    // 0.30 XLM deposited; 0.10 to WRITER, 0.15 to OTHER_WRITER: 0.05 free.
+    const { t, s } = await opened(BigInt(30) * CENT, [10])
+    await tip(t, s, { cents: 15, articleId: s.otherArticleId })
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    const { settlementId } = await beginSettlement(t)
+    // WRITER is paid 0.06 of 0.10 (shortfall). OTHER_WRITER is skipped as
+    // STALE: its writer's `settle_own` paid it first.
+    const short = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(6) * CENT,
+      gross: BigInt(6) * CENT,
+    }
+    await settlerRecord(t, settlementId, [
+      short,
+      {
+        kind: 'skipped',
+        writer: OTHER_WRITER,
+        cumulative: BigInt(15) * CENT,
+        reason: 3,
+      },
+    ])
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    expect(await accepts(t, s, 6)).toBe(false)
+    await ingest(t, settledEvent(short))
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    await ingest(
+      t,
+      settledEvent({
+        kind: 'settled',
+        writer: OTHER_WRITER,
+        cumulative: BigInt(15) * CENT,
+        paidAfter: BigInt(15) * CENT,
+        gross: BigInt(15) * CENT,
+      })
+    )
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(9) * CENT).toString(),
+      outstanding: (BigInt(4) * CENT).toString(),
+      available: (BigInt(5) * CENT).toString(),
+    })
+  })
+
+  it('a deposit indexed inside the window', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const paid = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    // Chain order: top-up of 0.20 XLM, then the settlement.
+    const topUp = ev.deposited(READER, BigInt(20) * CENT, BigInt(35) * CENT)
+    const event = settledEvent(paid)
+    await settlerRecord(t, settlementId, [paid])
+    await ingest(t, topUp)
+    // Chain: 0.25 XLM, nothing owed. Deposits 0.35 minus accepted 0.10.
+    expect(await spendable(t, s)).toBe(BigInt(25) * CENT)
+    await ingest(t, event)
+    expect(await spendable(t, s)).toBe(BigInt(25) * CENT)
+  })
+
+  it('a deposit indexed after the settlement it follows on chain', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const paid = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    // Chain order: the settlement, then a top-up of 0.20 XLM (0.25 after).
+    const event = settledEvent(paid)
+    const topUp = ev.deposited(READER, BigInt(20) * CENT, BigInt(25) * CENT)
+    await settlerRecord(t, settlementId, [paid])
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    await ingest(t, event, topUp)
+    expect(await spendable(t, s)).toBe(BigInt(25) * CENT)
+  })
+
+  it('a tab in CLOSING', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    await ingest(
+      t,
+      ev.withdrawStarted(BigInt(15) * CENT, LEDGER + 3 * DAY_LEDGERS)
+    )
+    const { settlementId } = await beginSettlement(t)
+    const paid = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    await settlerRecord(t, settlementId, [paid])
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    await ingest(t, settledEvent(paid))
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    // Cancelled withdrawal: the absolute balance already includes the debit.
+    await ingest(t, ev.withdrawCancelled(BigInt(5) * CENT))
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    expect(await accepts(t, s, 6)).toBe(false)
+  })
+
+  it('a key reset inside the window', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const paid = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    await settlerRecord(t, settlementId, [paid])
+    await ingest(t, ev.keyRevoked(READER, 0, LEDGER + 10))
+    await ingest(t, ev.keyRegistered(READER, 1))
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    expect(await errorCode(tip(t, s, { cents: 10, keyId: 1 }))).toBe(
+      'TAB_OVER_BALANCE'
+    )
+    await ingest(t, settledEvent(paid))
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+  })
+
+  it('a STALE skip after the writer settled the pair', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    // The writer's `settle_own` paid the pair before the settler's batch.
+    const own = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    await settlerRecord(t, settlementId, [
+      {
+        kind: 'skipped',
+        writer: WRITER,
+        cumulative: BigInt(10) * CENT,
+        reason: 3,
+      },
+    ])
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    await ingest(t, settledEvent(own))
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+  })
+
+  /** Deterministic PRNG (mulberry32), so a failing seed can be replayed. */
+  function prng(seed: number) {
+    let a = seed >>> 0
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0
+      let x = Math.imul(a ^ (a >>> 15), 1 | a)
+      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x
+      return ((x ^ (x >>> 14)) >>> 0) / 4_294_967_296
+    }
+  }
+
+  it('holds over random interleavings of tips, deposits, settlements, records and events', async () => {
+    const SEEDS = 12
+    const STEPS = 36
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const rand = prng(seed)
+      const pick = (n: number) => Math.floor(rand() * n)
+      const initial = BigInt(20) * CENT
+      const { t, s } = await opened(initial, [])
+      const writers = [
+        { address: WRITER, articleId: s.articleId },
+        { address: OTHER_WRITER, articleId: s.otherArticleId },
+      ]
+      // The fake Tab: the reader's balance and each pair's paid amount.
+      let chainBalance = initial
+      let deposits = initial
+      let accepted = BigInt(0)
+      const chainPaid = new Map<string, bigint>()
+      const queue: RawRpcEvent[] = []
+      const indexed: RawRpcEvent[] = []
+      let record: { id: Id<'tabSettlements'>; outcomes: Outcome[] } | null =
+        null
+      const trace: string[] = []
+
+      const check = async (step: string) => {
+        trace.push(step)
+        const free = await spendable(t, s)
+        if (free > deposits - accepted) {
+          throw new Error(
+            `seed ${seed}: spendable ${free} > deposits ${deposits} − accepted ${accepted}\n${trace.join('\n')}`
+          )
+        }
+      }
+
+      const settle = async () => {
+        if (record) return 'settle: record pending'
+        const ready = (await pairs(t)).filter((v) => v.settleQueue === 'ready')
+        if (!ready.length) return 'settle: nothing ready'
+        const { settlementId, vouchers } = await beginSettlement(t)
+        const outcomes: Outcome[] = []
+        for (const v of vouchers) {
+          const cumulative = BigInt(v.cumulative)
+          const paid = chainPaid.get(v.writerAddress) ?? BigInt(0)
+          const delta = cumulative - paid
+          const gross = delta < chainBalance ? delta : chainBalance
+          if (delta <= BigInt(0) || gross <= BigInt(0)) {
+            const reason = delta <= BigInt(0) ? 3 : 4
+            outcomes.push({
+              kind: 'skipped',
+              writer: v.writerAddress,
+              cumulative,
+              reason,
+            })
+            queue.push(
+              tabEvent(
+                'voucher_skipped',
+                [READER, v.writerAddress],
+                [
+                  ['key_id', u32(0)],
+                  ['cumulative', i128(cumulative)],
+                  ['reason', u32(reason)],
+                ]
+              )
+            )
+            continue
+          }
+          chainBalance -= gross
+          chainPaid.set(v.writerAddress, paid + gross)
+          const o = {
+            kind: 'settled' as const,
+            writer: v.writerAddress,
+            cumulative,
+            paidAfter: paid + gross,
+            gross,
+          }
+          outcomes.push(o)
+          queue.push(settledEvent(o))
+        }
+        record = { id: settlementId, outcomes }
+        return `settle: ${outcomes.map((o) => (o.kind === 'settled' ? `${o.writer.slice(0, 4)} +${o.gross}` : `${o.writer.slice(0, 4)} skip ${o.reason}`)).join(', ')}`
+      }
+
+      for (let i = 0; i < STEPS; i++) {
+        const op = pick(7)
+        if (op === 0 || op === 1) {
+          const w = writers[pick(2)]!
+          const cents = 1 + pick(8)
+          const ok = await accepts(t, s, cents, w.articleId)
+          if (ok) accepted += BigInt(cents) * CENT
+          await check(`tip ${cents}c to ${w.address.slice(0, 4)}: ${ok}`)
+        } else if (op === 2) {
+          const amount = BigInt(1 + pick(10)) * CENT
+          chainBalance += amount
+          deposits += amount
+          queue.push(ev.deposited(READER, amount, chainBalance))
+          await check(`deposit ${amount} (chain only)`)
+        } else if (op === 3) {
+          await check(await settle())
+        } else if (op === 4 && record) {
+          await settlerRecord(t, record.id, record.outcomes)
+          record = null
+          await check('settler record')
+        } else if (op === 5 && queue.length) {
+          const batch = queue.splice(0, 1 + pick(3))
+          await ingest(t, ...batch)
+          indexed.push(...batch)
+          await check(`index ${batch.length}`)
+        } else if (op === 6 && indexed.length) {
+          await ingest(t, indexed[pick(indexed.length)]!)
+          await check('replay an indexed event')
+        }
+      }
+
+      // Everything arrives: spendable is exactly deposits minus accepted.
+      if (record) {
+        const r = record as { id: Id<'tabSettlements'>; outcomes: Outcome[] }
+        await settlerRecord(t, r.id, r.outcomes)
+      }
+      await ingest(t, ...queue.splice(0))
+      await check('drain')
+      const tab = await myTab(t, s)
+      expect(BigInt(tab.confirmedBalance), `seed ${seed}`).toBe(chainBalance)
+      expect(BigInt(tab.available), `seed ${seed}`).toBe(deposits - accepted)
+    }
+  }, 120_000)
+})
