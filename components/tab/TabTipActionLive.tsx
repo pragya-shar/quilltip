@@ -2,13 +2,19 @@
 
 import { TabServicesContext } from '@/hooks/tab/TabServicesContext'
 import { useLiveTabServices } from '@/hooks/tab/useLiveTabServices'
-import { TabTipAction, type TabTipActionProps } from './TabTipAction'
+import type { LazyTabTipProps } from './LazyTabTipAction'
+import { TabTipAction } from './TabTipAction'
+import { TabTipDialogSection } from './TabTipDialogSection'
 
-export function TabTipActionLive(props: TabTipActionProps) {
+export function TabTipActionLive(props: LazyTabTipProps) {
   const services = useLiveTabServices()
   return (
     <TabServicesContext.Provider value={services}>
-      <TabTipAction {...props} />
+      {props.layout === 'dialog' ? (
+        <TabTipDialogSection {...props} />
+      ) : (
+        <TabTipAction {...props} />
+      )}
     </TabServicesContext.Provider>
   )
 }

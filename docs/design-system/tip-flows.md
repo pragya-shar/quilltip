@@ -47,7 +47,9 @@ bottom sheets (WHOOP, Hers on iOS) in Mobbin.
    reader's own article shows no tip button. Account problems (signed out, no
    wallet, unverified) do not hide the button; the dialog shows the gate.
 2. **Amount.** Presets of $1, $2 and $5 (`aria-pressed` buttons) and "Other
-   amount" in dollars. The smallest amount is `minTipCents` from
+   amount" in dollars. The dialog has one amount for both ways to send it
+   (see "From your tab" below); while a quick tip is on offer, no preset is
+   above the tab tip maximum. The smallest amount is `minTipCents` from
    `getTipEligibility`; the largest is $100. Errors show under the field and
    are linked with `aria-describedby`. The XLM figure is an estimate
    (`AmountSummary estimate`) at the cached price until prepare returns.
@@ -59,6 +61,49 @@ bottom sheets (WHOOP, Hers on iOS) in Mobbin.
    (`chainTotals.netBaseUnits` to the author) once the server has it.
 5. **Retry.** Only when the record says `canRetry`, as a new prepare with a new
    `requestId`.
+
+## From your tab (#546)
+
+Both dialogs mount `LazyTabTipAction layout="dialog"` between the amount
+summary and the wallet tip, so a reader with an open tab sends the dialog's
+amount with this browser's session key and no wallet prompt. The tab code
+loads with `import()` when the dialog opens (`components/tab/README.md`).
+
+- **One amount.** The tab section has no amount choices of its own. It reports
+  the largest tab tip at today's price (`tabs.getMyTab().tipLimits
+.tipMaxCents`, at the price prepare uses); the dialog then offers presets up
+  to it (`tabTipPresets`: the maximum, rounded down to 5 cents from 20 cents
+  up, and the largest smaller steps), and the amount hint adds "Tab tips go up
+  to {max} at today’s XLM price."
+- **Explained before sending.** `checkTabTipAmount` applies prepare's checks
+  in prepare's order to the chosen amount: no fresh price, below the minimum,
+  above the maximum, today's limit, the free balance, this device's spend
+  limit. A failing check shows its notice in the section, the send button is
+  `aria-disabled` and described by the notice, and nothing reaches Convex, so
+  an expected refusal never logs a Convex error in the console.
+- **Primary action.** With a ready tab, "Send {amount} from your tab" is the
+  primary button and the wallet button reads "Send from your wallet" under a
+  "From your wallet" heading. Otherwise the wallet tip stays primary.
+- **Busy and result.** While the quick tip sends, the dialog cannot close.
+  Accepted, settled and the other receipt results replace the amount and the
+  wallet tip; "Done" closes the dialog and "Send another" returns to the form.
+
+| State                               | The section shows                                                          |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| Loading                             | One placeholder line, the height of the "no tab" line                      |
+| Signed out, unverified, tabs off    | Nothing: the wallet gate covers it                                         |
+| No tab                              | "Tip without a wallet prompt from a prepaid tab." and an "Open a tab" link |
+| Co-author splits                    | The kit's splits note; the wallet tip stays                                |
+| No key on this device, key problems | The key's own notice and next step                                         |
+| Settlement off, tab closing         | The kit notice; the wallet tip stays                                       |
+| Ready                               | Free balance, "No wallet prompt…", "Send {amount} from your tab"           |
+| Above the maximum                   | "Tab tips go up to {max} right now", send disabled                         |
+| Not enough free balance             | The kit's tab balance notice with "Top up", send disabled                  |
+| Today's limit, device limit, price  | Their notices, send disabled                                               |
+| Sending, accepted, settled, other   | `TransactionProgress` for `tab-tip`, from the receipt status               |
+
+Fixture: `/dialog?state=<id>` on the tab UI fixture (port 4183), tested by
+`e2e/tab-tip-dialog.spec.ts` in both dialogs.
 
 ## Refusals without a kit notice
 
