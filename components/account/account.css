@@ -213,6 +213,16 @@
     sans-serif;
   letter-spacing: 0;
 }
+.account-stat-bound {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--account-muted);
+  font:
+    400 14px/1.45 'Account Syne',
+    'Syne 600 Fallback',
+    sans-serif;
+  letter-spacing: 0;
+}
 .account-stat-placeholder {
   height: 55px;
   max-width: 120px;

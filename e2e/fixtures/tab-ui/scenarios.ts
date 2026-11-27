@@ -48,7 +48,13 @@ export type Scenario = {
    * The writer's stats panel (#552), with what `tips.getMyEarningsSummary`
    * returns for the writer (convex-test checks the summary itself).
    */
-  stats?: { tipCount: number; earnedStroops: string; estimatedUsd: number }
+  stats?: {
+    tipCount: number
+    earnedStroops: string
+    estimatedUsd: number
+    complete?: boolean
+    updating?: boolean
+  }
 }
 
 const DAY = 17_280
@@ -979,6 +985,36 @@ const S: Scenario[] = [
       tipCount: 9,
       earnedStroops: '1145760615',
       estimatedUsd: 14.86875,
+    },
+    seed: (s) => writer(s),
+  },
+  {
+    // The totals are being rebuilt: no figures, on either card.
+    id: 'stats-updating',
+    title: 'Stats: totals being rebuilt',
+    view: 'stats',
+    device: 'none',
+    stats: {
+      tipCount: 0,
+      earnedStroops: '0',
+      estimatedUsd: 0,
+      complete: false,
+      updating: true,
+    },
+    seed: (s) => writer(s),
+  },
+  {
+    // No earnings row and more v1 tips than one read: every figure is a
+    // lower bound over the same tips.
+    id: 'stats-lower-bound',
+    title: 'Stats: lower bounds',
+    view: 'stats',
+    device: 'none',
+    stats: {
+      tipCount: 2001,
+      earnedStroops: '19509750000',
+      estimatedUsd: 195.0975,
+      complete: false,
     },
     seed: (s) => writer(s),
   },

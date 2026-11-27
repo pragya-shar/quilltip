@@ -38,6 +38,9 @@ export function DashboardStatsContent() {
         estimatedUsd={earnings?.estimatedUsd ?? 0}
         isTestnet={earnings?.network !== 'MAINNET'}
         nftsOwned={user?.nftsOwned ?? 0}
+        complete={earnings?.complete ?? true}
+        unpricedTipCount={earnings?.unpricedTipCount ?? 0}
+        updating={earnings?.updating ?? false}
       />
       <CollectPanelLoader />
     </div>

@@ -28,6 +28,8 @@ const WIDTHS = SHOTS
 const EXPECT: Record<string, string | RegExp> = {
   'home-no-tab': 'You don’t have a tab yet',
   'stats-wallet-and-tab': 'From wallets and settled tabs',
+  'stats-lower-bound': 'At least',
+  'stats-updating': 'Recounting your earnings. Check again in a few minutes.',
   'home-open': 'Free to tip',
   'home-worst': 'Free to tip',
   'collect-worst': 'Ready to collect',
@@ -608,6 +610,53 @@ test('the stats cover the same tips in XLM, dollars and count (#552)', async ({
   await expect(stat('Tips received')).toContainText(
     'From wallets and settled tabs'
   )
+  const card = page.getByTestId('compact-earnings')
+  await expect(card).toContainText('114.58 XLM')
+  await expect(card).toContainText('≈ $14.87, testnet, no real value')
+  await expect(card).toContainText('9 testnet tips received')
+  await expect(card).not.toContainText('At least')
+})
+
+test('lower bounds say "At least" on the count, the XLM and the dollars (#552)', async ({
+  page,
+}) => {
+  await open(page, 'stats-lower-bound')
+  const stat = (label: string) =>
+    page.locator('.account-stat').filter({ hasText: label })
+  await expect(stat('Earned (testnet)').locator('dd')).toHaveText(
+    'At least1,950.98 XLMat least ≈ $195.10, testnet, no real value'
+  )
+  await expect(stat('Tips received').locator('dd')).toHaveText(
+    'At least2,001From wallets and settled tabs'
+  )
+  await expect(stat('Articles').locator('dd')).toHaveText('4')
+  // The dashboard card says the same.
+  const card = page.getByTestId('compact-earnings')
+  await expect(card).toContainText('At least')
+  await expect(card).toContainText('1,950.98 XLM')
+  await expect(card).toContainText('at least ≈ $195.10, testnet, no real value')
+  await expect(card).toContainText('At least 2001 testnet tips received')
+})
+
+test('while the totals are rebuilt, both cards say so instead of a partial total (#552)', async ({
+  page,
+}) => {
+  await open(page, 'stats-updating')
+  const stat = (label: string) =>
+    page.locator('.account-stat').filter({ hasText: label })
+  await expect(stat('Earned (testnet)').locator('dd')).toHaveText(
+    'UpdatingRecounting your earnings. Check again in a few minutes.'
+  )
+  await expect(stat('Tips received').locator('dd')).toHaveText(
+    'UpdatingFrom wallets and settled tabs'
+  )
+  const card = page.getByTestId('compact-earnings')
+  await expect(card).toContainText('Updating')
+  await expect(card).toContainText(
+    'Recounting your earnings. Check again in a few minutes.'
+  )
+  await expect(card).not.toContainText('XLM')
+  await expect(card).not.toContainText('tips received')
 })
 
 test('keyboard only: the top-up form submits with Enter and focus follows the payment', async ({
