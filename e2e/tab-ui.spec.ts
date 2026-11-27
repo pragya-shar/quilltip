@@ -248,6 +248,8 @@ test('the spec lists an expectation for every reader and writer state', () => {
   const driven = [...SCENARIOS.keys()].filter(
     (id) =>
       !id.startsWith('op-') &&
+      // The tip dialog states run in e2e/tab-tip-dialog.spec.ts.
+      !id.startsWith('dialog-') &&
       !/^tip-(accepted|shortfall|unpaid|rejected|void|lost-response|stale|over-balance|key-limit|daily-limit|receipt-cap|above-max|two-tabs)$/.test(
         id
       ) &&
@@ -436,7 +438,8 @@ test('Read more links have a 44px hit area at 375px', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 900 })
   await open(page, 'home-open')
   const links = page.locator('.tab-ui .tab-inline-link')
-  expect(await links.count()).toBeGreaterThan(0)
+  // The history renders after the tab loads.
+  await expect(links.first()).toBeVisible()
   for (const box of await links.evaluateAll((els) =>
     els.map((el) => el.getBoundingClientRect().height)
   ))

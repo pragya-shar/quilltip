@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// Tab UI fixtures (port 4183). Serve them first:
+// Tab UI fixtures (port 4183), and the tip dialog's tab section on /dialog
+// (#546). Serve them first:
 //   bun e2e/fixtures/tab-ui/server.mjs
 // Chromium runs every state and flow; Firefox and WebKit run the session-key
 // and voucher paths, where the engines differ.
@@ -17,7 +18,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testMatch: /tab-ui(-keys)?\.spec\.ts/,
+      testMatch: /(tab-ui(-keys)?|tab-tip-dialog)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     {
