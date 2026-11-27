@@ -49,10 +49,11 @@ it('never imports the WalletConnect module without a project ID', async () => {
     expect(ids).toEqual([
       'varial',
       'xbull',
-      'albedo',
-      'lobstr',
       'rabet',
       'hana',
+      'scopuly',
+      'dcent',
+      'albedo',
     ])
     expect(walletConnectImported.count).toBe(0)
     vi.resetModules()

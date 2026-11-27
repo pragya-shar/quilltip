@@ -6,8 +6,11 @@ import { WalletConnectButton } from '../../../components/stellar/WalletConnectBu
 import { TipButton } from '../../../components/tipping/TipButton'
 import type { Id } from '../../../types/convex'
 import { ReceivingWalletVerification } from '../../../components/stellar/ReceivingWalletVerification'
+import { InstallWalletDialog } from '../../../components/stellar/InstallWalletDialog'
+import { WalletAccountContent } from '../../../components/dashboard/WalletAccountContent'
+import type { CurrentUserDoc } from '../../../types/convex'
 import '../../../components/account/account.css'
-import { AUTHOR } from './runtime'
+import { AUTHOR, fixtureUser } from './runtime'
 
 const view = new URLSearchParams(location.search).get('view')
 
@@ -26,6 +29,14 @@ function Fixture() {
         >
           <ReceivingWalletVerification />
         </section>
+      )}
+      {view === 'dashboard' && (
+        <section aria-label="Dashboard wallet" className="account-surface mb-8">
+          <WalletAccountContent user={fixtureUser() as CurrentUserDoc} />
+        </section>
+      )}
+      {view === 'install' && (
+        <InstallWalletDialog open onOpenChange={() => {}} />
       )}
       <section aria-label="Wallet" className="mb-8">
         <WalletConnectButton />
