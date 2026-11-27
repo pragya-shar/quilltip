@@ -62,7 +62,7 @@ const PENDING_STAGE = {
   },
   resuming: {
     status: 'Checking whether the request went through.',
-    note: 'This can take up to 5 minutes. If it did not go through, you can try again then.',
+    note: 'This can take several minutes. If it did not go through, you can try again when the check ends.',
   },
   confirming: {
     status: 'Waiting for Stellar testnet to confirm.',

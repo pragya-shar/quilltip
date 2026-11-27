@@ -529,6 +529,9 @@ for (const width of [375, 768, 1440] as const) {
       await expect(
         panel.getByText('Keep this page open until it is sent.')
       ).toBeVisible()
+      // The stage line has no spinner while the wallet waits for the
+      // writer; the step line below it keeps its own.
+      await expect(status.locator('.tips-spinner')).toHaveCount(0)
       await expect(panel.getByText(/Waiting for Stellar testnet/)).toHaveCount(
         0
       )
@@ -564,6 +567,7 @@ for (const width of [375, 768, 1440] as const) {
       // announced once, not as a new region.
       await expect(status).toHaveAttribute('data-seen', 'approval')
       await expect(status).toHaveAttribute('aria-atomic', 'true')
+      await expect(status.locator('.tips-spinner')).toHaveCount(1)
       await expect(
         panel.getByText(
           'This usually takes a few seconds. You can leave this page; it finishes without you.'
@@ -584,9 +588,10 @@ for (const width of [375, 768, 1440] as const) {
       await expect(status).toHaveText(
         'Enabling tips. Checking whether the request went through.'
       )
+      await expect(status.locator('.tips-spinner')).toHaveCount(1)
       await expect(
         panel.getByText(
-          'This can take up to 5 minutes. If it did not go through, you can try again then.'
+          'This can take several minutes. If it did not go through, you can try again when the check ends.'
         )
       ).toBeVisible()
       await expect(panel.getByRole('button')).toHaveCount(0)
