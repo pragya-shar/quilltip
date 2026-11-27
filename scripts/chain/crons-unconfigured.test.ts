@@ -71,6 +71,13 @@ describe('payments v2 crons without configuration', () => {
     expect(
       await t.mutation(internal.tipEarnings.syncV2TipEarnings, {})
     ).toEqual({ credited: 0, more: false })
+    // The earnings rebuild is off until the operator turns it on (#552).
+    expect(await t.action(internal.earningsTotalsBackfill.run, {})).toEqual({
+      status: 'disabled',
+      rebuilt: 0,
+      inProgress: 0,
+      failed: 0,
+    })
 
     expect(fetchSpy).not.toHaveBeenCalled()
     const counts = await t.run(async ({ db }) =>
