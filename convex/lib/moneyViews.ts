@@ -14,13 +14,16 @@
  *   once per state change (`moneyAppliedStatus`), so each tip is listed and
  *   counted once on each side, in every settlement state.
  * - **M2, spendable.** `spendable = readerSpendable(account) =
- *   max(0, confirmedBalance - outstanding)`; `outstanding` is the unpaid
- *   value of the reader's `ACCEPTED` and `SHORTFALL` receipts, so spendable
- *   never exceeds the on-chain balance minus the accepted value not yet paid
- *   on chain. An accepted tip leaves spendable in the accepting mutation and
- *   returns only when the server closes its pair as `UNPAID`, `REJECTED` or
- *   `VOID_RESET`. (Known gap, fixed in the ledger elsewhere: between a
- *   settler's own confirmed result and the indexed `TabSettled`.)
+ *   confirmedBalance - reservedOf(account)`, unclamped, where
+ *   `reservedOf = outstanding + settledUnindexed`: the unpaid value of the
+ *   reader's `ACCEPTED` and `SHORTFALL` receipts plus what a settlement
+ *   paid that the indexed `TabSettled` has not yet debited. So spendable
+ *   never exceeds the on-chain balance minus what is accepted or already
+ *   paid out, including between a settler's own confirmed result and its
+ *   indexed event. A negative value (an over-committed tab) accepts no tip;
+ *   screens show it as zero. An accepted tip leaves spendable in the
+ *   accepting mutation and returns only when the server closes its pair as
+ *   `UNPAID`, `REJECTED` or `VOID_RESET`.
  * - **M3, pending, available, collected.** Per receipt, `ACCEPTED` is
  *   pending, `SETTLED` is settled, `SHORTFALL` is on hold, and `UNPAID`,
  *   `REJECTED`, `VOID_RESET` are not paid. Available is settled minus
