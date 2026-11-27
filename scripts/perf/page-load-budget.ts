@@ -80,11 +80,11 @@ const BUDGETS = {
   // module rules are in scripts/perf/first-load.ts.
   scriptKb: 230,
   // Heaviest route: 38 KB (landing).
-  cssKb: 50,
-  // Heaviest route: 181 KB (landing, ten faces).
-  fontKb: 220,
+  cssKb: 45,
+  // Heaviest route: 169 KB (landing, ten faces, after the WOFF2 rewrite).
+  fontKb: 190,
   // Heaviest route: 3 (landing).
-  renderBlockingStylesheets: 6,
+  renderBlockingStylesheets: 4,
   cls: 0.1,
 }
 
@@ -163,7 +163,17 @@ async function htmlRefs(routePath: string): Promise<HtmlRefs> {
   const stylesheets = new Set<string>()
   for (const tag of html.match(/<script\b[^>]*>/g) ?? []) {
     const src = attribute(tag, 'src')
-    if (src) scripts.add(new URL(src, BASE_URL).pathname)
+    if (src) {
+      const url = new URL(src.replace(/&amp;/g, '&'), BASE_URL)
+      // The chunk loader (scripts/next/hydrate-after-paint.ts) lists the root
+      // chunks in its URL; count them as the scripts they stand for.
+      for (const chunk of url.searchParams.get('c')?.split(' ') ?? [])
+        scripts.add(new URL(chunk, BASE_URL).pathname)
+      scripts.add(url.pathname)
+    }
+    // Chunk scripts written inert, started after the first paint.
+    const deferred = attribute(tag, 'data-hydrate-after-paint')
+    if (deferred) scripts.add(new URL(deferred, BASE_URL).pathname)
   }
   for (const tag of html.match(/<link\b[^>]*>/g) ?? []) {
     const href = attribute(tag, 'href')
@@ -320,6 +330,18 @@ async function main() {
       if (renderBlocking > BUDGETS.renderBlockingStylesheets)
         failures.push(
           `${route.name}: ${renderBlocking} render-blocking stylesheets > ${BUDGETS.renderBlockingStylesheets}`
+        )
+      // Chunk scripts start after the first paint
+      // (scripts/next/hydrate-after-paint.ts). An executable chunk script in
+      // the server HTML means the runtime edit did not apply.
+      const eager = (refs.html.match(/<script\b[^>]*>/g) ?? []).filter(
+        (tag) =>
+          /\ssrc="[^"]*\/_next\/static\/chunks\//.test(tag) &&
+          !/\snoModule=/.test(tag)
+      )
+      if (eager.length > 0)
+        failures.push(
+          `${route.name}: ${eager.length} chunk scripts load before the first paint:\n    ${eager.slice(0, 3).join('\n    ')}`
         )
       for (const device of ['mobile', 'desktop'] as const) {
         // One unmeasured load warms the server's route and data caches.
