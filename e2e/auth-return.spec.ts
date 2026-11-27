@@ -10,6 +10,8 @@
  */
 import { test, expect, type Page } from '@playwright/test'
 
+import { TOKEN_CONFIRMATION_TIMEOUT_MS } from '../lib/auth/sessionConfirmation'
+
 const CONVEX_URL = process.env.AUTH_E2E_CONVEX_URL
 /** How long the backend's answer is held after the client authenticates. */
 const CONFIRMATION_DELAY_MS = 2_000
@@ -29,21 +31,28 @@ test.skip(
  * Holds every backend message for CONFIRMATION_DELAY_MS after the client
  * sends a user token, in order. The sign-in itself is answered at once.
  */
-async function slowAuthConfirmation(page: Page) {
+async function slowAuthConfirmation(
+  page: Page,
+  /** 'never' drops the backend's messages instead: it never answers. */
+  hold: number | 'never' = CONFIRMATION_DELAY_MS
+) {
   await page.routeWebSocket(/\/api\/[^/]+\/sync/, (ws) => {
     const server = ws.connectToServer()
     let holdUntil = 0
+    let silent = false
     let delivered = Promise.resolve()
     ws.onMessage((message) => {
       if (typeof message === 'string' && message.includes('"Authenticate"')) {
         const parsed = JSON.parse(message) as { tokenType?: string }
         if (parsed.tokenType === 'User') {
-          holdUntil = Date.now() + CONFIRMATION_DELAY_MS
+          if (hold === 'never') silent = true
+          else holdUntil = Date.now() + hold
         }
       }
       server.send(message)
     })
     server.onMessage((message) => {
+      if (silent) return
       const wait = holdUntil - Date.now()
       delivered = delivered
         .then(() =>
@@ -137,6 +146,64 @@ test('a signed-out reader is sent to login and sees no dashboard', async ({
   ).toBe(false)
 })
 
+/** Well within TOKEN_CONFIRMATION_TIMEOUT_MS: no wait for an answered token. */
+const PROMPT_MS = 5_000
+
+test('a stored token the backend rejects does not hold a signed-out reader', async ({
+  page,
+}) => {
+  // No refresh token: Convex Auth keeps the rejected token in storage.
+  const namespace = CONVEX_URL!.replace(/[^a-zA-Z0-9]/g, '')
+  await page.addInitScript((key) => {
+    localStorage.setItem(key, 'not-a-token-this-backend-issued')
+  }, `__convexAuthJWT_${namespace}`)
+  await watchProtectedContent(page)
+
+  await page.goto('/dashboard/stats')
+  await expect(page).toHaveURL(loginUrl('/dashboard/stats'), {
+    timeout: PROMPT_MS,
+  })
+
+  await page.goto('/articles')
+  await page.getByRole('button', { name: 'Open navigation menu' }).click()
+  await expect(
+    page
+      .getByRole('dialog', { name: 'Find your way' })
+      .getByRole('link', { name: 'Log in', exact: true })
+  ).toBeVisible({ timeout: PROMPT_MS })
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __sawProtected?: boolean }).__sawProtected
+    )
+  ).toBe(false)
+})
+
+test('a sign-in the backend never answers ends on login at the bound', async ({
+  page,
+}) => {
+  test.setTimeout(TOKEN_CONFIRMATION_TIMEOUT_MS + 45_000)
+  await slowAuthConfirmation(page, 'never')
+  await watchProtectedContent(page)
+  await page.goto(loginUrl('/dashboard/stats'))
+  await signIn(page)
+  await expect(page).toHaveURL('/dashboard/stats')
+  const landed = Date.now()
+  // Waits for the answer: no redirect well before the bound.
+  await staysOn(page, '/dashboard/stats', TOKEN_CONFIRMATION_TIMEOUT_MS - 3_000)
+  // Then treats the reader as signed out.
+  await expect(page).toHaveURL(loginUrl('/dashboard/stats'), {
+    timeout: 10_000,
+  })
+  expect(Date.now() - landed).toBeLessThan(
+    TOKEN_CONFIRMATION_TIMEOUT_MS + 8_000
+  )
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __sawProtected?: boolean }).__sawProtected
+    )
+  ).toBe(false)
+})
+
 test('a wrong password shows the error on the form', async ({ page }) => {
   await page.goto('/dashboard/stats')
   await expect(page).toHaveURL(loginUrl('/dashboard/stats'))
@@ -195,7 +262,13 @@ test('signing out from the dashboard lands on login and stays', async ({
     )
     localStorage.setItem('@StellarWalletsKit/selectedModuleId', 'freighter')
   })
-  expect(await walletKeys(page)).toHaveLength(2)
+  // The wallet kit may add keys of its own once it loads.
+  expect(await walletKeys(page)).toEqual(
+    expect.arrayContaining([
+      '@StellarWalletsKit/selectedModuleId',
+      'quilltip:wallet:v1:k17returnpathreader',
+    ])
+  )
   await page.getByRole('button', { name: 'Open navigation menu' }).click()
   await page
     .getByRole('dialog', { name: 'Find your way' })

@@ -14,8 +14,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,
-  // One local backend serves every worker; keep its load small.
-  workers: 2,
+  // One local backend serves the run, and its functions stop at 1 s. On a
+  // busy machine two workers pushed sign-in past that limit.
+  workers: 1,
   reporter: 'list',
   timeout: 60_000,
   use: { baseURL, trace: 'retain-on-failure' },

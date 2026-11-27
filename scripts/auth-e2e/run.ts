@@ -2,7 +2,7 @@
  * Runs the sign-in suite (e2e/auth-return.spec.ts, issue #575) with real
  * Convex Auth on a local, anonymous Convex backend:
  *
- *   bun run test:e2e:auth [--skip-build] [-- <playwright args>]
+ *   bun run test:e2e:auth [--skip-build] [<playwright args>]
  *
  * 1. Checks the pinned local backend binary against its recorded SHA-256
  *    (downloading it once if needed), starts `convex dev` for the anonymous
@@ -272,10 +272,12 @@ async function createAccount(
 
 async function main(): Promise<number> {
   const argv = process.argv.slice(2)
-  const split = argv.indexOf('--')
-  const own = split === -1 ? argv : argv.slice(0, split)
-  const playwrightArgs = split === -1 ? [] : argv.slice(split + 1)
-  const skipBuild = own.includes('--skip-build')
+  // `bun run` drops the first `--`, so every argument except the runner's
+  // own flag goes to Playwright.
+  const skipBuild = argv.includes('--skip-build')
+  const playwrightArgs = argv.filter(
+    (arg) => arg !== '--skip-build' && arg !== '--'
+  )
 
   const configured = readEnvLocal().CONVEX_DEPLOYMENT
   if (configured && configured !== DEPLOYMENT) {
@@ -340,7 +342,22 @@ async function main(): Promise<number> {
       NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
       NEXT_TELEMETRY_DISABLED: '1',
     }
-    if (!skipBuild) runOrFail(['x', 'next', 'build'], appEnv)
+    // The build holds the backend URL, and the backend's port can change
+    // between runs, so a reused build must name this backend.
+    const builtFor = resolve(repoRoot, '.next', 'auth-e2e-convex-url')
+    if (skipBuild) {
+      const previous = existsSync(builtFor)
+        ? readFileSync(builtFor, 'utf8')
+        : null
+      if (previous !== convexUrl) {
+        fail(
+          `the existing build is not for ${convexUrl}; run without --skip-build`
+        )
+      }
+    } else {
+      runOrFail(['x', 'next', 'build'], appEnv)
+      writeFileSync(builtFor, convexUrl!)
+    }
     children.push(
       await startUntil(
         ['x', 'next', 'start', '-H', '127.0.0.1', '-p', String(appPort)],
