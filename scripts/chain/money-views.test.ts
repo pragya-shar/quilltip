@@ -574,3 +574,57 @@ describe('settlement soon after acceptance', () => {
     })
   })
 })
+
+describe('spendable between a settlement result and its indexed event', () => {
+  // Expected to fail until the ledger fix for this window merges from the
+  // tab ledger's owner; it then passes and `it.fails` becomes `it`.
+  it.fails(
+    'never rises before the indexed TabSettled debits the balance',
+    async () => {
+      const t = convexTest(schema, modules)
+      const s = await seed(t) // 10 XLM on chain
+      await tip(t, s, { cents: 500 })
+      await tip(t, s, { cents: 500 })
+      const before = await as(t, s.readerId).query(api.balance.session, {})
+      expect(before!.tokens[0]!.available).toBe('0')
+      const pair = await t.run(async (ctx) =>
+        ctx.db.query('tabVouchers').first()
+      )
+      const settlementId = await t.mutation(internal.tabSettlement.begin, {
+        voucherIds: [pair!._id],
+        cumulatives: [pair!.cumulative],
+        submitter: 'localKey',
+        maxTime: Math.floor(Date.now() / 1000) + 300,
+      })
+      // The settler's own confirmed result, before the indexer sees the event.
+      await t.mutation(internal.tabSettlement.finish, {
+        settlementId,
+        result: {
+          status: 'CONFIRMED',
+          txHash: 'cd'.repeat(32),
+          ledger: 7_000_010,
+          outcomes: [
+            {
+              kind: 'settled',
+              reader: READER,
+              writer: pair!.writerAddress,
+              keyId: 0,
+              cumulative: pair!.cumulative,
+              paidAfter: pair!.cumulative,
+              gross: pair!.cumulative,
+              fee: '0',
+            },
+          ],
+        },
+      })
+      // On chain the reader now holds 0: spendable must not rise.
+      const after = await as(t, s.readerId).query(api.balance.session, {})
+      expect(after!.tokens[0]!.available).toBe('0')
+      expect(after!.availableCents).toBe(0)
+      // A tip above the real on-chain balance is refused.
+      expect(await errorCode(tip(t, s, { cents: 100 }))).toBe(
+        'TAB_OVER_BALANCE'
+      )
+    }
+  )
+})
