@@ -4,6 +4,7 @@ import { ActivityRow } from '@/system/components/ActivityRow'
 import { Avatar } from '@/system/components/Avatar'
 import { Icon } from '@/system/components/Icon'
 import { TipIcon } from '@/system/icons'
+import { figureState, spokenDollars } from '@/system/money/figure'
 import { sheetStack } from '@/shell/sheetStack'
 import { rowWords, whenShort } from './copy'
 import { rowAmount } from './rowAmount'
@@ -26,6 +27,20 @@ export function PocketActivityRow({
 }) {
   const words = rowWords(item)
   const reader = item.role === 'reader'
+  const name = reader ? item.counterparty.name : 'A reader'
+  const amount = rowAmount(item)
+  // The row's control is named by the person, the amount as a screen reader
+  // says it, and what it opens: "A reader, plus 0.0975 dollars, open
+  // receipt". A tip that did not complete carries no direction, as on screen.
+  const state = figureState(amount)
+  const said =
+    state.kind === 'value'
+      ? spokenDollars({
+          ...state.parts,
+          sign: words.status === 'failed' ? '' : reader ? '−' : '+',
+        })
+      : null
+  const label = [name, said, 'open receipt'].filter(Boolean).join(', ')
   return (
     <ActivityRow
       lead={
@@ -37,9 +52,10 @@ export function PocketActivityRow({
           </span>
         )
       }
-      name={reader ? item.counterparty.name : 'A reader'}
+      name={name}
+      label={label}
       about={item.passage ?? item.article.title}
-      amount={rowAmount(item)}
+      amount={amount}
       direction={reader ? 'out' : 'in'}
       status={words.status}
       statusText={words.short}

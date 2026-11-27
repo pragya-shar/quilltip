@@ -646,6 +646,24 @@ test.describe('review cases', () => {
     await expect(receipt).not.toContainText('Quilltip’s')
   })
 
+  test('each row is named by the person, the amount and what it opens', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=ready')
+    await expect(
+      page.getByRole('button', {
+        name: 'A reader, plus 0.0975 dollars, open receipt',
+        exact: true,
+      })
+    ).toHaveCount(2)
+    await expect(
+      page.getByRole('button', {
+        name: 'Theo Marsh, minus 0 dollars 10, open receipt',
+        exact: true,
+      })
+    ).toHaveCount(2)
+  })
+
   test('a writer’s receipt shows the share and its own token amount', async ({
     page,
   }) => {
@@ -731,14 +749,20 @@ test.describe('review cases', () => {
   }) => {
     await page.goto('/pocket?unwired')
     const root = page.locator('.qt-pocket')
-    await expect(root).toContainText('The balance is not connected yet')
+    // The shell's own reading of what can be tipped, and no tips or
+    // earnings of its own.
+    await expect(digits(root, 'Ready to tip')).toHaveText('≈$2.54')
+    await expect(root).toContainText('Your tips and earnings are not here yet')
+    await expect(root.locator('.qt-pocket__rows')).toHaveCount(0)
+    await expect(
+      root.getByRole('heading', { name: 'Your earnings' })
+    ).toHaveCount(0)
     await expect(
       root.getByRole('link', { name: 'your balance' })
     ).toHaveAttribute('href', '/dashboard/tab')
     await expect(
       root.getByRole('link', { name: 'your earnings' })
     ).toHaveAttribute('href', '/dashboard/stats')
-    expect(await root.textContent()).not.toMatch(/\$\s?\d/)
   })
 })
 

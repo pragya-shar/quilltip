@@ -9,7 +9,7 @@ import type { PerfRoutes } from './types'
  * declared sheets still load only when they open.
  */
 export const routes: PerfRoutes = {
-  firstLoad: [{ route: '/pocket', budgetKb: 170 }],
+  firstLoad: [{ route: '/pocket', budgetKb: 170, access: 'signed-in' }],
   pageLoad: [
     {
       name: 'balance page',

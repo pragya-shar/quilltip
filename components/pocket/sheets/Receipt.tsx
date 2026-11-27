@@ -98,7 +98,7 @@ export default function ReceiptBody({
       {item.article.href ? (
         // Leaving for the article closes this receipt and the balance under
         // it, so nothing stays open over the next page.
-         
+
         <p
           className="qt-pocket__article"
           onClickCapture={(event) => {

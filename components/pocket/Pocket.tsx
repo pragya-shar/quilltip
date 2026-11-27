@@ -95,11 +95,21 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
       </div>
     )
   if (!source.wired)
+    // Before the money layer is connected: the shell's own reading of what
+    // can be tipped (the bar shows the same), and plainly what is not here
+    // yet, with the pages that show it today.
     return (
       <div className="qt-pocket" data-wired="false">
-        <Notice tone="info" title="The balance is not connected yet">
-          This build does not show your money here yet. Your balance and your
-          tips are safe, and these pages show them today:{' '}
+        <MoneyFigure
+          value={reading.available}
+          status={reading.status}
+          size="xl"
+          label="Ready to tip"
+          unavailableText="Not available right now"
+        />
+        <Notice tone="info" title="Your tips and earnings are not here yet">
+          This build does not show them in the balance yet. They are safe, and
+          these pages show them today:{' '}
           <TextLink href="/dashboard/tab">your balance</TextLink> and{' '}
           <TextLink href="/dashboard/stats">your earnings</TextLink>.
         </Notice>
