@@ -3597,14 +3597,15 @@ describe('spendable balance across settler records and indexed events', () => {
   async function settlerRecord(
     t: T,
     settlementId: Id<'tabSettlements'>,
-    outcomes: Outcome[]
+    outcomes: Outcome[],
+    ledger = LEDGER + 1
   ) {
     await t.mutation(internal.tabSettlement.finish, {
       settlementId,
       result: {
         status: 'CONFIRMED',
         txHash: 'cd'.repeat(32),
-        ledger: LEDGER + 1,
+        ledger,
         outcomes: outcomes.map((o) =>
           o.kind === 'settled'
             ? {
@@ -3632,14 +3633,66 @@ describe('spendable balance across settler records and indexed events', () => {
 
   const fee = (x: bigint) => (x * BigInt(250)) / BigInt(10_000)
 
-  function settledEvent(o: Extract<Outcome, { kind: 'settled' }>) {
-    return ev.tabSettled({
-      writer: o.writer,
-      cumulative: o.cumulative,
-      paidAfter: o.paidAfter,
-      gross: o.gross,
-      fee: fee(o.gross),
+  function settledEvent(
+    o: Extract<Outcome, { kind: 'settled' }>,
+    options: { ledger?: number } = {}
+  ) {
+    return ev.tabSettled(
+      {
+        writer: o.writer,
+        cumulative: o.cumulative,
+        paidAfter: o.paidAfter,
+        gross: o.gross,
+        fee: fee(o.gross),
+      },
+      options
+    )
+  }
+
+  /** The indexer has applied every event up to `ledger`. */
+  async function caughtUp(t: T, ledger: number) {
+    await t.run(async (ctx) => {
+      const cursor = (await ctx.db.query('chainCursor').first())!
+      if (cursor.lastLedger < ledger) {
+        await ctx.db.patch(cursor._id, { lastLedger: ledger })
+      }
     })
+  }
+
+  /**
+   * The operator reconciliation with a chain read: the contract's balance
+   * and `paid` per writer (key 0) at `ledger`. The indexer is marked as
+   * caught up to `ledger` unless `behind` is set.
+   */
+  async function reconcileAt(
+    t: T,
+    read: { ledger: number; balance: bigint; paid: Map<string, bigint> },
+    o: { apply?: boolean; writer?: string; behind?: boolean } = {}
+  ) {
+    if (!o.behind) await caughtUp(t, read.ledger)
+    const snap = await t.query(internal.chain.tabReconcile.snapshot, {
+      reader: READER,
+      ...(o.writer ? { keyId: 0, writer: o.writer } : {}),
+    })
+    if (!snap) throw new Error('no snapshot')
+    return t.mutation(internal.chain.tabReconcile.reconcile, {
+      tabAccountId: snap.tabAccountId,
+      digest: snap.digest,
+      pairs: snap.pairs,
+      chain: {
+        ledger: read.ledger,
+        balance: read.balance.toString(),
+        paid: snap.pairs.map((p) => ({
+          ...p,
+          paid: (read.paid.get(p.writer) ?? BigInt(0)).toString(),
+        })),
+      },
+      apply: o.apply ?? true,
+    })
+  }
+
+  async function releases(t: T) {
+    return t.run(async (ctx) => ctx.db.query('tabReserveReleases').collect())
   }
 
   async function accepts(
@@ -4481,37 +4534,610 @@ describe('spendable balance across settler records and indexed events', () => {
     expect(flagged()).toEqual([])
   })
 
-  it('review: a lost TabSettled after a later absolute balance keeps a stale reserve', async () => {
-    // The indexer missed the settlement event (beyond RPC retention); a
-    // later deposit carries the absolute balance, which already includes
-    // the debit. Nothing clears the reserve: the free figure stays low.
-    const { t, s } = await opened(BigInt(15) * CENT, [10])
-    const { settlementId } = await beginSettlement(t)
-    const paid = {
-      kind: 'settled' as const,
-      writer: WRITER,
-      cumulative: BigInt(10) * CENT,
-      paidAfter: BigInt(10) * CENT,
-      gross: BigInt(10) * CENT,
-    }
-    const lost = settledEvent(paid)
-    await settlerRecord(t, settlementId, [paid])
-    // Chain: 0.05 after the settlement, then a 0.05 top-up: 0.10, all free.
-    await ingest(t, ev.deposited(READER, BigInt(5) * CENT, BigInt(10) * CENT))
-    expect(await myTab(t, s)).toMatchObject({
-      confirmedBalance: (BigInt(10) * CENT).toString(),
-      available: '0',
-    })
-    // Safe (never above the chain), but 0.10 too low until the event is
-    // ingested; once it is, the reserve clears and the debit is not repeated.
-    await ingest(t, lost)
-    expect(await spendable(t, s)).toBe(BigInt(10) * CENT)
+  // -------------------------------------------------------------------------
+  // #573: a settlement reserve whose `TabSettled` is never indexed.
+
+  const paidOf = (writer: string, cents: number) => ({
+    kind: 'settled' as const,
+    writer,
+    cumulative: BigInt(cents) * CENT,
+    paidAfter: BigInt(cents) * CENT,
+    gross: BigInt(cents) * CENT,
   })
 
-  it('review: property over settler, settle_own, shuffled and lost events', async () => {
+  it('a lost TabSettled: an absolute balance from a later ledger releases the reserve once (#573)', async () => {
+    const flagged = negatives()
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const paid = paidOf(WRITER, 10)
+    const lost = settledEvent(paid, { ledger: LEDGER + 1 })
+    await settlerRecord(t, settlementId, [paid], LEDGER + 1)
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    expect((await account(t)).settledUnindexedSince).toBeGreaterThanOrEqual(T0)
+    // Chain: 0.05 after the settlement, then a 0.05 top-up: 0.10, all free.
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(10) * CENT, {
+        ledger: LEDGER + 2,
+      })
+    )
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(10) * CENT).toString(),
+      outstanding: '0',
+      available: (BigInt(10) * CENT).toString(),
+    })
+    const after = await account(t)
+    expect(after.settledUnindexed).toBe('0')
+    expect(after.settledUnindexedSince).toBeUndefined()
+    const rows = await releases(t)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      source: 'balance_event',
+      ledger: LEDGER + 2,
+      spendableBefore: '0',
+      spendableAfter: (BigInt(10) * CENT).toString(),
+      pairs: [
+        { writerAddress: WRITER, released: (BigInt(10) * CENT).toString() },
+      ],
+    })
+    // The event arrives after all, and again: no debit, no second release.
+    await ingest(t, lost)
+    await ingest(t, lost)
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(10) * CENT).toString(),
+      available: (BigInt(10) * CENT).toString(),
+    })
+    expect(await releases(t)).toHaveLength(1)
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  })
+
+  it('an absolute balance from the settlement ledger itself releases nothing (#573)', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    // Same ledger: the deposit may come before the settlement in it.
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(10) * CENT, {
+        ledger: LEDGER + 1,
+      })
+    )
+    expect(await spendable(t, s)).toBe(BigInt(0))
+    expect(await releases(t)).toHaveLength(0)
+    await ingest(
+      t,
+      ev.deposited(READER, CENT, BigInt(11) * CENT, { ledger: LEDGER + 3 })
+    )
+    expect(await spendable(t, s)).toBe(BigInt(11) * CENT)
+    expect(await releases(t)).toHaveLength(1)
+  })
+
+  it('the later absolute balance is indexed before the settler record (#573)', async () => {
+    const flagged = negatives()
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const paid = paidOf(WRITER, 10)
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(10) * CENT, {
+        ledger: LEDGER + 2,
+      })
+    )
+    // The tip is still owed in the ledger: nothing free yet.
+    expect(await spendable(t, s)).toBe(BigInt(0))
+    await settlerRecord(t, settlementId, [paid], LEDGER + 1)
+    expect(await spendable(t, s)).toBe(BigInt(10) * CENT)
+    expect((await account(t)).settledUnindexed).toBe('0')
+    await ingest(t, settledEvent(paid, { ledger: LEDGER + 1 }))
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(10) * CENT).toString(),
+      available: (BigInt(10) * CENT).toString(),
+    })
+    expect(flagged()).toEqual([])
+  })
+
+  it('a lost TabSettled and no later balance: the operator reconciliation, then the late event (#573)', async () => {
+    const flagged = negatives()
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const paid = paidOf(WRITER, 10)
+    const lost = settledEvent(paid, { ledger: LEDGER + 1 })
+    await settlerRecord(t, settlementId, [paid], LEDGER + 1)
+    // Exact already (the balance is high by the same amount it reserves),
+    // but the reserve never clears on its own.
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(15) * CENT).toString(),
+      available: (BigInt(5) * CENT).toString(),
+    })
+    const read = {
+      ledger: LEDGER + 3,
+      balance: BigInt(5) * CENT,
+      paid: new Map([[WRITER, BigInt(10) * CENT]]),
+    }
+    const dry = await reconcileAt(t, read, { apply: false })
+    expect(dry).toMatchObject({
+      status: 'dry_run',
+      after: {
+        confirmedBalance: (BigInt(5) * CENT).toString(),
+        outstanding: '0',
+        settledUnindexed: '0',
+        spendable: (BigInt(5) * CENT).toString(),
+      },
+      pairs: [{ writer: WRITER, marked: (BigInt(10) * CENT).toString() }],
+    })
+    expect((await account(t)).settledUnindexed).toBe(
+      (BigInt(10) * CENT).toString()
+    )
+    expect(await releases(t)).toHaveLength(0)
+
+    expect(await reconcileAt(t, read)).toMatchObject({ status: 'applied' })
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: (BigInt(5) * CENT).toString(),
+      settledUnindexed: '0',
+      balanceLedger: LEDGER + 3,
+    })
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    expect(await releases(t)).toMatchObject([
+      { source: 'reconcile', ledger: LEDGER + 3 },
+    ])
+    // Exactly once: a second run finds nothing.
+    expect(await reconcileAt(t, read)).toMatchObject({
+      status: 'nothing_to_do',
+    })
+    expect(await releases(t)).toHaveLength(1)
+    // The missing event arrives late and is replayed: nothing changes.
+    await ingest(t, lost)
+    await ingest(t, lost)
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(5) * CENT).toString(),
+      available: (BigInt(5) * CENT).toString(),
+    })
+    // Later events apply as usual.
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(10) * CENT, {
+        ledger: LEDGER + 4,
+      })
+    )
+    expect(await spendable(t, s)).toBe(BigInt(10) * CENT)
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  })
+
+  it('pre-change rows: a reserve of unknown age waits for the reconciliation (#573)', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    // Rows as written before this change: no ledger on the pair or the
+    // account, no start time on the reserve.
+    await t.run(async (ctx) => {
+      const pair = (await ctx.db.query('tabVouchers').first())!
+      await ctx.db.patch(pair._id, { paidLedger: undefined })
+      const row = (await ctx.db.query('tabAccounts').first())!
+      await ctx.db.patch(row._id, {
+        balanceLedger: undefined,
+        settledUnindexedSince: undefined,
+      })
+    })
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(10) * CENT, {
+        ledger: LEDGER + 2,
+      })
+    )
+    // Unknown age: kept (low, never above the chain).
+    expect(await spendable(t, s)).toBe(BigInt(0))
+    expect(
+      await reconcileAt(t, {
+        ledger: LEDGER + 2,
+        balance: BigInt(10) * CENT,
+        paid: new Map([[WRITER, BigInt(10) * CENT]]),
+      })
+    ).toMatchObject({ status: 'applied' })
+    expect(await spendable(t, s)).toBe(BigInt(10) * CENT)
+    // A pair written before #565 (no indexed ranges) counts as indexed.
+    await t.run(async (ctx) => {
+      const pair = (await ctx.db.query('tabVouchers').first())!
+      await ctx.db.patch(pair._id, { indexedPaid: undefined })
+    })
+    expect(
+      await reconcileAt(t, {
+        ledger: LEDGER + 3,
+        balance: BigInt(10) * CENT,
+        paid: new Map([[WRITER, BigInt(10) * CENT]]),
+      })
+    ).toMatchObject({ status: 'nothing_to_do' })
+  })
+
+  it('an event that raises paid over a lost lower range bounds it by its own ledger (#573)', async () => {
+    const flagged = negatives()
+    const { t, s } = await opened(BigInt(30) * CENT, [10])
+    // Two settle_own payments by the writer, no settler record: 0.06 at
+    // L+1 (event lost) and 0.04 at L+2 (indexed). Chain: 0.20, nothing owed.
+    await ingest(
+      t,
+      ev.tabSettled(
+        {
+          cumulative: BigInt(10) * CENT,
+          paidAfter: BigInt(10) * CENT,
+          gross: BigInt(4) * CENT,
+        },
+        { ledger: LEDGER + 2 }
+      )
+    )
+    expect(await spendable(t, s)).toBe(BigInt(20) * CENT)
+    expect((await voucherRow(t)).paidLedger).toBe(LEDGER + 2)
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(25) * CENT, {
+        ledger: LEDGER + 3,
+      })
+    )
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: (BigInt(25) * CENT).toString(),
+      settledUnindexed: '0',
+    })
+    expect(await spendable(t, s)).toBe(BigInt(25) * CENT)
+    expect(flagged()).toEqual([])
+  })
+
+  it('a reserve of unknown age is bounded again by the next payment (#573)', async () => {
+    const { t, s } = await opened(BigInt(30) * CENT, [10])
+    const first = await beginSettlement(t)
+    await settlerRecord(t, first.settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    await t.run(async (ctx) => {
+      const pair = (await ctx.db.query('tabVouchers').first())!
+      await ctx.db.patch(pair._id, { paidLedger: undefined })
+    })
+    await tip(t, s, { cents: 5 })
+    const second = await beginSettlement(t)
+    await settlerRecord(
+      t,
+      second.settlementId,
+      [
+        {
+          kind: 'settled',
+          writer: WRITER,
+          cumulative: BigInt(15) * CENT,
+          paidAfter: BigInt(15) * CENT,
+          gross: BigInt(5) * CENT,
+        },
+      ],
+      LEDGER + 2
+    )
+    expect((await voucherRow(t)).paidLedger).toBe(LEDGER + 2)
+    // Both events lost; a later deposit includes both debits.
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(20) * CENT, {
+        ledger: LEDGER + 3,
+      })
+    )
+    expect(await spendable(t, s)).toBe(BigInt(20) * CENT)
+  })
+
+  it('two pairs of one reader: the whole reader, or one pair when the balance allows (#573)', async () => {
+    const flagged = negatives()
+    const { t, s } = await opened(BigInt(30) * CENT, [10])
+    await tip(t, s, { cents: 6, articleId: s.otherArticleId })
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(
+      t,
+      settlementId,
+      [paidOf(WRITER, 10), paidOf(OTHER_WRITER, 6)],
+      LEDGER + 1
+    )
+    // Both events lost; no later balance. Chain: 0.14, paid 0.10 and 0.06.
+    expect(await spendable(t, s)).toBe(BigInt(14) * CENT)
+    const paid = new Map([
+      [WRITER, BigInt(10) * CENT],
+      [OTHER_WRITER, BigInt(6) * CENT],
+    ])
+    const read = { ledger: LEDGER + 2, balance: BigInt(14) * CENT, paid }
+    // One pair cannot explain the whole balance difference.
+    expect(await reconcileAt(t, read, { writer: WRITER })).toMatchObject({
+      status: 'refused',
+      reason: 'BALANCE_MISMATCH',
+    })
+    expect(await reconcileAt(t, read)).toMatchObject({ status: 'applied' })
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: (BigInt(14) * CENT).toString(),
+      settledUnindexed: '0',
+    })
+    expect(await spendable(t, s)).toBe(BigInt(14) * CENT)
+    expect((await releases(t))[0]!.pairs).toHaveLength(2)
+    expect(flagged()).toEqual([])
+  })
+
+  it('two pairs: one pair at a time once a later balance includes both debits (#573)', async () => {
+    const { t, s } = await opened(BigInt(30) * CENT, [10])
+    await tip(t, s, { cents: 6, articleId: s.otherArticleId })
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(
+      t,
+      settlementId,
+      [paidOf(WRITER, 10), paidOf(OTHER_WRITER, 6)],
+      LEDGER + 1
+    )
+    await t.run(async (ctx) => {
+      for (const pair of await ctx.db.query('tabVouchers').collect()) {
+        await ctx.db.patch(pair._id, { paidLedger: undefined })
+      }
+    })
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(6) * CENT, BigInt(20) * CENT, {
+        ledger: LEDGER + 2,
+      })
+    )
+    expect(await spendable(t, s)).toBe(BigInt(4) * CENT)
+    const read = {
+      ledger: LEDGER + 2,
+      balance: BigInt(20) * CENT,
+      paid: new Map([
+        [WRITER, BigInt(10) * CENT],
+        [OTHER_WRITER, BigInt(6) * CENT],
+      ]),
+    }
+    expect(await reconcileAt(t, read, { writer: WRITER })).toMatchObject({
+      status: 'applied',
+      pairs: [{ writer: WRITER }],
+    })
+    expect(await spendable(t, s)).toBe(BigInt(14) * CENT)
+    expect(await reconcileAt(t, read, { writer: OTHER_WRITER })).toMatchObject({
+      status: 'applied',
+    })
+    expect(await spendable(t, s)).toBe(BigInt(20) * CENT)
+  })
+
+  it('a lost settle_own event: the reconciliation applies the contract paid amount (#573)', async () => {
+    const flagged = negatives()
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    // The writer settled on their own; the event was lost. No settler record.
+    const own = settledEvent(paidOf(WRITER, 10), { ledger: LEDGER + 1 })
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(15) * CENT).toString(),
+      outstanding: (BigInt(10) * CENT).toString(),
+      available: (BigInt(5) * CENT).toString(),
+    })
+    expect(
+      await reconcileAt(t, {
+        ledger: LEDGER + 2,
+        balance: BigInt(5) * CENT,
+        paid: new Map([[WRITER, BigInt(10) * CENT]]),
+      })
+    ).toMatchObject({
+      status: 'applied',
+      pairs: [{ paidBefore: '0', paidAfter: (BigInt(10) * CENT).toString() }],
+    })
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(5) * CENT).toString(),
+      outstanding: '0',
+      available: (BigInt(5) * CENT).toString(),
+    })
+    expect(await receiptStatuses(t)).toEqual(['SETTLED'])
+    expect((await voucherRow(t)).settleQueue).toBe('done')
+    await ingest(t, own)
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    expect((await account(t)).confirmedBalance).toBe(
+      (BigInt(5) * CENT).toString()
+    )
+    expect(flagged()).toEqual([])
+  })
+
+  it('a tab in CLOSING, then a withdrawal, inside the window (#573)', async () => {
+    const flagged = negatives()
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const paid = paidOf(WRITER, 10)
+    await settlerRecord(t, settlementId, [paid], LEDGER + 1)
+    await ingest(
+      t,
+      ev.withdrawStarted(BigInt(5) * CENT, LEDGER + 100, {
+        ledger: LEDGER + 2,
+      })
+    )
+    expect(await account(t)).toMatchObject({
+      status: 'CLOSING',
+      confirmedBalance: (BigInt(5) * CENT).toString(),
+      settledUnindexed: '0',
+    })
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    await ingest(t, ev.withdrawn(BigInt(5) * CENT, { ledger: LEDGER + 101 }))
+    expect(await account(t)).toMatchObject({
+      status: 'CLOSED',
+      confirmedBalance: '0',
+    })
+    expect(await spendable(t, s)).toBe(BigInt(0))
+    await ingest(t, settledEvent(paid, { ledger: LEDGER + 1 }))
+    expect(await spendable(t, s)).toBe(BigInt(0))
+    expect(
+      await reconcileAt(t, {
+        ledger: LEDGER + 102,
+        balance: BigInt(0),
+        paid: new Map([[WRITER, BigInt(10) * CENT]]),
+      })
+    ).toMatchObject({ status: 'nothing_to_do' })
+    expect(flagged()).toEqual([])
+  })
+
+  it('a withdrawal with a reserve of unknown age: the reconciliation of a closed tab (#573)', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    await t.run(async (ctx) => {
+      const pair = (await ctx.db.query('tabVouchers').first())!
+      await ctx.db.patch(pair._id, { paidLedger: undefined })
+    })
+    await ingest(
+      t,
+      ev.withdrawStarted(BigInt(5) * CENT, LEDGER + 100, {
+        ledger: LEDGER + 2,
+      }),
+      ev.withdrawn(BigInt(5) * CENT, { ledger: LEDGER + 101 })
+    )
+    // Over-committed until reconciled: nothing spendable either way.
+    expect(await spendable(t, s)).toBe(-BigInt(10) * CENT)
+    expect(
+      await reconcileAt(t, {
+        ledger: LEDGER + 101,
+        balance: BigInt(0),
+        paid: new Map([[WRITER, BigInt(10) * CENT]]),
+      })
+    ).toMatchObject({ status: 'applied' })
+    expect(await account(t)).toMatchObject({
+      status: 'CLOSED',
+      confirmedBalance: '0',
+      settledUnindexed: '0',
+    })
+    expect(await spendable(t, s)).toBe(BigInt(0))
+  })
+
+  it('the reconciliation refuses what it cannot prove (#573)', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    const before = await account(t)
+    const read = (balance: number, paid = 10, ledger = LEDGER + 2) => ({
+      ledger,
+      balance: BigInt(balance) * CENT,
+      paid: new Map([[WRITER, BigInt(paid) * CENT]]),
+    })
+    // The indexer has not reached the ledger the chain was read at.
+    expect(
+      await reconcileAt(t, read(5, 10, LEDGER + 50), { behind: true })
+    ).toMatchObject({ status: 'refused', reason: 'INDEXER_BEHIND' })
+    // The contract shows less paid than stored.
+    expect(await reconcileAt(t, read(5, 6))).toMatchObject({
+      status: 'refused',
+      reason: 'MISMATCH_PAID',
+    })
+    // A balance difference the missing payments do not explain, either way.
+    for (const balance of [2, 20]) {
+      expect(await reconcileAt(t, read(balance))).toMatchObject({
+        status: 'refused',
+        reason: 'BALANCE_MISMATCH',
+      })
+    }
+    // An event for this reader that was not applied.
+    const row = await t.run(async (ctx) =>
+      (await ctx.db.query('chainEvents').collect()).find(
+        (e) => e.type === 'deposited'
+      )
+    )
+    await t.run((ctx) => ctx.db.patch(row!._id, { handled: 'error' }))
+    expect(await reconcileAt(t, read(5))).toMatchObject({
+      status: 'refused',
+      reason: 'EVENTS_UNHANDLED',
+    })
+    await t.run((ctx) => ctx.db.patch(row!._id, { handled: 'done' }))
+    // The account changed between the snapshot and the reconciliation.
+    await caughtUp(t, LEDGER + 2)
+    const snap = (await t.query(internal.chain.tabReconcile.snapshot, {
+      reader: READER,
+    }))!
+    await tip(t, s, { cents: 1 })
+    expect(
+      await t.mutation(internal.chain.tabReconcile.reconcile, {
+        tabAccountId: snap.tabAccountId,
+        digest: snap.digest,
+        pairs: snap.pairs,
+        chain: {
+          ledger: LEDGER + 2,
+          balance: (BigInt(5) * CENT).toString(),
+          paid: snap.pairs.map((p) => ({
+            ...p,
+            paid: (BigInt(10) * CENT).toString(),
+          })),
+        },
+        apply: true,
+      })
+    ).toMatchObject({ status: 'refused', reason: 'CHANGED' })
+    // Nothing was written by any refusal.
+    expect(await releases(t)).toHaveLength(0)
+    expect((await account(t)).confirmedBalance).toBe(before.confirmedBalance)
+    expect((await account(t)).settledUnindexed).toBe(before.settledUnindexed)
+  })
+
+  it('lists reserves that stay above 0 for more than an hour (#573)', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    const list = () =>
+      t.query(internal.chain.tabReconcile.listStaleReserves, {})
+    expect(await list()).toEqual([])
+    vi.setSystemTime(T0 + 2 * 60 * 60 * 1000)
+    expect(await list()).toMatchObject([
+      {
+        readerAddress: READER,
+        settledUnindexed: (BigInt(10) * CENT).toString(),
+        since: expect.any(Number),
+        pairs: [
+          {
+            writerAddress: WRITER,
+            unindexed: (BigInt(10) * CENT).toString(),
+            paidLedger: LEDGER + 1,
+          },
+        ],
+      },
+    ])
+    const ops = () =>
+      as(t, s.readerId).query(api.chain.tabReconcile.getStaleReserves, {})
+    expect(await ops()).toBeNull()
+    vi.stubEnv('OPS_USER_IDS', s.readerId)
+    expect((await ops())?.rows).toHaveLength(1)
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(10) * CENT, {
+        ledger: LEDGER + 2,
+      })
+    )
+    expect(await list()).toEqual([])
+  })
+
+  it.fails(
+    'known issue (#576): more than 256 debits after an absolute balance, then a re-dispatch of the oldest, debits it twice',
+    async () => {
+      const t = convexTest(schema, modules)
+      await seed(t)
+      const gross = BigInt(1000)
+      const events = Array.from({ length: 257 }, (_, i) =>
+        ev.tabSettled(
+          {
+            writer: OTHER_WRITER,
+            cumulative: gross * BigInt(i + 1),
+            paidAfter: gross * BigInt(i + 1),
+            gross,
+          },
+          { ledger: LEDGER + 1 + i }
+        )
+      )
+      for (let i = 0; i < events.length; i += 50) {
+        await ingest(t, ...events.slice(i, i + 50))
+      }
+      const expected = (BigInt(10) * XLM - gross * BigInt(257)).toString()
+      expect((await account(t)).confirmedBalance).toBe(expected)
+      // The oldest debit is no longer in `settledSinceBalance` (256 kept).
+      await t.run(async (ctx) => {
+        const first = (
+          await ctx.db
+            .query('chainEvents')
+            .withIndex('by_event_id', (q) => q.eq('eventId', events[0]!.id))
+            .collect()
+        )[0]!
+        await ctx.db.patch(first._id, { handled: 'pending' })
+      })
+      await t.mutation(internal.chain.indexer.redispatch, {})
+      expect((await account(t)).confirmedBalance).toBe(expected)
+    }
+  )
+
+  it('review: property over settler, settle_own, shuffled and lost events, and reconciliations', async () => {
     const SEEDS = 40
     const STEPS = 60
     let worstGap = BigInt(0)
+    const results: Record<string, number> = {}
     for (let seed = 101; seed < 101 + SEEDS; seed++) {
       const rand = prng(seed)
       const pick = (n: number) => Math.floor(rand() * n)
@@ -4529,11 +5155,15 @@ describe('spendable balance across settler records and indexed events', () => {
         paid: new Map(),
         accepted: new Map(),
       }
+      // Ledger of the latest chain action; each action takes the next one.
+      let chainLedger = LEDGER
+      let lostDeposit = false
       const queue: RawRpcEvent[] = []
       const indexed: RawRpcEvent[] = []
       let record = null as {
         id: Id<'tabSettlements'>
         outcomes: Outcome[]
+        ledger: number
       } | null
       const trace: string[] = []
       const check = async (step: string) => {
@@ -4565,8 +5195,42 @@ describe('spendable balance across settler records and indexed events', () => {
           },
         }
       }
+      /** Indexes `e`, or loses it for good on a lossy seed. */
+      const deliver = async (e: RawRpcEvent) => {
+        if (lossy && pick(4) === 0) {
+          if (e.topic[0] === xdr.ScVal.scvSymbol('deposited').toXdr('base64')) {
+            lostDeposit = true
+          }
+          await check('lost an event')
+          return
+        }
+        await ingest(t, e)
+        indexed.push(e)
+      }
+      /** The indexer catches up, then an operator reconciles at the tip. */
+      const reconcile = async (apply: boolean) => {
+        while (queue.length) {
+          const [e] = queue.splice(pick(queue.length), 1)
+          await deliver(e!)
+        }
+        const r = await reconcileAt(
+          t,
+          { ledger: chainLedger, balance: m.balance, paid: m.paid },
+          { apply }
+        )
+        const key = r.status === 'refused' ? `refused ${r.reason}` : r.status
+        results[key] = (results[key] ?? 0) + 1
+        // Only a lost deposit leaves a difference it must not explain away.
+        if (r.status === 'refused') {
+          expect(
+            r.reason === 'BALANCE_MISMATCH' && lostDeposit,
+            `seed ${seed}: ${r.reason} ${r.detail}\n${trace.join('\n')}`
+          ).toBe(true)
+        }
+        return r
+      }
       for (let i = 0; i < STEPS; i++) {
-        const op = pick(10)
+        const op = pick(11)
         if (op <= 1) {
           const w = writers[pick(2)]!
           const cents = 1 + pick(8)
@@ -4579,7 +5243,9 @@ describe('spendable balance across settler records and indexed events', () => {
         } else if (op === 2) {
           const amount = BigInt(1 + pick(10)) * CENT
           m.balance += amount
-          queue.push(ev.deposited(READER, amount, m.balance))
+          queue.push(
+            ev.deposited(READER, amount, m.balance, { ledger: ++chainLedger })
+          )
           await check(`deposit ${amount}`)
         } else if (op === 3 && !record) {
           const ready = (await pairs(t)).filter(
@@ -4588,11 +5254,12 @@ describe('spendable balance across settler records and indexed events', () => {
           if (!ready.length) continue
           const { settlementId, vouchers } = await beginSettlement(t)
           const outcomes: Outcome[] = []
+          const ledger = ++chainLedger
           for (const v of vouchers) {
             const r = pay(v.writerAddress, BigInt(v.cumulative))
             if (r.o) {
               outcomes.push(r.o)
-              queue.push(settledEvent(r.o))
+              queue.push(settledEvent(r.o, { ledger }))
             } else {
               outcomes.push({
                 kind: 'skipped',
@@ -4602,7 +5269,7 @@ describe('spendable balance across settler records and indexed events', () => {
               })
             }
           }
-          record = { id: settlementId, outcomes }
+          record = { id: settlementId, outcomes, ledger }
           await check(`settle ${outcomes.length}`)
         } else if (op === 4) {
           // The writer's settle_own with the latest voucher: no record.
@@ -4612,24 +5279,21 @@ describe('spendable balance across settler records and indexed events', () => {
           )
           if (!row) continue
           const r = pay(w.address, BigInt(row.cumulative))
-          if (r.o) queue.push(settledEvent(r.o))
+          if (r.o) queue.push(settledEvent(r.o, { ledger: ++chainLedger }))
           await check(
             `settle_own ${w.address.slice(0, 4)} ${r.o ? r.o.gross : 'skip'}`
           )
         } else if (op === 5 && record) {
-          await settlerRecord(t, record.id, record.outcomes)
-          if (pick(3) === 0) await settlerRecord(t, record.id, record.outcomes)
+          await settlerRecord(t, record.id, record.outcomes, record.ledger)
+          if (pick(3) === 0) {
+            await settlerRecord(t, record.id, record.outcomes, record.ledger)
+          }
           record = null
           await check('record')
         } else if (op === 6 && queue.length) {
           // Out of order: any queued event.
           const [e] = queue.splice(pick(queue.length), 1)
-          if (lossy && pick(4) === 0) {
-            await check('lost an event')
-            continue
-          }
-          await ingest(t, e!)
-          indexed.push(e!)
+          await deliver(e!)
           await check('index one, shuffled')
         } else if (op === 7 && indexed.length) {
           await ingest(t, indexed[pick(indexed.length)]!)
@@ -4644,9 +5308,14 @@ describe('spendable balance across settler records and indexed events', () => {
           await check('redispatch')
         } else if (op === 9) {
           await check('wait')
+        } else if (op === 10) {
+          const r = await reconcile(pick(4) !== 0)
+          await check(`reconcile ${r.status}`)
         }
       }
-      if (record) await settlerRecord(t, record.id, record.outcomes)
+      if (record) {
+        await settlerRecord(t, record.id, record.outcomes, record.ledger)
+      }
       while (queue.length) {
         const [e] = queue.splice(pick(queue.length), 1)
         await ingest(t, e!)
@@ -4662,12 +5331,590 @@ describe('spendable balance across settler records and indexed events', () => {
       } else {
         const gap = chainSpendable(m) - BigInt(tab.available)
         if (gap > worstGap) worstGap = gap
+        // Lost events: the reconciliation makes the ledger exact again,
+        // unless a lost deposit leaves a difference it must refuse.
+        const r = await reconcile(true)
+        await check(`final reconcile ${r.status}`)
+        if (r.status !== 'refused') {
+          const fixed = await myTab(t, s)
+          expect(BigInt(fixed.available), `seed ${seed}`).toBe(
+            chainSpendable(m)
+          )
+          expect(BigInt(fixed.confirmedBalance), `seed ${seed}`).toBe(m.balance)
+          expect(
+            (await account(t)).settledUnindexed ?? '0',
+            `seed ${seed}`
+          ).toBe('0')
+        }
       }
       expect(flagged(), `seed ${seed}`).toEqual([])
       vi.restoreAllMocks()
     }
-    console.info(`review property: worst lossy gap ${worstGap}`)
+    console.info(
+      `review property: worst lossy gap ${worstGap}; reconciliations ${JSON.stringify(results)}`
+    )
   }, 600_000)
+
+  // -------------------------------------------------------------------------
+  // Review attacks (#577): ledger order, lagging reads and reconciliation.
+
+  /** Two pairs: 0.10 to WRITER and 0.10 to OTHER_WRITER on a 0.30 tab. */
+  async function twoPairs() {
+    const { t, s } = await opened(BigInt(30) * CENT, [10])
+    await tip(t, s, { cents: 10, articleId: s.otherArticleId })
+    const vs = await pairs(t)
+    const idOf = (w: string) => vs.find((v) => v.writerAddress === w)!._id
+    return { t, s, a: idOf(WRITER), b: idOf(OTHER_WRITER) }
+  }
+
+  it('review #577: a one-pair reconcile at a lagging ledger after a later debit is applied', async () => {
+    const flagged = negatives()
+    const { t, s, a, b } = await twoPairs()
+    // Chain: A settles at L+1 (event lost), B settles at L+3 (indexed).
+    const first = await beginSettlement(t, [a])
+    await settlerRecord(t, first.settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    const second = await beginSettlement(t, [b])
+    const pb = paidOf(OTHER_WRITER, 10)
+    await settlerRecord(t, second.settlementId, [pb], LEDGER + 3)
+    await ingest(t, settledEvent(pb, { ledger: LEDGER + 3 }))
+    // Truth at L+3: balance 0.10, nothing owed: 0.10 spendable.
+    const truth = BigInt(10) * CENT
+    expect(await spendable(t, s)).toBeLessThanOrEqual(truth)
+    // An RPC node two ledgers behind answers for ledger L+2: balance 0.20,
+    // A paid 0.10. The operator reconciles pair A alone.
+    const r = await reconcileAt(
+      t,
+      {
+        ledger: LEDGER + 2,
+        balance: BigInt(20) * CENT,
+        paid: new Map([[WRITER, BigInt(10) * CENT]]),
+      },
+      { writer: WRITER }
+    )
+    // The read is older than B's applied debit: refused, nothing written.
+    expect(r).toMatchObject({ status: 'refused', reason: 'STALE_READ' })
+    expect(await spendable(t, s)).toBeLessThanOrEqual(truth)
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  }, 30_000)
+
+  /** Everything a release can change, for "nothing was written" checks. */
+  async function ledgerState(t: T) {
+    return t.run(async (ctx) => ({
+      accounts: (await ctx.db.query('tabAccounts').collect()).map(
+        ({ _creationTime, updatedAt, ...rest }) => rest
+      ),
+      vouchers: (await ctx.db.query('tabVouchers').collect()).map(
+        ({ _creationTime, updatedAt, ...rest }) => rest
+      ),
+      releases: (await ctx.db.query('tabReserveReleases').collect()).length,
+    }))
+  }
+
+  for (const order of ['deposit first', 'settlement first'] as const) {
+    it(`review #577: a settlement and a deposit in one ledger, ${order}, event lost`, async () => {
+      const flagged = negatives()
+      const { t, s } = await opened(BigInt(15) * CENT, [10])
+      const L = LEDGER + 5
+      const p = paidOf(WRITER, 10)
+      // Chain (one ledger, in this order): balance 0.15 → 0.05 → 0.25, or
+      // 0.15 → 0.35 → 0.25. Either way 0.25 at the end of L, nothing owed.
+      const deposit = ev.deposited(
+        READER,
+        BigInt(20) * CENT,
+        order === 'deposit first' ? BigInt(35) * CENT : BigInt(25) * CENT,
+        { ledger: L }
+      )
+      const { settlementId } = await beginSettlement(t)
+      await settlerRecord(t, settlementId, [p], L)
+      await ingest(t, deposit)
+      const truth = BigInt(25) * CENT
+      expect(await spendable(t, s)).toBeLessThanOrEqual(truth)
+      // Same ledger: the release must wait (it cannot know the order).
+      expect(await releases(t)).toHaveLength(0)
+      await screenSums(t, s)
+      // A later balance releases it, and the late event changes nothing.
+      await ingest(
+        t,
+        ev.deposited(READER, CENT, BigInt(26) * CENT, { ledger: L + 1 })
+      )
+      expect(await spendable(t, s)).toBe(BigInt(26) * CENT)
+      await ingest(t, settledEvent(p, { ledger: L }))
+      expect(await spendable(t, s)).toBe(BigInt(26) * CENT)
+      await screenSums(t, s)
+      expect(flagged()).toEqual([])
+    })
+  }
+
+  it('review #577: an older absolute balance delivered after the settler record releases nothing', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const p = paidOf(WRITER, 10)
+    const { settlementId } = await beginSettlement(t)
+    // Chain: deposit 0.05 at L+2 (0.20), settlement at L+3 (0.10).
+    const older = ev.deposited(READER, BigInt(5) * CENT, BigInt(20) * CENT, {
+      ledger: LEDGER + 2,
+    })
+    await settlerRecord(t, settlementId, [p], LEDGER + 3)
+    await ingest(t, older)
+    // The L+2 balance does not include the L+3 debit: still held back.
+    expect(await spendable(t, s)).toBe(BigInt(10) * CENT)
+    expect(await releases(t)).toHaveLength(0)
+    await ingest(t, settledEvent(p, { ledger: LEDGER + 3 }))
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(10) * CENT).toString(),
+      available: (BigInt(10) * CENT).toString(),
+    })
+  })
+
+  it('review #577: a newer balance first, then an older one late: one release, exact figures', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const p = paidOf(WRITER, 10)
+    const { settlementId } = await beginSettlement(t)
+    // Chain: settlement at L+3 (0.05), deposits at L+4 (0.10) and L+6 (0.15).
+    await settlerRecord(t, settlementId, [p], LEDGER + 3)
+    const d4 = ev.deposited(READER, BigInt(5) * CENT, BigInt(10) * CENT, {
+      ledger: LEDGER + 4,
+    })
+    const d6 = ev.deposited(READER, BigInt(5) * CENT, BigInt(15) * CENT, {
+      ledger: LEDGER + 6,
+    })
+    await ingest(t, d6)
+    await ingest(t, d4)
+    await ingest(t, settledEvent(p, { ledger: LEDGER + 3 }))
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(15) * CENT).toString(),
+      available: (BigInt(15) * CENT).toString(),
+    })
+    expect(await releases(t)).toHaveLength(1)
+  })
+
+  it('review #577: a settler record whose ledger is unknown (0) releases nothing on an older balance', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const p = paidOf(WRITER, 10)
+    const { settlementId } = await beginSettlement(t)
+    // Chain: deposit at L+2 (0.20), settlement at L+3 (0.10). The record
+    // carries ledger 0; the indexer then delivers the L+2 deposit.
+    await settlerRecord(t, settlementId, [p], 0)
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(20) * CENT, {
+        ledger: LEDGER + 2,
+      })
+    )
+    expect(await spendable(t, s)).toBeLessThanOrEqual(BigInt(10) * CENT)
+    expect(await releases(t)).toHaveLength(0)
+    expect((await voucherRow(t)).paidLedger).toBeUndefined()
+  })
+
+  it('review #577: a reconcile at a ledger older than an applied debit refuses (reader-wide)', async () => {
+    const { t, a, b } = await twoPairs()
+    const first = await beginSettlement(t, [a])
+    await settlerRecord(t, first.settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    const second = await beginSettlement(t, [b])
+    const pb = paidOf(OTHER_WRITER, 10)
+    await settlerRecord(t, second.settlementId, [pb], LEDGER + 3)
+    await ingest(t, settledEvent(pb, { ledger: LEDGER + 3 }))
+    const before = await ledgerState(t)
+    const r = await reconcileAt(t, {
+      ledger: LEDGER + 2,
+      balance: BigInt(20) * CENT,
+      paid: new Map([[WRITER, BigInt(10) * CENT]]),
+    })
+    expect(r).toMatchObject({ status: 'refused' })
+    expect(await ledgerState(t)).toEqual(before)
+  })
+
+  it('review #577: nothing wrong, twice: nothing_to_do and nothing written', async () => {
+    const { t } = await opened(BigInt(15) * CENT, [10])
+    const p = paidOf(WRITER, 10)
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [p], LEDGER + 1)
+    await ingest(t, settledEvent(p, { ledger: LEDGER + 1 }))
+    const before = await ledgerState(t)
+    const read = {
+      ledger: LEDGER + 2,
+      balance: BigInt(5) * CENT,
+      paid: new Map([[WRITER, BigInt(10) * CENT]]),
+    }
+    expect(await reconcileAt(t, read)).toMatchObject({
+      status: 'nothing_to_do',
+    })
+    expect(await reconcileAt(t, read)).toMatchObject({
+      status: 'nothing_to_do',
+    })
+    expect(await ledgerState(t)).toEqual(before)
+  })
+
+  it('review #577: restore with lost settlement events: reconcile, then a full replay and re-dispatch change nothing', async () => {
+    const flagged = negatives()
+    const { t, s, a, b } = await twoPairs()
+    const all: RawRpcEvent[] = []
+    const pa = paidOf(WRITER, 10)
+    const pb = paidOf(OTHER_WRITER, 10)
+    const first = await beginSettlement(t, [a])
+    await settlerRecord(t, first.settlementId, [pa], LEDGER + 1)
+    all.push(settledEvent(pa, { ledger: LEDGER + 1 }))
+    const second = await beginSettlement(t, [b])
+    await settlerRecord(t, second.settlementId, [pb], LEDGER + 2)
+    all.push(settledEvent(pb, { ledger: LEDGER + 2 }))
+    // Both events are missing (restore). Chain at L+3: 0.10, nothing owed.
+    const r = await reconcileAt(t, {
+      ledger: LEDGER + 3,
+      balance: BigInt(10) * CENT,
+      paid: new Map([
+        [WRITER, BigInt(10) * CENT],
+        [OTHER_WRITER, BigInt(10) * CENT],
+      ]),
+    })
+    expect(r).toMatchObject({ status: 'applied' })
+    expect(await spendable(t, s)).toBe(BigInt(10) * CENT)
+    const fixed = await ledgerState(t)
+    // A full replay of every event, then a re-dispatch of every stored one.
+    await ingest(t, ...all)
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('chainEvents').collect()) {
+        await ctx.db.patch(row._id, { handled: 'pending' })
+      }
+    })
+    await t.mutation(internal.chain.indexer.redispatch, {})
+    const replayed = await ledgerState(t)
+    expect(
+      replayed.accounts.map((x) => [
+        x.confirmedBalance,
+        x.outstanding,
+        x.settledUnindexed,
+      ])
+    ).toEqual(
+      fixed.accounts.map((x) => [
+        x.confirmedBalance,
+        x.outstanding,
+        x.settledUnindexed,
+      ])
+    )
+    expect(replayed.releases).toBe(fixed.releases)
+    expect(await spendable(t, s)).toBe(BigInt(10) * CENT)
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  })
+
+  it('review #577: restore with a lost deposit as well: the reconcile refuses, the replay makes it exact', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const p = paidOf(WRITER, 10)
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [p], LEDGER + 1)
+    const lost = [
+      settledEvent(p, { ledger: LEDGER + 1 }),
+      ev.deposited(READER, BigInt(20) * CENT, BigInt(25) * CENT, {
+        ledger: LEDGER + 2,
+      }),
+    ]
+    const r = await reconcileAt(t, {
+      ledger: LEDGER + 3,
+      balance: BigInt(25) * CENT,
+      paid: new Map([[WRITER, BigInt(10) * CENT]]),
+    })
+    expect(r).toMatchObject({ status: 'refused', reason: 'BALANCE_MISMATCH' })
+    expect(await spendable(t, s)).toBeLessThanOrEqual(BigInt(25) * CENT)
+    await ingest(t, ...lost)
+    expect(await spendable(t, s)).toBe(BigInt(25) * CENT)
+  })
+
+  it('review #577: property with shared ledgers, lagging and one-pair reconciles, lost deposits', async () => {
+    const SEEDS = Number(process.env.REVIEW_577_SEEDS ?? 60)
+    const STEPS = Number(process.env.REVIEW_577_STEPS ?? 80)
+    const tally: Record<string, number> = {}
+    for (let seed = 9001; seed < 9001 + SEEDS; seed++) {
+      const rand = prng(seed)
+      const pick = (n: number) => Math.floor(rand() * n)
+      const lossy = seed % 3 === 0
+      const flagged = negatives()
+      const initial = BigInt(20) * CENT
+      const { t, s } = await opened(initial, [])
+      const writers = [WRITER, OTHER_WRITER]
+      const articleOf = (w: string) =>
+        w === WRITER ? s.articleId : s.otherArticleId
+      const m: ChainModel = {
+        balance: initial,
+        paid: new Map(),
+        accepted: new Map(),
+      }
+      // Several transactions can share a ledger; ids follow creation order.
+      let ledger = LEDGER
+      // The latest ledger anything has read: it is closed, so new chain
+      // actions land after it.
+      let closed = LEDGER
+      const nextLedger = () => {
+        if (ledger <= closed || pick(2) === 0)
+          ledger = Math.max(ledger, closed) + 1
+        return ledger
+      }
+      const history: Array<{
+        ledger: number
+        balance: bigint
+        paid: Map<string, bigint>
+      }> = [{ ledger, balance: initial, paid: new Map() }]
+      const snap = () =>
+        history.push({ ledger, balance: m.balance, paid: new Map(m.paid) })
+      const stateAt = (at: number) =>
+        [...history].reverse().find((h) => h.ledger <= at)!
+      const queue: RawRpcEvent[] = []
+      const lost: RawRpcEvent[] = []
+      let record = null as {
+        id: Id<'tabSettlements'>
+        outcomes: Outcome[]
+        ledger: number
+      } | null
+      const trace: string[] = []
+      const check = async (step: string) => {
+        trace.push(step)
+        const free = await spendable(t, s)
+        const truth = chainSpendable(m)
+        if (free > truth) {
+          throw new Error(
+            `seed ${seed}: spendable ${free} > chain ${truth}\n${trace.join('\n')}`
+          )
+        }
+        await screenSums(t, s)
+      }
+      const deliver = async (e: RawRpcEvent) => {
+        closed = Math.max(closed, e.ledger)
+        if (lossy && pick(4) === 0) {
+          lost.push(e)
+          return
+        }
+        await ingest(t, e)
+      }
+      for (let i = 0; i < STEPS; i++) {
+        const op = pick(12)
+        if (op <= 1) {
+          const w = writers[pick(2)]!
+          const cents = 1 + pick(6)
+          const ok = await accepts(t, s, cents, articleOf(w))
+          if (ok)
+            m.accepted.set(
+              w,
+              (m.accepted.get(w) ?? BigInt(0)) + BigInt(cents) * CENT
+            )
+          await check(`tip ${cents} ${w.slice(0, 4)} ${ok}`)
+        } else if (op === 2) {
+          const amount = BigInt(1 + pick(8)) * CENT
+          m.balance += amount
+          queue.push(
+            ev.deposited(READER, amount, m.balance, { ledger: nextLedger() })
+          )
+          snap()
+          await check(`deposit ${amount} @${ledger}`)
+        } else if (op === 3 && !record) {
+          const ready = (await pairs(t)).filter(
+            (v) => v.settleQueue === 'ready'
+          )
+          if (!ready.length) continue
+          const { settlementId, vouchers } = await beginSettlement(t)
+          const at = nextLedger()
+          const outcomes: Outcome[] = []
+          for (const v of vouchers) {
+            const paid = m.paid.get(v.writerAddress) ?? BigInt(0)
+            const cum = BigInt(v.cumulative)
+            const delta = cum - paid
+            const gross = delta < m.balance ? delta : m.balance
+            if (delta <= BigInt(0) || gross <= BigInt(0)) {
+              outcomes.push({
+                kind: 'skipped',
+                writer: v.writerAddress,
+                cumulative: cum,
+                reason: delta <= BigInt(0) ? 3 : 4,
+              })
+              continue
+            }
+            m.balance -= gross
+            m.paid.set(v.writerAddress, paid + gross)
+            const o = {
+              kind: 'settled' as const,
+              writer: v.writerAddress,
+              cumulative: cum,
+              paidAfter: paid + gross,
+              gross,
+            }
+            outcomes.push(o)
+            queue.push(settledEvent(o, { ledger: at }))
+          }
+          snap()
+          record = { id: settlementId, outcomes, ledger: at }
+          await check(`settle @${at}`)
+        } else if (op === 4) {
+          const w = writers[pick(2)]!
+          const row = (await pairs(t)).find((v) => v.writerAddress === w)
+          if (!row) continue
+          const paid = m.paid.get(w) ?? BigInt(0)
+          const cum = BigInt(row.cumulative)
+          const delta = cum - paid
+          const gross = delta < m.balance ? delta : m.balance
+          if (delta <= BigInt(0) || gross <= BigInt(0)) continue
+          m.balance -= gross
+          m.paid.set(w, paid + gross)
+          queue.push(
+            settledEvent(
+              {
+                kind: 'settled',
+                writer: w,
+                cumulative: cum,
+                paidAfter: paid + gross,
+                gross,
+              },
+              { ledger: nextLedger() }
+            )
+          )
+          snap()
+          await check(`settle_own ${w.slice(0, 4)} @${ledger}`)
+        } else if (op === 5 && record) {
+          await settlerRecord(t, record.id, record.outcomes, record.ledger)
+          record = null
+          await check('record')
+        } else if (op <= 7 && queue.length) {
+          // In order most of the time; sometimes any queued event (late
+          // absolute balances, settlements before deposits).
+          const [e] = queue.splice(pick(3) === 0 ? pick(queue.length) : 0, 1)
+          await deliver(e!)
+          await check('index')
+        } else if (op === 8) {
+          // A reconcile, reader-wide or one pair, at the tip or at a
+          // ledger a few behind (a lagging RPC node).
+          const at =
+            pick(3) === 0 ? Math.max(LEDGER, ledger - 1 - pick(3)) : ledger
+          // A cursor at or past \`at\` means every event up to \`at\` was read
+          // (or is lost for good); later ones may be indexed already.
+          for (const e of queue.filter((q) => q.ledger <= at)) {
+            queue.splice(queue.indexOf(e), 1)
+            await deliver(e)
+          }
+          closed = Math.max(closed, at)
+          const st = stateAt(at)
+          const one = pick(2) === 0 ? writers[pick(2)] : undefined
+          const r = await reconcileAt(
+            t,
+            { ledger: at, balance: st.balance, paid: st.paid },
+            { apply: true, ...(one ? { writer: one } : {}) }
+          )
+          const key = r.status === 'refused' ? `refused ${r.reason}` : r.status
+          tally[key] = (tally[key] ?? 0) + 1
+          await check(
+            `reconcile @${at}/${ledger} ${one ? one.slice(0, 4) : 'all'} ${key}`
+          )
+        } else if (op === 9) {
+          await t.run(async (ctx) => {
+            const rows = await ctx.db.query('chainEvents').collect()
+            const row = rows[Math.floor(rand() * rows.length)]
+            if (row) await ctx.db.patch(row._id, { handled: 'pending' })
+          })
+          await t.mutation(internal.chain.indexer.redispatch, {})
+          await check('redispatch')
+        }
+      }
+      if (record)
+        await settlerRecord(t, record.id, record.outcomes, record.ledger)
+      while (queue.length) await deliver(queue.shift()!)
+      await check('drain')
+      if (lossy) {
+        const r = await reconcileAt(t, {
+          ledger,
+          balance: m.balance,
+          paid: m.paid,
+        })
+        const key = `final ${r.status === 'refused' ? r.reason : r.status}`
+        tally[key] = (tally[key] ?? 0) + 1
+        await check(`final reconcile ${key}`)
+        // The lost events arrive after all (a replay): exact afterwards.
+        await ingest(t, ...lost)
+        await check('replay lost')
+      }
+      const tab = await myTab(t, s)
+      expect(BigInt(tab.available), `seed ${seed}\n${trace.join('\n')}`).toBe(
+        chainSpendable(m)
+      )
+      expect(BigInt(tab.confirmedBalance), `seed ${seed}`).toBe(m.balance)
+      expect(flagged(), `seed ${seed}`).toEqual([])
+      vi.restoreAllMocks()
+    }
+    console.info(`review #577 property: ${JSON.stringify(tally)}`)
+  }, 1_200_000)
+
+  it('review #577: deposits at L and L+1 indexed after a reconcile at L', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const p = paidOf(WRITER, 10)
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [p], LEDGER + 1)
+    // Chain: settlement at L+1 (0.05), deposit at L+2 (0.10); both events
+    // are missing when the operator reads at L+2.
+    const atL = ev.deposited(READER, BigInt(5) * CENT, BigInt(10) * CENT, {
+      ledger: LEDGER + 2,
+    })
+    const r = await reconcileAt(t, {
+      ledger: LEDGER + 2,
+      balance: BigInt(10) * CENT,
+      paid: new Map([[WRITER, BigInt(10) * CENT]]),
+    })
+    // The deposit is missing too, so the stored 0.15 is above 0.10 by the
+    // 0.10 payment minus the 0.05 deposit: explained, applied.
+    expect(r).toMatchObject({ status: 'applied' })
+    expect(await spendable(t, s)).toBe(BigInt(10) * CENT)
+    // The L+2 deposit arrives late: already in the read balance.
+    await ingest(t, atL)
+    expect(await spendable(t, s)).toBe(BigInt(10) * CENT)
+    // A deposit at L+3 is newer than the reconciled balance.
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(5) * CENT, BigInt(15) * CENT, {
+        ledger: LEDGER + 3,
+      })
+    )
+    expect(await spendable(t, s)).toBe(BigInt(15) * CENT)
+    await ingest(t, settledEvent(p, { ledger: LEDGER + 1 }))
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(15) * CENT).toString(),
+      available: (BigInt(15) * CENT).toString(),
+    })
+    await screenSums(t, s)
+  })
+
+  it('review #577: a settlement that lands between the snapshot and the apply', async () => {
+    const { t, s, a, b } = await twoPairs()
+    const first = await beginSettlement(t, [a])
+    await settlerRecord(t, first.settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    const snap = (await t.query(internal.chain.tabReconcile.snapshot, {
+      reader: READER,
+    }))!
+    // After the snapshot: B's settlement begins and lands at L+2; its
+    // record is not applied yet. The operator reads at L+3.
+    const second = await beginSettlement(t, [b])
+    const pb = paidOf(OTHER_WRITER, 10)
+    await caughtUp(t, LEDGER + 3)
+    const r = await t.mutation(internal.chain.tabReconcile.reconcile, {
+      tabAccountId: snap.tabAccountId,
+      digest: snap.digest,
+      pairs: snap.pairs,
+      chain: {
+        ledger: LEDGER + 3,
+        balance: (BigInt(10) * CENT).toString(),
+        paid: snap.pairs.map((p) => ({
+          ...p,
+          paid: (BigInt(10) * CENT).toString(),
+        })),
+      },
+      apply: true,
+    })
+    // \`begin\` does not change the figures the snapshot guards; the read
+    // already shows B paid, so both pairs are applied at the read ledger.
+    expect(r).toMatchObject({ status: 'applied' })
+    expect(await spendable(t, s)).toBeLessThanOrEqual(BigInt(10) * CENT)
+    await settlerRecord(t, second.settlementId, [pb], LEDGER + 2)
+    await ingest(t, settledEvent(pb, { ledger: LEDGER + 2 }))
+    await ingest(t, settledEvent(paidOf(WRITER, 10), { ledger: LEDGER + 1 }))
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(10) * CENT).toString(),
+      available: (BigInt(10) * CENT).toString(),
+    })
+    await screenSums(t, s)
+  })
 
   // Writer lifetime totals (#552) on both settlement paths: one credit per
   // paid range, whichever path arrives first, equal to a rebuild.
