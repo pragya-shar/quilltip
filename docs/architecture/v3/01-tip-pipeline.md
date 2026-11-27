@@ -11,7 +11,13 @@ tip({ target, amountCents }): Promise<TipResult>
 ```
 
 `target` is an article or a passage of an article
-([interfaces](interfaces.md#i1-view-models)). `amountCents` is an integer
+([interfaces](interfaces.md#i1-view-models)). A passage target carries a passage id that
+is stable across readers (the reading view snaps a selection to sentences;
+the id is derived from the article id and the sentence range), and the
+receipt's `highlight_id` is that id. A tip to a writer without an article
+(a profile or a shared writer link) targets the writer's pinned article
+until a writer-level target is added; Core and the vouchers need no change
+for either. `amountCents` is an integer
 number of US cents. Amounts are never floats in the pipeline.
 
 The route is computed synchronously on the client from two reactive queries

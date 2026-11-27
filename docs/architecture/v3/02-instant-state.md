@@ -68,9 +68,14 @@ the indexer. In the same mutation, v3:
   in the same transaction;
 - sets the activity rows' status to `on-chain`, then `in-wallet`.
 
-The reader's `available` does not change at settlement: `confirmedBalance`
-falls by the settled gross and `outstanding` by the same amount. v2's
-`applyPairSettlement` already keeps these two in step.
+The reader's `available` must not change at settlement: `confirmedBalance`
+falls by the settled gross and `outstanding` by the same amount. v2 lowers
+`outstanding` from the settler's result at once but lowers
+`confirmedBalance` only when the indexer applies `TabSettled`, so
+`available` reads too high for one indexer cycle. v3's
+`applySettlementOutcomes` debits `confirmedBalance` in the same mutation,
+recorded in `settledSinceBalance` under the event id that the transaction
+result gives, so the indexer's later copy of the event is a no-op.
 
 ### Not paid
 
@@ -195,6 +200,10 @@ fields for audits.
 
 ## 2.7 Tests
 
+- Event ids: the id `applySettlementOutcomes` computes from a transaction
+  result (ledger, application order, operation and event index) equals the
+  id `getEvents` returns for the same event (fixture from the local network
+  suite); after both apply, `confirmedBalance` is debited once.
 - `convex-test`: after `balance.send`, `balance.session`, `activity.mine`
   (both roles) and `earnings.mine` return the new figures in the same
   transaction's results; after `finishSettlement`, figures move between

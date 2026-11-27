@@ -239,7 +239,63 @@ but P0 to P7 use XLM only.
 | A3. Agent payments | HTTP 402 article endpoint and crediting                                                        | [7](07-agent-payments.md)            |
 | S1. Split legs     | Balance tips for articles with splits: one receipt per recipient, signed and accepted together | [1.1](01-tip-pipeline.md#11-routing) |
 
-Their file lists follow in documents 5 to 7.
+Later packages start after P5 and P6 have merged. They may then edit P5's
+and P6's files, one later package at a time per file, in the order A1, A2,
+A3, S1 unless the coordinator orders otherwise. A1, A2 and A3 touch
+disjoint new files and can run in parallel; their edits to shared files are
+listed so the coordinator can sequence them.
+
+#### A1. Accounts
+
+- **New files:** `lib/wallet/passkey.ts`, `convex/accounts.ts`,
+  `convex/sponsor.ts`, `convex/lib/webauthn.ts`, `convex/lib/sponsorStore.ts`,
+  `scripts/accounts/*.test.ts`, `e2e/v3-passkey.spec.ts`.
+- **Edits:** `convex/auth.ts` (the `passkey` provider), `convex/schema.ts`
+  (`passkeyCredentials`, `sponsorRequests`, `practiceGrants`,
+  `tabAccounts.tipOnly`), `convex/balance.ts` (`tipOnly` in `available` for
+  the withdrawal), `lib/session/live.ts` (provider choice).
+- **Interfaces:** `WalletProvider` (5.1), `sponsor.prepare`,
+  `sponsor.submit`, `accounts.createPasskeyAccount`.
+- **Depends on:** P5, P6, the Stellar rails decision on the smart account.
+  **Size:** L.
+
+#### A2. Assets
+
+- **New files:** `lib/stellar/v2/tokens.ts`, `convex/prices.ts`,
+  `convex/projectProfiles.ts`, `scripts/assets/*.test.ts`,
+  `scripts/contracts/ops-v2/tokens-sync.ts`.
+- **Edits:** `convex/schema.ts` (`tokenConfig`, `prices`, `projectProfiles`,
+  `users.acceptedTokens`), `convex/chain/config.ts` (token views),
+  `convex/crons.ts` (price refresh), `convex/balance.ts` (`tipContext`
+  tokens, prices), `lib/payments/route.ts` (token choice).
+- **Interfaces:** `TokenEntry`, `tokenById`, `tokenContractId`, the
+  `prices` rows in `balance.session`.
+- **Depends on:** P5, P3, P1's multi-token Tab. **Size:** M.
+
+#### A3. Agent payments
+
+- **New files:** `app/api/agents/**`, `lib/agents/**` (the store adapter and
+  challenge helpers), `convex/agents.ts`, `convex/lib/agentForwarder.ts`,
+  `scripts/agents/*.test.ts`.
+- **Edits:** `convex/schema.ts` (`agentPayments`, `mppChallenges`,
+  `users.agentAccess`, `users.agentPriceCents`, `tips.agentPaymentId`),
+  `convex/lib/chain/coreEventHandlers.ts` (link forwarded tips),
+  `convex/crons.ts` (forwarder backstop), the article page head (UI track,
+  one `<link>`).
+- **Dependencies to add:** `@stellar/mpp`, `mppx`, at exact versions
+  published at least two weeks before the package starts.
+- **Depends on:** P4, P5. **Size:** M.
+
+#### S1. Split legs
+
+- **Edits:** `convex/balance.ts`, `convex/lib/chain/tabLedger.ts`,
+  `lib/stellar/v2/tab/sign-tip.ts`, `lib/payments/route.ts` (drop condition
+  R4.5).
+- **Goal:** a balance tip to an article with splits becomes one receipt per
+  recipient (`floor(amount × bps / 10,000)`, the remainder to the first
+  recipient), signed together and accepted in one mutation; undo and
+  activity treat them as one tip.
+- **Depends on:** P5, P3. **Size:** S.
 
 ## W3. The UI track
 

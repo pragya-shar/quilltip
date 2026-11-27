@@ -9,7 +9,7 @@ packages (assets, passkeys, agents) need no second redeploy.
 
 | Contract    | Change                                                                                                                                                                                          |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tab         | Multi-token balances; direct payout in `settle`; no per-key spend limit; 90 day keys; instant withdrawal countersigned by the acceptor; v3 signing domains                                      |
+| Tab         | Multi-token balances; `deposit_for`; direct payout in `settle`; no per-key spend limit; 90 day keys; instant withdrawal countersigned by the acceptor; v3 signing domains                       |
 | Core        | `MAX_TOKENS` 4 → 16. No other change                                                                                                                                                            |
 | Article NFT | No change; redeployed with the set because it is bound to the Core address                                                                                                                      |
 | Shared      | `TAB_DOMAIN = "quilltip_tab_v3"`, `TAB_ACCEPT_DOMAIN = "quilltip_tab_accept_v3"`, new `TAB_WITHDRAW_DOMAIN = "quilltip_tab_withdraw_v3"`; `VoucherPayload` gains `token`; new `WithdrawPayload` |
@@ -41,6 +41,7 @@ maximum entry lifetime; P1 checks it against the testnet config.
 ```rust
 // Reader
 fn deposit(reader: Address, token: Address, amount: i128);
+fn deposit_for(funder: Address, reader: Address, token: Address, amount: i128);
 fn open_session(reader: Address, token: Address, amount: i128,
                 public_key: BytesN<32>, valid_until: u32) -> u32;
 fn register_key(reader: Address, public_key: BytesN<32>, valid_until: u32) -> u32;
@@ -101,8 +102,15 @@ where `TokenInit { token, max_balance, min_deposit }`.
    transfers, and publishes `WithdrawnNow`. It works while paused, like
    `withdraw` (v2 I-27). The delayed `withdraw_start` and `withdraw` stay so
    a reader can always leave without Convex.
-5. **Keys** are per reader, not per token: one device key tips in every token.
-6. **Signing domains** are v3, so no v2 signature verifies against v3.
+5. **Funding another reader.** `deposit_for` requires `funder.require_auth()`,
+   moves `amount` from the funder and credits `Account(reader, token)` under
+   the same token rules as `deposit`, and publishes `Deposited` with
+   `funder`. It needs no signature from the reader, so the platform can fund
+   testnet practice money at account creation and a sender can fund a gift
+   from a wallet. Funds credited this way are ordinary balance on chain;
+   Convex records `tipOnly` amounts for gifts ([document 6](06-assets.md)).
+6. **Keys** are per reader, not per token: one device key tips in every token.
+7. **Signing domains** are v3, so no v2 signature verifies against v3.
 
 ### Events
 
@@ -146,7 +154,8 @@ is administered with the existing `set_token` and `remove_token`.
 
 Extend the v2 Rust suites (`contracts/tab/src/test/*`):
 
-- `reader.rs`: deposits per token, caps per token, disabled token refuses
+- `reader.rs`: `deposit_for` credits the reader and needs only the funder's
+  auth; deposits per token, caps per token, disabled token refuses
   deposits but settles, one key for two tokens.
 - `settle.rs`: payout to writers not in `hold`, `Claimable` for writers in
   `hold`, aggregation of several vouchers to one writer, a payee transfer that
