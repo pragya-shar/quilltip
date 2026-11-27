@@ -3,8 +3,8 @@ import type { PerfRoutes } from './types'
 
 /** The read package's measured routes. Owned by that package. */
 export const routes: PerfRoutes = {
-  // The article view: the rebuild plan's target for public reading routes
-  // (4.1). It replaces the legacy article page's 219 KB entry.
+  // The article view: the target for every public reading route. It
+  // replaces the legacy article page's 219 KB entry.
   firstLoad: [{ route: '/[username]/[slug]', budgetKb: 150 }],
   // The plan's targets for public reading: CLS at most 0.05 (both
   // profiles) and a median phone LCP of at most 2.0 s, both gated. Byte

@@ -43,10 +43,10 @@ type TipBarProps = {
 }
 
 /**
- * How long "Sent $1" stays before the bar returns to idle (DESIGN-ZERO N1,
- * `--qt-dur-sent`). Read it from the system's token once the foundation
- * adopts the design-zero tokens; when the money layer's controller owns
- * the tip moment, this reset moves there.
+ * How long "Sent $1" stays before the bar returns to idle (the design's
+ * `--qt-dur-sent`). Read it from the system's token when the system has
+ * one; when the money layer's controller owns the tip moment, this reset
+ * moves there.
  */
 const SENT_HOLD_MS = 1600
 
@@ -77,8 +77,8 @@ function openAddMoney(need: Money | null) {
  * tip control ("Tip $1", or "Tip this line $1" while a line is chosen) with
  * its visible amount choice, and Keep for a chosen line. Amounts, limits
  * and sending come from the money layer (`useTip`); this bar formats and
- * adds nothing. A tip does nothing else (D4): it never keeps, follows or
- * shares.
+ * adds nothing. A tip does nothing else: it never keeps, follows or
+ * shares, and never names the reader.
  */
 export function TipBar({
   article,
@@ -149,7 +149,7 @@ export function TipBar({
     articleId: article.id,
     href: article.href,
     // A ceiling, not an order: on return the money layer checks it
-    // against the reader's own ladder and never raises it (D15).
+    // against the reader's own ladder and never raises it, and signing in sends nothing.
     amount: offer?.amount ?? null,
     passage: passage
       ? {
@@ -204,8 +204,8 @@ export function TipBar({
         : null
     control = (
       <TipControl
-        // No `hold` until the money layer's controller holds a tip (N1):
-        // the tip sends at once, as the slice does.
+        // No `hold` until the money layer's controller holds a tip: the
+        // tip sends at once, as the balance tip does today.
         onNotNow={tip.reset}
         state={state}
         amount={tip.amount}

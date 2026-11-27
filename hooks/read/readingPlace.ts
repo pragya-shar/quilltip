@@ -11,8 +11,8 @@
  * first, at most 20 (the oldest dropped); finished articles stay, with
  * `finished: true`, so Today never opens on one.
  *
- * **The cookies**, for Today's server render (decision D22: its opening
- * skips what the reader opened or finished). Written only by the article
+ * **The cookies**, for Today's server render (its opening skips what
+ * the reader opened or finished). Written only by the article
  * view; Today reads and validates them. Both are first-party, hold article
  * ids only (each URI-encoded, comma-separated, newest first, at most 20),
  * and are set with `Path=/; Max-Age=31536000; SameSite=Lax`:

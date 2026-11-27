@@ -807,7 +807,7 @@ after the build. It runs `next experimental-analyze --output`, then for `/`,
    | `/[username]/[slug]` | 150 KB |     (CI) |
 
    The article page is the application shell's article view; its budget is
-   the rebuild plan's target for public reading routes, not a measured size.
+   the target for public reading routes, not a measured size.
 
    Each budget is the measured size plus about 2 KB (CI measures about
    0.2 KB more than a local build), so removing a lazy boundary (the mobile

@@ -21,7 +21,7 @@ async function timed<T>(load: Promise<T>) {
   return { value: await load, ms: Date.now() - start }
 }
 
-describe('the article read has a time limit (D21)', () => {
+describe('the article read has a time limit', () => {
   it('a fast read renders the article', async () => {
     const { value, ms } = await timed(
       loadArticle('tomas', 'ledger', {

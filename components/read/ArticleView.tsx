@@ -28,7 +28,8 @@ type ArticleViewProps = {
  * component's server HTML: the title, the byline, the full text, the end
  * and Read next, with plain links. The reading progress, the line choice,
  * the place and the tip bar are islands that attach to text already on the
- * page; none of them hides or delays it (D19).
+ * page; none of them hides or delays it, so the article reads with no
+ * script.
  */
 export function ArticleView({
   article,

@@ -73,11 +73,11 @@ export async function generateMetadata({
 }
 
 /**
- * An article, rendered on the server and complete without scripts (D19):
+ * An article, rendered on the server and complete without scripts, because public pages must read with no script:
  * no loading boundary above it, the full text in the first response. An
  * unknown, draft or private article is a real 404; a writer's earlier
  * handle redirects to the current one. Every read that gates the first
- * byte has a time limit (D21): a backend that does not answer in time gives
+ * byte has a time limit, so a public page never waits without end: a backend that does not answer in time gives
  * the unreachable state (200, noindex, no-store), never a 404 and never a
  * blank tab. Worst-case first byte: 3.4 s for an article (the proxy's route
  * check, the article, Read next), 4.5 s for a missing one (the route check,

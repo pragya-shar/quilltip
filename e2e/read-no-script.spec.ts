@@ -4,7 +4,7 @@ import {
   FIXTURE_WRITER,
 } from '../scripts/perf/convex-fixture'
 
-// The article view on a production build with JavaScript off (D19), in
+// The article view on a production build with JavaScript off (public pages must read without scripts), in
 // Chromium and WebKit: the title, the byline and the full text are in the
 // first response and readable; an unknown article is a real 404; the
 // route's content security policy holds. Run by

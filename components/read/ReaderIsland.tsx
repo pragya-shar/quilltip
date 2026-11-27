@@ -38,7 +38,7 @@ const TOP_RESERVE_PX = 72
 
 const body = () => document.getElementById(READ_BODY_ID)
 
-/** Keeps a line in view above the dock and any confirmation toast (D7). */
+/** Keeps a line in view above the dock and any confirmation: a tip never hides its line. */
 function keepInView(span: PaintedSpan) {
   const root = body()
   if (!root) return
@@ -94,7 +94,7 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   // Keep is a toggle: its pressed state confirms; only failures are said.
   const actions = usePassageActions({ quiet: true })
 
-  // Today's opening skips what this browser opened (D22, `qt_opened`).
+  // Today's opening skips what this browser opened (`qt_opened`).
   useEffect(() => markOpened(article.id), [article.id])
 
   // `#s-{p}-{k}`: the browser lands on paragraph p by itself (its id is in

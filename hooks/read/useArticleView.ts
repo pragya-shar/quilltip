@@ -44,7 +44,7 @@ type HighlightTipStats = {
 /**
  * Tips per highlight, from the article's highlight tip stats (from the
  * legacy reader). For the writer's own-article mode, which reads line
- * totals from the counts package when it lands.
+ * totals from the server's running line counts when they exist.
  */
 export function tipsByHighlight(
   stats: HighlightTipStats | undefined

@@ -188,7 +188,7 @@ test('a tip on a line is sent once, keeps the line in view, and has a receipt', 
           top: rect.top,
           bottom: rect.bottom,
           dockTop: dock.top,
-          // Tipped by you: the full marker and a ✓ with words (N5).
+          // Tipped by you: the full marker and a ✓ with words.
           tipped:
             node.parentElement?.matches('mark.qt-mark[data-state="mine"]') ===
               true &&
@@ -225,7 +225,7 @@ test('a tip on a line is sent once, keeps the line in view, and has a receipt', 
   await expect(sheet).toBeHidden()
   expect((await server(page)).accepted).toHaveLength(1)
 
-  // Back to idle after Sent, with nothing chosen (N1). A later line still
+  // Back to idle after Sent, with nothing chosen. A later line still
   // gets its own offsets: the ✓ is not part of the text.
   await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
   await tapLine(page, 'rarely remembers')

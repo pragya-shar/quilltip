@@ -22,7 +22,7 @@ function samePassage(a: Passage | null, b: Passage | null) {
 }
 
 /**
- * Choosing a line in the server-rendered body (D11). A tap on a line, or a
+ * Choosing a line in the server-rendered body. A tap on a line, or a
  * native selection once the finger or mouse lets go, chooses whole
  * sentences, for free. A drag is selection only: nothing here can pay. A
  * tap on the chosen line again, or `clear()`, unchooses it. Links, buttons

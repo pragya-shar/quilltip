@@ -11,7 +11,7 @@ import type { ReceiptProps } from '../receipt'
 /**
  * The receipt for a tip the server accepted: what was sent, to whom, for
  * which line, from where, and that it is final. It names nobody publicly
- * and offers nothing that follows or shares (D4). A lazily loaded sheet
+ * and offers nothing that follows or shares. A lazily loaded sheet
  * body (`shell/sheets/read.ts`): its code loads when it first opens.
  */
 export default function Receipt({

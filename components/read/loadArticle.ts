@@ -18,8 +18,8 @@ export type ArticleReads<A> = {
 }
 
 /**
- * Loads the article for the first response, with every read bounded
- * (D21). Worst-case time here: one limit for a found article, two for a
+ * Loads the article for the first response, with every read bounded,
+ * so the page never waits without end. Worst-case time here: one limit for a found article, two for a
  * missing one (the moved-handle lookup runs after it).
  */
 export async function loadArticle<A>(

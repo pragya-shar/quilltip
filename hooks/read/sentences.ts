@@ -4,8 +4,8 @@
  * sentences it touches. Offsets are UTF-16 indexes into one block's text
  * (a paragraph or a list item), as the DOM counts them.
  *
- * The passage identity of slice 2 (`lib/passages/sentences.ts`, package
- * S2-A) replaces this when it lands; until then the server stores the
+ * The shared passage identity (`lib/passages/sentences.ts`, pull request
+ * 603) replaces this when it lands; until then the server stores the
  * snapped offsets as it stores a highlight's.
  */
 

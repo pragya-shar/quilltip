@@ -9,7 +9,7 @@ export const READ_NEXT_LIMIT_MS = 400
 
 /**
  * Read next, on the server, so the links are in the first response. It has
- * a short limit of its own (D21); a late or failed read leaves the list
+ * a short limit of its own; a late or failed read leaves the list
  * out, and the article is never held for it.
  */
 export async function readNextFor(articleId: string): Promise<ReadNextItem[]> {

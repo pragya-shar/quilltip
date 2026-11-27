@@ -2,7 +2,8 @@ import { defineConfig, devices } from '@playwright/test'
 
 // The application shell on a production build, started by
 // scripts/system/no-script-check.ts: public reading with JavaScript off
-// (D19), in Chromium and WebKit; and the crossing from the legacy pages
+// (public pages must read without scripts), in Chromium and WebKit; and
+// the crossing from the legacy pages
 // (the stored theme before paint, under the CSP), with JavaScript on.
 const phone = { width: 390, height: 844 }
 

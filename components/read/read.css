@@ -86,7 +86,7 @@
     border-radius: 3px;
     background: var(--qt-ink);
   }
-  /* Your place: marker-ink, fading to a quarter after 2.4 s (N5). */
+  /* Your place: marker-ink, fading to a quarter after 2.4 s. */
   .qt-read__tick[data-kind='place'] {
     background: var(--qt-marker-ink);
     animation: qt-read-fade 1.6s var(--qt-ease-out) 2.4s both;
@@ -157,7 +157,7 @@
     color: var(--qt-ink);
   }
 
-  /* Passage marks (DESIGN-ZERO N5); none rests on colour alone.
+  /* Passage marks; none rests on colour alone.
    * Chosen: a 2px ink underline, and the margin tick. */
   ::highlight(qt-read-chosen) {
     background: none;

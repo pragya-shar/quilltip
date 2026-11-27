@@ -2,7 +2,7 @@ import { rangeAt } from '@/hooks/read/passageOffsets'
 
 export type PaintedSpan = { startOffset: number; endOffset: number }
 
-/** What this visit has to draw over the server text (DESIGN-ZERO N5). */
+/** What this visit has to draw over the server text. */
 export type PaintedLines = {
   /** The line the tip bar will tip: an ink underline (and a margin tick). */
   chosen: PaintedSpan | null
