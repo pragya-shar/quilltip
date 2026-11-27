@@ -628,7 +628,11 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index('by_user', ['userId'])
-    .index('by_lifetime_totals', ['lifetimeTotalsAt', 'lifetimeRebuildTurnAt']),
+    .index('by_lifetime_totals', [
+      'lifetimeTotalsAt',
+      'lifetimeRebuildFailedAt',
+      'lifetimeRebuildTurnAt',
+    ]),
 
   // Article NFTs table
   articleNFTs: defineTable({

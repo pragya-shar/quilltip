@@ -143,11 +143,6 @@ export const applyRebuild = internalMutation({
     await ctx.db.patch(id, {
       ...values,
       lastTipAt: values.lastTipAt ?? earnings.lastTipAt,
-      // Rebuild the lifetime totals from the same history too, from the
-      // start (earningsTotalsBackfill.ts).
-      lifetimeTotalsAt: undefined,
-      lifetimeRebuild: undefined,
-      lifetimeRebuildTurnAt: undefined,
       updatedAt: Date.now(),
     })
     return true

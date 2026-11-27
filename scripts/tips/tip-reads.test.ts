@@ -826,8 +826,8 @@ describe('earnings access and mixed summary', () => {
       v2TipCount: 1,
       unpricedTipCount: 0,
       complete: true,
+      lifetime: null,
       updating: false,
-      source: 'previous',
     })
   })
 
@@ -837,7 +837,18 @@ describe('earnings access and mixed summary', () => {
   async function bothReads(t: T, userId: Id<'users'>) {
     const read = () =>
       asUser(t, userId).query(api.tips.getMyEarningsSummary, {})
-    const live = await read()
+    // The figures the cards show; dollars to six places.
+    const shown = (r: NonNullable<Awaited<ReturnType<typeof read>>>) => {
+      const f = r.lifetime ?? r
+      return {
+        tipCount: f.tipCount,
+        writerShareStroops: f.writerShareStroops,
+        earnedStroops: f.earnedStroops,
+        estimatedUsd: Math.round(f.estimatedUsd * 1_000_000) / 1_000_000,
+        unpricedTipCount: f.unpricedTipCount,
+      }
+    }
+    const live = shown((await read())!)
     await t.run(async (ctx) => {
       const row = (await ctx.db.query('authorEarnings').collect()).find(
         (r) => r.userId === userId
@@ -854,16 +865,16 @@ describe('earnings access and mixed summary', () => {
         lifetimeTotalsAt: undefined,
       })
     })
-    expect(await read()).toMatchObject({ source: 'previous' })
+    expect((await read())!.lifetime).toBeNull()
     vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'true')
     await t.action(internal.earningsTotalsBackfill.run, {})
     const row = await earningsOf(t, userId)
     expect(row?.lifetimeTotalsAt).toBeTypeOf('number')
     const rebuilt = (await read())!
     // The same figures, now from the lifetime totals.
-    expect(rebuilt.source).toBe('lifetime')
-    expect({ ...rebuilt, source: live!.source }).toEqual(live)
-    return rebuilt
+    expect(rebuilt.lifetime).not.toBeNull()
+    expect(shown(rebuilt)).toEqual(live)
+    return { ...shown(rebuilt), complete: true }
   }
 
   it('v1 rows and v2 rows: a legacy tip without a trusted USD amount keeps its XLM and its place in the count (#552)', async () => {

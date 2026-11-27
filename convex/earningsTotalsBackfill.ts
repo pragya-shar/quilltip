@@ -55,12 +55,13 @@ import type { TipRow } from './lib/tipReads'
 //
 // A run advances the rows that waited longest (`lifetimeRebuildTurnAt`), 20
 // rows by up to 10 steps each, so a long history never holds up the rows
-// behind it. A step that fails records `lifetimeRebuildError` on the row and
-// the run goes on; the next run tries again.
+// behind it. A step that fails records `lifetimeRebuildError` and
+// `lifetimeRebuildFailedAt` on the row; the run goes on with the other rows,
+// and the queue skips the failed row until `retryFailed` puts it back.
 //
 // Operator functions: `dryRun` (what a rebuild would write, per writer, no
-// writes), `progress`, and `reset` (`restart`: rebuild every row again;
-// `remove`: unset every lifetime field, the shape before #552).
+// writes), `progress`, `retryFailed`, and `reset` (`restart`: rebuild every
+// row again; `remove`: unset every lifetime field, the shape before #552).
 
 const PAGE_SIZE = 200
 const ROWS_PER_RUN = 20
@@ -216,7 +217,9 @@ export const pendingRows = internalQuery({
     const rows = await ctx.db
       .query('authorEarnings')
       .withIndex('by_lifetime_totals', (q) =>
-        q.eq('lifetimeTotalsAt', undefined)
+        q
+          .eq('lifetimeTotalsAt', undefined)
+          .eq('lifetimeRebuildFailedAt', undefined)
       )
       .take(limit)
     return rows.map((row) => row._id)
@@ -243,6 +246,7 @@ export const rebuildStep = internalMutation({
         lifetimeRebuild: undefined,
         lifetimeRebuildTurnAt: undefined,
         lifetimeRebuildError: undefined,
+        lifetimeRebuildFailedAt: undefined,
       })
       return 'done'
     }
@@ -261,9 +265,40 @@ export const recordError = internalMutation({
     if (!(await ctx.db.get(id))) return null
     await ctx.db.patch(id, {
       lifetimeRebuildError: error.slice(0, 500),
-      lifetimeRebuildTurnAt: Date.now(),
+      lifetimeRebuildFailedAt: Date.now(),
     })
     return null
+  },
+})
+
+/**
+ * Puts failed rows back in the queue: one row (`id`), or every failed row.
+ * A failed row keeps its saved position and resumes from there.
+ */
+export const retryFailed = internalMutation({
+  args: { id: v.optional(v.id('authorEarnings')) },
+  returns: v.object({ retried: v.number() }),
+  handler: async (ctx, { id }) => {
+    const rows = id
+      ? [await ctx.db.get(id)]
+      : await ctx.db
+          .query('authorEarnings')
+          .withIndex('by_lifetime_totals', (q) =>
+            q
+              .eq('lifetimeTotalsAt', undefined)
+              .gte('lifetimeRebuildFailedAt', 0)
+          )
+          .take(PROGRESS_LIMIT)
+    let retried = 0
+    for (const row of rows) {
+      if (!row || row.lifetimeRebuildFailedAt === undefined) continue
+      await ctx.db.patch(row._id, {
+        lifetimeRebuildError: undefined,
+        lifetimeRebuildFailedAt: undefined,
+      })
+      retried += 1
+    }
+    return { retried }
   },
 })
 
@@ -486,8 +521,11 @@ export const walletFigures = internalQuery({
 })
 
 /**
- * The rebuild's progress: the operator's check is `waiting` 0, `inProgress`
- * empty and `errors` empty (every row has `lifetimeTotalsAt`).
+ * The rebuild's progress. Finished means `rebuilt` equals `total`: `waiting`
+ * 0, `inProgress` and `failed` empty (every row has `lifetimeTotalsAt`).
+ * `settledTabRowsWithoutApplied` counts tab tip rows marked `SETTLED` without
+ * `earningsAppliedAt`; the rebuild counts tab tips from their receipts and
+ * pairs, so such rows are not dropped, but the count shows whether any exist.
  */
 export const progress = internalQuery({
   args: {},
@@ -506,7 +544,16 @@ export const progress = internalQuery({
         turnAt: v.union(v.number(), v.null()),
       })
     ),
-    errors: v.array(v.object({ userId: v.id('users'), error: v.string() })),
+    failed: v.array(
+      v.object({
+        id: v.id('authorEarnings'),
+        userId: v.id('users'),
+        error: v.string(),
+        failedAt: v.number(),
+      })
+    ),
+    /** Tab tip rows marked `SETTLED` without `earningsAppliedAt`. */
+    settledTabRowsWithoutApplied: v.number(),
     lastRunAt: v.union(v.number(), v.null()),
     complete: v.boolean(),
   }),
@@ -516,16 +563,20 @@ export const progress = internalQuery({
     let waiting = 0
     let lastRunAt: number | null = null
     const inProgress = []
-    const errors = []
+    const failed = []
     for (const row of rows.slice(0, PROGRESS_LIMIT)) {
       const at = row.lifetimeRebuildTurnAt ?? row.lifetimeTotalsAt
       if (at !== undefined && (lastRunAt === null || at > lastRunAt)) {
         lastRunAt = at
       }
-      if (row.lifetimeRebuildError) {
-        errors.push({ userId: row.userId, error: row.lifetimeRebuildError })
-      }
-      if (row.lifetimeRebuild) {
+      if (row.lifetimeRebuildFailedAt !== undefined) {
+        failed.push({
+          id: row._id,
+          userId: row.userId,
+          error: row.lifetimeRebuildError ?? '',
+          failedAt: row.lifetimeRebuildFailedAt,
+        })
+      } else if (row.lifetimeRebuild) {
         inProgress.push({
           userId: row.userId,
           phase: row.lifetimeRebuild.phase,
@@ -540,15 +591,28 @@ export const progress = internalQuery({
         waiting += 1
       }
     }
+    let settledTabRowsWithoutApplied = 0
+    let scanned = 0
+    for (const table of ['tips', 'highlightTips'] as const) {
+      const settled: TipRow[] = await ctx.db
+        .query(table)
+        .withIndex('by_status_created', (q) => q.eq('status', 'SETTLED'))
+        .take(PROGRESS_LIMIT + 1)
+      scanned = Math.max(scanned, settled.length)
+      settledTabRowsWithoutApplied += settled.filter(
+        (tip) => tip.channel === 'tab' && tip.earningsAppliedAt === undefined
+      ).length
+    }
     return {
       enabled: rebuildEnabled(),
       total: Math.min(rows.length, PROGRESS_LIMIT),
       rebuilt,
       waiting,
       inProgress,
-      errors,
+      failed,
+      settledTabRowsWithoutApplied,
       lastRunAt,
-      complete: rows.length <= PROGRESS_LIMIT,
+      complete: rows.length <= PROGRESS_LIMIT && scanned <= PROGRESS_LIMIT,
     }
   },
 })
@@ -573,6 +637,7 @@ export const resetPage = internalMutation({
         lifetimeRebuild: undefined,
         lifetimeRebuildTurnAt: undefined,
         lifetimeRebuildError: undefined,
+        lifetimeRebuildFailedAt: undefined,
       })
     }
     return {

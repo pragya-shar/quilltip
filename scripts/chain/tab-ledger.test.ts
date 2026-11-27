@@ -1066,8 +1066,19 @@ describe('writer earnings summary with tab tips (#552)', () => {
     vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'true')
   })
   // $1 per XLM in the seed: 10 cents is 1,000,000 stroops.
-  const summaryOf = (t: T, userId: Id<'users'>) =>
+  const rawSummary = (t: T, userId: Id<'users'>) =>
     as(t, userId).query(api.tips.getMyEarningsSummary, {})
+  /**
+   * The figures the stats cards show: `lifetime` once the row is rebuilt,
+   * the fields as computed before #552 until then.
+   */
+  async function summaryOf(t: T, userId: Id<'users'>) {
+    const r = await rawSummary(t, userId)
+    if (!r) return r
+    return r.lifetime
+      ? { ...r, ...r.lifetime, complete: true, source: 'lifetime' as const }
+      : { ...r, source: 'previous' as const }
+  }
   const summary = (t: T, s: Seeded) => summaryOf(t, s.authorId)
 
   /** `n` tips of 10 cents and 0.1 XLM: what all three figures must read. */
@@ -2415,7 +2426,7 @@ describe('writer earnings summary with tab tips (#552)', () => {
     ])
   })
 
-  it('progress lists rebuilt, waiting and in-progress rows and errors; reset restarts or removes', async () => {
+  it('progress lists rebuilt, waiting, in-progress and failed rows; reset restarts or removes', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
     await v1RowsBulk(t, s.authorId, s.articleId, 450)
@@ -2438,20 +2449,29 @@ describe('writer earnings summary with tab tips (#552)', () => {
       enabled: true,
       total: 2,
       rebuilt: 0,
-      waiting: 1,
-      errors: [{ userId: s.otherAuthorId, error: 'test error' }],
+      waiting: 0,
+      failed: [{ id: other, userId: s.otherAuthorId, error: 'test error' }],
+      settledTabRowsWithoutApplied: 0,
       complete: true,
     })
     expect(p.inProgress).toEqual([
       expect.objectContaining({ userId: s.authorId, phase: 'tips', steps: 1 }),
     ])
+    // The failed row is skipped until it is put back.
+    await rebuildAll(t)
+    p = await t.query(internal.earningsTotalsBackfill.progress, {})
+    expect(p).toMatchObject({ rebuilt: 1, waiting: 0, inProgress: [] })
+    expect(p.failed).toHaveLength(1)
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.retryFailed, {})
+    ).toEqual({ retried: 1 })
     await rebuildAll(t)
     p = await t.query(internal.earningsTotalsBackfill.progress, {})
     expect(p).toMatchObject({
       rebuilt: 2,
       waiting: 0,
       inProgress: [],
-      errors: [],
+      failed: [],
     })
     const rebuilt = await summary(t, s)
 
@@ -2477,10 +2497,214 @@ describe('writer earnings summary with tab tips (#552)', () => {
       'lifetimeRebuild',
       'lifetimeRebuildTurnAt',
       'lifetimeRebuildError',
+      'lifetimeRebuildFailedAt',
     ] as const) {
       expect(row[field]).toBeUndefined()
     }
   }, 60_000)
+
+  it('a row that fails is recorded and skipped; the rows around it are rebuilt, and it is retried on request', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // Three rows: the middle one cannot be read (an unparsable amount).
+    await v1Rows(t, s.authorId, s.articleId, 2)
+    await v1Rows(t, s.otherAuthorId, s.otherArticleId, 2)
+    await v1Rows(t, s.readerId, s.articleId, 2)
+    const poisoned = (await earningsRow(t, s.otherAuthorId))!
+    await t.run(async (ctx) => {
+      await ctx.db.patch(poisoned._id, {
+        earnedBaseUnits: { [TOKEN]: 'not a number' },
+      })
+    })
+    expect(await rebuildRun(t)).toEqual({
+      status: 'ran',
+      rebuilt: 2,
+      inProgress: 0,
+      failed: 1,
+    })
+    expect(await summary(t, s)).toMatchObject(lifetime(2))
+    expect(await summaryOf(t, s.readerId)).toMatchObject(lifetime(1 + 1))
+    let p = await t.query(internal.earningsTotalsBackfill.progress, {})
+    expect(p.failed).toEqual([
+      expect.objectContaining({
+        id: poisoned._id,
+        userId: s.otherAuthorId,
+        error: expect.stringContaining('not a number'),
+      }),
+    ])
+    // Later runs skip it: nothing is retried until asked.
+    const failedRow = await earningsRow(t, s.otherAuthorId)
+    expect(await rebuildRun(t)).toEqual({
+      status: 'ran',
+      rebuilt: 0,
+      inProgress: 0,
+      failed: 0,
+    })
+    expect(await earningsRow(t, s.otherAuthorId)).toEqual(failedRow)
+    // Fixed and put back: it resumes and finishes.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(poisoned._id, { earnedBaseUnits: {} })
+    })
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.retryFailed, {
+        id: poisoned._id,
+      })
+    ).toEqual({ retried: 1 })
+    await rebuildAll(t)
+    expect(await summaryOf(t, s.otherAuthorId)).toMatchObject(lifetime(2))
+    p = await t.query(internal.earningsTotalsBackfill.progress, {})
+    expect(p).toMatchObject({ failed: [], waiting: 0, rebuilt: 3 })
+  })
+
+  it('a settled tab row without earningsAppliedAt is counted from its receipt and pair, and shown in progress', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000))
+    // As if an older write path had set the status alone.
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query('tips').collect()).find(
+        (r) => r.channel === 'tab'
+      )!
+      expect(row.status).toBe('SETTLED')
+      await ctx.db.patch(row._id, { earningsAppliedAt: undefined })
+    })
+    const p = await t.query(internal.earningsTotalsBackfill.progress, {})
+    expect(p.settledTabRowsWithoutApplied).toBe(1)
+    await forgetTotals(t, s.authorId)
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(1))
+  })
+
+  /**
+   * `getMyEarningsSummary` as `overhaul/v2` computes it before #552, run on
+   * the same data: the values a client built before #552 must keep reading.
+   */
+  async function previousSummary(t: T, userId: Id<'users'>) {
+    return t.run(async (ctx) => {
+      const share = (tip: {
+        expectedAmountStroops?: string
+        stellarAmountXlm?: string
+      }) => {
+        let stroops: bigint | null = null
+        if (
+          tip.expectedAmountStroops &&
+          /^[1-9]\d*$/.test(tip.expectedAmountStroops)
+        ) {
+          stroops = BigInt(tip.expectedAmountStroops)
+        } else if (
+          tip.stellarAmountXlm &&
+          /^\d+(\.\d{1,7})?$/.test(tip.stellarAmountXlm)
+        ) {
+          const [whole, fraction = ''] = tip.stellarAmountXlm.split('.')
+          stroops = BigInt(whole ?? '0') * XLM + BigInt(fraction.padEnd(7, '0'))
+        }
+        if (!stroops || stroops <= BigInt(0)) return null
+        return stroops - (stroops * BigInt(250)) / BigInt(10_000)
+      }
+      const byAuthor = async (table: 'tips' | 'highlightTips') =>
+        (await ctx.db.query(table).collect())
+          .filter((r) => r.authorId === userId)
+          .slice(0, AGGREGATE_LIMIT + 1)
+      const articleTips = await byAuthor('tips')
+      const passageTips = await byAuthor('highlightTips')
+      const earnings =
+        (await ctx.db.query('authorEarnings').collect()).find(
+          (r) => r.userId === userId
+        ) ?? null
+      const complete =
+        articleTips.length <= AGGREGATE_LIMIT &&
+        passageTips.length <= AGGREGATE_LIMIT
+      const v1Tips = [
+        ...articleTips.slice(0, AGGREGATE_LIMIT),
+        ...passageTips.slice(0, AGGREGATE_LIMIT),
+      ].filter(
+        (tip) =>
+          (tip.contractVersion ?? 'v1') === 'v1' &&
+          tip.status === 'CONFIRMED' &&
+          typeof tip.verifiedAt === 'number' &&
+          tip.verifiedAt > 0
+      )
+      let stroops = BigInt(0)
+      let cents = 0
+      for (const tip of v1Tips) {
+        stroops += share(tip) ?? BigInt(0)
+        if (!('amountUsdSuspicious' in tip && tip.amountUsdSuspicious)) {
+          cents += writerShareCents(tip.amountCents, tip.expectedAmountStroops)
+        }
+      }
+      const v2Xlm = BigInt(earnings?.earnedBaseUnits?.[TOKEN] ?? '0')
+      return {
+        network: 'TESTNET',
+        tipCount: v1Tips.length + (earnings?.v2TipCount ?? 0),
+        writerShareStroops: stroops.toString(),
+        earnedStroops: (stroops + v2Xlm).toString(),
+        estimatedUsd: roundCents(cents + (earnings?.v2EarnedCents ?? 0)) / 100,
+        earnedBaseUnits: earnings?.earnedBaseUnits ?? {},
+        v2TipCount: earnings?.v2TipCount ?? 0,
+        complete,
+      }
+    })
+  }
+
+  it('a client built before #552 reads the same figures before, during and after the rebuild', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await v1Rows(t, s.authorId, s.articleId, 2)
+    await walletRows(t, s, 2)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(1_500_000),
+        gross: BigInt(1_500_000),
+      })
+    )
+    // The fields that client reads, called as it calls the query.
+    const oldClient = async () => {
+      const r = (await as(t, s.authorId).query(
+        api.tips.getMyEarningsSummary,
+        {}
+      ))!
+      return {
+        network: r.network,
+        tipCount: r.tipCount,
+        writerShareStroops: r.writerShareStroops,
+        earnedStroops: r.earnedStroops,
+        estimatedUsd: r.estimatedUsd,
+        earnedBaseUnits: r.earnedBaseUnits,
+        v2TipCount: r.v2TipCount,
+        complete: r.complete,
+      }
+    }
+    // Before the rebuild (the row was created with v1 rows behind it).
+    expect((await earningsRow(t, s.authorId))?.lifetimeTotalsAt).toBeUndefined()
+    expect(await oldClient()).toEqual(await previousSummary(t, s.authorId))
+    // During it.
+    const id = (await earningsRow(t, s.authorId))!._id
+    await t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    expect((await rawSummary(t, s.authorId))?.updating).toBe(true)
+    expect(await oldClient()).toEqual(await previousSummary(t, s.authorId))
+    // After it: the same fields, and the lifetime totals beside them.
+    await rebuildAll(t)
+    const after = (await rawSummary(t, s.authorId))!
+    expect(await oldClient()).toEqual(await previousSummary(t, s.authorId))
+    expect(after.lifetime).toEqual({
+      // 2 v1, 2 wallet and 2 tab tips (one partly paid).
+      tipCount: 6,
+      writerShareStroops: '1950000',
+      earnedStroops: (
+        BigInt(4) * BigInt(975_000) +
+        BigInt(1_462_500)
+      ).toString(),
+      estimatedUsd: 0.53625,
+      unpricedTipCount: 0,
+    })
+    // The previous fields still read the tab pair's payment in the XLM only.
+    expect(after).toMatchObject({ tipCount: 4, estimatedUsd: 0.39 })
+  })
 
   it('the rebuild writes only authorEarnings, and running it again changes nothing', async () => {
     const t = convexTest(schema, modules)

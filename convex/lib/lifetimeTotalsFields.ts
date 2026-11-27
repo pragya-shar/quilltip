@@ -55,4 +55,6 @@ export const lifetimeTotalsFields = {
   lifetimeRebuildTurnAt: v.optional(v.number()),
   /** The last rebuild error for the row; cleared when the row is rebuilt. */
   lifetimeRebuildError: v.optional(v.string()),
+  /** Set when a step failed: the row is skipped until `retryFailed`. */
+  lifetimeRebuildFailedAt: v.optional(v.number()),
 }

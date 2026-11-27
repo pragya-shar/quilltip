@@ -157,7 +157,7 @@ test('a v1 verification credits the lifetime totals the summary reads (#552)', a
     complete: true,
   }
   // Before the rebuild, the previous figures; after it, the totals.
-  expect(await read()).toMatchObject({ ...expected, source: 'previous' })
+  expect(await read()).toMatchObject({ ...expected, lifetime: null })
   vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'true')
   await t.action(internal.earningsTotalsBackfill.run, {})
   vi.unstubAllEnvs()
@@ -166,7 +166,15 @@ test('a v1 verification credits the lifetime totals the summary reads (#552)', a
     v1ShareStroops: '39000000',
     lifetimeTotalsAt: expect.any(Number),
   })
-  expect(await read()).toMatchObject({ ...expected, source: 'lifetime' })
+  expect(await read()).toMatchObject({
+    // The fields a client built before #552 reads, unchanged.
+    ...expected,
+    lifetime: {
+      tipCount: 2,
+      earnedStroops: '39000000',
+      estimatedUsd: 1.95,
+    },
+  })
 })
 
 test('public and writer stats count verified tips only', async () => {
@@ -224,8 +232,8 @@ test('public and writer stats count verified tips only', async () => {
     v2TipCount: 0,
     unpricedTipCount: 0,
     complete: true,
+    lifetime: null,
     updating: false,
-    source: 'previous',
   })
 })
 

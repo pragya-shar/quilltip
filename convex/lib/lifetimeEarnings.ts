@@ -416,7 +416,9 @@ export function changedLifetimeFields(
   const key = (value: unknown) =>
     value && typeof value === 'object'
       ? JSON.stringify(
-          Object.entries(value).filter(([, n]) => n !== '0').sort()
+          Object.entries(value)
+            .filter(([, n]) => n !== '0')
+            .sort()
         )
       : String(value)
   return (Object.keys(a) as (keyof LifetimeTotals)[]).filter(
