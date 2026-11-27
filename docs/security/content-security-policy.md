@@ -16,8 +16,9 @@ sections 6.8 and 3.5 of the payments v2 architecture.
 - Next.js reads the nonce from the request's `Content-Security-Policy` header
   and adds it to its framework scripts, the inline React Server Components
   payload and its preload links.
-- `app/layout.tsx` reads `x-nonce` and passes it to the theme provider, so the
-  inline script that applies the dark or light theme before paint carries it.
+- Each root layout (`app/(legacy)/layout.tsx`, `app/(app)/layout.tsx`) and
+  `app/global-not-found.tsx` read `x-nonce` and pass it to the inline script
+  that applies the dark or light theme before paint.
 
 Development serves no policy, because Fast Refresh evaluates code at run time.
 

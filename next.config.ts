@@ -13,6 +13,10 @@ const withBundleAnalyzer = bundleAnalyzer({
 })
 
 const nextConfig: NextConfig = {
+  // Two root layouts: the application shell, app/(app), and the pages it
+  // replaces, app/(legacy). A URL that matches neither renders
+  // app/global-not-found.tsx.
+  experimental: { globalNotFound: true },
   // Put page metadata in <head> for every client, not only Next's built-in bot
   // list, so all crawlers and link previews see article titles and tags. Pages
   // that set metadata already await the same data, so nothing is delayed.
