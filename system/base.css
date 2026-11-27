@@ -127,8 +127,9 @@
   }
 }
 
-/* Reduced motion: every transition and animation ends at once. Components
- * that carry meaning in motion (the tip hold) carry it in text too. */
+/* Reduced motion: every transition and animation ends at once, except the
+ * tip hold's countdown (money.css), which is a rule, not an animation. The
+ * hold's meaning is in its words too. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
