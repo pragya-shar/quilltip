@@ -14,7 +14,16 @@
   "regions": ["cle1"],
   "headers": [
     {
-      "source": "/((?!api).*)",
+      "source": "/hydrate-after-paint.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/((?!api|hydrate-after-paint\\.js).*)",
       "headers": [
         {
           "key": "Cache-Control",

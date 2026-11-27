@@ -63,11 +63,11 @@ function main(): number {
       contents: readFileSync(path.resolve(file)),
     }))
     // The pages start their chunks through the loader, so it is part of
-    // every first load, twice: the blocking copy in <head> and the async
-    // bootstrap copy (`&b=1`), which the browser fetches as another URL.
+    // every first load. Its two tags (the blocking copy in <head> and the
+    // async `#b` bootstrap copy) share one URL, so it downloads once.
     const kb =
       chunks.reduce((sum, chunk) => sum + gzipBytes(chunk.contents), 0) / 1024 +
-      2 * loaderKb
+      loaderKb
     const budget = FIRST_LOAD_BUDGET_KB[route]
 
     const dataFile = analyzeDataPath(route)

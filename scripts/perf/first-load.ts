@@ -24,14 +24,14 @@ export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
  * few KB of growth fails; raise a budget in the change that needs it. See
  * docs/performance/page-load.md.
  */
-// Measured with the chunk loader of patches/next@16.4.6.ts (2.3 KB gzip),
-// which the first-load check counts twice on every route: the blocking copy
-// in <head> and the async bootstrap copy.
+// Measured with the chunk loader of patches/next@16.4.6.ts (2.4 KB gzip),
+// which the first-load check counts once on every route: its two tags share
+// one URL, so it downloads once.
 export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
-  '/': 216, // measured 214.0
-  '/login': 206, // measured 204.4
-  '/articles': 220, // measured 218.3
-  '/[username]/[slug]': 224, // measured 222.0
+  '/': 214, // measured 211.8
+  '/login': 204, // measured 202.3
+  '/articles': 218, // measured 216.1
+  '/[username]/[slug]': 222, // measured 219.9
 }
 
 /**

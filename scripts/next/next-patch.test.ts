@@ -9,7 +9,9 @@ import {
 import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createHash } from 'crypto'
 import {
+  HYDRATE_AFTER_PAINT_LOADER_VERSION,
   HYDRATE_AFTER_PAINT_REGISTRATION,
   register,
 } from '../../instrumentation'
@@ -69,7 +71,7 @@ function load(source: string, store: Store | undefined) {
 const manifest = {
   rootMainFiles: ['static/chunks/runtime.js', 'static/chunks/main.js'],
 }
-const LOADER = `/hydrate-after-paint.js?c=${encodeURIComponent('/_next/static/chunks/runtime.js /_next/static/chunks/main.js')}`
+const LOADER = `/hydrate-after-paint.js?v=${HYDRATE_AFTER_PAINT_LOADER_VERSION}&c=${encodeURIComponent('/_next/static/chunks/runtime.js /_next/static/chunks/main.js')}`
 
 /** Renders one page: its required scripts, then one chunk script. */
 function render(
@@ -127,9 +129,23 @@ describe('patchRuntime on a budgeted public route', () => {
       nonce: 'n0nce',
       crossOrigin: undefined,
     })
-    // The required bootstrap script is a second copy under another URL, so
-    // React does not merge it with the preinit'd one.
-    expect(bootstrap.src).toBe(`${LOADER}&b=1`)
+    // The required bootstrap script is the same URL with a fragment: React
+    // does not merge it with the preinit'd one, and the browser fetches once.
+    expect(bootstrap.src).toBe(`${LOADER}#b`)
+  })
+
+  it("writes Vercel's immutable chunk scripts inert too", () => {
+    const { to } = render({ route: '/articles' })
+    const chunk: string[] = []
+    to(chunk, {
+      src: '/_next/static/immutable/chunks/page.js',
+      async: true,
+      nonce: 'n0nce',
+    })
+    expect(chunk.join('')).toContain(
+      'data-hydrate-after-paint="/_next/static/immutable/chunks/page.js"'
+    )
+    expect(chunk.join('')).not.toContain(' src=')
   })
 
   it('writes the loader without async, so it runs before the first paint', () => {
@@ -237,8 +253,50 @@ describe('patchRuntime safety', () => {
     )
   })
 
+  it('refuses a runtime patched by a version before the loader version', () => {
+    const earlier = `${fixture};var x="/hydrate-after-paint.js?c="`
+    expect(() => patchRuntime(earlier, 'old.js')).toThrow(
+      /earlier version of this patch/
+    )
+  })
+
   it('uses the registration name that instrumentation.ts sets', () => {
     expect(HYDRATE_AFTER_PAINT_REGISTRATION).toBe(REGISTRATION)
+  })
+})
+
+describe('the loader version and its caching', () => {
+  it('matches the loader file, so a cached loader is never stale', () => {
+    // Change HYDRATE_AFTER_PAINT_LOADER_VERSION in instrumentation.ts with the
+    // loader: the URL changes, and browsers fetch the new file.
+    const loader = readFileSync(
+      path.join(__dirname, '../../public/hydrate-after-paint.js')
+    )
+    expect(HYDRATE_AFTER_PAINT_LOADER_VERSION).toBe(
+      createHash('sha256').update(loader).digest('hex').slice(0, 12)
+    )
+  })
+
+  it('is served with a long cache lifetime on Vercel', () => {
+    const vercel = JSON.parse(
+      readFileSync(path.join(__dirname, '../../vercel.json'), 'utf8')
+    ) as {
+      headers: { source: string; headers: { key: string; value: string }[] }[]
+    }
+    const cacheFor = (pathname: string) =>
+      vercel.headers
+        .filter((rule) =>
+          new RegExp(`^${rule.source.replace(/\(\?!/g, '(?!')}$`).test(pathname)
+        )
+        .flatMap((rule) => rule.headers)
+        .filter((header) => header.key === 'Cache-Control')
+        .map((header) => header.value)
+    expect(cacheFor('/hydrate-after-paint.js')).toEqual([
+      'public, max-age=31536000, immutable',
+    ])
+    expect(cacheFor('/articles')).toEqual([
+      'no-cache, no-store, max-age=0, must-revalidate',
+    ])
   })
 })
 
@@ -274,7 +332,7 @@ describe('the installed Next.js', () => {
     const source = readFileSync(path.join(root, relative), 'utf8')
     // `next build` may already have patched it (the edit is idempotent).
     const patched = patchRuntime(source, relative)
-    expect(patched.split('/hydrate-after-paint.js?c=').length - 1).toBe(1)
+    expect(patched.split('/hydrate-after-paint.js?v=').length - 1).toBe(1)
     expect(patched.split('"data-hydrate-after-paint"').length - 1).toBe(1)
   })
 

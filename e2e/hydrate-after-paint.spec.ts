@@ -14,7 +14,8 @@ const PATCHED_ROUTES = [
   '/articles',
   ...(ARTICLE_PATH ? [ARTICLE_PATH] : []),
 ]
-const CHUNK = /\/_next\/static\/chunks\/.+\.js(\?|$)/
+// Next.js's chunk path, and Vercel's immutable assets.
+const CHUNK = /\/_next\/static\/(immutable\/)?chunks\/.+\.js(\?|$)/
 
 test.use({ reducedMotion: 'reduce', trace: 'off', video: 'off' })
 
@@ -47,7 +48,7 @@ async function scriptShape(page: Page) {
   return page.evaluate(() => {
     const tags = [...document.querySelectorAll('script')]
     const loaders = tags.filter((s) =>
-      s.src.includes('/hydrate-after-paint.js?c=')
+      s.src.includes('/hydrate-after-paint.js?')
     )
     return {
       // The copy that runs before the first paint: in <head>, without async.
@@ -60,7 +61,7 @@ async function scriptShape(page: Page) {
         .filter((s) => s.hasAttribute('data-hydrate-after-paint'))
         .map((s) => s.getAttribute('data-hydrate-after-paint')!),
       started: tags
-        .filter((s) => s.src.includes('/_next/static/chunks/'))
+        .filter((s) => /\/_next\/static\/(immutable\/)?chunks\//.test(s.src))
         .map((s) => new URL(s.src).pathname),
     }
   })
@@ -88,19 +89,62 @@ for (const path of PATCHED_ROUTES) {
         .getEntriesByType('resource')
         .filter(
           (entry) =>
-            entry.name.includes('/_next/static/chunks/') &&
+            /\/_next\/static\/(immutable\/)?chunks\//.test(entry.name) &&
             entry.name.endsWith('.js')
         )
       return {
         fcp: fcp?.startTime ?? null,
         firstChunk: Math.min(...chunks.map((entry) => entry.startTime)),
+        // The head copy and the `#b` bootstrap copy share one URL, so at most
+        // one of them transfers the file (Firefox lists both, one from cache).
+        loaderDownloads: (
+          performance.getEntriesByType(
+            'resource'
+          ) as PerformanceResourceTiming[]
+        ).filter(
+          (entry) =>
+            entry.name.includes('/hydrate-after-paint.js') &&
+            entry.transferSize > 0
+        ).length,
       }
     })
     if (timing.fcp !== null)
       expect(timing.firstChunk).toBeGreaterThanOrEqual(timing.fcp)
+    expect(timing.loaderDownloads).toBeLessThanOrEqual(1)
     expect(errors).toEqual([])
   })
 }
+
+test('a repeat view takes the loader from the cache', async ({ page }) => {
+  // It blocks the first paint, so it must not be fetched again on every view:
+  // its URL carries its version and it is served as immutable.
+  await page.goto('/articles')
+  await waitForHydration(page)
+  const response = await page.request.get(
+    await page.evaluate(
+      () =>
+        [...document.querySelectorAll('script')].find(
+          (s) => s.src.includes('/hydrate-after-paint.js?') && !s.async
+        )!.src
+    )
+  )
+  expect(response.headers()['cache-control']).toBe(
+    'public, max-age=31536000, immutable'
+  )
+  await page.reload()
+  await waitForHydration(page)
+  const downloads = await page.evaluate(
+    () =>
+      (
+        performance.getEntriesByType('resource') as PerformanceResourceTiming[]
+      ).filter(
+        (entry) =>
+          entry.name.includes('/hydrate-after-paint.js') &&
+          entry.transferSize > 0
+      ).length
+  )
+  expect(downloads).toBe(0)
+})
 
 test('a page outside the four routes loads its scripts as Next.js does', async ({
   page,

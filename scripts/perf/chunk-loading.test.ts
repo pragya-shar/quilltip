@@ -11,7 +11,7 @@ const ROOTS =
 const patched = `<head><script src="/hydrate-after-paint.js?c=${ROOTS}" nonce="n"></script>
 <script type="text/plain" nonce="n" data-hydrate-after-paint="/_next/static/chunks/page-c.js"></script>
 <script src="/_next/static/chunks/polyfills.js" noModule=""></script></head><body><main></main>
-<script src="/hydrate-after-paint.js?c=${ROOTS}&amp;b=1" nonce="n" async=""></script></body>`
+<script src="/hydrate-after-paint.js?c=${ROOTS}#b" nonce="n" async=""></script></body>`
 const unpatched = `<head><script src="/_next/static/chunks/turbopack-a.js" async="" nonce="n"></script>
 <script src="/_next/static/chunks/page-c.js" async="" nonce="n"></script></head>`
 
@@ -71,9 +71,23 @@ describe('chunkLoading', () => {
   })
 
   it('flags a late copy that lists other chunks', () => {
-    const html = `<head><script src="/hydrate-after-paint.js?c=${ROOTS}"></script></head><body><script src="/hydrate-after-paint.js?c=%2F_next%2Fstatic%2Fchunks%2Fother.js&amp;b=1" async=""></script></body>`
+    const html = `<head><script src="/hydrate-after-paint.js?c=${ROOTS}"></script></head><body><script src="/hydrate-after-paint.js?c=%2F_next%2Fstatic%2Fchunks%2Fother.js#b" async=""></script></body>`
     expect(deferredLoadingProblems(chunkLoading(html))).toContain(
       'a late copy of the chunk loader lists other chunks'
     )
+  })
+
+  it("reads Vercel's immutable chunk paths", () => {
+    const immutable = `<head><script src="/hydrate-after-paint.js?v=1&amp;c=%2F_next%2Fstatic%2Fimmutable%2Fchunks%2Fturbopack-a.js" nonce="n"></script>
+<script type="text/plain" nonce="n" data-hydrate-after-paint="/_next/static/immutable/chunks/page-c.js"></script></head><body></body>`
+    const loading = chunkLoading(immutable)
+    expect(loading.loaders).toEqual([
+      ['/_next/static/immutable/chunks/turbopack-a.js'],
+    ])
+    expect(deferredLoadingProblems(loading)).toEqual([])
+    const eager = `<head><script src="/_next/static/immutable/chunks/page-c.js" async=""></script></head>`
+    expect(chunkLoading(eager).eager).toEqual([
+      '/_next/static/immutable/chunks/page-c.js',
+    ])
   })
 })

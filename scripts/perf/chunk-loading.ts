@@ -2,7 +2,13 @@
 // patches/next@16.4.6.ts (perf:budget, the first-load check and their tests).
 
 export const LOADER_PATH = '/hydrate-after-paint.js'
-const CHUNK_PREFIX = '/_next/static/chunks/'
+/** Chunk script paths: Next.js's, and Vercel's immutable assets. */
+export const CHUNK_PREFIXES = [
+  '/_next/static/chunks/',
+  '/_next/static/immutable/chunks/',
+]
+const isChunk = (pathname: string) =>
+  CHUNK_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 
 export type ChunkLoading = {
   /**
@@ -11,7 +17,7 @@ export type ChunkLoading = {
    */
   loaders: string[][]
   /**
-   * The same for every other loader tag: the async bootstrap copy (`&b=1`),
+   * The same for every other loader tag: the async bootstrap copy (`#b`),
    * or a loader that would run after the first paint.
    */
   lateLoaders: string[][]
@@ -58,10 +64,7 @@ export function chunkLoading(html: string, base = 'http://localhost') {
       const blocking = !/\s(async|defer)(=|\s|>|\/)/i.test(tag)
       if (inHead && blocking) result.loaders.push(chunks)
       else result.lateLoaders.push(chunks)
-    } else if (
-      url.pathname.startsWith(CHUNK_PREFIX) &&
-      !/\snoModule(=|\s|>)/i.test(tag)
-    ) {
+    } else if (isChunk(url.pathname) && !/\snoModule(=|\s|>)/i.test(tag)) {
       result.eager.push(url.pathname)
     }
   }
@@ -92,8 +95,7 @@ export function deferredLoadingProblems(loading: ChunkLoading): string[] {
   if (loading.loaders.length === 1 && roots.length === 0)
     problems.push('the chunk loader lists no root chunks')
   for (const chunk of roots)
-    if (!chunk.startsWith(CHUNK_PREFIX))
-      problems.push(`the chunk loader lists ${chunk}`)
+    if (!isChunk(chunk)) problems.push(`the chunk loader lists ${chunk}`)
   if (loading.eager.length > 0)
     problems.push(
       `${loading.eager.length} chunk scripts load before the first paint: ${loading.eager.slice(0, 3).join(', ')}`
